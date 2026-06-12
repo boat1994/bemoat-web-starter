@@ -1,0 +1,32 @@
+{
+  "repo": "boat1994/bemoat-web-starter",
+  "ref": "main",
+  "syncedAt": "2026-06-12T12:33:40.827Z",
+  "managedPaths": [
+    "AGENTS.md",
+    ".cursor/rules",
+    "src/app/(frontend)/page.tsx",
+    "src/app/(frontend)/layout.tsx",
+    "src/app/(frontend)/styles.css",
+    "src/app/(frontend)/projects/page.tsx",
+    "src/app/(frontend)/projects/[slug]/page.tsx",
+    "src/app/(frontend)/blog/page.tsx",
+    "src/app/(frontend)/blog/[slug]/page.tsx",
+    "src/app/(frontend)/how-to-custom-order/page.tsx",
+    "src/collections/BlogCategories.ts",
+    "src/collections/BlogMedia.ts",
+    "src/collections/Categories.ts",
+    "src/collections/Projects.ts",
+    "src/collections/Posts.ts",
+    "src/collections/Tags.ts",
+    "src/components/AiGenerateButton/index.tsx",
+    "src/components/BlogAiWorkflow.tsx",
+    "src/components/BlogBlockAiGenerate.tsx",
+    "src/components/ViewProjectButton/index.tsx",
+    "src/globals/CustomOrderPage.ts",
+    "src/globals/SiteSettings.ts",
+    "src/lib/payloadText.ts",
+    "src/payload.config.ts",
+    "docs/dev-boilerplate.md"
+  ]
+}
