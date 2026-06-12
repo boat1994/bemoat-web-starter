@@ -55,7 +55,7 @@ Child projects receive these via **clone after Cloudflare deploy** (initial) and
 
 1. **Reusable improvements go upstream** into `bemoat-web-starter`, then flow to children through `boilerplate:sync`.
 2. **Project-specific work stays in child projects**—do not open PRs here for one customer's Worker name or D1 ID.
-3. **Do not copy** Cloudflare resource IDs, `.env` files, or secrets across projects.
+3. **Do not copy** Cloudflare resource IDs, `.env` files, or secrets across projects. See [security-and-migrations.md](./security-and-migrations.md).
 4. **Do not edit sync-managed files in child projects** unless you intend to upstream the same change to this starter; otherwise sync will overwrite or drift.
 5. **Real projects start deploy-first** from the README Deploy button; cloning this repo is for developing the starter itself.
 

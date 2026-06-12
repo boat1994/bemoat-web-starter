@@ -50,13 +50,28 @@
 
 ## Risk review
 
-<!-- Help reviewers spot migration, security, Cloudflare, and sync risks quickly. -->
+<!-- Help reviewers spot migration, security, Cloudflare, and sync risks quickly. See docs/agent-loop/security-and-migrations.md -->
 
-| Area | Risk | Mitigation |
-|------|------|------------|
+### Security and secrets
+
+- [ ] No `.env*` files or secrets in this PR
+- [ ] No Cloudflare account IDs, D1 IDs, R2 names, Worker names, or tokens copied from another project
+- [ ] Human approval obtained if this PR touches secrets or infrastructure identifiers (note who approved below)
+
+### Migrations and deploy
+
+- [ ] No D1 / Payload migration changes
+- [ ] Migration included and reviewed (if D1 schema changed)
+- [ ] Destructive migration—**human approval required** (describe below)
+- [ ] No production migration or deploy in this PR unless explicitly approved (note approval below)
+
+| Area | Risk | Mitigation / approval |
+|------|------|------------------------|
 | D1 migrations | | |
+| Destructive schema change | | |
 | Access control / security | | |
 | Cloudflare (Worker, D1, R2, secrets) | | |
+| Production deploy or prod migration | | |
 | `boilerplate:sync` managed files | | |
 | Cross-project resource IDs copied | | |
 
