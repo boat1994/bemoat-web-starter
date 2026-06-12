@@ -35,7 +35,7 @@ These paths are overwritten on every sync:
 | `scripts/check-boilerplate-drift.mjs` | Read-only drift check before sync |
 | `scripts/deploy-smoke-test.mjs` | Optional deploy smoke test helper |
 | `docs/dev-boilerplate.md` | Boilerplate module notes |
-| `package.json` scripts | `check`, `check:full`, `typecheck`, `lint`, `test`, `test:int`, generate scripts, `payload`, `boilerplate:sync`, `boilerplate:check` |
+| `package.json` scripts | `check`, `check:full`, `typecheck`, `lint`, `test`, `test:int`, generate scripts, `payload`, `boilerplate:sync`, `boilerplate:check`, `smoke:deploy` |
 
 `pnpm-lock.yaml` is not synced. After sync, run `pnpm install` in the child project to refresh the local lockfile.
 
