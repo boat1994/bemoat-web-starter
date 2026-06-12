@@ -12,7 +12,7 @@ const sourceRoot = join(tempRoot, 'source')
 const syncMetadataPath = '.bemoat-boilerplate-sync.json'
 const stashMessage = 'bemoat-boilerplate-sync: pre-sync stash'
 
-const managedPaths = [
+export const managedPaths = [
   // Agent and workflow rails
   'AGENTS.md',
   '.cursor/rules',
@@ -23,8 +23,9 @@ const managedPaths = [
   '.github/pull_request_template.md',
   '.github/ISSUE_TEMPLATE/agent-task.yml',
 
-  // Sync docs and script
+  // Sync docs and scripts
   'scripts/sync-boilerplate.mjs',
+  'scripts/check-boilerplate-drift.mjs',
   'docs/dev-boilerplate.md',
 
   // Frontend starter pages
@@ -56,8 +57,8 @@ const managedPaths = [
   'src/payload.config.ts',
 ]
 
-const packageSections = ['dependencies', 'devDependencies']
-const packageScripts = [
+export const packageSections = ['dependencies', 'devDependencies']
+export const packageScripts = [
   // Validation rails
   'check',
   'check:full',
@@ -72,6 +73,7 @@ const packageScripts = [
   'generate:types:payload',
   'payload',
   'boilerplate:sync',
+  'boilerplate:check',
 ]
 
 export const syncCommitPaths = [...managedPaths, 'package.json', syncMetadataPath]

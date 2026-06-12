@@ -194,11 +194,19 @@ Do not use this clone-first path to start a customer or product repository.
 
 For **release tags, changelog policy, and when to sync from `main` vs a stable tag**, see [docs/releases.md](./docs/releases.md).
 
+Before syncing, check which managed boilerplate files differ from the starter:
+
+```bash
+pnpm run boilerplate:check
+```
+
+When drift is reported, apply updates with:
+
 ```bash
 pnpm run boilerplate:sync
 ```
 
-By default, this syncs from:
+By default, check and sync use:
 
 ```text
 boat1994/bemoat-web-starter#main
@@ -236,6 +244,7 @@ Shared workflow rails:
 Sync tooling and docs:
 
 - `scripts/sync-boilerplate.mjs` sync command updates
+- `scripts/check-boilerplate-drift.mjs` drift check before sync
 - `docs/dev-boilerplate.md` boilerplate module notes
 
 Frontend starter pages:
@@ -252,7 +261,7 @@ Payload shared schema and utilities:
 Package scripts and dependencies:
 
 - Validation rails: `check`, `check:full`, `typecheck`, `lint`, `test`, `test:int`
-- Payload and sync: `generate:importmap`, `generate:types`, `generate:types:cloudflare`, `generate:types:payload`, `payload`, `boilerplate:sync`
+- Payload and sync: `generate:importmap`, `generate:types`, `generate:types:cloudflare`, `generate:types:payload`, `payload`, `boilerplate:sync`, `boilerplate:check`
 - Shared `dependencies` and `devDependencies` from the starter (child projects run `pnpm install` to refresh their own lockfile)
 
 `pnpm-lock.yaml` is **not** synced. Child projects may have project-specific dependencies; after sync, run `pnpm install` to update the local lockfile.

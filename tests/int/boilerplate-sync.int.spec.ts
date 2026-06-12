@@ -1,5 +1,5 @@
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { join, resolve } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
@@ -10,6 +10,15 @@ describe('boilerplate sync managed paths', () => {
     expect(script).toContain("'AGENTS.md'")
     expect(script).toContain("'.cursor/rules'")
     expect(script).toContain("'scripts/sync-boilerplate.mjs'")
+    expect(script).toContain("'scripts/check-boilerplate-drift.mjs'")
+  })
+
+  it('exports managedPaths for drift check reuse', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+
+    expect(mod.managedPaths).toContain('AGENTS.md')
+    expect(mod.managedPaths).toContain('scripts/check-boilerplate-drift.mjs')
+    expect(mod.packageScripts).toContain('boilerplate:check')
   })
 
   it('exports the sync commit scope including the sync metadata file', async () => {
@@ -78,5 +87,80 @@ describe('boilerplate sync managed paths', () => {
     expect(addCall).toContain('package.json')
     expect(addCall).toContain('AGENTS.md')
     expect(addCall).not.toContain('notes.txt')
+  })
+})
+
+describe('boilerplate drift check', () => {
+  const fixtureRoot = resolve(process.cwd(), '.tmp-boilerplate-drift-test')
+
+  it('reports missing, changed, and identical managed paths', async () => {
+    const mod = await import('../../scripts/check-boilerplate-drift.mjs')
+
+    rmSync(fixtureRoot, { recursive: true, force: true })
+    mkdirSync(join(fixtureRoot, 'source'), { recursive: true })
+    mkdirSync(join(fixtureRoot, 'target'), { recursive: true })
+
+    writeFileSync(join(fixtureRoot, 'source/AGENTS.md'), 'starter agents\n')
+    writeFileSync(join(fixtureRoot, 'target/AGENTS.md'), 'child agents\n')
+    writeFileSync(join(fixtureRoot, 'source/README-child-only.md'), 'missing locally\n')
+
+    const report = mod.compareBoilerplateDrift({
+      sourceRoot: join(fixtureRoot, 'source'),
+      targetRoot: join(fixtureRoot, 'target'),
+      paths: ['AGENTS.md', 'README-child-only.md', 'docs/agent-loop'],
+    })
+
+    expect(report.changed).toEqual(['AGENTS.md'])
+    expect(report.missing).toEqual(['README-child-only.md'])
+    expect(report.identical).toEqual([])
+
+    rmSync(fixtureRoot, { recursive: true, force: true })
+  })
+
+  it('detects package.json drift using the same merge rules as sync', async () => {
+    const mod = await import('../../scripts/check-boilerplate-drift.mjs')
+
+    rmSync(fixtureRoot, { recursive: true, force: true })
+    mkdirSync(join(fixtureRoot, 'source'), { recursive: true })
+    mkdirSync(join(fixtureRoot, 'target'), { recursive: true })
+
+    writeFileSync(
+      join(fixtureRoot, 'source/package.json'),
+      `${JSON.stringify(
+        {
+          name: 'starter',
+          scripts: { check: 'pnpm run lint', 'boilerplate:check': 'node scripts/check-boilerplate-drift.mjs' },
+          dependencies: { payload: '3.82.1' },
+          devDependencies: { vitest: '3.0.0' },
+        },
+        null,
+        2,
+      )}\n`,
+    )
+    writeFileSync(
+      join(fixtureRoot, 'target/package.json'),
+      `${JSON.stringify(
+        {
+          name: 'child',
+          scripts: { check: 'pnpm run lint' },
+          dependencies: { payload: '3.80.0' },
+          devDependencies: {},
+        },
+        null,
+        2,
+      )}\n`,
+    )
+
+    const report = mod.compareBoilerplateDrift({
+      sourceRoot: join(fixtureRoot, 'source'),
+      targetRoot: join(fixtureRoot, 'target'),
+      paths: [],
+    })
+
+    expect(report.changed).toEqual(['package.json'])
+    expect(report.missing).toEqual([])
+    expect(report.identical).toEqual([])
+
+    rmSync(fixtureRoot, { recursive: true, force: true })
   })
 })
