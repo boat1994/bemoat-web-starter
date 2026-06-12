@@ -27,7 +27,9 @@ After a child project exists, pull reusable improvements from this starter with:
 pnpm run boilerplate:sync
 ```
 
-Sync updates managed boilerplate paths. It does **not** overwrite project-specific infrastructure (`wrangler.jsonc`, D1 IDs, R2 bucket names, Worker names, `.env`, secrets). See [source-of-truth.md](./source-of-truth.md).
+Sync updates managed boilerplate paths, including agent rules (`AGENTS.md`, `.cursor/rules`), GitHub workflow rails (`.github/workflows/ci.yml`, PR and issue templates), `docs/agent-loop`, shared frontend and Payload schema, validation package scripts (`check`, `check:full`, `typecheck`, `lint`, `test`, `test:int`), and the sync script itself.
+
+It does **not** overwrite project-specific infrastructure (`wrangler.jsonc`, D1 IDs, R2 bucket names, Worker names, `.env`, secrets), root `README.md` (unless you later add it to managed paths), `pnpm-lock.yaml`, or project-specific business modules. See [source-of-truth.md](./source-of-truth.md).
 
 ## Task-only prompts
 

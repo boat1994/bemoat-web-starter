@@ -13,9 +13,21 @@ const syncMetadataPath = '.bemoat-boilerplate-sync.json'
 const stashMessage = 'bemoat-boilerplate-sync: pre-sync stash'
 
 const managedPaths = [
+  // Agent and workflow rails
   'AGENTS.md',
   '.cursor/rules',
+  'docs/agent-loop',
+
+  // GitHub workflow rails
+  '.github/workflows/ci.yml',
+  '.github/pull_request_template.md',
+  '.github/ISSUE_TEMPLATE/agent-task.yml',
+
+  // Sync docs and script
   'scripts/sync-boilerplate.mjs',
+  'docs/dev-boilerplate.md',
+
+  // Frontend starter pages
   'src/app/(frontend)/page.tsx',
   'src/app/(frontend)/layout.tsx',
   'src/app/(frontend)/styles.css',
@@ -24,6 +36,8 @@ const managedPaths = [
   'src/app/(frontend)/blog/page.tsx',
   'src/app/(frontend)/blog/[slug]/page.tsx',
   'src/app/(frontend)/how-to-custom-order/page.tsx',
+
+  // Payload shared schema
   'src/collections/BlogCategories.ts',
   'src/collections/BlogMedia.ts',
   'src/collections/Categories.ts',
@@ -36,13 +50,22 @@ const managedPaths = [
   'src/components/ViewProjectButton/index.tsx',
   'src/globals/CustomOrderPage.ts',
   'src/globals/SiteSettings.ts',
+
+  // Shared utilities
   'src/lib/payloadText.ts',
   'src/payload.config.ts',
-  'docs/dev-boilerplate.md',
 ]
 
 const packageSections = ['dependencies', 'devDependencies']
 const packageScripts = [
+  // Validation rails
+  'check',
+  'check:full',
+  'typecheck',
+  'lint',
+  'test',
+  'test:int',
+  // Payload and sync
   'generate:importmap',
   'generate:types',
   'generate:types:cloudflare',

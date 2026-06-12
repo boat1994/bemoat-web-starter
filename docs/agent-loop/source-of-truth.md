@@ -18,6 +18,25 @@ This document separates what **`bemoat-web-starter`** owns from what **child pro
 
 Child projects receive these via **clone after Cloudflare deploy** (initial) and **`pnpm run boilerplate:sync`** (ongoing updates).
 
+### Synced by `boilerplate:sync`
+
+| Path | Purpose |
+|------|---------|
+| `AGENTS.md` | Repository agent instructions |
+| `.cursor/rules` | Cursor workflow rules |
+| `.github/workflows/ci.yml` | Shared CI workflow |
+| `.github/pull_request_template.md` | PR template |
+| `.github/ISSUE_TEMPLATE/agent-task.yml` | Agent task issue template |
+| `docs/agent-loop` | Agent operating loop docs |
+| `scripts/sync-boilerplate.mjs` | Sync script and managed path list |
+| `docs/dev-boilerplate.md` | Boilerplate module notes |
+| Frontend starter pages | Home, projects, blog, custom order |
+| Payload shared schema | Collections, globals, `payload.config.ts` |
+| Shared utilities | e.g. `src/lib/payloadText.ts` |
+| `package.json` scripts | `check`, `check:full`, `typecheck`, `lint`, `test`, `test:int`, generate scripts, `payload`, `boilerplate:sync` |
+
+`pnpm-lock.yaml` is not synced. After sync, run `pnpm install` in the child project to refresh the local lockfile.
+
 ## Child projects own
 
 | Area | Examples |
@@ -30,6 +49,7 @@ Child projects receive these via **clone after Cloudflare deploy** (initial) and
 | Domains | Custom domains and routing for that deployment |
 | Business modules | Project-specific features, integrations, operations |
 | Customer integrations | LINE, payments, handoff, etc., when not yet in shared boilerplate |
+| README | Root `README.md` may be project-specific; adopt starter wording manually if desired |
 
 ## Rules
 
