@@ -1,14 +1,17 @@
 #!/usr/bin/env node
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
 
 import {
+  expandSeedOnlyFiles,
+  listPathFiles,
   managedPaths,
   packageScripts,
   packageSections,
+  seedOnlyPaths,
 } from './sync-boilerplate.mjs'
 
 const repo = process.env.BEMOAT_BOILERPLATE_REPO || 'boat1994/bemoat-web-starter'
@@ -28,26 +31,6 @@ function readJSON(path) {
   return JSON.parse(readFileSync(path, 'utf8'))
 }
 
-function listFiles(root, relativePath = '') {
-  const fullPath = join(root, relativePath)
-  if (!existsSync(fullPath)) return []
-
-  const stat = statSync(fullPath)
-  if (!stat.isDirectory()) return [relativePath]
-
-  const files = []
-  for (const entry of readdirSync(fullPath, { withFileTypes: true })) {
-    const childPath = relativePath ? `${relativePath}/${entry.name}` : entry.name
-    if (entry.isDirectory()) {
-      files.push(...listFiles(root, childPath))
-    } else {
-      files.push(childPath)
-    }
-  }
-
-  return files.sort()
-}
-
 function digestFile(path) {
   return createHash('sha256').update(readFileSync(path)).digest('hex')
 }
@@ -59,7 +42,7 @@ function digestPath(root, relativePath) {
   const stat = statSync(fullPath)
   if (!stat.isDirectory()) return digestFile(fullPath)
 
-  return listFiles(root, relativePath)
+  return listPathFiles(root, relativePath)
     .map((filePath) => `${filePath}:${digestFile(join(root, filePath))}`)
     .join('\n')
 }
@@ -131,36 +114,91 @@ export function compareBoilerplateDrift({
   return { missing, changed, identical }
 }
 
-function printReport({ missing, changed, identical }) {
-  const hasDrift = missing.length > 0 || changed.length > 0
+export function compareSeedOnlyDrift({
+  sourceRoot: source,
+  targetRoot: target,
+  paths = seedOnlyPaths,
+}) {
+  const missingSeed = []
+  const customized = []
+  const identical = []
+
+  for (const filePath of expandSeedOnlyFiles(source, paths)) {
+    const sourceFile = join(source, filePath)
+    const targetFile = join(target, filePath)
+
+    if (!existsSync(sourceFile)) continue
+
+    if (!existsSync(targetFile)) {
+      missingSeed.push(filePath)
+      continue
+    }
+
+    if (digestFile(sourceFile) === digestFile(targetFile)) {
+      identical.push(filePath)
+    } else {
+      customized.push(filePath)
+    }
+  }
+
+  return { missingSeed, customized, identical }
+}
+
+export function compareFullBoilerplateDrift({ sourceRoot: source, targetRoot: target }) {
+  const managed = compareBoilerplateDrift({ sourceRoot: source, targetRoot: target, paths: managedPaths })
+  const seed = compareSeedOnlyDrift({ sourceRoot: source, targetRoot: target, paths: seedOnlyPaths })
+
+  return { managed, seed }
+}
+
+export function getDriftExitCode(report) {
+  const hasManagedDrift = report.managed.missing.length > 0 || report.managed.changed.length > 0
+  const hasMissingSeed = report.seed.missingSeed.length > 0
+
+  if (hasManagedDrift || hasMissingSeed) return 1
+  return 0
+}
+
+function printReport(report) {
+  const hasManagedDrift = report.managed.missing.length > 0 || report.managed.changed.length > 0
+  const hasMissingSeed = report.seed.missingSeed.length > 0
+  const hasCustomizedSeed = report.seed.customized.length > 0
 
   console.log(`Checking boilerplate drift against ${repo}#${ref}\n`)
 
-  if (!hasDrift) {
+  if (!hasManagedDrift && !hasMissingSeed && !hasCustomizedSeed) {
     console.log('No drift found.')
-    console.log(`Identical paths: ${identical.length}`)
+    console.log(`Identical managed paths: ${report.managed.identical.length}`)
+    console.log(`Identical seed files: ${report.seed.identical.length}`)
     return
   }
 
-  console.log('Drift found\n')
+  const managedDrift = [...report.managed.missing, ...report.managed.changed]
 
-  if (missing.length > 0) {
-    console.log('Missing paths:')
-    for (const path of missing) console.log(`  - ${path}`)
+  if (managedDrift.length > 0) {
+    console.log('Managed drift:')
+    for (const path of managedDrift) console.log(`- ${path}`)
     console.log('')
   }
 
-  if (changed.length > 0) {
-    console.log('Changed paths:')
-    for (const path of changed) console.log(`  - ${path}`)
+  if (hasMissingSeed) {
+    console.log('Missing seed files:')
+    for (const path of report.seed.missingSeed) console.log(`- ${path}`)
     console.log('')
   }
 
-  console.log(`Identical paths: ${identical.length}`)
-  console.log('\nSuggested next command:')
-  console.log('pnpm run boilerplate:sync')
-  console.log('\nAfter sync, run:')
-  console.log('pnpm install')
+  if (hasCustomizedSeed) {
+    console.log('Customized seed files ignored:')
+    for (const path of report.seed.customized) console.log(`- ${path}`)
+    console.log('')
+  }
+
+  if (hasManagedDrift || hasMissingSeed) {
+    console.log('Suggested next command:')
+    console.log('pnpm run boilerplate:sync')
+    console.log('\nAfter sync, run:')
+    console.log('pnpm install')
+  }
 }
 
 export function isDirectExecution() {
@@ -180,11 +218,10 @@ function main() {
       cwd: targetRoot,
     })
 
-    const report = compareBoilerplateDrift({ sourceRoot, targetRoot })
+    const report = compareFullBoilerplateDrift({ sourceRoot, targetRoot })
     printReport(report)
 
-    const hasDrift = report.missing.length > 0 || report.changed.length > 0
-    process.exit(hasDrift ? 1 : 0)
+    process.exit(getDriftExitCode(report))
   } catch (error) {
     console.error('Unable to fetch or compare boilerplate source.')
     if (error instanceof Error) console.error(error.message)

@@ -20,9 +20,21 @@ The order operations, LINE, payment slip, copilot, and handoff modules from prev
 
 ## Sync behavior
 
-Child projects should run `pnpm run boilerplate:check` before `pnpm run boilerplate:sync` to see which managed paths are missing or changed. The check command is read-only and exits with a non-zero code when drift exists.
+Child projects should run `pnpm run boilerplate:check` before `pnpm run boilerplate:sync`.
 
-Child projects pull these modules and the rest of the managed boilerplate layer with `pnpm run boilerplate:sync`. See the root [README.md](../../README.md#what-boilerplate-sync-updates) and [docs/agent-loop/source-of-truth.md](../agent-loop/source-of-truth.md) for the full managed path list.
+The check command is read-only and reports three categories:
+
+- **Managed drift** — rails-managed paths that differ from the starter (exit 1; run sync)
+- **Missing seed files** — starter app files not yet present in the child (exit 1; run sync to seed them)
+- **Customized seed files ignored** — child-owned starter files that differ from upstream (exit 0; no action required)
+
+### Rails-managed paths
+
+Agent docs, CI, sync scripts, and shared package scripts are overwritten on every sync. See the root [README.md](../../README.md#what-boilerplate-sync-updates) and [docs/agent-loop/source-of-truth.md](../agent-loop/source-of-truth.md) for the full list.
+
+### Starter-seed paths
+
+Frontend pages, collections, globals, components, hooks, access helpers, `src/lib`, and `src/payload.config.ts` are copied only when missing. After a child customizes them, sync never overwrites them.
 
 `pnpm-lock.yaml` is not synced. After sync, run `pnpm install` in the child project to refresh the local lockfile.
 

@@ -13,11 +13,14 @@ describe('boilerplate sync managed paths', () => {
     expect(script).toContain("'scripts/check-boilerplate-drift.mjs'")
   })
 
-  it('exports managedPaths for drift check reuse', async () => {
+  it('exports managedPaths and seedOnlyPaths for drift check reuse', async () => {
     const mod = await import('../../scripts/sync-boilerplate.mjs')
 
     expect(mod.managedPaths).toContain('AGENTS.md')
     expect(mod.managedPaths).toContain('scripts/check-boilerplate-drift.mjs')
+    expect(mod.managedPaths).not.toContain('src/payload.config.ts')
+    expect(mod.seedOnlyPaths).toContain('src/payload.config.ts')
+    expect(mod.seedOnlyPaths).toContain('src/app/(frontend)')
     expect(mod.packageScripts).toContain('boilerplate:check')
   })
 
@@ -87,6 +90,69 @@ describe('boilerplate sync managed paths', () => {
     expect(addCall).toContain('package.json')
     expect(addCall).toContain('AGENTS.md')
     expect(addCall).not.toContain('notes.txt')
+  })
+})
+
+describe('boilerplate sync copy behavior', () => {
+  const fixtureRoot = resolve(process.cwd(), '.tmp-boilerplate-sync-test')
+
+  it('overwrites an existing managed file', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+
+    rmSync(fixtureRoot, { recursive: true, force: true })
+    mkdirSync(join(fixtureRoot, 'source'), { recursive: true })
+    mkdirSync(join(fixtureRoot, 'target'), { recursive: true })
+
+    writeFileSync(join(fixtureRoot, 'source/AGENTS.md'), 'starter agents\n')
+    writeFileSync(join(fixtureRoot, 'target/AGENTS.md'), 'child agents\n')
+
+    const result = mod.copyManagedPath(join(fixtureRoot, 'source'), join(fixtureRoot, 'target'), 'AGENTS.md')
+
+    expect(result.copied).toBe(true)
+    expect(readFileSync(join(fixtureRoot, 'target/AGENTS.md'), 'utf8')).toBe('starter agents\n')
+
+    rmSync(fixtureRoot, { recursive: true, force: true })
+  })
+
+  it('copies a missing seed-only file', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+
+    rmSync(fixtureRoot, { recursive: true, force: true })
+    mkdirSync(join(fixtureRoot, 'source/src/collections'), { recursive: true })
+    mkdirSync(join(fixtureRoot, 'target/src/collections'), { recursive: true })
+
+    writeFileSync(join(fixtureRoot, 'source/src/collections/Posts.ts'), 'export const Posts = {}\n')
+
+    const result = mod.copySeedOnlyPath(join(fixtureRoot, 'source'), join(fixtureRoot, 'target'), 'src/collections')
+
+    expect(result.seeded).toEqual(['src/collections/Posts.ts'])
+    expect(result.skipped).toEqual([])
+    expect(readFileSync(join(fixtureRoot, 'target/src/collections/Posts.ts'), 'utf8')).toBe(
+      'export const Posts = {}\n',
+    )
+
+    rmSync(fixtureRoot, { recursive: true, force: true })
+  })
+
+  it('does not overwrite an existing customized seed-only file', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+
+    rmSync(fixtureRoot, { recursive: true, force: true })
+    mkdirSync(join(fixtureRoot, 'source/src/components'), { recursive: true })
+    mkdirSync(join(fixtureRoot, 'target/src/components'), { recursive: true })
+
+    writeFileSync(join(fixtureRoot, 'source/src/components/Header.tsx'), 'export const Header = () => <header>starter</header>\n')
+    writeFileSync(join(fixtureRoot, 'target/src/components/Header.tsx'), 'export const Header = () => <header>child</header>\n')
+
+    const result = mod.copySeedOnlyPath(join(fixtureRoot, 'source'), join(fixtureRoot, 'target'), 'src/components')
+
+    expect(result.seeded).toEqual([])
+    expect(result.skipped).toEqual(['src/components/Header.tsx'])
+    expect(readFileSync(join(fixtureRoot, 'target/src/components/Header.tsx'), 'utf8')).toBe(
+      'export const Header = () => <header>child</header>\n',
+    )
+
+    rmSync(fixtureRoot, { recursive: true, force: true })
   })
 })
 
@@ -160,6 +226,48 @@ describe('boilerplate drift check', () => {
     expect(report.changed).toEqual(['package.json'])
     expect(report.missing).toEqual([])
     expect(report.identical).toEqual([])
+
+    rmSync(fixtureRoot, { recursive: true, force: true })
+  })
+
+  it('does not fail when only customized seed files differ', async () => {
+    const mod = await import('../../scripts/check-boilerplate-drift.mjs')
+
+    rmSync(fixtureRoot, { recursive: true, force: true })
+    mkdirSync(join(fixtureRoot, 'source/src/app/(frontend)/blog/[slug]'), { recursive: true })
+    mkdirSync(join(fixtureRoot, 'target/src/app/(frontend)/blog/[slug]'), { recursive: true })
+
+    writeFileSync(join(fixtureRoot, 'source/src/app/(frontend)/blog/[slug]/page.tsx'), 'starter page\n')
+    writeFileSync(join(fixtureRoot, 'target/src/app/(frontend)/blog/[slug]/page.tsx'), 'child page\n')
+
+    const report = mod.compareFullBoilerplateDrift({
+      sourceRoot: join(fixtureRoot, 'source'),
+      targetRoot: join(fixtureRoot, 'target'),
+    })
+
+    expect(mod.getDriftExitCode(report)).toBe(0)
+    expect(report.seed.customized).toContain('src/app/(frontend)/blog/[slug]/page.tsx')
+    expect(report.managed.missing).toEqual([])
+    expect(report.managed.changed).toEqual([])
+
+    rmSync(fixtureRoot, { recursive: true, force: true })
+  })
+
+  it('reports missing seed files clearly', async () => {
+    const mod = await import('../../scripts/check-boilerplate-drift.mjs')
+
+    rmSync(fixtureRoot, { recursive: true, force: true })
+    mkdirSync(join(fixtureRoot, 'source/src/app/(frontend)/custom-order'), { recursive: true })
+
+    writeFileSync(join(fixtureRoot, 'source/src/app/(frontend)/custom-order/page.tsx'), 'starter page\n')
+
+    const report = mod.compareFullBoilerplateDrift({
+      sourceRoot: join(fixtureRoot, 'source'),
+      targetRoot: join(fixtureRoot, 'target'),
+    })
+
+    expect(mod.getDriftExitCode(report)).toBe(1)
+    expect(report.seed.missingSeed).toContain('src/app/(frontend)/custom-order/page.tsx')
 
     rmSync(fixtureRoot, { recursive: true, force: true })
   })

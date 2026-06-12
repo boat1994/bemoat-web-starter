@@ -8,6 +8,8 @@ You are an expert Payload CMS developer. When working with Payload projects, fol
 - **Real child projects start from the README [Deploy to Cloudflare](https://deploy.workers.cloudflare.com/?url=https://github.com/boat1994/bemoat-web-starter) button**, then clone the generated project locally.
 - **Do not recommend cloning this starter directly** for real child projects unless the task is to develop the starter itself.
 - **Reusable improvements belong in this starter** and flow to children via `pnpm run boilerplate:sync`.
+- **Rails-managed paths** (agent docs, CI, sync scripts) are overwritten by sync. **Starter-seed paths** (frontend pages, collections, globals, components, `payload.config.ts`) are copied only when missing in the child project.
+- **Do not edit seed-only app files in child projects expecting future boilerplate sync to preserve upstream changes.** Reusable app improvements should be made in the starter, but existing child customizations will not be overwritten automatically. If an upstream seed file changes after child customization, the human decides whether to manually port the improvement.
 - **Project-specific infrastructure belongs in child projects**: `wrangler.jsonc`, D1 IDs, R2 bucket names, Worker names, `.env` files, Cloudflare secrets, domains, and customer integrations.
 - **Do not copy** D1 IDs, R2 bucket names, Worker names, `.env` files, Cloudflare secrets, or other resource IDs between projects.
 
