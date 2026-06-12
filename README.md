@@ -49,6 +49,38 @@ Skill source:
 
 Before responding, asking clarifying questions, planning, editing files, running implementation commands, or reviewing code, agents should check whether a skill applies and follow it first. User instructions remain the highest priority.
 
+## Development workflow
+
+Short task prompts are enough for agents working in this repository. The operating rules live in [AGENTS.md](./AGENTS.md), the step-by-step loop is in [docs/agent-loop](./docs/agent-loop/README.md), GitHub issue and PR templates capture task scope, and CI validates every pull request.
+
+```mermaid
+flowchart TD
+    A[User gives task or GitHub issue] --> B[Agent starts with superpowers]
+    B --> C[Read AGENTS.md and docs/agent-loop]
+    C --> D{GitHub URL or issue?}
+    D -->|Yes| E[Use GitHub skill to inspect real state]
+    D -->|No| F[Confirm task scope]
+    E --> F
+    F --> G[Create branch from main]
+    G --> H[Make smallest complete change]
+    H --> I[Run checks]
+    I --> J{Checks pass?}
+    J -->|No| K[Stop and report exact failure]
+    J -->|Yes| L[Show git status and diff summary]
+    L --> M{Only allowed files changed?}
+    M -->|No| N[Stop and report scope violation]
+    M -->|Yes| O[Commit]
+    O --> P[Push branch]
+    P --> Q[Open PR]
+    Q --> R[CI runs]
+    R --> S{CI green?}
+    S -->|No| T[Inspect logs, fix in same branch]
+    T --> H
+    S -->|Yes| U[Notify user with PR URL and risks]
+    U --> V[Human review]
+    V --> W[Human merges]
+```
+
 ## Important Cloudflare note
 
 This template is expected to run on Cloudflare Paid Workers because the bundle can exceed the free Worker size limit.
