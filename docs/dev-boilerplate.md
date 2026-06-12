@@ -18,6 +18,10 @@ Target repository: `boat1994/bemoat-web-starter`
 
 The order operations, LINE, payment slip, copilot, and handoff modules from previous project work are not included in this first boilerplate pass because they depend on project-specific collections, secrets, external APIs, and operational workflows.
 
+## Sync behavior
+
+Child projects pull these modules and the rest of the managed boilerplate layer with `pnpm run boilerplate:sync`. See the root [README.md](../../README.md#what-boilerplate-sync-updates) and [docs/agent-loop/source-of-truth.md](../agent-loop/source-of-truth.md) for the full managed path list.
+
 ## After pulling this change
 
 Run these commands locally before serious deployment:

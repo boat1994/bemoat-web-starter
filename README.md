@@ -214,25 +214,42 @@ BEMOAT_BOILERPLATE_REPO=boat1994/bemoat-web-starter pnpm run boilerplate:sync
 
 ## What boilerplate sync updates
 
+Shared workflow rails:
+
 - `AGENTS.md` repository agent instructions
 - `.cursor/rules/*` workflow instructions and Cursor rule files
+- `.github/workflows/ci.yml` shared CI workflow
+- `.github/pull_request_template.md` PR template
+- `.github/ISSUE_TEMPLATE/agent-task.yml` agent task issue template
+- `docs/agent-loop/*` agent operating loop docs
+
+Sync tooling and docs:
+
 - `scripts/sync-boilerplate.mjs` sync command updates
-- Frontend starter page
-- Projects index page
-- Project detail page
-- Blog index page
-- Blog detail page
-- Custom order page
-- Payload collections
-- Payload globals
+- `docs/dev-boilerplate.md` boilerplate module notes
+
+Frontend starter pages:
+
+- Home, projects index, project detail, blog index, blog detail, custom order page
+
+Payload shared schema and utilities:
+
+- Shared collections and globals
 - Admin extension placeholder components
 - Helper utilities
 - `src/payload.config.ts`
-- Selected package scripts and dependencies
+
+Package scripts and dependencies:
+
+- Validation rails: `check`, `check:full`, `typecheck`, `lint`, `test`, `test:int`
+- Payload and sync: `generate:importmap`, `generate:types`, `generate:types:cloudflare`, `generate:types:payload`, `payload`, `boilerplate:sync`
+- Shared `dependencies` and `devDependencies` from the starter (child projects run `pnpm install` to refresh their own lockfile)
+
+`pnpm-lock.yaml` is **not** synced. Child projects may have project-specific dependencies; after sync, run `pnpm install` to update the local lockfile.
 
 ## What boilerplate sync does not update
 
-The sync script intentionally does not overwrite project-specific infrastructure files:
+The sync script intentionally does not overwrite project-specific infrastructure or content:
 
 - `wrangler.jsonc`
 - D1 database IDs
@@ -240,8 +257,10 @@ The sync script intentionally does not overwrite project-specific infrastructure
 - Worker names
 - `.env` files
 - Cloudflare secrets
+- Root `README.md` (child projects may keep project-specific README wording; adopt starter README sections manually if desired)
+- Project-specific business modules and integrations
 
-This keeps each project safe while still allowing reusable code to move forward.
+This keeps each project safe while still allowing reusable code and agent workflow rails to move forward.
 
 ## After every sync
 
