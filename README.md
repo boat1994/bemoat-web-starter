@@ -138,6 +138,8 @@ BEMOAT_BOILERPLATE_REPO=boat1994/bemoat-web-starter pnpm run boilerplate:sync
 
 ## What boilerplate sync updates
 
+- `AGENTS.md` repository agent instructions
+- `.cursor/rules/*` workflow instructions and Cursor rule files
 - Frontend starter page
 - Projects index page
 - Project detail page

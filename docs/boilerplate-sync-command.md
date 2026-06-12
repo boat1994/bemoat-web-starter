@@ -10,6 +10,8 @@ pnpm run boilerplate:sync
 
 ## What it updates
 
+- `AGENTS.md` repository agent instructions
+- `.cursor/rules/*` workflow instructions and Cursor rule files
 - Frontend starter pages
 - Projects pages
 - Blog pages

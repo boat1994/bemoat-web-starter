@@ -10,6 +10,8 @@ const tempRoot = resolve(targetRoot, '.bemoat-sync-tmp')
 const sourceRoot = join(tempRoot, 'source')
 
 const managedPaths = [
+  'AGENTS.md',
+  '.cursor/rules',
   'src/app/(frontend)/page.tsx',
   'src/app/(frontend)/layout.tsx',
   'src/app/(frontend)/styles.css',
