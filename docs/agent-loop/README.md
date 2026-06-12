@@ -66,6 +66,7 @@ task → read AGENTS.md + agent-loop → branch → edit → test → show diff 
 | [roles.md](./roles.md) | Builder, Reviewer, Migration, Red Team, GitHub Triage |
 | [checklist.md](./checklist.md) | Before/during/PR/CI/merge checklists |
 | [source-of-truth.md](./source-of-truth.md) | What lives in starter vs child projects |
+| [../hardening.md](../hardening.md) | Production hardening index (releases, drift check, smoke test, secrets, branch protection) |
 
 ## Agent entrypoint
 
