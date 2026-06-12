@@ -8,11 +8,12 @@ Use these roles to split work across specialized agents. One session may play on
 
 **Responsibilities:**
 
-- Read the issue, `AGENTS.md`, and [source-of-truth.md](./source-of-truth.md) before editing.
+- Read `AGENTS.md`, this folder, and [source-of-truth.md](./source-of-truth.md) before editing.
+- Understand the task from a short user prompt or GitHub issue—users do not need to repeat git steps each time.
+- Follow the [Default Agent Workflow](../../AGENTS.md#default-agent-workflow) automatically unless the user overrides it.
 - Stay within allowed file paths and acceptance criteria.
-- Follow the default git workflow: branch → edit → test → show diff → commit → push → open PR → notify user.
 - Run required validation commands before commit and PR.
-- Document commands run and test results in the PR template and final user notification.
+- End with the standard notification: task summary, branch, files changed, commands run, test result, commit hash, PR URL, risks, human review needed.
 
 **Must not:**
 

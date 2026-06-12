@@ -2,9 +2,13 @@
 
 Use with [README.md](./README.md) and [source-of-truth.md](./source-of-truth.md).
 
+Agents run the [Default Agent Workflow](../../AGENTS.md#default-agent-workflow) by default when the user provides only a task. Do not wait for explicit branch, commit, push, or PR instructions unless the user overrides the workflow.
+
 ## Before coding
 
 - [ ] Started with `superpowers:using-superpowers`
+- [ ] Read `AGENTS.md` and this folder
+- [ ] Understood the task; confirmed no user override (e.g. "do not commit")
 - [ ] Confirmed correct repo: **starter** vs **child project**
 - [ ] Read issue/PR goal, acceptance criteria, allowed and forbidden paths
 - [ ] If GitHub URL, issue, PR, branch, or CI run is referenced: inspected via GitHub skill or `gh`
@@ -45,7 +49,7 @@ Stop instead of committing if the task is ambiguous, forbidden files are require
 - [ ] PR opened; template complete: goal, changes, source-of-truth impact, Payload impact, commands, test result, risk review
 - [ ] Clear answer: does this belong in starter or a child project?
 - [ ] Agent notes and [state-template.md](./state-template.md) updated for reviewers
-- [ ] User notified: branch, commit hash, PR URL, checks, risks, human-review items
+- [ ] User notified with: task summary, branch, files changed, commands run, test result, commit hash, PR URL, risks, human review needed
 - [ ] **Did not merge** — merge is human-only
 
 ## CI failure

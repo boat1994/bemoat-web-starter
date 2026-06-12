@@ -16,19 +16,23 @@ You are an expert Payload CMS developer. When working with Payload projects, fol
 - If an issue, PR, commit, branch, CI run, or GitHub URL is referenced, **use the GitHub skill first when available** (or `gh` for Actions logs).
 - **Do not guess CI failures**—inspect failed workflow logs before proposing fixes.
 
-## Default agent git workflow
+## Default Agent Workflow
 
-Agents **may commit and push**, but **must not merge**. Humans merge after review.
+Users may provide **only the task** (or a GitHub issue). Agents follow this workflow automatically unless the user explicitly overrides it—for example, "do not commit" or "docs only, no PR."
 
-1. Create a new branch from `main`
-2. Make the smallest complete change
-3. Run required checks (see [Validation before PR and merge](#validation-before-pr-and-merge))
-4. Show `git status` and diff summary
-5. Commit only if checks pass and only allowed files changed
-6. Push the branch
-7. Open a PR
-8. Notify the user with branch, commit, PR URL, checks, and risks
-9. **Do not merge**
+Agents **may create branches, commit, push, and open PRs**, but **must not merge**. Humans merge after review.
+
+1. Read `AGENTS.md` and [docs/agent-loop](./docs/agent-loop/README.md)
+2. Understand the task (and inspect GitHub state when a URL or issue is referenced)
+3. Create a new branch from `main`
+4. Make the smallest complete change
+5. Run required checks (see [Validation before PR and merge](#validation-before-pr-and-merge))
+6. Show `git status` and diff summary
+7. Commit only if checks pass and only allowed files changed
+8. Push the branch
+9. Open a PR
+10. Notify the user (see [Final response format](#final-response-format) below)
+11. **Do not merge**
 
 ### Commit safety
 
@@ -52,14 +56,15 @@ Stop and report instead of committing when:
 
 End every task with:
 
+- Task summary
 - Branch name
-- Commit hash
-- PR URL
 - Files changed
 - Commands run
 - Test result
+- Commit hash
+- PR URL
 - Risks
-- Anything left for human review
+- Human review needed
 
 Details: [docs/agent-loop/checklist.md](./docs/agent-loop/checklist.md), [docs/agent-loop/README.md](./docs/agent-loop/README.md).
 

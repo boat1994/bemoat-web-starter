@@ -29,17 +29,21 @@ pnpm run boilerplate:sync
 
 Sync updates managed boilerplate paths. It does **not** overwrite project-specific infrastructure (`wrangler.jsonc`, D1 IDs, R2 bucket names, Worker names, `.env`, secrets). See [source-of-truth.md](./source-of-truth.md).
 
+## Task-only prompts
+
+Users do not need to repeat branch, check, commit, push, or PR steps in every message. Provide the task (or a GitHub issue); agents read `AGENTS.md` and this folder, then run the [Default Agent Workflow](../../AGENTS.md#default-agent-workflow) automatically unless you override it.
+
 ## High-level loop
 
 ```text
-issue → branch → edit → test → show diff → commit → push → open PR → notify user
-                                                                    ↓
-                                              CI → review → merge (human only)
+task → read AGENTS.md + agent-loop → branch → edit → test → show diff → commit → push → open PR → notify user
+                                                                                                    ↓
+                                                                              CI → review → merge (human only)
 ```
 
 | Step | What happens |
 |------|----------------|
-| **Issue** | Use the [agent-task](../../.github/ISSUE_TEMPLATE/agent-task.yml) template; define scope, files, commands, risks. |
+| **Task** | User gives a short prompt or GitHub issue. Scope, allowed files, and risks may also live in the [agent-task](../../.github/ISSUE_TEMPLATE/agent-task.yml) template. |
 | **Branch** | Short-lived branch from `main`; name reflects the task. |
 | **Edit** | Follow `AGENTS.md`, allowed paths, and [checklist.md](./checklist.md). Smallest complete change. |
 | **Test** | Run lint, typecheck, tests; `generate:importmap` / `generate:types` when needed. |
@@ -47,7 +51,7 @@ issue → branch → edit → test → show diff → commit → push → open PR
 | **Commit** | One focused commit only if checks pass and only allowed files changed. See commit safety in `AGENTS.md`. |
 | **Push** | Push the branch to origin. |
 | **Open PR** | Fill out the [pull request template](../../.github/pull_request_template.md). |
-| **Notify user** | Branch, commit hash, PR URL, checks, risks, and human-review items. |
+| **Notify user** | Task summary, branch, files changed, commands run, test result, commit hash, PR URL, risks, and human-review items. |
 | **CI** | GitHub Actions must pass; inspect logs on failure—do not guess. |
 | **Review** | Human or reviewer agent; watch Payload, migration, Cloudflare, sync risks. |
 | **Merge** | **Human only.** Agents must not merge. Prefer `check:full` green when practical. |
