@@ -1,6 +1,6 @@
 # Agent checklists
 
-Use with [README.md](./README.md) and [source-of-truth.md](./source-of-truth.md).
+Use with [README.md](./README.md), [source-of-truth.md](./source-of-truth.md), and [security-and-migrations.md](./security-and-migrations.md).
 
 Agents run the [Default Agent Workflow](../../AGENTS.md#default-agent-workflow) by default when the user provides only a task. Do not wait for explicit branch, commit, push, or PR instructions unless the user overrides the workflow.
 
@@ -29,10 +29,14 @@ Agents run the [Default Agent Workflow](../../AGENTS.md#default-agent-workflow) 
 
 ## Before commit
 
-Stop instead of committing if the task is ambiguous, forbidden files are required, checks fail for unrelated reasons, secrets or Cloudflare resource IDs are involved, or the change belongs in a child project.
+Stop instead of committing if the task is ambiguous, forbidden files are required, checks fail for unrelated reasons, or any item in [security-and-migrations.md](./security-and-migrations.md) applies.
 
 - [ ] `git status` and diff summary shown
-- [ ] Only allowed files changed; no secrets, `.env`, D1 IDs, R2 names, or Worker names
+- [ ] Only allowed files changed
+- [ ] **Security pre-commit:** no `.env*` files staged
+- [ ] **Security pre-commit:** no secrets, tokens, or credentials in the diff
+- [ ] **Security pre-commit:** no copied Cloudflare account IDs, D1 IDs, R2 names, or Worker names
+- [ ] **Migration pre-commit:** destructive migration has explicit human approval noted for the PR
 - [ ] `pnpm run lint`, `typecheck`, and `test:int` pass
 - [ ] Exactly one focused commit (unless task requires more)
 - [ ] No unrelated refactors in the commit

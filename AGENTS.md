@@ -49,7 +49,7 @@ Stop and report instead of committing when:
 - The task is ambiguous
 - Forbidden files are required
 - Checks fail for unrelated reasons
-- Secrets or Cloudflare resource IDs are involved
+- Secrets, Cloudflare resource IDs, D1 migrations, destructive schema changes, or production deploy actions are involved—see [docs/agent-loop/security-and-migrations.md](./docs/agent-loop/security-and-migrations.md)
 - The change belongs in a child project instead of `bemoat-web-starter`
 
 ### Final response format
