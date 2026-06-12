@@ -95,8 +95,13 @@ export function isMigrationPath(relativePath) {
   return /(?:^|\/)migrations\//.test(relativePath)
 }
 
+export function isTestPath(relativePath) {
+  return relativePath.startsWith('tests/')
+}
+
 export function isSecretScanPath(relativePath) {
   if (shouldSkipPath(relativePath)) return false
+  if (isTestPath(relativePath)) return false
   if (RESOURCE_ID_SAFE_FILES.has(relativePath)) return false
   if (relativePath.endsWith('.md')) return false
   if (relativePath.endsWith('.jsonc') && relativePath !== 'wrangler.jsonc') return false
@@ -105,6 +110,7 @@ export function isSecretScanPath(relativePath) {
 
 export function isResourceIdScanPath(relativePath) {
   if (shouldSkipPath(relativePath)) return false
+  if (isTestPath(relativePath)) return false
   if (RESOURCE_ID_SAFE_FILES.has(relativePath)) return false
   if (relativePath.endsWith('.md')) return false
   if (relativePath === 'package.json') return false

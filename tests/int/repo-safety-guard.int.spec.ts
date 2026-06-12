@@ -68,6 +68,14 @@ export async function down() {
     expect(mod.scanDestructiveMigration('src/migrations/example.ts', approved)).toEqual([])
   })
 
+  it('ignores tests directory during repository scans', async () => {
+    const mod = await import('../../scripts/guard-repo-safety.mjs')
+
+    expect(mod.isTestPath('tests/int/repo-safety-guard.int.spec.ts')).toBe(true)
+    expect(mod.isSecretScanPath('tests/int/repo-safety-guard.int.spec.ts')).toBe(false)
+    expect(mod.isResourceIdScanPath('tests/int/repo-safety-guard.int.spec.ts')).toBe(false)
+  })
+
   it('passes on the current repository', async () => {
     const mod = await import('../../scripts/guard-repo-safety.mjs')
 
