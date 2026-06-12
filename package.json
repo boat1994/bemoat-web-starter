@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "build": "cross-env NODE_OPTIONS=\"--no-deprecation --max-old-space-size=8000\" pnpm exec opennextjs-cloudflare build",
-    "check": "pnpm run lint && pnpm run typecheck && pnpm run test:int",
+    "check": "pnpm run guard:safety && pnpm run lint && pnpm run typecheck && pnpm run test:int",
     "check:full": "pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build",
     "deploy": "pnpm run deploy:database && pnpm run deploy:app",
     "deploy:app": "pnpm exec opennextjs-cloudflare build --env=$CLOUDFLARE_ENV && pnpm exec opennextjs-cloudflare deploy --env=$CLOUDFLARE_ENV",
@@ -17,6 +17,7 @@
     "generate:types": "pnpm run generate:types:cloudflare && pnpm run generate:types:payload",
     "generate:types:cloudflare": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
     "generate:types:payload": "cross-env NODE_OPTIONS=--no-deprecation payload generate:types",
+    "guard:safety": "node scripts/guard-repo-safety.mjs",
     "ii": "pnpm install --ignore-workspace",
     "lint": "cross-env NODE_OPTIONS=--no-deprecation eslint .",
     "payload": "cross-env NODE_OPTIONS=--no-deprecation payload",

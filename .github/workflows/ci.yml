@@ -33,6 +33,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Repository safety guard
+        run: pnpm run guard:safety
+
       - name: Generate import map
         run: pnpm run generate:importmap
 
