@@ -168,6 +168,14 @@ This keeps each project safe while still allowing reusable code to move forward.
 
 ## After every sync
 
+The sync command now creates a Git commit automatically for the files it manages:
+
+- every synced path in `managedPaths`
+- `package.json`
+- `.bemoat-boilerplate-sync.json`
+
+If you have local uncommitted changes first, the script stashes them before syncing and restores them after the sync commit is created.
+
 Run:
 
 ```bash

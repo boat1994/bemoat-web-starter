@@ -39,6 +39,14 @@ BEMOAT_BOILERPLATE_REPO=boat1994/bemoat-web-starter pnpm run boilerplate:sync
 
 ## After syncing
 
+The sync command automatically creates a Git commit for:
+
+- every file path it synced from the boilerplate
+- `package.json`
+- `.bemoat-boilerplate-sync.json`
+
+If local uncommitted changes already exist, the script stashes them first and restores them after the sync commit.
+
 ```bash
 pnpm install
 pnpm run generate:importmap

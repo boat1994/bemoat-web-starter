@@ -1,13 +1,16 @@
 #!/usr/bin/env node
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
+import { pathToFileURL } from 'node:url'
 
 const repo = process.env.BEMOAT_BOILERPLATE_REPO || 'boat1994/bemoat-web-starter'
 const ref = process.env.BEMOAT_BOILERPLATE_REF || 'main'
 const targetRoot = process.cwd()
 const tempRoot = resolve(targetRoot, '.bemoat-sync-tmp')
 const sourceRoot = join(tempRoot, 'source')
+const syncMetadataPath = '.bemoat-boilerplate-sync.json'
+const stashMessage = 'bemoat-boilerplate-sync: pre-sync stash'
 
 const managedPaths = [
   'AGENTS.md',
@@ -47,10 +50,11 @@ const packageScripts = [
   'boilerplate:sync',
 ]
 
+export const syncCommitPaths = [...managedPaths, 'package.json', syncMetadataPath]
+
 function run(command, args, options = {}) {
   execFileSync(command, args, {
     stdio: 'inherit',
-    cwd: targetRoot,
     ...options,
   })
 }
@@ -67,6 +71,7 @@ function copyPath(relativePath) {
   mkdirSync(dirname(destination), { recursive: true })
   cpSync(source, destination, { recursive: true, force: true })
   console.log(`[sync] ${relativePath}`)
+  return true
 }
 
 function readJSON(path) {
@@ -98,38 +103,141 @@ function mergePackageJSON() {
   console.log('[sync] package.json scripts and dependencies')
 }
 
-function main() {
-  console.log(`Syncing Bemoat boilerplate from ${repo}#${ref}`)
-
-  rmSync(tempRoot, { recursive: true, force: true })
-  mkdirSync(tempRoot, { recursive: true })
-
-  run('git', ['clone', '--depth', '1', '--branch', ref, `https://github.com/${repo}.git`, sourceRoot])
-
-  for (const path of managedPaths) copyPath(path)
-  mergePackageJSON()
-
-  writeFileSync(
-    join(targetRoot, '.bemoat-boilerplate-sync.json'),
-    `${JSON.stringify(
-      {
-        repo,
-        ref,
-        syncedAt: new Date().toISOString(),
-        managedPaths,
-      },
-      null,
-      2,
-    )}\n`,
-  )
-
-  rmSync(tempRoot, { recursive: true, force: true })
-
-  console.log('\nDone. Suggested next commands:')
-  console.log('pnpm install')
-  console.log('pnpm run generate:importmap')
-  console.log('pnpm run generate:types')
-  console.log('pnpm payload migrate:create')
+function getCommandOutput(command, args, options = {}) {
+  return execFileSync(command, args, {
+    cwd: targetRoot,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+    ...options,
+  })
 }
 
-main()
+function getCommandStatus(command, args, options = {}) {
+  const result = spawnSync(command, args, {
+    cwd: targetRoot,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+    ...options,
+  })
+
+  if (result.error) throw result.error
+  return result.status ?? 1
+}
+
+function createGitClient() {
+  return {
+    hasWorkingTreeChanges(cwd) {
+      return getCommandOutput('git', ['status', '--short'], { cwd }).trim().length > 0
+    },
+    stashPush(cwd) {
+      run('git', ['stash', 'push', '--include-untracked', '-m', stashMessage], { cwd })
+    },
+    addPaths(cwd, paths) {
+      run('git', ['add', '--', ...paths], { cwd })
+    },
+    hasStagedChanges(cwd, paths) {
+      const status = getCommandStatus('git', ['diff', '--cached', '--quiet', '--', ...paths], { cwd })
+
+      if (status === 0) return false
+      if (status === 1) return true
+
+      throw new Error('Unable to determine staged sync changes')
+    },
+    commit(cwd, message) {
+      run('git', ['commit', '-m', message], { cwd })
+    },
+    stashPop(cwd) {
+      run('git', ['stash', 'pop'], { cwd })
+    },
+  }
+}
+
+export function getSyncCommitPaths(pathsSynced = managedPaths) {
+  return [...pathsSynced, 'package.json', syncMetadataPath]
+}
+
+export function stashWorkingTreeIfNeeded(cwd, git = createGitClient()) {
+  if (!git.hasWorkingTreeChanges(cwd)) return false
+
+  git.stashPush(cwd)
+  return true
+}
+
+export function commitSyncedChanges({ repo, ref, targetRoot, syncedPaths = managedPaths }, git = createGitClient()) {
+  const pathsToCommit = getSyncCommitPaths(syncedPaths)
+
+  git.addPaths(targetRoot, pathsToCommit)
+
+  if (!git.hasStagedChanges(targetRoot, pathsToCommit)) return false
+
+  git.commit(targetRoot, `sync boilerplate from ${repo}#${ref}`)
+  return true
+}
+
+export function restoreStashIfNeeded(cwd, stashCreated, git = createGitClient()) {
+  if (!stashCreated) return
+
+  git.stashPop(cwd)
+}
+
+export function isDirectExecution() {
+  const entrypoint = process.argv[1]
+
+  if (!entrypoint) return false
+
+  return import.meta.url === pathToFileURL(resolve(entrypoint)).href
+}
+
+function main() {
+  console.log(`Syncing Bemoat boilerplate from ${repo}#${ref}`)
+  const git = createGitClient()
+  const stashCreated = stashWorkingTreeIfNeeded(targetRoot, git)
+  const syncedPaths = []
+
+  try {
+    rmSync(tempRoot, { recursive: true, force: true })
+    mkdirSync(tempRoot, { recursive: true })
+
+    run('git', ['clone', '--depth', '1', '--branch', ref, `https://github.com/${repo}.git`, sourceRoot], {
+      cwd: targetRoot,
+    })
+
+    for (const path of managedPaths) {
+      if (copyPath(path)) syncedPaths.push(path)
+    }
+    mergePackageJSON()
+
+    writeFileSync(
+      join(targetRoot, syncMetadataPath),
+      `${JSON.stringify(
+        {
+          repo,
+          ref,
+          syncedAt: new Date().toISOString(),
+          managedPaths,
+        },
+        null,
+        2,
+      )}\n`,
+    )
+
+    rmSync(tempRoot, { recursive: true, force: true })
+
+    if (commitSyncedChanges({ repo, ref, targetRoot, syncedPaths }, git)) {
+      console.log('[sync] committed sync changes')
+    } else {
+      console.log('[sync] no sync changes to commit')
+    }
+
+    console.log('\nDone. Suggested next commands:')
+    console.log('pnpm install')
+    console.log('pnpm run generate:importmap')
+    console.log('pnpm run generate:types')
+    console.log('pnpm payload migrate:create')
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true })
+    restoreStashIfNeeded(targetRoot, stashCreated, git)
+  }
+}
+
+if (isDirectExecution()) main()
