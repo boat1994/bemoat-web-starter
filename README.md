@@ -194,13 +194,13 @@ Do not use this clone-first path to start a customer or product repository.
 
 For **release tags, changelog policy, and when to sync from `main` vs a stable tag**, see [docs/releases.md](./docs/releases.md).
 
-Before syncing, check which managed boilerplate files differ from the starter:
+Before syncing, check which rails-managed boilerplate files differ from the starter and which starter seed files are still missing:
 
 ```bash
 pnpm run boilerplate:check
 ```
 
-When drift is reported, apply updates with:
+The check reports managed drift (must sync), missing seed files (optional first-time import), and customized seed files (ignored). When managed drift or missing seed files are reported, apply updates with:
 
 ```bash
 pnpm run boilerplate:sync
@@ -232,7 +232,9 @@ BEMOAT_BOILERPLATE_REPO=boat1994/bemoat-web-starter pnpm run boilerplate:sync
 
 ## What boilerplate sync updates
 
-Shared workflow rails:
+### Always synced rails
+
+These paths are source-of-truth and **may be overwritten** on every sync:
 
 - `AGENTS.md` repository agent instructions
 - `.cursor/rules/*` workflow instructions and Cursor rule files
@@ -240,31 +242,30 @@ Shared workflow rails:
 - `.github/pull_request_template.md` PR template
 - `.github/ISSUE_TEMPLATE/agent-task.yml` agent task issue template
 - `docs/agent-loop/*` agent operating loop docs
-
-Sync tooling and docs:
-
-- `scripts/sync-boilerplate.mjs` sync command updates
-- `scripts/check-boilerplate-drift.mjs` drift check before sync
+- `docs/hardening.md`, `docs/releases.md`, `docs/deploy-smoke-test.md`
+- `scripts/sync-boilerplate.mjs`, `scripts/check-boilerplate-drift.mjs`, `scripts/deploy-smoke-test.mjs`
 - `docs/dev-boilerplate.md` boilerplate module notes
+- `package.json` scripts and shared `dependencies` / `devDependencies`
 
-Frontend starter pages:
+Validation rails: `check`, `check:full`, `typecheck`, `lint`, `test`, `test:int`
 
-- Home, projects index, project detail, blog index, blog detail, custom order page
-
-Payload shared schema and utilities:
-
-- Shared collections and globals
-- Admin extension placeholder components
-- Helper utilities
-- `src/payload.config.ts`
-
-Package scripts and dependencies:
-
-- Validation rails: `check`, `check:full`, `typecheck`, `lint`, `test`, `test:int`
-- Payload and sync: `generate:importmap`, `generate:types`, `generate:types:cloudflare`, `generate:types:payload`, `payload`, `boilerplate:sync`, `boilerplate:check`
-- Shared `dependencies` and `devDependencies` from the starter (child projects run `pnpm install` to refresh their own lockfile)
+Payload and sync: `generate:importmap`, `generate:types`, `generate:types:cloudflare`, `generate:types:payload`, `payload`, `boilerplate:sync`, `boilerplate:check`
 
 `pnpm-lock.yaml` is **not** synced. Child projects may have project-specific dependencies; after sync, run `pnpm install` to update the local lockfile.
+
+### Seeded-once starter app files
+
+These paths are copied **only when missing** in the child project. After the child customizes them, sync **never overwrites** them:
+
+- `src/app/(frontend)/*` starter pages (home, projects, blog, custom order, etc.)
+- `src/components/*` shared UI and admin extension placeholders
+- `src/collections/*`, `src/globals/*`, `src/hooks/*`, `src/access/*`
+- `src/lib/*` shared utilities
+- `src/payload.config.ts`
+
+Frontend pages, collections, globals, components, and product UI are safe to customize in child projects after initial import. If a reusable improvement is needed across projects, upstream it to the starter and manually port it—or add a new seed file path.
+
+`src/app/(payload)/*` is Payload admin framework integration and is not part of boilerplate sync.
 
 ## What boilerplate sync does not update
 
@@ -277,19 +278,21 @@ The sync script intentionally does not overwrite project-specific infrastructure
 - `.env` files
 - Cloudflare secrets
 - Root `README.md` (child projects may keep project-specific README wording; adopt starter README sections manually if desired)
+- Existing customized starter app files (seed-only paths that already exist in the child)
 - Project-specific business modules and integrations
 
-This keeps each project safe while still allowing reusable code and agent workflow rails to move forward.
+This keeps each project safe while still allowing agent workflow rails to move forward.
 
 ## After every sync
 
-The sync command now creates a Git commit automatically for the files it manages:
+The sync command now creates a Git commit automatically for the files it changes:
 
 - every synced path in `managedPaths`
+- newly seeded files from `seedOnlyPaths`
 - `package.json`
 - `.bemoat-boilerplate-sync.json`
 
-If you have local uncommitted changes first, the script stashes only files outside the sync-managed scope before syncing and restores them after the sync commit is created. Existing edits on sync-managed files are replaced by the fresh sync output instead of being reapplied afterward.
+If you have local uncommitted changes first, the script stashes only files outside the rails-managed scope before syncing and restores them after the sync commit is created. Existing edits on rails-managed files are replaced by the fresh sync output instead of being reapplied afterward. Customized seed-only files are left untouched.
 
 If a child project still has the older sync script, copy `scripts/sync-boilerplate.mjs` from this starter into that project once, then run sync again. Older copies of the script did not sync themselves forward.
 

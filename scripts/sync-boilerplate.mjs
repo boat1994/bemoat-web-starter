@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
@@ -17,6 +17,9 @@ export const managedPaths = [
   'AGENTS.md',
   '.cursor/rules',
   'docs/agent-loop',
+  'docs/hardening.md',
+  'docs/releases.md',
+  'docs/deploy-smoke-test.md',
 
   // GitHub workflow rails
   '.github/workflows/ci.yml',
@@ -26,34 +29,18 @@ export const managedPaths = [
   // Sync docs and scripts
   'scripts/sync-boilerplate.mjs',
   'scripts/check-boilerplate-drift.mjs',
+  'scripts/deploy-smoke-test.mjs',
   'docs/dev-boilerplate.md',
+]
 
-  // Frontend starter pages
-  'src/app/(frontend)/page.tsx',
-  'src/app/(frontend)/layout.tsx',
-  'src/app/(frontend)/styles.css',
-  'src/app/(frontend)/projects/page.tsx',
-  'src/app/(frontend)/projects/[slug]/page.tsx',
-  'src/app/(frontend)/blog/page.tsx',
-  'src/app/(frontend)/blog/[slug]/page.tsx',
-  'src/app/(frontend)/how-to-custom-order/page.tsx',
-
-  // Payload shared schema
-  'src/collections/BlogCategories.ts',
-  'src/collections/BlogMedia.ts',
-  'src/collections/Categories.ts',
-  'src/collections/Projects.ts',
-  'src/collections/Posts.ts',
-  'src/collections/Tags.ts',
-  'src/components/AiGenerateButton/index.tsx',
-  'src/components/BlogAiWorkflow.tsx',
-  'src/components/BlogBlockAiGenerate.tsx',
-  'src/components/ViewProjectButton/index.tsx',
-  'src/globals/CustomOrderPage.ts',
-  'src/globals/SiteSettings.ts',
-
-  // Shared utilities
-  'src/lib/payloadText.ts',
+export const seedOnlyPaths = [
+  'src/app/(frontend)',
+  'src/components',
+  'src/collections',
+  'src/globals',
+  'src/hooks',
+  'src/access',
+  'src/lib',
   'src/payload.config.ts',
 ]
 
@@ -78,6 +65,38 @@ export const packageScripts = [
 
 export const syncCommitPaths = [...managedPaths, 'package.json', syncMetadataPath]
 
+export function listPathFiles(root, relativePath = '') {
+  const fullPath = join(root, relativePath)
+  if (!existsSync(fullPath)) return []
+
+  const stat = statSync(fullPath)
+  if (!stat.isDirectory()) return [relativePath]
+
+  const files = []
+  for (const entry of readdirSync(fullPath, { withFileTypes: true })) {
+    const childPath = relativePath ? `${relativePath}/${entry.name}` : entry.name
+    if (entry.isDirectory()) {
+      files.push(...listPathFiles(root, childPath))
+    } else {
+      files.push(childPath)
+    }
+  }
+
+  return files.sort()
+}
+
+export function expandSeedOnlyFiles(root, paths = seedOnlyPaths) {
+  const files = new Set()
+
+  for (const relativePath of paths) {
+    for (const filePath of listPathFiles(root, relativePath)) {
+      files.add(filePath)
+    }
+  }
+
+  return [...files].sort()
+}
+
 function run(command, args, options = {}) {
   execFileSync(command, args, {
     stdio: 'inherit',
@@ -85,19 +104,45 @@ function run(command, args, options = {}) {
   })
 }
 
-function copyPath(relativePath) {
-  const source = join(sourceRoot, relativePath)
-  const destination = join(targetRoot, relativePath)
+export function copyManagedPath(sourceRootPath, targetRootPath, relativePath) {
+  const source = join(sourceRootPath, relativePath)
+  const destination = join(targetRootPath, relativePath)
 
   if (!existsSync(source)) {
-    console.warn(`[skip] ${relativePath} not found in ${repo}#${ref}`)
-    return
+    return { copied: false, reason: 'missing-source' }
   }
 
   mkdirSync(dirname(destination), { recursive: true })
   cpSync(source, destination, { recursive: true, force: true })
-  console.log(`[sync] ${relativePath}`)
-  return true
+  return { copied: true }
+}
+
+export function copySeedOnlyPath(sourceRootPath, targetRootPath, relativePath) {
+  const source = join(sourceRootPath, relativePath)
+
+  if (!existsSync(source)) {
+    return { seeded: [], skipped: [], reason: 'missing-source' }
+  }
+
+  const seeded = []
+  const skipped = []
+  const sourceFiles = listPathFiles(sourceRootPath, relativePath)
+
+  for (const filePath of sourceFiles) {
+    const sourceFile = join(sourceRootPath, filePath)
+    const destinationFile = join(targetRootPath, filePath)
+
+    if (existsSync(destinationFile)) {
+      skipped.push(filePath)
+      continue
+    }
+
+    mkdirSync(dirname(destinationFile), { recursive: true })
+    cpSync(sourceFile, destinationFile)
+    seeded.push(filePath)
+  }
+
+  return { seeded, skipped }
 }
 
 function readJSON(path) {
@@ -220,11 +265,36 @@ export function isDirectExecution() {
   return import.meta.url === pathToFileURL(resolve(entrypoint)).href
 }
 
+function printSyncReport({ syncedManaged, seededFiles, skippedSeedFiles }) {
+  console.log('\nSynced managed paths:')
+  if (syncedManaged.length === 0) {
+    console.log('- (none)')
+  } else {
+    for (const path of syncedManaged) console.log(`- ${path}`)
+  }
+
+  console.log('\nSeeded missing starter files:')
+  if (seededFiles.length === 0) {
+    console.log('- (none)')
+  } else {
+    for (const path of seededFiles) console.log(`- ${path}`)
+  }
+
+  console.log('\nSkipped existing seed files:')
+  if (skippedSeedFiles.length === 0) {
+    console.log('- (none)')
+  } else {
+    for (const path of skippedSeedFiles) console.log(`- ${path}`)
+  }
+}
+
 function main() {
   console.log(`Syncing Bemoat boilerplate from ${repo}#${ref}`)
   const git = createGitClient()
   const stashCreated = stashWorkingTreeIfNeeded(targetRoot, git)
-  const syncedPaths = []
+  const syncedManaged = []
+  const seededFiles = []
+  const skippedSeedFiles = []
 
   try {
     rmSync(tempRoot, { recursive: true, force: true })
@@ -235,8 +305,21 @@ function main() {
     })
 
     for (const path of managedPaths) {
-      if (copyPath(path)) syncedPaths.push(path)
+      const result = copyManagedPath(sourceRoot, targetRoot, path)
+      if (result.copied) syncedManaged.push(path)
     }
+
+    for (const path of seedOnlyPaths) {
+      const result = copySeedOnlyPath(sourceRoot, targetRoot, path)
+      if (result.reason === 'missing-source') {
+        console.warn(`[skip] ${path} not found in ${repo}#${ref}`)
+        continue
+      }
+
+      seededFiles.push(...result.seeded)
+      skippedSeedFiles.push(...result.skipped)
+    }
+
     mergePackageJSON()
 
     writeFileSync(
@@ -247,6 +330,10 @@ function main() {
           ref,
           syncedAt: new Date().toISOString(),
           managedPaths,
+          seedOnlyPaths,
+          lastSyncedManagedPaths: syncedManaged,
+          seededFiles,
+          skippedSeedFiles,
         },
         null,
         2,
@@ -255,11 +342,14 @@ function main() {
 
     rmSync(tempRoot, { recursive: true, force: true })
 
-    if (commitSyncedChanges({ repo, ref, targetRoot, syncedPaths }, git)) {
+    const pathsToCommit = [...syncedManaged, ...seededFiles]
+    if (commitSyncedChanges({ repo, ref, targetRoot, syncedPaths: pathsToCommit }, git)) {
       console.log('[sync] committed sync changes')
     } else {
       console.log('[sync] no sync changes to commit')
     }
+
+    printSyncReport({ syncedManaged, seededFiles, skippedSeedFiles })
 
     console.log('\nDone. Suggested next commands:')
     console.log('pnpm install')
