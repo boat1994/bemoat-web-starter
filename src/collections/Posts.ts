@@ -1,4 +1,14 @@
-import type { CollectionConfig } from 'payload'
+import type {
+  CollectionConfig,
+  RelationshipFieldValidation,
+  TextareaFieldValidation,
+  TextFieldValidation,
+  UploadFieldValidation,
+} from 'payload'
+
+import type { Post } from '../payload-types'
+
+type PostValidateData = Partial<Pick<Post, '_status'>>
 
 const pickLocalizedText = (value: unknown) => {
   if (typeof value === 'string') return value
@@ -61,10 +71,10 @@ export const Posts: CollectionConfig = {
       name: 'title',
       type: 'text',
       localized: true,
-      validate: (value: unknown, { data }: any) => {
+      validate: ((value: unknown, { data }: { data?: PostValidateData }) => {
         if (data?._status === 'published' && !value) return 'Title is required for publication'
         return true
-      },
+      }) satisfies TextFieldValidation,
     },
     {
       name: 'slug',
@@ -83,7 +93,7 @@ export const Posts: CollectionConfig = {
 
               if (req.payload) {
                 const { totalDocs } = await req.payload.find({
-                  collection: 'posts' as any,
+                  collection: 'posts',
                   where: { slug: { equals: slug } },
                   limit: 1,
                   depth: 0,
@@ -115,10 +125,10 @@ export const Posts: CollectionConfig = {
       admin: {
         position: 'sidebar',
       },
-      validate: (value: unknown, { data }: any) => {
+      validate: ((value: unknown, { data }: { data?: PostValidateData }) => {
         if (data?._status === 'published' && !value) return 'Category is required for publication'
         return true
-      },
+      }) satisfies RelationshipFieldValidation,
     },
     {
       name: 'tags',
@@ -133,19 +143,19 @@ export const Posts: CollectionConfig = {
       name: 'coverImage',
       type: 'upload',
       relationTo: 'media',
-      validate: (value: unknown, { data }: any) => {
+      validate: ((value: unknown, { data }: { data?: PostValidateData }) => {
         if (data?._status === 'published' && !value) return 'Cover image is required for publication'
         return true
-      },
+      }) satisfies UploadFieldValidation,
     },
     {
       name: 'excerpt',
       type: 'textarea',
       localized: true,
-      validate: (value: unknown, { data }: any) => {
+      validate: ((value: unknown, { data }: { data?: PostValidateData }) => {
         if (data?._status === 'published' && !value) return 'Excerpt is required for publication'
         return true
-      },
+      }) satisfies TextareaFieldValidation,
     },
     {
       name: 'content',

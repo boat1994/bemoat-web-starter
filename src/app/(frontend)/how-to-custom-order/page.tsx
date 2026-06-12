@@ -1,11 +1,12 @@
 import { getPayload } from 'payload'
 
 import { pickRichTextPlain, pickText } from '@/lib/payloadText'
+import type { CustomOrderPage } from '@/payload-types'
 import config from '@/payload.config'
 
 export const dynamic = 'force-dynamic'
 
-type AnyDoc = Record<string, any>
+type CustomOrderStep = NonNullable<CustomOrderPage['steps']>[number]
 
 const defaultSteps = [
   {
@@ -27,8 +28,9 @@ const defaultSteps = [
 
 export default async function CustomOrderPage() {
   const payload = await getPayload({ config: await config })
-  const page = (await payload.findGlobal({ slug: 'custom-order-page' as any, depth: 1 })) as AnyDoc
-  const steps = Array.isArray(page.steps) && page.steps.length > 0 ? page.steps : defaultSteps
+  const page = await payload.findGlobal({ slug: 'custom-order-page', depth: 1 })
+  const steps: Array<CustomOrderStep | (typeof defaultSteps)[number]> =
+    Array.isArray(page.steps) && page.steps.length > 0 ? page.steps : defaultSteps
 
   return (
     <main>
@@ -44,12 +46,12 @@ export default async function CustomOrderPage() {
       </section>
 
       <section className="grid">
-        {steps.map((step: AnyDoc, index: number) => (
-          <article className="card" key={step.id || index}>
+        {steps.map((step, index: number) => (
+          <article className="card" key={'id' in step ? step.id || index : index}>
             <p className="tag">Step {index + 1}</p>
             <h3>{pickText(step.title, 'Process step')}</h3>
             <p>{pickText(step.engTitle, '')}</p>
-            <p>{pickRichTextPlain(step.description, pickText(step.note, ''))}</p>
+            <p>{pickRichTextPlain('description' in step ? step.description : undefined, pickText(step.note, ''))}</p>
           </article>
         ))}
       </section>

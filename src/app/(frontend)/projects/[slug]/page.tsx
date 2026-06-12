@@ -7,13 +7,11 @@ import config from '@/payload.config'
 
 export const dynamic = 'force-dynamic'
 
-type AnyDoc = Record<string, any>
-
 export default async function ProjectDetailPage(props: { params: Promise<{ slug: string }> }) {
   const { slug } = await props.params
   const payload = await getPayload({ config: await config })
   const result = await payload.find({
-    collection: 'projects' as any,
+    collection: 'projects',
     depth: 2,
     limit: 1,
     where: {
@@ -23,7 +21,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ slug:
     },
   })
 
-  const project = result.docs[0] as AnyDoc | undefined
+  const project = result.docs[0]
   if (!project) notFound()
 
   return (
