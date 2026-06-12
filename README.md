@@ -1,119 +1,258 @@
-# Payload Cloudflare Template
+# Bemoat Web Starter
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/payloadcms/payload/tree/main/templates/with-cloudflare-d1)
+A reusable Payload 3, Next.js, and Cloudflare starter for Bemoat projects.
 
-**This can only be deployed on Paid Workers right now due to size limits.** This template comes configured with the bare minimum to get started on anything you need.
+This starter is based on the Payload Cloudflare D1 template and extended with reusable modules from the Bogus dev branch.
 
-## Quick start
+## What is included
 
-This template can be deployed directly to Cloudflare Workers by clicking the button to take you to the setup screen.
+- Payload 3 CMS
+- Next.js app router frontend
+- Cloudflare Workers deployment through OpenNext
+- Cloudflare D1 database binding
+- Cloudflare R2 media storage binding
+- Jewelry project CMS schema
+- Blog CMS schema
+- Custom order page global
+- Site settings global
+- Thai and English localization
+- One-command boilerplate sync for child projects
 
-From there you can connect your code to a git provider such Github or Gitlab, name your Workers, D1 Database and R2 Bucket as well as attach any additional environment variables or services you need.
+## Source history
 
-## Quick Start - local setup
+The first Bemoat boilerplate layer was migrated from:
 
-To spin up this template locally, follow these steps:
-
-### Clone
-
-After you click the `Deploy` button above, you'll want to have standalone copy of this repo on your machine. Cloudflare will connect your app to a git provider such as Github and you can access your code from there.
-
-### Local Development
-
-## How it works
-
-Out of the box, using [`Wrangler`](https://developers.cloudflare.com/workers/wrangler/) will automatically create local bindings for you to connect to the remote services and it can even create a local mock of the services you're using with Cloudflare.
-
-We've pre-configured Payload for you with the following:
-
-### Collections
-
-See the [Collections](https://payloadcms.com/docs/configuration/collections) docs for details on how to extend this functionality.
-
-- #### Users (Authentication)
-
-  Users are auth-enabled collections that have access to the admin panel.
-
-  For additional help, see the official [Auth Example](https://github.com/payloadcms/payload/tree/main/examples/auth) or the [Authentication](https://payloadcms.com/docs/authentication/overview#authentication-overview) docs.
-
-- #### Media
-
-  This is the uploads enabled collection.
-
-### Image Storage (R2)
-
-Images will be served from an R2 bucket which you can then further configure to use a CDN to serve for your frontend directly.
-
-### D1 Database
-
-The Worker will have direct access to a D1 SQLite database which Wrangler can connect locally to, just note that you won't have a connection string as you would typically with other providers.
-
-You can enable read replicas by adding `readReplicas: 'first-primary'` in the DB adapter and then enabling it on your D1 Cloudflare dashboard. Read more about this feature on [our docs](https://payloadcms.com/docs/database/sqlite#d1-read-replicas).
-
-## Working with Cloudflare
-
-Firstly, after installing dependencies locally you need to authenticate with Wrangler by running:
-
-```bash
-pnpm wrangler login
+```text
+boat1994/bogus-jewelry#dev
 ```
 
-This will take you to Cloudflare to login and then you can use the Wrangler CLI locally for anything, use `pnpm wrangler help` to see all available options.
+Target boilerplate repository:
 
-Wrangler is pretty smart so it will automatically bind your services for local development just by running `pnpm dev`.
+```text
+boat1994/bemoat-web-starter#main
+```
 
-## Deployments
+## Important Cloudflare note
 
-When you're ready to deploy, first make sure you have created your migrations:
+This template is expected to run on Cloudflare Paid Workers because the bundle can exceed the free Worker size limit.
+
+Do not copy one project's Cloudflare resources into another project without changing them first:
+
+- D1 database ID
+- D1 database name
+- R2 bucket name
+- Worker name
+- Environment variables
+- Secrets
+
+## Local setup
+
+```bash
+pnpm install
+pnpm wrangler login
+pnpm dev
+```
+
+## Generate Payload files
+
+Run these after changing Payload collections, globals, admin fields, or import map components:
+
+```bash
+pnpm run generate:importmap
+pnpm run generate:types
+```
+
+## Create migrations
+
+Run this before deploying schema changes to Cloudflare D1:
 
 ```bash
 pnpm payload migrate:create
 ```
 
-Then run the following command:
+Review the generated migration before running deploy.
+
+## Deploy
 
 ```bash
 pnpm run deploy
 ```
 
-This will spin up Wrangler in `production` mode, run any created migrations, build the app and then deploy the bundle up to Cloudflare.
+The deploy command runs database migration, optimizes D1, builds the app, and deploys the Worker.
 
-That's it! You can if you wish move these steps into your CI pipeline as well.
+## Boilerplate sync command
 
-## Enabling logs
+Child projects cloned from this starter can pull the latest reusable boilerplate layer with one command:
 
-By default logs are not enabled for your API, we've made this decision because it does run against your quota so we've left it opt-in. But you can easily enable logs in one click in the Cloudflare panel, [see docs](https://developers.cloudflare.com/workers/observability/logs/workers-logs/#enable-workers-logs).
+```bash
+pnpm run boilerplate:sync
+```
 
-### Logger Configuration
+By default, this syncs from:
 
-This template includes a custom console-based logger compatible with Cloudflare Workers. Payload's default logger uses `pino-pretty`, which relies on Node.js APIs not available in Workers and would cause `fs.write is not implemented` errors.
+```text
+boat1994/bemoat-web-starter#main
+```
 
-The custom logger in `payload.config.ts`:
+## Sync from another branch
 
-- Routes logs through `console.*` methods which Workers handles correctly
-- Outputs JSON-formatted logs for Cloudflare observability
-- Only active in production (development uses the default `pino-pretty` for better DX)
+```bash
+BEMOAT_BOILERPLATE_REF=dev pnpm run boilerplate:sync
+```
 
-You can control the log level via the `PAYLOAD_LOG_LEVEL` environment variable (e.g., `debug`, `info`, `warn`, `error`).
+## Sync from another repository
 
-### Diagnostic Channel Errors
+```bash
+BEMOAT_BOILERPLATE_REPO=boat1994/bemoat-web-starter pnpm run boilerplate:sync
+```
 
-If you see "Failed to publish diagnostic channel message" errors in your observability logs, these typically come from the `undici` HTTP client library. The template includes `skipSafeFetch: true` in the Media collection to use native fetch instead of undici for file uploads, which helps reduce these errors.
+## What boilerplate sync updates
 
-Cloudflare Workers runs in an [isolated environment that cannot access private IP ranges](https://developers.cloudflare.com/workers-vpc/examples/route-across-private-services/) by default, providing built-in SSRF protection. This makes `skipSafeFetch` safe to use.
+- Frontend starter page
+- Projects index page
+- Project detail page
+- Blog index page
+- Blog detail page
+- Custom order page
+- Payload collections
+- Payload globals
+- Gemstone constants
+- Admin extension placeholder components
+- Helper utilities
+- `src/payload.config.ts`
+- Selected package scripts and dependencies
 
-## Known issues
+## What boilerplate sync does not update
 
-### GraphQL
+The sync script intentionally does not overwrite project-specific infrastructure files:
 
-We are currently waiting on some issues with GraphQL to be [fixed upstream in Workers](https://github.com/cloudflare/workerd/issues/5175) so full support for GraphQL is not currently guaranteed when deployed.
+- `wrangler.jsonc`
+- D1 database IDs
+- R2 bucket names
+- Worker names
+- `.env` files
+- Cloudflare secrets
 
-### Worker size limits
+This keeps each project safe while still allowing reusable code to move forward.
 
-We currently recommend deploying this template to the Paid Workers plan due to bundle [size limits](https://developers.cloudflare.com/workers/platform/limits/#worker-size) of 3mb. We're actively trying to reduce our bundle footprint over time to better meet this metric.
+## After every sync
 
-This also applies to your own code, in the case of importing a lot of libraries you may find yourself limited by the bundle.
+Run:
 
-## Questions
+```bash
+pnpm install
+pnpm run generate:importmap
+pnpm run generate:types
+pnpm payload migrate:create
+```
 
-If you have any issues or questions, reach out to us on [Discord](https://discord.com/invite/payload) or start a [GitHub discussion](https://github.com/payloadcms/payload/discussions).
+Then review the migration and test locally before deploying.
+
+## Recommended child project flow
+
+```bash
+git clone https://github.com/boat1994/bemoat-web-starter.git my-new-project
+cd my-new-project
+pnpm install
+pnpm run boilerplate:sync
+pnpm run generate:importmap
+pnpm run generate:types
+pnpm payload migrate:create
+pnpm dev
+```
+
+After the project becomes real, update these files for that project:
+
+- `package.json` name
+- `wrangler.jsonc` Worker name
+- D1 database config
+- R2 bucket config
+- Site metadata
+- Domain and environment variables
+
+## Current CMS modules
+
+### Core
+
+- Users
+- Media
+- BlogMedia
+
+### Jewelry and portfolio
+
+- Projects
+- Categories
+- Tags
+
+### Blog
+
+- Posts
+- BlogCategories
+
+### Globals
+
+- SiteSettings
+- CustomOrderPage
+
+## Intentionally not included yet
+
+The first boilerplate layer does not include the heavy operations modules from Bogus dev:
+
+- Orders
+- LINE integration
+- Payment slip review
+- Copilot
+- Handoff workflow
+
+These modules depend on project-specific APIs, secrets, collections, and operations rules. Add them later as a separate boilerplate layer when the interface is stable.
+
+## Useful commands
+
+```bash
+pnpm dev
+pnpm run build
+pnpm run preview
+pnpm run deploy
+pnpm run generate:importmap
+pnpm run generate:types
+pnpm payload migrate:create
+pnpm run boilerplate:sync
+```
+
+## Troubleshooting
+
+### Build says `Unknown command: build`
+
+Make sure the build script uses OpenNext:
+
+```json
+"build": "cross-env NODE_OPTIONS=\"--no-deprecation --max-old-space-size=8000\" opennextjs-cloudflare build"
+```
+
+Do not use `payload build`.
+
+### Admin field component not found
+
+Run:
+
+```bash
+pnpm run generate:importmap
+```
+
+### Payload types are stale
+
+Run:
+
+```bash
+pnpm run generate:types
+```
+
+### D1 schema does not match collections
+
+Create and review a migration:
+
+```bash
+pnpm payload migrate:create
+```
+
+Then deploy only after the migration looks correct.
