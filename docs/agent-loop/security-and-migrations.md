@@ -4,6 +4,19 @@ Agents must **stop and ask for explicit human approval** before committing or de
 
 Use with [checklist.md](./checklist.md) and [source-of-truth.md](./source-of-truth.md).
 
+## Programmatic guard
+
+CI and `pnpm run check` run `pnpm run guard:safety` (`scripts/guard-repo-safety.mjs`) to enforce the rules below in tracked/staged files.
+
+The guard fails when it finds:
+
+- tracked `.env*` files other than `.env.example`
+- obvious secret/token patterns (private keys, GitHub/Stripe/AWS tokens, high-risk env assignments)
+- Cloudflare D1/R2 resource identifiers outside `wrangler.jsonc`
+- destructive migration keywords in migration `up` sections (`DROP TABLE`, `DROP COLUMN`, `DELETE FROM`, `TRUNCATE`) unless the file includes `bemoat:destructive-migration-approved`
+
+Migration `down` rollback SQL is ignored. See [hardening.md](../hardening.md).
+
 ## Secrets and resource IDs
 
 **Never commit**
@@ -60,7 +73,7 @@ Use with [checklist.md](./checklist.md) and [source-of-truth.md](./source-of-tru
 
 ## Pre-commit quick check
 
-Before `git commit`, confirm:
+Before `git commit`, run `pnpm run guard:safety` (also included in `pnpm run check`). Confirm:
 
 - [ ] No `.env*` files staged
 - [ ] No secrets or tokens in the diff
