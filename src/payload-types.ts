@@ -69,6 +69,12 @@ export interface Config {
   collections: {
     users: User;
     media: Media;
+    'blog-media': BlogMedia;
+    projects: Project;
+    categories: Category;
+    tags: Tag;
+    'blog-categories': BlogCategory;
+    posts: Post;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -78,6 +84,12 @@ export interface Config {
   collectionsSelect: {
     users: UsersSelect<false> | UsersSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
+    'blog-media': BlogMediaSelect<false> | BlogMediaSelect<true>;
+    projects: ProjectsSelect<false> | ProjectsSelect<true>;
+    categories: CategoriesSelect<false> | CategoriesSelect<true>;
+    tags: TagsSelect<false> | TagsSelect<true>;
+    'blog-categories': BlogCategoriesSelect<false> | BlogCategoriesSelect<true>;
+    posts: PostsSelect<false> | PostsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -86,10 +98,16 @@ export interface Config {
   db: {
     defaultIDType: number;
   };
-  fallbackLocale: null;
-  globals: {};
-  globalsSelect: {};
-  locale: null;
+  fallbackLocale: ('false' | 'none' | 'null') | false | null | ('th' | 'en') | ('th' | 'en')[];
+  globals: {
+    'site-settings': SiteSetting;
+    'custom-order-page': CustomOrderPage;
+  };
+  globalsSelect: {
+    'site-settings': SiteSettingsSelect<false> | SiteSettingsSelect<true>;
+    'custom-order-page': CustomOrderPageSelect<false> | CustomOrderPageSelect<true>;
+  };
+  locale: 'th' | 'en';
   widgets: {
     collections: CollectionsWidget;
   };
@@ -161,6 +179,327 @@ export interface Media {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "blog-media".
+ */
+export interface BlogMedia {
+  id: number;
+  alt?: string | null;
+  updatedAt: string;
+  createdAt: string;
+  url?: string | null;
+  thumbnailURL?: string | null;
+  filename?: string | null;
+  mimeType?: string | null;
+  filesize?: number | null;
+  width?: number | null;
+  height?: number | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "projects".
+ */
+export interface Project {
+  id: number;
+  jewelryType: 'ring-center' | 'ring-band' | 'necklace' | 'bracelet' | 'earrings';
+  jewelrySex: 'male' | 'female' | 'unisex';
+  isFeaturedOnHome?: boolean | null;
+  title: string;
+  slug?: string | null;
+  description?: string | null;
+  totalCaratWeight?: string | null;
+  material?:
+    | (
+        | '18k-white-gold'
+        | '18k-yellow-gold'
+        | '18k-rose-gold'
+        | '14k-white-gold'
+        | '14k-yellow-gold'
+        | '14k-rose-gold'
+        | '9k-white-gold'
+        | '9k-yellow-gold'
+        | '9k-rose-gold'
+        | 'platinum'
+        | 'silver'
+      )
+    | null;
+  category: number | Category;
+  tags?: (number | Tag)[] | null;
+  coverImage?: (number | null) | Media;
+  images?: (number | Media)[] | null;
+  centerStone?: {
+    gemstone?:
+      | (
+          | 'cvd-diamond'
+          | 'natural-diamond'
+          | 'sapphire'
+          | 'ruby'
+          | 'emerald'
+          | 'aquamarine'
+          | 'morganite'
+          | 'amethyst'
+          | 'topaz'
+          | 'garnet'
+          | 'opal'
+          | 'pearl'
+          | 'moissanite'
+          | 'spinel'
+          | 'tourmaline'
+          | 'zircon'
+          | 'peridot'
+          | 'jade'
+          | 'tsavorite'
+          | 'tanzanite'
+        )
+      | null;
+    shape?:
+      | (
+          | 'round'
+          | 'oval'
+          | 'marquise'
+          | 'pear'
+          | 'princess'
+          | 'emerald-shape'
+          | 'asscher'
+          | 'cushion'
+          | 'radiant'
+          | 'heart'
+          | 'baguette'
+          | 'trillion'
+          | 'cabochon'
+        )
+      | null;
+    carat?: number | null;
+    colorDiamond?: ('D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J' | 'K' | 'L' | 'M') | null;
+    clarityDiamond?: ('FL' | 'IF' | 'VVS1' | 'VVS2' | 'VS1' | 'VS2' | 'SI1' | 'SI2') | null;
+    cutGrading?: ('Excellent' | 'Very Good' | 'Good' | 'Fair') | null;
+    colorColoredStoneHue?:
+      | (
+          | 'Red'
+          | 'Orangy Red'
+          | 'Reddish Orange'
+          | 'Orange'
+          | 'Yellowish Orange'
+          | 'Orangy Yellow'
+          | 'Yellow'
+          | 'Greenish Yellow'
+          | 'Yellowish Green'
+          | 'Green'
+          | 'Bluish Green'
+          | 'Greenish Blue'
+          | 'Blue'
+          | 'Violetish Blue'
+          | 'Bluish Violet'
+          | 'Violet'
+          | 'Purple'
+          | 'Reddish Purple'
+          | 'Purplish Red'
+          | 'Pink'
+          | 'Orangy Pink'
+          | 'Brownish Pink'
+          | 'Pinkish Orange (Padparadscha)'
+          | 'Pigeon Blood Red'
+          | 'Royal Blue'
+          | 'Cornflower Blue'
+          | 'Emerald Green'
+          | 'Mint Green'
+          | 'Teal'
+          | 'Champagne'
+          | 'Cognac'
+          | 'Brown'
+          | 'Reddish Brown'
+          | 'Brownish Red'
+          | 'Colorless (White)'
+          | 'Black'
+          | 'Bi-color'
+          | 'Watermelon'
+          | 'Color-change'
+        )
+      | null;
+    colorColoredStoneTone?:
+      | ('Very Light' | 'Light' | 'Medium Light' | 'Medium' | 'Medium Dark' | 'Dark' | 'Very Dark')
+      | null;
+    colorColoredStoneSaturation?:
+      | ('Vivid' | 'Strong' | 'Moderately Strong' | 'Moderate' | 'Slightly Grayish' | 'Grayish')
+      | null;
+    clarityColoredStone?: ('type_1' | 'type_2' | 'type_3') | null;
+    origin?:
+      | (
+          | 'Burma (Myanmar)'
+          | 'Sri Lanka (Ceylon)'
+          | 'Thailand (Kanchanaburi/Chanthaburi)'
+          | 'Madagascar'
+          | 'Colombia'
+          | 'Brazil'
+          | 'Mozambique'
+          | 'Tanzania'
+          | 'Zambia'
+          | 'Ethiopia'
+          | 'Kenya'
+          | 'Nigeria'
+          | 'Afghanistan'
+          | 'Pakistan'
+          | 'Vietnam'
+          | 'Australia'
+          | 'Russia'
+          | 'USA'
+        )
+      | null;
+  };
+  sideStones?:
+    | {
+        gemstone?:
+          | (
+              | 'cvd-diamond'
+              | 'natural-diamond'
+              | 'sapphire'
+              | 'ruby'
+              | 'emerald'
+              | 'aquamarine'
+              | 'morganite'
+              | 'amethyst'
+              | 'topaz'
+              | 'garnet'
+              | 'opal'
+              | 'pearl'
+              | 'moissanite'
+              | 'spinel'
+              | 'tourmaline'
+              | 'zircon'
+              | 'peridot'
+              | 'jade'
+              | 'tsavorite'
+              | 'tanzanite'
+            )
+          | null;
+        shape?:
+          | (
+              | 'round'
+              | 'oval'
+              | 'marquise'
+              | 'pear'
+              | 'princess'
+              | 'emerald-shape'
+              | 'asscher'
+              | 'cushion'
+              | 'radiant'
+              | 'heart'
+              | 'baguette'
+              | 'trillion'
+              | 'cabochon'
+            )
+          | null;
+        quantity?: number | null;
+        totalCarat?: number | null;
+        id?: string | null;
+      }[]
+    | null;
+  seo?: {
+    title?: string | null;
+    description?: string | null;
+    keywords?: string | null;
+  };
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "categories".
+ */
+export interface Category {
+  id: number;
+  title: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tags".
+ */
+export interface Tag {
+  id: number;
+  title: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "blog-categories".
+ */
+export interface BlogCategory {
+  id: number;
+  title: string;
+  slug?: string | null;
+  description?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "posts".
+ */
+export interface Post {
+  id: number;
+  title?: string | null;
+  slug?: string | null;
+  publishedAt?: string | null;
+  blogCategory?: (number | null) | BlogCategory;
+  tags?: (number | Tag)[] | null;
+  coverImage?: (number | null) | Media;
+  excerpt?: string | null;
+  content?:
+    | (
+        | {
+            heading?: string | null;
+            body?: string | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'textSection';
+          }
+        | {
+            image: number | BlogMedia;
+            caption?: string | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'imageBlock';
+          }
+        | {
+            quote: string;
+            attribution?: string | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'quoteBlock';
+          }
+        | {
+            type?: ('tip' | 'fact' | 'warning') | null;
+            title?: string | null;
+            body: string;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'calloutBlock';
+          }
+      )[]
+    | null;
+  relatedProjects?: (number | Project)[] | null;
+  seo?: {
+    title?: string | null;
+    description?: string | null;
+    keywords?: string | null;
+  };
+  aiState?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+  _status?: ('draft' | 'published') | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -190,6 +529,30 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'media';
         value: number | Media;
+      } | null)
+    | ({
+        relationTo: 'blog-media';
+        value: number | BlogMedia;
+      } | null)
+    | ({
+        relationTo: 'projects';
+        value: number | Project;
+      } | null)
+    | ({
+        relationTo: 'categories';
+        value: number | Category;
+      } | null)
+    | ({
+        relationTo: 'tags';
+        value: number | Tag;
+      } | null)
+    | ({
+        relationTo: 'blog-categories';
+        value: number | BlogCategory;
+      } | null)
+    | ({
+        relationTo: 'posts';
+        value: number | Post;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -273,6 +636,164 @@ export interface MediaSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "blog-media_select".
+ */
+export interface BlogMediaSelect<T extends boolean = true> {
+  alt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  url?: T;
+  thumbnailURL?: T;
+  filename?: T;
+  mimeType?: T;
+  filesize?: T;
+  width?: T;
+  height?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "projects_select".
+ */
+export interface ProjectsSelect<T extends boolean = true> {
+  jewelryType?: T;
+  jewelrySex?: T;
+  isFeaturedOnHome?: T;
+  title?: T;
+  slug?: T;
+  description?: T;
+  totalCaratWeight?: T;
+  material?: T;
+  category?: T;
+  tags?: T;
+  coverImage?: T;
+  images?: T;
+  centerStone?:
+    | T
+    | {
+        gemstone?: T;
+        shape?: T;
+        carat?: T;
+        colorDiamond?: T;
+        clarityDiamond?: T;
+        cutGrading?: T;
+        colorColoredStoneHue?: T;
+        colorColoredStoneTone?: T;
+        colorColoredStoneSaturation?: T;
+        clarityColoredStone?: T;
+        origin?: T;
+      };
+  sideStones?:
+    | T
+    | {
+        gemstone?: T;
+        shape?: T;
+        quantity?: T;
+        totalCarat?: T;
+        id?: T;
+      };
+  seo?:
+    | T
+    | {
+        title?: T;
+        description?: T;
+        keywords?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "categories_select".
+ */
+export interface CategoriesSelect<T extends boolean = true> {
+  title?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tags_select".
+ */
+export interface TagsSelect<T extends boolean = true> {
+  title?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "blog-categories_select".
+ */
+export interface BlogCategoriesSelect<T extends boolean = true> {
+  title?: T;
+  slug?: T;
+  description?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "posts_select".
+ */
+export interface PostsSelect<T extends boolean = true> {
+  title?: T;
+  slug?: T;
+  publishedAt?: T;
+  blogCategory?: T;
+  tags?: T;
+  coverImage?: T;
+  excerpt?: T;
+  content?:
+    | T
+    | {
+        textSection?:
+          | T
+          | {
+              heading?: T;
+              body?: T;
+              id?: T;
+              blockName?: T;
+            };
+        imageBlock?:
+          | T
+          | {
+              image?: T;
+              caption?: T;
+              id?: T;
+              blockName?: T;
+            };
+        quoteBlock?:
+          | T
+          | {
+              quote?: T;
+              attribution?: T;
+              id?: T;
+              blockName?: T;
+            };
+        calloutBlock?:
+          | T
+          | {
+              type?: T;
+              title?: T;
+              body?: T;
+              id?: T;
+              blockName?: T;
+            };
+      };
+  relatedProjects?: T;
+  seo?:
+    | T
+    | {
+        title?: T;
+        description?: T;
+        keywords?: T;
+      };
+  aiState?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  _status?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv_select".
  */
 export interface PayloadKvSelect<T extends boolean = true> {
@@ -310,6 +831,171 @@ export interface PayloadMigrationsSelect<T extends boolean = true> {
   batch?: T;
   updatedAt?: T;
   createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "site-settings".
+ */
+export interface SiteSetting {
+  id: number;
+  mainPage?: {
+    heroSection?: {
+      desktopVideo?: (number | null) | Media;
+      mobileVideo?: (number | null) | Media;
+      desktopPoster?: (number | null) | Media;
+      mobilePoster?: (number | null) | Media;
+    };
+  };
+  seo: {
+    title: string;
+    description: string;
+    ogImage?: (number | null) | Media;
+  };
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "custom-order-page".
+ */
+export interface CustomOrderPage {
+  id: number;
+  hero?: {
+    /**
+     * Default: Custom Made Jewelry
+     */
+    badge?: string | null;
+    /**
+     * Supports rich text and line breaks.
+     */
+    title?: {
+      root: {
+        type: string;
+        children: {
+          type: any;
+          version: number;
+          [k: string]: unknown;
+        }[];
+        direction: ('ltr' | 'rtl') | null;
+        format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+        indent: number;
+        version: number;
+      };
+      [k: string]: unknown;
+    } | null;
+    description?: {
+      root: {
+        type: string;
+        children: {
+          type: any;
+          version: number;
+          [k: string]: unknown;
+        }[];
+        direction: ('ltr' | 'rtl') | null;
+        format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+        indent: number;
+        version: number;
+      };
+      [k: string]: unknown;
+    } | null;
+    images?:
+      | {
+          image: number | Media;
+          id?: string | null;
+        }[]
+      | null;
+  };
+  /**
+   * Manage the custom order steps here. If left empty, system defaults will be used.
+   */
+  steps?:
+    | {
+        title?: string | null;
+        engTitle?: string | null;
+        image?: (number | null) | Media;
+        description?: {
+          root: {
+            type: string;
+            children: {
+              type: any;
+              version: number;
+              [k: string]: unknown;
+            }[];
+            direction: ('ltr' | 'rtl') | null;
+            format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+            indent: number;
+            version: number;
+          };
+          [k: string]: unknown;
+        } | null;
+        tag?: string | null;
+        note?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "site-settings_select".
+ */
+export interface SiteSettingsSelect<T extends boolean = true> {
+  mainPage?:
+    | T
+    | {
+        heroSection?:
+          | T
+          | {
+              desktopVideo?: T;
+              mobileVideo?: T;
+              desktopPoster?: T;
+              mobilePoster?: T;
+            };
+      };
+  seo?:
+    | T
+    | {
+        title?: T;
+        description?: T;
+        ogImage?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "custom-order-page_select".
+ */
+export interface CustomOrderPageSelect<T extends boolean = true> {
+  hero?:
+    | T
+    | {
+        badge?: T;
+        title?: T;
+        description?: T;
+        images?:
+          | T
+          | {
+              image?: T;
+              id?: T;
+            };
+      };
+  steps?:
+    | T
+    | {
+        title?: T;
+        engTitle?: T;
+        image?: T;
+        description?: T;
+        tag?: T;
+        note?: T;
+        id?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
