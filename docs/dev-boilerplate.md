@@ -20,7 +20,11 @@ The order operations, LINE, payment slip, copilot, and handoff modules from prev
 
 ## Sync behavior
 
+Child projects should run `pnpm run boilerplate:check` before `pnpm run boilerplate:sync` to see which managed paths are missing or changed. The check command is read-only and exits with a non-zero code when drift exists.
+
 Child projects pull these modules and the rest of the managed boilerplate layer with `pnpm run boilerplate:sync`. See the root [README.md](../../README.md#what-boilerplate-sync-updates) and [docs/agent-loop/source-of-truth.md](../agent-loop/source-of-truth.md) for the full managed path list.
+
+`pnpm-lock.yaml` is not synced. After sync, run `pnpm install` in the child project to refresh the local lockfile.
 
 ## After pulling this change
 

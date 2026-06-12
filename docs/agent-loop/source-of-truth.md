@@ -13,10 +13,10 @@ This document separates what **`bemoat-web-starter`** owns from what **child pro
 | Payload schema (shared) | Shared collections and globals |
 | Starter UI | Shared starter pages (home, projects, blog, custom order, etc.) |
 | Shared utilities | Helper modules synced by boilerplate |
-| Package scripts | Scripts required by the starter (`check`, `check:full`, `boilerplate:sync`, etc.) |
-| Sync behavior | `scripts/sync-boilerplate.mjs` and managed path list |
+| Package scripts | Scripts required by the starter (`check`, `check:full`, `boilerplate:sync`, `boilerplate:check`, etc.) |
+| Sync behavior | `scripts/sync-boilerplate.mjs`, `scripts/check-boilerplate-drift.mjs`, and managed path list |
 
-Child projects receive these via **clone after Cloudflare deploy** (initial) and **`pnpm run boilerplate:sync`** (ongoing updates). For stable production syncs, pin a **version tag** with `BEMOAT_BOILERPLATE_REF` instead of always using `main`—see [docs/releases.md](../releases.md).
+Child projects receive these via **clone after Cloudflare deploy** (initial) and **`pnpm run boilerplate:sync`** (ongoing updates). Run **`pnpm run boilerplate:check`** first to see missing or changed managed paths without modifying files. For stable production syncs, pin a **version tag** with `BEMOAT_BOILERPLATE_REF` instead of always using `main`—see [docs/releases.md](../releases.md).
 
 ### Synced by `boilerplate:sync`
 
@@ -29,11 +29,12 @@ Child projects receive these via **clone after Cloudflare deploy** (initial) and
 | `.github/ISSUE_TEMPLATE/agent-task.yml` | Agent task issue template |
 | `docs/agent-loop` | Agent operating loop docs |
 | `scripts/sync-boilerplate.mjs` | Sync script and managed path list |
+| `scripts/check-boilerplate-drift.mjs` | Read-only drift check before sync |
 | `docs/dev-boilerplate.md` | Boilerplate module notes |
 | Frontend starter pages | Home, projects, blog, custom order |
 | Payload shared schema | Collections, globals, `payload.config.ts` |
 | Shared utilities | e.g. `src/lib/payloadText.ts` |
-| `package.json` scripts | `check`, `check:full`, `typecheck`, `lint`, `test`, `test:int`, generate scripts, `payload`, `boilerplate:sync` |
+| `package.json` scripts | `check`, `check:full`, `typecheck`, `lint`, `test`, `test:int`, generate scripts, `payload`, `boilerplate:sync`, `boilerplate:check` |
 
 `pnpm-lock.yaml` is not synced. After sync, run `pnpm install` in the child project to refresh the local lockfile.
 
