@@ -27,6 +27,7 @@ const isCLI = process.argv.some((value) => realpath(value).endsWith(path.join('p
 const isBuild =
   process.env.npm_lifecycle_event === 'build' || process.argv.some((value) => value.match(/build$/))
 const isProduction = process.env.NODE_ENV === 'production'
+const isTest = process.env.NODE_ENV === 'test'
 
 const createLog =
   (level: string, fn: typeof console.log) => (objOrMsg: object | string, msg?: string) => {
@@ -91,7 +92,10 @@ function getCloudflareContextFromWrangler(): Promise<CloudflareContext> {
     ({ getPlatformProxy }) =>
       getPlatformProxy({
         environment: process.env.CLOUDFLARE_ENV,
-        remoteBindings: process.env.PAYLOAD_MIGRATE_REMOTE === 'true' || (isProduction && !isCLI && !isBuild),
+        persist: isTest ? false : undefined,
+        remoteBindings:
+          !isTest &&
+          (process.env.PAYLOAD_MIGRATE_REMOTE === 'true' || (isProduction && !isCLI && !isBuild)),
       } satisfies GetPlatformProxyOptions),
   )
 }
