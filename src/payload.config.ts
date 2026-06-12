@@ -10,12 +10,22 @@ import { r2Storage } from '@payloadcms/storage-r2'
 
 import { Users } from './collections/Users'
 import { Media } from './collections/Media'
+import { BlogMedia } from './collections/BlogMedia'
+import { Projects } from './collections/Projects'
+import { Categories } from './collections/Categories'
+import { Tags } from './collections/Tags'
+import { BlogCategories } from './collections/BlogCategories'
+import { Posts } from './collections/Posts'
+import { SiteSettings } from './globals/SiteSettings'
+import { CustomOrderPage } from './globals/CustomOrderPage'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
-const realpath = (value: string) => (fs.existsSync(value) ? fs.realpathSync(value) : undefined)
+const realpath = (value: string) => (fs.existsSync(value) ? fs.realpathSync(value) : '')
 
 const isCLI = process.argv.some((value) => realpath(value).endsWith(path.join('payload', 'bin.js')))
+const isBuild =
+  process.env.npm_lifecycle_event === 'build' || process.argv.some((value) => value.match(/build$/))
 const isProduction = process.env.NODE_ENV === 'production'
 
 const createLog =
@@ -39,7 +49,7 @@ const cloudflareLogger = {
 } as any // Use PayloadLogger type when it's exported
 
 const cloudflare =
-  isCLI || !isProduction
+  isCLI || isBuild || !isProduction
     ? await getCloudflareContextFromWrangler()
     : await getCloudflareContext({ async: true })
 
@@ -50,8 +60,14 @@ export default buildConfig({
       baseDir: path.resolve(dirname),
     },
   },
-  collections: [Users, Media],
+  collections: [Users, Media, BlogMedia, Projects, Categories, Tags, BlogCategories, Posts],
+  globals: [SiteSettings, CustomOrderPage],
   editor: lexicalEditor(),
+  localization: {
+    locales: ['th', 'en'],
+    defaultLocale: 'th',
+    fallback: true,
+  },
   secret: process.env.PAYLOAD_SECRET || '',
   typescript: {
     outputFile: path.resolve(dirname, 'payload-types.ts'),
@@ -61,7 +77,10 @@ export default buildConfig({
   storage: [
     r2Storage({
       bucket: cloudflare.env.R2,
-      collections: { media: true },
+      collections: {
+        media: true,
+        'blog-media': true,
+      },
     }),
   ],
 })
@@ -72,7 +91,7 @@ function getCloudflareContextFromWrangler(): Promise<CloudflareContext> {
     ({ getPlatformProxy }) =>
       getPlatformProxy({
         environment: process.env.CLOUDFLARE_ENV,
-        remoteBindings: isProduction,
+        remoteBindings: process.env.PAYLOAD_MIGRATE_REMOTE === 'true' || (isProduction && !isCLI && !isBuild),
       } satisfies GetPlatformProxyOptions),
   )
 }
