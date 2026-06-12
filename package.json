@@ -6,6 +6,8 @@
   "type": "module",
   "scripts": {
     "build": "cross-env NODE_OPTIONS=\"--no-deprecation --max-old-space-size=8000\" pnpm exec opennextjs-cloudflare build",
+    "check": "pnpm run lint && pnpm run typecheck && pnpm run test:int",
+    "check:full": "pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build",
     "deploy": "pnpm run deploy:database && pnpm run deploy:app",
     "deploy:app": "pnpm exec opennextjs-cloudflare build --env=$CLOUDFLARE_ENV && pnpm exec opennextjs-cloudflare deploy --env=$CLOUDFLARE_ENV",
     "deploy:database": "cross-env NODE_ENV=production PAYLOAD_SECRET=ignore pnpm exec payload migrate && pnpm exec wrangler d1 execute D1 --command 'PRAGMA optimize' --env=$CLOUDFLARE_ENV --remote",
@@ -23,6 +25,7 @@
     "test": "pnpm run test:int && pnpm run test:e2e",
     "test:e2e": "cross-env NODE_OPTIONS=\"--no-deprecation --import=tsx/esm\" playwright test --config=playwright.config.ts",
     "test:int": "cross-env NODE_OPTIONS=--no-deprecation vitest run --config ./vitest.config.mts",
+    "typecheck": "pnpm exec tsc --noEmit",
     "boilerplate:sync": "node scripts/sync-boilerplate.mjs"
   },
   "dependencies": {
