@@ -47,6 +47,17 @@ Do not copy one project's Cloudflare resources into another project without chan
 - Environment variables
 - Secrets
 
+## Cloudflare deploy button settings
+
+When Cloudflare asks for commands, use pnpm:
+
+```text
+Build command: pnpm run build
+Deploy command: pnpm run deploy
+```
+
+The npm scripts internally use `pnpm exec` for OpenNext, Payload, and Wrangler so the local project binaries are used consistently.
+
 ## Local setup
 
 ```bash
@@ -227,10 +238,10 @@ pnpm run boilerplate:sync
 
 ### Build says `Unknown command: build`
 
-Make sure the build script uses OpenNext:
+Make sure the build script uses pnpm and OpenNext:
 
 ```json
-"build": "cross-env NODE_OPTIONS=\"--no-deprecation --max-old-space-size=8000\" opennextjs-cloudflare build"
+"build": "cross-env NODE_OPTIONS=\"--no-deprecation --max-old-space-size=8000\" pnpm exec opennextjs-cloudflare build"
 ```
 
 Do not use `payload build`.
