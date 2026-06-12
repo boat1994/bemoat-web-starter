@@ -1,5 +1,7 @@
 # Bemoat Web Starter
 
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/boat1994/bemoat-web-starter)
+
 A reusable Payload 3, Next.js, and Cloudflare starter for Bemoat projects.
 
 This starter is based on the Payload Cloudflare D1 template and extended with reusable modules from the Bogus dev branch.
@@ -73,6 +75,8 @@ pnpm payload migrate:create
 Review the generated migration before running deploy.
 
 ## Deploy
+
+You can start from the Cloudflare deploy button at the top of this README, or deploy manually after setting up your Cloudflare resources.
 
 ```bash
 pnpm run deploy
