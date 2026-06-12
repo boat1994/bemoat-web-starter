@@ -1,0 +1,41 @@
+---
+title: Copilot dev testing workflow
+description: Run HMITL eval and copilot integration tests whenever copilot code changes
+tags: [copilot, testing, hmitl, eval]
+priority: high
+globs:
+  - src/lib/copilot/**
+  - src/app/(frontend)/copilot/**
+  - src/components/ChatCopilot/**
+  - tests/eval/**
+  - tests/int/copilot*
+---
+
+# Copilot development workflow
+
+When you change anything under copilot routing, HMITL UI, eval dataset, or related server actions, **always run the copilot test bundle before claiming the work is done**.
+
+## Required command
+
+```bash
+pnpm run test:copilot
+```
+
+This runs:
+
+1. `pnpm run eval:hmitl` — labeled router safety gate (0 false auto-send, 0 RAG/blacklist auto_send)
+2. Vitest — all `tests/int/copilot*.int.spec.*` integration tests
+
+## Also run when appropriate
+
+- After schema changes: `pnpm run generate:types` then `pnpm exec tsc --noEmit`
+- Before disabling shadow mode or widening `autoSendAllowlist`: `pnpm run eval:hmitl` must pass on the full dataset
+
+## Adding regression cases
+
+If manual testing finds a mis-route, add a case to `tests/eval/hmitl_eval_dataset.ts` before fixing the router.
+
+## Do not skip because
+
+- Integration tests alone do not measure false auto-send rate across the labeled set
+- `eval:hmitl` is the go-live gate documented in `docs/plans/2026-05-17-ai-hmitl-router-plan.md`

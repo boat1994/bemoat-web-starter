@@ -1,0 +1,21 @@
+---
+title: Superpowers skill workflow
+description: Require agents to invoke the Superpowers skill router before task work
+tags: [agents, superpowers, workflow, codex]
+priority: high
+---
+
+# Superpowers skill workflow
+
+All agents working in this repository must begin task work by using the Superpowers skill workflow.
+
+## Required starting skill
+
+- `superpowers:using-superpowers`
+- Source: `/home/boat/.codex/plugins/cache/openai-curated/superpowers/c6ea566d/skills/using-superpowers/SKILL.md`
+
+## Rule
+
+Before responding, asking clarifying questions, planning, editing files, running implementation commands, or reviewing code, check whether any skill applies. If a skill might apply, read and follow that skill first.
+
+User instructions remain the highest priority.
