@@ -50,4 +50,17 @@ Copy this template into issue comments, PR descriptions, or agent handoff notes.
 ## Notes for next agent
 
 <!-- Assumptions, risks, URLs inspected, things not to redo -->
+
+## Final user notification
+
+<!-- Copy to the user when the task ends -->
+
+- **Branch:**
+- **Commit hash:**
+- **PR URL:**
+- **Files changed:**
+- **Commands run:**
+- **Test result:**
+- **Risks:**
+- **Human review:**
 ```

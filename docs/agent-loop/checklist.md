@@ -23,6 +23,16 @@ Use with [README.md](./README.md) and [source-of-truth.md](./source-of-truth.md)
 - [ ] After D1 schema changes: `pnpm payload migrate:create` and review migration
 - [ ] Update session state (files changed, last command, blockers)
 
+## Before commit
+
+Stop instead of committing if the task is ambiguous, forbidden files are required, checks fail for unrelated reasons, secrets or Cloudflare resource IDs are involved, or the change belongs in a child project.
+
+- [ ] `git status` and diff summary shown
+- [ ] Only allowed files changed; no secrets, `.env`, D1 IDs, R2 names, or Worker names
+- [ ] `pnpm run lint`, `typecheck`, and `test:int` pass
+- [ ] Exactly one focused commit (unless task requires more)
+- [ ] No unrelated refactors in the commit
+
 ## Before PR
 
 - [ ] Acceptance criteria met
@@ -31,9 +41,12 @@ Use with [README.md](./README.md) and [source-of-truth.md](./source-of-truth.md)
 - [ ] `pnpm run test:int`
 - [ ] `pnpm run check` when possible (lint + typecheck + test:int)
 - [ ] `pnpm run build` if practical for the change
-- [ ] PR template complete: goal, changes, source-of-truth impact, Payload impact, commands, test result, risk review
+- [ ] Branch pushed to origin
+- [ ] PR opened; template complete: goal, changes, source-of-truth impact, Payload impact, commands, test result, risk review
 - [ ] Clear answer: does this belong in starter or a child project?
 - [ ] Agent notes and [state-template.md](./state-template.md) updated for reviewers
+- [ ] User notified: branch, commit hash, PR URL, checks, risks, human-review items
+- [ ] **Did not merge** — merge is human-only
 
 ## CI failure
 

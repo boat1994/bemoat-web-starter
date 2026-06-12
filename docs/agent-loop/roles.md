@@ -10,12 +10,15 @@ Use these roles to split work across specialized agents. One session may play on
 
 - Read the issue, `AGENTS.md`, and [source-of-truth.md](./source-of-truth.md) before editing.
 - Stay within allowed file paths and acceptance criteria.
-- Run required validation commands before opening or updating a PR.
-- Document commands run and test results in the PR template.
+- Follow the default git workflow: branch → edit → test → show diff → commit → push → open PR → notify user.
+- Run required validation commands before commit and PR.
+- Document commands run and test results in the PR template and final user notification.
 
 **Must not:**
 
 - Expand scope beyond the issue without explicit approval.
+- Commit if checks fail, forbidden files changed, or secrets or Cloudflare resource IDs are involved.
+- Merge PRs—humans merge after review.
 - Copy D1 IDs, R2 bucket names, Worker names, `.env`, or secrets between projects.
 - Edit sync-managed files in child projects when the change should be upstreamed to `bemoat-web-starter`.
 - Guess CI failures—inspect workflow logs or hand off to GitHub Triage.

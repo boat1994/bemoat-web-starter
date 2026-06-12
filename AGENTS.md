@@ -16,6 +16,53 @@ You are an expert Payload CMS developer. When working with Payload projects, fol
 - If an issue, PR, commit, branch, CI run, or GitHub URL is referenced, **use the GitHub skill first when available** (or `gh` for Actions logs).
 - **Do not guess CI failures**—inspect failed workflow logs before proposing fixes.
 
+## Default agent git workflow
+
+Agents **may commit and push**, but **must not merge**. Humans merge after review.
+
+1. Create a new branch from `main`
+2. Make the smallest complete change
+3. Run required checks (see [Validation before PR and merge](#validation-before-pr-and-merge))
+4. Show `git status` and diff summary
+5. Commit only if checks pass and only allowed files changed
+6. Push the branch
+7. Open a PR
+8. Notify the user with branch, commit, PR URL, checks, and risks
+9. **Do not merge**
+
+### Commit safety
+
+- Do not commit if checks fail
+- Do not commit if forbidden files changed
+- Do not commit secrets, `.env` files, Cloudflare IDs, D1 IDs, R2 bucket names, or Worker names
+- Do not commit unrelated refactors
+- Use exactly one focused commit unless the task explicitly requires more
+
+### Stop conditions
+
+Stop and report instead of committing when:
+
+- The task is ambiguous
+- Forbidden files are required
+- Checks fail for unrelated reasons
+- Secrets or Cloudflare resource IDs are involved
+- The change belongs in a child project instead of `bemoat-web-starter`
+
+### Final response format
+
+End every task with:
+
+- Branch name
+- Commit hash
+- PR URL
+- Files changed
+- Commands run
+- Test result
+- Risks
+- Anything left for human review
+
+Details: [docs/agent-loop/checklist.md](./docs/agent-loop/checklist.md), [docs/agent-loop/README.md](./docs/agent-loop/README.md).
+
 ## Validation before PR and merge
 
 - Run `pnpm run generate:importmap` after admin component changes.

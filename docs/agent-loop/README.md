@@ -32,19 +32,25 @@ Sync updates managed boilerplate paths. It does **not** overwrite project-specif
 ## High-level loop
 
 ```text
-issue → branch → implementation → checks → PR → CI → review → merge
+issue → branch → edit → test → show diff → commit → push → open PR → notify user
+                                                                    ↓
+                                              CI → review → merge (human only)
 ```
 
 | Step | What happens |
 |------|----------------|
 | **Issue** | Use the [agent-task](../../.github/ISSUE_TEMPLATE/agent-task.yml) template; define scope, files, commands, risks. |
 | **Branch** | Short-lived branch from `main`; name reflects the task. |
-| **Implementation** | Follow `AGENTS.md`, allowed paths, and [checklist.md](./checklist.md). |
-| **Checks** | Run lint, typecheck, tests; `generate:importmap` / `generate:types` when needed. |
-| **PR** | Fill out the [pull request template](../../.github/pull_request_template.md). |
+| **Edit** | Follow `AGENTS.md`, allowed paths, and [checklist.md](./checklist.md). Smallest complete change. |
+| **Test** | Run lint, typecheck, tests; `generate:importmap` / `generate:types` when needed. |
+| **Show diff** | `git status` and diff summary before commit. |
+| **Commit** | One focused commit only if checks pass and only allowed files changed. See commit safety in `AGENTS.md`. |
+| **Push** | Push the branch to origin. |
+| **Open PR** | Fill out the [pull request template](../../.github/pull_request_template.md). |
+| **Notify user** | Branch, commit hash, PR URL, checks, risks, and human-review items. |
 | **CI** | GitHub Actions must pass; inspect logs on failure—do not guess. |
 | **Review** | Human or reviewer agent; watch Payload, migration, Cloudflare, sync risks. |
-| **Merge** | Prefer `check:full` green when practical before merge. |
+| **Merge** | **Human only.** Agents must not merge. Prefer `check:full` green when practical. |
 
 ## Artifacts in this folder
 
