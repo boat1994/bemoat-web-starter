@@ -1,62 +1,89 @@
-import { headers as getHeaders } from 'next/headers.js'
-import Image from 'next/image'
+import Link from 'next/link'
 import { getPayload } from 'payload'
-import React from 'react'
-import { fileURLToPath } from 'url'
 
+import { pickText } from '@/lib/payloadText'
 import config from '@/payload.config'
-import './styles.css'
+
+export const dynamic = 'force-dynamic'
+
+type AnyDoc = Record<string, any>
 
 export default async function HomePage() {
-  const headers = await getHeaders()
-  const payloadConfig = await config
-  const payload = await getPayload({ config: payloadConfig })
-  const { user } = await payload.auth({ headers })
+  const payload = await getPayload({ config: await config })
 
-  const fileURL = `vscode://file/${fileURLToPath(import.meta.url)}`
+  const [projects, posts] = await Promise.all([
+    payload.find({
+      collection: 'projects' as any,
+      depth: 1,
+      limit: 6,
+      sort: '-updatedAt',
+      where: {
+        isFeaturedOnHome: {
+          equals: true,
+        },
+      },
+    }),
+    payload.find({
+      collection: 'posts' as any,
+      depth: 1,
+      limit: 3,
+      sort: '-publishedAt',
+    }),
+  ])
 
   return (
-    <div className="home">
-      <div className="content">
-        <picture>
-          <source srcSet="https://raw.githubusercontent.com/payloadcms/payload/main/packages/ui/src/assets/payload-favicon.svg" />
-          <Image
-            alt="Payload Logo"
-            height={65}
-            src="https://raw.githubusercontent.com/payloadcms/payload/main/packages/ui/src/assets/payload-favicon.svg"
-            width={65}
-          />
-        </picture>
-        {!user || !('email' in user) ? (
-          <h1>Welcome to your new project.</h1>
-        ) : (
-          <h1>Welcome back, {user.email}</h1>
-        )}
-        <div className="links">
-          <a
-            className="admin"
-            href={payloadConfig.routes.admin}
-            rel="noopener noreferrer"
-            target="_blank"
-          >
-            Go to admin panel
-          </a>
-          <a
-            className="docs"
-            href="https://payloadcms.com/docs"
-            rel="noopener noreferrer"
-            target="_blank"
-          >
-            Documentation
-          </a>
+    <main>
+      <section className="hero">
+        <p className="eyebrow">Payload Cloudflare boilerplate</p>
+        <h1>Jewelry CMS, portfolio, blog, and custom order starter.</h1>
+        <p className="lead">
+          This starter keeps the useful Bogus dev-branch structure and makes it reusable for Bemoat projects.
+        </p>
+        <div className="actions">
+          <Link className="button primary" href="/admin">
+            Open admin
+          </Link>
+          <Link className="button" href="/projects">
+            View projects
+          </Link>
         </div>
-      </div>
-      <div className="footer">
-        <p>Update this page by editing</p>
-        <a className="codeLink" href={fileURL}>
-          <code>app/(frontend)/page.tsx</code>
-        </a>
-      </div>
-    </div>
+      </section>
+
+      <section className="section">
+        <div className="sectionHeader">
+          <p className="eyebrow">Showcase</p>
+          <h2>Featured projects</h2>
+        </div>
+        <div className="grid">
+          {projects.docs.map((project: AnyDoc) => (
+            <Link className="card" href={`/projects/${project.slug}`} key={project.id}>
+              <p className="tag">{project.jewelryType || 'project'}</p>
+              <h3>{pickText(project.title, 'Untitled project')}</h3>
+              <p>{pickText(project.description, 'Add a short project description in Payload.')}</p>
+            </Link>
+          ))}
+          {projects.docs.length === 0 ? <p className="muted">No featured projects yet.</p> : null}
+        </div>
+      </section>
+
+      <section className="section split">
+        <div>
+          <p className="eyebrow">Content engine</p>
+          <h2>Blog module</h2>
+          <p className="muted">Draft, publish, and connect posts to jewelry projects.</p>
+        </div>
+        <div className="stack">
+          {posts.docs.map((post: AnyDoc) => (
+            <Link className="rowCard" href={`/blog/${post.slug}`} key={post.id}>
+              <span>{pickText(post.title, 'Untitled post')}</span>
+              <small>{pickText(post.excerpt, 'No excerpt yet')}</small>
+            </Link>
+          ))}
+          <Link className="button" href="/blog">
+            View blog
+          </Link>
+        </div>
+      </section>
+    </main>
   )
 }
