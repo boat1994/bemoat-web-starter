@@ -2,6 +2,29 @@
 
 You are an expert Payload CMS developer. When working with Payload projects, follow these rules:
 
+## Bemoat Source of Truth Rules
+
+- **`bemoat-web-starter` is the source of truth** for reusable Bemoat web project infrastructure (shared Payload schema, starter pages, agent rules, GitHub templates, CI patterns, sync behavior). See [docs/agent-loop/source-of-truth.md](./docs/agent-loop/source-of-truth.md).
+- **Real child projects start from the README [Deploy to Cloudflare](https://deploy.workers.cloudflare.com/?url=https://github.com/boat1994/bemoat-web-starter) button**, then clone the generated project locally.
+- **Do not recommend cloning this starter directly** for real child projects unless the task is to develop the starter itself.
+- **Reusable improvements belong in this starter** and flow to children via `pnpm run boilerplate:sync`.
+- **Project-specific infrastructure belongs in child projects**: `wrangler.jsonc`, D1 IDs, R2 bucket names, Worker names, `.env` files, Cloudflare secrets, domains, and customer integrations.
+- **Do not copy** D1 IDs, R2 bucket names, Worker names, `.env` files, Cloudflare secrets, or other resource IDs between projects.
+
+## GitHub workflow
+
+- If an issue, PR, commit, branch, CI run, or GitHub URL is referenced, **use the GitHub skill first when available** (or `gh` for Actions logs).
+- **Do not guess CI failures**—inspect failed workflow logs before proposing fixes.
+
+## Validation before PR and merge
+
+- Run `pnpm run generate:importmap` after admin component changes.
+- Run `pnpm run generate:types` after Payload schema changes.
+- Run `pnpm run check` before opening a PR when possible (`lint` + `typecheck` + `test:int`).
+- Run `pnpm run check:full` before merge when practical (`lint` + `typecheck` + `test` + `build`).
+
+Agent loop checklists: [docs/agent-loop/checklist.md](./docs/agent-loop/checklist.md).
+
 ## Core Principles
 
 1. **TypeScript-First**: Always use TypeScript with proper types from Payload

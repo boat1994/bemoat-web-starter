@@ -1,0 +1,97 @@
+name: Agent task
+description: Structured task for Codex, Cursor, and other coding agents
+title: "[agent] "
+labels:
+  - agent-task
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for work delegated to coding agents. Keep scope explicit so agents do not edit the wrong repo or forbidden paths.
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Background, links, prior PRs, or constraints the agent must read first.
+      placeholder: |
+        - Repo: bemoat-web-starter or child project name
+        - Related PR/issue: #
+        - Why now:
+    validations:
+      required: true
+
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: One clear outcome in plain language.
+      placeholder: Add X so that Y works for Z.
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: Acceptance criteria
+      description: Checklist-style, testable conditions for done.
+      placeholder: |
+        - [ ] Criterion 1
+        - [ ] Criterion 2
+    validations:
+      required: true
+
+  - type: textarea
+    id: likely_files
+    attributes:
+      label: Likely files
+      description: Paths the agent may create or modify. List forbidden paths if any.
+      placeholder: |
+        Allowed:
+        - src/collections/...
+        Forbidden:
+        - wrangler.jsonc
+    validations:
+      required: true
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Scope
+      description: Where should this work land?
+      options:
+        - bemoat-web-starter (reusable infrastructure)
+        - Child project (project-specific)
+        - Docs / CI / agent-loop only
+        - Unsure — triage first
+    validations:
+      required: true
+
+  - type: textarea
+    id: required_commands
+    attributes:
+      label: Required commands
+      description: Commands the agent must run before opening a PR.
+      value: |
+        pnpm run lint
+        pnpm run typecheck
+        pnpm run test:int
+      placeholder: |
+        pnpm run generate:importmap  # if admin components change
+        pnpm run generate:types      # if Payload schema changes
+        pnpm run check               # before PR when possible
+    validations:
+      required: true
+
+  - type: textarea
+    id: risks
+    attributes:
+      label: Risks
+      description: Migration, security, Cloudflare, sync, or cross-project ID risks.
+      placeholder: |
+        - D1 migration needed: yes/no
+        - Access control touched: yes/no
+        - Cloudflare secrets or IDs: do not copy across projects
+        - Sync-managed files: upstream to starter if reusable
+    validations:
+      required: true
