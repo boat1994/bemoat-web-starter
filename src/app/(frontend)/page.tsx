@@ -2,18 +2,17 @@ import Link from 'next/link'
 import { getPayload } from 'payload'
 
 import { pickText } from '@/lib/payloadText'
+import type { Post, Project } from '@/payload-types'
 import config from '@/payload.config'
 
 export const dynamic = 'force-dynamic'
-
-type AnyDoc = Record<string, any>
 
 export default async function HomePage() {
   const payload = await getPayload({ config: await config })
 
   const [projects, posts] = await Promise.all([
     payload.find({
-      collection: 'projects' as any,
+      collection: 'projects',
       depth: 1,
       limit: 6,
       sort: '-updatedAt',
@@ -24,7 +23,7 @@ export default async function HomePage() {
       },
     }),
     payload.find({
-      collection: 'posts' as any,
+      collection: 'posts',
       depth: 1,
       limit: 3,
       sort: '-publishedAt',
@@ -55,7 +54,7 @@ export default async function HomePage() {
           <h2>Featured projects</h2>
         </div>
         <div className="grid">
-          {projects.docs.map((project: AnyDoc) => (
+          {projects.docs.map((project: Project) => (
             <Link className="card" href={`/projects/${project.slug}`} key={project.id}>
               <p className="tag">{project.projectType || 'project'}</p>
               <h3>{pickText(project.title, 'Untitled project')}</h3>
@@ -73,7 +72,7 @@ export default async function HomePage() {
           <p className="muted">Draft, publish, and connect posts to reusable project records.</p>
         </div>
         <div className="stack">
-          {posts.docs.map((post: AnyDoc) => (
+          {posts.docs.map((post: Post) => (
             <Link className="rowCard" href={`/blog/${post.slug}`} key={post.id}>
               <span>{pickText(post.title, 'Untitled post')}</span>
               <small>{pickText(post.excerpt, 'No excerpt yet')}</small>

@@ -3,17 +3,18 @@ import { notFound } from 'next/navigation'
 import { getPayload } from 'payload'
 
 import { pickText } from '@/lib/payloadText'
+import type { Post } from '@/payload-types'
 import config from '@/payload.config'
 
 export const dynamic = 'force-dynamic'
 
-type AnyDoc = Record<string, any>
+type PostContentBlock = NonNullable<Post['content']>[number]
 
 export default async function BlogDetailPage(props: { params: Promise<{ slug: string }> }) {
   const { slug } = await props.params
   const payload = await getPayload({ config: await config })
   const result = await payload.find({
-    collection: 'posts' as any,
+    collection: 'posts',
     depth: 2,
     limit: 1,
     where: {
@@ -23,7 +24,7 @@ export default async function BlogDetailPage(props: { params: Promise<{ slug: st
     },
   })
 
-  const post = result.docs[0] as AnyDoc | undefined
+  const post = result.docs[0]
   if (!post) notFound()
 
   return (
@@ -37,7 +38,7 @@ export default async function BlogDetailPage(props: { params: Promise<{ slug: st
         <p className="lead">{pickText(post.excerpt, 'Add an excerpt in Payload.')}</p>
       </section>
       <section className="stack">
-        {(post.content || []).map((block: AnyDoc, index: number) => {
+        {(post.content || []).map((block: PostContentBlock, index: number) => {
           if (block.blockType === 'textSection') {
             return (
               <article className="rowCard" key={block.id || index}>

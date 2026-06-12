@@ -2,16 +2,15 @@ import Link from 'next/link'
 import { getPayload } from 'payload'
 
 import { pickText } from '@/lib/payloadText'
+import type { Project } from '@/payload-types'
 import config from '@/payload.config'
 
 export const dynamic = 'force-dynamic'
 
-type AnyDoc = Record<string, any>
-
 export default async function ProjectsPage() {
   const payload = await getPayload({ config: await config })
   const projects = await payload.find({
-    collection: 'projects' as any,
+    collection: 'projects',
     depth: 1,
     limit: 24,
     sort: '-updatedAt',
@@ -26,7 +25,7 @@ export default async function ProjectsPage() {
       </section>
 
       <section className="grid">
-        {projects.docs.map((project: AnyDoc) => (
+        {projects.docs.map((project: Project) => (
           <Link className="card" href={`/projects/${project.slug}`} key={project.id}>
             <p className="tag">{project.projectType || 'project'}</p>
             <h3>{pickText(project.title, 'Untitled project')}</h3>
