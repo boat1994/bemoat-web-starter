@@ -142,6 +142,8 @@ pnpm run deploy
 
 The deploy command runs database migration, optimizes D1, builds the app, and deploys the Worker.
 
+After deploy, run the [deploy smoke test checklist](./docs/deploy-smoke-test.md) to confirm frontend, admin, Payload, D1, R2, and Cloudflare routing.
+
 ## Recommended project flow (deploy-first)
 
 Real Bemoat projects should **not** start by cloning this repository directly. Use the deploy-first path:
@@ -340,7 +342,10 @@ pnpm run generate:importmap
 pnpm run generate:types
 pnpm payload migrate:create
 pnpm run boilerplate:sync
+pnpm run smoke:deploy
 ```
+
+Set `BEMOAT_SMOKE_BASE_URL` to your deployed URL when running the optional smoke script. See [docs/deploy-smoke-test.md](./docs/deploy-smoke-test.md).
 
 ## Troubleshooting
 
