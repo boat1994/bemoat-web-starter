@@ -12,6 +12,7 @@ pnpm run boilerplate:sync
 
 - `AGENTS.md` repository agent instructions
 - `.cursor/rules/*` workflow instructions and Cursor rule files
+- `scripts/sync-boilerplate.mjs` sync command updates
 - Frontend starter pages
 - Projects pages
 - Blog pages
@@ -45,7 +46,9 @@ The sync command automatically creates a Git commit for:
 - `package.json`
 - `.bemoat-boilerplate-sync.json`
 
-If local uncommitted changes already exist, the script stashes them first and restores them after the sync commit.
+If local uncommitted changes already exist, the script stashes only files outside the sync-managed scope and restores them after the sync commit. Existing edits on sync-managed files are overwritten by the new sync output instead of being popped back afterward.
+
+If a child project is still using the older sync script, copy `scripts/sync-boilerplate.mjs` from the starter into that project once before rerunning sync. The older script version did not sync itself forward.
 
 ```bash
 pnpm install

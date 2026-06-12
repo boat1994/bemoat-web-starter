@@ -140,6 +140,7 @@ BEMOAT_BOILERPLATE_REPO=boat1994/bemoat-web-starter pnpm run boilerplate:sync
 
 - `AGENTS.md` repository agent instructions
 - `.cursor/rules/*` workflow instructions and Cursor rule files
+- `scripts/sync-boilerplate.mjs` sync command updates
 - Frontend starter page
 - Projects index page
 - Project detail page
@@ -174,7 +175,9 @@ The sync command now creates a Git commit automatically for the files it manages
 - `package.json`
 - `.bemoat-boilerplate-sync.json`
 
-If you have local uncommitted changes first, the script stashes them before syncing and restores them after the sync commit is created.
+If you have local uncommitted changes first, the script stashes only files outside the sync-managed scope before syncing and restores them after the sync commit is created. Existing edits on sync-managed files are replaced by the fresh sync output instead of being reapplied afterward.
+
+If a child project still has the older sync script, copy `scripts/sync-boilerplate.mjs` from this starter into that project once, then run sync again. Older copies of the script did not sync themselves forward.
 
 Run:
 

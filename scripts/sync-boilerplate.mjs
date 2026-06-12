@@ -15,6 +15,7 @@ const stashMessage = 'bemoat-boilerplate-sync: pre-sync stash'
 const managedPaths = [
   'AGENTS.md',
   '.cursor/rules',
+  'scripts/sync-boilerplate.mjs',
   'src/app/(frontend)/page.tsx',
   'src/app/(frontend)/layout.tsx',
   'src/app/(frontend)/styles.css',
@@ -124,13 +125,17 @@ function getCommandStatus(command, args, options = {}) {
   return result.status ?? 1
 }
 
+function getScopedGitPathArgs(paths) {
+  return ['--', '.', ...paths.map((path) => `:(exclude)${path}`)]
+}
+
 function createGitClient() {
   return {
-    hasWorkingTreeChanges(cwd) {
-      return getCommandOutput('git', ['status', '--short'], { cwd }).trim().length > 0
+    hasWorkingTreeChanges(cwd, excludedPaths = []) {
+      return getCommandOutput('git', ['status', '--short', ...getScopedGitPathArgs(excludedPaths)], { cwd }).trim().length > 0
     },
-    stashPush(cwd) {
-      run('git', ['stash', 'push', '--include-untracked', '-m', stashMessage], { cwd })
+    stashPush(cwd, excludedPaths = []) {
+      run('git', ['stash', 'push', '--include-untracked', '-m', stashMessage, ...getScopedGitPathArgs(excludedPaths)], { cwd })
     },
     addPaths(cwd, paths) {
       run('git', ['add', '--', ...paths], { cwd })
@@ -157,9 +162,11 @@ export function getSyncCommitPaths(pathsSynced = managedPaths) {
 }
 
 export function stashWorkingTreeIfNeeded(cwd, git = createGitClient()) {
-  if (!git.hasWorkingTreeChanges(cwd)) return false
+  const excludedPaths = getSyncCommitPaths()
 
-  git.stashPush(cwd)
+  if (!git.hasWorkingTreeChanges(cwd, excludedPaths)) return false
+
+  git.stashPush(cwd, excludedPaths)
   return true
 }
 

@@ -9,6 +9,7 @@ describe('boilerplate sync managed paths', () => {
 
     expect(script).toContain("'AGENTS.md'")
     expect(script).toContain("'.cursor/rules'")
+    expect(script).toContain("'scripts/sync-boilerplate.mjs'")
   })
 
   it('exports the sync commit scope including the sync metadata file', async () => {
@@ -24,12 +25,12 @@ describe('boilerplate sync managed paths', () => {
     const mod = await import('../../scripts/sync-boilerplate.mjs')
 
     const git = {
-      hasWorkingTreeChanges(cwd: string) {
-        calls.push(`hasWorkingTreeChanges:${cwd}`)
+      hasWorkingTreeChanges(cwd: string, excludedPaths: string[]) {
+        calls.push(`hasWorkingTreeChanges:${cwd}:${excludedPaths.join(',')}`)
         return true
       },
-      stashPush(cwd: string) {
-        calls.push(`stashPush:${cwd}`)
+      stashPush(cwd: string, excludedPaths: string[]) {
+        calls.push(`stashPush:${cwd}:${excludedPaths.join(',')}`)
       },
       addPaths(cwd: string, paths: string[]) {
         calls.push(`addPaths:${cwd}:${paths.join(',')}`)
@@ -60,7 +61,15 @@ describe('boilerplate sync managed paths', () => {
 
     expect(stashCreated).toBe(true)
     expect(committed).toBe(true)
-    expect(calls).toContain(`stashPush:${targetRoot}`)
+    const statusCall = calls.find((call) => call.startsWith(`hasWorkingTreeChanges:${targetRoot}:`))
+    expect(statusCall).toContain('.bemoat-boilerplate-sync.json')
+    expect(statusCall).toContain('package.json')
+    expect(statusCall).toContain('scripts/sync-boilerplate.mjs')
+
+    const stashCall = calls.find((call) => call.startsWith(`stashPush:${targetRoot}:`))
+    expect(stashCall).toContain('.bemoat-boilerplate-sync.json')
+    expect(stashCall).toContain('package.json')
+    expect(stashCall).toContain('scripts/sync-boilerplate.mjs')
     expect(calls).toContain(`stashPop:${targetRoot}`)
     expect(calls).toContain(`commit:${targetRoot}:sync boilerplate from boat1994/bemoat-web-starter#main`)
 
