@@ -33,26 +33,24 @@ export default async function ProjectDetailPage(props: { params: Promise<{ slug:
       </Link>
       <section className="detail">
         <div>
-          <p className="eyebrow">{project.jewelryType || 'Project'}</p>
+          <p className="eyebrow">{project.projectType || 'Project'}</p>
           <h1>{pickText(project.title, 'Untitled project')}</h1>
-          <p className="lead">{pickText(project.description, 'Add a description in Payload.')}</p>
+          <p className="lead">
+            {pickText(project.summary, pickText(project.description, 'Add a description in Payload.'))}
+          </p>
         </div>
         <ul className="metaList">
           <li>
-            <span>Material</span>
-            <strong>{project.material || '-'}</strong>
+            <span>Status</span>
+            <strong>{project.status || '-'}</strong>
           </li>
           <li>
-            <span>Total carat</span>
-            <strong>{project.totalCaratWeight || '-'}</strong>
+            <span>Launch date</span>
+            <strong>{project.launchDate || '-'}</strong>
           </li>
           <li>
-            <span>Gender</span>
-            <strong>{project.jewelrySex || '-'}</strong>
-          </li>
-          <li>
-            <span>Center stone</span>
-            <strong>{project.centerStone?.gemstone || '-'}</strong>
+            <span>Project link</span>
+            <strong>{project.link || '-'}</strong>
           </li>
         </ul>
       </section>

@@ -1,13 +1,10 @@
-# Bogus dev branch boilerplate
+# Bemoat dev boilerplate
 
-Source repository: `boat1994/bogus-jewelry`
-Source branch: `dev`
 Target repository: `boat1994/bemoat-web-starter`
 
 ## Included
 
-- Jewelry project CMS schema
-- Gemstone constants
+- Generic project CMS schema
 - Categories and tags
 - Blog categories
 - Blog media
@@ -19,7 +16,7 @@ Target repository: `boat1994/bemoat-web-starter`
 
 ## Intentionally not included yet
 
-The order operations, LINE, payment slip, copilot, and handoff modules from Bogus dev are not included in this first boilerplate pass because they depend on project-specific collections, secrets, external APIs, and operational workflows.
+The order operations, LINE, payment slip, copilot, and handoff modules from previous project work are not included in this first boilerplate pass because they depend on project-specific collections, secrets, external APIs, and operational workflows.
 
 ## After pulling this change
 

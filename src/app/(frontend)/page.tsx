@@ -35,9 +35,9 @@ export default async function HomePage() {
     <main>
       <section className="hero">
         <p className="eyebrow">Payload Cloudflare boilerplate</p>
-        <h1>Jewelry CMS, portfolio, blog, and custom order starter.</h1>
+        <h1>Project CMS, portfolio, blog, and custom request starter.</h1>
         <p className="lead">
-          This starter keeps the useful Bogus dev-branch structure and makes it reusable for Bemoat projects.
+          This starter keeps the reusable CMS and frontend structure ready for new Bemoat projects.
         </p>
         <div className="actions">
           <Link className="button primary" href="/admin">
@@ -57,7 +57,7 @@ export default async function HomePage() {
         <div className="grid">
           {projects.docs.map((project: AnyDoc) => (
             <Link className="card" href={`/projects/${project.slug}`} key={project.id}>
-              <p className="tag">{project.jewelryType || 'project'}</p>
+              <p className="tag">{project.projectType || 'project'}</p>
               <h3>{pickText(project.title, 'Untitled project')}</h3>
               <p>{pickText(project.description, 'Add a short project description in Payload.')}</p>
             </Link>
@@ -70,7 +70,7 @@ export default async function HomePage() {
         <div>
           <p className="eyebrow">Content engine</p>
           <h2>Blog module</h2>
-          <p className="muted">Draft, publish, and connect posts to jewelry projects.</p>
+          <p className="muted">Draft, publish, and connect posts to reusable project records.</p>
         </div>
         <div className="stack">
           {posts.docs.map((post: AnyDoc) => (

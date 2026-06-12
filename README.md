@@ -4,7 +4,7 @@
 
 A reusable Payload 3, Next.js, and Cloudflare starter for Bemoat projects.
 
-This starter is based on the Payload Cloudflare D1 template and extended with reusable modules from the Bogus dev branch.
+This starter is based on the Payload Cloudflare D1 template and extended with reusable CMS and frontend modules.
 
 ## What is included
 
@@ -13,7 +13,7 @@ This starter is based on the Payload Cloudflare D1 template and extended with re
 - Cloudflare Workers deployment through OpenNext
 - Cloudflare D1 database binding
 - Cloudflare R2 media storage binding
-- Jewelry project CMS schema
+- Generic project CMS schema
 - Blog CMS schema
 - Custom order page global
 - Site settings global
@@ -22,17 +22,7 @@ This starter is based on the Payload Cloudflare D1 template and extended with re
 
 ## Source history
 
-The first Bemoat boilerplate layer was migrated from:
-
-```text
-boat1994/bogus-jewelry#dev
-```
-
-Target boilerplate repository:
-
-```text
-boat1994/bemoat-web-starter#main
-```
+The first Bemoat boilerplate layer was extracted from working project code and cleaned up for reuse in new repositories.
 
 ## Important Cloudflare note
 
@@ -131,7 +121,6 @@ BEMOAT_BOILERPLATE_REPO=boat1994/bemoat-web-starter pnpm run boilerplate:sync
 - Custom order page
 - Payload collections
 - Payload globals
-- Gemstone constants
 - Admin extension placeholder components
 - Helper utilities
 - `src/payload.config.ts`
@@ -193,7 +182,7 @@ After the project becomes real, update these files for that project:
 - Media
 - BlogMedia
 
-### Jewelry and portfolio
+### Projects and portfolio
 
 - Projects
 - Categories
@@ -211,7 +200,7 @@ After the project becomes real, update these files for that project:
 
 ## Intentionally not included yet
 
-The first boilerplate layer does not include the heavy operations modules from Bogus dev:
+The first boilerplate layer does not include project-specific operations modules:
 
 - Orders
 - LINE integration

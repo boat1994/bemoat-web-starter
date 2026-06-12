@@ -11,12 +11,12 @@ const defaultSteps = [
   {
     title: 'คุยโจทย์และงบประมาณ',
     engTitle: 'Brief and budget',
-    note: 'Start with style, stone, material, and target budget.',
+    note: 'Start with goals, constraints, timeline, and target budget.',
   },
   {
-    title: 'จัดหาเพชรหรืออัญมณี',
-    engTitle: 'Stone sourcing',
-    note: 'Natural, lab-grown, and colored stones can share one CMS structure.',
+    title: 'จัดขอบเขตงาน',
+    engTitle: 'Scope planning',
+    note: 'Shape the request into a reusable CMS-managed workflow.',
   },
   {
     title: 'ออกแบบและผลิต',
@@ -33,12 +33,12 @@ export default async function CustomOrderPage() {
   return (
     <main>
       <section className="section">
-        <p className="eyebrow">{pickText(page.hero?.badge, 'Custom Made Jewelry')}</p>
+        <p className="eyebrow">{pickText(page.hero?.badge, 'Custom Request')}</p>
         <h1>{pickRichTextPlain(page.hero?.title, 'How to custom order')}</h1>
         <p className="lead">
           {pickRichTextPlain(
             page.hero?.description,
-            'A reusable CMS page for custom jewelry workflow, adapted from the Bogus dev branch.',
+            'A reusable CMS page for project-specific request workflows.',
           )}
         </p>
       </section>

@@ -22,7 +22,7 @@ export default async function BlogPage() {
       <section className="section">
         <p className="eyebrow">Blog</p>
         <h1>Content engine</h1>
-        <p className="lead">Blog structure from Bogus dev branch with blocks, SEO fields, and related projects.</p>
+        <p className="lead">Blog structure with blocks, SEO fields, and related projects.</p>
       </section>
 
       <section className="stack">

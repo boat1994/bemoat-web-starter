@@ -16,7 +16,6 @@ pnpm run boilerplate:sync
 - Custom order page
 - Payload collections
 - Payload globals
-- Gemstone constants
 - Admin extension placeholder components
 - Helper utilities
 - `src/payload.config.ts`

@@ -2,7 +2,7 @@ import React from 'react'
 import './styles.css'
 
 export const metadata = {
-  description: 'Payload and Cloudflare boilerplate for jewelry, portfolio, blog, and custom order websites.',
+  description: 'Payload and Cloudflare boilerplate for project portfolios, blogs, and custom request websites.',
   title: 'Bemoat Web Starter',
 }
 

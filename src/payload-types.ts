@@ -200,196 +200,29 @@ export interface BlogMedia {
  */
 export interface Project {
   id: number;
-  jewelryType: 'ring-center' | 'ring-band' | 'necklace' | 'bracelet' | 'earrings';
-  jewelrySex: 'male' | 'female' | 'unisex';
+  projectType: 'website' | 'application' | 'ecommerce' | 'marketing-site' | 'operations-tool' | 'other';
   isFeaturedOnHome?: boolean | null;
   title: string;
   slug?: string | null;
   description?: string | null;
-  totalCaratWeight?: string | null;
-  material?:
-    | (
-        | '18k-white-gold'
-        | '18k-yellow-gold'
-        | '18k-rose-gold'
-        | '14k-white-gold'
-        | '14k-yellow-gold'
-        | '14k-rose-gold'
-        | '9k-white-gold'
-        | '9k-yellow-gold'
-        | '9k-rose-gold'
-        | 'platinum'
-        | 'silver'
-      )
-    | null;
   category: number | Category;
   tags?: (number | Tag)[] | null;
   coverImage?: (number | null) | Media;
   images?: (number | Media)[] | null;
-  centerStone?: {
-    gemstone?:
-      | (
-          | 'cvd-diamond'
-          | 'natural-diamond'
-          | 'sapphire'
-          | 'ruby'
-          | 'emerald'
-          | 'aquamarine'
-          | 'morganite'
-          | 'amethyst'
-          | 'topaz'
-          | 'garnet'
-          | 'opal'
-          | 'pearl'
-          | 'moissanite'
-          | 'spinel'
-          | 'tourmaline'
-          | 'zircon'
-          | 'peridot'
-          | 'jade'
-          | 'tsavorite'
-          | 'tanzanite'
-        )
-      | null;
-    shape?:
-      | (
-          | 'round'
-          | 'oval'
-          | 'marquise'
-          | 'pear'
-          | 'princess'
-          | 'emerald-shape'
-          | 'asscher'
-          | 'cushion'
-          | 'radiant'
-          | 'heart'
-          | 'baguette'
-          | 'trillion'
-          | 'cabochon'
-        )
-      | null;
-    carat?: number | null;
-    colorDiamond?: ('D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J' | 'K' | 'L' | 'M') | null;
-    clarityDiamond?: ('FL' | 'IF' | 'VVS1' | 'VVS2' | 'VS1' | 'VS2' | 'SI1' | 'SI2') | null;
-    cutGrading?: ('Excellent' | 'Very Good' | 'Good' | 'Fair') | null;
-    colorColoredStoneHue?:
-      | (
-          | 'Red'
-          | 'Orangy Red'
-          | 'Reddish Orange'
-          | 'Orange'
-          | 'Yellowish Orange'
-          | 'Orangy Yellow'
-          | 'Yellow'
-          | 'Greenish Yellow'
-          | 'Yellowish Green'
-          | 'Green'
-          | 'Bluish Green'
-          | 'Greenish Blue'
-          | 'Blue'
-          | 'Violetish Blue'
-          | 'Bluish Violet'
-          | 'Violet'
-          | 'Purple'
-          | 'Reddish Purple'
-          | 'Purplish Red'
-          | 'Pink'
-          | 'Orangy Pink'
-          | 'Brownish Pink'
-          | 'Pinkish Orange (Padparadscha)'
-          | 'Pigeon Blood Red'
-          | 'Royal Blue'
-          | 'Cornflower Blue'
-          | 'Emerald Green'
-          | 'Mint Green'
-          | 'Teal'
-          | 'Champagne'
-          | 'Cognac'
-          | 'Brown'
-          | 'Reddish Brown'
-          | 'Brownish Red'
-          | 'Colorless (White)'
-          | 'Black'
-          | 'Bi-color'
-          | 'Watermelon'
-          | 'Color-change'
-        )
-      | null;
-    colorColoredStoneTone?:
-      | ('Very Light' | 'Light' | 'Medium Light' | 'Medium' | 'Medium Dark' | 'Dark' | 'Very Dark')
-      | null;
-    colorColoredStoneSaturation?:
-      | ('Vivid' | 'Strong' | 'Moderately Strong' | 'Moderate' | 'Slightly Grayish' | 'Grayish')
-      | null;
-    clarityColoredStone?: ('type_1' | 'type_2' | 'type_3') | null;
-    origin?:
-      | (
-          | 'Burma (Myanmar)'
-          | 'Sri Lanka (Ceylon)'
-          | 'Thailand (Kanchanaburi/Chanthaburi)'
-          | 'Madagascar'
-          | 'Colombia'
-          | 'Brazil'
-          | 'Mozambique'
-          | 'Tanzania'
-          | 'Zambia'
-          | 'Ethiopia'
-          | 'Kenya'
-          | 'Nigeria'
-          | 'Afghanistan'
-          | 'Pakistan'
-          | 'Vietnam'
-          | 'Australia'
-          | 'Russia'
-          | 'USA'
-        )
-      | null;
-  };
-  sideStones?:
+  summary?: string | null;
+  status?: ('concept' | 'in-progress' | 'launched' | 'archived') | null;
+  launchDate?: string | null;
+  link?: string | null;
+  technologies?:
     | {
-        gemstone?:
-          | (
-              | 'cvd-diamond'
-              | 'natural-diamond'
-              | 'sapphire'
-              | 'ruby'
-              | 'emerald'
-              | 'aquamarine'
-              | 'morganite'
-              | 'amethyst'
-              | 'topaz'
-              | 'garnet'
-              | 'opal'
-              | 'pearl'
-              | 'moissanite'
-              | 'spinel'
-              | 'tourmaline'
-              | 'zircon'
-              | 'peridot'
-              | 'jade'
-              | 'tsavorite'
-              | 'tanzanite'
-            )
-          | null;
-        shape?:
-          | (
-              | 'round'
-              | 'oval'
-              | 'marquise'
-              | 'pear'
-              | 'princess'
-              | 'emerald-shape'
-              | 'asscher'
-              | 'cushion'
-              | 'radiant'
-              | 'heart'
-              | 'baguette'
-              | 'trillion'
-              | 'cabochon'
-            )
-          | null;
-        quantity?: number | null;
-        totalCarat?: number | null;
+        name: string;
+        id?: string | null;
+      }[]
+    | null;
+  highlights?:
+    | {
+        label: string;
+        description?: string | null;
         id?: string | null;
       }[]
     | null;
@@ -655,40 +488,30 @@ export interface BlogMediaSelect<T extends boolean = true> {
  * via the `definition` "projects_select".
  */
 export interface ProjectsSelect<T extends boolean = true> {
-  jewelryType?: T;
-  jewelrySex?: T;
+  projectType?: T;
   isFeaturedOnHome?: T;
   title?: T;
   slug?: T;
   description?: T;
-  totalCaratWeight?: T;
-  material?: T;
   category?: T;
   tags?: T;
   coverImage?: T;
   images?: T;
-  centerStone?:
+  summary?: T;
+  status?: T;
+  launchDate?: T;
+  link?: T;
+  technologies?:
     | T
     | {
-        gemstone?: T;
-        shape?: T;
-        carat?: T;
-        colorDiamond?: T;
-        clarityDiamond?: T;
-        cutGrading?: T;
-        colorColoredStoneHue?: T;
-        colorColoredStoneTone?: T;
-        colorColoredStoneSaturation?: T;
-        clarityColoredStone?: T;
-        origin?: T;
+        name?: T;
+        id?: T;
       };
-  sideStones?:
+  highlights?:
     | T
     | {
-        gemstone?: T;
-        shape?: T;
-        quantity?: T;
-        totalCarat?: T;
+        label?: T;
+        description?: T;
         id?: T;
       };
   seo?:
@@ -862,7 +685,7 @@ export interface CustomOrderPage {
   id: number;
   hero?: {
     /**
-     * Default: Custom Made Jewelry
+     * Default: Custom Request
      */
     badge?: string | null;
     /**

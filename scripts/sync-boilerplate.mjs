@@ -28,12 +28,11 @@ const managedPaths = [
   'src/components/BlogAiWorkflow.tsx',
   'src/components/BlogBlockAiGenerate.tsx',
   'src/components/ViewProjectButton/index.tsx',
-  'src/constants/gemstones.ts',
   'src/globals/CustomOrderPage.ts',
   'src/globals/SiteSettings.ts',
   'src/lib/payloadText.ts',
   'src/payload.config.ts',
-  'docs/bogus-dev-boilerplate.md',
+  'docs/dev-boilerplate.md',
 ]
 
 const packageSections = ['dependencies', 'devDependencies']

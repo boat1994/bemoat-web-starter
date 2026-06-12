@@ -1,46 +1,5 @@
 import type { CollectionConfig } from 'payload'
 
-import { GEMSTONE_CONSTANTS } from '../constants/gemstones'
-
-const gemstoneOptions = [
-  { label: 'Diamond (CVD/Lab-Grown)', value: 'cvd-diamond' },
-  { label: 'Diamond (Natural)', value: 'natural-diamond' },
-  { label: 'Sapphire', value: 'sapphire' },
-  { label: 'Ruby', value: 'ruby' },
-  { label: 'Emerald', value: 'emerald' },
-  { label: 'Aquamarine', value: 'aquamarine' },
-  { label: 'Morganite', value: 'morganite' },
-  { label: 'Amethyst', value: 'amethyst' },
-  { label: 'Topaz', value: 'topaz' },
-  { label: 'Garnet', value: 'garnet' },
-  { label: 'Opal', value: 'opal' },
-  { label: 'Pearl', value: 'pearl' },
-  { label: 'Moissanite', value: 'moissanite' },
-  { label: 'Spinel', value: 'spinel' },
-  { label: 'Tourmaline', value: 'tourmaline' },
-  { label: 'Zircon', value: 'zircon' },
-  { label: 'Peridot', value: 'peridot' },
-  { label: 'Jade', value: 'jade' },
-  { label: 'Tsavorite', value: 'tsavorite' },
-  { label: 'Tanzanite', value: 'tanzanite' },
-]
-
-const shapeOptions = [
-  { label: 'Round', value: 'round' },
-  { label: 'Oval', value: 'oval' },
-  { label: 'Marquise', value: 'marquise' },
-  { label: 'Pear', value: 'pear' },
-  { label: 'Princess', value: 'princess' },
-  { label: 'Emerald Cut', value: 'emerald-shape' },
-  { label: 'Asscher', value: 'asscher' },
-  { label: 'Cushion', value: 'cushion' },
-  { label: 'Radiant', value: 'radiant' },
-  { label: 'Heart', value: 'heart' },
-  { label: 'Baguette', value: 'baguette' },
-  { label: 'Triangle / Trillion', value: 'trillion' },
-  { label: 'Cabochon', value: 'cabochon' },
-]
-
 const createSlug = (value: unknown) => {
   const source = typeof value === 'string' ? value : ''
   return source
@@ -50,131 +9,11 @@ const createSlug = (value: unknown) => {
     .replace(/[^\w-]+/g, '')
 }
 
-const fourCsGroupFields: CollectionConfig['fields'] = [
-  {
-    type: 'row',
-    fields: [
-      {
-        name: 'colorDiamond',
-        type: 'select',
-        label: { en: 'Color Grade', th: 'เกรดสีเพชร (น้ำ)' },
-        options: GEMSTONE_CONSTANTS.COLOR.DIAMOND.GRADES.map((grade) => ({ label: grade, value: grade })),
-        admin: {
-          condition: (_, siblingData) =>
-            siblingData.gemstone === 'cvd-diamond' || siblingData.gemstone === 'natural-diamond',
-        },
-      },
-      {
-        name: 'clarityDiamond',
-        type: 'select',
-        label: { en: 'Clarity (Diamond)', th: 'ความสะอาด (Clarity)' },
-        options: GEMSTONE_CONSTANTS.CLARITY.DIAMOND.map((clarity) => ({
-          label: clarity,
-          value: clarity,
-        })),
-        admin: {
-          condition: (_, siblingData) =>
-            siblingData.gemstone === 'cvd-diamond' || siblingData.gemstone === 'natural-diamond',
-        },
-      },
-      {
-        name: 'cutGrading',
-        type: 'select',
-        label: { en: 'Cut Grading', th: 'เกรดการเจียระไน (Cut)' },
-        options: GEMSTONE_CONSTANTS.CUT.GRADING.map((cut) => ({ label: cut, value: cut })),
-      },
-    ],
-  },
-  {
-    type: 'row',
-    fields: [
-      {
-        name: 'colorColoredStoneHue',
-        type: 'select',
-        label: { en: 'Color Hue', th: 'เฉดสีพลอย' },
-        options: GEMSTONE_CONSTANTS.COLOR.COLORED_STONE.HUES.map((hue) => ({
-          label: hue,
-          value: hue,
-        })),
-        admin: {
-          condition: (_, siblingData) =>
-            Boolean(siblingData.gemstone) &&
-            siblingData.gemstone !== 'cvd-diamond' &&
-            siblingData.gemstone !== 'natural-diamond',
-        },
-      },
-      {
-        name: 'colorColoredStoneTone',
-        type: 'select',
-        label: { en: 'Color Tone', th: 'ความสว่าง/มืด (Tone)' },
-        options: GEMSTONE_CONSTANTS.COLOR.COLORED_STONE.TONE.map((tone) => ({
-          label: tone,
-          value: tone,
-        })),
-        admin: {
-          condition: (_, siblingData) =>
-            Boolean(siblingData.gemstone) &&
-            siblingData.gemstone !== 'cvd-diamond' &&
-            siblingData.gemstone !== 'natural-diamond',
-        },
-      },
-      {
-        name: 'colorColoredStoneSaturation',
-        type: 'select',
-        label: { en: 'Color Saturation', th: 'ความสดของสี (Saturation)' },
-        options: GEMSTONE_CONSTANTS.COLOR.COLORED_STONE.SATURATION.map((saturation) => ({
-          label: saturation,
-          value: saturation,
-        })),
-        admin: {
-          condition: (_, siblingData) =>
-            Boolean(siblingData.gemstone) &&
-            siblingData.gemstone !== 'cvd-diamond' &&
-            siblingData.gemstone !== 'natural-diamond',
-        },
-      },
-    ],
-  },
-  {
-    type: 'row',
-    fields: [
-      {
-        name: 'clarityColoredStone',
-        type: 'select',
-        label: { en: 'Clarity (Colored)', th: 'ความสะอาด (Clarity)' },
-        options: [
-          { label: GEMSTONE_CONSTANTS.CLARITY.COLORED_STONE.TYPE_1, value: 'type_1' },
-          { label: GEMSTONE_CONSTANTS.CLARITY.COLORED_STONE.TYPE_2, value: 'type_2' },
-          { label: GEMSTONE_CONSTANTS.CLARITY.COLORED_STONE.TYPE_3, value: 'type_3' },
-        ],
-        admin: {
-          condition: (_, siblingData) =>
-            Boolean(siblingData.gemstone) &&
-            siblingData.gemstone !== 'cvd-diamond' &&
-            siblingData.gemstone !== 'natural-diamond',
-        },
-      },
-      {
-        name: 'origin',
-        type: 'select',
-        label: { en: 'Origin', th: 'แหล่งกำเนิด (Origin)' },
-        options: GEMSTONE_CONSTANTS.ORIGIN.SOURCES.map((source) => ({ label: source, value: source })),
-        admin: {
-          condition: (_, siblingData) =>
-            Boolean(siblingData.gemstone) &&
-            siblingData.gemstone !== 'cvd-diamond' &&
-            siblingData.gemstone !== 'natural-diamond',
-        },
-      },
-    ],
-  },
-]
-
 export const Projects: CollectionConfig = {
   slug: 'projects',
   admin: {
     useAsTitle: 'title',
-    defaultColumns: ['title', 'jewelryType', 'category', 'updatedAt'],
+    defaultColumns: ['title', 'projectType', 'category', 'updatedAt'],
     preview: (doc) => {
       const serverURL = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:3000'
       return `${serverURL}/projects/${doc.slug}`
@@ -195,31 +34,17 @@ export const Projects: CollectionConfig = {
       },
     },
     {
-      name: 'jewelryType',
+      name: 'projectType',
       type: 'select',
-      label: { en: 'Jewelry Type', th: 'ประเภทเครื่องประดับ' },
-      defaultValue: 'ring-center',
+      label: { en: 'Project Type', th: 'ประเภทโปรเจกต์' },
+      defaultValue: 'website',
       options: [
-        { label: 'Ring (with Center Stone)', value: 'ring-center' },
-        { label: 'Band / Ring (No Center)', value: 'ring-band' },
-        { label: 'Necklace / Pendant', value: 'necklace' },
-        { label: 'Bracelet / Bangle', value: 'bracelet' },
-        { label: 'Earrings', value: 'earrings' },
-      ],
-      admin: {
-        position: 'sidebar',
-      },
-      required: true,
-    },
-    {
-      name: 'jewelrySex',
-      type: 'select',
-      label: { en: 'Gender', th: 'เพศ' },
-      defaultValue: 'unisex',
-      options: [
-        { label: 'Male', value: 'male' },
-        { label: 'Female', value: 'female' },
-        { label: 'Unisex', value: 'unisex' },
+        { label: 'Website', value: 'website' },
+        { label: 'Application', value: 'application' },
+        { label: 'E-commerce', value: 'ecommerce' },
+        { label: 'Marketing Site', value: 'marketing-site' },
+        { label: 'Operations Tool', value: 'operations-tool' },
+        { label: 'Other', value: 'other' },
       ],
       admin: {
         position: 'sidebar',
@@ -273,34 +98,6 @@ export const Projects: CollectionConfig = {
               type: 'row',
               fields: [
                 {
-                  name: 'totalCaratWeight',
-                  type: 'text',
-                  label: { en: 'Total Carat Weight (tcw)', th: 'น้ำหนักกะรัตรวมสุทธิ (tcw)' },
-                },
-                {
-                  name: 'material',
-                  type: 'select',
-                  label: { en: 'Material', th: 'วัสดุตัวเรือน' },
-                  options: [
-                    { label: '18K White Gold', value: '18k-white-gold' },
-                    { label: '18K Yellow Gold', value: '18k-yellow-gold' },
-                    { label: '18K Rose Gold', value: '18k-rose-gold' },
-                    { label: '14K White Gold', value: '14k-white-gold' },
-                    { label: '14K Yellow Gold', value: '14k-yellow-gold' },
-                    { label: '14K Rose Gold', value: '14k-rose-gold' },
-                    { label: '9K White Gold', value: '9k-white-gold' },
-                    { label: '9K Yellow Gold', value: '9k-yellow-gold' },
-                    { label: '9K Rose Gold', value: '9k-rose-gold' },
-                    { label: 'Platinum', value: 'platinum' },
-                    { label: 'Silver', value: 'silver' },
-                  ],
-                },
-              ],
-            },
-            {
-              type: 'row',
-              fields: [
-                {
                   name: 'category',
                   type: 'relationship',
                   relationTo: 'categories',
@@ -328,56 +125,72 @@ export const Projects: CollectionConfig = {
           ],
         },
         {
-          label: { en: 'Stone Details', th: 'รายละเอียดเพชรและอัญมณี' },
+          label: { en: 'Project Details', th: 'รายละเอียดโปรเจกต์' },
           fields: [
             {
-              name: 'centerStone',
-              type: 'group',
-              label: { en: 'Center Stone', th: 'เม็ดกลาง' },
+              name: 'summary',
+              type: 'textarea',
+              label: { en: 'Short Summary', th: 'สรุปสั้น' },
+              localized: true,
+            },
+            {
+              type: 'row',
               fields: [
                 {
-                  name: 'gemstone',
+                  name: 'status',
                   type: 'select',
-                  label: { en: 'Gemstone', th: 'ชนิดอัญมณี' },
-                  options: gemstoneOptions,
+                  label: { en: 'Status', th: 'สถานะ' },
+                  options: [
+                    { label: 'Concept', value: 'concept' },
+                    { label: 'In Progress', value: 'in-progress' },
+                    { label: 'Launched', value: 'launched' },
+                    { label: 'Archived', value: 'archived' },
+                  ],
                 },
                 {
-                  name: 'shape',
-                  type: 'select',
-                  label: { en: 'Shape', th: 'รูปทรง' },
-                  options: shapeOptions,
+                  name: 'launchDate',
+                  type: 'date',
+                  label: { en: 'Launch Date', th: 'วันที่เปิดตัว' },
                 },
-                {
-                  name: 'carat',
-                  type: 'number',
-                  label: { en: 'Carat', th: 'น้ำหนักกะรัต' },
-                },
-                ...fourCsGroupFields,
               ],
             },
             {
-              name: 'sideStones',
+              name: 'link',
+              type: 'text',
+              label: { en: 'Project Link', th: 'ลิงก์โปรเจกต์' },
+              admin: {
+                placeholder: 'https://example.com',
+              },
+            },
+            {
+              name: 'technologies',
               type: 'array',
-              label: { en: 'Side Stones', th: 'เม็ดข้าง' },
+              label: { en: 'Technologies', th: 'เทคโนโลยี' },
               fields: [
                 {
-                  name: 'gemstone',
-                  type: 'select',
-                  options: gemstoneOptions,
+                  name: 'name',
+                  type: 'text',
+                  label: { en: 'Name', th: 'ชื่อ' },
+                  required: true,
+                },
+              ],
+            },
+            {
+              name: 'highlights',
+              type: 'array',
+              label: { en: 'Highlights', th: 'จุดเด่น' },
+              fields: [
+                {
+                  name: 'label',
+                  type: 'text',
+                  label: { en: 'Label', th: 'หัวข้อ' },
+                  required: true,
                 },
                 {
-                  name: 'shape',
-                  type: 'select',
-                  options: shapeOptions,
-                },
-                {
-                  name: 'quantity',
-                  type: 'number',
-                  min: 1,
-                },
-                {
-                  name: 'totalCarat',
-                  type: 'number',
+                  name: 'description',
+                  type: 'textarea',
+                  label: { en: 'Description', th: 'รายละเอียด' },
+                  localized: true,
                 },
               ],
             },

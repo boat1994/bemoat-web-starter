@@ -16,7 +16,7 @@ export const CustomOrderPage: GlobalConfig = {
           name: 'badge',
           type: 'text',
           label: 'Badge Text',
-          admin: { description: 'Default: Custom Made Jewelry' },
+          admin: { description: 'Default: Custom Request' },
         },
         {
           name: 'title',
