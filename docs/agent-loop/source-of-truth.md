@@ -16,7 +16,7 @@ This document separates what **`bemoat-web-starter`** owns from what **child pro
 | Package scripts | Scripts required by the starter (`check`, `check:full`, `boilerplate:sync`, etc.) |
 | Sync behavior | `scripts/sync-boilerplate.mjs` and managed path list |
 
-Child projects receive these via **clone after Cloudflare deploy** (initial) and **`pnpm run boilerplate:sync`** (ongoing updates).
+Child projects receive these via **clone after Cloudflare deploy** (initial) and **`pnpm run boilerplate:sync`** (ongoing updates). For stable production syncs, pin a **version tag** with `BEMOAT_BOILERPLATE_REF` instead of always using `main`—see [docs/releases.md](../releases.md).
 
 ## Child projects own
 
@@ -49,4 +49,4 @@ Child projects receive these via **clone after Cloudflare deploy** (initial) and
 | Fixes shared collection or agent docs? | Starter |
 | Unsure? | Triage with GitHub issue; tag scope in agent-task template |
 
-See also: root [README.md](../../README.md) boilerplate sync sections and [README.md](./README.md) in this folder.
+See also: root [README.md](../../README.md) boilerplate sync sections, [docs/releases.md](../releases.md) for version tags and changelog policy, and [README.md](./README.md) in this folder.

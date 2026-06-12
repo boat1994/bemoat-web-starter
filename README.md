@@ -190,6 +190,8 @@ Do not use this clone-first path to start a customer or product repository.
 
 **Existing child projects** can pull the latest reusable boilerplate layer from this starter with one command. Sync is for **updating** projects that already exist after deploy—not the primary way to create a new project.
 
+For **release tags, changelog policy, and when to sync from `main` vs a stable tag**, see [docs/releases.md](./docs/releases.md).
+
 ```bash
 pnpm run boilerplate:sync
 ```
@@ -198,6 +200,12 @@ By default, this syncs from:
 
 ```text
 boat1994/bemoat-web-starter#main
+```
+
+For safer production updates, pin a version tag instead:
+
+```bash
+BEMOAT_BOILERPLATE_REF=v0.3.0-sync-rails pnpm run boilerplate:sync
 ```
 
 ## Sync from another branch
