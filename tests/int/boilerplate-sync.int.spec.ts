@@ -22,6 +22,7 @@ describe('boilerplate sync managed paths', () => {
     expect(mod.seedOnlyPaths).toContain('src/payload.config.ts')
     expect(mod.seedOnlyPaths).toContain('src/app/(frontend)')
     expect(mod.packageScripts).toContain('boilerplate:check')
+    expect(mod.packageScripts).toContain('smoke:deploy')
   })
 
   it('exports the sync commit scope including the sync metadata file', async () => {

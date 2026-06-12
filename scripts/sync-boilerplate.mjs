@@ -61,6 +61,7 @@ export const packageScripts = [
   'payload',
   'boilerplate:sync',
   'boilerplate:check',
+  'smoke:deploy',
 ]
 
 export const syncCommitPaths = [...managedPaths, 'package.json', syncMetadataPath]
