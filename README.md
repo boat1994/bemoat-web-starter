@@ -19,10 +19,35 @@ This starter is based on the Payload Cloudflare D1 template and extended with re
 - Site settings global
 - Thai and English localization
 - One-command boilerplate sync for child projects
+- VS Code and Cursor workspace defaults
+- Payload CMS agent rules and Superpowers workflow guidance
 
 ## Source history
 
 The first Bemoat boilerplate layer was extracted from working project code and cleaned up for reuse in new repositories.
+
+## Agent and editor setup
+
+This starter includes the same development guidance used in the source project:
+
+- `AGENTS.md` for repository-wide Payload CMS development rules
+- `.cursor/rules/*` for Cursor rules covering Payload collections, fields, hooks, access control, endpoints, adapters, plugins, custom components, and critical security patterns
+- `.cursor/rules/superpowers-using-superpowers.mdc` to require the Superpowers skill workflow
+- `.vscode/*` for recommended extensions, formatting, TypeScript SDK, and Next.js debugging
+
+All coding agents should begin task work with:
+
+```text
+superpowers:using-superpowers
+```
+
+Skill source:
+
+```text
+/home/boat/.codex/plugins/cache/openai-curated/superpowers/c6ea566d/skills/using-superpowers/SKILL.md
+```
+
+Before responding, asking clarifying questions, planning, editing files, running implementation commands, or reviewing code, agents should check whether a skill applies and follow it first. User instructions remain the highest priority.
 
 ## Important Cloudflare note
 
@@ -173,6 +198,7 @@ After the project becomes real, update these files for that project:
 - R2 bucket config
 - Site metadata
 - Domain and environment variables
+- Agent rules that are no longer relevant to the child project
 
 ## Current CMS modules
 
