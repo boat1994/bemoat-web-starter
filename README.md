@@ -110,9 +110,53 @@ pnpm run deploy
 
 The deploy command runs database migration, optimizes D1, builds the app, and deploys the Worker.
 
+## Recommended project flow (deploy-first)
+
+Real Bemoat projects should **not** start by cloning this repository directly. Use the deploy-first path:
+
+1. Click **[Deploy to Cloudflare](https://deploy.workers.cloudflare.com/?url=https://github.com/boat1994/bemoat-web-starter)** at the top of this README.
+2. Let Cloudflare create or connect the project and provision Worker, D1, R2, and secrets for that deployment.
+3. Clone the **generated child project** repository locally (the repo Cloudflare creates or connects—not this starter).
+4. Run local setup:
+
+```bash
+pnpm install
+pnpm run generate:importmap
+pnpm run generate:types
+pnpm payload migrate:create
+pnpm dev
+```
+
+5. Review any new migration, test locally, then deploy with `pnpm run deploy`.
+
+After the project is real, configure project-specific values in the child repo:
+
+- `package.json` name
+- `wrangler.jsonc` Worker name
+- D1 database config
+- R2 bucket config
+- Site metadata
+- Domain and environment variables
+- Agent rules that are no longer relevant to the child project
+
+For the full agent operating loop, see [docs/agent-loop/README.md](./docs/agent-loop/README.md).
+
+## Developing this starter
+
+Clone this repository **only** when improving `bemoat-web-starter` itself (shared collections, starter pages, CI, agent docs, sync script):
+
+```bash
+git clone https://github.com/boat1994/bemoat-web-starter.git
+cd bemoat-web-starter
+pnpm install
+pnpm dev
+```
+
+Do not use this clone-first path to start a customer or product repository.
+
 ## Boilerplate sync command
 
-Child projects cloned from this starter can pull the latest reusable boilerplate layer with one command:
+**Existing child projects** can pull the latest reusable boilerplate layer from this starter with one command. Sync is for **updating** projects that already exist after deploy—not the primary way to create a new project.
 
 ```bash
 pnpm run boilerplate:sync
@@ -189,29 +233,6 @@ pnpm payload migrate:create
 ```
 
 Then review the migration and test locally before deploying.
-
-## Recommended child project flow
-
-```bash
-git clone https://github.com/boat1994/bemoat-web-starter.git my-new-project
-cd my-new-project
-pnpm install
-pnpm run boilerplate:sync
-pnpm run generate:importmap
-pnpm run generate:types
-pnpm payload migrate:create
-pnpm dev
-```
-
-After the project becomes real, update these files for that project:
-
-- `package.json` name
-- `wrangler.jsonc` Worker name
-- D1 database config
-- R2 bucket config
-- Site metadata
-- Domain and environment variables
-- Agent rules that are no longer relevant to the child project
 
 ## Current CMS modules
 
