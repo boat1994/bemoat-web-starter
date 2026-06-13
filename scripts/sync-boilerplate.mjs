@@ -710,6 +710,34 @@ function printSyncReport({
   }
 }
 
+export function getSuggestedNextCommands(syncMode, { proposalPath } = {}) {
+  const lines = []
+
+  if (proposalPath) {
+    lines.push(`Review ${proposalPath} and apply any package.json changes manually`)
+  }
+
+  lines.push('pnpm install')
+
+  if (syncMode === SYNC_MODES.FULL) {
+    lines.push('pnpm run generate:importmap')
+    lines.push('pnpm run generate:types')
+    lines.push('pnpm payload migrate:create')
+  } else {
+    lines.push('pnpm run check')
+    lines.push('(or pnpm run bemoat:check if check is not defined yet)')
+  }
+
+  return lines
+}
+
+function printSuggestedNextCommands(syncMode, packageSync) {
+  console.log('\nDone. Suggested next commands:')
+  for (const line of getSuggestedNextCommands(syncMode, { proposalPath: packageSync?.proposalPath })) {
+    console.log(line)
+  }
+}
+
 function main() {
   const syncMode = parseSyncMode()
   console.log(`Syncing Bemoat boilerplate from ${repo}#${ref} (${syncMode} mode)`)
@@ -798,14 +826,7 @@ function main() {
       packageSync,
     })
 
-    console.log('\nDone. Suggested next commands:')
-    if (packageSync.proposalPath) {
-      console.log(`Review ${packageSync.proposalPath} and apply any package.json changes manually`)
-    }
-    console.log('pnpm install')
-    console.log('pnpm run generate:importmap')
-    console.log('pnpm run generate:types')
-    console.log('pnpm payload migrate:create')
+    printSuggestedNextCommands(syncMode, packageSync)
   } finally {
     rmSync(tempRoot, { recursive: true, force: true })
     restoreStashIfNeeded(targetRoot, stashCreated, git)

@@ -529,16 +529,58 @@ describe('boilerplate sync modes', () => {
     expect(metadata.seedOnlyPathsSkipped).toBe(false)
     expect(metadata.seededFiles).toEqual(['src/collections/Posts.ts'])
   })
+
+  it('suggests harness-only next commands without Payload migration steps', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+
+    const commands = mod.getSuggestedNextCommands(mod.SYNC_MODES.HARNESS_ONLY, {
+      proposalPath: '.bemoat/package-sync-proposal.md',
+    })
+
+    expect(commands).toContain('pnpm run check')
+    expect(commands).not.toContain('pnpm run generate:importmap')
+    expect(commands).not.toContain('pnpm payload migrate:create')
+  })
+
+  it('suggests full-mode next commands including Payload artifact steps', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+
+    const commands = mod.getSuggestedNextCommands(mod.SYNC_MODES.FULL, {})
+
+    expect(commands).toContain('pnpm run generate:importmap')
+    expect(commands).toContain('pnpm run generate:types')
+    expect(commands).toContain('pnpm payload migrate:create')
+  })
 })
 
 describe('boilerplate drift check', () => {
   const fixtureRoot = resolve(process.cwd(), '.tmp-boilerplate-drift-test')
 
-  it('detects the starter source repository and skips remote drift comparison', async () => {
+  it('detects boilerplate source repository from package name fallback', async () => {
     const mod = await import('../../scripts/check-boilerplate-drift.mjs')
 
-    expect(mod.isBoilerplateSourceRepository(process.cwd(), 'boat1994/bemoat-web-starter')).toBe(true)
-    expect(mod.isBoilerplateSourceRepository(process.cwd(), 'boat1994/other-repo')).toBe(false)
+    rmSync(fixtureRoot, { recursive: true, force: true })
+    mkdirSync(join(fixtureRoot, 'starter'), { recursive: true })
+    mkdirSync(join(fixtureRoot, 'child'), { recursive: true })
+
+    writeFileSync(
+      join(fixtureRoot, 'starter/package.json'),
+      `${JSON.stringify({ name: 'bemoat-web-starter' }, null, 2)}\n`,
+    )
+
+    writeFileSync(
+      join(fixtureRoot, 'child/package.json'),
+      `${JSON.stringify({ name: 'bogus-jewelry' }, null, 2)}\n`,
+    )
+
+    expect(
+      mod.isBoilerplateSourceRepository(join(fixtureRoot, 'starter'), 'boat1994/bemoat-web-starter'),
+    ).toBe(true)
+    expect(
+      mod.isBoilerplateSourceRepository(join(fixtureRoot, 'child'), 'boat1994/bemoat-web-starter'),
+    ).toBe(false)
+
+    rmSync(fixtureRoot, { recursive: true, force: true })
   })
 
   it('reports missing, changed, and identical managed paths', async () => {
