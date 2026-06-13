@@ -1,11 +1,11 @@
-import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
 /** Integration tests under tests/int that are starter-only and intentionally not synced. */
 const STARTER_ONLY_INT_TESTS: { path: string; reason: string }[] = [
-  // All current tests/int/*.int.spec.ts files are shared harness tests for child projects.
+  // All current tests/int/**/*.int.spec.ts files are shared harness tests for child projects.
 ]
 
 const REQUIRED_SHARED_PACKAGE_SCRIPTS = [
@@ -61,10 +61,10 @@ describe('boilerplate sync managed paths', () => {
 
   it('lists every shared harness int test in managedPaths', async () => {
     const mod = await import('../../scripts/sync-boilerplate.mjs')
-    const intTestDir = resolve(process.cwd(), 'tests/int')
-    const allIntTests = readdirSync(intTestDir)
-      .filter((name) => name.endsWith('.int.spec.ts'))
-      .map((name) => `tests/int/${name}`)
+
+    const allIntTests = mod
+      .listPathFiles(process.cwd(), 'tests/int')
+      .filter((path: string) => path.endsWith('.int.spec.ts'))
       .sort()
 
     const starterOnlyPaths = new Set(STARTER_ONLY_INT_TESTS.map((entry) => entry.path))
