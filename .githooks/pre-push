@@ -1,0 +1,13 @@
+#!/usr/bin/env sh
+set -eu
+
+echo "pre-push: running repository safety guard..."
+pnpm run guard:safety
+
+echo "pre-push: running typecheck..."
+pnpm run typecheck
+
+echo "pre-push: running integration tests..."
+pnpm run test:int
+
+echo "pre-push: checks passed."

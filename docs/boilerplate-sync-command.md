@@ -10,9 +10,20 @@ pnpm run boilerplate:sync
 
 ## What it updates
 
+### Always synced rails (harness workflow)
+
 - `AGENTS.md` repository agent instructions
 - `.cursor/rules/*` workflow instructions and Cursor rule files
-- `scripts/sync-boilerplate.mjs` sync command updates
+- `.github/workflows/ci.yml`, PR template, and agent issue template
+- `docs/agent-loop/*`, `docs/hardening.md`, `docs/releases.md`, `docs/deploy-smoke-test.md`, `docs/schema-evolution.md`
+- `scripts/sync-boilerplate.mjs`, `scripts/check-boilerplate-drift.mjs`, `scripts/deploy-smoke-test.mjs`
+- `scripts/guard-repo-safety.mjs`, `scripts/install-git-hooks.mjs`
+- `.githooks/pre-push` (optional local pre-push harness)
+- `vitest.config.mts`, `vitest.setup.ts`, and harness tests under `tests/int/`
+- Selected `package.json` scripts: `check`, `check:full`, `guard:safety`, `typecheck`, `lint`, `test`, `test:int`, `hooks:install`, generate scripts, `payload`, `boilerplate:sync`, `boilerplate:check`, `smoke:deploy`
+
+### Seeded once (starter app code)
+
 - Frontend starter pages
 - Projects pages
 - Blog pages
@@ -22,7 +33,6 @@ pnpm run boilerplate:sync
 - Admin extension placeholder components
 - Helper utilities
 - `src/payload.config.ts`
-- Selected package scripts and dependencies
 
 It does not overwrite project-specific Cloudflare resources such as `wrangler.jsonc`, D1 database IDs, R2 bucket names, secrets, or `.env` files.
 

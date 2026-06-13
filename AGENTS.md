@@ -52,6 +52,7 @@ Stop and report instead of committing when:
 - Forbidden files are required
 - Checks fail for unrelated reasons
 - Secrets, Cloudflare resource IDs, D1 migrations, destructive schema changes, or production deploy actions are involved—see [docs/agent-loop/security-and-migrations.md](./docs/agent-loop/security-and-migrations.md)
+- The task requires **unsafe Payload schema mutation**—see [Production Schema Evolution Rules](#production-schema-evolution-rules)
 - The change belongs in a child project instead of `bemoat-web-starter`
 
 ### Final response format
@@ -78,6 +79,38 @@ Details: [docs/agent-loop/checklist.md](./docs/agent-loop/checklist.md), [docs/a
 - Run `pnpm run check:full` before merge when practical (`lint` + `typecheck` + `test` + `build`).
 
 Agent loop checklists: [docs/agent-loop/checklist.md](./docs/agent-loop/checklist.md).
+
+## Production Schema Evolution Rules
+
+Production CMS data must survive schema changes. Follow the **additive-first** policy in [docs/schema-evolution.md](./docs/schema-evolution.md) and [docs/agent-loop/security-and-migrations.md](./docs/agent-loop/security-and-migrations.md).
+
+**Mantra:** Additive first. Backfill second. Switch reads third. Deprecate old fields fourth. Delete last, only with backup and explicit approval.
+
+### Required policy
+
+- **Do not rename** existing Payload fields that may contain production data.
+- **Do not change** an existing field type directly.
+- **Do not change** an existing relationship cardinality directly (for example, single relation to `hasMany`).
+- **Do not change** an existing relationship target directly (for example, `categories` to `taxonomies`).
+- **Add a new field instead** (for example, `titleV2`, `categoriesV2`).
+- For major relationship or domain changes, **create a new collection/table** instead of mutating the old one.
+- **Read the new field first** and fallback to the old field during the transition.
+- **Backfill data** in a separate reviewed migration or script.
+- **Mark old fields as deprecated** in Payload admin notes (`admin.description`, optionally `readOnly` or `hidden`).
+- Hide deprecated fields from normal editor flow **only after** the new field is proven stable.
+- **Remove old fields only** after explicit human approval, production backup, and at least one stable release.
+
+### Agent stop conditions (schema)
+
+Stop and report risk instead of committing when the task requires any of:
+
+- **Field rename** — rename in Payload config or D1 migration without additive replacement
+- **Field type change** — direct type swap on an existing field
+- **Relation target change** — changing `relationTo` on an existing relationship field
+- **Relation cardinality change** — toggling `hasMany` on an existing relationship field
+- **Destructive migration** — `DROP`, `TRUNCATE`, `DELETE FROM`, column/table rename SQL without human approval and `bemoat:destructive-migration-approved` marker
+
+When stopped, describe the production data risk, propose the additive alternative, and wait for human approval before proceeding.
 
 ## Core Principles
 

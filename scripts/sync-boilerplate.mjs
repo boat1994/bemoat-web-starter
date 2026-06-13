@@ -20,17 +20,29 @@ export const managedPaths = [
   'docs/hardening.md',
   'docs/releases.md',
   'docs/deploy-smoke-test.md',
+  'docs/schema-evolution.md',
+  'docs/dev-boilerplate.md',
+  'docs/boilerplate-sync-command.md',
 
   // GitHub workflow rails
   '.github/workflows/ci.yml',
   '.github/pull_request_template.md',
   '.github/ISSUE_TEMPLATE/agent-task.yml',
 
-  // Sync docs and scripts
+  // Harness scripts (sync, drift, guard, hooks, smoke)
   'scripts/sync-boilerplate.mjs',
   'scripts/check-boilerplate-drift.mjs',
   'scripts/deploy-smoke-test.mjs',
-  'docs/dev-boilerplate.md',
+  'scripts/guard-repo-safety.mjs',
+  'scripts/install-git-hooks.mjs',
+
+  // Local harness hooks and integration tests
+  '.githooks',
+  'vitest.config.mts',
+  'vitest.setup.ts',
+  'tests/int/repo-safety-guard.int.spec.ts',
+  'tests/int/boilerplate-sync.int.spec.ts',
+  'tests/int/open-next-config.int.spec.ts',
 ]
 
 export const seedOnlyPaths = [
@@ -49,6 +61,7 @@ export const packageScripts = [
   // Validation rails
   'check',
   'check:full',
+  'guard:safety',
   'typecheck',
   'lint',
   'test',
@@ -62,6 +75,7 @@ export const packageScripts = [
   'boilerplate:sync',
   'boilerplate:check',
   'smoke:deploy',
+  'hooks:install',
 ]
 
 export const syncCommitPaths = [...managedPaths, 'package.json', syncMetadataPath]

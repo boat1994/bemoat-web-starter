@@ -9,6 +9,7 @@ Quick map of production readiness docs for agents and humans working on Bemoat w
 | Release tags and sync policy | [docs/releases.md](./releases.md) |
 | Post-deploy verification | [docs/deploy-smoke-test.md](./deploy-smoke-test.md) |
 | Secrets and migration guardrails | [docs/agent-loop/security-and-migrations.md](./agent-loop/security-and-migrations.md) |
+| Payload schema evolution (production-safe) | [docs/schema-evolution.md](./schema-evolution.md) |
 | Boilerplate drift check (`pnpm run boilerplate:check`) | [README § Boilerplate sync](../README.md#boilerplate-sync-command), [dev-boilerplate.md](./dev-boilerplate.md) — reports managed drift and missing seed files; customized starter app files are ignored |
 | GitHub branch protection | [Branch protection checklist](#github-branch-protection-checklist) |
 

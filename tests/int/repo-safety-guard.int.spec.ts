@@ -68,6 +68,34 @@ export async function down() {
     expect(mod.scanDestructiveMigration('src/migrations/example.ts', approved)).toEqual([])
   })
 
+  it('flags rename and alter column SQL in migration up sections', async () => {
+    const mod = await import('../../scripts/guard-repo-safety.mjs')
+
+    const renameColumn = `
+export async function up() {
+  await db.run(sql\`ALTER TABLE posts RENAME COLUMN headline TO title;\`)
+}
+`
+    const renameViolations = mod.scanDestructiveMigration('src/migrations/rename.ts', renameColumn)
+    expect(renameViolations.some((item) => item.rule === 'rename-column')).toBe(true)
+
+    const alterColumn = `
+export async function up() {
+  await db.run(sql\`ALTER TABLE posts ALTER COLUMN views TYPE integer;\`)
+}
+`
+    const alterViolations = mod.scanDestructiveMigration('src/migrations/alter.ts', alterColumn)
+    expect(alterViolations.some((item) => item.rule === 'alter-column')).toBe(true)
+
+    const renameTable = `
+export async function up() {
+  await db.run(sql\`ALTER TABLE posts RENAME TO articles;\`)
+}
+`
+    const tableViolations = mod.scanDestructiveMigration('src/migrations/rename-table.ts', renameTable)
+    expect(tableViolations.some((item) => item.rule === 'rename-table')).toBe(true)
+  })
+
   it('ignores tests directory during repository scans', async () => {
     const mod = await import('../../scripts/guard-repo-safety.mjs')
 

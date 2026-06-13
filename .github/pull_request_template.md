@@ -26,6 +26,38 @@
 - [ ] `pnpm run generate:importmap` run (if admin components changed)
 - [ ] Migration created or updated (if D1 schema changed)
 
+## Schema and Migration Safety
+
+<!-- See docs/schema-evolution.md and docs/agent-loop/security-and-migrations.md -->
+
+- [ ] No schema change
+- [ ] Additive-only schema change
+- [ ] Deprecated field added
+- [ ] Backfill required
+- [ ] Destructive migration
+- [ ] Production D1 backup required
+- [ ] Human approval required
+
+**Old field or relation:**
+
+<!-- e.g. headline (text), category → categories -->
+
+**New field or relation:**
+
+<!-- e.g. titleV2 (text), categoriesV2 (hasMany → categories) -->
+
+**Fallback behavior:**
+
+<!-- e.g. read titleV2 ?? headline in resolveTitle() -->
+
+**Backfill plan:**
+
+<!-- migration, script, or N/A -->
+
+**Rollback plan:**
+
+<!-- how to revert reads or schema if deploy fails -->
+
 ## Commands run
 
 <!-- List the exact commands the agent or author ran. -->
