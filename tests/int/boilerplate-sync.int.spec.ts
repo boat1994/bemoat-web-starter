@@ -3,6 +3,25 @@ import { join, resolve } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
+type BuildSyncMetadataInput = {
+  syncMode: string
+  seedOnlyPathsSkipped: boolean
+  syncedManaged?: string[]
+  seededFiles?: string[]
+  skippedSeedFiles?: string[]
+  mergedFiles?: string[]
+  repo?: string
+  ref?: string
+}
+
+type BuildSyncMetadataParams = Parameters<
+  (typeof import('../../scripts/sync-boilerplate.mjs'))['buildSyncMetadata']
+>[0]
+
+function buildSyncMetadataInput(input: BuildSyncMetadataInput): BuildSyncMetadataParams {
+  return input as unknown as BuildSyncMetadataParams
+}
+
 /** Integration tests under tests/int that are starter-only and intentionally not synced. */
 const STARTER_ONLY_INT_TESTS: { path: string; reason: string }[] = [
   // All current tests/int/**/*.int.spec.ts files are shared harness tests for child projects.
@@ -722,12 +741,14 @@ describe('boilerplate sync modes', () => {
   it('records harness-only syncMode and seedOnlyPathsSkipped in metadata', async () => {
     const mod = await import('../../scripts/sync-boilerplate.mjs')
 
-    const metadata = mod.buildSyncMetadata({
-      syncMode: mod.SYNC_MODES.HARNESS_ONLY,
-      seedOnlyPathsSkipped: true,
-      syncedManaged: ['AGENTS.md'],
-      seededFiles: [],
-    })
+    const metadata = mod.buildSyncMetadata(
+      buildSyncMetadataInput({
+        syncMode: mod.SYNC_MODES.HARNESS_ONLY,
+        seedOnlyPathsSkipped: true,
+        syncedManaged: ['AGENTS.md'],
+        seededFiles: [],
+      }),
+    )
 
     expect(metadata.syncMode).toBe('harness-only')
     expect(metadata.seedOnlyPathsSkipped).toBe(true)
@@ -738,11 +759,13 @@ describe('boilerplate sync modes', () => {
   it('records full syncMode and seedOnlyPathsSkipped false in metadata', async () => {
     const mod = await import('../../scripts/sync-boilerplate.mjs')
 
-    const metadata = mod.buildSyncMetadata({
-      syncMode: mod.SYNC_MODES.FULL,
-      seedOnlyPathsSkipped: false,
-      seededFiles: ['src/collections/Posts.ts'],
-    })
+    const metadata = mod.buildSyncMetadata(
+      buildSyncMetadataInput({
+        syncMode: mod.SYNC_MODES.FULL,
+        seedOnlyPathsSkipped: false,
+        seededFiles: ['src/collections/Posts.ts'],
+      }),
+    )
 
     expect(metadata.syncMode).toBe('full')
     expect(metadata.seedOnlyPathsSkipped).toBe(false)
