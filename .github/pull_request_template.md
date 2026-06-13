@@ -71,13 +71,16 @@
 
 ## Test result
 
-<!-- Paste pass/fail output or link to CI. Do not guess. -->
+<!-- Paste pass/fail output or link to CI. Do not guess. See AGENTS.md § Validation tiers. -->
 
-- [ ] `pnpm run lint`
-- [ ] `pnpm run typecheck`
-- [ ] `pnpm run test:int`
-- [ ] `pnpm run check` (lint + typecheck + test:int)
-- [ ] `pnpm run check:full` (includes build)
+**Change type:**
+
+- [ ] Docs / markdown / CI config only → `pnpm run guard:safety`
+- [ ] Code changes → `pnpm run check` (**required**)
+
+- [ ] `pnpm run guard:safety` (docs-only or included in `check`)
+- [ ] `pnpm run check` (guard:safety + lint + typecheck + test:int) — **required for code changes**
+- [ ] `pnpm run check:full` (before merge when practical)
 - [ ] CI green on this branch
 
 ## Risk review

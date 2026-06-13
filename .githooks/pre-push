@@ -1,4 +1,6 @@
 #!/usr/bin/env sh
+# Optional local pre-push harness. CI is authoritative.
+# Runs a fast subset only — no lint or build (see AGENTS.md § Validation tiers).
 set -eu
 
 echo "pre-push: running repository safety guard..."

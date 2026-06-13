@@ -28,6 +28,7 @@ function main() {
 
   console.log(`Installed git hooks from ${HOOKS_DIR}/`)
   console.log('pre-push runs: pnpm run guard:safety, typecheck, test:int')
+  console.log('pre-push does not run lint or build — use pnpm run check before PR for code changes')
   console.log('CI remains the final source of truth for pull requests.')
 }
 
