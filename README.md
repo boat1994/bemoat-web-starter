@@ -253,7 +253,7 @@ Before syncing, check which rails-managed boilerplate files differ from the star
 pnpm run boilerplate:check
 ```
 
-The check reports managed drift (must sync), missing seed files (optional first-time import), and customized seed files (ignored). When managed drift or missing seed files are reported, apply updates with:
+The check reports managed drift (must sync), missing seed files (optional first-time import), customized seed files (ignored), and an informational package sync proposal when recommended scripts or dependencies differ. `package.json` is child-owned; sync does not auto-overwrite deploy, build, or dependency entries. When managed drift or missing seed files are reported, apply updates with:
 
 ```bash
 pnpm run boilerplate:sync
@@ -298,17 +298,25 @@ These paths are source-of-truth and **may be overwritten** on every sync:
 - `docs/hardening.md`, `docs/releases.md`, `docs/deploy-smoke-test.md`, `docs/cloudflare-environments.md`
 - `docs/schema-evolution.md` production-safe Payload schema evolution guide
 - `scripts/sync-boilerplate.mjs`, `scripts/check-boilerplate-drift.mjs`, `scripts/deploy-smoke-test.mjs`
-- `scripts/guard-repo-safety.mjs`, `scripts/install-git-hooks.mjs` repository safety guard and optional git hooks
+- `scripts/guard-repo-safety.mjs`, `scripts/guard-cloudflare-env.mjs`, `scripts/install-git-hooks.mjs` repository safety guards and optional git hooks
 - `.githooks/pre-push` optional local pre-push harness (install with `pnpm run hooks:install`)
-- `vitest.config.mts`, `vitest.setup.ts`, and harness integration tests under `tests/int/` (`repo-safety-guard`, `boilerplate-sync`, `open-next-config`)
-- `docs/dev-boilerplate.md`, `docs/boilerplate-sync-command.md` boilerplate module notes
-- `package.json` scripts and shared `dependencies` / `devDependencies`
+- `vitest.config.mts`, `vitest.setup.ts`, and shared harness integration tests under `tests/int/` (`api`, `repo-safety-guard`, `cloudflare-env-guard`, `boilerplate-sync`, `open-next-config`)
+- `docs/dev-boilerplate.md`, `docs/boilerplate-sync-command.md`, `docs/harness-sync-contract.md` boilerplate module and sync contract notes
 
-Validation rails: `check`, `check:full`, `guard:safety`, `typecheck`, `lint`, `test`, `test:int`
+### Package sync proposal (child-owned `package.json`)
 
-Payload and sync: `generate:importmap`, `generate:types`, `generate:types:cloudflare`, `generate:types:payload`, `payload`, `boilerplate:sync`, `boilerplate:check`, `smoke:deploy`, `hooks:install`
+`package.json` is **child-owned** and is not treated as a managed rails file. Sync:
 
-`pnpm-lock.yaml` is **not** synced. Child projects may have project-specific dependencies; after sync, run `pnpm install` to update the local lockfile.
+- adds **missing `bemoat:*` scripts only** (never overwrites existing entries)
+- writes **`.bemoat/package-sync-proposal.md`** with recommended non-namespaced scripts and dependencies for human review
+
+Recommended validation scripts (proposal only): `check`, `check:full`, `guard:safety`, `guard:cloudflare-env`, `typecheck`, `lint`, `test`, `test:int`
+
+Recommended deploy safety scripts (proposal only): `build`, `deploy`, `deploy:app`, `deploy:database`, `deploy:dev`, `preview`
+
+Managed namespaced scripts (added when missing): `bemoat:guard:safety`, `bemoat:guard:cloudflare-env`, `bemoat:test:int`, `bemoat:check`, `bemoat:boilerplate:sync`, `bemoat:boilerplate:check`, `bemoat:hooks:install`
+
+`pnpm-lock.yaml` is **not** synced. Review the package sync proposal, apply any desired `package.json` changes manually, then run `pnpm install`.
 
 ### Seeded-once starter app files
 
@@ -328,7 +336,8 @@ Frontend pages, collections, globals, components, and product UI are safe to cus
 
 The sync script intentionally does not overwrite project-specific infrastructure or content:
 
-- `wrangler.jsonc`
+- `wrangler.jsonc` (deploy script **recommendations** are proposed; Cloudflare **config** is not synced)
+- `package.json` non-namespaced scripts and dependencies (review `.bemoat/package-sync-proposal.md` instead)
 - D1 database IDs
 - R2 bucket names
 - Worker names
@@ -346,14 +355,17 @@ The sync command now creates a Git commit automatically for the files it changes
 
 - every synced path in `managedPaths`
 - newly seeded files from `seedOnlyPaths`
-- `package.json`
+- `.bemoat/package-sync-proposal.md` (regenerated each sync for human review)
+- `package.json` only when missing `bemoat:*` scripts were added
 - `.bemoat-boilerplate-sync.json`
+
+Review **`.bemoat/package-sync-proposal.md`** for recommended script and dependency updates; apply those manually before `pnpm install`.
 
 If you have local uncommitted changes first, the script stashes only files outside the rails-managed scope before syncing and restores them after the sync commit is created. Existing edits on rails-managed files are replaced by the fresh sync output instead of being reapplied afterward. Customized seed-only files are left untouched.
 
 If a child project still has the older sync script, copy `scripts/sync-boilerplate.mjs` from this starter into that project once, then run sync again. Older copies of the script did not sync themselves forward.
 
-Run:
+After reviewing the package sync proposal and applying any manual `package.json` changes:
 
 ```bash
 pnpm install

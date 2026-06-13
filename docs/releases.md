@@ -54,7 +54,7 @@ pnpm run boilerplate:sync
 BEMOAT_BOILERPLATE_REF=dev pnpm run boilerplate:sync
 ```
 
-After every sync, follow the post-sync steps in the root [README.md](../README.md#after-every-sync): install dependencies, regenerate Payload artifacts, create and review migrations, then test locally before deploy.
+After every sync, follow the post-sync steps in the root [README.md](../README.md#after-every-sync): review `.bemoat/package-sync-proposal.md`, apply any manual `package.json` changes, install dependencies, regenerate Payload artifacts, create and review migrations, then test locally before deploy.
 
 ## Changelog policy
 

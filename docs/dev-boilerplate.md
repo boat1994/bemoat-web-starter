@@ -22,21 +22,26 @@ The order operations, LINE, payment slip, copilot, and handoff modules from prev
 
 Child projects should run `pnpm run boilerplate:check` before `pnpm run boilerplate:sync`.
 
-The check command is read-only and reports three categories:
+The check command is read-only and reports four categories:
 
 - **Managed drift** — rails-managed paths that differ from the starter (exit 1; run sync)
 - **Missing seed files** — starter app files not yet present in the child (exit 1; run sync to seed them)
 - **Customized seed files ignored** — child-owned starter files that differ from upstream (exit 0; no action required)
+- **Package sync proposal (informational)** — recommended non-namespaced scripts and dependencies when they differ from the starter (exit 0; review `.bemoat/package-sync-proposal.md` after sync)
 
 ### Rails-managed paths
 
-Agent docs, CI, sync scripts, and shared package scripts are overwritten on every sync. See the root [README.md](../../README.md#what-boilerplate-sync-updates) and [docs/agent-loop/source-of-truth.md](../agent-loop/source-of-truth.md) for the full list.
+Agent docs, CI, sync scripts, guard scripts, harness tests, hooks, and workflow rules are overwritten on every sync. See the root [README.md](../../README.md#what-boilerplate-sync-updates), [docs/agent-loop/source-of-truth.md](../agent-loop/source-of-truth.md), and [harness-sync-contract.md](../harness-sync-contract.md) for the full list.
+
+### Child-owned package manifest
+
+`package.json` is **child-owned**. Sync adds missing **`bemoat:*` scripts** only and generates **`.bemoat/package-sync-proposal.md`** for recommended scripts such as `build`, `deploy`, `preview`, `check`, and for `dependencies` / `devDependencies`. Humans review and apply package changes manually. `pnpm-lock.yaml` is never synced.
 
 ### Starter-seed paths
 
 Frontend pages, collections, globals, components, hooks, access helpers, `src/lib`, and `src/payload.config.ts` are copied only when missing. After a child customizes them, sync never overwrites them.
 
-`pnpm-lock.yaml` is not synced. After sync, run `pnpm install` in the child project to refresh the local lockfile.
+`pnpm-lock.yaml` is not synced. After reviewing the package sync proposal and applying any manual `package.json` changes, run `pnpm install` in the child project.
 
 ## After pulling this change
 

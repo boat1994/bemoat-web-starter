@@ -10,10 +10,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 
 - Boilerplate versioning policy in [docs/releases.md](./docs/releases.md)
 - This changelog with release and sync guidance for child projects
+- [docs/harness-sync-contract.md](./docs/harness-sync-contract.md) — harness scope, shared tests, and package manifest ownership rules
 
 ### Changed
 
 - README and source-of-truth docs now reference version tags as stable sync points
+- Boilerplate sync treats `package.json` as child-owned: only missing `bemoat:*` scripts are added automatically; recommended scripts and dependencies are surfaced in `.bemoat/package-sync-proposal.md`
 
 ## v0.3.0-sync-rails
 

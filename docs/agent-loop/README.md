@@ -27,9 +27,11 @@ After a child project exists, pull reusable improvements from this starter with:
 pnpm run boilerplate:sync
 ```
 
-Sync updates managed boilerplate paths, including agent rules (`AGENTS.md`, `.cursor/rules`), GitHub workflow rails (`.github/workflows/ci.yml`, PR and issue templates), `docs/agent-loop`, harness scripts (`guard-repo-safety`, `install-git-hooks`, sync/drift/smoke), optional `.githooks`, harness integration tests, validation package scripts (`check`, `check:full`, `guard:safety`, `typecheck`, `lint`, `test`, `test:int`, `hooks:install`), and the sync script itself.
+Sync updates managed boilerplate paths, including agent rules (`AGENTS.md`, `.cursor/rules`), GitHub workflow rails (`.github/workflows/ci.yml`, PR and issue templates), `docs/agent-loop`, harness scripts (`guard-repo-safety`, `guard-cloudflare-env`, `install-git-hooks`, sync/drift/smoke), optional `.githooks`, harness integration tests, and the sync script itself.
 
-It does **not** overwrite project-specific infrastructure (`wrangler.jsonc`, D1 IDs, R2 bucket names, Worker names, `.env`, secrets), root `README.md` (unless you later add it to managed paths), `pnpm-lock.yaml`, or project-specific business modules. See [source-of-truth.md](./source-of-truth.md).
+Sync also adds missing **`bemoat:*` scripts** when absent and writes **`.bemoat/package-sync-proposal.md`** with recommended non-namespaced scripts (`build`, `deploy`, `preview`, `check`, etc.) and dependencies for human review. It does **not** auto-overwrite child `package.json` scripts or merge dependencies.
+
+It does **not** overwrite project-specific infrastructure (`wrangler.jsonc`, D1 IDs, R2 bucket names, Worker names, `.env`, secrets), root `README.md` (unless you later add it to managed paths), `pnpm-lock.yaml`, or project-specific business modules. See [source-of-truth.md](./source-of-truth.md) and [harness-sync-contract.md](../harness-sync-contract.md).
 
 ## Task-only prompts
 
