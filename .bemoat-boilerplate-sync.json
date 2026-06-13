@@ -9,6 +9,7 @@
     "docs/hardening.md",
     "docs/releases.md",
     "docs/deploy-smoke-test.md",
+    "docs/cloudflare-environments.md",
     ".github/workflows/ci.yml",
     ".github/pull_request_template.md",
     ".github/ISSUE_TEMPLATE/agent-task.yml",

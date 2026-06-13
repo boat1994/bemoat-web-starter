@@ -172,6 +172,31 @@ The deploy command runs database migration, optimizes D1, builds the app, and de
 
 After deploy, run the [deploy smoke test checklist](./docs/deploy-smoke-test.md) to confirm frontend, admin, Payload, D1, R2, and Cloudflare routing.
 
+## Cloudflare environments (production vs dev)
+
+Bemoat projects use **two deploy targets**. Full guide (synced to child projects): **[docs/cloudflare-environments.md](./docs/cloudflare-environments.md)**.
+
+| Target | Command | Config |
+| --- | --- | --- |
+| **Production** (main branch, Cloudflare auto-deploy) | `pnpm run deploy` | Top-level `wrangler.jsonc` — **no** `--env` |
+| **Dev** (local only, isolated Worker/D1/R2) | `pnpm run deploy:dev` | `wrangler.jsonc` → `env.dev` |
+
+**Rules that prevent confusion:**
+
+- Production does **not** use `env.production` or `CLOUDFLARE_ENV=production`.
+- Dev is explicit: `deploy:dev` sets `CLOUDFLARE_ENV=dev` and passes `--env=dev`.
+- Never point `env.dev` at production D1 or R2 — create separate dev resources in Cloudflare first.
+- `pnpm run deploy` and `pnpm run preview` run `guard:cloudflare-env` first (blocks `CLOUDFLARE_ENV=production` and duplicate dev bindings).
+- `wrangler.jsonc` is **project-specific** and is not overwritten by boilerplate sync; copy the `env.dev` pattern from the starter into your child project and fill in your dev D1 ID and bucket names.
+
+```bash
+# Production (live site)
+pnpm run deploy
+
+# Dev stack from your laptop (after env.dev is configured)
+pnpm run deploy:dev
+```
+
 ## Recommended project flow (deploy-first)
 
 Real Bemoat projects should **not** start by cloning this repository directly. Use the deploy-first path:
@@ -270,7 +295,7 @@ These paths are source-of-truth and **may be overwritten** on every sync:
 - `.github/pull_request_template.md` PR template
 - `.github/ISSUE_TEMPLATE/agent-task.yml` agent task issue template
 - `docs/agent-loop/*` agent operating loop docs
-- `docs/hardening.md`, `docs/releases.md`, `docs/deploy-smoke-test.md`
+- `docs/hardening.md`, `docs/releases.md`, `docs/deploy-smoke-test.md`, `docs/cloudflare-environments.md`
 - `docs/schema-evolution.md` production-safe Payload schema evolution guide
 - `scripts/sync-boilerplate.mjs`, `scripts/check-boilerplate-drift.mjs`, `scripts/deploy-smoke-test.mjs`
 - `scripts/guard-repo-safety.mjs`, `scripts/install-git-hooks.mjs` repository safety guard and optional git hooks
@@ -382,6 +407,7 @@ pnpm dev
 pnpm run build
 pnpm run preview
 pnpm run deploy
+pnpm run deploy:dev
 pnpm run generate:importmap
 pnpm run generate:types
 pnpm payload migrate:create
