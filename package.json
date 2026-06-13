@@ -32,6 +32,13 @@
     "typecheck": "pnpm exec tsc --noEmit",
     "boilerplate:sync": "node scripts/sync-boilerplate.mjs",
     "boilerplate:check": "node scripts/check-boilerplate-drift.mjs",
+    "bemoat:boilerplate:sync": "node scripts/sync-boilerplate.mjs",
+    "bemoat:boilerplate:check": "node scripts/check-boilerplate-drift.mjs",
+    "bemoat:check": "pnpm run bemoat:guard:safety && pnpm run lint && pnpm run typecheck && pnpm run bemoat:test:int",
+    "bemoat:guard:cloudflare-env": "node scripts/guard-cloudflare-env.mjs",
+    "bemoat:guard:safety": "node scripts/guard-repo-safety.mjs",
+    "bemoat:hooks:install": "node scripts/install-git-hooks.mjs",
+    "bemoat:test:int": "cross-env NODE_OPTIONS=--no-deprecation vitest run --config ./vitest.config.mts",
     "smoke:deploy": "node scripts/deploy-smoke-test.mjs"
   },
   "dependencies": {

@@ -14,7 +14,7 @@ This document separates what **`bemoat-web-starter`** owns from what **child pro
 | Payload schema (shared) | Shared collections and globals (seeded once) |
 | Starter UI | Shared starter pages (home, projects, blog, custom order, etc.; seeded once) |
 | Shared utilities | Helper modules under `src/lib` (seeded once) |
-| Package scripts | Validation rails (`check`, `check:full`, `guard:safety`, `guard:cloudflare-env`, `typecheck`, `lint`, `test`, `test:int`), deploy safety rails (`build`, `deploy`, `deploy:app`, `deploy:database`, `deploy:dev`, `preview`), sync and hooks (`boilerplate:sync`, `boilerplate:check`, `hooks:install`, etc.) — see [AGENTS.md § Validation](../../AGENTS.md#validation-before-pr-and-merge) for when to run each |
+| Package scripts | Child-owned `package.json`; sync adds missing `bemoat:*` scripts only and generates `.bemoat/package-sync-proposal.md` for recommended scripts and dependencies |
 | Sync behavior | `scripts/sync-boilerplate.mjs`, `scripts/check-boilerplate-drift.mjs`, managed and seed-only path lists |
 
 Child projects receive these via **clone after Cloudflare deploy** (initial) and **`pnpm run boilerplate:sync`** (ongoing updates). Run **`pnpm run boilerplate:check`** first to see rails-managed drift and missing seed files without modifying files. For stable production syncs, pin a **version tag** with `BEMOAT_BOILERPLATE_REF` instead of always using `main`—see [docs/releases.md](../releases.md).
@@ -42,11 +42,14 @@ These paths are overwritten on every sync:
 | `vitest.config.mts`, `vitest.setup.ts` | Integration test harness for workflow rails |
 | `tests/int/*.int.spec.ts` (shared harness) | `api`, `boilerplate-sync`, `cloudflare-env-guard`, `open-next-config`, `repo-safety-guard` — all listed in `managedPaths`; see [harness-sync-contract.md](../harness-sync-contract.md) |
 | `docs/dev-boilerplate.md`, `docs/boilerplate-sync-command.md`, `docs/harness-sync-contract.md` | Boilerplate module, sync command, and harness contract notes |
-| `package.json` scripts | Validation: `check`, `check:full`, `guard:safety`, `guard:cloudflare-env`, `typecheck`, `lint`, `test`, `test:int`; deploy safety: `build`, `deploy`, `deploy:app`, `deploy:database`, `deploy:dev`, `preview`; generate scripts, `payload`, `boilerplate:sync`, `boilerplate:check`, `smoke:deploy`, `hooks:install` |
 
-`pnpm-lock.yaml` is not synced. After sync, run `pnpm install` in the child project to refresh the local lockfile.
+`package.json` is **child-owned**. Sync adds missing `bemoat:*` scripts only and writes **`.bemoat/package-sync-proposal.md`** with recommended non-namespaced scripts (`build`, `deploy`, `preview`, `check`, etc.) and dependencies. Humans review and apply package changes manually.
 
-Deploy **commands** (`deploy`, `deploy:app`, etc.) are part of the shared harness and call `guard:cloudflare-env` before production deploys. **`wrangler.jsonc` and Cloudflare resource IDs remain child-owned** and are never overwritten by sync.
+Managed namespaced scripts: `bemoat:guard:safety`, `bemoat:guard:cloudflare-env`, `bemoat:test:int`, `bemoat:check`, `bemoat:boilerplate:sync`, `bemoat:boilerplate:check`, `bemoat:hooks:install`
+
+`pnpm-lock.yaml` is not synced. After applying any proposal changes, run `pnpm install` in the child project.
+
+Deploy **command recommendations** are part of the package sync proposal. **`wrangler.jsonc` and Cloudflare resource IDs remain child-owned** and are never overwritten by sync.
 
 ### Seeded once by `boilerplate:sync` (starter app code)
 
@@ -67,6 +70,7 @@ These paths are copied only when missing in the child project. After customizati
 | Area | Examples |
 |------|----------|
 | Cloudflare Worker config | `wrangler.jsonc` |
+| Package manifest | `package.json`, `pnpm-lock.yaml` |
 | D1 | Database IDs and names for that project |
 | R2 | Bucket names for that project |
 | Worker identity | Worker name per environment |

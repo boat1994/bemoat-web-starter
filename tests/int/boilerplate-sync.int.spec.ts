@@ -8,16 +8,29 @@ const STARTER_ONLY_INT_TESTS: { path: string; reason: string }[] = [
   // All current tests/int/**/*.int.spec.ts files are shared harness tests for child projects.
 ]
 
-const REQUIRED_SHARED_PACKAGE_SCRIPTS = [
+const MANAGED_BEMOAT_PACKAGE_SCRIPTS = [
+  'bemoat:guard:safety',
+  'bemoat:guard:cloudflare-env',
+  'bemoat:test:int',
+  'bemoat:check',
+  'bemoat:boilerplate:sync',
+  'bemoat:boilerplate:check',
+  'bemoat:hooks:install',
+]
+
+const PROPOSAL_ONLY_PACKAGE_SCRIPTS = [
   'build',
   'deploy',
   'deploy:app',
   'deploy:database',
   'deploy:dev',
   'preview',
-  'guard:cloudflare-env',
-  'guard:safety',
-  'hooks:install',
+  'check',
+  'check:full',
+  'lint',
+  'typecheck',
+  'test',
+  'test:int',
 ]
 
 describe('boilerplate sync managed paths', () => {
@@ -30,7 +43,7 @@ describe('boilerplate sync managed paths', () => {
     expect(script).toContain("'scripts/check-boilerplate-drift.mjs'")
   })
 
-  it('includes harness workflow rails in managedPaths and packageScripts', async () => {
+  it('includes harness workflow rails in managedPaths and managedPackageScripts', async () => {
     const mod = await import('../../scripts/sync-boilerplate.mjs')
 
     const harnessPaths = [
@@ -54,8 +67,13 @@ describe('boilerplate sync managed paths', () => {
       expect(mod.managedPaths).toContain(path)
     }
 
-    for (const scriptName of REQUIRED_SHARED_PACKAGE_SCRIPTS) {
-      expect(mod.packageScripts).toContain(scriptName)
+    for (const scriptName of MANAGED_BEMOAT_PACKAGE_SCRIPTS) {
+      expect(mod.managedPackageScripts).toContain(scriptName)
+    }
+
+    for (const scriptName of PROPOSAL_ONLY_PACKAGE_SCRIPTS) {
+      expect(mod.managedPackageScripts).not.toContain(scriptName)
+      expect(mod.suggestedPackageScripts).toContain(scriptName)
     }
   })
 
@@ -79,24 +97,93 @@ describe('boilerplate sync managed paths', () => {
     }
   })
 
+  it('adds missing bemoat:* scripts only and never auto-merges dependencies', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+
+    const sourcePackage = {
+      scripts: {
+        'bemoat:check': 'pnpm run bemoat:guard:safety',
+        deploy: 'pnpm run deploy:app',
+        check: 'pnpm run lint',
+      },
+      dependencies: { payload: '3.82.1' },
+      devDependencies: { vitest: '3.0.0' },
+    }
+
+    const targetPackage = {
+      scripts: {
+        deploy: 'pnpm run custom-deploy',
+        check: 'pnpm run custom-check',
+      },
+      dependencies: { payload: '3.80.0' },
+      devDependencies: {},
+    }
+
+    const result = mod.applyManagedPackageScripts(sourcePackage, targetPackage)
+
+    expect(result.addedScripts).toEqual(['bemoat:check'])
+    expect(result.packageJSON.scripts.deploy).toBe('pnpm run custom-deploy')
+    expect(result.packageJSON.scripts.check).toBe('pnpm run custom-check')
+    expect(result.packageJSON.dependencies).toEqual({ payload: '3.80.0' })
+    expect(result.packageJSON.devDependencies).toEqual({})
+  })
+
+  it('builds a package sync proposal without mutating child package.json', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+
+    const sourcePackage = {
+      scripts: {
+        deploy: 'pnpm run deploy:app',
+        check: 'pnpm run lint',
+      },
+      dependencies: { payload: '3.82.1' },
+      devDependencies: { vitest: '3.0.0' },
+    }
+
+    const targetPackage = {
+      scripts: {
+        check: 'pnpm run custom-check',
+      },
+      dependencies: { payload: '3.80.0' },
+      devDependencies: {},
+    }
+
+    const proposal = mod.buildPackageSyncProposal(sourcePackage, targetPackage)
+
+    expect(proposal.missingScripts.map((entry: { name: string }) => entry.name)).toContain('deploy')
+    expect(proposal.differentScripts.map((entry: { name: string }) => entry.name)).toContain('check')
+    expect(
+      (proposal.missingSectionEntries as Record<string, { name: string }[]>).devDependencies?.map(
+        (entry) => entry.name,
+      ),
+    ).toContain('vitest')
+    expect(
+      (proposal.differentSectionEntries as Record<string, { name: string }[]>).dependencies?.map(
+        (entry) => entry.name,
+      ),
+    ).toContain('payload')
+  })
+
   it('exports managedPaths and seedOnlyPaths for drift check reuse', async () => {
     const mod = await import('../../scripts/sync-boilerplate.mjs')
 
     expect(mod.managedPaths).toContain('AGENTS.md')
     expect(mod.managedPaths).toContain('scripts/check-boilerplate-drift.mjs')
     expect(mod.managedPaths).not.toContain('src/payload.config.ts')
+    expect(mod.managedPaths).not.toContain('package.json')
     expect(mod.seedOnlyPaths).toContain('src/payload.config.ts')
     expect(mod.seedOnlyPaths).toContain('src/app/(frontend)')
-    expect(mod.packageScripts).toContain('boilerplate:check')
-    expect(mod.packageScripts).toContain('smoke:deploy')
+    expect(mod.suggestedPackageScripts).toContain('deploy')
+    expect(mod.suggestedPackageSections).toEqual(['dependencies', 'devDependencies'])
   })
 
-  it('exports the sync commit scope including the sync metadata file', async () => {
+  it('exports the sync commit scope without treating package.json as managed rails', async () => {
     const mod = await import('../../scripts/sync-boilerplate.mjs')
 
     expect(mod.syncCommitPaths).toContain('.bemoat-boilerplate-sync.json')
-    expect(mod.syncCommitPaths).toContain('package.json')
+    expect(mod.syncCommitPaths).not.toContain('package.json')
     expect(mod.syncCommitPaths).toContain('AGENTS.md')
+    expect(mod.getSyncCommitPaths(['AGENTS.md'], { includePackageJson: true })).toContain('package.json')
   })
 
   it('stashes unrelated local changes, commits only sync-scoped files, then restores the stash', async () => {
@@ -142,19 +229,19 @@ describe('boilerplate sync managed paths', () => {
     expect(committed).toBe(true)
     const statusCall = calls.find((call) => call.startsWith(`hasWorkingTreeChanges:${targetRoot}:`))
     expect(statusCall).toContain('.bemoat-boilerplate-sync.json')
-    expect(statusCall).toContain('package.json')
+    expect(statusCall).not.toContain('package.json')
     expect(statusCall).toContain('scripts/sync-boilerplate.mjs')
 
     const stashCall = calls.find((call) => call.startsWith(`stashPush:${targetRoot}:`))
     expect(stashCall).toContain('.bemoat-boilerplate-sync.json')
-    expect(stashCall).toContain('package.json')
+    expect(stashCall).not.toContain('package.json')
     expect(stashCall).toContain('scripts/sync-boilerplate.mjs')
     expect(calls).toContain(`stashPop:${targetRoot}`)
     expect(calls).toContain(`commit:${targetRoot}:sync boilerplate from boat1994/bemoat-web-starter#main`)
 
     const addCall = calls.find((call) => call.startsWith(`addPaths:${targetRoot}:`))
     expect(addCall).toContain('.bemoat-boilerplate-sync.json')
-    expect(addCall).toContain('package.json')
+    expect(addCall).not.toContain('package.json')
     expect(addCall).toContain('AGENTS.md')
     expect(addCall).not.toContain('notes.txt')
   })
@@ -221,6 +308,62 @@ describe('boilerplate sync copy behavior', () => {
 
     rmSync(fixtureRoot, { recursive: true, force: true })
   })
+
+  it('writes a package sync proposal and only adds missing bemoat:* scripts', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+
+    rmSync(fixtureRoot, { recursive: true, force: true })
+    mkdirSync(join(fixtureRoot, 'source'), { recursive: true })
+    mkdirSync(join(fixtureRoot, 'target'), { recursive: true })
+
+    writeFileSync(
+      join(fixtureRoot, 'source/package.json'),
+      `${JSON.stringify(
+        {
+          scripts: {
+            'bemoat:check': 'pnpm run bemoat:guard:safety',
+            deploy: 'pnpm run deploy:app',
+          },
+          dependencies: { payload: '3.82.1' },
+          devDependencies: { vitest: '3.0.0' },
+        },
+        null,
+        2,
+      )}\n`,
+    )
+    writeFileSync(
+      join(fixtureRoot, 'target/package.json'),
+      `${JSON.stringify(
+        {
+          scripts: {
+            deploy: 'pnpm run custom-deploy',
+          },
+          dependencies: { payload: '3.80.0' },
+          devDependencies: {},
+        },
+        null,
+        2,
+      )}\n`,
+    )
+
+    const result = mod.syncPackageManifest({
+      sourceRootPath: join(fixtureRoot, 'source'),
+      targetRootPath: join(fixtureRoot, 'target'),
+      repo: 'boat1994/bemoat-web-starter',
+      ref: 'main',
+    })
+
+    const childPackage = JSON.parse(readFileSync(join(fixtureRoot, 'target/package.json'), 'utf8'))
+    const proposal = readFileSync(join(fixtureRoot, 'target/.bemoat/package-sync-proposal.md'), 'utf8')
+
+    expect(result.addedScripts).toEqual(['bemoat:check'])
+    expect(childPackage.scripts.deploy).toBe('pnpm run custom-deploy')
+    expect(childPackage.dependencies.payload).toBe('3.80.0')
+    expect(proposal).toContain('deploy')
+    expect(proposal).toContain('proposal only')
+
+    rmSync(fixtureRoot, { recursive: true, force: true })
+  })
 })
 
 describe('boilerplate drift check', () => {
@@ -250,7 +393,7 @@ describe('boilerplate drift check', () => {
     rmSync(fixtureRoot, { recursive: true, force: true })
   })
 
-  it('detects package.json drift using the same merge rules as sync', async () => {
+  it('does not treat child-owned package.json script or dependency drift as managed drift', async () => {
     const mod = await import('../../scripts/check-boilerplate-drift.mjs')
 
     rmSync(fixtureRoot, { recursive: true, force: true })
@@ -262,7 +405,7 @@ describe('boilerplate drift check', () => {
       `${JSON.stringify(
         {
           name: 'starter',
-          scripts: { check: 'pnpm run lint', 'boilerplate:check': 'node scripts/check-boilerplate-drift.mjs' },
+          scripts: { check: 'pnpm run lint', deploy: 'pnpm run deploy:app' },
           dependencies: { payload: '3.82.1' },
           devDependencies: { vitest: '3.0.0' },
         },
@@ -290,9 +433,17 @@ describe('boilerplate drift check', () => {
       paths: [],
     })
 
-    expect(report.changed).toEqual(['package.json'])
+    expect(report.changed).toEqual([])
     expect(report.missing).toEqual([])
     expect(report.identical).toEqual([])
+
+    const fullReport = mod.compareFullBoilerplateDrift({
+      sourceRoot: join(fixtureRoot, 'source'),
+      targetRoot: join(fixtureRoot, 'target'),
+    })
+
+    expect(fullReport.packageProposal).not.toBeNull()
+    expect(mod.getDriftExitCode(fullReport)).toBe(0)
 
     rmSync(fixtureRoot, { recursive: true, force: true })
   })

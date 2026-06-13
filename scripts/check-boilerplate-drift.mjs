@@ -6,11 +6,11 @@ import { execFileSync } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
 
 import {
+  buildPackageSyncProposal,
   expandSeedOnlyFiles,
+  formatPackageSyncProposal,
   listPathFiles,
   managedPaths,
-  packageScripts,
-  packageSections,
   seedOnlyPaths,
 } from './sync-boilerplate.mjs'
 
@@ -47,22 +47,25 @@ function digestPath(root, relativePath) {
     .join('\n')
 }
 
-function getExpectedPackageJSON(sourcePackage, targetPackage) {
-  const expected = structuredClone(targetPackage)
+function getPackageProposalReport(source, target) {
+  const sourcePackagePath = join(source, 'package.json')
+  const targetPackagePath = join(target, 'package.json')
 
-  expected.scripts = expected.scripts || {}
-  for (const scriptName of packageScripts) {
-    if (sourcePackage.scripts?.[scriptName]) {
-      expected.scripts[scriptName] = sourcePackage.scripts[scriptName]
-    }
-  }
+  if (!existsSync(sourcePackagePath) || !existsSync(targetPackagePath)) return null
 
-  for (const section of packageSections) {
-    expected[section] = expected[section] || {}
-    Object.assign(expected[section], sourcePackage[section] || {})
-  }
+  const sourcePackage = readJSON(sourcePackagePath)
+  const targetPackage = readJSON(targetPackagePath)
+  const proposal = buildPackageSyncProposal(sourcePackage, targetPackage)
 
-  return expected
+  const hasProposal =
+    proposal.missingScripts.length > 0 ||
+    proposal.differentScripts.length > 0 ||
+    Object.keys(proposal.missingSectionEntries).length > 0 ||
+    Object.keys(proposal.differentSectionEntries).length > 0
+
+  if (!hasProposal) return null
+
+  return { proposal, markdown: formatPackageSyncProposal({ repo, ref, proposal }) }
 }
 
 export function compareBoilerplateDrift({
@@ -94,24 +97,11 @@ export function compareBoilerplateDrift({
     }
   }
 
-  const sourcePackagePath = join(source, 'package.json')
-  const targetPackagePath = join(target, 'package.json')
-
-  if (existsSync(sourcePackagePath) && existsSync(targetPackagePath)) {
-    const sourcePackage = readJSON(sourcePackagePath)
-    const targetPackage = readJSON(targetPackagePath)
-    const expected = getExpectedPackageJSON(sourcePackage, targetPackage)
-
-    if (JSON.stringify(expected) === JSON.stringify(targetPackage)) {
-      identical.push('package.json')
-    } else {
-      changed.push('package.json')
-    }
-  } else if (existsSync(sourcePackagePath) && !existsSync(targetPackagePath)) {
-    missing.push('package.json')
-  }
-
   return { missing, changed, identical }
+}
+
+export function comparePackageProposalDrift({ sourceRoot: source, targetRoot: target }) {
+  return getPackageProposalReport(source, target)
 }
 
 export function compareSeedOnlyDrift({
@@ -147,8 +137,9 @@ export function compareSeedOnlyDrift({
 export function compareFullBoilerplateDrift({ sourceRoot: source, targetRoot: target }) {
   const managed = compareBoilerplateDrift({ sourceRoot: source, targetRoot: target, paths: managedPaths })
   const seed = compareSeedOnlyDrift({ sourceRoot: source, targetRoot: target, paths: seedOnlyPaths })
+  const packageProposal = comparePackageProposalDrift({ sourceRoot: source, targetRoot: target })
 
-  return { managed, seed }
+  return { managed, seed, packageProposal }
 }
 
 export function getDriftExitCode(report) {
@@ -166,7 +157,7 @@ function printReport(report) {
 
   console.log(`Checking boilerplate drift against ${repo}#${ref}\n`)
 
-  if (!hasManagedDrift && !hasMissingSeed && !hasCustomizedSeed) {
+  if (!hasManagedDrift && !hasMissingSeed && !hasCustomizedSeed && !report.packageProposal) {
     console.log('No drift found.')
     console.log(`Identical managed paths: ${report.managed.identical.length}`)
     console.log(`Identical seed files: ${report.seed.identical.length}`)
@@ -190,6 +181,12 @@ function printReport(report) {
   if (hasCustomizedSeed) {
     console.log('Customized seed files ignored:')
     for (const path of report.seed.customized) console.log(`- ${path}`)
+    console.log('')
+  }
+
+  if (report.packageProposal) {
+    console.log('Package sync proposal (informational; package.json is child-owned):')
+    console.log('Review suggested script and dependency changes after sync in .bemoat/package-sync-proposal.md')
     console.log('')
   }
 

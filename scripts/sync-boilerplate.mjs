@@ -61,37 +61,39 @@ export const seedOnlyPaths = [
   'src/payload.config.ts',
 ]
 
-export const packageSections = ['dependencies', 'devDependencies']
-export const packageScripts = [
-  // Validation rails
-  'check',
-  'check:full',
-  'guard:safety',
-  'guard:cloudflare-env',
-  'typecheck',
-  'lint',
-  'test',
-  'test:int',
-  // Deploy safety rails (wrangler.jsonc and resource IDs remain child-owned)
+export const packageSyncProposalPath = '.bemoat/package-sync-proposal.md'
+
+/** Namespaced scripts safe to add when missing during sync. Never overwrite existing entries. */
+export const managedPackageScripts = [
+  'bemoat:guard:safety',
+  'bemoat:guard:cloudflare-env',
+  'bemoat:test:int',
+  'bemoat:check',
+  'bemoat:boilerplate:sync',
+  'bemoat:boilerplate:check',
+  'bemoat:hooks:install',
+]
+
+/** Recommended non-namespaced scripts surfaced in the package sync proposal only. */
+export const suggestedPackageScripts = [
   'build',
   'deploy',
   'deploy:app',
   'deploy:database',
   'deploy:dev',
   'preview',
-  // Payload and sync
-  'generate:importmap',
-  'generate:types',
-  'generate:types:cloudflare',
-  'generate:types:payload',
-  'payload',
-  'boilerplate:sync',
-  'boilerplate:check',
-  'smoke:deploy',
-  'hooks:install',
+  'check',
+  'check:full',
+  'lint',
+  'typecheck',
+  'test',
+  'test:int',
 ]
 
-export const syncCommitPaths = [...managedPaths, 'package.json', syncMetadataPath]
+/** Recommended package.json sections surfaced in the proposal only. */
+export const suggestedPackageSections = ['dependencies', 'devDependencies']
+
+export const syncCommitPaths = [...managedPaths, syncMetadataPath]
 
 export function listPathFiles(root, relativePath = '') {
   const fullPath = join(root, relativePath)
@@ -177,29 +179,190 @@ function readJSON(path) {
   return JSON.parse(readFileSync(path, 'utf8'))
 }
 
-function mergePackageJSON() {
-  const sourcePackagePath = join(sourceRoot, 'package.json')
-  const targetPackagePath = join(targetRoot, 'package.json')
+export function applyManagedPackageScripts(sourcePackage, targetPackage) {
+  const nextPackage = structuredClone(targetPackage)
+  nextPackage.scripts = nextPackage.scripts || {}
+  const addedScripts = []
 
-  if (!existsSync(sourcePackagePath) || !existsSync(targetPackagePath)) return
+  for (const scriptName of managedPackageScripts) {
+    const sourceValue = sourcePackage.scripts?.[scriptName]
+    if (!sourceValue || scriptName in nextPackage.scripts) continue
 
-  const sourcePackage = readJSON(sourcePackagePath)
-  const targetPackage = readJSON(targetPackagePath)
+    nextPackage.scripts[scriptName] = sourceValue
+    addedScripts.push(scriptName)
+  }
 
-  targetPackage.scripts = targetPackage.scripts || {}
-  for (const scriptName of packageScripts) {
-    if (sourcePackage.scripts?.[scriptName]) {
-      targetPackage.scripts[scriptName] = sourcePackage.scripts[scriptName]
+  return { packageJSON: nextPackage, addedScripts }
+}
+
+export function buildPackageSyncProposal(sourcePackage, targetPackage) {
+  const missingScripts = []
+  const differentScripts = []
+  const missingSectionEntries = {}
+  const differentSectionEntries = {}
+
+  for (const scriptName of suggestedPackageScripts) {
+    const sourceValue = sourcePackage.scripts?.[scriptName]
+    if (!sourceValue) continue
+
+    const targetValue = targetPackage.scripts?.[scriptName]
+    if (targetValue === undefined) {
+      missingScripts.push({ name: scriptName, value: sourceValue })
+      continue
+    }
+
+    if (targetValue !== sourceValue) {
+      differentScripts.push({ name: scriptName, source: sourceValue, target: targetValue })
     }
   }
 
-  for (const section of packageSections) {
-    targetPackage[section] = targetPackage[section] || {}
-    Object.assign(targetPackage[section], sourcePackage[section] || {})
+  for (const section of suggestedPackageSections) {
+    const sourceSection = sourcePackage[section] || {}
+    const targetSection = targetPackage[section] || {}
+    const missing = []
+    const different = []
+
+    for (const [name, sourceValue] of Object.entries(sourceSection)) {
+      const targetValue = targetSection[name]
+      if (targetValue === undefined) {
+        missing.push({ name, value: sourceValue })
+        continue
+      }
+
+      if (targetValue !== sourceValue) {
+        different.push({ name, source: sourceValue, target: targetValue })
+      }
+    }
+
+    if (missing.length > 0) missingSectionEntries[section] = missing
+    if (different.length > 0) differentSectionEntries[section] = different
   }
 
-  writeFileSync(targetPackagePath, `${JSON.stringify(targetPackage, null, 2)}\n`)
-  console.log('[sync] package.json scripts and dependencies')
+  return {
+    missingScripts,
+    differentScripts,
+    missingSectionEntries,
+    differentSectionEntries,
+  }
+}
+
+export function formatPackageSyncProposal({ repo, ref, proposal }) {
+  const lines = [
+    '# Bemoat package sync proposal',
+    '',
+    `Generated from \`${repo}#${ref}\`. \`package.json\` is child-owned; review and apply changes manually.`,
+    '',
+    '## Managed `bemoat:*` scripts',
+    '',
+    'Sync adds missing namespaced scripts only. Existing `bemoat:*` entries are never overwritten.',
+    '',
+    '## Suggested scripts (proposal only)',
+    '',
+  ]
+
+  if (proposal.missingScripts.length === 0 && proposal.differentScripts.length === 0) {
+    lines.push('- No missing or differing suggested scripts.')
+  } else {
+    if (proposal.missingScripts.length > 0) {
+      lines.push('### Missing in child project')
+      lines.push('')
+      for (const script of proposal.missingScripts) {
+        lines.push(`- \`${script.name}\`: \`${script.value}\``)
+      }
+      lines.push('')
+    }
+
+    if (proposal.differentScripts.length > 0) {
+      lines.push('### Differs from starter')
+      lines.push('')
+      for (const script of proposal.differentScripts) {
+        lines.push(`- \`${script.name}\``)
+        lines.push(`  - starter: \`${script.source}\``)
+        lines.push(`  - child: \`${script.target}\``)
+      }
+      lines.push('')
+    }
+  }
+
+  lines.push('## Suggested dependencies (proposal only)', '')
+
+  const hasSectionDrift =
+    Object.keys(proposal.missingSectionEntries).length > 0 ||
+    Object.keys(proposal.differentSectionEntries).length > 0
+
+  if (!hasSectionDrift) {
+    lines.push('- No missing or differing suggested dependencies.')
+  } else {
+    for (const section of suggestedPackageSections) {
+      const missing = proposal.missingSectionEntries[section] || []
+      const different = proposal.differentSectionEntries[section] || []
+
+      if (missing.length === 0 && different.length === 0) continue
+
+      lines.push(`### ${section}`, '')
+
+      if (missing.length > 0) {
+        lines.push('Missing in child project:')
+        for (const entry of missing) {
+          lines.push(`- \`${entry.name}\`: \`${entry.value}\``)
+        }
+        lines.push('')
+      }
+
+      if (different.length > 0) {
+        lines.push('Differs from starter:')
+        for (const entry of different) {
+          lines.push(`- \`${entry.name}\`: starter \`${entry.source}\`, child \`${entry.target}\``)
+        }
+        lines.push('')
+      }
+    }
+  }
+
+  lines.push('## Apply manually', '', 'Review the items above, update `package.json`, then run `pnpm install`.')
+  lines.push('`pnpm-lock.yaml` is never synced.')
+
+  return `${lines.join('\n')}\n`
+}
+
+export function syncPackageManifest({
+  sourceRootPath,
+  targetRootPath,
+  repo: sourceRepo = repo,
+  ref: sourceRef = ref,
+}) {
+  const sourcePackagePath = join(sourceRootPath, 'package.json')
+  const targetPackagePath = join(targetRootPath, 'package.json')
+
+  if (!existsSync(sourcePackagePath) || !existsSync(targetPackagePath)) {
+    return {
+      addedScripts: [],
+      proposalPath: null,
+      proposal: null,
+      packageChanged: false,
+    }
+  }
+
+  const sourcePackage = readJSON(sourcePackagePath)
+  const targetPackage = readJSON(targetPackagePath)
+  const { packageJSON, addedScripts } = applyManagedPackageScripts(sourcePackage, targetPackage)
+  const proposal = buildPackageSyncProposal(sourcePackage, targetPackage)
+  const proposalMarkdown = formatPackageSyncProposal({ repo: sourceRepo, ref: sourceRef, proposal })
+  const proposalPath = join(targetRootPath, packageSyncProposalPath)
+
+  mkdirSync(dirname(proposalPath), { recursive: true })
+  writeFileSync(proposalPath, proposalMarkdown)
+
+  if (addedScripts.length > 0) {
+    writeFileSync(targetPackagePath, `${JSON.stringify(packageJSON, null, 2)}\n`)
+  }
+
+  return {
+    addedScripts,
+    proposalPath: packageSyncProposalPath,
+    proposal,
+    packageChanged: addedScripts.length > 0,
+  }
 }
 
 function getCommandOutput(command, args, options = {}) {
@@ -255,8 +418,10 @@ function createGitClient() {
   }
 }
 
-export function getSyncCommitPaths(pathsSynced = managedPaths) {
-  return [...pathsSynced, 'package.json', syncMetadataPath]
+export function getSyncCommitPaths(pathsSynced = managedPaths, { includePackageJson = false } = {}) {
+  const paths = [...pathsSynced, syncMetadataPath]
+  if (includePackageJson) paths.push('package.json')
+  return paths
 }
 
 export function stashWorkingTreeIfNeeded(cwd, git = createGitClient()) {
@@ -268,8 +433,11 @@ export function stashWorkingTreeIfNeeded(cwd, git = createGitClient()) {
   return true
 }
 
-export function commitSyncedChanges({ repo, ref, targetRoot, syncedPaths = managedPaths }, git = createGitClient()) {
-  const pathsToCommit = getSyncCommitPaths(syncedPaths)
+export function commitSyncedChanges(
+  { repo, ref, targetRoot, syncedPaths = managedPaths, includePackageJson = false },
+  git = createGitClient(),
+) {
+  const pathsToCommit = getSyncCommitPaths(syncedPaths, { includePackageJson })
 
   git.addPaths(targetRoot, pathsToCommit)
 
@@ -293,7 +461,7 @@ export function isDirectExecution() {
   return import.meta.url === pathToFileURL(resolve(entrypoint)).href
 }
 
-function printSyncReport({ syncedManaged, seededFiles, skippedSeedFiles }) {
+function printSyncReport({ syncedManaged, seededFiles, skippedSeedFiles, packageSync }) {
   console.log('\nSynced managed paths:')
   if (syncedManaged.length === 0) {
     console.log('- (none)')
@@ -313,6 +481,17 @@ function printSyncReport({ syncedManaged, seededFiles, skippedSeedFiles }) {
     console.log('- (none)')
   } else {
     for (const path of skippedSeedFiles) console.log(`- ${path}`)
+  }
+
+  console.log('\nPackage manifest (child-owned):')
+  if (packageSync?.addedScripts?.length > 0) {
+    console.log(`- added missing bemoat:* scripts: ${packageSync.addedScripts.join(', ')}`)
+  } else {
+    console.log('- no missing bemoat:* scripts added')
+  }
+
+  if (packageSync?.proposalPath) {
+    console.log(`- review suggested script/dependency changes in ${packageSync.proposalPath}`)
   }
 }
 
@@ -348,7 +527,20 @@ function main() {
       skippedSeedFiles.push(...result.skipped)
     }
 
-    mergePackageJSON()
+    const packageSync = syncPackageManifest({
+      sourceRootPath: sourceRoot,
+      targetRootPath: targetRoot,
+      repo,
+      ref,
+    })
+
+    if (packageSync.packageChanged) {
+      console.log(`[sync] added missing bemoat:* scripts: ${packageSync.addedScripts.join(', ')}`)
+    }
+
+    if (packageSync.proposalPath) {
+      console.log(`[sync] package sync proposal written to ${packageSync.proposalPath}`)
+    }
 
     writeFileSync(
       join(targetRoot, syncMetadataPath),
@@ -359,9 +551,16 @@ function main() {
           syncedAt: new Date().toISOString(),
           managedPaths,
           seedOnlyPaths,
+          managedPackageScripts,
+          suggestedPackageScripts,
+          suggestedPackageSections,
           lastSyncedManagedPaths: syncedManaged,
           seededFiles,
           skippedSeedFiles,
+          packageSync: {
+            addedScripts: packageSync.addedScripts,
+            proposalPath: packageSync.proposalPath,
+          },
         },
         null,
         2,
@@ -371,15 +570,27 @@ function main() {
     rmSync(tempRoot, { recursive: true, force: true })
 
     const pathsToCommit = [...syncedManaged, ...seededFiles]
-    if (commitSyncedChanges({ repo, ref, targetRoot, syncedPaths: pathsToCommit }, git)) {
+    if (commitSyncedChanges(
+      {
+        repo,
+        ref,
+        targetRoot,
+        syncedPaths: pathsToCommit,
+        includePackageJson: packageSync.packageChanged,
+      },
+      git,
+    )) {
       console.log('[sync] committed sync changes')
     } else {
       console.log('[sync] no sync changes to commit')
     }
 
-    printSyncReport({ syncedManaged, seededFiles, skippedSeedFiles })
+    printSyncReport({ syncedManaged, seededFiles, skippedSeedFiles, packageSync })
 
     console.log('\nDone. Suggested next commands:')
+    if (packageSync.proposalPath) {
+      console.log(`Review ${packageSync.proposalPath} and apply any package.json changes manually`)
+    }
     console.log('pnpm install')
     console.log('pnpm run generate:importmap')
     console.log('pnpm run generate:types')

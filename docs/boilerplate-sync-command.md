@@ -26,13 +26,26 @@ pnpm run boilerplate:sync
   - `tests/int/open-next-config.int.spec.ts`
   - `tests/int/repo-safety-guard.int.spec.ts`
 - `docs/dev-boilerplate.md`, `docs/boilerplate-sync-command.md`, `docs/harness-sync-contract.md`
-- Selected `package.json` scripts:
-  - Validation: `check`, `check:full`, `guard:safety`, `guard:cloudflare-env`, `typecheck`, `lint`, `test`, `test:int`, `hooks:install`
-  - Deploy safety: `build`, `deploy`, `deploy:app`, `deploy:database`, `deploy:dev`, `preview`
-  - Payload and sync: generate scripts, `payload`, `boilerplate:sync`, `boilerplate:check`, `smoke:deploy`
-- Shared `dependencies` and `devDependencies` from the starter `package.json`
 
 See [harness-sync-contract.md](./harness-sync-contract.md) for the full harness definition and maintainer rules.
+
+### Package sync proposal (child-owned `package.json`)
+
+`package.json` is **child-owned**. Sync does **not** auto-overwrite non-namespaced scripts or merge dependencies.
+
+Default sync behavior:
+
+- adds missing **`bemoat:*` scripts** only (`bemoat:guard:safety`, `bemoat:guard:cloudflare-env`, `bemoat:test:int`, `bemoat:check`, `bemoat:boilerplate:sync`, `bemoat:boilerplate:check`, `bemoat:hooks:install`)
+- writes **`.bemoat/package-sync-proposal.md`** with recommended scripts and dependencies for human review
+
+Recommended scripts surfaced in the proposal (not force-applied):
+
+- Validation: `check`, `check:full`, `lint`, `typecheck`, `test`, `test:int`
+- Deploy safety: `build`, `deploy`, `deploy:app`, `deploy:database`, `deploy:dev`, `preview`
+
+Recommended sections surfaced in the proposal: `dependencies`, `devDependencies`
+
+`pnpm-lock.yaml` is never synced.
 
 ### Seeded once (starter app code)
 
@@ -46,7 +59,7 @@ See [harness-sync-contract.md](./harness-sync-contract.md) for the full harness 
 - Helper utilities
 - `src/payload.config.ts`
 
-It does not overwrite project-specific Cloudflare resources such as `wrangler.jsonc`, D1 database IDs, R2 bucket names, secrets, or `.env` files. Deploy **scripts** are synced; Cloudflare **resource config** is not.
+It does not overwrite project-specific Cloudflare resources such as `wrangler.jsonc`, D1 database IDs, R2 bucket names, secrets, or `.env` files. Deploy script **recommendations** appear in the package sync proposal; Cloudflare **resource config** is not synced.
 
 ## Use a different source ref
 
@@ -65,14 +78,15 @@ BEMOAT_BOILERPLATE_REPO=boat1994/bemoat-web-starter pnpm run boilerplate:sync
 The sync command automatically creates a Git commit for:
 
 - every file path it synced from the boilerplate
-- `package.json`
+- newly seeded files from `seedOnlyPaths`
+- `package.json` only when missing `bemoat:*` scripts were added
 - `.bemoat-boilerplate-sync.json`
 
 If local uncommitted changes already exist, the script stashes only files outside the sync-managed scope and restores them after the sync commit. Existing edits on sync-managed files are overwritten by the new sync output instead of being popped back afterward.
 
 If a child project is still using the older sync script, copy `scripts/sync-boilerplate.mjs` from the starter into that project once before rerunning sync. The older script version did not sync itself forward.
 
-Run **`pnpm install`** after sync because `package.json` scripts and shared dependencies may have changed, then:
+Review **`.bemoat/package-sync-proposal.md`**, apply any desired `package.json` changes manually, then run **`pnpm install`** because dependencies may have changed:
 
 ```bash
 pnpm run generate:importmap
