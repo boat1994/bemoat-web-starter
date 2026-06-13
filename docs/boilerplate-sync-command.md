@@ -64,19 +64,23 @@ See [harness-sync-contract.md](./harness-sync-contract.md) for the full harness 
 
 ### Package sync proposal (child-owned `package.json`)
 
-`package.json` is **child-owned**. Sync does **not** auto-overwrite non-namespaced scripts or merge dependencies.
+`package.json` is **child-owned**. Sync does **not** auto-overwrite non-namespaced scripts, merge dependencies, or reorder scripts.
 
 Default sync behavior:
 
 - adds missing **`bemoat:*` scripts** only (`bemoat:guard:safety`, `bemoat:guard:cloudflare-env`, `bemoat:test:int`, `bemoat:check`, `bemoat:boilerplate:sync`, `bemoat:boilerplate:check`, `bemoat:hooks:install`)
-- writes **`.bemoat/package-sync-proposal.md`** with recommended scripts and dependencies for human review
+- never overwrites existing **`bemoat:*` scripts**
+- never adds, overwrites, removes, renames, or reorders deploy/build/check/test scripts
+- never auto-adds, removes, bumps, or rewrites **`dependencies`** or **`devDependencies`**
+- writes **`.bemoat/package-sync-proposal.md`** with script and dependency drift for human review only
 
-Recommended scripts surfaced in the proposal (not force-applied):
+Non-namespaced script drift surfaced in the proposal (never force-applied):
 
 - Validation: `check`, `check:full`, `lint`, `typecheck`, `test`, `test:int`
 - Deploy safety: `build`, `deploy`, `deploy:app`, `deploy:database`, `deploy:dev`, `preview`
+- Runtime: `dev`, `start`
 
-Recommended sections surfaced in the proposal: `dependencies`, `devDependencies`
+Dependency drift surfaced in the proposal: `dependencies`, `devDependencies`
 
 `pnpm-lock.yaml` is never synced.
 
@@ -127,7 +131,7 @@ If local uncommitted changes already exist, the script stashes only files outsid
 
 If a child project is still using the older sync script, copy `scripts/sync-boilerplate.mjs` from the starter into that project once before rerunning sync. The older script version did not sync itself forward.
 
-Review **`.bemoat/package-sync-proposal.md`**, apply any desired `package.json` changes manually, then run **`pnpm install`** because dependencies may have changed:
+Review **`.bemoat/package-sync-proposal.md`** for script and dependency drift (human review only). Update `package.json` manually when desired, then run **`pnpm install`** if dependencies changed:
 
 ```bash
 pnpm run generate:importmap

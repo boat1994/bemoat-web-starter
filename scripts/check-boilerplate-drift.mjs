@@ -99,6 +99,7 @@ function getPackageProposalReport(source, target) {
   const hasProposal =
     proposal.missingScripts.length > 0 ||
     proposal.differentScripts.length > 0 ||
+    proposal.differentBemoatScripts.length > 0 ||
     Object.keys(proposal.missingSectionEntries).length > 0 ||
     Object.keys(proposal.differentSectionEntries).length > 0
 
@@ -285,7 +286,7 @@ function printReport(report) {
 
   if (report.packageProposal) {
     console.log('Package sync proposal (informational; package.json is child-owned):')
-    console.log('Review suggested script and dependency changes after sync in .bemoat/package-sync-proposal.md')
+    console.log('Review script and dependency drift in .bemoat/package-sync-proposal.md (human review only)')
     console.log('')
   }
 
