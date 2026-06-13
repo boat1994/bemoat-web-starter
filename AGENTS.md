@@ -80,7 +80,7 @@ Agents must run the correct validation tier **before commit and PR**. **CI is th
 | Change type | Required before commit/PR | Notes |
 |-------------|---------------------------|-------|
 | **Docs / markdown / CI config only** (no `.ts`, `.tsx`, `.mjs` app or script changes) | `pnpm run guard:safety` | Skip full `check` unless you also changed code |
-| **Code changes** (TypeScript, scripts, tests, components, collections, hooks) | `pnpm run check` | **Required** — runs `guard:safety` + `lint` + `typecheck` + `test:int` |
+| **Code changes** (TypeScript, scripts, tests, components, collections, hooks) | `pnpm run check` | **Required** — runs `guard:safety` + `lint` + `typecheck` + `test:int`. **Lint must pass with zero warnings** — fix every warning before commit/PR. |
 | **Payload schema changes** | `pnpm run check` + `pnpm run generate:types` | Include migration in PR when D1 schema changes |
 | **Admin component changes** | `pnpm run check` + `pnpm run generate:importmap` | |
 
@@ -88,6 +88,13 @@ Agents must run the correct validation tier **before commit and PR**. **CI is th
 
 - Run `pnpm run check:full` when practical (`lint` + `typecheck` + `test` + `build`).
 - Confirm CI is green on the PR branch.
+
+### Lint policy
+
+- `pnpm run lint` uses `--max-warnings 0` — **warnings fail** the command, same as errors.
+- Agents must **fix lint warnings immediately** in any file they touch; do not leave warnings for CI or the next agent.
+- If a task surfaces pre-existing warnings in unrelated files, fix them in the same PR when practical so `check` stays green.
+- Do not commit or open a PR when `pnpm run check` fails on lint.
 
 ### Why lint before PR but not in pre-push
 

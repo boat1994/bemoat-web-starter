@@ -104,7 +104,7 @@ It intentionally **does not** run `lint` or `build` — those are in CI and in `
 | When | Command |
 |------|---------|
 | Docs/markdown/CI only | `pnpm run guard:safety` |
-| Code changes (before commit/PR) | `pnpm run check` (**required**) |
+| Code changes (before commit/PR) | `pnpm run check` (**required**, lint must have **zero warnings**) |
 | Before merge (human) | `pnpm run check:full` when practical |
 | Every PR on GitHub | CI (authoritative) |
 | Optional before push | pre-push hook subset |

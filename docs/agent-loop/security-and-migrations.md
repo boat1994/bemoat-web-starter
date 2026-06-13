@@ -126,7 +126,7 @@ Before `git commit`, apply the validation tier from [AGENTS.md](../../AGENTS.md#
 | Change type | Run |
 |-------------|-----|
 | Docs / markdown / CI config only | `pnpm run guard:safety` |
-| Code changes | `pnpm run check` (**required** — includes guard:safety, lint, typecheck, test:int) |
+| Code changes | `pnpm run check` (**required** — includes guard:safety, lint with **zero warnings**, typecheck, test:int) |
 
 Confirm:
 

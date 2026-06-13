@@ -39,7 +39,7 @@ Stop instead of committing if the task is ambiguous, forbidden files are require
 - [ ] **Migration pre-commit:** destructive migration has explicit human approval noted for the PR
 - [ ] **Validation tier applied** (see [AGENTS.md § Validation](../../AGENTS.md#validation-before-pr-and-merge)):
   - [ ] **Docs/markdown/CI only** (no code): `pnpm run guard:safety` passed
-  - [ ] **Code changes**: `pnpm run check` passed (**required** — includes lint, typecheck, test:int, guard:safety)
+  - [ ] **Code changes**: `pnpm run check` passed (**required** — includes lint with **zero warnings**, typecheck, test:int, guard:safety)
 - [ ] Exactly one focused commit (unless task requires more)
 - [ ] No unrelated refactors in the commit
 
