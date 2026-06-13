@@ -17,7 +17,23 @@ This document separates what **`bemoat-web-starter`** owns from what **child pro
 | Package scripts | Child-owned `package.json`; sync adds missing `bemoat:*` scripts only and generates `.bemoat/package-sync-proposal.md` for recommended scripts and dependencies |
 | Sync behavior | `scripts/sync-boilerplate.mjs`, `scripts/check-boilerplate-drift.mjs`, managed and seed-only path lists |
 
-Child projects receive these via **clone after Cloudflare deploy** (initial) and **`pnpm run boilerplate:sync`** (ongoing updates). Run **`pnpm run boilerplate:check`** first to see rails-managed drift and missing seed files without modifying files. For stable production syncs, pin a **version tag** with `BEMOAT_BOILERPLATE_REF` instead of always using `main`—see [docs/releases.md](../releases.md).
+Child projects receive these via **clone after Cloudflare deploy** (initial) and **`pnpm run boilerplate:sync`** (ongoing updates). Run **`pnpm run boilerplate:check`** first to see rails-managed drift without modifying files.
+
+**Existing projects** with their own app and schema should use harness-only mode:
+
+```bash
+pnpm run boilerplate:check -- --harness-only
+pnpm run boilerplate:sync -- --harness-only
+```
+
+**New child projects** that still want missing starter modules may use full mode:
+
+```bash
+pnpm run boilerplate:check -- --full
+pnpm run boilerplate:sync -- --full
+```
+
+Default sync and drift check mode is **`harness-only`**. For stable production syncs, pin a **version tag** with `BEMOAT_BOILERPLATE_REF` instead of always using `main`—see [docs/releases.md](../releases.md).
 
 ### Always synced by `boilerplate:sync` (rails-managed)
 
@@ -59,9 +75,9 @@ These paths preserve existing child content and append missing starter entries:
 |------|---------|
 | `.gitignore` | Keep child ignore rules; append missing starter rules (for example Bemoat boilerplate temp directories) |
 
-### Seeded once by `boilerplate:sync` (starter app code)
+### Seeded once by `boilerplate:sync` (starter app code) — `full` mode only
 
-These paths are copied only when missing in the child project. After customization, sync never overwrites them:
+These paths are copied only when missing in the child project **and** sync runs with **`--full`**. Default **`harness-only`** sync skips them entirely. After customization, sync never overwrites them:
 
 | Path | Purpose |
 |------|---------|
@@ -87,7 +103,7 @@ These paths are copied only when missing in the child project. After customizati
 | Customized starter app files | Any seed-only file the child has edited after initial import |
 | Business modules | Project-specific features, integrations, operations |
 | Customer integrations | LINE, payments, handoff, etc., when not yet in shared boilerplate |
-| README | Root `README.md` may be project-specific; adopt starter wording manually if desired |
+| README | Root `README.md` is **project-owned** and must **not** be in `managedPaths`. Existing projects keep their own README. Harness documentation lives under `docs/*` and `AGENTS.md`. |
 
 ## Rules
 

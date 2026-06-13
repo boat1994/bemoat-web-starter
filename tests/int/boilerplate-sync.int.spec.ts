@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
@@ -7,6 +7,8 @@ import { describe, expect, it } from 'vitest'
 const STARTER_ONLY_INT_TESTS: { path: string; reason: string }[] = [
   // All current tests/int/**/*.int.spec.ts files are shared harness tests for child projects.
 ]
+
+/** README.md is project-owned and must not appear in managedPaths (see docs/harness-sync-contract.md). */
 
 const MANAGED_BEMOAT_PACKAGE_SCRIPTS = [
   'bemoat:guard:safety',
@@ -171,6 +173,7 @@ describe('boilerplate sync managed paths', () => {
     expect(mod.managedPaths).toContain('scripts/check-boilerplate-drift.mjs')
     expect(mod.managedPaths).not.toContain('src/payload.config.ts')
     expect(mod.managedPaths).not.toContain('package.json')
+    expect(mod.managedPaths).not.toContain('README.md')
     expect(mod.mergeKeepPaths).toContain('.gitignore')
     expect(mod.seedOnlyPaths).not.toContain('.gitignore')
     expect(mod.seedOnlyPaths).toContain('src/payload.config.ts')
@@ -420,14 +423,164 @@ describe('boilerplate sync copy behavior', () => {
   })
 })
 
+describe('boilerplate sync modes', () => {
+  const fixtureRoot = resolve(process.cwd(), '.tmp-boilerplate-sync-mode-test')
+
+  it('defaults parseSyncMode to harness-only', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+
+    expect(mod.parseSyncMode([], {} as NodeJS.ProcessEnv)).toBe(mod.SYNC_MODES.HARNESS_ONLY)
+  })
+
+  it('parses --full and --harness-only CLI flags', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+
+    expect(mod.parseSyncMode(['--full'], {} as NodeJS.ProcessEnv)).toBe(mod.SYNC_MODES.FULL)
+    expect(mod.parseSyncMode(['--harness-only'], {} as NodeJS.ProcessEnv)).toBe(mod.SYNC_MODES.HARNESS_ONLY)
+  })
+
+  it('prefers CLI flags over BEMOAT_SYNC_MODE', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+
+    expect(
+      mod.parseSyncMode(
+        ['--full'],
+        { BEMOAT_SYNC_MODE: 'harness-only' } as unknown as NodeJS.ProcessEnv,
+      ),
+    ).toBe(mod.SYNC_MODES.FULL)
+  })
+
+  it('does not copy seed-only paths in harness-only mode', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+
+    rmSync(fixtureRoot, { recursive: true, force: true })
+    mkdirSync(join(fixtureRoot, 'source/src/collections'), { recursive: true })
+    mkdirSync(join(fixtureRoot, 'target/src/collections'), { recursive: true })
+
+    writeFileSync(join(fixtureRoot, 'source/src/collections/Posts.ts'), 'export const Posts = {}\n')
+
+    const result = mod.syncPathsFromSource({
+      sourceRootPath: join(fixtureRoot, 'source'),
+      targetRootPath: join(fixtureRoot, 'target'),
+      mode: mod.SYNC_MODES.HARNESS_ONLY,
+      onWarn: () => {},
+      onLog: () => {},
+    })
+
+    expect(result.seedOnlyPathsSkipped).toBe(true)
+    expect(result.seededFiles).toEqual([])
+    expect(existsSync(join(fixtureRoot, 'target/src/collections/Posts.ts'))).toBe(false)
+
+    rmSync(fixtureRoot, { recursive: true, force: true })
+  })
+
+  it('copies missing seed-only files in full mode', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+
+    rmSync(fixtureRoot, { recursive: true, force: true })
+    mkdirSync(join(fixtureRoot, 'source/src/collections'), { recursive: true })
+    mkdirSync(join(fixtureRoot, 'target/src/collections'), { recursive: true })
+
+    writeFileSync(join(fixtureRoot, 'source/src/collections/Posts.ts'), 'export const Posts = {}\n')
+
+    const result = mod.syncPathsFromSource({
+      sourceRootPath: join(fixtureRoot, 'source'),
+      targetRootPath: join(fixtureRoot, 'target'),
+      mode: mod.SYNC_MODES.FULL,
+      onWarn: () => {},
+      onLog: () => {},
+    })
+
+    expect(result.seedOnlyPathsSkipped).toBe(false)
+    expect(result.seededFiles).toEqual(['src/collections/Posts.ts'])
+    expect(readFileSync(join(fixtureRoot, 'target/src/collections/Posts.ts'), 'utf8')).toBe(
+      'export const Posts = {}\n',
+    )
+
+    rmSync(fixtureRoot, { recursive: true, force: true })
+  })
+
+  it('records harness-only syncMode and seedOnlyPathsSkipped in metadata', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+
+    const metadata = mod.buildSyncMetadata({
+      syncMode: mod.SYNC_MODES.HARNESS_ONLY,
+      seedOnlyPathsSkipped: true,
+      syncedManaged: ['AGENTS.md'],
+      seededFiles: [],
+    })
+
+    expect(metadata.syncMode).toBe('harness-only')
+    expect(metadata.seedOnlyPathsSkipped).toBe(true)
+    expect(metadata.seededFiles).toEqual([])
+    expect(metadata.lastSyncedManagedPaths).toEqual(['AGENTS.md'])
+  })
+
+  it('records full syncMode and seedOnlyPathsSkipped false in metadata', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+
+    const metadata = mod.buildSyncMetadata({
+      syncMode: mod.SYNC_MODES.FULL,
+      seedOnlyPathsSkipped: false,
+      seededFiles: ['src/collections/Posts.ts'],
+    })
+
+    expect(metadata.syncMode).toBe('full')
+    expect(metadata.seedOnlyPathsSkipped).toBe(false)
+    expect(metadata.seededFiles).toEqual(['src/collections/Posts.ts'])
+  })
+
+  it('suggests harness-only next commands without Payload migration steps', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+
+    const commands = mod.getSuggestedNextCommands(mod.SYNC_MODES.HARNESS_ONLY, {
+      proposalPath: '.bemoat/package-sync-proposal.md',
+    })
+
+    expect(commands).toContain('pnpm run check')
+    expect(commands).not.toContain('pnpm run generate:importmap')
+    expect(commands).not.toContain('pnpm payload migrate:create')
+  })
+
+  it('suggests full-mode next commands including Payload artifact steps', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+
+    const commands = mod.getSuggestedNextCommands(mod.SYNC_MODES.FULL, {})
+
+    expect(commands).toContain('pnpm run generate:importmap')
+    expect(commands).toContain('pnpm run generate:types')
+    expect(commands).toContain('pnpm payload migrate:create')
+  })
+})
+
 describe('boilerplate drift check', () => {
   const fixtureRoot = resolve(process.cwd(), '.tmp-boilerplate-drift-test')
 
-  it('detects the starter source repository and skips remote drift comparison', async () => {
+  it('detects boilerplate source repository from package name fallback', async () => {
     const mod = await import('../../scripts/check-boilerplate-drift.mjs')
 
-    expect(mod.isBoilerplateSourceRepository(process.cwd(), 'boat1994/bemoat-web-starter')).toBe(true)
-    expect(mod.isBoilerplateSourceRepository(process.cwd(), 'boat1994/other-repo')).toBe(false)
+    rmSync(fixtureRoot, { recursive: true, force: true })
+    mkdirSync(join(fixtureRoot, 'starter'), { recursive: true })
+    mkdirSync(join(fixtureRoot, 'child'), { recursive: true })
+
+    writeFileSync(
+      join(fixtureRoot, 'starter/package.json'),
+      `${JSON.stringify({ name: 'bemoat-web-starter' }, null, 2)}\n`,
+    )
+
+    writeFileSync(
+      join(fixtureRoot, 'child/package.json'),
+      `${JSON.stringify({ name: 'bogus-jewelry' }, null, 2)}\n`,
+    )
+
+    expect(
+      mod.isBoilerplateSourceRepository(join(fixtureRoot, 'starter'), 'boat1994/bemoat-web-starter'),
+    ).toBe(true)
+    expect(
+      mod.isBoilerplateSourceRepository(join(fixtureRoot, 'child'), 'boat1994/bemoat-web-starter'),
+    ).toBe(false)
+
+    rmSync(fixtureRoot, { recursive: true, force: true })
   })
 
   it('reports missing, changed, and identical managed paths', async () => {
@@ -525,7 +678,15 @@ describe('boilerplate drift check', () => {
     })
 
     expect(report.changed).toEqual(['.gitignore'])
-    expect(mod.getDriftExitCode({ managed: { missing: [], changed: [] }, seed: { missingSeed: [], customized: [], identical: [] }, mergeKeep: report, packageProposal: null })).toBe(1)
+    expect(
+      mod.getDriftExitCode({
+        managed: { missing: [], changed: [] },
+        seed: { missingSeed: [], customized: [], identical: [] },
+        mergeKeep: report,
+        packageProposal: null,
+        seedOnlyPathsSkipped: true,
+      }),
+    ).toBe(1)
 
     rmSync(fixtureRoot, { recursive: true, force: true })
   })
@@ -564,10 +725,33 @@ describe('boilerplate drift check', () => {
     const report = mod.compareFullBoilerplateDrift({
       sourceRoot: join(fixtureRoot, 'source'),
       targetRoot: join(fixtureRoot, 'target'),
+      mode: mod.SYNC_MODES.FULL,
     })
 
     expect(mod.getDriftExitCode(report)).toBe(1)
     expect(report.seed.missingSeed).toContain('src/app/(frontend)/custom-order/page.tsx')
+
+    rmSync(fixtureRoot, { recursive: true, force: true })
+  })
+
+  it('does not fail on missing starter app files in harness-only drift check', async () => {
+    const syncMod = await import('../../scripts/sync-boilerplate.mjs')
+    const mod = await import('../../scripts/check-boilerplate-drift.mjs')
+
+    rmSync(fixtureRoot, { recursive: true, force: true })
+    mkdirSync(join(fixtureRoot, 'source/src/app/(frontend)/custom-order'), { recursive: true })
+
+    writeFileSync(join(fixtureRoot, 'source/src/app/(frontend)/custom-order/page.tsx'), 'starter page\n')
+
+    const report = mod.compareBoilerplateDriftByMode({
+      sourceRoot: join(fixtureRoot, 'source'),
+      targetRoot: join(fixtureRoot, 'target'),
+      mode: syncMod.SYNC_MODES.HARNESS_ONLY,
+    })
+
+    expect(report.seedOnlyPathsSkipped).toBe(true)
+    expect(report.seed.missingSeed).toEqual([])
+    expect(mod.getDriftExitCode(report)).toBe(0)
 
     rmSync(fixtureRoot, { recursive: true, force: true })
   })

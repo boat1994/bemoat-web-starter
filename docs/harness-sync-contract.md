@@ -20,10 +20,34 @@ The harness is everything child projects need to run the same safety rails, work
 
 Child projects receive harness **files** through **`pnpm run boilerplate:sync`**. Drift is reported by **`pnpm run boilerplate:check`**.
 
+## Sync modes
+
+| Mode | When to use | Starter modules |
+|------|-------------|-----------------|
+| **`harness-only`** (default) | Existing projects with their own Payload schema, frontend, components, hooks, access, lib, and `payload.config.ts` | **Not copied** — `seedOnlyPaths` are skipped |
+| **`full`** | New child projects or repos that still want missing starter files seeded once | Copied only when missing; never overwrites existing child files |
+
+Commands:
+
+```bash
+# Existing repos (recommended)
+pnpm run boilerplate:sync -- --harness-only
+pnpm run boilerplate:check -- --harness-only
+
+# New repos that want starter module seeding
+pnpm run boilerplate:sync -- --full
+pnpm run boilerplate:check -- --full
+```
+
+CLI flags take precedence over `BEMOAT_SYNC_MODE`. Sync metadata in `.bemoat-boilerplate-sync.json` records `syncMode` and `seedOnlyPathsSkipped`.
+
+Starter modules (`src/app/(frontend)`, `src/collections`, `src/globals`, `src/components`, `src/hooks`, `src/access`, `src/lib`, `src/payload.config.ts`) are **not** harness.
+
 ## What stays child-owned
 
 These are **not** part of the harness sync contract:
 
+- `README.md` (project-owned — existing projects keep their own README; harness documentation lives under `docs/*` and `AGENTS.md`)
 - `package.json` (child-owned manifest)
 - `pnpm-lock.yaml`
 - `wrangler.jsonc`
@@ -99,5 +123,7 @@ Current shared tests (listed in `managedPaths` in `scripts/sync-boilerplate.mjs`
 5. **Starter-only harness file** — Do not add to `managedPaths`. Document the path and reason in `STARTER_ONLY_INT_TESTS` in `tests/int/boilerplate-sync.int.spec.ts` so the contract test allows it.
 
 6. **Do not sync** `wrangler.jsonc`, resource IDs, secrets, `.env` files, or `pnpm-lock.yaml`.
+
+7. **Do not add `README.md` to `managedPaths`.** Root README is project-owned. Existing projects keep their own README. Harness documentation lives under `docs/*` and `AGENTS.md`. `tests/int/boilerplate-sync.int.spec.ts` asserts `managedPaths` does not include `README.md`.
 
 See also: [source-of-truth.md](./agent-loop/source-of-truth.md), [boilerplate-sync-command.md](./boilerplate-sync-command.md), root [README.md](../README.md#what-boilerplate-sync-updates).

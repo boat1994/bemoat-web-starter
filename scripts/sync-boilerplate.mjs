@@ -4,6 +4,11 @@ import { dirname, join, resolve } from 'node:path'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
 
+export const SYNC_MODES = {
+  HARNESS_ONLY: 'harness-only',
+  FULL: 'full',
+}
+
 const repo = process.env.BEMOAT_BOILERPLATE_REPO || 'boat1994/bemoat-web-starter'
 const ref = process.env.BEMOAT_BOILERPLATE_REF || 'main'
 const targetRoot = process.cwd()
@@ -97,6 +102,28 @@ export const suggestedPackageScripts = [
 export const suggestedPackageSections = ['dependencies', 'devDependencies']
 
 export const syncCommitPaths = [...managedPaths, syncMetadataPath, packageSyncProposalPath]
+
+export function parseSyncMode(argv = process.argv.slice(2), env = process.env) {
+  const fromEnv = env.BEMOAT_SYNC_MODE
+  let fromArgs = null
+
+  if (argv.includes('--harness-only')) fromArgs = SYNC_MODES.HARNESS_ONLY
+  if (argv.includes('--full')) fromArgs = SYNC_MODES.FULL
+
+  if (fromArgs && fromEnv && fromArgs !== fromEnv) {
+    console.warn(
+      `[sync] BEMOAT_SYNC_MODE=${fromEnv} ignored because CLI flag sets mode to ${fromArgs}`,
+    )
+  }
+
+  const mode = fromArgs || fromEnv || SYNC_MODES.HARNESS_ONLY
+
+  if (mode !== SYNC_MODES.HARNESS_ONLY && mode !== SYNC_MODES.FULL) {
+    throw new Error(`Invalid sync mode "${mode}". Use harness-only or full.`)
+  }
+
+  return mode
+}
 
 export function listPathFiles(root, relativePath = '') {
   const fullPath = join(root, relativePath)
@@ -528,6 +555,41 @@ export function restoreStashIfNeeded(cwd, stashCreated, git = createGitClient())
   git.stashPop(cwd)
 }
 
+export function buildSyncMetadata({
+  repo: sourceRepo = repo,
+  ref: sourceRef = ref,
+  syncMode,
+  seedOnlyPathsSkipped,
+  syncedManaged = [],
+  seededFiles = [],
+  skippedSeedFiles = [],
+  mergedFiles = [],
+  packageSync = { addedScripts: [], proposalPath: null },
+  syncedAt = new Date().toISOString(),
+}) {
+  return {
+    repo: sourceRepo,
+    ref: sourceRef,
+    syncMode,
+    seedOnlyPathsSkipped,
+    syncedAt,
+    managedPaths,
+    seedOnlyPaths,
+    mergeKeepPaths,
+    managedPackageScripts,
+    suggestedPackageScripts,
+    suggestedPackageSections,
+    lastSyncedManagedPaths: syncedManaged,
+    seededFiles,
+    skippedSeedFiles,
+    mergedFiles,
+    packageSync: {
+      addedScripts: packageSync.addedScripts,
+      proposalPath: packageSync.proposalPath,
+    },
+  }
+}
+
 export function isDirectExecution() {
   const entrypoint = process.argv[1]
 
@@ -536,7 +598,78 @@ export function isDirectExecution() {
   return import.meta.url === pathToFileURL(resolve(entrypoint)).href
 }
 
-function printSyncReport({ syncedManaged, seededFiles, skippedSeedFiles, mergedFiles, packageSync }) {
+export function syncPathsFromSource({
+  sourceRootPath,
+  targetRootPath,
+  mode = SYNC_MODES.HARNESS_ONLY,
+  onWarn = console.warn,
+  onLog = console.log,
+}) {
+  const syncedManaged = []
+  const seededFiles = []
+  const skippedSeedFiles = []
+  const mergedFiles = []
+  const seedOnlyPathsSkipped = mode === SYNC_MODES.HARNESS_ONLY
+
+  for (const path of managedPaths) {
+    const result = copyManagedPath(sourceRootPath, targetRootPath, path)
+    if (result.copied) syncedManaged.push(path)
+  }
+
+  if (!seedOnlyPathsSkipped) {
+    for (const path of seedOnlyPaths) {
+      const result = copySeedOnlyPath(sourceRootPath, targetRootPath, path)
+      if (result.reason === 'missing-source') {
+        onWarn(`[skip] ${path} not found in ${repo}#${ref}`)
+        continue
+      }
+
+      seededFiles.push(...result.seeded)
+      skippedSeedFiles.push(...result.skipped)
+    }
+  }
+
+  for (const path of mergeKeepPaths) {
+    const result = mergeKeepPath(sourceRootPath, targetRootPath, path)
+    if (result.reason === 'missing-source') {
+      onWarn(`[skip] ${path} not found in ${repo}#${ref}`)
+      continue
+    }
+
+    if (result.merged && (result.created || result.changed)) {
+      mergedFiles.push(path)
+      if (result.created) {
+        onLog(`[sync] created ${path} from starter`)
+      } else if (result.addedLines.length > 0) {
+        onLog(`[sync] merged ${path}; added ${result.addedLines.length} starter ignore rule(s)`)
+      }
+    }
+  }
+
+  return {
+    syncedManaged,
+    seededFiles,
+    skippedSeedFiles,
+    mergedFiles,
+    seedOnlyPathsSkipped,
+    syncMode: mode,
+  }
+}
+
+function printSyncReport({
+  syncMode,
+  seedOnlyPathsSkipped,
+  syncedManaged,
+  seededFiles,
+  skippedSeedFiles,
+  mergedFiles,
+  packageSync,
+}) {
+  console.log(`\nSync mode: ${syncMode}`)
+  if (seedOnlyPathsSkipped) {
+    console.log('Seed-only starter modules skipped in harness-only mode')
+  }
+
   console.log('\nSynced managed paths:')
   if (syncedManaged.length === 0) {
     console.log('- (none)')
@@ -577,14 +710,39 @@ function printSyncReport({ syncedManaged, seededFiles, skippedSeedFiles, mergedF
   }
 }
 
+export function getSuggestedNextCommands(syncMode, { proposalPath } = {}) {
+  const lines = []
+
+  if (proposalPath) {
+    lines.push(`Review ${proposalPath} and apply any package.json changes manually`)
+  }
+
+  lines.push('pnpm install')
+
+  if (syncMode === SYNC_MODES.FULL) {
+    lines.push('pnpm run generate:importmap')
+    lines.push('pnpm run generate:types')
+    lines.push('pnpm payload migrate:create')
+  } else {
+    lines.push('pnpm run check')
+    lines.push('(or pnpm run bemoat:check if check is not defined yet)')
+  }
+
+  return lines
+}
+
+function printSuggestedNextCommands(syncMode, packageSync) {
+  console.log('\nDone. Suggested next commands:')
+  for (const line of getSuggestedNextCommands(syncMode, { proposalPath: packageSync?.proposalPath })) {
+    console.log(line)
+  }
+}
+
 function main() {
-  console.log(`Syncing Bemoat boilerplate from ${repo}#${ref}`)
+  const syncMode = parseSyncMode()
+  console.log(`Syncing Bemoat boilerplate from ${repo}#${ref} (${syncMode} mode)`)
   const git = createGitClient()
   const stashCreated = stashWorkingTreeIfNeeded(targetRoot, git)
-  const syncedManaged = []
-  const seededFiles = []
-  const skippedSeedFiles = []
-  const mergedFiles = []
 
   try {
     rmSync(tempRoot, { recursive: true, force: true })
@@ -594,38 +752,17 @@ function main() {
       cwd: targetRoot,
     })
 
-    for (const path of managedPaths) {
-      const result = copyManagedPath(sourceRoot, targetRoot, path)
-      if (result.copied) syncedManaged.push(path)
-    }
-
-    for (const path of seedOnlyPaths) {
-      const result = copySeedOnlyPath(sourceRoot, targetRoot, path)
-      if (result.reason === 'missing-source') {
-        console.warn(`[skip] ${path} not found in ${repo}#${ref}`)
-        continue
-      }
-
-      seededFiles.push(...result.seeded)
-      skippedSeedFiles.push(...result.skipped)
-    }
-
-    for (const path of mergeKeepPaths) {
-      const result = mergeKeepPath(sourceRoot, targetRoot, path)
-      if (result.reason === 'missing-source') {
-        console.warn(`[skip] ${path} not found in ${repo}#${ref}`)
-        continue
-      }
-
-      if (result.merged && (result.created || result.changed)) {
-        mergedFiles.push(path)
-        if (result.created) {
-          console.log(`[sync] created ${path} from starter`)
-        } else if (result.addedLines.length > 0) {
-          console.log(`[sync] merged ${path}; added ${result.addedLines.length} starter ignore rule(s)`)
-        }
-      }
-    }
+    const {
+      syncedManaged,
+      seededFiles,
+      skippedSeedFiles,
+      mergedFiles,
+      seedOnlyPathsSkipped,
+    } = syncPathsFromSource({
+      sourceRootPath: sourceRoot,
+      targetRootPath: targetRoot,
+      mode: syncMode,
+    })
 
     const packageSync = syncPackageManifest({
       sourceRootPath: sourceRoot,
@@ -645,25 +782,17 @@ function main() {
     writeFileSync(
       join(targetRoot, syncMetadataPath),
       `${JSON.stringify(
-        {
+        buildSyncMetadata({
           repo,
           ref,
-          syncedAt: new Date().toISOString(),
-          managedPaths,
-          seedOnlyPaths,
-          mergeKeepPaths,
-          managedPackageScripts,
-          suggestedPackageScripts,
-          suggestedPackageSections,
-          lastSyncedManagedPaths: syncedManaged,
+          syncMode,
+          seedOnlyPathsSkipped,
+          syncedManaged,
           seededFiles,
           skippedSeedFiles,
           mergedFiles,
-          packageSync: {
-            addedScripts: packageSync.addedScripts,
-            proposalPath: packageSync.proposalPath,
-          },
-        },
+          packageSync,
+        }),
         null,
         2,
       )}\n`,
@@ -687,16 +816,17 @@ function main() {
       console.log('[sync] no sync changes to commit')
     }
 
-    printSyncReport({ syncedManaged, seededFiles, skippedSeedFiles, mergedFiles, packageSync })
+    printSyncReport({
+      syncMode,
+      seedOnlyPathsSkipped,
+      syncedManaged,
+      seededFiles,
+      skippedSeedFiles,
+      mergedFiles,
+      packageSync,
+    })
 
-    console.log('\nDone. Suggested next commands:')
-    if (packageSync.proposalPath) {
-      console.log(`Review ${packageSync.proposalPath} and apply any package.json changes manually`)
-    }
-    console.log('pnpm install')
-    console.log('pnpm run generate:importmap')
-    console.log('pnpm run generate:types')
-    console.log('pnpm payload migrate:create')
+    printSuggestedNextCommands(syncMode, packageSync)
   } finally {
     rmSync(tempRoot, { recursive: true, force: true })
     restoreStashIfNeeded(targetRoot, stashCreated, git)

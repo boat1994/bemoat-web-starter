@@ -4,9 +4,42 @@ This repo includes a one-command sync script for copying reusable boilerplate pi
 
 ## Command
 
+**Existing projects** (custom Payload schema, frontend, components) should adopt harness rails only:
+
 ```bash
-pnpm run boilerplate:sync
+pnpm run boilerplate:sync -- --harness-only
 ```
+
+**New child projects** or fresh starter-derived repos that still want missing starter modules seeded:
+
+```bash
+pnpm run boilerplate:sync -- --full
+```
+
+If you omit flags, sync defaults to **`harness-only`** (safe for existing repos).
+
+Drift check uses the same modes:
+
+```bash
+pnpm run boilerplate:check -- --harness-only
+pnpm run boilerplate:check -- --full
+```
+
+Optional environment variable (CLI flags take precedence):
+
+```bash
+BEMOAT_SYNC_MODE=harness-only pnpm run boilerplate:sync
+BEMOAT_SYNC_MODE=full pnpm run boilerplate:check
+```
+
+## Sync modes
+
+| Mode | Harness rails | Starter modules (`seedOnlyPaths`) |
+|------|---------------|-----------------------------------|
+| `harness-only` (default) | Synced / overwritten | **Skipped** — does not copy collections, globals, frontend routes, components, lib, hooks, access, or `payload.config.ts` |
+| `full` | Synced / overwritten | Copied only when missing in the child (never overwrites existing files) |
+
+Starter modules are **not** harness. Use `harness-only` when the child project already has its own app and schema code.
 
 ## What it updates
 
@@ -51,7 +84,9 @@ Recommended sections surfaced in the proposal: `dependencies`, `devDependencies`
 
 - `.gitignore` — keeps existing child ignore rules and appends missing starter entries
 
-### Seeded once (starter app code)
+### Seeded once (starter app code) — `full` mode only
+
+These paths are processed only when you run sync with **`--full`**. In the default **`harness-only`** mode they are skipped entirely.
 
 - Frontend starter pages
 - Projects pages
@@ -68,13 +103,13 @@ It does not overwrite project-specific Cloudflare resources such as `wrangler.js
 ## Use a different source ref
 
 ```bash
-BEMOAT_BOILERPLATE_REF=dev pnpm run boilerplate:sync
+BEMOAT_BOILERPLATE_REF=dev pnpm run boilerplate:sync -- --harness-only
 ```
 
 ## Use a different source repository
 
 ```bash
-BEMOAT_BOILERPLATE_REPO=boat1994/bemoat-web-starter pnpm run boilerplate:sync
+BEMOAT_BOILERPLATE_REPO=boat1994/bemoat-web-starter pnpm run boilerplate:sync -- --harness-only
 ```
 
 ## After syncing
@@ -82,7 +117,7 @@ BEMOAT_BOILERPLATE_REPO=boat1994/bemoat-web-starter pnpm run boilerplate:sync
 The sync command automatically creates a Git commit for:
 
 - every file path it synced from the boilerplate
-- newly seeded files from `seedOnlyPaths`
+- newly seeded files from `seedOnlyPaths` ( **`full` mode only** )
 - merge-keep updates such as `.gitignore` when starter ignore rules were appended
 - `.bemoat/package-sync-proposal.md` (regenerated each sync)
 - `package.json` only when missing `bemoat:*` scripts were added
