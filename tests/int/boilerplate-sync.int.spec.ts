@@ -13,6 +13,30 @@ describe('boilerplate sync managed paths', () => {
     expect(script).toContain("'scripts/check-boilerplate-drift.mjs'")
   })
 
+  it('includes harness workflow rails in managedPaths and packageScripts', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+
+    const harnessPaths = [
+      'docs/schema-evolution.md',
+      'docs/boilerplate-sync-command.md',
+      'scripts/guard-repo-safety.mjs',
+      'scripts/install-git-hooks.mjs',
+      '.githooks',
+      'vitest.config.mts',
+      'vitest.setup.ts',
+      'tests/int/repo-safety-guard.int.spec.ts',
+      'tests/int/boilerplate-sync.int.spec.ts',
+      'tests/int/open-next-config.int.spec.ts',
+    ]
+
+    for (const path of harnessPaths) {
+      expect(mod.managedPaths).toContain(path)
+    }
+
+    expect(mod.packageScripts).toContain('guard:safety')
+    expect(mod.packageScripts).toContain('hooks:install')
+  })
+
   it('exports managedPaths and seedOnlyPaths for drift check reuse', async () => {
     const mod = await import('../../scripts/sync-boilerplate.mjs')
 

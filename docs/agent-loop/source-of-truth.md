@@ -9,7 +9,8 @@ This document separates what **`bemoat-web-starter`** owns from what **child pro
 | Agent rules | `AGENTS.md` |
 | Cursor rules | `.cursor/rules/*` |
 | GitHub templates | `.github/pull_request_template.md`, `.github/ISSUE_TEMPLATE/*`, shared workflows |
-| Agent-loop docs | `docs/agent-loop/*`, `docs/hardening.md`, `docs/releases.md`, `docs/deploy-smoke-test.md` |
+| Agent-loop docs | `docs/agent-loop/*`, `docs/hardening.md`, `docs/releases.md`, `docs/deploy-smoke-test.md`, `docs/schema-evolution.md` |
+| Harness workflow | `scripts/guard-repo-safety.mjs`, `scripts/install-git-hooks.mjs`, `.githooks`, `vitest.config.mts`, `vitest.setup.ts`, harness tests under `tests/int/` |
 | Payload schema (shared) | Shared collections and globals (seeded once) |
 | Starter UI | Shared starter pages (home, projects, blog, custom order, etc.; seeded once) |
 | Shared utilities | Helper modules under `src/lib` (seeded once) |
@@ -30,12 +31,17 @@ These paths are overwritten on every sync:
 | `.github/pull_request_template.md` | PR template |
 | `.github/ISSUE_TEMPLATE/agent-task.yml` | Agent task issue template |
 | `docs/agent-loop` | Agent operating loop docs |
-| `docs/hardening.md`, `docs/releases.md`, `docs/deploy-smoke-test.md` | Production hardening and release docs |
+| `docs/hardening.md`, `docs/releases.md`, `docs/deploy-smoke-test.md`, `docs/schema-evolution.md` | Production hardening, releases, smoke test, and schema evolution |
 | `scripts/sync-boilerplate.mjs` | Sync script and path lists |
 | `scripts/check-boilerplate-drift.mjs` | Read-only drift check before sync |
 | `scripts/deploy-smoke-test.mjs` | Optional deploy smoke test helper |
-| `docs/dev-boilerplate.md` | Boilerplate module notes |
-| `package.json` scripts | `check`, `check:full`, `typecheck`, `lint`, `test`, `test:int`, generate scripts, `payload`, `boilerplate:sync`, `boilerplate:check`, `smoke:deploy` |
+| `scripts/guard-repo-safety.mjs` | Repository safety guard (secrets, resource IDs, destructive migrations) |
+| `scripts/install-git-hooks.mjs` | Optional local pre-push harness installer |
+| `.githooks` | Optional pre-push hook (`guard:safety`, `typecheck`, `test:int`) |
+| `vitest.config.mts`, `vitest.setup.ts` | Integration test harness for workflow rails |
+| `tests/int/repo-safety-guard.int.spec.ts`, `tests/int/boilerplate-sync.int.spec.ts`, `tests/int/open-next-config.int.spec.ts` | Harness integration tests |
+| `docs/dev-boilerplate.md`, `docs/boilerplate-sync-command.md` | Boilerplate module and sync command notes |
+| `package.json` scripts | `check`, `check:full`, `guard:safety`, `typecheck`, `lint`, `test`, `test:int`, generate scripts, `payload`, `boilerplate:sync`, `boilerplate:check`, `smoke:deploy`, `hooks:install` |
 
 `pnpm-lock.yaml` is not synced. After sync, run `pnpm install` in the child project to refresh the local lockfile.
 

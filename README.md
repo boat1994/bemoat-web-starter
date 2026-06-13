@@ -261,13 +261,17 @@ These paths are source-of-truth and **may be overwritten** on every sync:
 - `.github/ISSUE_TEMPLATE/agent-task.yml` agent task issue template
 - `docs/agent-loop/*` agent operating loop docs
 - `docs/hardening.md`, `docs/releases.md`, `docs/deploy-smoke-test.md`
+- `docs/schema-evolution.md` production-safe Payload schema evolution guide
 - `scripts/sync-boilerplate.mjs`, `scripts/check-boilerplate-drift.mjs`, `scripts/deploy-smoke-test.mjs`
-- `docs/dev-boilerplate.md` boilerplate module notes
+- `scripts/guard-repo-safety.mjs`, `scripts/install-git-hooks.mjs` repository safety guard and optional git hooks
+- `.githooks/pre-push` optional local pre-push harness (install with `pnpm run hooks:install`)
+- `vitest.config.mts`, `vitest.setup.ts`, and harness integration tests under `tests/int/` (`repo-safety-guard`, `boilerplate-sync`, `open-next-config`)
+- `docs/dev-boilerplate.md`, `docs/boilerplate-sync-command.md` boilerplate module notes
 - `package.json` scripts and shared `dependencies` / `devDependencies`
 
-Validation rails: `check`, `check:full`, `typecheck`, `lint`, `test`, `test:int`
+Validation rails: `check`, `check:full`, `guard:safety`, `typecheck`, `lint`, `test`, `test:int`
 
-Payload and sync: `generate:importmap`, `generate:types`, `generate:types:cloudflare`, `generate:types:payload`, `payload`, `boilerplate:sync`, `boilerplate:check`
+Payload and sync: `generate:importmap`, `generate:types`, `generate:types:cloudflare`, `generate:types:payload`, `payload`, `boilerplate:sync`, `boilerplate:check`, `smoke:deploy`, `hooks:install`
 
 `pnpm-lock.yaml` is **not** synced. Child projects may have project-specific dependencies; after sync, run `pnpm install` to update the local lockfile.
 
