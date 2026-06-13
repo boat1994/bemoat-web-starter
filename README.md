@@ -253,7 +253,9 @@ Before syncing, check which rails-managed boilerplate files differ from the star
 pnpm run boilerplate:check
 ```
 
-The check reports managed drift (must sync), missing seed files (optional first-time import), customized seed files (ignored), and an informational package sync proposal when recommended scripts or dependencies differ. `package.json` is child-owned; sync does not auto-overwrite deploy, build, or dependency entries. When managed drift or missing seed files are reported, apply updates with:
+In **`bemoat-web-starter` itself** (the source repository), this command exits successfully with a skip message — it is intended for **child projects** comparing against upstream boilerplate. Starter development should use git diff and CI instead.
+
+The check reports managed drift (must sync), missing seed files (optional first-time import), customized seed files (ignored), merge-keep drift for `.gitignore`, and an informational package sync proposal when recommended scripts or dependencies differ. `package.json` is child-owned; sync does not auto-overwrite deploy, build, or dependency entries. When managed drift or missing seed files are reported, apply updates with:
 
 ```bash
 pnpm run boilerplate:sync

@@ -423,6 +423,13 @@ describe('boilerplate sync copy behavior', () => {
 describe('boilerplate drift check', () => {
   const fixtureRoot = resolve(process.cwd(), '.tmp-boilerplate-drift-test')
 
+  it('detects the starter source repository and skips remote drift comparison', async () => {
+    const mod = await import('../../scripts/check-boilerplate-drift.mjs')
+
+    expect(mod.isBoilerplateSourceRepository(process.cwd(), 'boat1994/bemoat-web-starter')).toBe(true)
+    expect(mod.isBoilerplateSourceRepository(process.cwd(), 'boat1994/other-repo')).toBe(false)
+  })
+
   it('reports missing, changed, and identical managed paths', async () => {
     const mod = await import('../../scripts/check-boilerplate-drift.mjs')
 

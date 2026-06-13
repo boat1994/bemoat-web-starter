@@ -22,6 +22,39 @@ const targetRoot = process.cwd()
 const tempRoot = resolve(targetRoot, '.bemoat-check-tmp')
 const sourceRoot = join(tempRoot, 'source')
 
+function getGitOriginRepo(cwd) {
+  const remote = execFileSync('git', ['remote', 'get-url', 'origin'], {
+    cwd,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  }).trim()
+
+  return remote
+    .replace(/\.git$/, '')
+    .replace(/^git@github.com:/, 'https://github.com/')
+    .replace(/^https:\/\/github.com\//, '')
+    .toLowerCase()
+}
+
+export function isBoilerplateSourceRepository(cwd = process.cwd(), boilerplateRepo = repo) {
+  const packagePath = join(cwd, 'package.json')
+  if (!existsSync(packagePath)) return false
+
+  try {
+    const pkg = readJSON(packagePath)
+    if (pkg.name !== 'bemoat-web-starter') return false
+  } catch {
+    return false
+  }
+
+  try {
+    const originRepo = getGitOriginRepo(cwd)
+    return originRepo.endsWith(boilerplateRepo.toLowerCase())
+  } catch {
+    return true
+  }
+}
+
 function run(command, args, options = {}) {
   execFileSync(command, args, {
     stdio: 'inherit',
@@ -251,6 +284,13 @@ export function isDirectExecution() {
 }
 
 function main() {
+  if (isBoilerplateSourceRepository(targetRoot, repo)) {
+    console.log('Skipping boilerplate drift check in bemoat-web-starter (source repository).')
+    console.log('This command compares child projects against upstream boilerplate.')
+    console.log('In the starter repo, use git diff and CI instead of boilerplate:check.')
+    process.exit(0)
+  }
+
   try {
     rmSync(tempRoot, { recursive: true, force: true })
     mkdirSync(tempRoot, { recursive: true })
