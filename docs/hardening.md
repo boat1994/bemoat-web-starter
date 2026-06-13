@@ -11,7 +11,7 @@ Quick map of production readiness docs for agents and humans working on Bemoat w
 | Production vs dev Cloudflare deploy | [docs/cloudflare-environments.md](./cloudflare-environments.md) |
 | Secrets and migration guardrails | [docs/agent-loop/security-and-migrations.md](./agent-loop/security-and-migrations.md) |
 | Payload schema evolution (production-safe) | [docs/schema-evolution.md](./schema-evolution.md) |
-| Boilerplate drift check (`pnpm run boilerplate:check`) | [README § Boilerplate sync](../README.md#boilerplate-sync-command), [dev-boilerplate.md](./dev-boilerplate.md) — reports managed drift and missing seed files; customized starter app files are ignored |
+| Boilerplate drift check (`pnpm run boilerplate:check`) | [README § Boilerplate sync](../README.md#boilerplate-sync-command), [dev-boilerplate.md](./dev-boilerplate.md), [harness-sync-contract.md](./harness-sync-contract.md) — reports managed drift and missing seed files; customized starter app files are ignored; package script and dependency differences are informational only |
 | GitHub branch protection | [Branch protection checklist](#github-branch-protection-checklist) |
 
 ## Production hardening status

@@ -186,13 +186,14 @@ Replace `my-project` with your Worker name. Omit `--env` for production; add `--
 
 ## Child project checklist after boilerplate sync
 
-When `pnpm run boilerplate:sync` updates deploy scripts from the starter:
+When `pnpm run boilerplate:sync` updates harness rails from the starter:
 
-1. Run `pnpm install` if `package.json` scripts changed.
-2. Confirm your **production** bindings remain in the **top level** of `wrangler.jsonc` (sync does not overwrite this file).
-3. If you use dev deploy, ensure `env.dev` exists with **your** dev D1 ID and R2 bucket — not the starter's placeholder IDs.
-4. Production release: `pnpm run deploy`
-5. Local dev release: `pnpm run deploy:dev`
+1. Review **`.bemoat/package-sync-proposal.md`** and apply any recommended deploy, validation, or dependency script changes manually to `package.json`.
+2. Run `pnpm install` only after you change `package.json` or shared dependencies.
+3. Confirm your **production** bindings remain in the **top level** of `wrangler.jsonc` (sync does not overwrite this file).
+4. If you use dev deploy, ensure `env.dev` exists with **your** dev D1 ID and R2 bucket — not the starter's placeholder IDs.
+5. Production release: `pnpm run deploy`
+6. Local dev release: `pnpm run deploy:dev`
 
 ## Related docs
 

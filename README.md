@@ -253,7 +253,7 @@ Before syncing, check which rails-managed boilerplate files differ from the star
 pnpm run boilerplate:check
 ```
 
-The check reports managed drift (must sync), missing seed files (optional first-time import), and customized seed files (ignored). When managed drift or missing seed files are reported, apply updates with:
+The check reports managed drift (must sync), missing seed files (optional first-time import), customized seed files (ignored), and an informational package sync proposal when recommended scripts or dependencies differ. `package.json` is child-owned; sync does not auto-overwrite deploy, build, or dependency entries. When managed drift or missing seed files are reported, apply updates with:
 
 ```bash
 pnpm run boilerplate:sync
@@ -364,7 +364,7 @@ If you have local uncommitted changes first, the script stashes only files outsi
 
 If a child project still has the older sync script, copy `scripts/sync-boilerplate.mjs` from this starter into that project once, then run sync again. Older copies of the script did not sync themselves forward.
 
-Run:
+After reviewing the package sync proposal and applying any manual `package.json` changes:
 
 ```bash
 pnpm install
