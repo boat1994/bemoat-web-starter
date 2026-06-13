@@ -82,7 +82,7 @@ export const managedPackageScripts = [
   'bemoat:hooks:install',
 ]
 
-/** Recommended non-namespaced scripts surfaced in the package sync proposal only. */
+/** Non-namespaced scripts surfaced in the package sync proposal only — never auto-applied. */
 export const suggestedPackageScripts = [
   'build',
   'deploy',
@@ -96,6 +96,8 @@ export const suggestedPackageScripts = [
   'typecheck',
   'test',
   'test:int',
+  'dev',
+  'start',
 ]
 
 /** Recommended package.json sections surfaced in the proposal only. */
@@ -300,8 +302,19 @@ export function applyManagedPackageScripts(sourcePackage, targetPackage) {
 export function buildPackageSyncProposal(sourcePackage, targetPackage) {
   const missingScripts = []
   const differentScripts = []
+  const differentBemoatScripts = []
   const missingSectionEntries = {}
   const differentSectionEntries = {}
+
+  for (const scriptName of managedPackageScripts) {
+    const sourceValue = sourcePackage.scripts?.[scriptName]
+    const targetValue = targetPackage.scripts?.[scriptName]
+    if (!sourceValue || targetValue === undefined) continue
+
+    if (targetValue !== sourceValue) {
+      differentBemoatScripts.push({ name: scriptName, source: sourceValue, target: targetValue })
+    }
+  }
 
   for (const scriptName of suggestedPackageScripts) {
     const sourceValue = sourcePackage.scripts?.[scriptName]
@@ -343,6 +356,7 @@ export function buildPackageSyncProposal(sourcePackage, targetPackage) {
   return {
     missingScripts,
     differentScripts,
+    differentBemoatScripts,
     missingSectionEntries,
     differentSectionEntries,
   }
@@ -352,21 +366,39 @@ export function formatPackageSyncProposal({ repo, ref, proposal }) {
   const lines = [
     '# Bemoat package sync proposal',
     '',
-    `Generated from \`${repo}#${ref}\`. \`package.json\` is child-owned; review and apply changes manually.`,
+    `Generated from \`${repo}#${ref}\`.`,
+    '',
+    'This report is informational only. `package.json` is child-owned. Do not apply these changes automatically. Review manually before changing scripts or dependencies.',
     '',
     '## Managed `bemoat:*` scripts',
     '',
     'Sync adds missing namespaced scripts only. Existing `bemoat:*` entries are never overwritten.',
     '',
-    '## Suggested scripts (proposal only)',
+    '## Script drift report (human review only)',
     '',
   ]
 
-  if (proposal.missingScripts.length === 0 && proposal.differentScripts.length === 0) {
-    lines.push('- No missing or differing suggested scripts.')
+  const hasScriptDrift =
+    proposal.missingScripts.length > 0 ||
+    proposal.differentScripts.length > 0 ||
+    proposal.differentBemoatScripts.length > 0
+
+  if (!hasScriptDrift) {
+    lines.push('- No missing or differing scripts to report.')
   } else {
+    if (proposal.differentBemoatScripts.length > 0) {
+      lines.push('### Existing `bemoat:*` scripts differ from starter')
+      lines.push('')
+      for (const script of proposal.differentBemoatScripts) {
+        lines.push(`- \`${script.name}\``)
+        lines.push(`  - starter: \`${script.source}\``)
+        lines.push(`  - child: \`${script.target}\``)
+      }
+      lines.push('')
+    }
+
     if (proposal.missingScripts.length > 0) {
-      lines.push('### Missing in child project')
+      lines.push('### Missing non-namespaced scripts in child project')
       lines.push('')
       for (const script of proposal.missingScripts) {
         lines.push(`- \`${script.name}\`: \`${script.value}\``)
@@ -375,7 +407,7 @@ export function formatPackageSyncProposal({ repo, ref, proposal }) {
     }
 
     if (proposal.differentScripts.length > 0) {
-      lines.push('### Differs from starter')
+      lines.push('### Non-namespaced scripts differ from starter')
       lines.push('')
       for (const script of proposal.differentScripts) {
         lines.push(`- \`${script.name}\``)
@@ -386,14 +418,14 @@ export function formatPackageSyncProposal({ repo, ref, proposal }) {
     }
   }
 
-  lines.push('## Suggested dependencies (proposal only)', '')
+  lines.push('## Dependency drift report (human review only)', '')
 
   const hasSectionDrift =
     Object.keys(proposal.missingSectionEntries).length > 0 ||
     Object.keys(proposal.differentSectionEntries).length > 0
 
   if (!hasSectionDrift) {
-    lines.push('- No missing or differing suggested dependencies.')
+    lines.push('- No missing or differing dependencies to report.')
   } else {
     for (const section of suggestedPackageSections) {
       const missing = proposal.missingSectionEntries[section] || []
@@ -421,7 +453,6 @@ export function formatPackageSyncProposal({ repo, ref, proposal }) {
     }
   }
 
-  lines.push('## Apply manually', '', 'Review the items above, update `package.json`, then run `pnpm install`.')
   lines.push('`pnpm-lock.yaml` is never synced.')
 
   return `${lines.join('\n')}\n`

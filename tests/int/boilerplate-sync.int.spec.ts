@@ -33,6 +33,8 @@ const PROPOSAL_ONLY_PACKAGE_SCRIPTS = [
   'typecheck',
   'test',
   'test:int',
+  'dev',
+  'start',
 ]
 
 describe('boilerplate sync managed paths', () => {
@@ -99,12 +101,14 @@ describe('boilerplate sync managed paths', () => {
     }
   })
 
-  it('adds missing bemoat:* scripts only and never auto-merges dependencies', async () => {
+  it('adds a missing bemoat:* script without touching child-owned scripts', async () => {
     const mod = await import('../../scripts/sync-boilerplate.mjs')
 
     const sourcePackage = {
       scripts: {
         'bemoat:check': 'pnpm run bemoat:guard:safety',
+        'bemoat:boilerplate:sync': 'node scripts/sync-boilerplate.mjs',
+        build: 'pnpm run build:app',
         deploy: 'pnpm run deploy:app',
         check: 'pnpm run lint',
       },
@@ -123,20 +127,118 @@ describe('boilerplate sync managed paths', () => {
 
     const result = mod.applyManagedPackageScripts(sourcePackage, targetPackage)
 
-    expect(result.addedScripts).toEqual(['bemoat:check'])
+    expect(result.addedScripts).toEqual(['bemoat:check', 'bemoat:boilerplate:sync'])
+    expect(result.packageJSON.scripts['bemoat:check']).toBe('pnpm run bemoat:guard:safety')
     expect(result.packageJSON.scripts.deploy).toBe('pnpm run custom-deploy')
     expect(result.packageJSON.scripts.check).toBe('pnpm run custom-check')
+    expect(result.packageJSON.scripts.build).toBeUndefined()
     expect(result.packageJSON.dependencies).toEqual({ payload: '3.80.0' })
     expect(result.packageJSON.devDependencies).toEqual({})
   })
 
-  it('builds a package sync proposal without mutating child package.json', async () => {
+  it('does not overwrite an existing bemoat:* script', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+
+    const sourcePackage = {
+      scripts: {
+        'bemoat:check': 'pnpm run bemoat:guard:safety && pnpm run lint',
+      },
+    }
+
+    const targetPackage = {
+      scripts: {
+        'bemoat:check': 'pnpm run custom-bemoat-check',
+      },
+    }
+
+    const result = mod.applyManagedPackageScripts(sourcePackage, targetPackage)
+
+    expect(result.addedScripts).toEqual([])
+    expect(result.packageJSON.scripts['bemoat:check']).toBe('pnpm run custom-bemoat-check')
+  })
+
+  it('does not add missing deploy, build, or check scripts', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+
+    const sourcePackage = {
+      scripts: {
+        build: 'pnpm run build:app',
+        deploy: 'pnpm run deploy:app',
+        check: 'pnpm run lint',
+        test: 'pnpm run test:int',
+      },
+    }
+
+    const targetPackage = {
+      scripts: {},
+    }
+
+    const result = mod.applyManagedPackageScripts(sourcePackage, targetPackage)
+
+    expect(result.addedScripts).toEqual([])
+    expect(result.packageJSON.scripts).toEqual({})
+  })
+
+  it('does not overwrite existing deploy, build, or check scripts', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+
+    const sourcePackage = {
+      scripts: {
+        build: 'pnpm run build:app',
+        deploy: 'pnpm run deploy:app',
+        check: 'pnpm run lint',
+        'check:full': 'pnpm run check && pnpm run build',
+        test: 'pnpm run test:int',
+        'test:int': 'vitest run --config ./vitest.config.mts tests/int',
+      },
+    }
+
+    const targetPackage = {
+      scripts: {
+        build: 'pnpm run custom-build',
+        deploy: 'pnpm run custom-deploy',
+        check: 'pnpm run custom-check',
+        'check:full': 'pnpm run custom-check-full',
+        test: 'pnpm run custom-test',
+        'test:int': 'pnpm run custom-test-int',
+      },
+    }
+
+    const result = mod.applyManagedPackageScripts(sourcePackage, targetPackage)
+
+    expect(result.addedScripts).toEqual([])
+    expect(result.packageJSON.scripts).toEqual(targetPackage.scripts)
+  })
+
+  it('does not mutate dependencies or devDependencies', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+
+    const sourcePackage = {
+      scripts: { 'bemoat:check': 'pnpm run bemoat:guard:safety' },
+      dependencies: { payload: '3.82.1', next: '15.2.0' },
+      devDependencies: { vitest: '3.0.0', typescript: '5.8.0' },
+    }
+
+    const targetPackage = {
+      scripts: {},
+      dependencies: { payload: '3.80.0' },
+      devDependencies: { eslint: '9.0.0' },
+    }
+
+    const result = mod.applyManagedPackageScripts(sourcePackage, targetPackage)
+
+    expect(result.packageJSON.dependencies).toEqual({ payload: '3.80.0' })
+    expect(result.packageJSON.devDependencies).toEqual({ eslint: '9.0.0' })
+  })
+
+  it('reports non-namespaced script drift without mutating package.json', async () => {
     const mod = await import('../../scripts/sync-boilerplate.mjs')
 
     const sourcePackage = {
       scripts: {
         deploy: 'pnpm run deploy:app',
         check: 'pnpm run lint',
+        dev: 'next dev',
       },
       dependencies: { payload: '3.82.1' },
       devDependencies: { vitest: '3.0.0' },
@@ -151,9 +253,42 @@ describe('boilerplate sync managed paths', () => {
     }
 
     const proposal = mod.buildPackageSyncProposal(sourcePackage, targetPackage)
+    const markdown = mod.formatPackageSyncProposal({
+      repo: 'boat1994/bemoat-web-starter',
+      ref: 'main',
+      proposal,
+    })
 
     expect(proposal.missingScripts.map((entry: { name: string }) => entry.name)).toContain('deploy')
+    expect(proposal.missingScripts.map((entry: { name: string }) => entry.name)).toContain('dev')
     expect(proposal.differentScripts.map((entry: { name: string }) => entry.name)).toContain('check')
+    expect(markdown).toContain('Script drift report (human review only)')
+    expect(markdown).toContain('Do not apply these changes automatically')
+    expect(markdown).not.toContain('Suggested scripts')
+  })
+
+  it('reports dependency drift without mutating package.json', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+
+    const sourcePackage = {
+      scripts: {},
+      dependencies: { payload: '3.82.1' },
+      devDependencies: { vitest: '3.0.0' },
+    }
+
+    const targetPackage = {
+      scripts: {},
+      dependencies: { payload: '3.80.0' },
+      devDependencies: {},
+    }
+
+    const proposal = mod.buildPackageSyncProposal(sourcePackage, targetPackage)
+    const markdown = mod.formatPackageSyncProposal({
+      repo: 'boat1994/bemoat-web-starter',
+      ref: 'main',
+      proposal,
+    })
+
     expect(
       (proposal.missingSectionEntries as Record<string, { name: string }[]>).devDependencies?.map(
         (entry) => entry.name,
@@ -164,6 +299,31 @@ describe('boilerplate sync managed paths', () => {
         (entry) => entry.name,
       ),
     ).toContain('payload')
+    expect(markdown).toContain('Dependency drift report (human review only)')
+    expect(markdown).not.toContain('Suggested dependencies')
+  })
+
+  it('reports differing bemoat:* scripts in the proposal without overwriting them', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+
+    const sourcePackage = {
+      scripts: {
+        'bemoat:check': 'pnpm run bemoat:guard:safety && pnpm run lint',
+      },
+    }
+
+    const targetPackage = {
+      scripts: {
+        'bemoat:check': 'pnpm run custom-bemoat-check',
+      },
+    }
+
+    const applyResult = mod.applyManagedPackageScripts(sourcePackage, targetPackage)
+    const proposal = mod.buildPackageSyncProposal(sourcePackage, targetPackage)
+
+    expect(applyResult.addedScripts).toEqual([])
+    expect(applyResult.packageJSON.scripts['bemoat:check']).toBe('pnpm run custom-bemoat-check')
+    expect(proposal.differentBemoatScripts.map((entry: { name: string }) => entry.name)).toContain('bemoat:check')
   })
 
   it('exports managedPaths and seedOnlyPaths for drift check reuse', async () => {
@@ -417,7 +577,8 @@ describe('boilerplate sync copy behavior', () => {
     expect(childPackage.scripts.deploy).toBe('pnpm run custom-deploy')
     expect(childPackage.dependencies.payload).toBe('3.80.0')
     expect(proposal).toContain('deploy')
-    expect(proposal).toContain('proposal only')
+    expect(proposal).toContain('Script drift report (human review only)')
+    expect(proposal).toContain('Do not apply these changes automatically')
 
     rmSync(fixtureRoot, { recursive: true, force: true })
   })

@@ -76,12 +76,12 @@ Listed in `mergeKeepPaths` in `scripts/sync-boilerplate.mjs`. Drift check fails 
 
 | Category | Sync behavior |
 |----------|---------------|
-| `bemoat:*` scripts | Managed — sync **adds missing** namespaced scripts only; never overwrites existing entries |
-| Non-namespaced scripts (`build`, `deploy`, `preview`, `check`, `lint`, etc.) | Proposal only — listed in `.bemoat/package-sync-proposal.md` (committed by sync for review) |
-| `dependencies` / `devDependencies` | Proposal only — never auto-merged with `Object.assign` |
+| `bemoat:*` scripts | Managed — sync **adds missing** namespaced scripts only; **never overwrites** existing entries |
+| Non-namespaced scripts (`build`, `deploy`, `preview`, `check`, `lint`, `dev`, `start`, etc.) | **Never touched** — drift reported in `.bemoat/package-sync-proposal.md` (human review only) |
+| `dependencies` / `devDependencies` | **Never touched** — drift reported in `.bemoat/package-sync-proposal.md` (human review only) |
 | `pnpm-lock.yaml` | Never synced |
 
-After sync, review **`.bemoat/package-sync-proposal.md`**, apply any desired `package.json` changes manually, then run **`pnpm install`**.
+After sync, review **`.bemoat/package-sync-proposal.md`**. Do not apply script or dependency changes automatically. Update `package.json` manually when desired, then run **`pnpm install`**.
 
 Managed namespaced scripts (see `managedPackageScripts` in `scripts/sync-boilerplate.mjs`):
 
@@ -93,10 +93,13 @@ Managed namespaced scripts (see `managedPackageScripts` in `scripts/sync-boilerp
 - `bemoat:boilerplate:check`
 - `bemoat:hooks:install`
 
-Suggested non-namespaced scripts (proposal only):
+Suggested non-namespaced scripts (reported in proposal only — never auto-applied):
 
 - `build`, `deploy`, `deploy:app`, `deploy:database`, `deploy:dev`, `preview`
 - `check`, `check:full`, `lint`, `typecheck`, `test`, `test:int`
+- `dev`, `start`
+
+Proposal sections: **Script drift report (human review only)**, **Dependency drift report (human review only)**.
 
 ## Shared integration tests
 
@@ -116,7 +119,7 @@ Current shared tests (listed in `managedPaths` in `scripts/sync-boilerplate.mjs`
 
 2. **New safe namespaced script** — Add to `managedPackageScripts` if sync should add it when missing. Add starter `bemoat:*` values in this repo's `package.json`.
 
-3. **New recommended non-namespaced script** — Add to `suggestedPackageScripts` so it appears in the package sync proposal.
+3. **New recommended non-namespaced script** — Add to `suggestedPackageScripts` so drift appears in the package sync proposal (human review only; never auto-applied).
 
 4. **New merge-keep path** — Add to `mergeKeepPaths` with merge logic in `scripts/sync-boilerplate.mjs` and drift coverage in `scripts/check-boilerplate-drift.mjs`.
 

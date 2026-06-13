@@ -266,7 +266,7 @@ Use this workflow when an **existing Bemoat repository** already has its own Pay
 - Frontend starter pages under `src/app/(frontend)`
 - Starter components, lib utilities, or `src/payload.config.ts`
 
-`package.json` remains **child-owned**. Sync adds missing `bemoat:*` scripts only and writes **`.bemoat/package-sync-proposal.md`** for human review (included in the sync commit).
+`package.json` remains **child-owned**. Sync may add **missing `bemoat:*` scripts only**; it never overwrites existing `bemoat:*` scripts, never touches deploy/build/check/test scripts, and never touches `dependencies` or `devDependencies`. All other package differences appear in **`.bemoat/package-sync-proposal.md`** as human-review-only information (included in the sync commit).
 
 ```bash
 git checkout main
@@ -279,7 +279,7 @@ pnpm run boilerplate:sync -- --harness-only
 
 After sync:
 
-1. Review **`.bemoat/package-sync-proposal.md`** and apply any desired `package.json` changes manually.
+1. Review **`.bemoat/package-sync-proposal.md`** for script and dependency drift (human review only). Do not apply automatically — update `package.json` manually when desired.
 2. Run **`pnpm install`** if you changed dependencies.
 3. Run **`pnpm run check`** to verify harness rails locally.
 4. Commit, push, and open a PR for human review.
@@ -298,7 +298,7 @@ pnpm run boilerplate:check -- --full
 
 In **`bemoat-web-starter` itself** (the source repository), this command exits successfully with a skip message — it is intended for **child projects** comparing against upstream boilerplate. Starter development should use git diff and CI instead.
 
-The check reports managed drift (must sync), missing seed files (**`full` mode only**), customized seed files (ignored), merge-keep drift for `.gitignore`, and an informational package sync proposal when recommended scripts or dependencies differ. `package.json` is child-owned; sync does not auto-overwrite deploy, build, or dependency entries. When managed drift or missing seed files are reported, apply updates with:
+The check reports managed drift (must sync), missing seed files (**`full` mode only**), customized seed files (ignored), merge-keep drift for `.gitignore`, and an informational package sync proposal when scripts or dependencies differ. `package.json` is child-owned; sync never auto-overwrites deploy, build, check, test, or dependency entries. When managed drift or missing seed files are reported, apply updates with:
 
 ```bash
 # Existing projects (recommended)
@@ -365,16 +365,16 @@ These paths are source-of-truth and **may be overwritten** on every sync:
 
 `package.json` is **child-owned** and is not treated as a managed rails file. Sync:
 
-- adds **missing `bemoat:*` scripts only** (never overwrites existing entries)
-- writes **`.bemoat/package-sync-proposal.md`** with recommended non-namespaced scripts and dependencies for human review
-
-Recommended validation scripts (proposal only): `check`, `check:full`, `guard:safety`, `guard:cloudflare-env`, `typecheck`, `lint`, `test`, `test:int`
-
-Recommended deploy safety scripts (proposal only): `build`, `deploy`, `deploy:app`, `deploy:database`, `deploy:dev`, `preview`
+- adds **missing `bemoat:*` scripts only** (never overwrites existing `bemoat:*` entries)
+- never adds, overwrites, removes, renames, or reorders deploy/build/check/test scripts (`build`, `deploy`, `deploy:app`, `deploy:database`, `deploy:dev`, `preview`, `check`, `check:full`, `lint`, `typecheck`, `test`, `test:int`, `dev`, `start`, or any other non-namespaced script)
+- never auto-adds, removes, bumps, or rewrites `dependencies` or `devDependencies`
+- writes **`.bemoat/package-sync-proposal.md`** with script and dependency drift for human review only
 
 Managed namespaced scripts (added when missing): `bemoat:guard:safety`, `bemoat:guard:cloudflare-env`, `bemoat:test:int`, `bemoat:check`, `bemoat:boilerplate:sync`, `bemoat:boilerplate:check`, `bemoat:hooks:install`
 
-`pnpm-lock.yaml` is **not** synced. Review the package sync proposal, apply any desired `package.json` changes manually, then run `pnpm install`.
+Non-namespaced script and dependency differences appear in the proposal under **Script drift report (human review only)** and **Dependency drift report (human review only)**.
+
+`pnpm-lock.yaml` is **not** synced. Review the package sync proposal manually before changing `package.json` or running `pnpm install`.
 
 ### Merge-keep paths
 
@@ -403,7 +403,7 @@ Frontend pages, collections, globals, components, and product UI are safe to cus
 The sync script intentionally does not overwrite project-specific infrastructure or content:
 
 - `wrangler.jsonc` (deploy script **recommendations** are proposed; Cloudflare **config** is not synced)
-- `package.json` non-namespaced scripts and dependencies (review `.bemoat/package-sync-proposal.md` instead)
+- `package.json` non-namespaced scripts and dependencies (review `.bemoat/package-sync-proposal.md` for drift; never auto-applied)
 - D1 database IDs
 - R2 bucket names
 - Worker names
@@ -426,7 +426,7 @@ The sync command now creates a Git commit automatically for the files it changes
 - `package.json` only when missing `bemoat:*` scripts were added
 - `.bemoat-boilerplate-sync.json`
 
-Review **`.bemoat/package-sync-proposal.md`** for recommended script and dependency updates; apply those manually before `pnpm install`.
+Review **`.bemoat/package-sync-proposal.md`** for script and dependency drift (human review only). Update `package.json` manually when desired, then run `pnpm install`.
 
 If you have local uncommitted changes first, the script stashes only files outside the rails-managed scope before syncing and restores them after the sync commit is created. Existing edits on rails-managed files are replaced by the fresh sync output instead of being reapplied afterward. Customized seed-only files are left untouched.
 
