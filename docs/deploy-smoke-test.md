@@ -42,7 +42,7 @@ For the API check without logging in: a `401` or `403` still proves the Worker a
 
 | Check | How to verify | Pass |
 | --- | --- | --- |
-| D1 migration applied | `pnpm exec wrangler d1 migrations list D1 --env=$CLOUDFLARE_ENV --remote` shows migrations applied; deploy logs did not fail on `payload migrate` | ☐ |
+| D1 migration applied | Production: `pnpm exec wrangler d1 migrations list D1 --remote`. Dev: add `--env=dev`. Deploy logs should not fail on `payload migrate`. | ☐ |
 | Frontend pages that query Payload return data or empty state, not 500 | Reload `/`, `/projects`, `/blog` | ☐ |
 
 ### Media storage (R2)
@@ -69,7 +69,7 @@ Do not leave test uploads in production unless your team expects them. Delete te
 | --- | --- | --- |
 | `PAYLOAD_SECRET` set in Cloudflare | Workers dashboard → Settings → Variables and Secrets, or `wrangler secret list` | ☐ |
 | Other required secrets present | Compare project docs and `wrangler.jsonc` bindings with dashboard | ☐ |
-| `CLOUDFLARE_ENV` matches deploy target when running Wrangler locally | Same env name used for `pnpm run deploy` | ☐ |
+| Deploy target matches Wrangler config | Production deploy uses top-level `wrangler.jsonc` (no `--env`). Dev uses `pnpm run deploy:dev` / `--env=dev`. See [cloudflare-environments.md](./cloudflare-environments.md). | ☐ |
 
 ## Failure triage
 
@@ -92,7 +92,7 @@ Use the symptom to narrow the fix before redeploying.
 **Checks:**
 
 - Run `pnpm payload migrate:create` locally, review the migration SQL, and deploy again.
-- List remote migrations: `pnpm exec wrangler d1 migrations list D1 --env=$CLOUDFLARE_ENV --remote`.
+- List remote migrations: production `pnpm exec wrangler d1 migrations list D1 --remote`; dev add `--env=dev`.
 - Do not copy D1 database IDs from another project. Each child project has its own D1 instance.
 
 ### D1 binding issue
@@ -121,7 +121,7 @@ Use the symptom to narrow the fix before redeploying.
 
 **Checks:**
 
-- Set secret: `pnpm exec wrangler secret put PAYLOAD_SECRET --env=$CLOUDFLARE_ENV` (generate with `openssl rand -hex 32`).
+- Set secret: production `pnpm exec wrangler secret put PAYLOAD_SECRET`; dev `pnpm exec wrangler secret put PAYLOAD_SECRET --env=dev` (generate with `openssl rand -hex 32`).
 - Redeploy after adding secrets so the Worker picks them up.
 
 ### Worker route or domain issue

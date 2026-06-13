@@ -9,7 +9,7 @@ This document separates what **`bemoat-web-starter`** owns from what **child pro
 | Agent rules | `AGENTS.md` |
 | Cursor rules | `.cursor/rules/*` |
 | GitHub templates | `.github/pull_request_template.md`, `.github/ISSUE_TEMPLATE/*`, shared workflows |
-| Agent-loop docs | `docs/agent-loop/*`, `docs/hardening.md`, `docs/releases.md`, `docs/deploy-smoke-test.md`, `docs/schema-evolution.md` |
+| Agent-loop docs | `docs/agent-loop/*`, `docs/hardening.md`, `docs/releases.md`, `docs/deploy-smoke-test.md`, `docs/cloudflare-environments.md`, `docs/schema-evolution.md` |
 | Harness workflow | `scripts/guard-repo-safety.mjs`, `scripts/install-git-hooks.mjs`, `.githooks`, `vitest.config.mts`, `vitest.setup.ts`, harness tests under `tests/int/` |
 | Payload schema (shared) | Shared collections and globals (seeded once) |
 | Starter UI | Shared starter pages (home, projects, blog, custom order, etc.; seeded once) |
@@ -31,7 +31,7 @@ These paths are overwritten on every sync:
 | `.github/pull_request_template.md` | PR template |
 | `.github/ISSUE_TEMPLATE/agent-task.yml` | Agent task issue template |
 | `docs/agent-loop` | Agent operating loop docs |
-| `docs/hardening.md`, `docs/releases.md`, `docs/deploy-smoke-test.md`, `docs/schema-evolution.md` | Production hardening, releases, smoke test, and schema evolution |
+| `docs/hardening.md`, `docs/releases.md`, `docs/deploy-smoke-test.md`, `docs/cloudflare-environments.md`, `docs/schema-evolution.md` | Production hardening, releases, smoke test, Cloudflare env guide, and schema evolution |
 | `scripts/sync-boilerplate.mjs` | Sync script and path lists |
 | `scripts/check-boilerplate-drift.mjs` | Read-only drift check before sync |
 | `scripts/deploy-smoke-test.mjs` | Optional deploy smoke test helper |

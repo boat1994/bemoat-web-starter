@@ -15,7 +15,7 @@ pnpm run boilerplate:sync
 - `AGENTS.md` repository agent instructions
 - `.cursor/rules/*` workflow instructions and Cursor rule files
 - `.github/workflows/ci.yml`, PR template, and agent issue template
-- `docs/agent-loop/*`, `docs/hardening.md`, `docs/releases.md`, `docs/deploy-smoke-test.md`, `docs/schema-evolution.md`
+- `docs/agent-loop/*`, `docs/hardening.md`, `docs/releases.md`, `docs/deploy-smoke-test.md`, `docs/cloudflare-environments.md`, `docs/schema-evolution.md`
 - `scripts/sync-boilerplate.mjs`, `scripts/check-boilerplate-drift.mjs`, `scripts/deploy-smoke-test.mjs`
 - `scripts/guard-repo-safety.mjs`, `scripts/install-git-hooks.mjs`
 - `.githooks/pre-push` (optional local pre-push harness)

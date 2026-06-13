@@ -18,6 +18,7 @@ describe('boilerplate sync managed paths', () => {
 
     const harnessPaths = [
       'docs/schema-evolution.md',
+      'docs/cloudflare-environments.md',
       'docs/boilerplate-sync-command.md',
       'scripts/guard-repo-safety.mjs',
       'scripts/install-git-hooks.mjs',

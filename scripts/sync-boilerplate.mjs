@@ -20,6 +20,7 @@ export const managedPaths = [
   'docs/hardening.md',
   'docs/releases.md',
   'docs/deploy-smoke-test.md',
+  'docs/cloudflare-environments.md',
   'docs/schema-evolution.md',
   'docs/dev-boilerplate.md',
   'docs/boilerplate-sync-command.md',
