@@ -47,11 +47,11 @@ Starter modules are **not** harness. Use `harness-only` when the child project a
 
 - `AGENTS.md` repository agent instructions
 - `.cursor/rules/*` workflow instructions and Cursor rule files
-- `.github/workflows/ci.yml`, PR template, and agent issue template
+- `.github/workflows/ci.yml`, PR template, and agent issue template (child-safe CI: `bemoat:guard:safety`, `bemoat:test:int` only)
 - `docs/agent-loop/*`, `docs/hardening.md`, `docs/releases.md`, `docs/deploy-smoke-test.md`, `docs/cloudflare-environments.md`, `docs/schema-evolution.md`
 - `scripts/sync-boilerplate.mjs`, `scripts/check-boilerplate-drift.mjs`, `scripts/deploy-smoke-test.mjs`
 - `scripts/guard-repo-safety.mjs`, `scripts/guard-cloudflare-env.mjs`, `scripts/install-git-hooks.mjs`
-- `.githooks/pre-push` (optional local pre-push harness)
+- `.githooks/pre-push` (optional local pre-push harness — `bemoat:guard:safety`, `bemoat:test:int` only)
 - `vitest.config.mts`, `vitest.setup.ts`, and shared harness tests under `tests/int/`:
   - `tests/int/api.int.spec.ts`
   - `tests/int/boilerplate-sync.int.spec.ts`
@@ -81,6 +81,8 @@ Non-namespaced script drift surfaced in the proposal (never force-applied):
 - Runtime: `dev`, `start`
 
 Dependency drift surfaced in the proposal: `dependencies`, `devDependencies`
+
+Synced CI and pre-push hooks assume only `bemoat:*` scripts exist. Full `lint`, `typecheck`, `build`, and `check` baselines are follow-up work in each child project — add those scripts manually from the proposal when ready, then extend local CI or pre-push if desired.
 
 `pnpm-lock.yaml` is never synced.
 

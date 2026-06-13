@@ -1,15 +1,12 @@
 #!/usr/bin/env sh
 # Optional local pre-push harness. CI is authoritative.
-# Runs a fast subset only — no lint or build (see AGENTS.md § Validation tiers).
+# Runs a fast child-safe subset only — bemoat:* scripts that sync adds when missing.
 set -eu
 
 echo "pre-push: running repository safety guard..."
-pnpm run guard:safety
-
-echo "pre-push: running typecheck..."
-pnpm run typecheck
+pnpm run bemoat:guard:safety
 
 echo "pre-push: running integration tests..."
-pnpm run test:int
+pnpm run bemoat:test:int
 
 echo "pre-push: checks passed."

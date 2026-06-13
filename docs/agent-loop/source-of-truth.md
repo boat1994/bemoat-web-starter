@@ -43,7 +43,7 @@ These paths are overwritten on every sync:
 |------|---------|
 | `AGENTS.md` | Repository agent instructions |
 | `.cursor/rules` | Cursor workflow rules |
-| `.github/workflows/ci.yml` | Shared CI workflow |
+| `.github/workflows/ci.yml` | Shared child-safe CI workflow (`bemoat:guard:safety`, `bemoat:test:int`) |
 | `.github/pull_request_template.md` | PR template |
 | `.github/ISSUE_TEMPLATE/agent-task.yml` | Agent task issue template |
 | `docs/agent-loop` | Agent operating loop docs |
@@ -54,7 +54,7 @@ These paths are overwritten on every sync:
 | `scripts/guard-repo-safety.mjs` | Repository safety guard (secrets, resource IDs, destructive migrations) |
 | `scripts/guard-cloudflare-env.mjs` | Cloudflare deploy environment guard (blocks unsafe prod deploys) |
 | `scripts/install-git-hooks.mjs` | Optional local pre-push harness installer |
-| `.githooks` | Optional pre-push hook (`guard:safety`, `typecheck`, `test:int`) |
+| `.githooks` | Optional pre-push hook (`bemoat:guard:safety`, `bemoat:test:int`) |
 | `vitest.config.mts`, `vitest.setup.ts` | Integration test harness for workflow rails |
 | `tests/int/*.int.spec.ts` (shared harness) | `api`, `boilerplate-sync`, `cloudflare-env-guard`, `open-next-config`, `repo-safety-guard` — all listed in `managedPaths`; see [harness-sync-contract.md](../harness-sync-contract.md) |
 | `docs/dev-boilerplate.md`, `docs/boilerplate-sync-command.md`, `docs/harness-sync-contract.md` | Boilerplate module, sync command, and harness contract notes |

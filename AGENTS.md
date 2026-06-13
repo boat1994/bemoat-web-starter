@@ -75,6 +75,8 @@ Details: [docs/agent-loop/checklist.md](./docs/agent-loop/checklist.md), [docs/a
 
 Agents must run the correct validation tier **before commit and PR**. **CI is the final source of truth** on GitHub; optional local pre-push hooks are a fast subset only (see [Optional local git hooks](#optional-local-git-hooks) in the root README).
 
+**Synced harness baseline:** Child projects receive `.github/workflows/ci.yml` and `.githooks/pre-push` that call only `bemoat:*` scripts (`bemoat:guard:safety`, `bemoat:test:int`). Package sync adds missing `bemoat:*` scripts only — it never auto-adds `guard:safety`, `check`, `lint`, `typecheck`, `build`, or deploy scripts. Full lint/type/build validation is follow-up work in each child project. In **`bemoat-web-starter` itself**, run the stricter tiers below locally; GitHub also runs [`.github/workflows/ci-starter.yml`](./.github/workflows/ci-starter.yml) (starter-only, not synced to children).
+
 ### Validation tiers
 
 | Change type | Required before commit/PR | Notes |
@@ -99,11 +101,11 @@ Agents must run the correct validation tier **before commit and PR**. **CI is th
 ### Why lint before PR but not in pre-push
 
 - **Lint in `pnpm run check`** — agents and authors catch style and pattern issues before push; cheap compared to a failed CI round.
-- **Lint not in optional pre-push** — pre-push is a fast local subset (`guard:safety`, `typecheck`, `test:int`); lint and build stay in CI to avoid slowing every push.
+- **Lint not in optional pre-push** — synced pre-push runs only `bemoat:guard:safety` and `bemoat:test:int`; typecheck, lint, and build stay out of the harness until child projects add those scripts intentionally.
 
 ### Optional local pre-push
 
-Not required. Install with `pnpm run hooks:install` in child projects after sync. Does **not** replace CI or the `check` requirement before PR.
+Not required. Install with `pnpm run bemoat:hooks:install` (or `pnpm run hooks:install` when defined) in child projects after sync. Runs `bemoat:guard:safety` and `bemoat:test:int` only. Does **not** replace CI or the `check` requirement before PR when those scripts exist.
 
 Agent loop checklists: [docs/agent-loop/checklist.md](./docs/agent-loop/checklist.md).
 

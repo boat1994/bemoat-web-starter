@@ -37,12 +37,70 @@ const PROPOSAL_ONLY_PACKAGE_SCRIPTS = [
   'start',
 ]
 
+/** Non-bemoat scripts that synced CI and pre-push must not call directly. */
+const FORBIDDEN_SYNCED_HARNESS_SCRIPTS = [
+  'guard:safety',
+  'guard:cloudflare-env',
+  'check',
+  'check:full',
+  'typecheck',
+  'lint',
+  'build',
+  'deploy',
+  'deploy:app',
+  'deploy:database',
+  'preview',
+  'test:int',
+  'generate:importmap',
+  'generate:types',
+]
+
+function extractPnpmRunScripts(content: string): string[] {
+  return [...content.matchAll(/pnpm run ([a-zA-Z0-9:_-]+)/g)].map((match) => match[1])
+}
+
+function assertChildSafeHarnessScripts(filePath: string, content: string) {
+  const scripts = extractPnpmRunScripts(content)
+  const forbidden = scripts.filter((script) => FORBIDDEN_SYNCED_HARNESS_SCRIPTS.includes(script))
+
+  expect(
+    forbidden,
+    `${filePath} must not call non-namespaced harness scripts directly: ${forbidden.join(', ')}`,
+  ).toEqual([])
+}
+
+describe('synced harness CI and hooks', () => {
+  it('uses only child-safe bemoat:* scripts in synced CI workflow', () => {
+    const ciWorkflow = readFileSync(resolve(process.cwd(), '.github/workflows/ci.yml'), 'utf8')
+
+    assertChildSafeHarnessScripts('.github/workflows/ci.yml', ciWorkflow)
+    expect(ciWorkflow).toContain('pnpm run bemoat:guard:safety')
+    expect(ciWorkflow).toContain('pnpm run bemoat:test:int')
+    expect(ciWorkflow).toContain('pnpm install --frozen-lockfile')
+    expect(ciWorkflow).not.toContain('pnpm run lint')
+    expect(ciWorkflow).not.toContain('pnpm run build')
+    expect(ciWorkflow).not.toContain('pnpm run check')
+  })
+
+  it('uses only child-safe bemoat:* scripts in synced pre-push hook', () => {
+    const prePush = readFileSync(resolve(process.cwd(), '.githooks/pre-push'), 'utf8')
+
+    assertChildSafeHarnessScripts('.githooks/pre-push', prePush)
+    expect(prePush).toContain('pnpm run bemoat:guard:safety')
+    expect(prePush).toContain('pnpm run bemoat:test:int')
+    expect(prePush).not.toContain('pnpm run typecheck')
+    expect(prePush).not.toContain('pnpm run guard:safety')
+    expect(prePush).not.toContain('pnpm run test:int')
+  })
+})
+
 describe('boilerplate sync managed paths', () => {
   it('includes repository agent instructions and Cursor rules', () => {
     const script = readFileSync(resolve(process.cwd(), 'scripts/sync-boilerplate.mjs'), 'utf8')
 
     expect(script).toContain("'AGENTS.md'")
     expect(script).toContain("'.cursor/rules'")
+    expect(script).toContain("'.github/workflows/ci.yml'")
     expect(script).toContain("'scripts/sync-boilerplate.mjs'")
     expect(script).toContain("'scripts/check-boilerplate-drift.mjs'")
   })

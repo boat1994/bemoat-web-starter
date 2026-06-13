@@ -10,7 +10,7 @@ The harness is everything child projects need to run the same safety rails, work
 |----------|----------|
 | Agent rules | `AGENTS.md`, `.cursor/rules/*` |
 | Agent-loop docs | `docs/agent-loop/*`, `docs/hardening.md`, `docs/schema-evolution.md`, etc. |
-| GitHub workflow and templates | `.github/workflows/ci.yml`, PR template, issue templates |
+| GitHub workflow and templates | `.github/workflows/ci.yml` (child-safe `bemoat:*` only), PR template, issue templates |
 | Safety guards | `scripts/guard-repo-safety.mjs`, `scripts/guard-cloudflare-env.mjs` |
 | Cloudflare deploy guards | Recommended `deploy` / `preview` scripts that call `guard:cloudflare-env` |
 | Sync and drift | `scripts/sync-boilerplate.mjs`, `scripts/check-boilerplate-drift.mjs` |
@@ -100,6 +100,19 @@ Suggested non-namespaced scripts (reported in proposal only — never auto-appli
 - `dev`, `start`
 
 Proposal sections: **Script drift report (human review only)**, **Dependency drift report (human review only)**.
+
+## Synced CI and hooks (child-safe baseline)
+
+Package sync adds only missing `bemoat:*` scripts. Synced harness files must not assume non-namespaced scripts exist in child projects.
+
+| Harness file | Runs on CI / pre-push |
+|--------------|----------------------|
+| `.github/workflows/ci.yml` | `pnpm install --frozen-lockfile`, `pnpm run bemoat:guard:safety`, `pnpm run bemoat:test:int` |
+| `.githooks/pre-push` | `pnpm run bemoat:guard:safety`, `pnpm run bemoat:test:int` |
+
+Do **not** call these directly from synced CI or pre-push: `guard:safety`, `guard:cloudflare-env`, `check`, `check:full`, `typecheck`, `lint`, `build`, `deploy`, `deploy:app`, `deploy:database`, `preview`, or `test:int`.
+
+Child projects may add stricter validation later (`check`, `lint`, `typecheck`, `build`, deploy scripts) and extend their own CI or pre-push when those scripts exist. `bemoat-web-starter` itself runs full validation locally and via [`.github/workflows/ci-starter.yml`](../.github/workflows/ci-starter.yml) (starter-only, not synced).
 
 ## Shared integration tests
 
