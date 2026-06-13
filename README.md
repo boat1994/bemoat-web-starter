@@ -51,7 +51,7 @@ Before responding, asking clarifying questions, planning, editing files, running
 
 ## Development workflow
 
-Short task prompts are enough for agents working in this repository. The operating rules live in [AGENTS.md](./AGENTS.md), the step-by-step loop is in [docs/agent-loop](./docs/agent-loop/README.md), [production hardening](./docs/hardening.md) indexes release tags, drift check, smoke test, secrets, and branch protection, [security and migration guardrails](./docs/agent-loop/security-and-migrations.md) define stop conditions for secrets and D1 changes, GitHub issue and PR templates capture task scope, and CI validates every pull request.
+Short task prompts are enough for agents working in this repository. The operating rules live in [AGENTS.md](./AGENTS.md), the step-by-step loop is in [docs/agent-loop](./docs/agent-loop/README.md), [production hardening](./docs/hardening.md) indexes release tags, drift check, smoke test, secrets, and branch protection, [security and migration guardrails](./docs/agent-loop/security-and-migrations.md) define stop conditions for secrets and D1 changes, [schema evolution](./docs/schema-evolution.md) defines additive-first Payload changes for production data, GitHub issue and PR templates capture task scope, and CI validates every pull request.
 
 ```mermaid
 flowchart TD
@@ -80,6 +80,24 @@ flowchart TD
     U --> V[Human review]
     V --> W[Human merges]
 ```
+
+## Production schema evolution
+
+Payload schema changes that touch production CMS data must be **additive-first**: add new fields or collections instead of renaming, retyping, or retargeting existing fields in place. Mark superseded fields as **deprecated** in Payload admin (`admin.description`, optionally `readOnly` or `hidden`). Remove old fields only after a production D1 backup, human approval, and at least one stable release.
+
+Full policy, examples, and checklist: [docs/schema-evolution.md](./docs/schema-evolution.md).
+
+**Mantra:** Additive first. Backfill second. Switch reads third. Deprecate old fields fourth. Delete last, only with backup and explicit approval.
+
+### Optional local git hooks
+
+Install pre-push checks locally (not required; CI validates every pull request):
+
+```bash
+pnpm run hooks:install
+```
+
+This sets `core.hooksPath` to `.githooks` and runs `guard:safety`, `typecheck`, and `test:int` before each push.
 
 ## Important Cloudflare note
 

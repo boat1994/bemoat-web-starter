@@ -74,8 +74,12 @@ export const CLOUDFLARE_RESOURCE_PATTERNS = [
 export const DESTRUCTIVE_MIGRATION_PATTERNS = [
   { id: 'drop-table', re: /\bDROP\s+TABLE\b/i },
   { id: 'drop-column', re: /\bDROP\s+COLUMN\b/i },
+  { id: 'drop-index', re: /\bDROP\s+INDEX\b/i },
   { id: 'delete-from', re: /\bDELETE\s+FROM\b/i },
   { id: 'truncate', re: /\bTRUNCATE\b/i },
+  { id: 'rename-column', re: /\bRENAME\s+COLUMN\b/i },
+  { id: 'rename-table', re: /\bRENAME\s+TO\b/i },
+  { id: 'alter-column', re: /\bALTER\s+COLUMN\b/i },
 ]
 
 export function isForbiddenEnvFile(relativePath) {
@@ -305,7 +309,9 @@ export function formatViolations(violations) {
   }
 
   lines.push('')
-  lines.push('See docs/agent-loop/security-and-migrations.md and docs/hardening.md.')
+  lines.push(
+    'See docs/schema-evolution.md, docs/agent-loop/security-and-migrations.md, and docs/hardening.md.',
+  )
 
   return lines
 }
