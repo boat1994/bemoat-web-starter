@@ -13,8 +13,12 @@ import {
   managedPaths,
   mergeGitignoreKeepTarget,
   mergeKeepPaths,
+  parseSyncMode,
   seedOnlyPaths,
+  SYNC_MODES,
 } from './sync-boilerplate.mjs'
+
+export { SYNC_MODES }
 
 const repo = process.env.BEMOAT_BOILERPLATE_REPO || 'boat1994/bemoat-web-starter'
 const ref = process.env.BEMOAT_BOILERPLATE_REF || 'main'
@@ -202,18 +206,29 @@ export function compareMergeKeepDrift({
   return { missing, changed, identical }
 }
 
-export function compareFullBoilerplateDrift({ sourceRoot: source, targetRoot: target }) {
+export function compareBoilerplateDriftByMode({
+  sourceRoot: source,
+  targetRoot: target,
+  mode = SYNC_MODES.HARNESS_ONLY,
+}) {
   const managed = compareBoilerplateDrift({ sourceRoot: source, targetRoot: target, paths: managedPaths })
-  const seed = compareSeedOnlyDrift({ sourceRoot: source, targetRoot: target, paths: seedOnlyPaths })
   const mergeKeep = compareMergeKeepDrift({ sourceRoot: source, targetRoot: target, paths: mergeKeepPaths })
   const packageProposal = comparePackageProposalDrift({ sourceRoot: source, targetRoot: target })
+  const seedOnlyPathsSkipped = mode === SYNC_MODES.HARNESS_ONLY
+  const seed = seedOnlyPathsSkipped
+    ? { missingSeed: [], customized: [], identical: [], skipped: true }
+    : { ...compareSeedOnlyDrift({ sourceRoot: source, targetRoot: target, paths: seedOnlyPaths }), skipped: false }
 
-  return { managed, seed, mergeKeep, packageProposal }
+  return { managed, seed, mergeKeep, packageProposal, syncMode: mode, seedOnlyPathsSkipped }
+}
+
+export function compareFullBoilerplateDrift({ sourceRoot: source, targetRoot: target, mode = SYNC_MODES.FULL }) {
+  return compareBoilerplateDriftByMode({ sourceRoot: source, targetRoot: target, mode })
 }
 
 export function getDriftExitCode(report) {
   const hasManagedDrift = report.managed.missing.length > 0 || report.managed.changed.length > 0
-  const hasMissingSeed = report.seed.missingSeed.length > 0
+  const hasMissingSeed = !report.seedOnlyPathsSkipped && report.seed.missingSeed.length > 0
   const hasMergeKeepDrift = report.mergeKeep.missing.length > 0 || report.mergeKeep.changed.length > 0
 
   if (hasManagedDrift || hasMissingSeed || hasMergeKeepDrift) return 1
@@ -222,16 +237,23 @@ export function getDriftExitCode(report) {
 
 function printReport(report) {
   const hasManagedDrift = report.managed.missing.length > 0 || report.managed.changed.length > 0
-  const hasMissingSeed = report.seed.missingSeed.length > 0
-  const hasCustomizedSeed = report.seed.customized.length > 0
+  const hasMissingSeed = !report.seedOnlyPathsSkipped && report.seed.missingSeed.length > 0
+  const hasCustomizedSeed = !report.seedOnlyPathsSkipped && report.seed.customized.length > 0
   const hasMergeKeepDrift = report.mergeKeep.missing.length > 0 || report.mergeKeep.changed.length > 0
 
-  console.log(`Checking boilerplate drift against ${repo}#${ref}\n`)
+  console.log(`Checking boilerplate drift against ${repo}#${ref}`)
+  console.log(`Sync mode: ${report.syncMode}`)
+  if (report.seedOnlyPathsSkipped) {
+    console.log('Seed-only starter modules skipped in harness-only mode')
+  }
+  console.log('')
 
   if (!hasManagedDrift && !hasMissingSeed && !hasCustomizedSeed && !hasMergeKeepDrift && !report.packageProposal) {
     console.log('No drift found.')
     console.log(`Identical managed paths: ${report.managed.identical.length}`)
-    console.log(`Identical seed files: ${report.seed.identical.length}`)
+    if (!report.seedOnlyPathsSkipped) {
+      console.log(`Identical seed files: ${report.seed.identical.length}`)
+    }
     return
   }
 
@@ -269,7 +291,7 @@ function printReport(report) {
 
   if (hasManagedDrift || hasMissingSeed || hasMergeKeepDrift) {
     console.log('Suggested next command:')
-    console.log('pnpm run boilerplate:sync')
+    console.log(`pnpm run boilerplate:sync -- --${report.syncMode}`)
     console.log('\nAfter sync, run:')
     console.log('pnpm install')
   }
@@ -291,6 +313,8 @@ function main() {
     process.exit(0)
   }
 
+  const syncMode = parseSyncMode()
+
   try {
     rmSync(tempRoot, { recursive: true, force: true })
     mkdirSync(tempRoot, { recursive: true })
@@ -299,7 +323,7 @@ function main() {
       cwd: targetRoot,
     })
 
-    const report = compareFullBoilerplateDrift({ sourceRoot, targetRoot })
+    const report = compareBoilerplateDriftByMode({ sourceRoot, targetRoot, mode: syncMode })
     printReport(report)
 
     process.exit(getDriftExitCode(report))

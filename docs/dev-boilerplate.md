@@ -20,12 +20,14 @@ The order operations, LINE, payment slip, copilot, and handoff modules from prev
 
 ## Sync behavior
 
-Child projects should run `pnpm run boilerplate:check` before `pnpm run boilerplate:sync`.
+Child projects should run `pnpm run boilerplate:check -- --harness-only` before `pnpm run boilerplate:sync -- --harness-only`.
 
-The check command is read-only and reports five categories:
+Existing projects with custom app and schema code should use **`harness-only`** (the default). Use **`--full`** only for new child projects that still want missing starter modules seeded.
+
+The check command is read-only and reports these categories:
 
 - **Managed drift** — rails-managed paths that differ from the starter (exit 1; run sync)
-- **Missing seed files** — starter app files not yet present in the child (exit 1; run sync to seed them)
+- **Missing seed files** — starter app files not yet present in the child (**`full` mode only**; exit 1; run `sync -- --full` to seed them)
 - **Customized seed files ignored** — child-owned starter files that differ from upstream (exit 0; no action required)
 - **Merge-keep drift** — child-owned paths such as `.gitignore` that are missing starter entries (exit 1; run sync to append missing rules while keeping child content)
 - **Package sync proposal (informational)** — recommended non-namespaced scripts and dependencies when they differ from the starter (exit 0; review `.bemoat/package-sync-proposal.md` after sync)

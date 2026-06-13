@@ -247,18 +247,65 @@ Do not use this clone-first path to start a customer or product repository.
 
 For **release tags, changelog policy, and when to sync from `main` vs a stable tag**, see [docs/releases.md](./docs/releases.md).
 
-Before syncing, check which rails-managed boilerplate files differ from the starter and which starter seed files are still missing:
+## Adopt harness in an existing project
+
+Use this workflow when an **existing Bemoat repository** already has its own Payload schema, frontend routes, components, hooks, access rules, lib utilities, and `payload.config.ts`. These projects should adopt **harness rails only** — not starter application modules.
+
+**Harness-only sync brings in:**
+
+- Shared agent rules (`AGENTS.md`, `.cursor/rules`)
+- GitHub CI workflow and templates
+- Safety guards (`guard-repo-safety`, `guard-cloudflare-env`)
+- Agent-loop and hardening docs
+- Sync and drift scripts, optional git hooks
+- Vitest harness and shared integration tests under `tests/int/`
+
+**Harness-only sync does not bring in:**
+
+- Payload starter collections, globals, hooks, or access helpers
+- Frontend starter pages under `src/app/(frontend)`
+- Starter components, lib utilities, or `src/payload.config.ts`
+
+`package.json` remains **child-owned**. Sync adds missing `bemoat:*` scripts only and writes **`.bemoat/package-sync-proposal.md`** for human review (included in the sync commit).
 
 ```bash
-pnpm run boilerplate:check
+git checkout main
+git pull
+git checkout -b chore/adopt-bemoat-harness
+
+pnpm run boilerplate:check -- --harness-only
+pnpm run boilerplate:sync -- --harness-only
+```
+
+After sync:
+
+1. Review **`.bemoat/package-sync-proposal.md`** and apply any desired `package.json` changes manually.
+2. Run **`pnpm install`** if you changed dependencies.
+3. Run **`pnpm run check`** to verify harness rails locally.
+4. Commit, push, and open a PR for human review.
+
+Use **`--full`** only for **new** child projects that intentionally want missing starter modules copied once. See [docs/boilerplate-sync-command.md](./docs/boilerplate-sync-command.md) and [docs/harness-sync-contract.md](./docs/harness-sync-contract.md).
+
+Before syncing, check which rails-managed boilerplate files differ from the starter. Use **`harness-only`** for existing projects; use **`full`** only when you also want to see missing starter seed files.
+
+```bash
+# Existing projects (default)
+pnpm run boilerplate:check -- --harness-only
+
+# New projects that may still import missing starter modules
+pnpm run boilerplate:check -- --full
 ```
 
 In **`bemoat-web-starter` itself** (the source repository), this command exits successfully with a skip message — it is intended for **child projects** comparing against upstream boilerplate. Starter development should use git diff and CI instead.
 
-The check reports managed drift (must sync), missing seed files (optional first-time import), customized seed files (ignored), merge-keep drift for `.gitignore`, and an informational package sync proposal when recommended scripts or dependencies differ. `package.json` is child-owned; sync does not auto-overwrite deploy, build, or dependency entries. When managed drift or missing seed files are reported, apply updates with:
+The check reports managed drift (must sync), missing seed files (**`full` mode only**), customized seed files (ignored), merge-keep drift for `.gitignore`, and an informational package sync proposal when recommended scripts or dependencies differ. `package.json` is child-owned; sync does not auto-overwrite deploy, build, or dependency entries. When managed drift or missing seed files are reported, apply updates with:
 
 ```bash
-pnpm run boilerplate:sync
+# Existing projects (recommended)
+pnpm run boilerplate:sync -- --harness-only
+
+# New projects that want starter module seeding
+pnpm run boilerplate:sync -- --full
 ```
 
 By default, check and sync use:
@@ -270,20 +317,29 @@ boat1994/bemoat-web-starter#main
 For safer production updates, pin a version tag instead:
 
 ```bash
-BEMOAT_BOILERPLATE_REF=v0.3.0-sync-rails pnpm run boilerplate:sync
+BEMOAT_BOILERPLATE_REF=v0.3.0-sync-rails pnpm run boilerplate:sync -- --harness-only
 ```
 
 ## Sync from another branch
 
 ```bash
-BEMOAT_BOILERPLATE_REF=dev pnpm run boilerplate:sync
+BEMOAT_BOILERPLATE_REF=dev pnpm run boilerplate:sync -- --harness-only
 ```
 
 ## Sync from another repository
 
 ```bash
-BEMOAT_BOILERPLATE_REPO=boat1994/bemoat-web-starter pnpm run boilerplate:sync
+BEMOAT_BOILERPLATE_REPO=boat1994/bemoat-web-starter pnpm run boilerplate:sync -- --harness-only
 ```
+
+## Sync modes
+
+| Mode | Use when | Starter modules |
+|------|----------|-----------------|
+| **`harness-only`** (default) | Existing Bemoat projects with custom schema, frontend, and app code | Skipped — does not copy `src/collections`, `src/globals`, `src/app/(frontend)`, `src/components`, `src/hooks`, `src/access`, `src/lib`, or `src/payload.config.ts` |
+| **`full`** | New child projects or repos that still want missing starter files imported once | Copied only when missing; never overwrites existing child files |
+
+Starter modules are not harness. `package.json` remains child-owned in both modes.
 
 ## What boilerplate sync updates
 
@@ -326,7 +382,9 @@ These paths keep existing child content and append missing starter entries durin
 
 - `.gitignore` — child ignore rules are preserved; missing starter rules (such as `.bemoat-check-tmp/` and `.bemoat-sync-tmp/`) are appended under a `# Added by bemoat boilerplate sync` section
 
-### Seeded-once starter files
+### Seeded-once starter files (`full` mode only)
+
+These paths are processed only with **`pnpm run boilerplate:sync -- --full`**. Default **`harness-only`** sync skips them.
 
 These paths are copied **only when missing** in the child project. After the child customizes them, sync **never overwrites** them:
 
@@ -362,7 +420,7 @@ This keeps each project safe while still allowing agent workflow rails to move f
 The sync command now creates a Git commit automatically for the files it changes:
 
 - every synced path in `managedPaths`
-- newly seeded files from `seedOnlyPaths`
+- newly seeded files from `seedOnlyPaths` (**`full` mode only**)
 - merge-keep updates such as `.gitignore` when starter ignore rules were appended
 - `.bemoat/package-sync-proposal.md` (regenerated each sync for human review)
 - `package.json` only when missing `bemoat:*` scripts were added
