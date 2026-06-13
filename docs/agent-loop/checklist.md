@@ -37,18 +37,20 @@ Stop instead of committing if the task is ambiguous, forbidden files are require
 - [ ] **Security pre-commit:** no secrets, tokens, or credentials in the diff
 - [ ] **Security pre-commit:** no copied Cloudflare account IDs, D1 IDs, R2 names, or Worker names
 - [ ] **Migration pre-commit:** destructive migration has explicit human approval noted for the PR
-- [ ] `pnpm run lint`, `typecheck`, and `test:int` pass
+- [ ] **Validation tier applied** (see [AGENTS.md § Validation](../../AGENTS.md#validation-before-pr-and-merge)):
+  - [ ] **Docs/markdown/CI only** (no code): `pnpm run guard:safety` passed
+  - [ ] **Code changes**: `pnpm run check` passed (**required** — includes lint with **zero warnings**, typecheck, test:int, guard:safety)
 - [ ] Exactly one focused commit (unless task requires more)
 - [ ] No unrelated refactors in the commit
 
 ## Before PR
 
 - [ ] Acceptance criteria met
-- [ ] `pnpm run lint`
-- [ ] `pnpm run typecheck`
-- [ ] `pnpm run test:int`
-- [ ] `pnpm run check` when possible (lint + typecheck + test:int)
-- [ ] `pnpm run build` if practical for the change
+- [ ] **Validation tier** same as before commit:
+  - [ ] Docs-only → `pnpm run guard:safety`
+  - [ ] Code changes → `pnpm run check` (**required**)
+- [ ] `pnpm run generate:types` if Payload schema changed
+- [ ] `pnpm run generate:importmap` if admin components changed
 - [ ] Branch pushed to origin
 - [ ] PR opened; template complete: goal, changes, source-of-truth impact, Payload impact, commands, test result, risk review
 - [ ] Clear answer: does this belong in starter or a child project?

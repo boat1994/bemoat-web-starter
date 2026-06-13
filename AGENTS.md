@@ -73,10 +73,37 @@ Details: [docs/agent-loop/checklist.md](./docs/agent-loop/checklist.md), [docs/a
 
 ## Validation before PR and merge
 
-- Run `pnpm run generate:importmap` after admin component changes.
-- Run `pnpm run generate:types` after Payload schema changes.
-- Run `pnpm run check` before opening a PR when possible (`lint` + `typecheck` + `test:int`).
-- Run `pnpm run check:full` before merge when practical (`lint` + `typecheck` + `test` + `build`).
+Agents must run the correct validation tier **before commit and PR**. **CI is the final source of truth** on GitHub; optional local pre-push hooks are a fast subset only (see [Optional local git hooks](#optional-local-git-hooks) in the root README).
+
+### Validation tiers
+
+| Change type | Required before commit/PR | Notes |
+|-------------|---------------------------|-------|
+| **Docs / markdown / CI config only** (no `.ts`, `.tsx`, `.mjs` app or script changes) | `pnpm run guard:safety` | Skip full `check` unless you also changed code |
+| **Code changes** (TypeScript, scripts, tests, components, collections, hooks) | `pnpm run check` | **Required** — runs `guard:safety` + `lint` + `typecheck` + `test:int`. **Lint must pass with zero warnings** — fix every warning before commit/PR. |
+| **Payload schema changes** | `pnpm run check` + `pnpm run generate:types` | Include migration in PR when D1 schema changes |
+| **Admin component changes** | `pnpm run check` + `pnpm run generate:importmap` | |
+
+### Before merge (human)
+
+- Run `pnpm run check:full` when practical (`lint` + `typecheck` + `test` + `build`).
+- Confirm CI is green on the PR branch.
+
+### Lint policy
+
+- `pnpm run lint` uses `--max-warnings 0` — **warnings fail** the command, same as errors.
+- Agents must **fix lint warnings immediately** in any file they touch; do not leave warnings for CI or the next agent.
+- If a task surfaces pre-existing warnings in unrelated files, fix them in the same PR when practical so `check` stays green.
+- Do not commit or open a PR when `pnpm run check` fails on lint.
+
+### Why lint before PR but not in pre-push
+
+- **Lint in `pnpm run check`** — agents and authors catch style and pattern issues before push; cheap compared to a failed CI round.
+- **Lint not in optional pre-push** — pre-push is a fast local subset (`guard:safety`, `typecheck`, `test:int`); lint and build stay in CI to avoid slowing every push.
+
+### Optional local pre-push
+
+Not required. Install with `pnpm run hooks:install` in child projects after sync. Does **not** replace CI or the `check` requirement before PR.
 
 Agent loop checklists: [docs/agent-loop/checklist.md](./docs/agent-loop/checklist.md).
 

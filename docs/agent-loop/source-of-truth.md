@@ -14,7 +14,7 @@ This document separates what **`bemoat-web-starter`** owns from what **child pro
 | Payload schema (shared) | Shared collections and globals (seeded once) |
 | Starter UI | Shared starter pages (home, projects, blog, custom order, etc.; seeded once) |
 | Shared utilities | Helper modules under `src/lib` (seeded once) |
-| Package scripts | Scripts required by the starter (`check`, `check:full`, `boilerplate:sync`, `boilerplate:check`, etc.) |
+| Package scripts | Scripts required by the starter (`check`, `check:full`, `guard:safety`, `boilerplate:sync`, `boilerplate:check`, `hooks:install`, etc.) — see [AGENTS.md § Validation](../../AGENTS.md#validation-before-pr-and-merge) for when to run each |
 | Sync behavior | `scripts/sync-boilerplate.mjs`, `scripts/check-boilerplate-drift.mjs`, managed and seed-only path lists |
 
 Child projects receive these via **clone after Cloudflare deploy** (initial) and **`pnpm run boilerplate:sync`** (ongoing updates). Run **`pnpm run boilerplate:check`** first to see rails-managed drift and missing seed files without modifying files. For stable production syncs, pin a **version tag** with `BEMOAT_BOILERPLATE_REF` instead of always using `main`—see [docs/releases.md](../releases.md).

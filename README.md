@@ -91,13 +91,23 @@ Full policy, examples, and checklist: [docs/schema-evolution.md](./docs/schema-e
 
 ### Optional local git hooks
 
-Install pre-push checks locally (not required; CI validates every pull request):
+Install pre-push checks locally (**not required**; CI validates every pull request):
 
 ```bash
 pnpm run hooks:install
 ```
 
-This sets `core.hooksPath` to `.githooks` and runs `guard:safety`, `typecheck`, and `test:int` before each push.
+Pre-push runs a **fast subset** only: `guard:safety`, `typecheck`, `test:int`.
+
+It intentionally **does not** run `lint` or `build` — those are in CI and in `pnpm run check`, which agents must run before opening a PR for code changes.
+
+| When | Command |
+|------|---------|
+| Docs/markdown/CI only | `pnpm run guard:safety` |
+| Code changes (before commit/PR) | `pnpm run check` (**required**, lint must have **zero warnings**) |
+| Before merge (human) | `pnpm run check:full` when practical |
+| Every PR on GitHub | CI (authoritative) |
+| Optional before push | pre-push hook subset |
 
 ## Important Cloudflare note
 

@@ -73,13 +73,26 @@ body:
       label: Required commands
       description: Commands the agent must run before opening a PR.
       value: |
-        pnpm run lint
-        pnpm run typecheck
-        pnpm run test:int
+        Docs/markdown/CI only:
+        pnpm run guard:safety
+
+        Code changes (required before PR):
+        pnpm run check
+
+        If Payload schema changes:
+        pnpm run generate:types
+
+        If admin components change:
+        pnpm run generate:importmap
+
+        Before merge (human, when practical):
+        pnpm run check:full
       placeholder: |
-        pnpm run generate:importmap  # if admin components change
-        pnpm run generate:types      # if Payload schema changes
-        pnpm run check               # before PR when possible
+        pnpm run guard:safety       # docs-only PRs
+        pnpm run check              # code changes (required)
+        pnpm run generate:importmap # if admin components change
+        pnpm run generate:types     # if Payload schema changes
+        pnpm run check:full         # before merge when practical
     validations:
       required: true
 

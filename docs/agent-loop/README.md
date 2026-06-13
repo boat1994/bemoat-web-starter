@@ -48,7 +48,7 @@ task → read AGENTS.md + agent-loop → branch → edit → test → show diff 
 | **Task** | User gives a short prompt or GitHub issue. Scope, allowed files, and risks may also live in the [agent-task](../../.github/ISSUE_TEMPLATE/agent-task.yml) template. |
 | **Branch** | Short-lived branch from `main`; name reflects the task. |
 | **Edit** | Follow `AGENTS.md`, allowed paths, and [checklist.md](./checklist.md). Smallest complete change. |
-| **Test** | Run lint, typecheck, tests; `generate:importmap` / `generate:types` when needed. |
+| **Test** | Run validation tier from `AGENTS.md`: docs-only → `guard:safety`; code → `check` (required). `generate:importmap` / `generate:types` when needed. |
 | **Show diff** | `git status` and diff summary before commit. |
 | **Commit** | One focused commit only if checks pass and only allowed files changed. See commit safety in `AGENTS.md`. |
 | **Push** | Push the branch to origin. |

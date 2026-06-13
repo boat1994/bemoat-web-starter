@@ -121,13 +121,22 @@ Hidden after new field is stable:
 
 ## Pre-commit quick check
 
-Before `git commit`, run `pnpm run guard:safety` (also included in `pnpm run check`). Confirm:
+Before `git commit`, apply the validation tier from [AGENTS.md](../../AGENTS.md#validation-before-pr-and-merge):
+
+| Change type | Run |
+|-------------|-----|
+| Docs / markdown / CI config only | `pnpm run guard:safety` |
+| Code changes | `pnpm run check` (**required** — includes guard:safety, lint with **zero warnings**, typecheck, test:int) |
+
+Confirm:
 
 - [ ] No `.env*` files staged
 - [ ] No secrets or tokens in the diff
 - [ ] No copied Cloudflare IDs, D1 IDs, R2 names, or Worker names from another project
 - [ ] No destructive migration without human approval noted in the PR
 - [ ] `generate:types` / `generate:importmap` run if schema or admin components changed
+
+Optional pre-push (`pnpm run hooks:install`) runs guard + typecheck + test:int only — **not** lint. CI remains authoritative.
 
 ## When to stop instead of commit
 

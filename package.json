@@ -20,7 +20,7 @@
     "guard:safety": "node scripts/guard-repo-safety.mjs",
     "hooks:install": "node scripts/install-git-hooks.mjs",
     "ii": "pnpm install --ignore-workspace",
-    "lint": "cross-env NODE_OPTIONS=--no-deprecation eslint .",
+    "lint": "cross-env NODE_OPTIONS=--no-deprecation eslint . --max-warnings 0",
     "payload": "cross-env NODE_OPTIONS=--no-deprecation payload",
     "preview": "pnpm exec opennextjs-cloudflare build && pnpm exec opennextjs-cloudflare preview --env=$CLOUDFLARE_ENV",
     "start": "cross-env NODE_OPTIONS=--no-deprecation next start",
