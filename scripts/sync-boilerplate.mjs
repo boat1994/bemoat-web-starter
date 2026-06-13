@@ -35,6 +35,7 @@ export const managedPaths = [
   'scripts/check-boilerplate-drift.mjs',
   'scripts/deploy-smoke-test.mjs',
   'scripts/guard-repo-safety.mjs',
+  'scripts/guard-cloudflare-env.mjs',
   'scripts/install-git-hooks.mjs',
 
   // Local harness hooks and integration tests
@@ -42,6 +43,7 @@ export const managedPaths = [
   'vitest.config.mts',
   'vitest.setup.ts',
   'tests/int/repo-safety-guard.int.spec.ts',
+  'tests/int/cloudflare-env-guard.int.spec.ts',
   'tests/int/boilerplate-sync.int.spec.ts',
   'tests/int/open-next-config.int.spec.ts',
 ]
@@ -63,6 +65,7 @@ export const packageScripts = [
   'check',
   'check:full',
   'guard:safety',
+  'guard:cloudflare-env',
   'typecheck',
   'lint',
   'test',

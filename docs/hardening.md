@@ -22,6 +22,7 @@ Quick map of production readiness docs for agents and humans working on Bemoat w
 | Release tags | Documented in [releases.md](./releases.md) |
 | Drift check | `pnpm run boilerplate:check` available |
 | Deploy smoke test | Checklist in [deploy-smoke-test.md](./deploy-smoke-test.md); optional `pnpm run smoke:deploy` |
+| Cloudflare env guard | `pnpm run guard:cloudflare-env` before deploy/preview; `guard:safety` validates `wrangler.jsonc` dev/prod isolation |
 | Programmatic safety guard | `pnpm run guard:safety` — blocks tracked `.env*` files (except `.env.example`), obvious secrets/tokens, Cloudflare resource IDs outside `wrangler.jsonc`, and destructive migration SQL without approval |
 | Agent validation tiers | [AGENTS.md](../AGENTS.md#validation-before-pr-and-merge) — docs-only: `guard:safety`; code: `check` (required, lint **zero warnings** via `--max-warnings 0`); merge: `check:full`; CI authoritative |
 | Secrets and migration guardrails | Documented in [security-and-migrations.md](./agent-loop/security-and-migrations.md); enforced in CI via `pnpm run guard:safety` |

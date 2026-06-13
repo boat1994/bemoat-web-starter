@@ -139,12 +139,39 @@ CLOUDFLARE_ENV=dev pnpm run preview
 ## What not to do
 
 | Avoid | Why |
-| --- | --- |
-| `CLOUDFLARE_ENV=production` | Wrangler expects `env.production` in config; we use top-level instead |
+| --- | --- | --- |
+| `CLOUDFLARE_ENV=production` | Blocked by `pnpm run guard:cloudflare-env` — Wrangler expects `env.production`; we use top-level instead |
 | `--env=production` in scripts | Same problem — causes "No environment found in configuration with name production" |
-| Pointing `env.dev` at production D1 or R2 IDs | Dev and production data must stay isolated |
+| Pointing `env.dev` at production D1 or R2 IDs | Blocked by `pnpm run guard:safety` when dev bindings duplicate production |
 | Copying another project's D1 IDs or bucket names | Each project owns its own Cloudflare resources |
 | Running `pnpm run deploy:dev` in Cloudflare CI | Dev deploy is **local-only**; CI and main branch use `pnpm run deploy` |
+| Setting `CLOUDFLARE_ENV=production` in Cloudflare dashboard | Production deploy must use `pnpm run deploy` with no `CLOUDFLARE_ENV` |
+
+## Safety guards
+
+Deploy and preview run **`pnpm run guard:cloudflare-env`** first:
+
+- Rejects `CLOUDFLARE_ENV=production` with a clear error before Wrangler runs.
+- Verifies `env.dev` D1 and R2 bindings do not point at production resources (when real IDs are configured).
+
+`pnpm run guard:safety` (CI and pre-PR checks) also scans `wrangler.jsonc` for:
+
+- Forbidden `env.production` block
+- Dev D1 `database_id` matching production
+- Dev R2 bucket name matching production
+
+## Cloudflare dashboard checklist
+
+Before relying on main-branch auto-deploy:
+
+| Setting | Expected value |
+| --- | --- |
+| Build command | `pnpm run build` |
+| Deploy command | `pnpm run deploy` |
+| Environment variable `CLOUDFLARE_ENV` | **Not set** (do not use `production`) |
+| Production Worker / D1 / R2 | Top-level `wrangler.jsonc` only |
+
+Local dev deploy is **not** configured in the dashboard — run `pnpm run deploy:dev` from your machine after provisioning `env.dev` resources.
 
 ## Wrangler command cheat sheet
 

@@ -186,6 +186,7 @@ Bemoat projects use **two deploy targets**. Full guide (synced to child projects
 - Production does **not** use `env.production` or `CLOUDFLARE_ENV=production`.
 - Dev is explicit: `deploy:dev` sets `CLOUDFLARE_ENV=dev` and passes `--env=dev`.
 - Never point `env.dev` at production D1 or R2 — create separate dev resources in Cloudflare first.
+- `pnpm run deploy` and `pnpm run preview` run `guard:cloudflare-env` first (blocks `CLOUDFLARE_ENV=production` and duplicate dev bindings).
 - `wrangler.jsonc` is **project-specific** and is not overwritten by boilerplate sync; copy the `env.dev` pattern from the starter into your child project and fill in your dev D1 ID and bucket names.
 
 ```bash
