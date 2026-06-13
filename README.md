@@ -97,17 +97,18 @@ Install pre-push checks locally (**not required**; CI validates every pull reque
 pnpm run hooks:install
 ```
 
-Pre-push runs a **fast subset** only: `guard:safety`, `typecheck`, `test:int`.
+Pre-push runs a **fast child-safe subset** only: `bemoat:guard:safety`, `bemoat:test:int`.
 
-It intentionally **does not** run `lint` or `build` — those are in CI and in `pnpm run check`, which agents must run before opening a PR for code changes.
+It intentionally **does not** run `typecheck`, `lint`, or `build` — child projects add those scripts when they are ready for stricter local validation.
 
 | When | Command |
 |------|---------|
-| Docs/markdown/CI only | `pnpm run guard:safety` |
-| Code changes (before commit/PR) | `pnpm run check` (**required**, lint must have **zero warnings**) |
-| Before merge (human) | `pnpm run check:full` when practical |
-| Every PR on GitHub | CI (authoritative) |
-| Optional before push | pre-push hook subset |
+| Docs/markdown/CI only (starter / child with scripts) | `pnpm run guard:safety` or `pnpm run bemoat:guard:safety` |
+| Code changes before commit/PR (when scripts exist) | `pnpm run check` (**required** in starter, lint must have **zero warnings**) |
+| Before merge (human, when scripts exist) | `pnpm run check:full` when practical |
+| Every PR on GitHub (synced child CI) | `bemoat:guard:safety` + `bemoat:test:int` only |
+| Starter repo on GitHub | child-safe CI plus [starter strict workflow](./.github/workflows/ci-starter.yml) |
+| Optional before push | pre-push hook subset (`bemoat:*` only) |
 
 ## Important Cloudflare note
 
@@ -349,7 +350,7 @@ These paths are source-of-truth and **may be overwritten** on every sync:
 
 - `AGENTS.md` repository agent instructions
 - `.cursor/rules/*` workflow instructions and Cursor rule files
-- `.github/workflows/ci.yml` shared CI workflow
+- `.github/workflows/ci.yml` shared child-safe CI workflow (`bemoat:guard:safety`, `bemoat:test:int` only)
 - `.github/pull_request_template.md` PR template
 - `.github/ISSUE_TEMPLATE/agent-task.yml` agent task issue template
 - `docs/agent-loop/*` agent operating loop docs
@@ -372,7 +373,7 @@ These paths are source-of-truth and **may be overwritten** on every sync:
 
 Managed namespaced scripts (added when missing): `bemoat:guard:safety`, `bemoat:guard:cloudflare-env`, `bemoat:test:int`, `bemoat:check`, `bemoat:boilerplate:sync`, `bemoat:boilerplate:check`, `bemoat:hooks:install`
 
-Non-namespaced script and dependency differences appear in the proposal under **Script drift report (human review only)** and **Dependency drift report (human review only)**.
+Non-namespaced script and dependency differences appear in the proposal under **Script drift report (human review only)** and **Dependency drift report (human review only)**. Synced CI and optional pre-push hooks assume only `bemoat:*` scripts exist — full `lint`, `typecheck`, `build`, and `check` baselines are follow-up work in each child project.
 
 `pnpm-lock.yaml` is **not** synced. Review the package sync proposal manually before changing `package.json` or running `pnpm install`.
 

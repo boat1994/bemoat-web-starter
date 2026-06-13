@@ -1,4 +1,5 @@
-name: CI
+# Starter-only strict CI. Not synced to child projects — see managedPaths in scripts/sync-boilerplate.mjs.
+name: CI (starter strict)
 
 on:
   pull_request:
@@ -9,7 +10,8 @@ on:
       - main
 
 jobs:
-  ci:
+  starter-ci:
+    if: github.repository == 'boat1994/bemoat-web-starter'
     runs-on: ubuntu-latest
     env:
       PAYLOAD_SECRET: ci-placeholder
@@ -33,7 +35,22 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Repository safety guard
-        run: pnpm run bemoat:guard:safety
+        run: pnpm run guard:safety
+
+      - name: Generate import map
+        run: pnpm run generate:importmap
+
+      - name: Generate types
+        run: pnpm run generate:types
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Typecheck
+        run: pnpm run typecheck
 
       - name: Integration tests
-        run: pnpm run bemoat:test:int
+        run: pnpm run test:int
+
+      - name: Build
+        run: pnpm run build
