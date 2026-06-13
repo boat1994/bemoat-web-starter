@@ -775,7 +775,7 @@ describe('boilerplate sync modes', () => {
 describe('boilerplate drift check', () => {
   const fixtureRoot = resolve(process.cwd(), '.tmp-boilerplate-drift-test')
 
-  it('detects boilerplate source repository from package name fallback', async () => {
+  it('detects boilerplate source repository at git root from package name and origin', async () => {
     const mod = await import('../../scripts/check-boilerplate-drift.mjs')
 
     rmSync(fixtureRoot, { recursive: true, force: true })
@@ -798,6 +798,25 @@ describe('boilerplate drift check', () => {
     expect(
       mod.isBoilerplateSourceRepository(join(fixtureRoot, 'child'), 'boat1994/bemoat-web-starter'),
     ).toBe(false)
+
+    rmSync(fixtureRoot, { recursive: true, force: true })
+  })
+
+  it('treats nested starter fixture inside child repo as source despite inherited parent git origin', async () => {
+    const mod = await import('../../scripts/check-boilerplate-drift.mjs')
+
+    rmSync(fixtureRoot, { recursive: true, force: true })
+    mkdirSync(join(fixtureRoot, 'child-repo', 'starter-fixture'), { recursive: true })
+
+    writeFileSync(
+      join(fixtureRoot, 'child-repo/starter-fixture/package.json'),
+      `${JSON.stringify({ name: 'bemoat-web-starter' }, null, 2)}\n`,
+    )
+
+    const nestedFixture = join(fixtureRoot, 'child-repo/starter-fixture')
+    // Nested cwd inherits the parent checkout's git origin (any child repo), which must not
+    // override package-name detection for harness test fixtures.
+    expect(mod.isBoilerplateSourceRepository(nestedFixture, 'boat1994/bemoat-web-starter')).toBe(true)
 
     rmSync(fixtureRoot, { recursive: true, force: true })
   })
