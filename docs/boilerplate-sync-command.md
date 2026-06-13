@@ -17,10 +17,22 @@ pnpm run boilerplate:sync
 - `.github/workflows/ci.yml`, PR template, and agent issue template
 - `docs/agent-loop/*`, `docs/hardening.md`, `docs/releases.md`, `docs/deploy-smoke-test.md`, `docs/cloudflare-environments.md`, `docs/schema-evolution.md`
 - `scripts/sync-boilerplate.mjs`, `scripts/check-boilerplate-drift.mjs`, `scripts/deploy-smoke-test.mjs`
-- `scripts/guard-repo-safety.mjs`, `scripts/install-git-hooks.mjs`
+- `scripts/guard-repo-safety.mjs`, `scripts/guard-cloudflare-env.mjs`, `scripts/install-git-hooks.mjs`
 - `.githooks/pre-push` (optional local pre-push harness)
-- `vitest.config.mts`, `vitest.setup.ts`, and harness tests under `tests/int/`
-- Selected `package.json` scripts: `check`, `check:full`, `guard:safety`, `typecheck`, `lint`, `test`, `test:int`, `hooks:install`, generate scripts, `payload`, `boilerplate:sync`, `boilerplate:check`, `smoke:deploy`
+- `vitest.config.mts`, `vitest.setup.ts`, and shared harness tests under `tests/int/`:
+  - `tests/int/api.int.spec.ts`
+  - `tests/int/boilerplate-sync.int.spec.ts`
+  - `tests/int/cloudflare-env-guard.int.spec.ts`
+  - `tests/int/open-next-config.int.spec.ts`
+  - `tests/int/repo-safety-guard.int.spec.ts`
+- `docs/dev-boilerplate.md`, `docs/boilerplate-sync-command.md`, `docs/harness-sync-contract.md`
+- Selected `package.json` scripts:
+  - Validation: `check`, `check:full`, `guard:safety`, `guard:cloudflare-env`, `typecheck`, `lint`, `test`, `test:int`, `hooks:install`
+  - Deploy safety: `build`, `deploy`, `deploy:app`, `deploy:database`, `deploy:dev`, `preview`
+  - Payload and sync: generate scripts, `payload`, `boilerplate:sync`, `boilerplate:check`, `smoke:deploy`
+- Shared `dependencies` and `devDependencies` from the starter `package.json`
+
+See [harness-sync-contract.md](./harness-sync-contract.md) for the full harness definition and maintainer rules.
 
 ### Seeded once (starter app code)
 
@@ -34,7 +46,7 @@ pnpm run boilerplate:sync
 - Helper utilities
 - `src/payload.config.ts`
 
-It does not overwrite project-specific Cloudflare resources such as `wrangler.jsonc`, D1 database IDs, R2 bucket names, secrets, or `.env` files.
+It does not overwrite project-specific Cloudflare resources such as `wrangler.jsonc`, D1 database IDs, R2 bucket names, secrets, or `.env` files. Deploy **scripts** are synced; Cloudflare **resource config** is not.
 
 ## Use a different source ref
 
@@ -60,8 +72,9 @@ If local uncommitted changes already exist, the script stashes only files outsid
 
 If a child project is still using the older sync script, copy `scripts/sync-boilerplate.mjs` from the starter into that project once before rerunning sync. The older script version did not sync itself forward.
 
+Run **`pnpm install`** after sync because `package.json` scripts and shared dependencies may have changed, then:
+
 ```bash
-pnpm install
 pnpm run generate:importmap
 pnpm run generate:types
 pnpm payload migrate:create

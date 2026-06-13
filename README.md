@@ -298,13 +298,15 @@ These paths are source-of-truth and **may be overwritten** on every sync:
 - `docs/hardening.md`, `docs/releases.md`, `docs/deploy-smoke-test.md`, `docs/cloudflare-environments.md`
 - `docs/schema-evolution.md` production-safe Payload schema evolution guide
 - `scripts/sync-boilerplate.mjs`, `scripts/check-boilerplate-drift.mjs`, `scripts/deploy-smoke-test.mjs`
-- `scripts/guard-repo-safety.mjs`, `scripts/install-git-hooks.mjs` repository safety guard and optional git hooks
+- `scripts/guard-repo-safety.mjs`, `scripts/guard-cloudflare-env.mjs`, `scripts/install-git-hooks.mjs` repository safety guards and optional git hooks
 - `.githooks/pre-push` optional local pre-push harness (install with `pnpm run hooks:install`)
-- `vitest.config.mts`, `vitest.setup.ts`, and harness integration tests under `tests/int/` (`repo-safety-guard`, `boilerplate-sync`, `open-next-config`)
-- `docs/dev-boilerplate.md`, `docs/boilerplate-sync-command.md` boilerplate module notes
+- `vitest.config.mts`, `vitest.setup.ts`, and shared harness integration tests under `tests/int/` (`api`, `repo-safety-guard`, `cloudflare-env-guard`, `boilerplate-sync`, `open-next-config`)
+- `docs/dev-boilerplate.md`, `docs/boilerplate-sync-command.md`, `docs/harness-sync-contract.md` boilerplate module and sync contract notes
 - `package.json` scripts and shared `dependencies` / `devDependencies`
 
-Validation rails: `check`, `check:full`, `guard:safety`, `typecheck`, `lint`, `test`, `test:int`
+Validation rails: `check`, `check:full`, `guard:safety`, `guard:cloudflare-env`, `typecheck`, `lint`, `test`, `test:int`
+
+Deploy safety rails: `build`, `deploy`, `deploy:app`, `deploy:database`, `deploy:dev`, `preview` (scripts are synced; `wrangler.jsonc` and resource IDs are not)
 
 Payload and sync: `generate:importmap`, `generate:types`, `generate:types:cloudflare`, `generate:types:payload`, `payload`, `boilerplate:sync`, `boilerplate:check`, `smoke:deploy`, `hooks:install`
 
@@ -328,7 +330,7 @@ Frontend pages, collections, globals, components, and product UI are safe to cus
 
 The sync script intentionally does not overwrite project-specific infrastructure or content:
 
-- `wrangler.jsonc`
+- `wrangler.jsonc` (deploy **scripts** are synced; Cloudflare **config** is not)
 - D1 database IDs
 - R2 bucket names
 - Worker names

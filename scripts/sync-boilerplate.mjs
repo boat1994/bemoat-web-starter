@@ -24,6 +24,7 @@ export const managedPaths = [
   'docs/schema-evolution.md',
   'docs/dev-boilerplate.md',
   'docs/boilerplate-sync-command.md',
+  'docs/harness-sync-contract.md',
 
   // GitHub workflow rails
   '.github/workflows/ci.yml',
@@ -42,6 +43,7 @@ export const managedPaths = [
   '.githooks',
   'vitest.config.mts',
   'vitest.setup.ts',
+  'tests/int/api.int.spec.ts',
   'tests/int/repo-safety-guard.int.spec.ts',
   'tests/int/cloudflare-env-guard.int.spec.ts',
   'tests/int/boilerplate-sync.int.spec.ts',
@@ -70,6 +72,13 @@ export const packageScripts = [
   'lint',
   'test',
   'test:int',
+  // Deploy safety rails (wrangler.jsonc and resource IDs remain child-owned)
+  'build',
+  'deploy',
+  'deploy:app',
+  'deploy:database',
+  'deploy:dev',
+  'preview',
   // Payload and sync
   'generate:importmap',
   'generate:types',

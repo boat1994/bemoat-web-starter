@@ -1,7 +1,24 @@
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
+
+/** Integration tests under tests/int that are starter-only and intentionally not synced. */
+const STARTER_ONLY_INT_TESTS: { path: string; reason: string }[] = [
+  // All current tests/int/*.int.spec.ts files are shared harness tests for child projects.
+]
+
+const REQUIRED_SHARED_PACKAGE_SCRIPTS = [
+  'build',
+  'deploy',
+  'deploy:app',
+  'deploy:database',
+  'deploy:dev',
+  'preview',
+  'guard:cloudflare-env',
+  'guard:safety',
+  'hooks:install',
+]
 
 describe('boilerplate sync managed paths', () => {
   it('includes repository agent instructions and Cursor rules', () => {
@@ -26,7 +43,9 @@ describe('boilerplate sync managed paths', () => {
       '.githooks',
       'vitest.config.mts',
       'vitest.setup.ts',
+      'tests/int/api.int.spec.ts',
       'tests/int/repo-safety-guard.int.spec.ts',
+      'tests/int/cloudflare-env-guard.int.spec.ts',
       'tests/int/boilerplate-sync.int.spec.ts',
       'tests/int/open-next-config.int.spec.ts',
     ]
@@ -35,8 +54,29 @@ describe('boilerplate sync managed paths', () => {
       expect(mod.managedPaths).toContain(path)
     }
 
-    expect(mod.packageScripts).toContain('guard:safety')
-    expect(mod.packageScripts).toContain('hooks:install')
+    for (const scriptName of REQUIRED_SHARED_PACKAGE_SCRIPTS) {
+      expect(mod.packageScripts).toContain(scriptName)
+    }
+  })
+
+  it('lists every shared harness int test in managedPaths', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const intTestDir = resolve(process.cwd(), 'tests/int')
+    const allIntTests = readdirSync(intTestDir)
+      .filter((name) => name.endsWith('.int.spec.ts'))
+      .map((name) => `tests/int/${name}`)
+      .sort()
+
+    const starterOnlyPaths = new Set(STARTER_ONLY_INT_TESTS.map((entry) => entry.path))
+
+    for (const testPath of allIntTests) {
+      if (starterOnlyPaths.has(testPath)) continue
+
+      expect(
+        mod.managedPaths,
+        `${testPath} must be listed in managedPaths (scripts/sync-boilerplate.mjs) or documented in STARTER_ONLY_INT_TESTS`,
+      ).toContain(testPath)
+    }
   })
 
   it('exports managedPaths and seedOnlyPaths for drift check reuse', async () => {

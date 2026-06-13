@@ -10,11 +10,11 @@ This document separates what **`bemoat-web-starter`** owns from what **child pro
 | Cursor rules | `.cursor/rules/*` |
 | GitHub templates | `.github/pull_request_template.md`, `.github/ISSUE_TEMPLATE/*`, shared workflows |
 | Agent-loop docs | `docs/agent-loop/*`, `docs/hardening.md`, `docs/releases.md`, `docs/deploy-smoke-test.md`, `docs/cloudflare-environments.md`, `docs/schema-evolution.md` |
-| Harness workflow | `scripts/guard-repo-safety.mjs`, `scripts/install-git-hooks.mjs`, `.githooks`, `vitest.config.mts`, `vitest.setup.ts`, harness tests under `tests/int/` |
+| Harness workflow | `scripts/guard-repo-safety.mjs`, `scripts/guard-cloudflare-env.mjs`, `scripts/install-git-hooks.mjs`, `.githooks`, `vitest.config.mts`, `vitest.setup.ts`, shared harness tests under `tests/int/` |
 | Payload schema (shared) | Shared collections and globals (seeded once) |
 | Starter UI | Shared starter pages (home, projects, blog, custom order, etc.; seeded once) |
 | Shared utilities | Helper modules under `src/lib` (seeded once) |
-| Package scripts | Scripts required by the starter (`check`, `check:full`, `guard:safety`, `boilerplate:sync`, `boilerplate:check`, `hooks:install`, etc.) — see [AGENTS.md § Validation](../../AGENTS.md#validation-before-pr-and-merge) for when to run each |
+| Package scripts | Validation rails (`check`, `check:full`, `guard:safety`, `guard:cloudflare-env`, `typecheck`, `lint`, `test`, `test:int`), deploy safety rails (`build`, `deploy`, `deploy:app`, `deploy:database`, `deploy:dev`, `preview`), sync and hooks (`boilerplate:sync`, `boilerplate:check`, `hooks:install`, etc.) — see [AGENTS.md § Validation](../../AGENTS.md#validation-before-pr-and-merge) for when to run each |
 | Sync behavior | `scripts/sync-boilerplate.mjs`, `scripts/check-boilerplate-drift.mjs`, managed and seed-only path lists |
 
 Child projects receive these via **clone after Cloudflare deploy** (initial) and **`pnpm run boilerplate:sync`** (ongoing updates). Run **`pnpm run boilerplate:check`** first to see rails-managed drift and missing seed files without modifying files. For stable production syncs, pin a **version tag** with `BEMOAT_BOILERPLATE_REF` instead of always using `main`—see [docs/releases.md](../releases.md).
@@ -36,14 +36,17 @@ These paths are overwritten on every sync:
 | `scripts/check-boilerplate-drift.mjs` | Read-only drift check before sync |
 | `scripts/deploy-smoke-test.mjs` | Optional deploy smoke test helper |
 | `scripts/guard-repo-safety.mjs` | Repository safety guard (secrets, resource IDs, destructive migrations) |
+| `scripts/guard-cloudflare-env.mjs` | Cloudflare deploy environment guard (blocks unsafe prod deploys) |
 | `scripts/install-git-hooks.mjs` | Optional local pre-push harness installer |
 | `.githooks` | Optional pre-push hook (`guard:safety`, `typecheck`, `test:int`) |
 | `vitest.config.mts`, `vitest.setup.ts` | Integration test harness for workflow rails |
-| `tests/int/repo-safety-guard.int.spec.ts`, `tests/int/boilerplate-sync.int.spec.ts`, `tests/int/open-next-config.int.spec.ts` | Harness integration tests |
-| `docs/dev-boilerplate.md`, `docs/boilerplate-sync-command.md` | Boilerplate module and sync command notes |
-| `package.json` scripts | `check`, `check:full`, `guard:safety`, `typecheck`, `lint`, `test`, `test:int`, generate scripts, `payload`, `boilerplate:sync`, `boilerplate:check`, `smoke:deploy`, `hooks:install` |
+| `tests/int/*.int.spec.ts` (shared harness) | `api`, `boilerplate-sync`, `cloudflare-env-guard`, `open-next-config`, `repo-safety-guard` — all listed in `managedPaths`; see [harness-sync-contract.md](../harness-sync-contract.md) |
+| `docs/dev-boilerplate.md`, `docs/boilerplate-sync-command.md`, `docs/harness-sync-contract.md` | Boilerplate module, sync command, and harness contract notes |
+| `package.json` scripts | Validation: `check`, `check:full`, `guard:safety`, `guard:cloudflare-env`, `typecheck`, `lint`, `test`, `test:int`; deploy safety: `build`, `deploy`, `deploy:app`, `deploy:database`, `deploy:dev`, `preview`; generate scripts, `payload`, `boilerplate:sync`, `boilerplate:check`, `smoke:deploy`, `hooks:install` |
 
 `pnpm-lock.yaml` is not synced. After sync, run `pnpm install` in the child project to refresh the local lockfile.
+
+Deploy **commands** (`deploy`, `deploy:app`, etc.) are part of the shared harness and call `guard:cloudflare-env` before production deploys. **`wrangler.jsonc` and Cloudflare resource IDs remain child-owned** and are never overwritten by sync.
 
 ### Seeded once by `boilerplate:sync` (starter app code)
 
