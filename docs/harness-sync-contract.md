@@ -36,6 +36,16 @@ These are **not** part of the harness sync contract:
 
 Deploy **script recommendations** are surfaced in a package sync proposal. Cloudflare **resource config** stays in each child repo.
 
+## Merge-keep paths
+
+Some child-owned files are merged during sync: existing content is preserved and missing starter entries are appended.
+
+| Path | Sync behavior |
+|------|---------------|
+| `.gitignore` | Keep all child ignore rules; append missing starter rules under `# Added by bemoat boilerplate sync` |
+
+Listed in `mergeKeepPaths` in `scripts/sync-boilerplate.mjs`. Drift check fails when starter rules are missing from the child file.
+
 ## Package manifest ownership
 
 `package.json` is **child-owned**. Boilerplate sync does not treat it as a managed rails file.
@@ -84,8 +94,10 @@ Current shared tests (listed in `managedPaths` in `scripts/sync-boilerplate.mjs`
 
 3. **New recommended non-namespaced script** — Add to `suggestedPackageScripts` so it appears in the package sync proposal.
 
-4. **Starter-only harness file** — Do not add to `managedPaths`. Document the path and reason in `STARTER_ONLY_INT_TESTS` in `tests/int/boilerplate-sync.int.spec.ts` so the contract test allows it.
+4. **New merge-keep path** — Add to `mergeKeepPaths` with merge logic in `scripts/sync-boilerplate.mjs` and drift coverage in `scripts/check-boilerplate-drift.mjs`.
 
-5. **Do not sync** `wrangler.jsonc`, resource IDs, secrets, `.env` files, or `pnpm-lock.yaml`.
+5. **Starter-only harness file** — Do not add to `managedPaths`. Document the path and reason in `STARTER_ONLY_INT_TESTS` in `tests/int/boilerplate-sync.int.spec.ts` so the contract test allows it.
+
+6. **Do not sync** `wrangler.jsonc`, resource IDs, secrets, `.env` files, or `pnpm-lock.yaml`.
 
 See also: [source-of-truth.md](./agent-loop/source-of-truth.md), [boilerplate-sync-command.md](./boilerplate-sync-command.md), root [README.md](../README.md#what-boilerplate-sync-updates).

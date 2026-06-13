@@ -47,6 +47,10 @@ Recommended sections surfaced in the proposal: `dependencies`, `devDependencies`
 
 `pnpm-lock.yaml` is never synced.
 
+### Merged keep-child-content
+
+- `.gitignore` — keeps existing child ignore rules and appends missing starter entries
+
 ### Seeded once (starter app code)
 
 - Frontend starter pages
@@ -79,6 +83,7 @@ The sync command automatically creates a Git commit for:
 
 - every file path it synced from the boilerplate
 - newly seeded files from `seedOnlyPaths`
+- merge-keep updates such as `.gitignore` when starter ignore rules were appended
 - `.bemoat/package-sync-proposal.md` (regenerated each sync)
 - `package.json` only when missing `bemoat:*` scripts were added
 - `.bemoat-boilerplate-sync.json`

@@ -171,6 +171,8 @@ describe('boilerplate sync managed paths', () => {
     expect(mod.managedPaths).toContain('scripts/check-boilerplate-drift.mjs')
     expect(mod.managedPaths).not.toContain('src/payload.config.ts')
     expect(mod.managedPaths).not.toContain('package.json')
+    expect(mod.mergeKeepPaths).toContain('.gitignore')
+    expect(mod.seedOnlyPaths).not.toContain('.gitignore')
     expect(mod.seedOnlyPaths).toContain('src/payload.config.ts')
     expect(mod.seedOnlyPaths).toContain('src/app/(frontend)')
     expect(mod.suggestedPackageScripts).toContain('deploy')
@@ -314,6 +316,53 @@ describe('boilerplate sync copy behavior', () => {
     rmSync(fixtureRoot, { recursive: true, force: true })
   })
 
+  it('merges .gitignore while keeping existing child ignore rules', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+
+    rmSync(fixtureRoot, { recursive: true, force: true })
+    mkdirSync(join(fixtureRoot, 'source'), { recursive: true })
+    mkdirSync(join(fixtureRoot, 'target'), { recursive: true })
+
+    writeFileSync(
+      join(fixtureRoot, 'source/.gitignore'),
+      '.open-next\n.bemoat-check-tmp/\n.bemoat-sync-tmp/\n',
+    )
+    writeFileSync(join(fixtureRoot, 'target/.gitignore'), '.env\n/custom-artifacts\n.open-next\n')
+
+    const result = mod.mergeKeepPath(join(fixtureRoot, 'source'), join(fixtureRoot, 'target'), '.gitignore')
+    const merged = readFileSync(join(fixtureRoot, 'target/.gitignore'), 'utf8')
+
+    expect(result.merged).toBe(true)
+    expect(result.changed).toBe(true)
+    expect(merged).toContain('.env')
+    expect(merged).toContain('/custom-artifacts')
+    expect(merged).toContain('.open-next')
+    expect(merged).toContain('.bemoat-check-tmp/')
+    expect(merged).toContain('.bemoat-sync-tmp/')
+    expect(merged).toContain('# Added by bemoat boilerplate sync')
+
+    rmSync(fixtureRoot, { recursive: true, force: true })
+  })
+
+  it('does not rewrite .gitignore when starter rules are already present', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+
+    rmSync(fixtureRoot, { recursive: true, force: true })
+    mkdirSync(join(fixtureRoot, 'source'), { recursive: true })
+    mkdirSync(join(fixtureRoot, 'target'), { recursive: true })
+
+    writeFileSync(join(fixtureRoot, 'source/.gitignore'), '.bemoat-check-tmp/\n')
+    writeFileSync(join(fixtureRoot, 'target/.gitignore'), '.env\n.bemoat-check-tmp/\n')
+
+    const result = mod.mergeKeepPath(join(fixtureRoot, 'source'), join(fixtureRoot, 'target'), '.gitignore')
+
+    expect(result.merged).toBe(false)
+    expect(result.changed).toBe(false)
+    expect(readFileSync(join(fixtureRoot, 'target/.gitignore'), 'utf8')).toBe('.env\n.bemoat-check-tmp/\n')
+
+    rmSync(fixtureRoot, { recursive: true, force: true })
+  })
+
   it('writes a package sync proposal and only adds missing bemoat:* scripts', async () => {
     const mod = await import('../../scripts/sync-boilerplate.mjs')
 
@@ -373,6 +422,13 @@ describe('boilerplate sync copy behavior', () => {
 
 describe('boilerplate drift check', () => {
   const fixtureRoot = resolve(process.cwd(), '.tmp-boilerplate-drift-test')
+
+  it('detects the starter source repository and skips remote drift comparison', async () => {
+    const mod = await import('../../scripts/check-boilerplate-drift.mjs')
+
+    expect(mod.isBoilerplateSourceRepository(process.cwd(), 'boat1994/bemoat-web-starter')).toBe(true)
+    expect(mod.isBoilerplateSourceRepository(process.cwd(), 'boat1994/other-repo')).toBe(false)
+  })
 
   it('reports missing, changed, and identical managed paths', async () => {
     const mod = await import('../../scripts/check-boilerplate-drift.mjs')
@@ -449,6 +505,27 @@ describe('boilerplate drift check', () => {
 
     expect(fullReport.packageProposal).not.toBeNull()
     expect(mod.getDriftExitCode(fullReport)).toBe(0)
+
+    rmSync(fixtureRoot, { recursive: true, force: true })
+  })
+
+  it('reports merge-keep drift when starter .gitignore rules are missing in child', async () => {
+    const mod = await import('../../scripts/check-boilerplate-drift.mjs')
+
+    rmSync(fixtureRoot, { recursive: true, force: true })
+    mkdirSync(join(fixtureRoot, 'source'), { recursive: true })
+    mkdirSync(join(fixtureRoot, 'target'), { recursive: true })
+
+    writeFileSync(join(fixtureRoot, 'source/.gitignore'), '.bemoat-check-tmp/\n.bemoat-sync-tmp/\n')
+    writeFileSync(join(fixtureRoot, 'target/.gitignore'), '.env\n')
+
+    const report = mod.compareMergeKeepDrift({
+      sourceRoot: join(fixtureRoot, 'source'),
+      targetRoot: join(fixtureRoot, 'target'),
+    })
+
+    expect(report.changed).toEqual(['.gitignore'])
+    expect(mod.getDriftExitCode({ managed: { missing: [], changed: [] }, seed: { missingSeed: [], customized: [], identical: [] }, mergeKeep: report, packageProposal: null })).toBe(1)
 
     rmSync(fixtureRoot, { recursive: true, force: true })
   })
