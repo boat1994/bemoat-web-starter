@@ -13,7 +13,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PAYLOAD_SECRET: ci-placeholder
-      CLOUDFLARE_ENV: production
 
     steps:
       - name: Checkout
