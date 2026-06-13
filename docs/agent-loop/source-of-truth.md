@@ -51,6 +51,14 @@ Managed namespaced scripts: `bemoat:guard:safety`, `bemoat:guard:cloudflare-env`
 
 Deploy **command recommendations** are part of the package sync proposal. **`wrangler.jsonc` and Cloudflare resource IDs remain child-owned** and are never overwritten by sync.
 
+### Merged keep-child-content by `boilerplate:sync`
+
+These paths preserve existing child content and append missing starter entries:
+
+| Path | Purpose |
+|------|---------|
+| `.gitignore` | Keep child ignore rules; append missing starter rules (for example Bemoat boilerplate temp directories) |
+
 ### Seeded once by `boilerplate:sync` (starter app code)
 
 These paths are copied only when missing in the child project. After customization, sync never overwrites them:

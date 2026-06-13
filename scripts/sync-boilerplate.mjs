@@ -61,6 +61,9 @@ export const seedOnlyPaths = [
   'src/payload.config.ts',
 ]
 
+/** Paths merged during sync: child content is kept and missing starter entries are appended. */
+export const mergeKeepPaths = ['.gitignore']
+
 export const packageSyncProposalPath = '.bemoat/package-sync-proposal.md'
 
 /** Namespaced scripts safe to add when missing during sync. Never overwrite existing entries. */
@@ -173,6 +176,78 @@ export function copySeedOnlyPath(sourceRootPath, targetRootPath, relativePath) {
   }
 
   return { seeded, skipped }
+}
+
+export function normalizeGitignoreLine(line) {
+  return line.trim()
+}
+
+export function mergeGitignoreKeepTarget(sourceContent, targetContent) {
+  const targetLines = targetContent.split('\n')
+  const sourceLines = sourceContent.split('\n')
+
+  const existing = new Set(
+    targetLines.map(normalizeGitignoreLine).filter((line) => line.length > 0),
+  )
+
+  const addedLines = []
+  for (const line of sourceLines) {
+    const normalized = normalizeGitignoreLine(line)
+    if (normalized.length === 0) continue
+    if (existing.has(normalized)) continue
+
+    addedLines.push(line.replace(/\r$/, ''))
+    existing.add(normalized)
+  }
+
+  if (addedLines.length === 0) {
+    return { content: targetContent, addedLines, changed: false }
+  }
+
+  const base = targetContent.replace(/\s*$/, '')
+  const mergeBlock = ['', '# Added by bemoat boilerplate sync', ...addedLines].join('\n')
+
+  return {
+    content: `${base}${mergeBlock}\n`,
+    addedLines,
+    changed: true,
+  }
+}
+
+export function mergeKeepPath(sourceRootPath, targetRootPath, relativePath) {
+  const source = join(sourceRootPath, relativePath)
+  const destination = join(targetRootPath, relativePath)
+
+  if (!existsSync(source)) {
+    return { merged: false, reason: 'missing-source', addedLines: [], changed: false, created: false }
+  }
+
+  const sourceContent = readFileSync(source, 'utf8')
+
+  if (!existsSync(destination)) {
+    mkdirSync(dirname(destination), { recursive: true })
+    writeFileSync(destination, sourceContent.endsWith('\n') ? sourceContent : `${sourceContent}\n`)
+    return { merged: true, addedLines: [], changed: false, created: true }
+  }
+
+  if (relativePath !== '.gitignore') {
+    return { merged: false, reason: 'unsupported-path', addedLines: [], changed: false, created: false }
+  }
+
+  const targetContent = readFileSync(destination, 'utf8')
+  const mergeResult = mergeGitignoreKeepTarget(sourceContent, targetContent)
+
+  if (!mergeResult.changed) {
+    return { merged: false, addedLines: [], changed: false, created: false }
+  }
+
+  writeFileSync(destination, mergeResult.content)
+  return {
+    merged: true,
+    addedLines: mergeResult.addedLines,
+    changed: true,
+    created: false,
+  }
 }
 
 function readJSON(path) {
@@ -461,7 +536,7 @@ export function isDirectExecution() {
   return import.meta.url === pathToFileURL(resolve(entrypoint)).href
 }
 
-function printSyncReport({ syncedManaged, seededFiles, skippedSeedFiles, packageSync }) {
+function printSyncReport({ syncedManaged, seededFiles, skippedSeedFiles, mergedFiles, packageSync }) {
   console.log('\nSynced managed paths:')
   if (syncedManaged.length === 0) {
     console.log('- (none)')
@@ -483,6 +558,13 @@ function printSyncReport({ syncedManaged, seededFiles, skippedSeedFiles, package
     for (const path of skippedSeedFiles) console.log(`- ${path}`)
   }
 
+  console.log('\nMerged keep-child-content paths:')
+  if (mergedFiles.length === 0) {
+    console.log('- (none)')
+  } else {
+    for (const path of mergedFiles) console.log(`- ${path}`)
+  }
+
   console.log('\nPackage manifest (child-owned):')
   if (packageSync?.addedScripts?.length > 0) {
     console.log(`- added missing bemoat:* scripts: ${packageSync.addedScripts.join(', ')}`)
@@ -502,6 +584,7 @@ function main() {
   const syncedManaged = []
   const seededFiles = []
   const skippedSeedFiles = []
+  const mergedFiles = []
 
   try {
     rmSync(tempRoot, { recursive: true, force: true })
@@ -525,6 +608,23 @@ function main() {
 
       seededFiles.push(...result.seeded)
       skippedSeedFiles.push(...result.skipped)
+    }
+
+    for (const path of mergeKeepPaths) {
+      const result = mergeKeepPath(sourceRoot, targetRoot, path)
+      if (result.reason === 'missing-source') {
+        console.warn(`[skip] ${path} not found in ${repo}#${ref}`)
+        continue
+      }
+
+      if (result.merged && (result.created || result.changed)) {
+        mergedFiles.push(path)
+        if (result.created) {
+          console.log(`[sync] created ${path} from starter`)
+        } else if (result.addedLines.length > 0) {
+          console.log(`[sync] merged ${path}; added ${result.addedLines.length} starter ignore rule(s)`)
+        }
+      }
     }
 
     const packageSync = syncPackageManifest({
@@ -551,12 +651,14 @@ function main() {
           syncedAt: new Date().toISOString(),
           managedPaths,
           seedOnlyPaths,
+          mergeKeepPaths,
           managedPackageScripts,
           suggestedPackageScripts,
           suggestedPackageSections,
           lastSyncedManagedPaths: syncedManaged,
           seededFiles,
           skippedSeedFiles,
+          mergedFiles,
           packageSync: {
             addedScripts: packageSync.addedScripts,
             proposalPath: packageSync.proposalPath,
@@ -569,7 +671,7 @@ function main() {
 
     rmSync(tempRoot, { recursive: true, force: true })
 
-    const pathsToCommit = [...syncedManaged, ...seededFiles]
+    const pathsToCommit = [...syncedManaged, ...seededFiles, ...mergedFiles]
     if (commitSyncedChanges(
       {
         repo,
@@ -585,7 +687,7 @@ function main() {
       console.log('[sync] no sync changes to commit')
     }
 
-    printSyncReport({ syncedManaged, seededFiles, skippedSeedFiles, packageSync })
+    printSyncReport({ syncedManaged, seededFiles, skippedSeedFiles, mergedFiles, packageSync })
 
     console.log('\nDone. Suggested next commands:')
     if (packageSync.proposalPath) {

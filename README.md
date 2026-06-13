@@ -318,7 +318,13 @@ Managed namespaced scripts (added when missing): `bemoat:guard:safety`, `bemoat:
 
 `pnpm-lock.yaml` is **not** synced. Review the package sync proposal, apply any desired `package.json` changes manually, then run `pnpm install`.
 
-### Seeded-once starter app files
+### Merge-keep paths
+
+These paths keep existing child content and append missing starter entries during sync:
+
+- `.gitignore` — child ignore rules are preserved; missing starter rules (such as `.bemoat-check-tmp/` and `.bemoat-sync-tmp/`) are appended under a `# Added by bemoat boilerplate sync` section
+
+### Seeded-once starter files
 
 These paths are copied **only when missing** in the child project. After the child customizes them, sync **never overwrites** them:
 
@@ -355,6 +361,7 @@ The sync command now creates a Git commit automatically for the files it changes
 
 - every synced path in `managedPaths`
 - newly seeded files from `seedOnlyPaths`
+- merge-keep updates such as `.gitignore` when starter ignore rules were appended
 - `.bemoat/package-sync-proposal.md` (regenerated each sync for human review)
 - `package.json` only when missing `bemoat:*` scripts were added
 - `.bemoat-boilerplate-sync.json`
