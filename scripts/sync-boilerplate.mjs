@@ -93,7 +93,7 @@ export const suggestedPackageScripts = [
 /** Recommended package.json sections surfaced in the proposal only. */
 export const suggestedPackageSections = ['dependencies', 'devDependencies']
 
-export const syncCommitPaths = [...managedPaths, syncMetadataPath]
+export const syncCommitPaths = [...managedPaths, syncMetadataPath, packageSyncProposalPath]
 
 export function listPathFiles(root, relativePath = '') {
   const fullPath = join(root, relativePath)
@@ -419,7 +419,7 @@ function createGitClient() {
 }
 
 export function getSyncCommitPaths(pathsSynced = managedPaths, { includePackageJson = false } = {}) {
-  const paths = [...pathsSynced, syncMetadataPath]
+  const paths = [...pathsSynced, syncMetadataPath, packageSyncProposalPath]
   if (includePackageJson) paths.push('package.json')
   return paths
 }

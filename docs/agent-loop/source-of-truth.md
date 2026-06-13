@@ -43,7 +43,7 @@ These paths are overwritten on every sync:
 | `tests/int/*.int.spec.ts` (shared harness) | `api`, `boilerplate-sync`, `cloudflare-env-guard`, `open-next-config`, `repo-safety-guard` — all listed in `managedPaths`; see [harness-sync-contract.md](../harness-sync-contract.md) |
 | `docs/dev-boilerplate.md`, `docs/boilerplate-sync-command.md`, `docs/harness-sync-contract.md` | Boilerplate module, sync command, and harness contract notes |
 
-`package.json` is **child-owned**. Sync adds missing `bemoat:*` scripts only and writes **`.bemoat/package-sync-proposal.md`** with recommended non-namespaced scripts (`build`, `deploy`, `preview`, `check`, etc.) and dependencies. Humans review and apply package changes manually.
+`package.json` is **child-owned**. Sync adds missing `bemoat:*` scripts only and writes **`.bemoat/package-sync-proposal.md`** with recommended non-namespaced scripts (`build`, `deploy`, `preview`, `check`, etc.) and dependencies. The proposal file is regenerated and included in the sync commit for human review. Apply package changes manually.
 
 Managed namespaced scripts: `bemoat:guard:safety`, `bemoat:guard:cloudflare-env`, `bemoat:test:int`, `bemoat:check`, `bemoat:boilerplate:sync`, `bemoat:boilerplate:check`, `bemoat:hooks:install`
 

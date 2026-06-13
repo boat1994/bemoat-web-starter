@@ -355,6 +355,7 @@ The sync command now creates a Git commit automatically for the files it changes
 
 - every synced path in `managedPaths`
 - newly seeded files from `seedOnlyPaths`
+- `.bemoat/package-sync-proposal.md` (regenerated each sync for human review)
 - `package.json` only when missing `bemoat:*` scripts were added
 - `.bemoat-boilerplate-sync.json`
 

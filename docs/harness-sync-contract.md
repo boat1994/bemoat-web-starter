@@ -43,7 +43,7 @@ Deploy **script recommendations** are surfaced in a package sync proposal. Cloud
 | Category | Sync behavior |
 |----------|---------------|
 | `bemoat:*` scripts | Managed — sync **adds missing** namespaced scripts only; never overwrites existing entries |
-| Non-namespaced scripts (`build`, `deploy`, `preview`, `check`, `lint`, etc.) | Proposal only — listed in `.bemoat/package-sync-proposal.md` |
+| Non-namespaced scripts (`build`, `deploy`, `preview`, `check`, `lint`, etc.) | Proposal only — listed in `.bemoat/package-sync-proposal.md` (committed by sync for review) |
 | `dependencies` / `devDependencies` | Proposal only — never auto-merged with `Object.assign` |
 | `pnpm-lock.yaml` | Never synced |
 

@@ -79,6 +79,7 @@ The sync command automatically creates a Git commit for:
 
 - every file path it synced from the boilerplate
 - newly seeded files from `seedOnlyPaths`
+- `.bemoat/package-sync-proposal.md` (regenerated each sync)
 - `package.json` only when missing `bemoat:*` scripts were added
 - `.bemoat-boilerplate-sync.json`
 

@@ -181,9 +181,11 @@ describe('boilerplate sync managed paths', () => {
     const mod = await import('../../scripts/sync-boilerplate.mjs')
 
     expect(mod.syncCommitPaths).toContain('.bemoat-boilerplate-sync.json')
+    expect(mod.syncCommitPaths).toContain(mod.packageSyncProposalPath)
     expect(mod.syncCommitPaths).not.toContain('package.json')
     expect(mod.syncCommitPaths).toContain('AGENTS.md')
     expect(mod.getSyncCommitPaths(['AGENTS.md'], { includePackageJson: true })).toContain('package.json')
+    expect(mod.getSyncCommitPaths(['AGENTS.md'])).toContain(mod.packageSyncProposalPath)
   })
 
   it('stashes unrelated local changes, commits only sync-scoped files, then restores the stash', async () => {
@@ -229,11 +231,13 @@ describe('boilerplate sync managed paths', () => {
     expect(committed).toBe(true)
     const statusCall = calls.find((call) => call.startsWith(`hasWorkingTreeChanges:${targetRoot}:`))
     expect(statusCall).toContain('.bemoat-boilerplate-sync.json')
+    expect(statusCall).toContain('.bemoat/package-sync-proposal.md')
     expect(statusCall).not.toContain('package.json')
     expect(statusCall).toContain('scripts/sync-boilerplate.mjs')
 
     const stashCall = calls.find((call) => call.startsWith(`stashPush:${targetRoot}:`))
     expect(stashCall).toContain('.bemoat-boilerplate-sync.json')
+    expect(stashCall).toContain('.bemoat/package-sync-proposal.md')
     expect(stashCall).not.toContain('package.json')
     expect(stashCall).toContain('scripts/sync-boilerplate.mjs')
     expect(calls).toContain(`stashPop:${targetRoot}`)
@@ -241,6 +245,7 @@ describe('boilerplate sync managed paths', () => {
 
     const addCall = calls.find((call) => call.startsWith(`addPaths:${targetRoot}:`))
     expect(addCall).toContain('.bemoat-boilerplate-sync.json')
+    expect(addCall).toContain('.bemoat/package-sync-proposal.md')
     expect(addCall).not.toContain('package.json')
     expect(addCall).toContain('AGENTS.md')
     expect(addCall).not.toContain('notes.txt')
