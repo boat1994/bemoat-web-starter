@@ -59,6 +59,24 @@ Agents **must complete the full branch-to-PR workflow** unless blocked.
 - The worktree has unrelated user changes
 - The issue scope is unclear enough to risk damaging existing work
 
+**Reporting contract:**
+
+Before editing, report:
+
+- Branch name
+- Files inspected
+- Proposed file changes
+
+After opening or updating a PR, report:
+
+- PR URL
+- Changed files
+- Commands run
+- Test results
+- Remaining risks
+
+See also [Final response format](#final-response-format) for the full end-of-task checklist.
+
 ### Commit safety
 
 - Do not commit if checks fail
