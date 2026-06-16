@@ -24,8 +24,13 @@ const dirname = path.dirname(filename)
 const realpath = (value: string) => (fs.existsSync(value) ? fs.realpathSync(value) : '')
 
 const isCLI = process.argv.some((value) => realpath(value).endsWith(path.join('payload', 'bin.js')))
+const npmLifecycleEvent = process.env.npm_lifecycle_event ?? ''
 const isBuild =
-  process.env.npm_lifecycle_event === 'build' || process.argv.some((value) => value.match(/build$/))
+  npmLifecycleEvent === 'build' ||
+  npmLifecycleEvent === 'build:next' ||
+  process.env.BEMOAT_BUILD_CONTEXT === 'opennext-next-build' ||
+  process.env.NEXT_PHASE === 'phase-production-build' ||
+  process.argv.some((value) => value.match(/build$/))
 const isProduction = process.env.NODE_ENV === 'production'
 const isTest = process.env.NODE_ENV === 'test'
 
