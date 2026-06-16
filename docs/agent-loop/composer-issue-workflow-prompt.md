@@ -90,6 +90,7 @@ Post implementation report on the source issue:
 - Should boilerplate:check or bemoat:boilerplate:check be updated?
 - Does this require a follow-up sync issue for Bemoat or other child projects?
 - If sync is needed, do not close the issue until sync is completed or a linked follow-up issue is created
+- Child sync loop: docs/agent-loop/harness-sync-workflow.md (branch chore/sync-harness-from-starter-<source-pr-number>, pnpm run boilerplate:sync -- --harness-only, guard:safety, git diff --check)
 
 ## Stop and ask (do not commit) when:
 - Working tree is dirty with unrelated changes

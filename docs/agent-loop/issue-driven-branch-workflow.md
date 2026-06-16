@@ -73,7 +73,7 @@ For **source-of-truth or workflow-related changes** (agent docs, CI, sync script
 
 Starter-only workflow changes in `docs/agent-loop`, `AGENTS.md`, `.github/workflows`, and harness scripts typically **do** need child sync after merge. Project-specific child work does not.
 
-See [harness-sync-contract.md](../harness-sync-contract.md) and [source-of-truth.md](./source-of-truth.md).
+See [harness-sync-workflow.md](./harness-sync-workflow.md), [harness-sync-contract.md](../harness-sync-contract.md), and [source-of-truth.md](./source-of-truth.md).
 
 ## Stop conditions (summary)
 

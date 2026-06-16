@@ -271,6 +271,8 @@ For **release tags, changelog policy, and when to sync from `main` vs a stable t
 
 Use this workflow when an **existing Bemoat repository** already has its own Payload schema, frontend routes, components, hooks, access rules, lib utilities, and `payload.config.ts`. These projects should adopt **harness rails only** — not starter application modules.
 
+For the canonical agent loop (branch gates, validation, PR, report), see [docs/agent-loop/harness-sync-workflow.md](./docs/agent-loop/harness-sync-workflow.md).
+
 **Harness-only sync brings in:**
 
 - Shared agent rules (`AGENTS.md`, `.cursor/rules`)

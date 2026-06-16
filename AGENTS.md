@@ -7,7 +7,7 @@ You are an expert Payload CMS developer. When working with Payload projects, fol
 - **`bemoat-web-starter` is the source of truth** for reusable Bemoat web project infrastructure (shared Payload schema, starter pages, agent rules, GitHub templates, CI patterns, sync behavior). See [docs/agent-loop/source-of-truth.md](./docs/agent-loop/source-of-truth.md).
 - **Real child projects start from the README [Deploy to Cloudflare](https://deploy.workers.cloudflare.com/?url=https://github.com/boat1994/bemoat-web-starter) button**, then clone the generated project locally.
 - **Do not recommend cloning this starter directly** for real child projects unless the task is to develop the starter itself.
-- **Reusable improvements belong in this starter** and flow to children via `pnpm run boilerplate:sync`.
+- **Reusable improvements belong in this starter** and flow to children via `pnpm run boilerplate:sync`. After a starter merge, child projects follow [docs/agent-loop/harness-sync-workflow.md](./docs/agent-loop/harness-sync-workflow.md).
 - **Rails-managed paths** (agent docs, CI, sync scripts) are overwritten by sync. **Starter-seed paths** (frontend pages, collections, globals, components, `payload.config.ts`) are copied only when missing in the child project.
 - **Do not edit seed-only app files in child projects expecting future boilerplate sync to preserve upstream changes.** Reusable app improvements should be made in the starter, but existing child customizations will not be overwritten automatically. If an upstream seed file changes after child customization, the human decides whether to manually port the improvement.
 - **Project-specific infrastructure belongs in child projects**: `wrangler.jsonc`, D1 IDs, R2 bucket names, Worker names, `.env` files, Cloudflare secrets, domains, and customer integrations.
@@ -33,7 +33,7 @@ For **issue-based agent tasks**, follow [docs/agent-loop/issue-driven-branch-wor
 
 **After development:** push the issue branch, then **open a PR** if none exists for the branch, or **update the existing PR** (description and/or comment) if one is already open. Do not mark the issue done until PR status is clear.
 
-**Before issue closeout** (source-of-truth or workflow changes): complete the harness sync impact checklist in [issue-driven-branch-workflow.md](./docs/agent-loop/issue-driven-branch-workflow.md#harness-sync-closeout-before-closing-the-issue).
+**Before issue closeout** (source-of-truth or workflow changes): complete the harness sync impact checklist in [issue-driven-branch-workflow.md](./docs/agent-loop/issue-driven-branch-workflow.md#harness-sync-closeout-before-closing-the-issue). When sync is needed in child projects, use [harness-sync-workflow.md](./docs/agent-loop/harness-sync-workflow.md).
 
 Paste-ready prompt: [docs/agent-loop/composer-issue-workflow-prompt.md](./docs/agent-loop/composer-issue-workflow-prompt.md).
 

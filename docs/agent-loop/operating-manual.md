@@ -28,7 +28,7 @@ Plan → git status & branch gates → Acceptance criteria → Implement → Tes
 | **Red team** | GPT-5.5 | Security, schema, Cloudflare, scope, overbuild — stop or fix before commit |
 | **Commit** | Composer 2.5 | One focused commit if checks pass |
 | **PR** | Composer 2.5 | Open PR or update existing; template filled; `Closes #N`; issue implementation report |
-| **Sync upstream** | Human + agent | Reusable harness/docs → starter PR; child gets `pnpm run boilerplate:sync` |
+| **Sync upstream** | Human + agent | Reusable harness/docs → starter PR; child follows [harness-sync-workflow.md](./harness-sync-workflow.md) |
 
 Full workflow rails: [README.md](./README.md), [checklist.md](./checklist.md), [AGENTS.md](../../AGENTS.md#default-agent-workflow).
 
@@ -45,7 +45,7 @@ Ask once at plan time. Full tables: [source-of-truth.md](./source-of-truth.md).
 | Child already customized a seed-only file | **Child** — port starter improvements manually if desired |
 | Unsure | Stop; triage via GitHub issue before editing |
 
-**After starter merge:** child projects pull rails with `pnpm run boilerplate:sync` (default `--harness-only`). See [harness-sync-contract.md](../harness-sync-contract.md).
+**After starter merge:** child projects follow [harness-sync-workflow.md](./harness-sync-workflow.md) (`pnpm run boilerplate:sync -- --harness-only` on branch `chore/sync-harness-from-starter-<source-pr-number>`). See also [harness-sync-contract.md](../harness-sync-contract.md).
 
 ## Stop rule — avoid overbuild
 
@@ -170,5 +170,6 @@ Starter-only links point to [boat1994/bemoat-web-starter](https://github.com/boa
 | [roles.md](./roles.md) | Builder, Reviewer, Migration, Red Team, Triage |
 | [security-and-migrations.md](./security-and-migrations.md) | Migration stop conditions |
 | [guard-pack.md](../guard-pack.md) | Central guard pack |
+| [harness-sync-workflow.md](./harness-sync-workflow.md) | Child harness sync loop after starter merge |
 | [harness-sync-contract.md](../harness-sync-contract.md) | What syncs to children |
 | [child-project-migration-guide.md](https://github.com/boat1994/bemoat-web-starter/blob/main/docs/child-project-migration-guide.md) | Starter-only child harness migration playbook |

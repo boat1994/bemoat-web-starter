@@ -73,6 +73,22 @@ Complete when the change affects agent docs, CI, sync scripts, guards, or harnes
 - [ ] Follow-up sync issue created and linked **or** sync completed — do not close source issue until resolved
 - [ ] PR status clear before marking issue done
 
+## Child harness sync (after starter merge)
+
+Run in **child repos** only. Full loop: [harness-sync-workflow.md](./harness-sync-workflow.md).
+
+- [ ] Confirmed child repo (not `bemoat-web-starter`)
+- [ ] **`git status` run**; working tree clean (or stop and report)
+- [ ] **Not on `main`** — sync branch created first: `chore/sync-harness-from-starter-<source-pr-number>`
+- [ ] Starter source PR or tag identified
+- [ ] `pnpm run boilerplate:sync -- --harness-only` (or `bemoat:boilerplate:sync`) run on sync branch
+- [ ] `pnpm run guard:safety` (or `bemoat:guard:safety`) passed
+- [ ] `git diff --check` passed
+- [ ] `pnpm run boilerplate:check -- --harness-only` run **only if** script exists in `package.json`
+- [ ] Diff review: harness paths only; no product code, secrets, or Cloudflare IDs
+- [ ] Branch pushed; PR opened or existing PR updated (no duplicate)
+- [ ] Implementation report posted; **did not merge**
+
 ## CI failure
 
 - [ ] Open the failed GitHub Actions run—do not guess the cause
