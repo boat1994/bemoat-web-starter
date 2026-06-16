@@ -30,6 +30,7 @@ export const managedPaths = [
   'docs/dev-boilerplate.md',
   'docs/boilerplate-sync-command.md',
   'docs/harness-sync-contract.md',
+  'docs/guard-pack.md',
 
   // GitHub workflow rails
   '.github/workflows/ci.yml',
@@ -43,6 +44,10 @@ export const managedPaths = [
   'scripts/guard-repo-safety.mjs',
   'scripts/guard-harness-contract.mjs',
   'scripts/guard-cloudflare-env.mjs',
+  'scripts/guard-pack.mjs',
+  'scripts/guard-package-manager.mjs',
+  'scripts/guard-env-placeholder.mjs',
+  'scripts/guard-frontend-seo.mjs',
   'scripts/install-git-hooks.mjs',
 
   // Local harness hooks and integration tests
@@ -54,7 +59,9 @@ export const managedPaths = [
   'tests/int/cloudflare-env-guard.int.spec.ts',
   'tests/int/boilerplate-sync.int.spec.ts',
   'tests/int/harness-contract-guard.int.spec.ts',
+  'tests/int/guard-pack.int.spec.ts',
   'tests/int/open-next-config.int.spec.ts',
+  'tests/fixtures/guard',
 ]
 
 export const seedOnlyPaths = [
@@ -76,6 +83,7 @@ export const packageSyncProposalPath = '.bemoat/package-sync-proposal.md'
 /** Namespaced scripts safe to add when missing during sync. Never overwrite existing entries. */
 export const managedPackageScripts = [
   'bemoat:guard:safety',
+  'bemoat:guard:pack',
   'bemoat:guard:harness-contract',
   'bemoat:guard:cloudflare-env',
   'bemoat:test:int',

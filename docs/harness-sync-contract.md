@@ -11,7 +11,7 @@ The harness is everything child projects need to run the same safety rails, work
 | Agent rules | `AGENTS.md`, `.cursor/rules/*` |
 | Agent-loop docs | `docs/agent-loop/*`, `docs/hardening.md`, `docs/schema-evolution.md`, etc. |
 | GitHub workflow and templates | `.github/workflows/ci.yml` (child-safe `bemoat:*` only), PR template, issue templates |
-| Safety guards | `scripts/guard-repo-safety.mjs`, `scripts/guard-cloudflare-env.mjs`, `scripts/guard-harness-contract.mjs` |
+| Safety guards | `scripts/guard-pack.mjs` (orchestrator), `scripts/guard-repo-safety.mjs`, `scripts/guard-harness-contract.mjs`, `scripts/guard-package-manager.mjs`, `scripts/guard-env-placeholder.mjs`, `scripts/guard-cloudflare-env.mjs`, `scripts/guard-frontend-seo.mjs` — see [guard-pack.md](./guard-pack.md) |
 | Cloudflare deploy guards | Recommended `deploy` / `preview` scripts that call `guard:cloudflare-env` |
 | Sync and drift | `scripts/sync-boilerplate.mjs`, `scripts/check-boilerplate-drift.mjs` |
 | Local git hooks | `.githooks`, `scripts/install-git-hooks.mjs`, `hooks:install` |
@@ -140,7 +140,8 @@ Child projects should treat **`bemoat:*` as the public harness API**. Synced CI 
 
 | Script | Purpose |
 |--------|---------|
-| `bemoat:guard:safety` | Repo safety (secrets, env files, migrations) + harness contract |
+| `bemoat:guard:safety` | Central guard pack v1 (all reusable safety checks) |
+| `bemoat:guard:pack` | Explicit alias for the central guard pack |
 | `bemoat:test:int` | Shared Vitest integration tests |
 | `bemoat:guard:cloudflare-env` | Cloudflare deploy environment guard (when deploy scripts exist) |
 | `bemoat:check` | Optional stricter local/CI check when child defines `lint` and `typecheck` |
@@ -158,6 +159,7 @@ Current shared tests (listed in `managedPaths` in `scripts/sync-boilerplate.mjs`
 - `tests/int/api.int.spec.ts`
 - `tests/int/boilerplate-sync.int.spec.ts`
 - `tests/int/cloudflare-env-guard.int.spec.ts`
+- `tests/int/guard-pack.int.spec.ts`
 - `tests/int/harness-contract-guard.int.spec.ts`
 - `tests/int/open-next-config.int.spec.ts`
 - `tests/int/repo-safety-guard.int.spec.ts`

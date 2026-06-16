@@ -1,0 +1,8 @@
+name: CI
+
+jobs:
+  ci:
+    steps:
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run bemoat:guard:safety
+      - run: pnpm run bemoat:test:int
