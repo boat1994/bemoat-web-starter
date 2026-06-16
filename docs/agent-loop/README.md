@@ -37,12 +37,14 @@ It does **not** overwrite project-specific infrastructure (`wrangler.jsonc`, D1 
 
 Users do not need to repeat branch, check, commit, push, or PR steps in every message. Provide the task (or a GitHub issue); agents read `AGENTS.md` and this folder, then run the [Default Agent Workflow](../../AGENTS.md#default-agent-workflow) automatically unless you override it.
 
+Agents **must complete the full branch-to-PR workflow** by default — branch, implement, check, commit, push, open PR, comment on the source issue — without stopping after implementation or asking permission to commit/push/open PR/comment. See [GitHub workflow requirement](../../AGENTS.md#github-workflow-requirement) and [Issue report after PR creation](../../AGENTS.md#issue-report-after-pr-creation) for stop conditions.
+
 ## High-level loop
 
 ```text
-task → read AGENTS.md + agent-loop → branch → edit → test → show diff → commit → push → open PR → notify user
-                                                                                                    ↓
-                                                                              CI → review → merge (human only)
+task → read AGENTS.md + agent-loop → branch → edit → test → show diff → commit → push → open PR → comment on issue → notify user
+                                                                                                                              ↓
+                                                                                                        CI → review → merge (human only)
 ```
 
 | Step | What happens |
@@ -54,7 +56,8 @@ task → read AGENTS.md + agent-loop → branch → edit → test → show diff 
 | **Show diff** | `git status` and diff summary before commit. |
 | **Commit** | One focused commit only if checks pass and only allowed files changed. See commit safety in `AGENTS.md`. |
 | **Push** | Push the branch to origin. |
-| **Open PR** | Fill out the [pull request template](../../.github/pull_request_template.md). |
+| **Open PR** | Fill out the [pull request template](../../.github/pull_request_template.md). Include `Closes #<issue-number>`, summary, test plan, risks, and human-review notes. |
+| **Comment on issue** | Post the implementation report on the source GitHub issue with PR link and review checklist. See [Issue report after PR creation](../../AGENTS.md#issue-report-after-pr-creation). |
 | **Notify user** | Task summary, branch, files changed, commands run, test result, commit hash, PR URL, risks, and human-review items. |
 | **CI** | GitHub Actions must pass; inspect logs on failure—do not guess. |
 | **Review** | Human or reviewer agent; watch Payload, migration, Cloudflare, sync risks. |

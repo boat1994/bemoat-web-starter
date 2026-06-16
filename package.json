@@ -19,7 +19,7 @@
     "generate:types:cloudflare": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
     "generate:types:payload": "cross-env NODE_OPTIONS=--no-deprecation payload generate:types",
     "guard:cloudflare-env": "node scripts/guard-cloudflare-env.mjs",
-    "guard:safety": "node scripts/guard-repo-safety.mjs",
+    "guard:safety": "node scripts/guard-repo-safety.mjs && node scripts/guard-harness-contract.mjs",
     "hooks:install": "node scripts/install-git-hooks.mjs",
     "ii": "pnpm install --ignore-workspace",
     "lint": "cross-env NODE_OPTIONS=--no-deprecation eslint . --max-warnings 0",
@@ -36,7 +36,8 @@
     "bemoat:boilerplate:check": "node scripts/check-boilerplate-drift.mjs",
     "bemoat:check": "pnpm run bemoat:guard:safety && pnpm run lint && pnpm run typecheck && pnpm run bemoat:test:int",
     "bemoat:guard:cloudflare-env": "node scripts/guard-cloudflare-env.mjs",
-    "bemoat:guard:safety": "node scripts/guard-repo-safety.mjs",
+    "bemoat:guard:harness-contract": "node scripts/guard-harness-contract.mjs",
+    "bemoat:guard:safety": "node scripts/guard-repo-safety.mjs && node scripts/guard-harness-contract.mjs",
     "bemoat:hooks:install": "node scripts/install-git-hooks.mjs",
     "bemoat:test:int": "cross-env NODE_OPTIONS=--no-deprecation vitest run --config ./vitest.config.mts",
     "smoke:deploy": "node scripts/deploy-smoke-test.mjs"

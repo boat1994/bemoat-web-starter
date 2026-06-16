@@ -36,6 +36,106 @@ Agents **may create branches, commit, push, and open PRs**, but **must not merge
 10. Notify the user (see [Final response format](#final-response-format) below)
 11. **Do not merge**
 
+### GitHub workflow requirement
+
+Agents **must complete the full branch-to-PR workflow** unless blocked.
+
+**Required flow:**
+
+1. Create a new branch from latest `main`.
+2. Implement the issue on that branch.
+3. Run relevant checks.
+4. Commit changes.
+5. Push the branch to origin.
+6. Open a pull request targeting `main`.
+7. Include `Closes #ISSUE_NUMBER` in the PR body when working from a GitHub issue.
+8. Post an implementation report comment on the source GitHub issue (see [Issue report after PR creation](#issue-report-after-pr-creation)).
+
+**Do not** stop after implementation or after opening the PR. **Do not** ask whether to commit, push, open a PR, or comment on the issue.
+
+**Only stop before the workflow is complete if:**
+
+- Checks fail and cannot be safely fixed
+- Git authentication blocks push
+- The worktree has unrelated user changes
+- The issue scope is unclear enough to risk damaging existing work
+- The source issue number is unknown
+- GitHub permissions block commenting on the issue
+
+**Reporting contract:**
+
+Before editing, report:
+
+- Branch name
+- Files inspected
+- Proposed file changes
+
+After opening or updating a PR, report:
+
+- PR URL
+- Changed files
+- Commands run
+- Test results
+- Remaining risks
+
+See also [Final response format](#final-response-format) for the full end-of-task checklist.
+
+### Issue report after PR creation
+
+When a task comes from a GitHub issue, opening the PR is not the final step.
+
+After opening the PR, agents must add a comment to the source issue with:
+
+- PR URL
+- Branch name
+- Summary of changes
+- Files changed
+- Commands run
+- Test results
+- Remaining risks
+- Human review needed
+- Next suggested step
+
+The workflow is complete only after:
+
+1. The PR is opened.
+2. The PR body includes `Closes #<issue-number>`, summary, test plan, risks, and human-review notes.
+3. The source issue has a comment linking to the PR with the implementation report.
+
+If the issue number is unknown or GitHub permissions block commenting, report the blocker in the final response.
+
+**Issue comment template:**
+
+```markdown
+## Implementation PR ready
+
+PR: <PR_URL>
+Branch: `<BRANCH_NAME>`
+
+### Summary
+- ...
+
+### Files changed
+- ...
+
+### Commands run
+- ...
+
+### Test results
+- ...
+
+### Remaining risks
+- ...
+
+### Human review needed
+- ...
+
+### Next suggested step
+Review PR, wait for CI, then merge if green.
+
+Closes when PR is merged.
+```
+
 ### Commit safety
 
 - Do not commit if checks fail
