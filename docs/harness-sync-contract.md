@@ -182,4 +182,4 @@ Current shared tests (listed in `managedPaths` in `scripts/sync-boilerplate.mjs`
 
 8. **Do not add `README.md` to `managedPaths`.** Root README is project-owned. Existing projects keep their own README. Harness documentation lives under `docs/*` and `AGENTS.md`. `tests/int/boilerplate-sync.int.spec.ts` asserts `managedPaths` does not include `README.md`.
 
-See also: [source-of-truth.md](./agent-loop/source-of-truth.md), [boilerplate-sync-command.md](./boilerplate-sync-command.md), root [README.md](../README.md#what-boilerplate-sync-updates).
+See also: [source-of-truth.md](./agent-loop/source-of-truth.md), [boilerplate-sync-command.md](./boilerplate-sync-command.md), [child-project-migration-guide.md](./child-project-migration-guide.md) (harness migration playbook for child repos), root [README.md](../README.md#what-boilerplate-sync-updates).

@@ -33,6 +33,8 @@ Sync also merges **`.gitignore`**: child ignore rules are kept and missing start
 
 It does **not** overwrite project-specific infrastructure (`wrangler.jsonc`, D1 IDs, R2 bucket names, Worker names, `.env`, secrets), root `README.md` (unless you later add it to managed paths), `pnpm-lock.yaml`, or project-specific business modules. See [source-of-truth.md](./source-of-truth.md) and [harness-sync-contract.md](../harness-sync-contract.md).
 
+For a step-by-step harness migration in child repos (audit mode, sync mode, PR conventions, rollback), use [child-project-migration-guide.md](../child-project-migration-guide.md).
+
 ## Task-only prompts
 
 Users do not need to repeat branch, check, commit, push, or PR steps in every message. Provide the task (or a GitHub issue); agents read `AGENTS.md` and this folder, then run the [Default Agent Workflow](../../AGENTS.md#default-agent-workflow) automatically unless you override it.

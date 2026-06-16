@@ -13,6 +13,7 @@ Quick map of production readiness docs for agents and humans working on Bemoat w
 | Payload schema evolution (production-safe) | [docs/schema-evolution.md](./schema-evolution.md) |
 | Architecture decisions (why, not how) | [docs/adr/README.md](./adr/README.md) |
 | Boilerplate drift check (`pnpm run boilerplate:check`) | [README § Boilerplate sync](../README.md#boilerplate-sync-command), [dev-boilerplate.md](./dev-boilerplate.md), [harness-sync-contract.md](./harness-sync-contract.md) — reports managed drift and missing seed files; customized starter app files are ignored; package script and dependency differences are informational only |
+| Child harness migration playbook | [child-project-migration-guide.md](./child-project-migration-guide.md) — readiness scoring, audit vs sync, allowed/forbidden diffs, rollback, PR body block |
 | GitHub branch protection | [Branch protection checklist](#github-branch-protection-checklist) |
 
 ## Production hardening status

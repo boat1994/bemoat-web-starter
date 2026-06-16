@@ -41,3 +41,7 @@ Harness files (guards, CI, agent docs, integration tests) change frequently. Pus
 ## Open questions
 
 - Automated sync PRs in child repos — **proposed**, not implemented. Today sync is a manual local command.
+
+## Related docs
+
+- [Child project migration guide v1](../child-project-migration-guide.md) — audit/sync checklist, diff boundaries, rollback, and stop conditions for child harness PRs

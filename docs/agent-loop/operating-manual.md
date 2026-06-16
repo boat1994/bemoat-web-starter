@@ -159,3 +159,4 @@ Task:
 | [security-and-migrations.md](./security-and-migrations.md) | Migration stop conditions |
 | [guard-pack.md](../guard-pack.md) | Central guard pack |
 | [harness-sync-contract.md](../harness-sync-contract.md) | What syncs to children |
+| [child-project-migration-guide.md](../child-project-migration-guide.md) | Child harness migration playbook |
