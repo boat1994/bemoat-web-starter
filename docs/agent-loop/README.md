@@ -76,11 +76,15 @@ task → read AGENTS.md + agent-loop → branch → edit → test → show diff 
 
 ## Agent entrypoint
 
-All coding agents should start with:
+All coding agents should start by reading:
+
+- [`AGENTS.md`](../../AGENTS.md)
+- [`docs/agent-loop/operating-manual.md`](./operating-manual.md)
+
+Then run:
 
 ```text
 superpowers:using-superpowers
-docs/agent-loop/operating-manual.md
 ```
 
 When GitHub issues, PRs, branches, or CI runs are in scope, use the GitHub skill (or `gh`) to inspect real state before acting.
