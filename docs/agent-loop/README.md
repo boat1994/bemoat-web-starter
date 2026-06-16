@@ -33,6 +33,8 @@ Sync also merges **`.gitignore`**: child ignore rules are kept and missing start
 
 It does **not** overwrite project-specific infrastructure (`wrangler.jsonc`, D1 IDs, R2 bucket names, Worker names, `.env`, secrets), root `README.md` (unless you later add it to managed paths), `pnpm-lock.yaml`, or project-specific business modules. See [source-of-truth.md](./source-of-truth.md) and [harness-sync-contract.md](../harness-sync-contract.md).
 
+For the canonical **child harness sync loop** (branch gates, sync command, validation, PR, report), see [harness-sync-workflow.md](./harness-sync-workflow.md).
+
 For a step-by-step harness migration in child repos (audit mode, sync mode, PR conventions, rollback), use the [Child project migration guide](https://github.com/boat1994/bemoat-web-starter/blob/main/docs/child-project-migration-guide.md) (starter-only).
 
 ## Task-only prompts
@@ -72,6 +74,7 @@ task → read AGENTS.md + agent-loop → git status & issue branch → edit → 
 |------|---------|
 | [starter-reading-order.md](./starter-reading-order.md) | Ordered docs for new tasks (operating manual → migration → ADRs → KB → guards → acceptance) |
 | [issue-driven-branch-workflow.md](./issue-driven-branch-workflow.md) | Issue branch gates, naming, PR open/update, harness sync closeout |
+| [harness-sync-workflow.md](./harness-sync-workflow.md) | Child project harness sync loop after starter merge |
 | [composer-issue-workflow-prompt.md](./composer-issue-workflow-prompt.md) | Paste-ready Composer/Codex prompt for issue → PR workflow |
 | [operating-manual.md](./operating-manual.md) | v1 execution manual — model roles, loop, prompt seed, stop rules |
 | [state-template.md](./state-template.md) | Session handoff between agents |
