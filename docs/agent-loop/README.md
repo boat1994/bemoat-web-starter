@@ -67,6 +67,7 @@ task → read AGENTS.md + agent-loop → branch → edit → test → show diff 
 
 | File | Purpose |
 |------|---------|
+| [operating-manual.md](./operating-manual.md) | v1 execution manual — model roles, loop, prompt seed, stop rules |
 | [state-template.md](./state-template.md) | Session handoff between agents |
 | [roles.md](./roles.md) | Builder, Reviewer, Migration, Red Team, GitHub Triage |
 | [checklist.md](./checklist.md) | Before/during/PR/CI/merge checklists |
@@ -79,6 +80,7 @@ All coding agents should start with:
 
 ```text
 superpowers:using-superpowers
+docs/agent-loop/operating-manual.md
 ```
 
 When GitHub issues, PRs, branches, or CI runs are in scope, use the GitHub skill (or `gh`) to inspect real state before acting.
