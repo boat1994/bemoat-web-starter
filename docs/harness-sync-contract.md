@@ -163,6 +163,7 @@ Current shared tests (listed in `managedPaths` in `scripts/sync-boilerplate.mjs`
 - `tests/int/harness-contract-guard.int.spec.ts`
 - `tests/int/open-next-config.int.spec.ts`
 - `tests/int/repo-safety-guard.int.spec.ts`
+- `tests/int/starter-acceptance.int.spec.ts` (acceptance contract — see [starter-acceptance-tests.md](./starter-acceptance-tests.md))
 
 ## Rules for maintainers
 
