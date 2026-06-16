@@ -110,7 +110,20 @@ It intentionally **does not** run `typecheck`, `lint`, or `build` — child proj
 | Starter repo on GitHub | child-safe CI plus [starter strict workflow](./.github/workflows/ci-starter.yml) |
 | Optional before push | pre-push hook subset (`bemoat:*` only) |
 
-## Important Cloudflare note
+### Child harness script contract
+
+Synced harness automation (`.github/workflows/ci.yml`, `.githooks/pre-push`) calls **only `bemoat:*` scripts**. Child projects should treat `bemoat:*` as the public harness API:
+
+| Script | When to use |
+|--------|-------------|
+| `bemoat:guard:safety` | Every PR (CI) and optional pre-push — repo safety + harness contract |
+| `bemoat:test:int` | Every PR (CI) and optional pre-push — shared integration tests |
+| `bemoat:guard:cloudflare-env` | Before deploy/preview when those scripts exist |
+| `bemoat:check` | Optional stricter validation when child defines `lint` and `typecheck` |
+| `bemoat:boilerplate:sync` / `bemoat:boilerplate:check` | Pull harness updates from starter |
+| `bemoat:hooks:install` | Install optional local pre-push hook |
+
+Raw scripts (`lint`, `typecheck`, `build`, `deploy`, `preview`, `check`, `guard:safety`, etc.) are starter-internal or child-local. Do not wire them into synced CI or pre-push. Full contract: [docs/harness-sync-contract.md](./docs/harness-sync-contract.md).
 
 This template is expected to run on Cloudflare Paid Workers because the bundle can exceed the free Worker size limit.
 
@@ -357,9 +370,9 @@ These paths are source-of-truth and **may be overwritten** on every sync:
 - `docs/hardening.md`, `docs/releases.md`, `docs/deploy-smoke-test.md`, `docs/cloudflare-environments.md`
 - `docs/schema-evolution.md` production-safe Payload schema evolution guide
 - `scripts/sync-boilerplate.mjs`, `scripts/check-boilerplate-drift.mjs`, `scripts/deploy-smoke-test.mjs`
-- `scripts/guard-repo-safety.mjs`, `scripts/guard-cloudflare-env.mjs`, `scripts/install-git-hooks.mjs` repository safety guards and optional git hooks
+- `scripts/guard-repo-safety.mjs`, `scripts/guard-harness-contract.mjs`, `scripts/guard-cloudflare-env.mjs`, `scripts/install-git-hooks.mjs` repository safety guards and optional git hooks
 - `.githooks/pre-push` optional local pre-push harness (install with `pnpm run hooks:install`)
-- `vitest.config.mts`, `vitest.setup.ts`, and shared harness integration tests under `tests/int/` (`api`, `repo-safety-guard`, `cloudflare-env-guard`, `boilerplate-sync`, `open-next-config`)
+- `vitest.config.mts`, `vitest.setup.ts`, and shared harness integration tests under `tests/int/` (`api`, `repo-safety-guard`, `cloudflare-env-guard`, `boilerplate-sync`, `harness-contract-guard`, `open-next-config`)
 - `docs/dev-boilerplate.md`, `docs/boilerplate-sync-command.md`, `docs/harness-sync-contract.md` boilerplate module and sync contract notes
 
 ### Package sync proposal (child-owned `package.json`)
@@ -371,7 +384,7 @@ These paths are source-of-truth and **may be overwritten** on every sync:
 - never auto-adds, removes, bumps, or rewrites `dependencies` or `devDependencies`
 - writes **`.bemoat/package-sync-proposal.md`** with script and dependency drift for human review only
 
-Managed namespaced scripts (added when missing): `bemoat:guard:safety`, `bemoat:guard:cloudflare-env`, `bemoat:test:int`, `bemoat:check`, `bemoat:boilerplate:sync`, `bemoat:boilerplate:check`, `bemoat:hooks:install`
+Managed namespaced scripts (added when missing): `bemoat:guard:safety`, `bemoat:guard:harness-contract`, `bemoat:guard:cloudflare-env`, `bemoat:test:int`, `bemoat:check`, `bemoat:boilerplate:sync`, `bemoat:boilerplate:check`, `bemoat:hooks:install`
 
 Non-namespaced script and dependency differences appear in the proposal under **Script drift report (human review only)** and **Dependency drift report (human review only)**. Synced CI and optional pre-push hooks assume only `bemoat:*` scripts exist — full `lint`, `typecheck`, `build`, and `check` baselines are follow-up work in each child project.
 

@@ -41,6 +41,7 @@ export const managedPaths = [
   'scripts/check-boilerplate-drift.mjs',
   'scripts/deploy-smoke-test.mjs',
   'scripts/guard-repo-safety.mjs',
+  'scripts/guard-harness-contract.mjs',
   'scripts/guard-cloudflare-env.mjs',
   'scripts/install-git-hooks.mjs',
 
@@ -52,6 +53,7 @@ export const managedPaths = [
   'tests/int/repo-safety-guard.int.spec.ts',
   'tests/int/cloudflare-env-guard.int.spec.ts',
   'tests/int/boilerplate-sync.int.spec.ts',
+  'tests/int/harness-contract-guard.int.spec.ts',
   'tests/int/open-next-config.int.spec.ts',
 ]
 
@@ -74,6 +76,7 @@ export const packageSyncProposalPath = '.bemoat/package-sync-proposal.md'
 /** Namespaced scripts safe to add when missing during sync. Never overwrite existing entries. */
 export const managedPackageScripts = [
   'bemoat:guard:safety',
+  'bemoat:guard:harness-contract',
   'bemoat:guard:cloudflare-env',
   'bemoat:test:int',
   'bemoat:check',

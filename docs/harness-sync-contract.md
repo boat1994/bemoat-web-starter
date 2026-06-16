@@ -11,7 +11,7 @@ The harness is everything child projects need to run the same safety rails, work
 | Agent rules | `AGENTS.md`, `.cursor/rules/*` |
 | Agent-loop docs | `docs/agent-loop/*`, `docs/hardening.md`, `docs/schema-evolution.md`, etc. |
 | GitHub workflow and templates | `.github/workflows/ci.yml` (child-safe `bemoat:*` only), PR template, issue templates |
-| Safety guards | `scripts/guard-repo-safety.mjs`, `scripts/guard-cloudflare-env.mjs` |
+| Safety guards | `scripts/guard-repo-safety.mjs`, `scripts/guard-cloudflare-env.mjs`, `scripts/guard-harness-contract.mjs` |
 | Cloudflare deploy guards | Recommended `deploy` / `preview` scripts that call `guard:cloudflare-env` |
 | Sync and drift | `scripts/sync-boilerplate.mjs`, `scripts/check-boilerplate-drift.mjs` |
 | Local git hooks | `.githooks`, `scripts/install-git-hooks.mjs`, `hooks:install` |
@@ -85,7 +85,8 @@ After sync, review **`.bemoat/package-sync-proposal.md`**. Do not apply script o
 
 Managed namespaced scripts (see `managedPackageScripts` in `scripts/sync-boilerplate.mjs`):
 
-- `bemoat:guard:safety`
+- `bemoat:guard:safety` (repo safety + harness contract)
+- `bemoat:guard:harness-contract` (standalone harness contract check)
 - `bemoat:guard:cloudflare-env`
 - `bemoat:test:int`
 - `bemoat:check`
@@ -114,6 +115,40 @@ Do **not** call these directly from synced CI or pre-push: `guard:safety`, `guar
 
 Child projects may add stricter validation later (`check`, `lint`, `typecheck`, `build`, deploy scripts) and extend their own CI or pre-push when those scripts exist. `bemoat-web-starter` itself runs full validation locally and via [`.github/workflows/ci-starter.yml`](../.github/workflows/ci-starter.yml) (starter-only, not synced).
 
+## Harness contract guard
+
+`scripts/guard-harness-contract.mjs` enforces that **child-facing automation** calls only `bemoat:*` scripts.
+
+| Child-facing path | Purpose |
+|-------------------|---------|
+| `.github/workflows/ci.yml` | Synced GitHub Actions workflow |
+| `.githooks/pre-push` | Optional local pre-push hook |
+
+Human-facing templates (`.github/pull_request_template.md`, `.github/ISSUE_TEMPLATE/agent-task.yml`) may reference raw scripts as **local developer instructions** — they are not automation entry points and are not scanned by the guard.
+
+The guard runs:
+
+- as part of `pnpm run guard:safety` and `pnpm run bemoat:guard:safety`
+- standalone via `pnpm run bemoat:guard:harness-contract`
+- in integration tests (`tests/int/harness-contract-guard.int.spec.ts`)
+
+If a maintainer adds a new child-facing automation file, add its path to `CHILD_FACING_HARNESS_PATHS` in `scripts/guard-harness-contract.mjs` and extend the guard tests.
+
+## Child harness script contract
+
+Child projects should treat **`bemoat:*` as the public harness API**. Synced CI and pre-push call only these scripts:
+
+| Script | Purpose |
+|--------|---------|
+| `bemoat:guard:safety` | Repo safety (secrets, env files, migrations) + harness contract |
+| `bemoat:test:int` | Shared Vitest integration tests |
+| `bemoat:guard:cloudflare-env` | Cloudflare deploy environment guard (when deploy scripts exist) |
+| `bemoat:check` | Optional stricter local/CI check when child defines `lint` and `typecheck` |
+| `bemoat:boilerplate:sync` / `bemoat:boilerplate:check` | Pull harness updates from starter |
+| `bemoat:hooks:install` | Install optional `.githooks/pre-push` |
+
+Raw implementation scripts (`lint`, `typecheck`, `build`, `deploy`, `preview`, `check`, `guard:safety`, etc.) are **starter-internal or child-local**. Do not call them from synced CI or pre-push templates.
+
 ## Shared integration tests
 
 All files matching `tests/int/**/*.int.spec.ts` are shared harness tests unless explicitly marked starter-only.
@@ -123,6 +158,7 @@ Current shared tests (listed in `managedPaths` in `scripts/sync-boilerplate.mjs`
 - `tests/int/api.int.spec.ts`
 - `tests/int/boilerplate-sync.int.spec.ts`
 - `tests/int/cloudflare-env-guard.int.spec.ts`
+- `tests/int/harness-contract-guard.int.spec.ts`
 - `tests/int/open-next-config.int.spec.ts`
 - `tests/int/repo-safety-guard.int.spec.ts`
 
@@ -132,14 +168,16 @@ Current shared tests (listed in `managedPaths` in `scripts/sync-boilerplate.mjs`
 
 2. **New safe namespaced script** — Add to `managedPackageScripts` if sync should add it when missing. Add starter `bemoat:*` values in this repo's `package.json`.
 
-3. **New recommended non-namespaced script** — Add to `suggestedPackageScripts` so drift appears in the package sync proposal (human review only; never auto-applied).
+3. **New child-facing automation file** — Add to `CHILD_FACING_HARNESS_PATHS` in `scripts/guard-harness-contract.mjs` and cover it in `tests/int/harness-contract-guard.int.spec.ts`.
 
-4. **New merge-keep path** — Add to `mergeKeepPaths` with merge logic in `scripts/sync-boilerplate.mjs` and drift coverage in `scripts/check-boilerplate-drift.mjs`.
+4. **New recommended non-namespaced script** — Add to `suggestedPackageScripts` so drift appears in the package sync proposal (human review only; never auto-applied).
 
-5. **Starter-only harness file** — Do not add to `managedPaths`. Document the path and reason in `STARTER_ONLY_INT_TESTS` in `tests/int/boilerplate-sync.int.spec.ts` so the contract test allows it.
+5. **New merge-keep path** — Add to `mergeKeepPaths` with merge logic in `scripts/sync-boilerplate.mjs` and drift coverage in `scripts/check-boilerplate-drift.mjs`.
 
-6. **Do not sync** `wrangler.jsonc`, resource IDs, secrets, `.env` files, or `pnpm-lock.yaml`.
+6. **Starter-only harness file** — Do not add to `managedPaths`. Document the path and reason in `STARTER_ONLY_INT_TESTS` in `tests/int/boilerplate-sync.int.spec.ts` so the contract test allows it.
 
-7. **Do not add `README.md` to `managedPaths`.** Root README is project-owned. Existing projects keep their own README. Harness documentation lives under `docs/*` and `AGENTS.md`. `tests/int/boilerplate-sync.int.spec.ts` asserts `managedPaths` does not include `README.md`.
+7. **Do not sync** `wrangler.jsonc`, resource IDs, secrets, `.env` files, or `pnpm-lock.yaml`.
+
+8. **Do not add `README.md` to `managedPaths`.** Root README is project-owned. Existing projects keep their own README. Harness documentation lives under `docs/*` and `AGENTS.md`. `tests/int/boilerplate-sync.int.spec.ts` asserts `managedPaths` does not include `README.md`.
 
 See also: [source-of-truth.md](./agent-loop/source-of-truth.md), [boilerplate-sync-command.md](./boilerplate-sync-command.md), root [README.md](../README.md#what-boilerplate-sync-updates).

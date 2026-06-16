@@ -12,6 +12,7 @@ const STARTER_ONLY_INT_TESTS: { path: string; reason: string }[] = [
 
 const MANAGED_BEMOAT_PACKAGE_SCRIPTS = [
   'bemoat:guard:safety',
+  'bemoat:guard:harness-contract',
   'bemoat:guard:cloudflare-env',
   'bemoat:test:int',
   'bemoat:check',
@@ -49,19 +50,18 @@ const FORBIDDEN_SYNCED_HARNESS_SCRIPTS = [
   'deploy',
   'deploy:app',
   'deploy:database',
+  'deploy:dev',
   'preview',
   'test:int',
+  'test',
   'generate:importmap',
   'generate:types',
 ]
 
-function extractPnpmRunScripts(content: string): string[] {
-  return [...content.matchAll(/pnpm run ([a-zA-Z0-9:_-]+)/g)].map((match) => match[1])
-}
-
 function assertChildSafeHarnessScripts(filePath: string, content: string) {
-  const scripts = extractPnpmRunScripts(content)
-  const forbidden = scripts.filter((script) => FORBIDDEN_SYNCED_HARNESS_SCRIPTS.includes(script))
+  const forbidden = [...content.matchAll(/pnpm run ([a-zA-Z0-9:_-]+)/g)]
+    .map((match) => match[1])
+    .filter((script) => FORBIDDEN_SYNCED_HARNESS_SCRIPTS.includes(script))
 
   expect(
     forbidden,
@@ -122,6 +122,7 @@ describe('boilerplate sync managed paths', () => {
       'tests/int/repo-safety-guard.int.spec.ts',
       'tests/int/cloudflare-env-guard.int.spec.ts',
       'tests/int/boilerplate-sync.int.spec.ts',
+      'tests/int/harness-contract-guard.int.spec.ts',
       'tests/int/open-next-config.int.spec.ts',
     ]
 
