@@ -67,6 +67,7 @@ task → read AGENTS.md + agent-loop → branch → edit → test → show diff 
 
 | File | Purpose |
 |------|---------|
+| [operating-manual.md](./operating-manual.md) | v1 execution manual — model roles, loop, prompt seed, stop rules |
 | [state-template.md](./state-template.md) | Session handoff between agents |
 | [roles.md](./roles.md) | Builder, Reviewer, Migration, Red Team, GitHub Triage |
 | [checklist.md](./checklist.md) | Before/during/PR/CI/merge checklists |
@@ -75,7 +76,12 @@ task → read AGENTS.md + agent-loop → branch → edit → test → show diff 
 
 ## Agent entrypoint
 
-All coding agents should start with:
+All coding agents should start by reading:
+
+- [`AGENTS.md`](../../AGENTS.md)
+- [`docs/agent-loop/operating-manual.md`](./operating-manual.md)
+
+Then run:
 
 ```text
 superpowers:using-superpowers
