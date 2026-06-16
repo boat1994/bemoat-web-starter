@@ -21,6 +21,7 @@ Child-facing automation (`.github/workflows/ci.yml`, `.githooks/pre-push`) calls
 | **Secret leak** | `scripts/guard-repo-safety.mjs` | Obvious tokens/keys, secret-like env assignments, tracked `.env*` files (except `.env.example`), Cloudflare resource IDs outside `wrangler.jsonc` | Remove secrets from tracked files; use `.env.example` with empty values; keep D1/R2 IDs in `wrangler.jsonc` only |
 | **Destructive SQL** | `scripts/guard-repo-safety.mjs` | `DROP`, `DELETE FROM`, `TRUNCATE`, `RENAME`, `ALTER COLUMN` in migration `up` sections | Use additive migrations; add `bemoat:destructive-migration-approved` only with human approval |
 | **Direct script calls** | `scripts/guard-harness-contract.mjs` | Synced CI/pre-push calling raw scripts (`lint`, `build`, `check`, `guard:safety`, …) | Call `bemoat:*` scripts from child-facing harness files |
+| **Build script contract** | `scripts/guard-build-script-contract.mjs` | `scripts.build` calling OpenNext directly; missing wrapper, `build:next`, `build:cloudflare`, or `cf:build` alias; `open-next.config.ts` missing universal build re-entry | `build` → `node scripts/build.mjs`; `build:next` → `next build`; `build:cloudflare` → `opennextjs-cloudflare build`; `cf:build` → `pnpm run build`; `open-next.config.ts` `buildCommand` → `cross-env BEMOAT_BUILD_CONTEXT=opennext-next-build pnpm run build` |
 | **Package manager drift** | `scripts/guard-package-manager.mjs` | Tracked `package-lock.json` / `yarn.lock` / `bun.lockb`; `npm`/`yarn`/`bun` install/run in harness workflows; missing `engines.pnpm` | Use pnpm only; keep `pnpm-lock.yaml`; declare `engines.pnpm` in `package.json` |
 | **Env placeholder** | `scripts/guard-env-placeholder.mjs` | Missing `.env.example`; non-placeholder values in `.env.example` | Track `.env.example` with empty or obvious placeholder values only |
 | **Cloudflare config** | `scripts/guard-cloudflare-env.mjs` | `CLOUDFLARE_ENV=production`; `env.production` in `wrangler.jsonc`; dev D1/R2 IDs matching production | Use top-level `wrangler.jsonc` for production; isolate `env.dev` bindings |
@@ -38,6 +39,8 @@ High-risk checks have fixtures under `tests/fixtures/guard/`:
 | `destructive-migration-approved.ts` | Destructive SQL with approval marker (should pass) |
 | `harness-with-forbidden-scripts.yml` | Direct script call (should fail) |
 | `harness-with-bemoat-scripts.yml` | Harness contract (should pass) |
+| `package-recursive-build.json` | Recursive OpenNext `build` script (should fail) |
+| `package-correct-build.json` | Universal build wrapper contract (should pass) |
 
 Integration tests: `tests/int/guard-pack.int.spec.ts` (plus existing `repo-safety-guard`, `harness-contract-guard`, `cloudflare-env-guard` specs).
 

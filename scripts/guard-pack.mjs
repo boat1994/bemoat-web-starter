@@ -3,6 +3,10 @@ import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import {
+  formatBuildScriptContractViolations,
+  runBuildScriptContractGuard,
+} from './guard-build-script-contract.mjs'
+import {
   formatCloudflareDeployGuardViolations,
   runCloudflareDeployGuard,
 } from './guard-cloudflare-env.mjs'
@@ -37,6 +41,12 @@ export const GUARD_PACK = [
     summary: 'Direct non-namespaced script calls in child-facing harness automation',
     run: runHarnessContractGuard,
     format: formatHarnessContractViolations,
+  },
+  {
+    id: 'build-script-contract',
+    summary: 'Next.js build vs Cloudflare OpenNext build script separation',
+    run: runBuildScriptContractGuard,
+    format: formatBuildScriptContractViolations,
   },
   {
     id: 'package-manager',

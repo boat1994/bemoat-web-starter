@@ -30,12 +30,26 @@ CLI flags beat `BEMOAT_SYNC_MODE`. Pin starter ref with `BEMOAT_BOILERPLATE_REF`
 | `seedOnlyPaths` | Skipped in harness-only; copied when missing in full mode |
 | `mergeKeepPaths` | `.gitignore` — merge, do not replace |
 | `managedPackageScripts` | Add missing `bemoat:*` only |
+| `buildContractFilePaths` | `open-next.config.ts` — only with `--apply-build-contract` |
 
 ## After sync
 
-1. Review `.bemoat/package-sync-proposal.md` — script/dependency drift is **human review only**, never auto-applied.
-2. Check `.bemoat-boilerplate-sync.json` for `syncMode` and `seedOnlyPathsSkipped`.
-3. Run `pnpm run bemoat:guard:safety` and `pnpm run bemoat:test:int` in the child.
+1. Review `.bemoat/package-sync-proposal.md` — script/dependency drift is **human review only**, never auto-applied (except build contract scripts and `open-next.config.ts` when using `--apply-build-contract`).
+2. If you used `--apply-build-contract`, review `src/payload.config.ts` for build context detection (child-owned; see `src/lib/payloadBuildContext.ts`).
+3. Check `.bemoat-boilerplate-sync.json` for `syncMode`, `seedOnlyPathsSkipped`, and `buildContractFiles`.
+4. Run `pnpm run bemoat:guard:safety` and `pnpm run bemoat:test:int` in the child.
+
+### Fix recursive OpenNext build (child rollout)
+
+After the build-contract fix is merged into `bemoat-web-starter`:
+
+```bash
+pnpm run boilerplate:sync -- --harness-only --apply-build-contract
+```
+
+This overwrites `build`, `build:next`, `build:cloudflare`, `cf:build`, `deploy:app`, and `preview` from the starter, syncs `scripts/build.mjs`, and applies `open-next.config.ts`. No manual `package.json` script edits are required for those scripts. Set the Cloudflare dashboard build command to `pnpm run build`.
+
+**Manual review after sync:** `src/payload.config.ts` is child-owned — confirm build context detection (see `src/lib/payloadBuildContext.ts`) if Cloudflare builds fail after rollout.
 
 ## Maintainer checklist (new harness file)
 

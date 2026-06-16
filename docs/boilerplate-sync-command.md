@@ -32,6 +32,47 @@ BEMOAT_SYNC_MODE=harness-only pnpm run boilerplate:sync
 BEMOAT_SYNC_MODE=full pnpm run boilerplate:check
 ```
 
+Optional environment variable for the OpenNext build script contract (CLI flag takes precedence):
+
+```bash
+BEMOAT_APPLY_BUILD_CONTRACT=1 pnpm run boilerplate:sync -- --harness-only
+```
+
+### Apply build contract (opt-in)
+
+Child projects stuck on the recursive OpenNext `build` script can apply the starter's split contract without hand-editing `package.json`:
+
+```bash
+pnpm run boilerplate:sync -- --harness-only --apply-build-contract
+```
+
+This **overwrites** these child-owned scripts from the starter `package.json`, syncs `scripts/build.mjs`, and applies build-contract files:
+
+- `build` — context-aware wrapper (`node scripts/build.mjs`) that runs OpenNext at the top level
+- `build:next` — plain Next.js `next build` for OpenNext re-entry
+- `build:cloudflare` — OpenNext Cloudflare build
+- `cf:build` — compatibility alias to `pnpm run build`
+- `deploy:app` — uses `pnpm run build` then OpenNext deploy
+- `preview` — uses `pnpm run build` then OpenNext preview
+- `open-next.config.ts` — OpenNext `buildCommand` re-enters `pnpm run build` with `BEMOAT_BUILD_CONTEXT=opennext-next-build`
+
+Default sync (without the flag) still **never** auto-overwrites other non-namespaced scripts or `open-next.config.ts`. Review remaining drift in `.bemoat/package-sync-proposal.md`.
+
+### Child-owned `src/payload.config.ts`
+
+`src/payload.config.ts` is **seed-only / child-owned**. Harness-only sync does **not** overwrite an existing child payload config. After `--apply-build-contract`, review whether your Payload config recognizes production build context. Without this, Cloudflare builds may fail when Payload tries to initialize D1/R2 bindings incorrectly.
+
+Use the starter helper `src/lib/payloadBuildContext.ts` (`isPayloadBuildContext`) or equivalent checks for:
+
+- `npm_lifecycle_event === 'build'`
+- `npm_lifecycle_event === 'build:next'`
+- `BEMOAT_BUILD_CONTEXT === 'opennext-next-build'`
+- `NEXT_PHASE === 'phase-production-build'`
+
+If your child project has a custom payload config, apply the snippet manually or in a child-specific task — sync will not overwrite it.
+
+After merge of the build-contract fix into `bemoat-web-starter`, run the command above in **bemoat** (or any child) instead of copying scripts manually.
+
 ## Sync modes
 
 | Mode | Harness rails | Starter modules (`seedOnlyPaths`) |
@@ -70,14 +111,32 @@ Default sync behavior:
 
 - adds missing **`bemoat:*` scripts** only (`bemoat:guard:safety`, `bemoat:guard:cloudflare-env`, `bemoat:test:int`, `bemoat:check`, `bemoat:boilerplate:sync`, `bemoat:boilerplate:check`, `bemoat:hooks:install`)
 - never overwrites existing **`bemoat:*` scripts**
-- never adds, overwrites, removes, renames, or reorders deploy/build/check/test scripts
+- never adds, overwrites, removes, renames, or reorders deploy/build/check/test scripts **unless** you pass **`--apply-build-contract`** (see below)
 - never auto-adds, removes, bumps, or rewrites **`dependencies`** or **`devDependencies`**
 - writes **`.bemoat/package-sync-proposal.md`** with script and dependency drift for human review only
 
-Non-namespaced script drift surfaced in the proposal (never force-applied):
+**Opt-in build contract** (`--apply-build-contract`):
+
+```bash
+pnpm run boilerplate:sync -- --harness-only --apply-build-contract
+```
+
+Overwrites `build`, `build:next`, `build:cloudflare`, `cf:build`, `deploy:app`, and `preview` from the starter, syncs `scripts/build.mjs`, and applies `open-next.config.ts` from `buildContractFilePaths`. Use when fixing the recursive OpenNext build loop in child projects. All other non-namespaced scripts remain proposal-only.
+
+**Build contract files** (`buildContractFilePaths` in `scripts/sync-boilerplate.mjs`):
+
+| File | Why opt-in sync |
+|------|-----------------|
+| `open-next.config.ts` | Sets OpenNext `buildCommand` to re-enter `pnpm run build` with `BEMOAT_BUILD_CONTEXT=opennext-next-build` |
+
+Default sync does **not** overwrite `open-next.config.ts`.
+
+**Child-owned payload config:** `src/payload.config.ts` is not synced in harness-only mode. After applying the build contract, manually review that your Payload config uses build context detection (see `src/lib/payloadBuildContext.ts` in the starter). Sync surfaces this in suggested next commands but does not overwrite child payload config.
+
+Non-namespaced script drift surfaced in the proposal (never force-applied by default):
 
 - Validation: `check`, `check:full`, `lint`, `typecheck`, `test`, `test:int`
-- Deploy safety: `build`, `deploy`, `deploy:app`, `deploy:database`, `deploy:dev`, `preview`
+- Deploy safety: `build`, `build:next`, `build:cloudflare`, `cf:build`, `deploy`, `deploy:app`, `deploy:database`, `deploy:dev`, `preview`
 - Runtime: `dev`, `start`
 
 Dependency drift surfaced in the proposal: `dependencies`, `devDependencies`
