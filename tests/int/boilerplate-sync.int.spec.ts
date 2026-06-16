@@ -23,6 +23,8 @@ const MANAGED_BEMOAT_PACKAGE_SCRIPTS = [
 
 const PROPOSAL_ONLY_PACKAGE_SCRIPTS = [
   'build',
+  'build:next',
+  'build:cloudflare',
   'cf:build',
   'deploy',
   'deploy:app',
@@ -114,6 +116,8 @@ describe('boilerplate sync managed paths', () => {
       'docs/cloudflare-environments.md',
       'docs/boilerplate-sync-command.md',
       'scripts/guard-repo-safety.mjs',
+      'scripts/guard-build-script-contract.mjs',
+      'scripts/build.mjs',
       'scripts/guard-cloudflare-env.mjs',
       'scripts/install-git-hooks.mjs',
       '.githooks',
@@ -304,12 +308,14 @@ describe('boilerplate sync managed paths', () => {
     const result = mod.applyBuildContractScripts(starterPackage, childPackage)
 
     expect(result.updatedScripts).toEqual(['build', 'deploy:app', 'preview'])
-    expect(result.addedScripts).toEqual(['cf:build'])
+    expect(result.addedScripts).toEqual(['build:next', 'build:cloudflare', 'cf:build'])
     expect(result.packageJSON.scripts.build).toBe(starterPackage.scripts.build)
+    expect(result.packageJSON.scripts['build:next']).toBe(starterPackage.scripts['build:next'])
+    expect(result.packageJSON.scripts['build:cloudflare']).toBe(starterPackage.scripts['build:cloudflare'])
     expect(result.packageJSON.scripts['cf:build']).toBe(starterPackage.scripts['cf:build'])
     expect(result.packageJSON.scripts['deploy:app']).toBe(starterPackage.scripts['deploy:app'])
     expect(result.packageJSON.scripts.preview).toBe(starterPackage.scripts.preview)
-    expect(result.packageJSON.scripts.build).toContain('next build')
+    expect(result.packageJSON.scripts.build).toContain('scripts/build.mjs')
     expect(result.packageJSON.scripts.build).not.toContain('opennextjs-cloudflare build')
     expect(result.packageJSON.scripts.check).toBe('pnpm run custom-check')
   })
@@ -366,7 +372,7 @@ describe('boilerplate sync managed paths', () => {
 
       expect(result.packageChanged).toBe(true)
       expect(result.updatedBuildContractScripts).toEqual(['build', 'deploy:app', 'preview'])
-      expect(result.appliedBuildContractScripts).toEqual(['cf:build'])
+      expect(result.appliedBuildContractScripts).toEqual(['build:next', 'build:cloudflare', 'cf:build'])
       expect(writtenPackage.scripts.build).toBe(starterPackage.scripts.build)
       expect(writtenPackage.scripts['cf:build']).toBe(starterPackage.scripts['cf:build'])
     } finally {
@@ -374,10 +380,17 @@ describe('boilerplate sync managed paths', () => {
     }
   })
 
-  it('exports buildContractPackageScripts for the OpenNext build split', async () => {
+  it('exports buildContractPackageScripts for the universal build wrapper contract', async () => {
     const mod = await import('../../scripts/sync-boilerplate.mjs')
 
-    expect(mod.buildContractPackageScripts).toEqual(['build', 'cf:build', 'deploy:app', 'preview'])
+    expect(mod.buildContractPackageScripts).toEqual([
+      'build',
+      'build:next',
+      'build:cloudflare',
+      'cf:build',
+      'deploy:app',
+      'preview',
+    ])
   })
 
   it('does not mutate dependencies or devDependencies', async () => {

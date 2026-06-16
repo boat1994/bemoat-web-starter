@@ -46,12 +46,14 @@ Child projects stuck on the recursive OpenNext `build` script can apply the star
 pnpm run boilerplate:sync -- --harness-only --apply-build-contract
 ```
 
-This **overwrites** these child-owned scripts from the starter `package.json`:
+This **overwrites** these child-owned scripts from the starter `package.json` and syncs `scripts/build.mjs`:
 
-- `build` — Next.js `next build` only
-- `cf:build` — OpenNext Cloudflare build
-- `deploy:app` — uses `cf:build` then OpenNext deploy
-- `preview` — uses `cf:build` then OpenNext preview
+- `build` — context-aware wrapper (`node scripts/build.mjs`) that runs OpenNext at the top level
+- `build:next` — plain Next.js `next build` for OpenNext re-entry
+- `build:cloudflare` — OpenNext Cloudflare build
+- `cf:build` — compatibility alias to `pnpm run build`
+- `deploy:app` — uses `pnpm run build` then OpenNext deploy
+- `preview` — uses `pnpm run build` then OpenNext preview
 
 Default sync (without the flag) still **never** auto-overwrites other non-namespaced scripts. Review remaining drift in `.bemoat/package-sync-proposal.md`.
 
@@ -105,12 +107,12 @@ Default sync behavior:
 pnpm run boilerplate:sync -- --harness-only --apply-build-contract
 ```
 
-Overwrites `build`, `cf:build`, `deploy:app`, and `preview` from the starter. Use when fixing the recursive OpenNext build loop in child projects. All other non-namespaced scripts remain proposal-only.
+Overwrites `build`, `build:next`, `build:cloudflare`, `cf:build`, `deploy:app`, and `preview` from the starter, and syncs `scripts/build.mjs`. Use when fixing the recursive OpenNext build loop in child projects. All other non-namespaced scripts remain proposal-only.
 
 Non-namespaced script drift surfaced in the proposal (never force-applied by default):
 
 - Validation: `check`, `check:full`, `lint`, `typecheck`, `test`, `test:int`
-- Deploy safety: `build`, `cf:build`, `deploy`, `deploy:app`, `deploy:database`, `deploy:dev`, `preview`
+- Deploy safety: `build`, `build:next`, `build:cloudflare`, `cf:build`, `deploy`, `deploy:app`, `deploy:database`, `deploy:dev`, `preview`
 - Runtime: `dev`, `start`
 
 Dependency drift surfaced in the proposal: `dependencies`, `devDependencies`

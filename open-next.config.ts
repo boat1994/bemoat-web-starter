@@ -3,7 +3,7 @@ import { defineCloudflareConfig } from '@opennextjs/cloudflare/config'
 
 const openNextConfig = {
   ...defineCloudflareConfig({}),
-  buildCommand: 'pnpm exec next build',
+  buildCommand: 'cross-env BEMOAT_BUILD_CONTEXT=opennext-next-build pnpm run build',
 }
 
 export default openNextConfig

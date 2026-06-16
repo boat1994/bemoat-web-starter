@@ -514,10 +514,12 @@ Set `BEMOAT_SMOKE_BASE_URL` to your deployed URL when running the optional smoke
 
 ### Build says `Unknown command: build`
 
-Make sure the build script uses pnpm and OpenNext:
+Make sure the build script uses the universal wrapper entrypoint:
 
 ```json
-"build": "cross-env NODE_OPTIONS=\"--no-deprecation --max-old-space-size=8000\" pnpm exec opennextjs-cloudflare build"
+"build": "cross-env NODE_OPTIONS=\"--no-deprecation --max-old-space-size=8000\" node scripts/build.mjs",
+"build:next": "cross-env NODE_OPTIONS=\"--no-deprecation --max-old-space-size=8000\" pnpm exec next build",
+"build:cloudflare": "cross-env NODE_OPTIONS=\"--no-deprecation --max-old-space-size=8000\" pnpm exec opennextjs-cloudflare build"
 ```
 
 Do not use `payload build`.

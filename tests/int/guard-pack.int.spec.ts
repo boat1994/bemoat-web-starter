@@ -149,6 +149,7 @@ describe('build script contract fixtures', () => {
       true,
     )
     expect(violations.some((item: { rule: string }) => item.rule === 'missing-cf-build')).toBe(true)
+    expect(violations.some((item: { rule: string }) => item.rule === 'build-must-call-wrapper')).toBe(true)
   })
 
   it('passes correct build script fixture', async () => {

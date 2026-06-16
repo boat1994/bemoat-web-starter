@@ -45,6 +45,7 @@ export const managedPaths = [
   'scripts/guard-repo-safety.mjs',
   'scripts/guard-harness-contract.mjs',
   'scripts/guard-build-script-contract.mjs',
+  'scripts/build.mjs',
   'scripts/guard-cloudflare-env.mjs',
   'scripts/guard-pack.mjs',
   'scripts/guard-package-manager.mjs',
@@ -62,6 +63,7 @@ export const managedPaths = [
   'tests/int/boilerplate-sync.int.spec.ts',
   'tests/int/harness-contract-guard.int.spec.ts',
   'tests/int/build-script-contract-guard.int.spec.ts',
+  'tests/int/build-wrapper.int.spec.ts',
   'tests/int/guard-pack.int.spec.ts',
   'tests/int/starter-acceptance.int.spec.ts',
   'tests/int/open-next-config.int.spec.ts',
@@ -102,6 +104,8 @@ export const managedPackageScripts = [
 /** Non-namespaced scripts surfaced in the package sync proposal only — never auto-applied. */
 export const suggestedPackageScripts = [
   'build',
+  'build:next',
+  'build:cloudflare',
   'cf:build',
   'deploy',
   'deploy:app',
@@ -120,9 +124,16 @@ export const suggestedPackageScripts = [
 
 /**
  * Build/deploy scripts applied only when sync runs with --apply-build-contract.
- * Keeps Next.js build separate from OpenNext cf:build for child projects.
+ * Syncs the universal build wrapper entrypoint and related scripts into child projects.
  */
-export const buildContractPackageScripts = ['build', 'cf:build', 'deploy:app', 'preview']
+export const buildContractPackageScripts = [
+  'build',
+  'build:next',
+  'build:cloudflare',
+  'cf:build',
+  'deploy:app',
+  'preview',
+]
 
 /** Recommended package.json sections surfaced in the proposal only. */
 export const suggestedPackageSections = ['dependencies', 'devDependencies']

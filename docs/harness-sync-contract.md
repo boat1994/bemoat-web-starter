@@ -78,14 +78,14 @@ Listed in `mergeKeepPaths` in `scripts/sync-boilerplate.mjs`. Drift check fails 
 |----------|---------------|
 | `bemoat:*` scripts | Managed — sync **adds missing** namespaced scripts only; **never overwrites** existing entries |
 | Non-namespaced scripts (`build`, `deploy`, `preview`, `check`, `lint`, `dev`, `start`, etc.) | **Never touched by default** — drift reported in `.bemoat/package-sync-proposal.md` (human review only) |
-| Build contract (`build`, `cf:build`, `deploy:app`, `preview`) | **Opt-in only** — pass `--apply-build-contract` to overwrite these four scripts from the starter |
+| Build contract (`build`, `build:next`, `build:cloudflare`, `cf:build`, `deploy:app`, `preview`) | **Opt-in only** — pass `--apply-build-contract` to overwrite these scripts from the starter and sync `scripts/build.mjs` |
 | `dependencies` / `devDependencies` | **Never touched** — drift reported in `.bemoat/package-sync-proposal.md` (human review only) |
 | `pnpm-lock.yaml` | Never synced |
 
-After sync, review **`.bemoat/package-sync-proposal.md`**. Do not apply script or dependency changes automatically unless you used **`--apply-build-contract`** for the four build/deploy scripts. Update `package.json` manually for other drift when desired, then run **`pnpm install`**.
+After sync, review **`.bemoat/package-sync-proposal.md`**. Do not apply script or dependency changes automatically unless you used **`--apply-build-contract`** for the build/deploy scripts. Update `package.json` manually for other drift when desired, then run **`pnpm install`**.
 
 ```bash
-# Fix recursive OpenNext build in child projects (overwrites build, cf:build, deploy:app, preview)
+# Fix recursive OpenNext build in child projects (overwrites build contract scripts + syncs scripts/build.mjs)
 pnpm run boilerplate:sync -- --harness-only --apply-build-contract
 ```
 
@@ -102,7 +102,7 @@ Managed namespaced scripts (see `managedPackageScripts` in `scripts/sync-boilerp
 
 Suggested non-namespaced scripts (reported in proposal only — never auto-applied by default):
 
-- `build`, `cf:build`, `deploy`, `deploy:app`, `deploy:database`, `deploy:dev`, `preview`
+- `build`, `build:next`, `build:cloudflare`, `cf:build`, `deploy`, `deploy:app`, `deploy:database`, `deploy:dev`, `preview`
 - `check`, `check:full`, `lint`, `typecheck`, `test`, `test:int`
 - `dev`, `start`
 

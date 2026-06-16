@@ -1,7 +1,9 @@
 {
   "scripts": {
-    "build": "cross-env NODE_OPTIONS=\"--no-deprecation --max-old-space-size=8000\" pnpm exec next build",
-    "cf:build": "cross-env NODE_OPTIONS=\"--no-deprecation --max-old-space-size=8000\" pnpm exec opennextjs-cloudflare build",
-    "deploy:app": "pnpm run cf:build && pnpm exec opennextjs-cloudflare deploy"
+    "build": "cross-env NODE_OPTIONS=\"--no-deprecation --max-old-space-size=8000\" node scripts/build.mjs",
+    "build:next": "cross-env NODE_OPTIONS=\"--no-deprecation --max-old-space-size=8000\" pnpm exec next build",
+    "build:cloudflare": "cross-env NODE_OPTIONS=\"--no-deprecation --max-old-space-size=8000\" pnpm exec opennextjs-cloudflare build",
+    "cf:build": "pnpm run build",
+    "deploy:app": "pnpm run build && pnpm exec opennextjs-cloudflare deploy"
   }
 }

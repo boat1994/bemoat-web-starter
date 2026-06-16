@@ -25,9 +25,15 @@ describe('build script contract guard', () => {
       true,
     )
     expect(violations.some((item: { rule: string }) => item.rule === 'missing-cf-build')).toBe(true)
-    expect(violations.some((item: { rule: string }) => item.rule === 'build-must-call-next-build')).toBe(
+    expect(violations.some((item: { rule: string }) => item.rule === 'build-must-call-wrapper')).toBe(
       true,
     )
+    expect(violations.some((item: { rule: string }) => item.rule === 'build-next-must-call-next-build')).toBe(
+      true,
+    )
+    expect(
+      violations.some((item: { rule: string }) => item.rule === 'build-cloudflare-must-call-opennext'),
+    ).toBe(true)
   })
 
   it('passes correct build script fixture', async () => {
@@ -39,10 +45,36 @@ describe('build script contract guard', () => {
     expect(violations).toEqual([])
   })
 
+  it('flags a missing build wrapper file', async () => {
+    const mod = await import('../../scripts/guard-build-script-contract.mjs')
+
+    const violations = mod.scanBuildWrapperContract({
+      root: fixturesRoot,
+      fileExists: () => false,
+    })
+
+    expect(violations.some((item: { rule: string }) => item.rule === 'missing-build-wrapper')).toBe(true)
+  })
+
+  it('flags a build wrapper missing the OpenNext re-entry marker', async () => {
+    const mod = await import('../../scripts/guard-build-script-contract.mjs')
+
+    const violations = mod.scanBuildWrapperContract({
+      root: process.cwd(),
+      readFile: () => 'export function resolveBuildScript() { return "build:cloudflare" }',
+    })
+
+    expect(
+      violations.some((item: { rule: string }) => item.rule === 'build-wrapper-missing-context-marker'),
+    ).toBe(true)
+  })
+
   it('is listed in managedPaths for boilerplate sync', async () => {
     const syncMod = await import('../../scripts/sync-boilerplate.mjs')
 
     expect(syncMod.managedPaths).toContain('scripts/guard-build-script-contract.mjs')
+    expect(syncMod.managedPaths).toContain('scripts/build.mjs')
     expect(syncMod.managedPaths).toContain('tests/int/build-script-contract-guard.int.spec.ts')
+    expect(syncMod.managedPaths).toContain('tests/int/build-wrapper.int.spec.ts')
   })
 })

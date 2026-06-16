@@ -33,7 +33,7 @@ CLI flags beat `BEMOAT_SYNC_MODE`. Pin starter ref with `BEMOAT_BOILERPLATE_REF`
 
 ## After sync
 
-1. Review `.bemoat/package-sync-proposal.md` — script/dependency drift is **human review only**, never auto-applied (except `build`, `cf:build`, `deploy:app`, `preview` when using `--apply-build-contract`).
+1. Review `.bemoat/package-sync-proposal.md` — script/dependency drift is **human review only**, never auto-applied (except `build`, `build:next`, `build:cloudflare`, `cf:build`, `deploy:app`, and `preview` when using `--apply-build-contract`).
 2. Check `.bemoat-boilerplate-sync.json` for `syncMode` and `seedOnlyPathsSkipped`.
 3. Run `pnpm run bemoat:guard:safety` and `pnpm run bemoat:test:int` in the child.
 
@@ -45,7 +45,7 @@ After the build-contract fix is merged into `bemoat-web-starter`:
 pnpm run boilerplate:sync -- --harness-only --apply-build-contract
 ```
 
-This overwrites `build`, `cf:build`, `deploy:app`, and `preview` from the starter. No manual `package.json` script edits are required for those four scripts. Set the Cloudflare dashboard build command to `pnpm run cf:build` (not `pnpm run build`).
+This overwrites `build`, `build:next`, `build:cloudflare`, `cf:build`, `deploy:app`, and `preview` from the starter, and syncs `scripts/build.mjs`. No manual `package.json` script edits are required for those scripts. Set the Cloudflare dashboard build command to `pnpm run build`.
 
 ## Maintainer checklist (new harness file)
 
