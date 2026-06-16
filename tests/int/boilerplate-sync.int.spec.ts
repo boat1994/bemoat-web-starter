@@ -123,6 +123,7 @@ describe('boilerplate sync managed paths', () => {
       'tests/int/cloudflare-env-guard.int.spec.ts',
       'tests/int/boilerplate-sync.int.spec.ts',
       'tests/int/harness-contract-guard.int.spec.ts',
+      'tests/int/starter-acceptance.int.spec.ts',
       'tests/int/open-next-config.int.spec.ts',
     ]
 

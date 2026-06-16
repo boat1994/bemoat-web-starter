@@ -31,6 +31,7 @@ export const managedPaths = [
   'docs/boilerplate-sync-command.md',
   'docs/harness-sync-contract.md',
   'docs/guard-pack.md',
+  'docs/starter-acceptance-tests.md',
 
   // GitHub workflow rails
   '.github/workflows/ci.yml',
@@ -60,8 +61,10 @@ export const managedPaths = [
   'tests/int/boilerplate-sync.int.spec.ts',
   'tests/int/harness-contract-guard.int.spec.ts',
   'tests/int/guard-pack.int.spec.ts',
+  'tests/int/starter-acceptance.int.spec.ts',
   'tests/int/open-next-config.int.spec.ts',
   'tests/fixtures/guard',
+  'tests/fixtures/acceptance',
 ]
 
 export const seedOnlyPaths = [
