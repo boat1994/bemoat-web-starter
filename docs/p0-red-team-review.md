@@ -1,4 +1,4 @@
-# Day 16 P0 red-team — #27, #32, #33 only
+# P0 red-team review — #27, #32, #33 only
 
 Compact red-team result for the three P0 deliverables. **Does not** red-team #26, #28, #31, or #34.
 

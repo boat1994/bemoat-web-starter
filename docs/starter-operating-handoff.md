@@ -1,22 +1,12 @@
-# Day 16 closeout
+# Starter operating handoff
 
-Compact handoff before Day 17. Day 16 built the **starter operating system**: harness contract, guard pack, agent manual, ADRs, child migration playbook, acceptance tests, and knowledge base.
+Compact handoff for the **starter operating system**: harness contract, guard pack, agent manual, ADRs, child migration playbook, acceptance tests, and knowledge base (built during Day 16).
 
-**Start Day 17 from:** latest `main` (includes PR #39 merge).
+**Start new work from:** latest `main`.
 
-## Closed issues → merged PRs
+## Day 16 deliverables
 
-| Issue | Title | PR | Priority |
-|-------|-------|-----|----------|
-| [#26](https://github.com/boat1994/bemoat-web-starter/issues/26) | Harden harness contract | [#29](https://github.com/boat1994/bemoat-web-starter/pull/29) | P0 |
-| [#27](https://github.com/boat1994/bemoat-web-starter/issues/27) | Central guard and test pack v1 | [#30](https://github.com/boat1994/bemoat-web-starter/pull/30) | P0 |
-| [#28](https://github.com/boat1994/bemoat-web-starter/issues/28) | Agent Operating Manual v1 | [#35](https://github.com/boat1994/bemoat-web-starter/pull/35) | P1 |
-| [#31](https://github.com/boat1994/bemoat-web-starter/issues/31) | Starter ADR pack v1 | [#36](https://github.com/boat1994/bemoat-web-starter/pull/36) | P1 |
-| [#32](https://github.com/boat1994/bemoat-web-starter/issues/32) | Child Project Migration Guide v1 | [#37](https://github.com/boat1994/bemoat-web-starter/pull/37) | P0 |
-| [#33](https://github.com/boat1994/bemoat-web-starter/issues/33) | Starter Acceptance Test Suite v1 | [#38](https://github.com/boat1994/bemoat-web-starter/pull/38) | P0 |
-| [#34](https://github.com/boat1994/bemoat-web-starter/issues/34) | Starter Knowledge Base v1 | [#39](https://github.com/boat1994/bemoat-web-starter/pull/39) | P1 |
-
-## Key files added or materially updated
+### Key files added or materially updated
 
 | Area | Paths |
 |------|-------|
@@ -28,7 +18,19 @@ Compact handoff before Day 17. Day 16 built the **starter operating system**: ha
 | Acceptance suite | `tests/int/starter-acceptance.int.spec.ts`, `tests/fixtures/acceptance/child-project/**`, `docs/starter-acceptance-tests.md` |
 | Knowledge base | `docs/knowledge/**` |
 
-## Validation that passed (Day 16 PRs)
+## Closed Day 16 issues
+
+| Issue | Title | PR | Priority |
+|-------|-------|-----|----------|
+| [#26](https://github.com/boat1994/bemoat-web-starter/issues/26) | Harden harness contract | [#29](https://github.com/boat1994/bemoat-web-starter/pull/29) | P0 |
+| [#27](https://github.com/boat1994/bemoat-web-starter/issues/27) | Central guard and test pack v1 | [#30](https://github.com/boat1994/bemoat-web-starter/pull/30) | P0 |
+| [#28](https://github.com/boat1994/bemoat-web-starter/issues/28) | Agent Operating Manual v1 | [#35](https://github.com/boat1994/bemoat-web-starter/pull/35) | P1 |
+| [#31](https://github.com/boat1994/bemoat-web-starter/issues/31) | Starter ADR pack v1 | [#36](https://github.com/boat1994/bemoat-web-starter/pull/36) | P1 |
+| [#32](https://github.com/boat1994/bemoat-web-starter/issues/32) | Child Project Migration Guide v1 | [#37](https://github.com/boat1994/bemoat-web-starter/pull/37) | P0 |
+| [#33](https://github.com/boat1994/bemoat-web-starter/issues/33) | Starter Acceptance Test Suite v1 | [#38](https://github.com/boat1994/bemoat-web-starter/pull/38) | P0 |
+| [#34](https://github.com/boat1994/bemoat-web-starter/issues/34) | Starter Knowledge Base v1 | [#39](https://github.com/boat1994/bemoat-web-starter/pull/39) | P1 |
+
+## Day 16 validation
 
 Starter PRs ran CI (`ci-starter.yml`): `guard:safety` → lint → typecheck → `test:int` (and build where applicable).
 
@@ -38,15 +40,15 @@ Starter PRs ran CI (`ci-starter.yml`): `guard:safety` → lint → typecheck →
 | Code | `pnpm run check` | Scripts, tests, TS changes |
 | Child-facing alias | `pnpm run bemoat:guard:safety`, `pnpm run bemoat:test:int` | Same pack/tests via `bemoat:*` contract |
 
-## What to read first (Day 17+)
+## What to read first
 
 See [starter-reading-order.md](./agent-loop/starter-reading-order.md).
 
 ## P0 red-team (human / GPT-5.5)
 
-Only [#27](https://github.com/boat1994/bemoat-web-starter/issues/27), [#32](https://github.com/boat1994/bemoat-web-starter/issues/32), [#33](https://github.com/boat1994/bemoat-web-starter/issues/33). Details: [day-16-red-team-p0.md](./day-16-red-team-p0.md).
+Only [#27](https://github.com/boat1994/bemoat-web-starter/issues/27), [#32](https://github.com/boat1994/bemoat-web-starter/issues/32), [#33](https://github.com/boat1994/bemoat-web-starter/issues/33). Details: [p0-red-team-review.md](./p0-red-team-review.md).
 
-**Verdict:** None block Day 17 start. Schedule high-model review on P0 items before first child harness migration PR.
+**Verdict:** Schedule high-model review on P0 items before first child harness migration PR.
 
 ## Remaining risks
 
@@ -80,9 +82,9 @@ Only [#27](https://github.com/boat1994/bemoat-web-starter/issues/27), [#32](http
 | `review:optional-high-model` | Review when touching that area; not a hard gate |
 | `status:ready` | Issue scoped and ready for an agent to pick up |
 | `priority:p0` | Safety, harness contract, migration, or acceptance — blocks trust if wrong |
-| `priority:p1` | Important docs/process; does not block Day 17 start |
+| `priority:p1` | Important docs/process; does not block harness adoption |
 
-### Open issues (as of closeout)
+### Open issues (as of handoff)
 
 | Check | Result |
 |-------|--------|
@@ -100,7 +102,7 @@ Only [#27](https://github.com/boat1994/bemoat-web-starter/issues/27), [#32](http
 | #33 | `priority:p0`, `review:high-model`, `status:ready` | `status:ready` stale |
 | #34 | `priority:p1`, `review:optional-high-model`, `status:ready` | `status:ready` stale |
 
-**Summary:** Priority and review labels match intent except **#27 missing `review:high-model`**. All closed issues still show `status:ready` — document only; no label edits in this closeout.
+**Summary:** Priority and review labels match intent except **#27 missing `review:high-model`**. All closed issues still show `status:ready` — document only; no label edits in this handoff.
 
 ## Composer workflow prompt
 

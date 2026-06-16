@@ -17,6 +17,6 @@ Read in this order when picking up work on **`bemoat-web-starter`** or reasoning
 - [harness-sync-contract.md](../harness-sync-contract.md) — managed vs seed-only paths (detail behind ADR 0003)
 - [source-of-truth.md](./source-of-truth.md) — starter vs child ownership table
 
-## Day 16 closeout
+## Operating handoff
 
-What changed in Day 16 and P0 red-team notes: [day-16-closeout.md](../day-16-closeout.md).
+Starter context and Day 16 history: [starter-operating-handoff.md](../starter-operating-handoff.md). P0 red-team: [p0-red-team-review.md](../p0-red-team-review.md).

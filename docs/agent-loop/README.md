@@ -79,7 +79,7 @@ task → read AGENTS.md + agent-loop → branch → edit → test → show diff 
 | [source-of-truth.md](./source-of-truth.md) | What lives in starter vs child projects |
 | [../adr/README.md](../adr/README.md) | Architecture Decision Records — why core starter choices exist |
 | [../hardening.md](../hardening.md) | Production hardening index (releases, drift check, smoke test, secrets, branch protection) |
-| [../day-16-closeout.md](../day-16-closeout.md) | Day 16 handoff — merged deliverables, label sanity, P0 red-team, risks |
+| [../starter-operating-handoff.md](../starter-operating-handoff.md) | Starter operating handoff — deliverables, label sanity, P0 red-team, risks |
 
 ## Agent entrypoint
 
