@@ -51,7 +51,9 @@ Before responding, asking clarifying questions, planning, editing files, running
 
 ## Development workflow
 
-Short task prompts are enough for agents working in this repository. The operating rules live in [AGENTS.md](./AGENTS.md), the step-by-step loop is in [docs/agent-loop](./docs/agent-loop/README.md), the [starter knowledge base](./docs/knowledge/README.md) collects short operational notes (scripts, sync, guards, common failures), [production hardening](./docs/hardening.md) indexes release tags, drift check, smoke test, secrets, and branch protection, [security and migration guardrails](./docs/agent-loop/security-and-migrations.md) define stop conditions for secrets and D1 changes, [schema evolution](./docs/schema-evolution.md) defines additive-first Payload changes for production data, GitHub issue and PR templates capture task scope, and CI validates every pull request.
+Short task prompts are enough for agents working in this repository. The operating rules live in [AGENTS.md](./AGENTS.md), the step-by-step loop is in [docs/agent-loop](./docs/agent-loop/README.md), the [issue-driven branch workflow](./docs/agent-loop/issue-driven-branch-workflow.md) (dedicated issue branch, dirty-tree stop, no edits on `main`, PR open/update), the [starter knowledge base](./docs/knowledge/README.md) collects short operational notes (scripts, sync, guards, common failures), [production hardening](./docs/hardening.md) indexes release tags, drift check, smoke test, secrets, and branch protection, [security and migration guardrails](./docs/agent-loop/security-and-migrations.md) define stop conditions for secrets and D1 changes, [schema evolution](./docs/schema-evolution.md) defines additive-first Payload changes for production data, GitHub issue and PR templates capture task scope, and CI validates every pull request.
+
+**Issue-based work:** run `git status` first, never modify `main` directly, use branch naming `<type>/<issue-number>-<short-slug>`, stop on a dirty working tree, and open or update a PR when development is complete. Paste-ready prompt: [composer-issue-workflow-prompt.md](./docs/agent-loop/composer-issue-workflow-prompt.md).
 
 ```mermaid
 flowchart TD
@@ -61,7 +63,8 @@ flowchart TD
     D -->|Yes| E[Use GitHub skill to inspect real state]
     D -->|No| F[Confirm task scope]
     E --> F
-    F --> G[Create branch from main]
+    F --> G0[git status — stop if dirty]
+    G0 --> G[Create issue branch from main — never edit main]
     G --> H[Make smallest complete change]
     H --> I[Run checks]
     I --> J{Checks pass?}
@@ -71,8 +74,11 @@ flowchart TD
     M -->|No| N[Stop and report scope violation]
     M -->|Yes| O[Commit]
     O --> P[Push branch]
-    P --> Q[Open PR]
-    Q --> R[CI runs]
+    P --> Q{PR exists for branch?}
+    Q -->|No| Q1[Open PR]
+    Q -->|Yes| Q2[Update existing PR]
+    Q1 --> R[CI runs]
+    Q2 --> R
     R --> S{CI green?}
     S -->|No| T[Inspect logs, fix in same branch]
     T --> H
