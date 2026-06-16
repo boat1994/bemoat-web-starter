@@ -12,7 +12,11 @@ Agents run the [Default Agent Workflow](../../AGENTS.md#default-agent-workflow) 
 - [ ] Confirmed correct repo: **starter** vs **child project**
 - [ ] Read issue/PR goal, acceptance criteria, allowed and forbidden paths
 - [ ] If GitHub URL, issue, PR, branch, or CI run is referenced: inspected via GitHub skill or `gh`
-- [ ] Branch created from current `main`
+- [ ] **`git status` run**; current branch confirmed
+- [ ] **Working tree clean** (or stop and report unrelated dirty changes — no file edits)
+- [ ] **Not on `main`** for issue-based work — dedicated issue branch created first ([issue-driven-branch-workflow.md](./issue-driven-branch-workflow.md))
+- [ ] Issue branch follows `<type>/<issue-number>-<short-slug>` (e.g. `fix/41-opennext-build-contract`)
+- [ ] Branch created from current `main` when starting fresh
 - [ ] No plan to copy D1 IDs, R2 names, Worker names, `.env`, or secrets across projects
 - [ ] Filled [state-template.md](./state-template.md) with task and objective
 
@@ -52,11 +56,22 @@ Stop instead of committing if the task is ambiguous, forbidden files are require
 - [ ] `pnpm run generate:types` if Payload schema changed
 - [ ] `pnpm run generate:importmap` if admin components changed
 - [ ] Branch pushed to origin
-- [ ] PR opened; template complete: goal, changes, source-of-truth impact, Payload impact, commands, test result, risk review
+- [ ] Checked whether branch already has an open PR — **open new PR** or **update existing PR** (no duplicate)
+- [ ] PR opened or updated; template complete: goal, changes, source-of-truth impact, Payload impact, commands, test result, risk review
 - [ ] Clear answer: does this belong in starter or a child project?
 - [ ] Agent notes and [state-template.md](./state-template.md) updated for reviewers
 - [ ] User notified with: task summary, branch, files changed, commands run, test result, commit hash, PR URL, risks, human review needed
 - [ ] **Did not merge** — merge is human-only
+
+## Before issue closeout (workflow / source-of-truth changes)
+
+Complete when the change affects agent docs, CI, sync scripts, guards, or harness contracts. See [issue-driven-branch-workflow.md](./issue-driven-branch-workflow.md#harness-sync-closeout-before-closing-the-issue).
+
+- [ ] Decided whether child projects need `pnpm run boilerplate:sync` after merge
+- [ ] Sync scripts, drift checks, or harness contract guards reviewed for impact
+- [ ] `boilerplate:check` / `bemoat:boilerplate:check` behavior documented or updated if needed
+- [ ] Follow-up sync issue created and linked **or** sync completed — do not close source issue until resolved
+- [ ] PR status clear before marking issue done
 
 ## CI failure
 

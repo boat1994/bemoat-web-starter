@@ -44,7 +44,7 @@ Agents **must complete the full branch-to-PR workflow** by default — branch, i
 ## High-level loop
 
 ```text
-task → read AGENTS.md + agent-loop → branch → edit → test → show diff → commit → push → open PR → comment on issue → notify user
+task → read AGENTS.md + agent-loop → git status & issue branch → edit → test → show diff → commit → push → open or update PR → comment on issue → notify user
                                                                                                                               ↓
                                                                                                         CI → review → merge (human only)
 ```
@@ -52,13 +52,14 @@ task → read AGENTS.md + agent-loop → branch → edit → test → show diff 
 | Step | What happens |
 |------|----------------|
 | **Task** | User gives a short prompt or GitHub issue. Scope, allowed files, and risks may also live in the [agent-task](../../.github/ISSUE_TEMPLATE/agent-task.yml) template. |
-| **Branch** | Short-lived branch from `main`; name reflects the task. |
+| **Branch gates** | `git status`; stop if dirty; never work on `main`; create `<type>/<issue-number>-<short-slug>` from `main`. See [issue-driven-branch-workflow.md](./issue-driven-branch-workflow.md). |
+| **Branch** | Short-lived dedicated issue branch from `main`; naming convention documented in [issue-driven-branch-workflow.md](./issue-driven-branch-workflow.md). |
 | **Edit** | Follow `AGENTS.md`, allowed paths, and [checklist.md](./checklist.md). Smallest complete change. |
 | **Test** | Run validation tier from `AGENTS.md`: docs-only → `guard:safety`; code → `check` (required). `generate:importmap` / `generate:types` when needed. |
 | **Show diff** | `git status` and diff summary before commit. |
 | **Commit** | One focused commit only if checks pass and only allowed files changed. See commit safety in `AGENTS.md`. |
 | **Push** | Push the branch to origin. |
-| **Open PR** | Fill out the [pull request template](../../.github/pull_request_template.md). Include `Closes #<issue-number>`, summary, test plan, risks, and human-review notes. |
+| **Open PR** | Open a new PR or **update the existing PR** if the branch already has one. Fill out the [pull request template](../../.github/pull_request_template.md). Include `Closes #<issue-number>`, summary, test plan, risks, and human-review notes. |
 | **Comment on issue** | Post the implementation report on the source GitHub issue with PR link and review checklist. See [Issue report after PR creation](../../AGENTS.md#issue-report-after-pr-creation). |
 | **Notify user** | Task summary, branch, files changed, commands run, test result, commit hash, PR URL, risks, and human-review items. |
 | **CI** | GitHub Actions must pass; inspect logs on failure—do not guess. |
@@ -70,7 +71,8 @@ task → read AGENTS.md + agent-loop → branch → edit → test → show diff 
 | File | Purpose |
 |------|---------|
 | [starter-reading-order.md](./starter-reading-order.md) | Ordered docs for new tasks (operating manual → migration → ADRs → KB → guards → acceptance) |
-| [composer-issue-workflow-prompt.md](./composer-issue-workflow-prompt.md) | Paste-ready Composer prompt for issue → PR workflow |
+| [issue-driven-branch-workflow.md](./issue-driven-branch-workflow.md) | Issue branch gates, naming, PR open/update, harness sync closeout |
+| [composer-issue-workflow-prompt.md](./composer-issue-workflow-prompt.md) | Paste-ready Composer/Codex prompt for issue → PR workflow |
 | [operating-manual.md](./operating-manual.md) | v1 execution manual — model roles, loop, prompt seed, stop rules |
 | [state-template.md](./state-template.md) | Session handoff between agents |
 | [roles.md](./roles.md) | Builder, Reviewer, Migration, Red Team, GitHub Triage |

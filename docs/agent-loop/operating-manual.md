@@ -15,18 +15,19 @@ Practical execution guide for Bemoat coding agents. Paste the [prompt seed](#pro
 ## Standard loop
 
 ```text
-Plan → Acceptance criteria → Implement → Test → Red team → Commit → PR → Sync upstream (if reusable)
+Plan → git status & branch gates → Acceptance criteria → Implement → Test → Red team → Commit → PR (open or update) → Sync upstream (if reusable)
 ```
 
 | Phase | Owner | Output |
 |-------|-------|--------|
 | **Plan** | GPT-5.5 | Repo (starter vs child), branch name, files to touch, validation tier, stop risks |
+| **Branch gates** | Composer 2.5 | `git status`, confirm branch, stop if dirty, never on `main`, create `<type>/<issue-number>-<short-slug>` |
 | **Acceptance criteria** | GPT-5.5 | Numbered checklist from issue; explicit out-of-scope |
 | **Implement** | Composer 2.5 | Smallest complete diff; match conventions |
 | **Test** | Composer 2.5 | Commands per [validation tier](../../AGENTS.md#validation-before-pr-and-merge) |
 | **Red team** | GPT-5.5 | Security, schema, Cloudflare, scope, overbuild — stop or fix before commit |
 | **Commit** | Composer 2.5 | One focused commit if checks pass |
-| **PR** | Composer 2.5 | Template filled; `Closes #N`; issue implementation report |
+| **PR** | Composer 2.5 | Open PR or update existing; template filled; `Closes #N`; issue implementation report |
 | **Sync upstream** | Human + agent | Reusable harness/docs → starter PR; child gets `pnpm run boilerplate:sync` |
 
 Full workflow rails: [README.md](./README.md), [checklist.md](./checklist.md), [AGENTS.md](../../AGENTS.md#default-agent-workflow).
@@ -91,6 +92,7 @@ In child repos use `pnpm run bemoat:guard:safety` and `pnpm run bemoat:check` wh
 
 - [ ] Acceptance criteria met
 - [ ] Branch pushed to origin
+- [ ] Checked for existing PR on branch — open new or update existing (no duplicate)
 - [ ] PR body: **Summary**, **Test plan**, **Risks**, **Human review needed**
 - [ ] `Closes #<issue-number>` when working from an issue
 - [ ] Source-of-truth answer: starter or child?
@@ -119,17 +121,24 @@ Deep patterns: [security-critical.mdc](../../.cursor/rules/security-critical.mdc
 Copy into Composer or Codex when starting a Bemoat task:
 
 ```text
-You are a Bemoat coding agent. Follow docs/agent-loop/operating-manual.md.
+You are a Bemoat coding agent. Follow docs/agent-loop/operating-manual.md and docs/agent-loop/issue-driven-branch-workflow.md.
 
 Repo: [bemoat-web-starter | child project name]
 Issue: [#N title + URL]
-Branch: [branch-name from issue or create docs|feat|fix/NN-short-slug]
+Branch: <type>/<issue-number>-<short-slug> (create from main if needed; never edit on main)
+
+Required first steps:
+1. git status
+2. Confirm current branch
+3. Stop if working tree is dirty with unrelated changes
+4. Never modify main directly
+5. Create issue branch if on main
 
 Roles:
-- Composer 2.5: implement, test, commit, push, PR, issue comment
+- Composer 2.5: implement, test, commit, push, PR (open or update), issue comment
 - GPT-5.5: acceptance criteria, starter-vs-child decision, red team before commit
 
-Loop: Plan → Acceptance criteria → Implement → Test → Red team → Commit → PR → (sync upstream if reusable)
+Loop: Plan → Branch gates → Acceptance criteria → Implement → Test → Red team → Commit → PR (open or update) → Harness sync closeout (if workflow change) → (sync upstream if reusable)
 
 Before editing, report: branch name, files inspected, proposed file changes, risks.
 
@@ -138,11 +147,12 @@ Rules:
 - Starter = reusable harness/docs/schema; child = wrangler, D1/R2 IDs, secrets, customer features
 - Validation: docs-only → pnpm run guard:safety; code → pnpm run check
 - Child automation: bemoat:* scripts only
-- Complete branch → implement → check → commit → push → PR → comment on issue
+- Complete branch → implement → check → commit → push → open or update PR → comment on issue
+- Before closing issue (workflow/source-of-truth): check harness sync impact; follow-up sync issue or sync step required
 - Do not merge; do not copy Cloudflare IDs or secrets across projects
-- Stop if scope unclear, destructive migration, or schema rename/type change
+- Stop if dirty tree, on main without branch, scope unclear, destructive migration, or schema rename/type change
 
-Links: AGENTS.md, docs/agent-loop/checklist.md, docs/agent-loop/source-of-truth.md
+Links: AGENTS.md, docs/agent-loop/checklist.md, docs/agent-loop/source-of-truth.md, docs/agent-loop/issue-driven-branch-workflow.md
 
 Task:
 [Paste issue body or user task here]
