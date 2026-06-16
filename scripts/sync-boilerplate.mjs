@@ -44,6 +44,7 @@ export const managedPaths = [
   'scripts/deploy-smoke-test.mjs',
   'scripts/guard-repo-safety.mjs',
   'scripts/guard-harness-contract.mjs',
+  'scripts/guard-build-script-contract.mjs',
   'scripts/guard-cloudflare-env.mjs',
   'scripts/guard-pack.mjs',
   'scripts/guard-package-manager.mjs',
@@ -60,6 +61,7 @@ export const managedPaths = [
   'tests/int/cloudflare-env-guard.int.spec.ts',
   'tests/int/boilerplate-sync.int.spec.ts',
   'tests/int/harness-contract-guard.int.spec.ts',
+  'tests/int/build-script-contract-guard.int.spec.ts',
   'tests/int/guard-pack.int.spec.ts',
   'tests/int/starter-acceptance.int.spec.ts',
   'tests/int/open-next-config.int.spec.ts',
@@ -99,6 +101,7 @@ export const managedPackageScripts = [
 /** Non-namespaced scripts surfaced in the package sync proposal only — never auto-applied. */
 export const suggestedPackageScripts = [
   'build',
+  'cf:build',
   'deploy',
   'deploy:app',
   'deploy:database',

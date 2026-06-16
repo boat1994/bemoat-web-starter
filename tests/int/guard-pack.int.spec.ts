@@ -12,6 +12,7 @@ describe('central guard pack', () => {
     expect(mod.GUARD_PACK.map((guard: { id: string }) => guard.id)).toEqual([
       'repo-safety',
       'harness-contract',
+      'build-script-contract',
       'package-manager',
       'env-placeholder',
       'cloudflare-config',
@@ -41,6 +42,7 @@ describe('central guard pack', () => {
     const syncMod = await import('../../scripts/sync-boilerplate.mjs')
 
     expect(syncMod.managedPaths).toContain('scripts/guard-pack.mjs')
+    expect(syncMod.managedPaths).toContain('scripts/guard-build-script-contract.mjs')
     expect(syncMod.managedPaths).toContain('scripts/guard-package-manager.mjs')
     expect(syncMod.managedPaths).toContain('scripts/guard-env-placeholder.mjs')
     expect(syncMod.managedPaths).toContain('scripts/guard-frontend-seo.mjs')
@@ -133,6 +135,29 @@ describe('env placeholder guard', () => {
 
     expect(violations).toHaveLength(1)
     expect(violations[0]?.rule).toBe('non-placeholder-value')
+  })
+})
+
+describe('build script contract fixtures', () => {
+  it('flags recursive OpenNext build script fixture', async () => {
+    const mod = await import('../../scripts/guard-build-script-contract.mjs')
+    const pkg = JSON.parse(readFileSync(resolve(fixturesRoot, 'package-recursive-build.json'), 'utf8'))
+
+    const violations = mod.scanBuildScriptContract(pkg.scripts, 'package.json')
+
+    expect(violations.some((item: { rule: string }) => item.rule === 'build-must-not-call-opennext')).toBe(
+      true,
+    )
+    expect(violations.some((item: { rule: string }) => item.rule === 'missing-cf-build')).toBe(true)
+  })
+
+  it('passes correct build script fixture', async () => {
+    const mod = await import('../../scripts/guard-build-script-contract.mjs')
+    const pkg = JSON.parse(readFileSync(resolve(fixturesRoot, 'package-correct-build.json'), 'utf8'))
+
+    const violations = mod.scanBuildScriptContract(pkg.scripts, 'package.json')
+
+    expect(violations).toEqual([])
   })
 })
 

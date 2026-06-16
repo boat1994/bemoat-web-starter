@@ -23,6 +23,7 @@ const MANAGED_BEMOAT_PACKAGE_SCRIPTS = [
 
 const PROPOSAL_ONLY_PACKAGE_SCRIPTS = [
   'build',
+  'cf:build',
   'deploy',
   'deploy:app',
   'deploy:database',
