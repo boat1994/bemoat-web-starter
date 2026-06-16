@@ -69,6 +69,33 @@ describe('build script contract guard', () => {
     ).toBe(true)
   })
 
+  it('flags a recursive open-next.config.ts fixture', async () => {
+    const mod = await import('../../scripts/guard-build-script-contract.mjs')
+
+    const violations = mod.scanOpenNextConfigContract({
+      root: fixturesRoot,
+      configPath: 'open-next-recursive.config.ts',
+    })
+
+    expect(
+      violations.some((item: { rule: string }) => item.rule === 'open-next-must-not-call-opennext-build'),
+    ).toBe(true)
+    expect(
+      violations.some((item: { rule: string }) => item.rule === 'open-next-missing-reentry-context'),
+    ).toBe(true)
+    expect(
+      violations.some((item: { rule: string }) => item.rule === 'open-next-missing-universal-build'),
+    ).toBe(true)
+  })
+
+  it('passes the starter open-next.config.ts contract', async () => {
+    const mod = await import('../../scripts/guard-build-script-contract.mjs')
+
+    const violations = mod.scanOpenNextConfigContract({ root: process.cwd() })
+
+    expect(violations).toEqual([])
+  })
+
   it('is listed in managedPaths for boilerplate sync', async () => {
     const syncMod = await import('../../scripts/sync-boilerplate.mjs')
 

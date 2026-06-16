@@ -18,19 +18,14 @@ import { BlogCategories } from './collections/BlogCategories'
 import { Posts } from './collections/Posts'
 import { SiteSettings } from './globals/SiteSettings'
 import { CustomOrderPage } from './globals/CustomOrderPage'
+import { isPayloadBuildContext } from './lib/payloadBuildContext'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
 const realpath = (value: string) => (fs.existsSync(value) ? fs.realpathSync(value) : '')
 
 const isCLI = process.argv.some((value) => realpath(value).endsWith(path.join('payload', 'bin.js')))
-const npmLifecycleEvent = process.env.npm_lifecycle_event ?? ''
-const isBuild =
-  npmLifecycleEvent === 'build' ||
-  npmLifecycleEvent === 'build:next' ||
-  process.env.BEMOAT_BUILD_CONTEXT === 'opennext-next-build' ||
-  process.env.NEXT_PHASE === 'phase-production-build' ||
-  process.argv.some((value) => value.match(/build$/))
+const isBuild = isPayloadBuildContext()
 const isProduction = process.env.NODE_ENV === 'production'
 const isTest = process.env.NODE_ENV === 'test'
 

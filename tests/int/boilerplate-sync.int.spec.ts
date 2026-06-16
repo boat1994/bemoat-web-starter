@@ -130,6 +130,7 @@ describe('boilerplate sync managed paths', () => {
       'tests/int/harness-contract-guard.int.spec.ts',
       'tests/int/starter-acceptance.int.spec.ts',
       'tests/int/open-next-config.int.spec.ts',
+      'tests/int/payload-build-context.int.spec.ts',
     ]
 
     for (const path of harnessPaths) {
@@ -391,6 +392,78 @@ describe('boilerplate sync managed paths', () => {
       'deploy:app',
       'preview',
     ])
+    expect(mod.buildContractFilePaths).toEqual(['open-next.config.ts'])
+    expect(mod.managedPaths).not.toContain('open-next.config.ts')
+  })
+
+  it('does not copy open-next.config.ts during default harness path sync', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const tempRoot = resolve(process.cwd(), '.tmp-boilerplate-sync-default-open-next')
+    const sourceRoot = join(tempRoot, 'source')
+    const targetRoot = join(tempRoot, 'target')
+
+    mkdirSync(sourceRoot, { recursive: true })
+    mkdirSync(targetRoot, { recursive: true })
+
+    writeFileSync(join(sourceRoot, 'open-next.config.ts'), "export default { buildCommand: 'starter' }\n")
+    writeFileSync(join(targetRoot, 'open-next.config.ts'), "export default { buildCommand: 'child' }\n")
+
+    try {
+      mod.syncPathsFromSource({
+        sourceRootPath: sourceRoot,
+        targetRootPath: targetRoot,
+        mode: mod.SYNC_MODES.HARNESS_ONLY,
+        onWarn: () => {},
+        onLog: () => {},
+      })
+
+      expect(readFileSync(join(targetRoot, 'open-next.config.ts'), 'utf8')).toContain('child')
+    } finally {
+      rmSync(tempRoot, { recursive: true, force: true })
+    }
+  })
+
+  it('applies open-next.config.ts when build contract sync opts in', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const tempRoot = resolve(process.cwd(), '.tmp-boilerplate-sync-build-contract-files-apply')
+    const sourceRoot = join(tempRoot, 'source')
+    const targetRoot = join(tempRoot, 'target')
+    const starterConfig = readFileSync(resolve(process.cwd(), 'open-next.config.ts'), 'utf8')
+
+    mkdirSync(sourceRoot, { recursive: true })
+    mkdirSync(targetRoot, { recursive: true })
+
+    writeFileSync(join(sourceRoot, 'open-next.config.ts'), starterConfig)
+    writeFileSync(
+      join(targetRoot, 'open-next.config.ts'),
+      "export default { buildCommand: 'pnpm run build:cloudflare' }\n",
+    )
+
+    try {
+      const result = mod.applyBuildContractFiles(sourceRoot, targetRoot)
+
+      expect(result.updated).toEqual(['open-next.config.ts'])
+      expect(readFileSync(join(targetRoot, 'open-next.config.ts'), 'utf8')).toBe(starterConfig)
+    } finally {
+      rmSync(tempRoot, { recursive: true, force: true })
+    }
+  })
+
+  it('records applied build contract files in sync metadata', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+
+    const metadata = mod.buildSyncMetadata({
+      syncMode: mod.SYNC_MODES.HARNESS_ONLY,
+      seedOnlyPathsSkipped: true,
+      buildContractFiles: {
+        applied: [],
+        updated: ['open-next.config.ts'],
+        skipped: [],
+      },
+    })
+
+    expect(metadata.buildContractFilePaths).toEqual(['open-next.config.ts'])
+    expect(metadata.buildContractFiles.updated).toEqual(['open-next.config.ts'])
   })
 
   it('does not mutate dependencies or devDependencies', async () => {

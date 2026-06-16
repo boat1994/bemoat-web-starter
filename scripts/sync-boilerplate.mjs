@@ -67,6 +67,7 @@ export const managedPaths = [
   'tests/int/guard-pack.int.spec.ts',
   'tests/int/starter-acceptance.int.spec.ts',
   'tests/int/open-next-config.int.spec.ts',
+  'tests/int/payload-build-context.int.spec.ts',
   'tests/fixtures/guard',
   'tests/fixtures/acceptance',
   'tests/fixtures/boilerplate-sync',
@@ -134,6 +135,12 @@ export const buildContractPackageScripts = [
   'deploy:app',
   'preview',
 ]
+
+/**
+ * Project-owned files applied only when sync runs with --apply-build-contract.
+ * Not part of default managedPaths — avoids overwriting child customizations.
+ */
+export const buildContractFilePaths = ['open-next.config.ts']
 
 /** Recommended package.json sections surfaced in the proposal only. */
 export const suggestedPackageSections = ['dependencies', 'devDependencies']
@@ -373,6 +380,38 @@ export function applyBuildContractScripts(
   }
 
   return { packageJSON: nextPackage, addedScripts, updatedScripts }
+}
+
+export function applyBuildContractFiles(
+  sourceRootPath,
+  targetRootPath,
+  filePaths = buildContractFilePaths,
+) {
+  const applied = []
+  const updated = []
+  const skipped = []
+
+  for (const relativePath of filePaths) {
+    const source = join(sourceRootPath, relativePath)
+    const destination = join(targetRootPath, relativePath)
+
+    if (!existsSync(source)) {
+      skipped.push({ path: relativePath, reason: 'missing-source' })
+      continue
+    }
+
+    const hadExisting = existsSync(destination)
+    mkdirSync(dirname(destination), { recursive: true })
+    cpSync(source, destination, { force: true })
+
+    if (hadExisting) {
+      updated.push(relativePath)
+    } else {
+      applied.push(relativePath)
+    }
+  }
+
+  return { applied, updated, skipped }
 }
 
 export function buildPackageSyncProposal(sourcePackage, targetPackage) {
@@ -697,6 +736,7 @@ export function buildSyncMetadata({
   skippedSeedFiles = [],
   mergedFiles = [],
   packageSync = { addedScripts: [], proposalPath: null },
+  buildContractFiles = { applied: [], updated: [], skipped: [] },
   syncedAt = new Date().toISOString(),
 }) {
   return {
@@ -711,6 +751,7 @@ export function buildSyncMetadata({
     managedPackageScripts,
     suggestedPackageScripts,
     buildContractPackageScripts,
+    buildContractFilePaths,
     suggestedPackageSections,
     lastSyncedManagedPaths: syncedManaged,
     seededFiles,
@@ -721,6 +762,11 @@ export function buildSyncMetadata({
       appliedBuildContractScripts: packageSync.appliedBuildContractScripts ?? [],
       updatedBuildContractScripts: packageSync.updatedBuildContractScripts ?? [],
       proposalPath: packageSync.proposalPath,
+    },
+    buildContractFiles: {
+      applied: buildContractFiles.applied ?? [],
+      updated: buildContractFiles.updated ?? [],
+      skipped: buildContractFiles.skipped ?? [],
     },
   }
 }
@@ -799,6 +845,7 @@ function printSyncReport({
   skippedSeedFiles,
   mergedFiles,
   packageSync,
+  buildContractFiles,
 }) {
   console.log(`\nSync mode: ${syncMode}`)
   if (seedOnlyPathsSkipped) {
@@ -849,6 +896,15 @@ function printSyncReport({
     console.log(`- applied build contract scripts: ${appliedBuildContract.join(', ')}`)
   }
 
+  const appliedBuildContractFiles = [
+    ...(buildContractFiles?.applied ?? []),
+    ...(buildContractFiles?.updated ?? []),
+  ]
+
+  if (appliedBuildContractFiles.length > 0) {
+    console.log(`- applied build contract files: ${appliedBuildContractFiles.join(', ')}`)
+  }
+
   if (packageSync?.proposalPath) {
     console.log(`- review suggested script/dependency changes in ${packageSync.proposalPath}`)
   }
@@ -862,10 +918,18 @@ export function getSuggestedNextCommands(
 
   if (proposalPath) {
     if (applyBuildContract) {
-      lines.push(`Review remaining drift in ${proposalPath} (build contract scripts were applied automatically)`)
+      lines.push(
+        `Review remaining drift in ${proposalPath} (build contract scripts and files were applied automatically)`,
+      )
     } else {
       lines.push(`Review ${proposalPath} and apply any package.json changes manually`)
     }
+  }
+
+  if (applyBuildContract) {
+    lines.push(
+      'Review src/payload.config.ts for build context detection (child-owned; see docs/boilerplate-sync-command.md)',
+    )
   }
 
   lines.push('pnpm install')
@@ -898,6 +962,7 @@ function main() {
   console.log(`Syncing Bemoat boilerplate from ${repo}#${ref} (${syncMode} mode)`)
   if (applyBuildContract) {
     console.log(`Applying build contract scripts: ${buildContractPackageScripts.join(', ')}`)
+    console.log(`Applying build contract files: ${buildContractFilePaths.join(', ')}`)
   }
   const git = createGitClient()
   const stashCreated = stashWorkingTreeIfNeeded(targetRoot, git)
@@ -929,6 +994,17 @@ function main() {
       ref,
       applyBuildContract,
     })
+
+    const buildContractFiles = applyBuildContract
+      ? applyBuildContractFiles(sourceRoot, targetRoot)
+      : { applied: [], updated: [], skipped: [] }
+
+    if (buildContractFiles.applied.length > 0) {
+      console.log(`[sync] applied build contract files: ${buildContractFiles.applied.join(', ')}`)
+    }
+    if (buildContractFiles.updated.length > 0) {
+      console.log(`[sync] updated build contract files: ${buildContractFiles.updated.join(', ')}`)
+    }
 
     if (packageSync.packageChanged) {
       if (packageSync.addedScripts.length > 0) {
@@ -963,6 +1039,7 @@ function main() {
           skippedSeedFiles,
           mergedFiles,
           packageSync,
+          buildContractFiles,
         }),
         null,
         2,
@@ -971,7 +1048,13 @@ function main() {
 
     rmSync(tempRoot, { recursive: true, force: true })
 
-    const pathsToCommit = [...syncedManaged, ...seededFiles, ...mergedFiles]
+    const pathsToCommit = [
+      ...syncedManaged,
+      ...seededFiles,
+      ...mergedFiles,
+      ...buildContractFiles.applied,
+      ...buildContractFiles.updated,
+    ]
     if (commitSyncedChanges(
       {
         repo,
@@ -995,6 +1078,7 @@ function main() {
       skippedSeedFiles,
       mergedFiles,
       packageSync,
+      buildContractFiles,
     })
 
     printSuggestedNextCommands(syncMode, packageSync, applyBuildContract)

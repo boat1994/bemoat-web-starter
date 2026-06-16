@@ -10,9 +10,13 @@ import {
 } from './build.mjs'
 
 export const PACKAGE_JSON_PATH = 'package.json'
+export const OPENNEXT_CONFIG_PATH = 'open-next.config.ts'
 export const BUILD_WRAPPER_INVOCATION = `node ${BUILD_WRAPPER_PATH}`
 export const OPENNEXT_BUILD_PATTERN = 'opennextjs-cloudflare build'
 export const NEXT_BUILD_PATTERN = 'next build'
+export const OPENNEXT_REENTRY_BUILD_COMMAND = 'pnpm run build'
+export const OPENNEXT_REENTRY_CONTEXT_MARKER = `${BUILD_CONTEXT_ENV}=${OPENNEXT_NEXT_BUILD_CONTEXT}`
+export const OPENNEXT_REENTRY_BUILD_COMMAND_PATTERN = /\bpnpm run build\b(?!:)/
 
 export function scanBuildScriptContract(scripts = {}, file = PACKAGE_JSON_PATH) {
   const violations = []
@@ -110,6 +114,57 @@ export function scanBuildWrapperContract({
   return violations
 }
 
+export function scanOpenNextConfigContract({
+  root = process.cwd(),
+  configPath = OPENNEXT_CONFIG_PATH,
+  readFile = (filePath) => readFileSync(filePath, 'utf8'),
+  fileExists = (filePath) => existsSync(filePath),
+} = {}) {
+  const violations = []
+  const absolutePath = resolve(root, configPath)
+
+  if (!fileExists(absolutePath)) {
+    violations.push({
+      type: 'build-script-contract',
+      file: configPath,
+      rule: 'missing-open-next-config',
+      message: `${OPENNEXT_CONFIG_PATH} is required for OpenNext re-entry into the universal build wrapper`,
+    })
+    return violations
+  }
+
+  const content = readFile(absolutePath)
+
+  if (!content.includes(OPENNEXT_REENTRY_CONTEXT_MARKER)) {
+    violations.push({
+      type: 'build-script-contract',
+      file: configPath,
+      rule: 'open-next-missing-reentry-context',
+      message: `${OPENNEXT_CONFIG_PATH} buildCommand must set ${OPENNEXT_REENTRY_CONTEXT_MARKER}`,
+    })
+  }
+
+  if (!OPENNEXT_REENTRY_BUILD_COMMAND_PATTERN.test(content)) {
+    violations.push({
+      type: 'build-script-contract',
+      file: configPath,
+      rule: 'open-next-missing-universal-build',
+      message: `${OPENNEXT_CONFIG_PATH} buildCommand must call ${OPENNEXT_REENTRY_BUILD_COMMAND}`,
+    })
+  }
+
+  if (content.includes(OPENNEXT_BUILD_PATTERN)) {
+    violations.push({
+      type: 'build-script-contract',
+      file: configPath,
+      rule: 'open-next-must-not-call-opennext-build',
+      message: `${OPENNEXT_CONFIG_PATH} buildCommand must not call opennextjs-cloudflare build directly`,
+    })
+  }
+
+  return violations
+}
+
 export function runBuildScriptContractGuard({
   root = process.cwd(),
   packageJsonPath = PACKAGE_JSON_PATH,
@@ -149,6 +204,7 @@ export function runBuildScriptContractGuard({
   return [
     ...scanBuildScriptContract(pkg.scripts, packageJsonPath),
     ...scanBuildWrapperContract({ root, readFile, fileExists }),
+    ...scanOpenNextConfigContract({ root, readFile, fileExists }),
   ]
 }
 
@@ -168,6 +224,7 @@ export function formatBuildScriptContractViolations(violations) {
     'scripts["build:next"] must run next build.',
     'scripts["build:cloudflare"] must run opennextjs-cloudflare build.',
     'scripts["cf:build"] must alias scripts.build.',
+    `${OPENNEXT_CONFIG_PATH} buildCommand must re-enter via ${OPENNEXT_REENTRY_CONTEXT_MARKER} ${OPENNEXT_REENTRY_BUILD_COMMAND}.`,
   ]
 
   for (const violation of violations) {
