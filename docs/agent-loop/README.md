@@ -70,6 +70,7 @@ task → read AGENTS.md + agent-loop → branch → edit → test → show diff 
 | File | Purpose |
 |------|---------|
 | [operating-manual.md](./operating-manual.md) | v1 execution manual — model roles, loop, prompt seed, stop rules |
+| [../knowledge/README.md](../knowledge/README.md) | Starter knowledge base — short notes on scripts, sync, guards, failures |
 | [state-template.md](./state-template.md) | Session handoff between agents |
 | [roles.md](./roles.md) | Builder, Reviewer, Migration, Red Team, GitHub Triage |
 | [checklist.md](./checklist.md) | Before/during/PR/CI/merge checklists |

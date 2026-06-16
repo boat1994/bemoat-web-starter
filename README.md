@@ -51,7 +51,7 @@ Before responding, asking clarifying questions, planning, editing files, running
 
 ## Development workflow
 
-Short task prompts are enough for agents working in this repository. The operating rules live in [AGENTS.md](./AGENTS.md), the step-by-step loop is in [docs/agent-loop](./docs/agent-loop/README.md), [production hardening](./docs/hardening.md) indexes release tags, drift check, smoke test, secrets, and branch protection, [security and migration guardrails](./docs/agent-loop/security-and-migrations.md) define stop conditions for secrets and D1 changes, [schema evolution](./docs/schema-evolution.md) defines additive-first Payload changes for production data, GitHub issue and PR templates capture task scope, and CI validates every pull request.
+Short task prompts are enough for agents working in this repository. The operating rules live in [AGENTS.md](./AGENTS.md), the step-by-step loop is in [docs/agent-loop](./docs/agent-loop/README.md), the [starter knowledge base](./docs/knowledge/README.md) collects short operational notes (scripts, sync, guards, common failures), [production hardening](./docs/hardening.md) indexes release tags, drift check, smoke test, secrets, and branch protection, [security and migration guardrails](./docs/agent-loop/security-and-migrations.md) define stop conditions for secrets and D1 changes, [schema evolution](./docs/schema-evolution.md) defines additive-first Payload changes for production data, GitHub issue and PR templates capture task scope, and CI validates every pull request.
 
 ```mermaid
 flowchart TD
