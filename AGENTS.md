@@ -36,6 +36,29 @@ Agents **may create branches, commit, push, and open PRs**, but **must not merge
 10. Notify the user (see [Final response format](#final-response-format) below)
 11. **Do not merge**
 
+### GitHub workflow requirement
+
+Agents **must complete the full branch-to-PR workflow** unless blocked.
+
+**Required flow:**
+
+1. Create a new branch from latest `main`.
+2. Implement the issue on that branch.
+3. Run relevant checks.
+4. Commit changes.
+5. Push the branch to origin.
+6. Open a pull request targeting `main`.
+7. Include `Closes #ISSUE_NUMBER` in the PR body when working from a GitHub issue.
+
+**Do not** stop after implementation. **Do not** ask whether to commit, push, or open a PR.
+
+**Only stop before PR creation if:**
+
+- Checks fail and cannot be safely fixed
+- Git authentication blocks push
+- The worktree has unrelated user changes
+- The issue scope is unclear enough to risk damaging existing work
+
 ### Commit safety
 
 - Do not commit if checks fail

@@ -37,6 +37,8 @@ It does **not** overwrite project-specific infrastructure (`wrangler.jsonc`, D1 
 
 Users do not need to repeat branch, check, commit, push, or PR steps in every message. Provide the task (or a GitHub issue); agents read `AGENTS.md` and this folder, then run the [Default Agent Workflow](../../AGENTS.md#default-agent-workflow) automatically unless you override it.
 
+Agents **must complete the full branch-to-PR workflow** by default — branch, implement, check, commit, push, open PR — without stopping after implementation or asking permission to commit/push/open PR. See [GitHub workflow requirement](../../AGENTS.md#github-workflow-requirement) for stop conditions.
+
 ## High-level loop
 
 ```text
