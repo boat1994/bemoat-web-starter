@@ -33,7 +33,7 @@ Sync also merges **`.gitignore`**: child ignore rules are kept and missing start
 
 It does **not** overwrite project-specific infrastructure (`wrangler.jsonc`, D1 IDs, R2 bucket names, Worker names, `.env`, secrets), root `README.md` (unless you later add it to managed paths), `pnpm-lock.yaml`, or project-specific business modules. See [source-of-truth.md](./source-of-truth.md) and [harness-sync-contract.md](../harness-sync-contract.md).
 
-For a step-by-step harness migration in child repos (audit mode, sync mode, PR conventions, rollback), use [child-project-migration-guide.md](../child-project-migration-guide.md).
+For a step-by-step harness migration in child repos (audit mode, sync mode, PR conventions, rollback), use the [Child project migration guide](https://github.com/boat1994/bemoat-web-starter/blob/main/docs/child-project-migration-guide.md) (starter-only).
 
 ## Task-only prompts
 
@@ -69,14 +69,17 @@ task → read AGENTS.md + agent-loop → branch → edit → test → show diff 
 
 | File | Purpose |
 |------|---------|
+| [starter-reading-order.md](./starter-reading-order.md) | Ordered docs for new tasks (operating manual → migration → ADRs → KB → guards → acceptance) |
+| [composer-issue-workflow-prompt.md](./composer-issue-workflow-prompt.md) | Paste-ready Composer prompt for issue → PR workflow |
 | [operating-manual.md](./operating-manual.md) | v1 execution manual — model roles, loop, prompt seed, stop rules |
-| [../knowledge/README.md](../knowledge/README.md) | Starter knowledge base — short notes on scripts, sync, guards, failures |
 | [state-template.md](./state-template.md) | Session handoff between agents |
 | [roles.md](./roles.md) | Builder, Reviewer, Migration, Red Team, GitHub Triage |
 | [checklist.md](./checklist.md) | Before/during/PR/CI/merge checklists |
 | [source-of-truth.md](./source-of-truth.md) | What lives in starter vs child projects |
-| [../adr/README.md](../adr/README.md) | Architecture Decision Records — why core starter choices exist |
 | [../hardening.md](../hardening.md) | Production hardening index (releases, drift check, smoke test, secrets, branch protection) |
+| [Knowledge base](https://github.com/boat1994/bemoat-web-starter/blob/main/docs/knowledge/README.md) | Starter-only — short notes on scripts, sync, guards, failures |
+| [ADR index](https://github.com/boat1994/bemoat-web-starter/blob/main/docs/adr/README.md) | Starter-only — why core starter choices exist |
+| [Starter operating handoff](https://github.com/boat1994/bemoat-web-starter/blob/main/docs/starter-operating-handoff.md) | Starter-only — deliverables, label sanity, P0 red-team, risks |
 
 ## Agent entrypoint
 
