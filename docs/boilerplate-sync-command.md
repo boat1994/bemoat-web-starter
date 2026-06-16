@@ -32,6 +32,31 @@ BEMOAT_SYNC_MODE=harness-only pnpm run boilerplate:sync
 BEMOAT_SYNC_MODE=full pnpm run boilerplate:check
 ```
 
+Optional environment variable for the OpenNext build script contract (CLI flag takes precedence):
+
+```bash
+BEMOAT_APPLY_BUILD_CONTRACT=1 pnpm run boilerplate:sync -- --harness-only
+```
+
+### Apply build contract (opt-in)
+
+Child projects stuck on the recursive OpenNext `build` script can apply the starter's split contract without hand-editing `package.json`:
+
+```bash
+pnpm run boilerplate:sync -- --harness-only --apply-build-contract
+```
+
+This **overwrites** these child-owned scripts from the starter `package.json`:
+
+- `build` — Next.js `next build` only
+- `cf:build` — OpenNext Cloudflare build
+- `deploy:app` — uses `cf:build` then OpenNext deploy
+- `preview` — uses `cf:build` then OpenNext preview
+
+Default sync (without the flag) still **never** auto-overwrites other non-namespaced scripts. Review remaining drift in `.bemoat/package-sync-proposal.md`.
+
+After merge of the build-contract fix into `bemoat-web-starter`, run the command above in **bemoat** (or any child) instead of copying scripts manually.
+
 ## Sync modes
 
 | Mode | Harness rails | Starter modules (`seedOnlyPaths`) |
@@ -70,14 +95,22 @@ Default sync behavior:
 
 - adds missing **`bemoat:*` scripts** only (`bemoat:guard:safety`, `bemoat:guard:cloudflare-env`, `bemoat:test:int`, `bemoat:check`, `bemoat:boilerplate:sync`, `bemoat:boilerplate:check`, `bemoat:hooks:install`)
 - never overwrites existing **`bemoat:*` scripts**
-- never adds, overwrites, removes, renames, or reorders deploy/build/check/test scripts
+- never adds, overwrites, removes, renames, or reorders deploy/build/check/test scripts **unless** you pass **`--apply-build-contract`** (see below)
 - never auto-adds, removes, bumps, or rewrites **`dependencies`** or **`devDependencies`**
 - writes **`.bemoat/package-sync-proposal.md`** with script and dependency drift for human review only
 
-Non-namespaced script drift surfaced in the proposal (never force-applied):
+**Opt-in build contract** (`--apply-build-contract`):
+
+```bash
+pnpm run boilerplate:sync -- --harness-only --apply-build-contract
+```
+
+Overwrites `build`, `cf:build`, `deploy:app`, and `preview` from the starter. Use when fixing the recursive OpenNext build loop in child projects. All other non-namespaced scripts remain proposal-only.
+
+Non-namespaced script drift surfaced in the proposal (never force-applied by default):
 
 - Validation: `check`, `check:full`, `lint`, `typecheck`, `test`, `test:int`
-- Deploy safety: `build`, `deploy`, `deploy:app`, `deploy:database`, `deploy:dev`, `preview`
+- Deploy safety: `build`, `cf:build`, `deploy`, `deploy:app`, `deploy:database`, `deploy:dev`, `preview`
 - Runtime: `dev`, `start`
 
 Dependency drift surfaced in the proposal: `dependencies`, `devDependencies`

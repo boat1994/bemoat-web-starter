@@ -67,6 +67,7 @@ export const managedPaths = [
   'tests/int/open-next-config.int.spec.ts',
   'tests/fixtures/guard',
   'tests/fixtures/acceptance',
+  'tests/fixtures/boilerplate-sync',
 ]
 
 export const seedOnlyPaths = [
@@ -117,6 +118,12 @@ export const suggestedPackageScripts = [
   'start',
 ]
 
+/**
+ * Build/deploy scripts applied only when sync runs with --apply-build-contract.
+ * Keeps Next.js build separate from OpenNext cf:build for child projects.
+ */
+export const buildContractPackageScripts = ['build', 'cf:build', 'deploy:app', 'preview']
+
 /** Recommended package.json sections surfaced in the proposal only. */
 export const suggestedPackageSections = ['dependencies', 'devDependencies']
 
@@ -142,6 +149,20 @@ export function parseSyncMode(argv = process.argv.slice(2), env = process.env) {
   }
 
   return mode
+}
+
+export function parseApplyBuildContract(
+  argv = process.argv.slice(2),
+  env = /** @type {NodeJS.ProcessEnv} */ (process.env),
+) {
+  const fromEnv = env.BEMOAT_APPLY_BUILD_CONTRACT === '1' || env.BEMOAT_APPLY_BUILD_CONTRACT === 'true'
+  const fromArgs = argv.includes('--apply-build-contract')
+
+  if (fromArgs && env.BEMOAT_APPLY_BUILD_CONTRACT === '0') {
+    console.warn('[sync] BEMOAT_APPLY_BUILD_CONTRACT=0 ignored because --apply-build-contract was passed')
+  }
+
+  return fromArgs || fromEnv
 }
 
 export function listPathFiles(root, relativePath = '') {
@@ -316,6 +337,33 @@ export function applyManagedPackageScripts(sourcePackage, targetPackage) {
   return { packageJSON: nextPackage, addedScripts }
 }
 
+export function applyBuildContractScripts(
+  sourcePackage,
+  targetPackage,
+  scriptNames = buildContractPackageScripts,
+) {
+  const nextPackage = structuredClone(targetPackage)
+  nextPackage.scripts = nextPackage.scripts || {}
+  const addedScripts = []
+  const updatedScripts = []
+
+  for (const scriptName of scriptNames) {
+    const sourceValue = sourcePackage.scripts?.[scriptName]
+    if (!sourceValue) continue
+
+    const previousValue = nextPackage.scripts[scriptName]
+    nextPackage.scripts[scriptName] = sourceValue
+
+    if (previousValue === undefined) {
+      addedScripts.push(scriptName)
+    } else if (previousValue !== sourceValue) {
+      updatedScripts.push(scriptName)
+    }
+  }
+
+  return { packageJSON: nextPackage, addedScripts, updatedScripts }
+}
+
 export function buildPackageSyncProposal(sourcePackage, targetPackage) {
   const missingScripts = []
   const differentScripts = []
@@ -480,6 +528,7 @@ export function syncPackageManifest({
   targetRootPath,
   repo: sourceRepo = repo,
   ref: sourceRef = ref,
+  applyBuildContract = false,
 }) {
   const sourcePackagePath = join(sourceRootPath, 'package.json')
   const targetPackagePath = join(targetRootPath, 'package.json')
@@ -487,6 +536,8 @@ export function syncPackageManifest({
   if (!existsSync(sourcePackagePath) || !existsSync(targetPackagePath)) {
     return {
       addedScripts: [],
+      appliedBuildContractScripts: [],
+      updatedBuildContractScripts: [],
       proposalPath: null,
       proposal: null,
       packageChanged: false,
@@ -495,7 +546,22 @@ export function syncPackageManifest({
 
   const sourcePackage = readJSON(sourcePackagePath)
   const targetPackage = readJSON(targetPackagePath)
-  const { packageJSON, addedScripts } = applyManagedPackageScripts(sourcePackage, targetPackage)
+  const { packageJSON: managedPackageJSON, addedScripts } = applyManagedPackageScripts(
+    sourcePackage,
+    targetPackage,
+  )
+
+  let packageJSON = managedPackageJSON
+  let appliedBuildContractScripts = []
+  let updatedBuildContractScripts = []
+
+  if (applyBuildContract) {
+    const buildContractResult = applyBuildContractScripts(sourcePackage, packageJSON)
+    packageJSON = buildContractResult.packageJSON
+    appliedBuildContractScripts = buildContractResult.addedScripts
+    updatedBuildContractScripts = buildContractResult.updatedScripts
+  }
+
   const proposal = buildPackageSyncProposal(sourcePackage, targetPackage)
   const proposalMarkdown = formatPackageSyncProposal({ repo: sourceRepo, ref: sourceRef, proposal })
   const proposalPath = join(targetRootPath, packageSyncProposalPath)
@@ -503,15 +569,22 @@ export function syncPackageManifest({
   mkdirSync(dirname(proposalPath), { recursive: true })
   writeFileSync(proposalPath, proposalMarkdown)
 
-  if (addedScripts.length > 0) {
+  const packageChanged =
+    addedScripts.length > 0 ||
+    appliedBuildContractScripts.length > 0 ||
+    updatedBuildContractScripts.length > 0
+
+  if (packageChanged) {
     writeFileSync(targetPackagePath, `${JSON.stringify(packageJSON, null, 2)}\n`)
   }
 
   return {
     addedScripts,
+    appliedBuildContractScripts,
+    updatedBuildContractScripts,
     proposalPath: packageSyncProposalPath,
     proposal,
-    packageChanged: addedScripts.length > 0,
+    packageChanged,
   }
 }
 
@@ -626,6 +699,7 @@ export function buildSyncMetadata({
     mergeKeepPaths,
     managedPackageScripts,
     suggestedPackageScripts,
+    buildContractPackageScripts,
     suggestedPackageSections,
     lastSyncedManagedPaths: syncedManaged,
     seededFiles,
@@ -633,6 +707,8 @@ export function buildSyncMetadata({
     mergedFiles,
     packageSync: {
       addedScripts: packageSync.addedScripts,
+      appliedBuildContractScripts: packageSync.appliedBuildContractScripts ?? [],
+      updatedBuildContractScripts: packageSync.updatedBuildContractScripts ?? [],
       proposalPath: packageSync.proposalPath,
     },
   }
@@ -753,16 +829,32 @@ function printSyncReport({
     console.log('- no missing bemoat:* scripts added')
   }
 
+  const appliedBuildContract = [
+    ...(packageSync?.appliedBuildContractScripts ?? []),
+    ...(packageSync?.updatedBuildContractScripts ?? []),
+  ]
+
+  if (appliedBuildContract.length > 0) {
+    console.log(`- applied build contract scripts: ${appliedBuildContract.join(', ')}`)
+  }
+
   if (packageSync?.proposalPath) {
     console.log(`- review suggested script/dependency changes in ${packageSync.proposalPath}`)
   }
 }
 
-export function getSuggestedNextCommands(syncMode, { proposalPath } = {}) {
+export function getSuggestedNextCommands(
+  syncMode,
+  { proposalPath = undefined, applyBuildContract = false } = {},
+) {
   const lines = []
 
   if (proposalPath) {
-    lines.push(`Review ${proposalPath} and apply any package.json changes manually`)
+    if (applyBuildContract) {
+      lines.push(`Review remaining drift in ${proposalPath} (build contract scripts were applied automatically)`)
+    } else {
+      lines.push(`Review ${proposalPath} and apply any package.json changes manually`)
+    }
   }
 
   lines.push('pnpm install')
@@ -779,16 +871,23 @@ export function getSuggestedNextCommands(syncMode, { proposalPath } = {}) {
   return lines
 }
 
-function printSuggestedNextCommands(syncMode, packageSync) {
+function printSuggestedNextCommands(syncMode, packageSync, applyBuildContract = false) {
   console.log('\nDone. Suggested next commands:')
-  for (const line of getSuggestedNextCommands(syncMode, { proposalPath: packageSync?.proposalPath })) {
+  for (const line of getSuggestedNextCommands(syncMode, {
+    proposalPath: packageSync?.proposalPath,
+    applyBuildContract,
+  })) {
     console.log(line)
   }
 }
 
 function main() {
   const syncMode = parseSyncMode()
+  const applyBuildContract = parseApplyBuildContract()
   console.log(`Syncing Bemoat boilerplate from ${repo}#${ref} (${syncMode} mode)`)
+  if (applyBuildContract) {
+    console.log(`Applying build contract scripts: ${buildContractPackageScripts.join(', ')}`)
+  }
   const git = createGitClient()
   const stashCreated = stashWorkingTreeIfNeeded(targetRoot, git)
 
@@ -817,10 +916,23 @@ function main() {
       targetRootPath: targetRoot,
       repo,
       ref,
+      applyBuildContract,
     })
 
     if (packageSync.packageChanged) {
-      console.log(`[sync] added missing bemoat:* scripts: ${packageSync.addedScripts.join(', ')}`)
+      if (packageSync.addedScripts.length > 0) {
+        console.log(`[sync] added missing bemoat:* scripts: ${packageSync.addedScripts.join(', ')}`)
+      }
+      if (packageSync.appliedBuildContractScripts?.length > 0) {
+        console.log(
+          `[sync] added build contract scripts: ${packageSync.appliedBuildContractScripts.join(', ')}`,
+        )
+      }
+      if (packageSync.updatedBuildContractScripts?.length > 0) {
+        console.log(
+          `[sync] updated build contract scripts: ${packageSync.updatedBuildContractScripts.join(', ')}`,
+        )
+      }
     }
 
     if (packageSync.proposalPath) {
@@ -874,7 +986,7 @@ function main() {
       packageSync,
     })
 
-    printSuggestedNextCommands(syncMode, packageSync)
+    printSuggestedNextCommands(syncMode, packageSync, applyBuildContract)
   } finally {
     rmSync(tempRoot, { recursive: true, force: true })
     restoreStashIfNeeded(targetRoot, stashCreated, git)

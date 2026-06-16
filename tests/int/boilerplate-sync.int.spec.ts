@@ -271,6 +271,115 @@ describe('boilerplate sync managed paths', () => {
     expect(result.packageJSON.scripts).toEqual(targetPackage.scripts)
   })
 
+  it('parses --apply-build-contract from argv and BEMOAT_APPLY_BUILD_CONTRACT env', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+
+    expect(mod.parseApplyBuildContract(['--harness-only', '--apply-build-contract'], process.env)).toBe(
+      true,
+    )
+    expect(
+      mod.parseApplyBuildContract(['--harness-only'], {
+        ...process.env,
+        BEMOAT_APPLY_BUILD_CONTRACT: '1',
+      }),
+    ).toBe(true)
+    expect(
+      mod.parseApplyBuildContract(['--harness-only'], {
+        ...process.env,
+        BEMOAT_APPLY_BUILD_CONTRACT: undefined,
+      }),
+    ).toBe(false)
+  })
+
+  it('applies build contract scripts from starter onto a child with recursive OpenNext build', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const starterPackage = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf8'))
+    const childPackage = JSON.parse(
+      readFileSync(
+        resolve(process.cwd(), 'tests/fixtures/boilerplate-sync/child-recursive-build-package.json'),
+        'utf8',
+      ),
+    )
+
+    const result = mod.applyBuildContractScripts(starterPackage, childPackage)
+
+    expect(result.updatedScripts).toEqual(['build', 'deploy:app', 'preview'])
+    expect(result.addedScripts).toEqual(['cf:build'])
+    expect(result.packageJSON.scripts.build).toBe(starterPackage.scripts.build)
+    expect(result.packageJSON.scripts['cf:build']).toBe(starterPackage.scripts['cf:build'])
+    expect(result.packageJSON.scripts['deploy:app']).toBe(starterPackage.scripts['deploy:app'])
+    expect(result.packageJSON.scripts.preview).toBe(starterPackage.scripts.preview)
+    expect(result.packageJSON.scripts.build).toContain('next build')
+    expect(result.packageJSON.scripts.build).not.toContain('opennextjs-cloudflare build')
+    expect(result.packageJSON.scripts.check).toBe('pnpm run custom-check')
+  })
+
+  it('does not apply build contract scripts by default during managed package sync', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const childPackage = JSON.parse(
+      readFileSync(
+        resolve(process.cwd(), 'tests/fixtures/boilerplate-sync/child-recursive-build-package.json'),
+        'utf8',
+      ),
+    )
+    const starterPackage = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf8'))
+
+    for (const scriptName of mod.managedPackageScripts) {
+      childPackage.scripts[scriptName] = starterPackage.scripts[scriptName]
+    }
+
+    const result = mod.applyManagedPackageScripts(starterPackage, childPackage)
+
+    expect(result.addedScripts).toEqual([])
+    expect(result.packageJSON.scripts.build).toContain('opennextjs-cloudflare build')
+    expect(result.packageJSON.scripts['cf:build']).toBeUndefined()
+  })
+
+  it('writes build contract scripts when syncPackageManifest opts in', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const tempRoot = resolve(process.cwd(), '.tmp-boilerplate-sync-build-contract')
+    const sourceRoot = join(tempRoot, 'source')
+    const targetRoot = join(tempRoot, 'target')
+
+    mkdirSync(sourceRoot, { recursive: true })
+    mkdirSync(targetRoot, { recursive: true })
+
+    const starterPackage = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf8'))
+    const childPackage = JSON.parse(
+      readFileSync(
+        resolve(process.cwd(), 'tests/fixtures/boilerplate-sync/child-recursive-build-package.json'),
+        'utf8',
+      ),
+    )
+
+    writeFileSync(join(sourceRoot, 'package.json'), `${JSON.stringify(starterPackage, null, 2)}\n`)
+    writeFileSync(join(targetRoot, 'package.json'), `${JSON.stringify(childPackage, null, 2)}\n`)
+
+    try {
+      const result = mod.syncPackageManifest({
+        sourceRootPath: sourceRoot,
+        targetRootPath: targetRoot,
+        applyBuildContract: true,
+      })
+
+      const writtenPackage = JSON.parse(readFileSync(join(targetRoot, 'package.json'), 'utf8'))
+
+      expect(result.packageChanged).toBe(true)
+      expect(result.updatedBuildContractScripts).toEqual(['build', 'deploy:app', 'preview'])
+      expect(result.appliedBuildContractScripts).toEqual(['cf:build'])
+      expect(writtenPackage.scripts.build).toBe(starterPackage.scripts.build)
+      expect(writtenPackage.scripts['cf:build']).toBe(starterPackage.scripts['cf:build'])
+    } finally {
+      rmSync(tempRoot, { recursive: true, force: true })
+    }
+  })
+
+  it('exports buildContractPackageScripts for the OpenNext build split', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+
+    expect(mod.buildContractPackageScripts).toEqual(['build', 'cf:build', 'deploy:app', 'preview'])
+  })
+
   it('does not mutate dependencies or devDependencies', async () => {
     const mod = await import('../../scripts/sync-boilerplate.mjs')
 
