@@ -172,9 +172,11 @@ Stop and report instead of committing when:
 - The task is ambiguous
 - Forbidden files are required
 - Checks fail for unrelated reasons
-- Secrets, Cloudflare resource IDs, D1 migrations, destructive schema changes, or production deploy actions are involved—see [docs/agent-loop/security-and-migrations.md](./docs/agent-loop/security-and-migrations.md)
+- Secrets, Cloudflare resource IDs, or production deploy actions are involved—see [docs/agent-loop/security-and-migrations.md](./docs/agent-loop/security-and-migrations.md)
 - The task requires **unsafe Payload schema mutation**—see [Production Schema Evolution Rules](#production-schema-evolution-rules)
 - The change belongs in a child project instead of `bemoat-web-starter`
+
+**Migration draft PR mode** (not a stop): when the diff touches `src/migrations/**`, Payload/D1 migration files, or schema drift fixes requiring a migration, agents may commit, push, and open a **draft** PR after checks pass. See [docs/agent-loop/migration-draft-pr.md](./docs/agent-loop/migration-draft-pr.md). Agents must **not** mark ready for review, merge, enable auto-merge, run production migrations, deploy production, or run destructive rollback without separate explicit human approval.
 
 ### Final response format
 
@@ -206,6 +208,15 @@ Agents must run the correct validation tier **before commit and PR**. **CI is th
 | **Code changes** (TypeScript, scripts, tests, components, collections, hooks) | `pnpm run check` | **Required** — runs `guard:safety` + `lint` + `typecheck` + `test:int`. **Lint must pass with zero warnings** — fix every warning before commit/PR. |
 | **Payload schema changes** | `pnpm run check` + `pnpm run generate:types` | Include migration in PR when D1 schema changes |
 | **Admin component changes** | `pnpm run check` + `pnpm run generate:importmap` | |
+| **D1 / Payload migration files** | Same tier as triggering change + `generate:types` if schema changed | Open **draft** PR only; title prefix `[D1 Migration]`, `[Payload Migration]`, or `[DB Migration]`; see [migration-draft-pr.md](./docs/agent-loop/migration-draft-pr.md) |
+
+### Migration draft PR (agents)
+
+When migration files are in the diff, complete the normal branch → check → commit → push workflow and open the PR as **draft**. Required PR body: migration summary, files changed, exact checks and results, confirmation that no production migration or deploy was run, `down()` destructive-SQL warning if applicable, and human review checklist.
+
+**Forbidden without separate explicit human approval:** mark ready for review, merge, enable auto-merge, production D1/Payload migration, production deploy, destructive rollback or `down()` migration.
+
+Full policy: [docs/agent-loop/migration-draft-pr.md](./docs/agent-loop/migration-draft-pr.md).
 
 ### Before merge (human)
 

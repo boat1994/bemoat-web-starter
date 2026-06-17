@@ -1,8 +1,10 @@
 # Security and migration guardrails
 
-Agents must **stop and ask for explicit human approval** before committing or deploying changes that touch secrets, Cloudflare resource identifiers, database migrations, or production infrastructure.
+Agents must **stop and ask for explicit human approval** before committing or deploying changes that touch **secrets**, **Cloudflare resource identifiers**, or **production infrastructure**.
 
-Use with [checklist.md](./checklist.md) and [source-of-truth.md](./source-of-truth.md).
+**Database migrations** use [migration draft PR mode](./migration-draft-pr.md): agents may commit, push, and open a **draft** PR after checks pass. Production migration, deploy, merge, and ready-for-review still require explicit human approval.
+
+Use with [checklist.md](./checklist.md), [migration-draft-pr.md](./migration-draft-pr.md), and [source-of-truth.md](./source-of-truth.md).
 
 ## Programmatic guard
 
@@ -44,6 +46,15 @@ Migration `down` rollback SQL is ignored. See [hardening.md](../hardening.md).
 
 ## Migration guard
 
+**Migration draft PR mode** — when `src/migrations/**`, migration registration, or schema drift fixes are in the diff:
+
+- Run checks, commit, push, and open a **draft** PR automatically after checks pass
+- PR title: `[D1 Migration]`, `[Payload Migration]`, or `[DB Migration]` prefix
+- PR must stay draft; include migration safety checklist and confirm no production migration or deploy was run
+- **Require human review** before ready-for-review, merge, or production migration—migrations are hard to undo
+
+Full workflow: [migration-draft-pr.md](./migration-draft-pr.md).
+
 **Payload schema changes**
 
 - Run `pnpm run generate:types` before commit
@@ -56,8 +67,7 @@ Migration `down` rollback SQL is ignored. See [hardening.md](../hardening.md).
 **D1 schema changes**
 
 - Create a migration: `pnpm payload migrate:create`
-- Include the migration file in the PR
-- **Require human review** before merge—migrations are hard to undo
+- Include the migration file in the draft PR
 
 **Destructive migrations**
 
@@ -117,6 +127,8 @@ Hidden after new field is stable:
 
 - Never run production migrations automatically unless the human explicitly approved that step in the task
 - Never deploy to production (`wrangler deploy`, production CI, or equivalent) unless explicitly requested and approved
+- Never mark a migration PR ready for review, merge, or enable auto-merge without explicit human approval
+- Never run destructive rollback or `down()` migration against production or shared databases without explicit human approval
 - Local and preview migrations are fine when the task calls for them; production is not
 
 ## Pre-commit quick check
@@ -140,4 +152,11 @@ Optional pre-push (`pnpm run hooks:install`) runs guard + typecheck + test:int o
 
 ## When to stop instead of commit
 
-Stop and report when any of the above applies, when forbidden paths are required, or when the change belongs in a child project instead of `bemoat-web-starter`.
+Stop and report when:
+
+- Secrets, Cloudflare resource IDs, or production deploy actions are required (not migration files alone)
+- Destructive migration `up()` SQL without `bemoat:destructive-migration-approved` and human approval
+- Unsafe Payload schema mutation (rename, type swap, relation change) without additive replacement
+- Forbidden paths are required, or the change belongs in a child project instead of `bemoat-web-starter`
+
+**Do not stop** solely because migration files are in the diff—use [migration draft PR mode](./migration-draft-pr.md) instead.

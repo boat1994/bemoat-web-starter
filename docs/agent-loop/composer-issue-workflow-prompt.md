@@ -74,9 +74,11 @@ Do not commit if checks fail.
    - Risks
    - Human review needed
    - Closes #N (when issue-driven)
-6. If a PR already exists: update its description and/or add a comment summarizing completed work — do not open a duplicate PR
-7. Do not mark the issue done until PR status is clear
-8. Do not merge — human only
+6. **Migration PR:** use `gh pr create --draft`; title prefix `[D1 Migration]`, `[Payload Migration]`, or `[DB Migration]`; include migration safety section per docs/agent-loop/migration-draft-pr.md
+7. If a PR already exists: update its description and/or add a comment summarizing completed work — do not open a duplicate PR
+8. Do not mark the issue done until PR status is clear
+9. Do not merge — human only
+10. **Migration PR:** do not mark ready for review, enable auto-merge, run production migration/deploy, or destructive rollback without explicit human approval
 
 ## Issue comment (required when issue-driven)
 Post implementation report on the source issue:
@@ -96,13 +98,20 @@ Post implementation report on the source issue:
 - Working tree is dirty with unrelated changes
 - On main without creating an issue branch first
 - Scope creep or acceptance criteria unclear
-- Destructive migration without bemoat:destructive-migration-approved
-- Payload field rename, type swap, or relation target/cardinality change
+- Destructive migration `up()` without bemoat:destructive-migration-approved
+- Payload field rename, type swap, or relation target/cardinality change (without additive replacement)
 - Forbidden files required (.env, secrets, copied resource IDs)
+- Production deploy or production migration explicitly requested without human approval
 - Checks fail for unrelated reasons — report output, no drive-by refactors
 - Work belongs in the other repo (starter vs child)
 - Git auth blocks push or worktree has unrelated user changes
 - Need GPT-5.5 / high-model review per issue labels or P0 harness work
+
+## Migration draft PR (do not stop for migration files alone)
+When src/migrations/** or migration registration changes are in scope:
+- Run checks, commit, push, open draft PR automatically after checks pass
+- See docs/agent-loop/migration-draft-pr.md
+- Forbidden without separate human approval: ready for review, merge, auto-merge, production migration, production deploy, destructive rollback
 
 ## Task
 [Paste issue body or user task here]

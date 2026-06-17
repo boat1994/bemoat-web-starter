@@ -199,4 +199,5 @@ When `pnpm run boilerplate:sync` updates harness rails from the starter:
 
 - [Deploy smoke test](./deploy-smoke-test.md) — verify a deploy after production or dev release
 - [README § Deploy](../README.md#cloudflare-environments-production-vs-dev) — starter overview
-- [Security and migrations](./agent-loop/security-and-migrations.md) — stop conditions for production deploys and D1 changes
+- [Security and migrations](./agent-loop/security-and-migrations.md) — secrets, production deploy gates
+- [Migration draft PR](./agent-loop/migration-draft-pr.md) — agent draft PR workflow for D1/Payload migrations

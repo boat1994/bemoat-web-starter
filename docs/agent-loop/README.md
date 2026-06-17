@@ -61,7 +61,7 @@ task → read AGENTS.md + agent-loop → git status & issue branch → edit → 
 | **Show diff** | `git status` and diff summary before commit. |
 | **Commit** | One focused commit only if checks pass and only allowed files changed. See commit safety in `AGENTS.md`. |
 | **Push** | Push the branch to origin. |
-| **Open PR** | Open a new PR or **update the existing PR** if the branch already has one. Fill out the [pull request template](../../.github/pull_request_template.md). Include `Closes #<issue-number>`, summary, test plan, risks, and human-review notes. |
+| **Open PR** | Open a new PR or **update the existing PR** if the branch already has one. Fill out the [pull request template](../../.github/pull_request_template.md). Include `Closes #<issue-number>`, summary, test plan, risks, and human-review notes. **Migration PRs:** draft only — see [migration-draft-pr.md](./migration-draft-pr.md). |
 | **Comment on issue** | Post the implementation report on the source GitHub issue with PR link and review checklist. See [Issue report after PR creation](../../AGENTS.md#issue-report-after-pr-creation). |
 | **Notify user** | Task summary, branch, files changed, commands run, test result, commit hash, PR URL, risks, and human-review items. |
 | **CI** | GitHub Actions must pass; inspect logs on failure—do not guess. |
@@ -79,6 +79,8 @@ task → read AGENTS.md + agent-loop → git status & issue branch → edit → 
 | [operating-manual.md](./operating-manual.md) | v1 execution manual — model roles, loop, prompt seed, stop rules |
 | [state-template.md](./state-template.md) | Session handoff between agents |
 | [roles.md](./roles.md) | Builder, Reviewer, Migration, Red Team, GitHub Triage |
+| [security-and-migrations.md](./security-and-migrations.md) | Secrets, guards, production deploy gates |
+| [migration-draft-pr.md](./migration-draft-pr.md) | Draft PR workflow for D1/Payload migrations |
 | [checklist.md](./checklist.md) | Before/during/PR/CI/merge checklists |
 | [source-of-truth.md](./source-of-truth.md) | What lives in starter vs child projects |
 | [../hardening.md](../hardening.md) | Production hardening index (releases, drift check, smoke test, secrets, branch protection) |

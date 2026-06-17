@@ -54,7 +54,7 @@ Stop and report (do not commit) when any of these is true:
 | Trigger | Action |
 |---------|--------|
 | Task exceeds issue acceptance criteria | Stop; list extras; wait for approval |
-| Fix requires forbidden files (secrets, prod IDs, destructive migration) | Stop; see [security-and-migrations.md](./security-and-migrations.md) |
+| Fix requires forbidden files (secrets, prod IDs, destructive `up()` without approval marker) | Stop; see [security-and-migrations.md](./security-and-migrations.md) |
 | Payload field rename, type swap, or relation target/cardinality change | Stop; propose additive alternative per [schema-evolution.md](../schema-evolution.md) |
 | Checks fail for unrelated pre-existing reasons | Report exact output; no drive-by refactors |
 | Change belongs in child but you are in starter (or vice versa) | Stop; redirect repo |
@@ -86,7 +86,9 @@ In child repos use `pnpm run bemoat:guard:safety` and `pnpm run bemoat:check` wh
 - [ ] Exactly one focused commit (unless issue requires more)
 - [ ] Commit message states **why**, not a file list
 
-**Do not commit if:** checks fail, forbidden files required, destructive migration without approval, or red-team stop triggered.
+**Do not commit if:** checks fail, forbidden files required, destructive `up()` migration without approval marker, or red-team stop triggered.
+
+**Migration files alone:** commit, push, and open **draft** PR after checks — [migration-draft-pr.md](./migration-draft-pr.md).
 
 ## PR checklist
 
@@ -96,7 +98,8 @@ In child repos use `pnpm run bemoat:guard:safety` and `pnpm run bemoat:check` wh
 - [ ] PR body: **Summary**, **Test plan**, **Risks**, **Human review needed**
 - [ ] `Closes #<issue-number>` when working from an issue
 - [ ] Source-of-truth answer: starter or child?
-- [ ] Payload / migration / Cloudflare risks called out if applicable
+- [ ] Payload / migration / Cloudflare risks called out in PR
+- [ ] **Migration PR:** draft only; did not mark ready for review or run production migration/deploy
 - [ ] **Comment implementation report on source issue** — see [AGENTS.md § Issue report](../../AGENTS.md#issue-report-after-pr-creation)
 - [ ] Notify user: branch, files, commands, test result, commit hash, PR URL, risks
 - [ ] **Do not merge** — human only
@@ -168,7 +171,8 @@ Starter-only links point to [boat1994/bemoat-web-starter](https://github.com/boa
 | [checklist.md](./checklist.md) | Before/during/PR/CI/merge checklists |
 | [source-of-truth.md](./source-of-truth.md) | Starter vs child ownership |
 | [roles.md](./roles.md) | Builder, Reviewer, Migration, Red Team, Triage |
-| [security-and-migrations.md](./security-and-migrations.md) | Migration stop conditions |
+| [security-and-migrations.md](./security-and-migrations.md) | Secrets, guards, production deploy gates |
+| [migration-draft-pr.md](./migration-draft-pr.md) | Draft PR workflow for D1/Payload migrations |
 | [guard-pack.md](../guard-pack.md) | Central guard pack |
 | [harness-sync-workflow.md](./harness-sync-workflow.md) | Child harness sync loop after starter merge |
 | [harness-sync-contract.md](../harness-sync-contract.md) | What syncs to children |

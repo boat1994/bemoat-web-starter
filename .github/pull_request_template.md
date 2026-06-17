@@ -97,8 +97,13 @@
 
 - [ ] No D1 / Payload migration changes
 - [ ] Migration included and reviewed (if D1 schema changed)
+- [ ] **Migration PR is draft** (required when migration files change)
+- [ ] **No production migration or deploy run** in this branch (agent confirmation)
 - [ ] Destructive migration—**human approval required** (describe below)
+- [ ] Destructive `down()` rollback SQL reviewed (warn in PR if present)
 - [ ] No production migration or deploy in this PR unless explicitly approved (note approval below)
+
+**Agent migration draft PR:** When an agent opens a migration PR, it must stay draft until a human marks ready for review. See [docs/agent-loop/migration-draft-pr.md](../docs/agent-loop/migration-draft-pr.md).
 
 | Area | Risk | Mitigation / approval |
 |------|------|------------------------|
