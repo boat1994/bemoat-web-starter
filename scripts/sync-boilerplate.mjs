@@ -132,7 +132,10 @@ export const buildContractPackageScripts = [
   'build:next',
   'build:cloudflare',
   'cf:build',
+  'deploy',
   'deploy:app',
+  'deploy:database',
+  'deploy:dev',
   'preview',
 ]
 

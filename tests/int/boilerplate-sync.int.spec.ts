@@ -309,12 +309,23 @@ describe('boilerplate sync managed paths', () => {
     const result = mod.applyBuildContractScripts(starterPackage, childPackage)
 
     expect(result.updatedScripts).toEqual(['build', 'deploy:app', 'preview'])
-    expect(result.addedScripts).toEqual(['build:next', 'build:cloudflare', 'cf:build'])
+    expect(result.addedScripts).toEqual([
+      'build:next',
+      'build:cloudflare',
+      'cf:build',
+      'deploy',
+      'deploy:database',
+      'deploy:dev',
+    ])
     expect(result.packageJSON.scripts.build).toBe(starterPackage.scripts.build)
     expect(result.packageJSON.scripts['build:next']).toBe(starterPackage.scripts['build:next'])
     expect(result.packageJSON.scripts['build:cloudflare']).toBe(starterPackage.scripts['build:cloudflare'])
     expect(result.packageJSON.scripts['cf:build']).toBe(starterPackage.scripts['cf:build'])
+    expect(result.packageJSON.scripts.deploy).toBe(starterPackage.scripts.deploy)
     expect(result.packageJSON.scripts['deploy:app']).toBe(starterPackage.scripts['deploy:app'])
+    expect(result.packageJSON.scripts['deploy:database']).toBe(starterPackage.scripts['deploy:database'])
+    expect(result.packageJSON.scripts['deploy:dev']).toBe(starterPackage.scripts['deploy:dev'])
+    expect(result.packageJSON.scripts['deploy:database']).toContain('PAYLOAD_MIGRATE_REMOTE=true')
     expect(result.packageJSON.scripts.preview).toBe(starterPackage.scripts.preview)
     expect(result.packageJSON.scripts.build).toContain('scripts/build.mjs')
     expect(result.packageJSON.scripts.build).not.toContain('opennextjs-cloudflare build')
@@ -373,9 +384,17 @@ describe('boilerplate sync managed paths', () => {
 
       expect(result.packageChanged).toBe(true)
       expect(result.updatedBuildContractScripts).toEqual(['build', 'deploy:app', 'preview'])
-      expect(result.appliedBuildContractScripts).toEqual(['build:next', 'build:cloudflare', 'cf:build'])
+      expect(result.appliedBuildContractScripts).toEqual([
+        'build:next',
+        'build:cloudflare',
+        'cf:build',
+        'deploy',
+        'deploy:database',
+        'deploy:dev',
+      ])
       expect(writtenPackage.scripts.build).toBe(starterPackage.scripts.build)
       expect(writtenPackage.scripts['cf:build']).toBe(starterPackage.scripts['cf:build'])
+      expect(writtenPackage.scripts['deploy:database']).toContain('PAYLOAD_MIGRATE_REMOTE=true')
     } finally {
       rmSync(tempRoot, { recursive: true, force: true })
     }
@@ -389,7 +408,10 @@ describe('boilerplate sync managed paths', () => {
       'build:next',
       'build:cloudflare',
       'cf:build',
+      'deploy',
       'deploy:app',
+      'deploy:database',
+      'deploy:dev',
       'preview',
     ])
     expect(mod.buildContractFilePaths).toEqual(['open-next.config.ts'])

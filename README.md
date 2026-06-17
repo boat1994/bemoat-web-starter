@@ -188,7 +188,7 @@ You can start from the Cloudflare deploy button at the top of this README, or de
 pnpm run deploy
 ```
 
-The deploy command runs database migration, optimizes D1, builds the app, and deploys the Worker.
+The deploy command runs Payload migrations against the remote D1 binding, optimizes remote D1, builds the app, and deploys the Worker.
 
 After deploy, run the [deploy smoke test checklist](./docs/deploy-smoke-test.md) to confirm frontend, admin, Payload, D1, R2, and Cloudflare routing.
 
@@ -388,7 +388,7 @@ These paths are source-of-truth and **may be overwritten** on every sync:
 `package.json` is **child-owned** and is not treated as a managed rails file. Sync:
 
 - adds **missing `bemoat:*` scripts only** (never overwrites existing `bemoat:*` entries)
-- never adds, overwrites, removes, renames, or reorders deploy/build/check/test scripts (`build`, `deploy`, `deploy:app`, `deploy:database`, `deploy:dev`, `preview`, `check`, `check:full`, `lint`, `typecheck`, `test`, `test:int`, `dev`, `start`, or any other non-namespaced script)
+- never adds, overwrites, removes, renames, or reorders deploy/build/check/test scripts (`build`, `deploy`, `deploy:app`, `deploy:database`, `deploy:dev`, `preview`, `check`, `check:full`, `lint`, `typecheck`, `test`, `test:int`, `dev`, `start`, or any other non-namespaced script) unless the human explicitly opts into the build/deploy contract with `--apply-build-contract`
 - never auto-adds, removes, bumps, or rewrites `dependencies` or `devDependencies`
 - writes **`.bemoat/package-sync-proposal.md`** with script and dependency drift for human review only
 
