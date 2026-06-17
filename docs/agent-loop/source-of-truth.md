@@ -6,7 +6,7 @@ This document separates what **`bemoat-web-starter`** owns from what **child pro
 
 | Area | Examples |
 |------|----------|
-| Agent rules | `AGENTS.md` |
+| Agent rules | `AGENTS.md`, `.agents/*` |
 | Cursor rules | `.cursor/rules/*` |
 | GitHub templates | `.github/pull_request_template.md`, `.github/ISSUE_TEMPLATE/*`, shared workflows |
 | Agent-loop docs | `docs/agent-loop/*`, `docs/hardening.md`, `docs/releases.md`, `docs/deploy-smoke-test.md`, `docs/cloudflare-environments.md`, `docs/schema-evolution.md` |
@@ -42,6 +42,7 @@ These paths are overwritten on every sync:
 | Path | Purpose |
 |------|---------|
 | `AGENTS.md` | Repository agent instructions |
+| `.agents` | Portable project-level agent fallback entrypoint and lightweight skills |
 | `.cursor/rules` | Cursor workflow rules |
 | `.github/workflows/ci.yml` | Shared child-safe CI workflow (`bemoat:guard:safety`, `bemoat:test:int`) |
 | `.github/pull_request_template.md` | PR template |

@@ -8,7 +8,7 @@ The harness is everything child projects need to run the same safety rails, work
 
 | Category | Examples |
 |----------|----------|
-| Agent rules | `AGENTS.md`, `.cursor/rules/*` |
+| Agent rules | `AGENTS.md`, `.agents/*`, `.cursor/rules/*` |
 | Agent-loop docs | `docs/agent-loop/*`, `docs/hardening.md`, `docs/schema-evolution.md`, etc. |
 | GitHub workflow and templates | `.github/workflows/ci.yml` (child-safe `bemoat:*` only), PR template, issue templates |
 | Safety guards | `scripts/guard-pack.mjs` (orchestrator), `scripts/guard-repo-safety.mjs`, `scripts/guard-harness-contract.mjs`, `scripts/guard-package-manager.mjs`, `scripts/guard-env-placeholder.mjs`, `scripts/guard-cloudflare-env.mjs`, `scripts/guard-frontend-seo.mjs` — see [guard-pack.md](./guard-pack.md) |

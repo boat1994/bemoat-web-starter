@@ -117,10 +117,11 @@ describe('synced harness CI and hooks', () => {
 })
 
 describe('boilerplate sync managed paths', () => {
-  it('includes repository agent instructions and Cursor rules', () => {
+  it('includes repository agent instructions and editor agent rules', () => {
     const script = readFileSync(resolve(process.cwd(), 'scripts/sync-boilerplate.mjs'), 'utf8')
 
     expect(script).toContain("'AGENTS.md'")
+    expect(script).toContain("'.agents'")
     expect(script).toContain("'.cursor/rules'")
     expect(script).toContain("'.github/workflows/ci.yml'")
     expect(script).toContain("'scripts/sync-boilerplate.mjs'")

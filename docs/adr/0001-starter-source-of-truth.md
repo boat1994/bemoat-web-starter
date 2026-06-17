@@ -14,7 +14,7 @@ Real child projects are created **deploy-first** via the Cloudflare Deploy butto
 
 **`bemoat-web-starter` is the source of truth** for reusable Bemoat web project infrastructure:
 
-- Agent rules (`AGENTS.md`, `.cursor/rules`)
+- Agent rules (`AGENTS.md`, `.agents`, `.cursor/rules`)
 - Harness workflow (guards, sync scripts, CI templates, integration tests)
 - Shared Payload schema and starter UI (seeded once in new projects)
 - Agent-loop and hardening documentation

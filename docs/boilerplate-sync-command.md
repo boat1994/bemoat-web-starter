@@ -87,6 +87,7 @@ Starter modules are **not** harness. Use `harness-only` when the child project a
 ### Always synced rails (harness workflow)
 
 - `AGENTS.md` repository agent instructions
+- `.agents/*` portable project-level agent fallback instructions
 - `.cursor/rules/*` workflow instructions and Cursor rule files
 - `.github/workflows/ci.yml`, PR template, and agent issue template (child-safe CI: `bemoat:guard:safety`, `bemoat:test:int` only)
 - `docs/agent-loop/*`, `docs/hardening.md`, `docs/releases.md`, `docs/deploy-smoke-test.md`, `docs/cloudflare-environments.md`, `docs/schema-evolution.md`

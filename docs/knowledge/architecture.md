@@ -22,7 +22,7 @@ Real customer/product work starts from the [Deploy to Cloudflare](https://deploy
 
 | Reusable (upstream to starter) | Product-specific (child only) |
 |--------------------------------|------------------------------|
-| `AGENTS.md`, `.cursor/rules`, harness docs | `wrangler.jsonc`, D1/R2/Worker names |
+| `AGENTS.md`, `.agents`, `.cursor/rules`, harness docs | `wrangler.jsonc`, D1/R2/Worker names |
 | Guards, CI workflow, `tests/int/*` harness | `.env`, secrets, domains |
 | Shared collections/globals (seed) | Customized seed files after child edits |
 | `bemoat:*` script contract | Customer integrations, one-off features |

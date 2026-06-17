@@ -1418,6 +1418,7 @@ All coding agents working in this repository must use the Superpowers skill work
 Required starting skill:
 
 - `superpowers:using-superpowers`
-- Source: `/home/boat/.codex/plugins/cache/openai-curated/superpowers/c6ea566d/skills/using-superpowers/SKILL.md`
+- Native source: the installed Superpowers skill named `superpowers:using-superpowers`
+- Portable fallback: [`.agents/skills/using-superpowers.md`](./.agents/skills/using-superpowers.md)
 
-Before responding, asking clarifying questions, planning, editing files, running implementation commands, or reviewing code, check whether any skill applies. If a skill might apply, read and follow that skill first. User instructions remain the highest priority.
+Before responding, asking clarifying questions, planning, editing files, running implementation commands, or reviewing code, check whether any skill applies. If a skill might apply, read and follow that skill first. User instructions remain the highest priority. Local skill cache paths are environment-specific and must not be treated as the only source of truth.
