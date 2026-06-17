@@ -1,0 +1,840 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bemoat Guardrail Workflow Bible</title>
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: "default",
+      flowchart: {
+        htmlLabels: true,
+        curve: "basis"
+      },
+      sequence: {
+        showSequenceNumbers: true
+      }
+    });
+  </script>
+  <style>
+    :root {
+      --bg: #0f1115;
+      --panel: #171a21;
+      --panel-2: #1f2430;
+      --text: #eef2f8;
+      --muted: #a8b0bf;
+      --line: #303747;
+      --accent: #d7b46a;
+      --danger: #ff7979;
+      --ok: #8bd59e;
+      --code: #10131a;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    main {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 40px 20px 80px;
+    }
+
+    header {
+      border: 1px solid var(--line);
+      background: linear-gradient(135deg, #171a21 0%, #10131a 100%);
+      border-radius: 24px;
+      padding: 36px;
+      margin-bottom: 24px;
+    }
+
+    h1 {
+      margin: 0 0 12px;
+      font-size: clamp(32px, 5vw, 56px);
+      line-height: 1.05;
+      letter-spacing: -0.04em;
+    }
+
+    h2 {
+      margin: 0 0 18px;
+      font-size: 28px;
+      letter-spacing: -0.02em;
+    }
+
+    h3 {
+      margin: 20px 0 10px;
+      font-size: 19px;
+    }
+
+    p {
+      margin: 0 0 12px;
+      color: var(--muted);
+    }
+
+    a {
+      color: var(--accent);
+    }
+
+    code {
+      background: var(--code);
+      color: var(--text);
+      border: 1px solid var(--line);
+      padding: 2px 6px;
+      border-radius: 6px;
+      font-size: 0.92em;
+    }
+
+    pre {
+      background: var(--code);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 16px;
+      overflow: auto;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 16px;
+    }
+
+    .card {
+      grid-column: span 12;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      border-radius: 22px;
+      padding: 24px;
+      margin-bottom: 18px;
+    }
+
+    .half {
+      grid-column: span 6;
+    }
+
+    .third {
+      grid-column: span 4;
+    }
+
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 18px;
+    }
+
+    .pill {
+      border: 1px solid var(--line);
+      background: var(--panel-2);
+      color: var(--text);
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 13px;
+    }
+
+    .rule-list {
+      display: grid;
+      gap: 10px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .rule-list li {
+      border: 1px solid var(--line);
+      background: var(--panel-2);
+      border-radius: 14px;
+      padding: 12px 14px;
+    }
+
+    .rule-list strong {
+      color: var(--accent);
+    }
+
+    .mermaid-wrap {
+      background: #ffffff;
+      color: #111827;
+      border-radius: 18px;
+      padding: 18px;
+      overflow: auto;
+      border: 1px solid var(--line);
+    }
+
+    .mermaid {
+      min-width: 720px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      overflow: hidden;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      font-size: 14px;
+    }
+
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 12px;
+      vertical-align: top;
+      text-align: left;
+    }
+
+    th {
+      color: var(--accent);
+      background: var(--panel-2);
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    .ok {
+      color: var(--ok);
+      font-weight: 700;
+    }
+
+    .danger {
+      color: var(--danger);
+      font-weight: 700;
+    }
+
+    .toc {
+      columns: 2;
+      margin: 0;
+      padding-left: 20px;
+    }
+
+    .toc li {
+      margin: 6px 0;
+      break-inside: avoid;
+    }
+
+    .small {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    @media (max-width: 860px) {
+      .half, .third {
+        grid-column: span 12;
+      }
+
+      header {
+        padding: 24px;
+      }
+
+      .toc {
+        columns: 1;
+      }
+    }
+
+    @media print {
+      body {
+        background: #fff;
+        color: #000;
+      }
+
+      main {
+        max-width: none;
+        padding: 20px;
+      }
+
+      .card, header {
+        break-inside: avoid;
+        border-color: #bbb;
+        background: #fff;
+      }
+
+      p, .small {
+        color: #333;
+      }
+
+      .mermaid-wrap {
+        border-color: #bbb;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Bemoat Guardrail Workflow Bible</h1>
+      <p>
+        คัมภีร์ภาพรวมสำหรับ guardrail, workflow, rules, และ sync loop ของ
+        <code>bemoat-web-starter</code>, <code>bemoat</code>, Design Ref CMS, Composer 2.5, และ AI agent execution.
+      </p>
+      <div class="pill-row">
+        <span class="pill">Core rules</span>
+        <span class="pill">UI Skills</span>
+        <span class="pill">Screen generation</span>
+        <span class="pill">Design Ref CMS</span>
+        <span class="pill">Visual QA</span>
+        <span class="pill">Sync loop</span>
+        <span class="pill">Human taste gate</span>
+      </div>
+    </header>
+
+    <section class="card" id="toc">
+      <h2>Table of contents</h2>
+      <ol class="toc">
+        <li><a href="#north-star">North star</a></li>
+        <li><a href="#system-map">System map</a></li>
+        <li><a href="#authority">Guardrail authority order</a></li>
+        <li><a href="#agent-loop">Agent compliance loop</a></li>
+        <li><a href="#ui-execution">UI execution workflow</a></li>
+        <li><a href="#screen-gen">Screen generation workflow</a></li>
+        <li><a href="#design-ref">Design Ref CMS workflow</a></li>
+        <li><a href="#sync">Starter sync and promotion loop</a></li>
+        <li><a href="#decision-tree">Guardrail selection decision tree</a></li>
+        <li><a href="#inventory">Guardrail inventory</a></li>
+        <li><a href="#rules">Rules by layer</a></li>
+        <li><a href="#rest-gate">Rest gate</a></li>
+      </ol>
+    </section>
+
+    <section class="grid" id="north-star">
+      <div class="card half">
+        <h2>North star</h2>
+        <p>
+          Build reusable guardrails once in <code>bemoat-web-starter</code>,
+          sync them into real projects, validate against real issues, then promote only what improves agent output.
+        </p>
+        <ul class="rule-list">
+          <li><strong>Improve once:</strong> starter holds reusable rules, prompts, checklists, and workflow docs.</li>
+          <li><strong>Test in reality:</strong> project repos prove whether the guardrail improves real screens.</li>
+          <li><strong>Promote carefully:</strong> only stable, reusable improvements go back into starter.</li>
+          <li><strong>Human taste stays final:</strong> AI can suggest and execute, but cannot promote canonical taste alone.</li>
+        </ul>
+      </div>
+
+      <div class="card half">
+        <h2>Key split</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Place</th>
+              <th>Responsibility</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>bemoat-web-starter</code></td>
+              <td>Reusable guardrails, workflows, prompts, visual QA, accessibility, anti-generic UI rules.</td>
+            </tr>
+            <tr>
+              <td><code>bemoat</code></td>
+              <td>Project-specific homepage reference pack, brand taste, real implementation issue.</td>
+            </tr>
+            <tr>
+              <td>Design Ref CMS</td>
+              <td>Raw conversations, references, extracted design memory, reusable patterns, prompt notes.</td>
+            </tr>
+            <tr>
+              <td>Composer 2.5</td>
+              <td>Routine extraction, classification, checklist generation, Cursor prompt creation.</td>
+            </tr>
+            <tr>
+              <td>GPT-5.5 High</td>
+              <td>Red team, scope control, risk review, over-engineering check.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card" id="system-map">
+      <h2>1. System map</h2>
+      <p>แผนที่ใหญ่ของระบบทั้งหมด แยก source of truth, execution, validation และ promotion</p>
+      <div class="mermaid-wrap">
+        <pre class="mermaid">
+flowchart TD
+  A[bemoat-web-starter<br/>Reusable guardrail source] --> B[Sync to project repo]
+  B --> C[bemoat<br/>Real homepage issue]
+  B --> D[Logic&Law<br/>Future SaaS screens]
+  B --> E[Where You Park<br/>Future mobile flows]
+  B --> F[Breathe Lab<br/>Future calm UI]
+
+  G[Design Ref CMS<br/>Memory and taste store] --> C
+  H[Mobbin or screenshots<br/>Reference source] --> G
+  I[Conversation JSON<br/>Raw decision source] --> G
+
+  C --> J[Composer 2.5<br/>Routine worker]
+  G --> J
+  A --> J
+
+  J --> K[Implementation plan]
+  K --> L[Cursor or agent implementation]
+  L --> M[Visual QA]
+  L --> N[Accessibility QA]
+  M --> O[Human taste gate]
+  N --> O
+  O --> P{Reusable improvement?}
+  P -->|Yes| Q[Promote back to starter]
+  P -->|No| R[Keep project-specific]
+  Q --> A
+
+  S[GPT-5.5 High<br/>Red team] --> K
+  S --> M
+  S --> O
+        </pre>
+      </div>
+    </section>
+
+    <section class="card" id="authority">
+      <h2>2. Guardrail authority order</h2>
+      <p>ถ้า rule ขัดกัน ให้ข้อที่อยู่สูงกว่าชนะเสมอ</p>
+      <div class="mermaid-wrap">
+        <pre class="mermaid">
+flowchart TD
+  A[1. Safety and repo rules<br/>Never break project safety] --> B[2. Current issue acceptance criteria<br/>Deliver only scoped work]
+  B --> C[3. AGENTS.md<br/>Core working rules]
+  C --> D[4. Relevant task playbook<br/>UI, screen gen, API, CMS]
+  D --> E[5. Design references<br/>Mobbin, screenshots, CMS memory]
+  E --> F[6. Agent preference<br/>Lowest authority]
+
+  X[Conflict found] --> A
+        </pre>
+      </div>
+    </section>
+
+    <section class="card" id="agent-loop">
+      <h2>3. Agent compliance loop</h2>
+      <p>วงจรบังคับให้ agent ประกาศก่อนทำ และ map กลับหลังทำ เพื่อลดปัญหาทำตามบ้างไม่ทำตามบ้าง</p>
+      <div class="mermaid-wrap">
+        <pre class="mermaid">
+flowchart LR
+  A[Read issue] --> B[Select guardrails]
+  B --> C[List files read]
+  C --> D[List out of scope]
+  D --> E[Write implementation plan]
+  E --> F{Human or controller approves plan?}
+  F -->|No| E
+  F -->|Yes| G[Implement]
+  G --> H[Map changes to AC]
+  H --> I[Run checklist]
+  I --> J[List unmet rules]
+  J --> K[Write delta notes]
+  K --> L[Commit or PR]
+        </pre>
+      </div>
+    </section>
+
+    <section class="card" id="ui-execution">
+      <h2>4. UI execution workflow</h2>
+      <p>ใช้เมื่อทำ UI ใหม่หรือ polish UI เดิม โดย UI Skills เป็น execution guidance ไม่ใช่ source of truth</p>
+      <div class="mermaid-wrap">
+        <pre class="mermaid">
+flowchart TD
+  A[Input<br/>Issue or design brief] --> B[Read reusable starter guardrails]
+  B --> C[Read project-specific references]
+  C --> D[Select smallest useful UI Skills]
+  D --> E{Task type}
+  E -->|New section| F[Create section plan]
+  E -->|Existing screen| G[Polish plan]
+  E -->|Bug or visual delta| H[Targeted fix plan]
+
+  F --> I[Component plan]
+  G --> I
+  H --> I
+
+  I --> J[Implementation]
+  J --> K[Visual QA checklist]
+  J --> L[Accessibility baseline]
+  K --> M[Visual delta notes]
+  L --> M
+  M --> N[Human taste gate]
+  N --> O{Pass?}
+  O -->|No| H
+  O -->|Yes| P[Ready for PR]
+        </pre>
+      </div>
+    </section>
+
+    <section class="card" id="screen-gen">
+      <h2>5. Screen generation workflow</h2>
+      <p>ใช้เมื่อต้อง generate screen แบบละเอียดก่อน code</p>
+      <div class="mermaid-wrap">
+        <pre class="mermaid">
+flowchart TD
+  A[Issue] --> B[Screen purpose]
+  B --> C[User and job to be done]
+  C --> D[Primary action]
+  D --> E[Secondary actions]
+  E --> F[Data requirements]
+  F --> G[State matrix]
+
+  G --> G1[Loading]
+  G --> G2[Empty]
+  G --> G3[Error]
+  G --> G4[Success]
+  G --> G5[Permission]
+  G --> G6[Offline if relevant]
+
+  G1 --> H[Responsive layout]
+  G2 --> H
+  G3 --> H
+  G4 --> H
+  G5 --> H
+  G6 --> H
+
+  H --> I[Component list]
+  I --> J[Interaction rules]
+  J --> K[Accessibility rules]
+  K --> L[Copy tone]
+  L --> M[Motion rules]
+  M --> N[Analytics events if relevant]
+  N --> O[Acceptance criteria]
+  O --> P[Cursor-ready prompt]
+  P --> Q[Implementation]
+  Q --> R[Visual QA and red team]
+        </pre>
+      </div>
+    </section>
+
+    <section class="card" id="design-ref">
+      <h2>6. Design Ref CMS workflow</h2>
+      <p>CMS เป็น memory store ส่วนการสกัดทำใน local workflow ด้วย Composer 2.5</p>
+      <div class="mermaid-wrap">
+        <pre class="mermaid">
+flowchart TD
+  A[Raw conversation JSON] --> B[Local input folder]
+  C[Reference links or screenshots] --> B
+
+  B --> D[Composer 2.5 extraction]
+  D --> E[Extracted design intent]
+  D --> F[Reusable patterns]
+  D --> G[Component candidates]
+  D --> H[Avoid rules]
+  D --> I[Cursor prompt]
+  D --> J[Red-team checklist]
+
+  E --> K[POST /api/design-refs/ingest]
+  F --> K
+  G --> K
+  H --> K
+  I --> K
+  J --> K
+
+  K --> L[CMS record]
+  L --> M{Status}
+  M -->|raw| N[Need extraction]
+  M -->|extracted| O[Ready for issue use]
+  M -->|used| P[Used in real screen]
+  M -->|promoted| Q[Reusable pattern]
+  M -->|archived| R[Do not use by default]
+        </pre>
+      </div>
+    </section>
+
+    <section class="card" id="sync">
+      <h2>7. Starter sync and promotion loop</h2>
+      <p>ทำรอบสั้น ๆ ใน starter แล้ว sync ไปพิสูจน์กับงานจริง</p>
+      <div class="mermaid-wrap">
+        <pre class="mermaid">
+flowchart LR
+  A[Add one guardrail in starter] --> B[Add one prompt or checklist]
+  B --> C[Sync to project]
+  C --> D[Test on one real issue]
+  D --> E[Collect deltas]
+  E --> F{Improved output?}
+  F -->|Yes| G[Promote to canonical starter rule]
+  F -->|No| H[Revise or keep project-specific]
+  G --> I[Next short round]
+  H --> I
+  I --> A
+        </pre>
+      </div>
+    </section>
+
+    <section class="card" id="decision-tree">
+      <h2>8. Guardrail selection decision tree</h2>
+      <p>ตัวช่วยเลือกว่าจะเปิด guardrail ชุดไหนในงานนี้</p>
+      <div class="mermaid-wrap">
+        <pre class="mermaid">
+flowchart TD
+  A[Start task] --> B{Is there a GitHub issue?}
+  B -->|Yes| C[Use issue AC first]
+  B -->|No| D[Create short task contract first]
+
+  C --> E{Task touches UI?}
+  D --> E
+
+  E -->|Yes| F[Use UI execution workflow]
+  E -->|No| G{Task touches API or data?}
+
+  F --> H{New screen?}
+  H -->|Yes| I[Use screen generation playbook]
+  H -->|No| J[Use polish or visual QA checklist]
+
+  G -->|Yes| K[Use API or CMS playbook]
+  G -->|No| L{Task touches docs or rules?}
+
+  L -->|Yes| M[Use documentation guardrail]
+  L -->|No| N[Use core rules only]
+
+  I --> O[Declare selected guardrails]
+  J --> O
+  K --> O
+  M --> O
+  N --> O
+
+  O --> P[Plan before coding]
+  P --> Q[Implement]
+  Q --> R[Self-check and report]
+        </pre>
+      </div>
+    </section>
+
+    <section class="card" id="inventory">
+      <h2>9. Guardrail inventory</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Guardrail</th>
+            <th>Where it lives</th>
+            <th>Use when</th>
+            <th>Do not use for</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Core rules</td>
+            <td><code>AGENTS.md</code></td>
+            <td>Every task</td>
+            <td>Project-specific taste</td>
+          </tr>
+          <tr>
+            <td>UI Skills execution</td>
+            <td><code>docs/ai/ui-skills.md</code></td>
+            <td>New UI, polish, frontend craft</td>
+            <td>Business logic or data model decisions</td>
+          </tr>
+          <tr>
+            <td>UI execution workflow</td>
+            <td><code>docs/ai/ui-execution-workflow.md</code></td>
+            <td>Agent needs step-by-step UI work</td>
+            <td>Deep backend work</td>
+          </tr>
+          <tr>
+            <td>Screen generation playbook</td>
+            <td><code>docs/ai/screen-generation-playbook.md</code></td>
+            <td>Creating a new screen or major section</td>
+            <td>Small copy or color fixes</td>
+          </tr>
+          <tr>
+            <td>Visual QA checklist</td>
+            <td><code>docs/ai/visual-qa-checklist.md</code></td>
+            <td>After UI implementation</td>
+            <td>Before a design direction exists</td>
+          </tr>
+          <tr>
+            <td>Accessibility baseline</td>
+            <td><code>docs/ai/accessibility-baseline.md</code></td>
+            <td>Forms, navigation, interactive screens</td>
+            <td>Pure data migration</td>
+          </tr>
+          <tr>
+            <td>Design Ref CMS</td>
+            <td>CMS plus local workflow</td>
+            <td>Need taste memory or reusable pattern</td>
+            <td>Fast one-line bug fixes</td>
+          </tr>
+          <tr>
+            <td>API ingest</td>
+            <td><code>POST /api/design-refs/ingest</code></td>
+            <td>Transporting raw or extracted design memory</td>
+            <td>Deep reasoning or prompt generation</td>
+          </tr>
+          <tr>
+            <td>MCP wrapper</td>
+            <td>Future only</td>
+            <td>Multiple AI clients need tool access</td>
+            <td>V1 workflow</td>
+          </tr>
+          <tr>
+            <td>Human taste gate</td>
+            <td>Issue comment or review</td>
+            <td>Before promoting pattern or production UI</td>
+            <td>Routine extraction</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="grid" id="rules">
+      <div class="card half">
+        <h2>10. Core rules</h2>
+        <ul class="rule-list">
+          <li><strong>Read issue first:</strong> no implementation before understanding current AC.</li>
+          <li><strong>Declare guardrails:</strong> list exact guardrails used before coding.</li>
+          <li><strong>Plan before code:</strong> write implementation plan before editing.</li>
+          <li><strong>No scope creep:</strong> do not add unrelated features or redesigns.</li>
+          <li><strong>Map back:</strong> after changes, map each change to AC.</li>
+          <li><strong>Self-check:</strong> run relevant checklist and list unmet rules.</li>
+          <li><strong>Commit safely:</strong> avoid leaving risky uncommitted states before rest.</li>
+        </ul>
+      </div>
+
+      <div class="card half">
+        <h2>11. UI rules</h2>
+        <ul class="rule-list">
+          <li><strong>Smallest useful skill:</strong> choose only relevant UI Skills, not every skill.</li>
+          <li><strong>Anti-generic:</strong> avoid template-looking, AI-looking, CMS freelancer vibe.</li>
+          <li><strong>Hierarchy first:</strong> improve information hierarchy before decoration.</li>
+          <li><strong>State coverage:</strong> include loading, empty, error, success when relevant.</li>
+          <li><strong>Responsive check:</strong> test desktop and mobile breakpoints.</li>
+          <li><strong>Motion with purpose:</strong> define trigger, moving element, timing feel, reduced motion fallback.</li>
+        </ul>
+      </div>
+
+      <div class="card half">
+        <h2>12. Design Ref CMS rules</h2>
+        <ul class="rule-list">
+          <li><strong>CMS stores memory:</strong> raw JSON, extracted notes, patterns, avoid rules.</li>
+          <li><strong>Local extraction:</strong> Composer 2.5 extracts outside CMS.</li>
+          <li><strong>Dumb API:</strong> ingest endpoint validates, saves, links, returns id.</li>
+          <li><strong>No smart API v1:</strong> no deep design reasoning inside API.</li>
+          <li><strong>Parent link:</strong> extracted record must link back to raw source.</li>
+          <li><strong>Status discipline:</strong> raw, extracted, used, promoted, archived.</li>
+        </ul>
+      </div>
+
+      <div class="card half">
+        <h2>13. Promotion rules</h2>
+        <ul class="rule-list">
+          <li><strong>One round, one capability:</strong> do not mix many new systems in one round.</li>
+          <li><strong>Project proof first:</strong> test guardrail on one real issue.</li>
+          <li><strong>Promote only reusable:</strong> brand-specific taste stays in project repo or CMS.</li>
+          <li><strong>Human approval:</strong> agent cannot promote canonical pattern alone.</li>
+          <li><strong>Record deltas:</strong> write what improved and what failed.</li>
+          <li><strong>No dump:</strong> never turn starter into a reference image dump.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="card" id="sequence">
+      <h2>14. Full implementation sequence</h2>
+      <p>ลำดับการทำงานเมื่อเริ่ม issue UI หนึ่งงานตั้งแต่ต้นจนจบ</p>
+      <div class="mermaid-wrap">
+        <pre class="mermaid">
+sequenceDiagram
+  participant Human
+  participant Issue
+  participant Starter as bemoat-web-starter
+  participant CMS as Design Ref CMS
+  participant C25 as Composer 2.5
+  participant Agent as Cursor or implementation agent
+  participant QA as Visual QA
+  participant Red as GPT-5.5 High
+
+  Human->>Issue: Define scope and AC
+  Agent->>Issue: Read issue
+  Agent->>Starter: Read core and relevant guardrails
+  Agent->>CMS: Pull design memory if needed
+  Agent->>Human: Declare selected guardrails and out of scope
+  C25->>C25: Generate plan, screen contract, checklist
+  Red->>C25: Red team plan if high risk
+  Agent->>Agent: Implement scoped changes
+  Agent->>QA: Run visual and accessibility checks
+  QA->>Issue: Write delta notes
+  Red->>Issue: Review risk or over-engineering
+  Human->>Issue: Taste gate decision
+  Human->>Starter: Promote reusable rule if proven
+        </pre>
+      </div>
+    </section>
+
+    <section class="card" id="rest-gate">
+      <h2>15. Rest gate</h2>
+      <p>จุดหยุดที่ดีไม่ใช่ระบบสมบูรณ์ แต่คือกลับมาทำต่อได้โดยไม่ต้องคิดใหม่</p>
+      <div class="mermaid-wrap">
+        <pre class="mermaid">
+flowchart TD
+  A[Before rest] --> B{Git safe?}
+  B -->|No| B1[Commit or stash]
+  B -->|Yes| C{Issue context updated?}
+
+  B1 --> C
+  C -->|No| C1[Write next actions]
+  C -->|Yes| D{Guardrail usable?}
+
+  C1 --> D
+  D -->|No| D1[Keep one minimal doc or prompt]
+  D -->|Yes| E{Sunday restart clear?}
+
+  D1 --> E
+  E -->|No| E1[Write 3 first actions]
+  E -->|Yes| F[Stop work]
+
+  E1 --> F
+        </pre>
+      </div>
+
+      <h3>Sunday restart actions</h3>
+      <ul class="rule-list">
+        <li>Read <code>bemoat-web-starter #65</code>.</li>
+        <li>Use starter UI guardrail on <code>bemoat #27</code>.</li>
+        <li>Let Composer 2.5 generate implementation plan before code.</li>
+      </ul>
+    </section>
+
+    <section class="card" id="starter-files">
+      <h2>16. Suggested starter files</h2>
+      <pre><code>docs/ai/ui-skills.md
+docs/ai/ui-execution-workflow.md
+docs/ai/visual-qa-checklist.md
+docs/ai/accessibility-baseline.md
+docs/ai/screen-generation-playbook.md
+docs/ai/guardrail-authority.md
+prompts/ui/select-ui-skill.md
+prompts/ui/polish-existing-screen.md
+prompts/ui/create-section-from-brief.md
+prompts/ui/generate-screen-contract.md
+prompts/ui/red-team-ui-output.md
+.cursor/rules/ui-skills.mdc
+.cursor/rules/frontend-polish.mdc
+.cursor/rules/accessibility-baseline.mdc</code></pre>
+    </section>
+
+    <section class="card" id="copy-prompt">
+      <h2>17. Master prompt for agents</h2>
+      <pre><code>Before implementation:
+1. Read the current issue and acceptance criteria.
+2. Select only the relevant guardrails.
+3. List the exact guardrail files used.
+4. List what is intentionally out of scope.
+5. Write an implementation plan before coding.
+
+During implementation:
+1. Keep changes mapped to the issue.
+2. Do not introduce unrelated business logic.
+3. Do not redesign unrelated sections.
+4. Prefer small, reviewable changes.
+
+After implementation:
+1. Map each change back to acceptance criteria.
+2. Run the relevant visual QA and accessibility checklist.
+3. List any unmet guardrail.
+4. Write visual delta notes if UI changed.
+5. Stop at the smallest complete slice.</code></pre>
+    </section>
+
+    <footer class="card">
+      <p class="small">
+        Version: v0.1. Intended home: <code>bemoat-web-starter</code>.
+        First downstream consumer: <code>bemoat</code> homepage design reference pipeline.
+      </p>
+    </footer>
+  </main>
+</body>
+</html>
