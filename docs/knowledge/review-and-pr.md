@@ -32,8 +32,20 @@ Use [pull_request_template.md](../../.github/pull_request_template.md).
 ## Merge policy
 
 - **Humans merge only** — agents must not merge.
+- **Migration PRs stay draft** until a human marks ready for review — agents must not use `gh pr ready`, merge, or enable auto-merge without explicit approval.
 - Wait for CI green; inspect logs on failure (do not guess).
 - Starter: prefer `check:full` green before human merge when practical.
+
+## Migration draft PR
+
+When the diff touches `src/migrations/**` or requires a D1/Payload migration:
+
+- Agents may commit, push, and open a **draft** PR after checks pass — no pre-PR approval needed for migration files alone.
+- Title: `[D1 Migration]`, `[Payload Migration]`, or `[DB Migration]` prefix.
+- Body: migration safety checklist, commands run, confirm no production migration or deploy.
+- Forbidden without explicit human approval: ready for review, merge, auto-merge, production migration, production deploy, destructive rollback.
+
+Full policy: [migration-draft-pr.md](../agent-loop/migration-draft-pr.md).
 
 ## Issue implementation report
 

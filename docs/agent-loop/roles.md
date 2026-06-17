@@ -53,11 +53,14 @@ Use these roles to split work across specialized agents. One session may play on
 
 - Run `pnpm payload migrate:create` after schema changes; review generated SQL.
 - Confirm migrations are committed and called out in the PR risk section.
+- Open migration work as a **draft** PR with title prefix and migration safety checklist — see [migration-draft-pr.md](./migration-draft-pr.md).
 - Coordinate with Builder on rollback or data-impact notes.
 
 **Must not:**
 
 - Run deploy against production without explicit instruction.
+- Mark migration PR ready for review, merge, enable auto-merge, or run production migration without explicit human approval.
+- Run destructive rollback or `down()` against production or shared databases without explicit human approval.
 - Apply migrations in child projects by copying files from another project's D1.
 - Skip type generation after schema edits.
 

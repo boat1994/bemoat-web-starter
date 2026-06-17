@@ -16,6 +16,7 @@ Read in this order when picking up work on **`bemoat-web-starter`** or reasoning
 ## Also keep open
 
 - [AGENTS.md](../../AGENTS.md) — validation tiers, commit/PR workflow, schema stop conditions
+- [migration-draft-pr.md](./migration-draft-pr.md) — draft PR workflow when touching `src/migrations/**`
 - [harness-sync-contract.md](../harness-sync-contract.md) — managed vs seed-only paths (detail behind ADR 0003)
 - [source-of-truth.md](./source-of-truth.md) — starter vs child ownership table
 
