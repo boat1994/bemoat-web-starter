@@ -4,11 +4,32 @@ Use with [README.md](./README.md), [source-of-truth.md](./source-of-truth.md), a
 
 Agents run the [Default Agent Workflow](../../AGENTS.md#default-agent-workflow) by default when the user provides only a task. Do not wait for explicit branch, commit, push, or PR instructions unless the user overrides the workflow.
 
+## Task-size tiers
+
+Classify work **before editing** and use the minimum useful process for that tier. This rule applies **going forward only** — do not retroactively clean up or re-label old commits.
+
+Prefer updating these docs over creating new templates or workflows.
+
+| Tier | Examples | Minimum artifacts |
+|------|----------|-------------------|
+| **Small** | Typo, copy, spacing, rename, one-file low-risk refactor | Commit message reason + relevant validation tier |
+| **Medium** | New reusable component, section, CMS block, layout pattern, or design-reference conversion | Short brief, changed scope, diff reason, checklist, design reference source when relevant |
+| **Core** | Architecture, design system, Payload schema, sync behavior, CI, guards, migrations, agent rules, or anything reused across child projects | Full task brief, diff reason, agent boundary, feature checklist, regression result, source-of-truth / child-sync impact |
+
+**Small** tasks still follow branch gates and PR workflow; they do not need a full architecture brief.
+
+**Medium** tasks document *what* changed and *why* in the PR; link Mobbin, Figma, or other design references when the task is design-related.
+
+**Core** tasks add explicit boundaries (what is in/out of scope), checklist evidence, validation results, and whether child projects need `pnpm run boilerplate:sync` after merge.
+
+When unsure, round **up** one tier for source-of-truth or sync-managed paths; round **down** for clearly local, low-risk edits.
+
 ## Before coding
 
 - [ ] Started with `superpowers:using-superpowers`
 - [ ] Read `AGENTS.md` and this folder
 - [ ] Understood the task; confirmed no user override (e.g. "do not commit")
+- [ ] **Task-size tier classified** (small / medium / core) — see [Task-size tiers](#task-size-tiers)
 - [ ] Confirmed correct repo: **starter** vs **child project**
 - [ ] Read issue/PR goal, acceptance criteria, allowed and forbidden paths
 - [ ] If GitHub URL, issue, PR, branch, or CI run is referenced: inspected via GitHub skill or `gh`
