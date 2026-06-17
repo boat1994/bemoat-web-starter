@@ -17,10 +17,13 @@ const sourceRoot = join(tempRoot, 'source')
 const syncMetadataPath = '.bemoat-boilerplate-sync.json'
 const stashMessage = 'bemoat-boilerplate-sync: pre-sync stash'
 
+export const syncManifestPath = '.bemoat/boilerplate-sync-manifest.json'
+
 export const managedPaths = [
   // Agent and workflow rails
   'AGENTS.md',
   '.agents',
+  syncManifestPath,
   '.cursor/rules',
   'docs/agent-loop',
   'docs/hardening.md',
@@ -148,6 +151,43 @@ export const buildContractFilePaths = ['open-next.config.ts']
 
 /** Recommended package.json sections surfaced in the proposal only. */
 export const suggestedPackageSections = ['dependencies', 'devDependencies']
+
+export function getDefaultSyncConfig() {
+  return {
+    managedPaths,
+    seedOnlyPaths,
+    mergeKeepPaths,
+    managedPackageScripts,
+    suggestedPackageScripts,
+    buildContractPackageScripts,
+    buildContractFilePaths,
+    suggestedPackageSections,
+  }
+}
+
+export function readSourceSyncManifest(sourceRootPath) {
+  const manifestFile = join(sourceRootPath, syncManifestPath)
+  if (!existsSync(manifestFile)) return null
+
+  return JSON.parse(readFileSync(manifestFile, 'utf8'))
+}
+
+export function getSourceSyncConfig(sourceRootPath) {
+  const manifest = readSourceSyncManifest(sourceRootPath)
+  const defaults = getDefaultSyncConfig()
+
+  return {
+    managedPaths: manifest?.managedPaths ?? defaults.managedPaths,
+    seedOnlyPaths: manifest?.seedOnlyPaths ?? defaults.seedOnlyPaths,
+    mergeKeepPaths: manifest?.mergeKeepPaths ?? defaults.mergeKeepPaths,
+    managedPackageScripts: manifest?.managedPackageScripts ?? defaults.managedPackageScripts,
+    suggestedPackageScripts: manifest?.suggestedPackageScripts ?? defaults.suggestedPackageScripts,
+    buildContractPackageScripts:
+      manifest?.buildContractPackageScripts ?? defaults.buildContractPackageScripts,
+    buildContractFilePaths: manifest?.buildContractFilePaths ?? defaults.buildContractFilePaths,
+    suggestedPackageSections: manifest?.suggestedPackageSections ?? defaults.suggestedPackageSections,
+  }
+}
 
 export const syncCommitPaths = [...managedPaths, syncMetadataPath, packageSyncProposalPath]
 
@@ -343,12 +383,16 @@ function readJSON(path) {
   return JSON.parse(readFileSync(path, 'utf8'))
 }
 
-export function applyManagedPackageScripts(sourcePackage, targetPackage) {
+export function applyManagedPackageScripts(
+  sourcePackage,
+  targetPackage,
+  scriptNames = managedPackageScripts,
+) {
   const nextPackage = structuredClone(targetPackage)
   nextPackage.scripts = nextPackage.scripts || {}
   const addedScripts = []
 
-  for (const scriptName of managedPackageScripts) {
+  for (const scriptName of scriptNames) {
     const sourceValue = sourcePackage.scripts?.[scriptName]
     if (!sourceValue || scriptName in nextPackage.scripts) continue
 
@@ -418,14 +462,22 @@ export function applyBuildContractFiles(
   return { applied, updated, skipped }
 }
 
-export function buildPackageSyncProposal(sourcePackage, targetPackage) {
+export function buildPackageSyncProposal(
+  sourcePackage,
+  targetPackage,
+  {
+    managedPackageScripts: managedScripts = managedPackageScripts,
+    suggestedPackageScripts: suggestedScripts = suggestedPackageScripts,
+    suggestedPackageSections: suggestedSections = suggestedPackageSections,
+  } = {},
+) {
   const missingScripts = []
   const differentScripts = []
   const differentBemoatScripts = []
   const missingSectionEntries = {}
   const differentSectionEntries = {}
 
-  for (const scriptName of managedPackageScripts) {
+  for (const scriptName of managedScripts) {
     const sourceValue = sourcePackage.scripts?.[scriptName]
     const targetValue = targetPackage.scripts?.[scriptName]
     if (!sourceValue || targetValue === undefined) continue
@@ -435,7 +487,7 @@ export function buildPackageSyncProposal(sourcePackage, targetPackage) {
     }
   }
 
-  for (const scriptName of suggestedPackageScripts) {
+  for (const scriptName of suggestedScripts) {
     const sourceValue = sourcePackage.scripts?.[scriptName]
     if (!sourceValue) continue
 
@@ -450,7 +502,7 @@ export function buildPackageSyncProposal(sourcePackage, targetPackage) {
     }
   }
 
-  for (const section of suggestedPackageSections) {
+  for (const section of suggestedSections) {
     const sourceSection = sourcePackage[section] || {}
     const targetSection = targetPackage[section] || {}
     const missing = []
@@ -481,7 +533,7 @@ export function buildPackageSyncProposal(sourcePackage, targetPackage) {
   }
 }
 
-export function formatPackageSyncProposal({ repo, ref, proposal }) {
+export function formatPackageSyncProposal({ repo, ref, proposal, suggestedPackageSections: suggestedSections = suggestedPackageSections }) {
   const lines = [
     '# Bemoat package sync proposal',
     '',
@@ -546,7 +598,7 @@ export function formatPackageSyncProposal({ repo, ref, proposal }) {
   if (!hasSectionDrift) {
     lines.push('- No missing or differing dependencies to report.')
   } else {
-    for (const section of suggestedPackageSections) {
+    for (const section of suggestedSections) {
       const missing = proposal.missingSectionEntries[section] || []
       const different = proposal.differentSectionEntries[section] || []
 
@@ -583,6 +635,7 @@ export function syncPackageManifest({
   repo: sourceRepo = repo,
   ref: sourceRef = ref,
   applyBuildContract = false,
+  syncConfig = getDefaultSyncConfig(),
 }) {
   const sourcePackagePath = join(sourceRootPath, 'package.json')
   const targetPackagePath = join(targetRootPath, 'package.json')
@@ -603,6 +656,7 @@ export function syncPackageManifest({
   const { packageJSON: managedPackageJSON, addedScripts } = applyManagedPackageScripts(
     sourcePackage,
     targetPackage,
+    syncConfig.managedPackageScripts,
   )
 
   let packageJSON = managedPackageJSON
@@ -610,14 +664,23 @@ export function syncPackageManifest({
   let updatedBuildContractScripts = []
 
   if (applyBuildContract) {
-    const buildContractResult = applyBuildContractScripts(sourcePackage, packageJSON)
+    const buildContractResult = applyBuildContractScripts(
+      sourcePackage,
+      packageJSON,
+      syncConfig.buildContractPackageScripts,
+    )
     packageJSON = buildContractResult.packageJSON
     appliedBuildContractScripts = buildContractResult.addedScripts
     updatedBuildContractScripts = buildContractResult.updatedScripts
   }
 
-  const proposal = buildPackageSyncProposal(sourcePackage, targetPackage)
-  const proposalMarkdown = formatPackageSyncProposal({ repo: sourceRepo, ref: sourceRef, proposal })
+  const proposal = buildPackageSyncProposal(sourcePackage, targetPackage, syncConfig)
+  const proposalMarkdown = formatPackageSyncProposal({
+    repo: sourceRepo,
+    ref: sourceRef,
+    proposal,
+    suggestedPackageSections: syncConfig.suggestedPackageSections,
+  })
   const proposalPath = join(targetRootPath, packageSyncProposalPath)
 
   mkdirSync(dirname(proposalPath), { recursive: true })
@@ -742,6 +805,7 @@ export function buildSyncMetadata({
   packageSync = { addedScripts: [], proposalPath: null },
   buildContractFiles = { applied: [], updated: [], skipped: [] },
   syncedAt = new Date().toISOString(),
+  syncConfig = getDefaultSyncConfig(),
 }) {
   return {
     repo: sourceRepo,
@@ -749,14 +813,14 @@ export function buildSyncMetadata({
     syncMode,
     seedOnlyPathsSkipped,
     syncedAt,
-    managedPaths,
-    seedOnlyPaths,
-    mergeKeepPaths,
-    managedPackageScripts,
-    suggestedPackageScripts,
-    buildContractPackageScripts,
-    buildContractFilePaths,
-    suggestedPackageSections,
+    managedPaths: syncConfig.managedPaths,
+    seedOnlyPaths: syncConfig.seedOnlyPaths,
+    mergeKeepPaths: syncConfig.mergeKeepPaths,
+    managedPackageScripts: syncConfig.managedPackageScripts,
+    suggestedPackageScripts: syncConfig.suggestedPackageScripts,
+    buildContractPackageScripts: syncConfig.buildContractPackageScripts,
+    buildContractFilePaths: syncConfig.buildContractFilePaths,
+    suggestedPackageSections: syncConfig.suggestedPackageSections,
     lastSyncedManagedPaths: syncedManaged,
     seededFiles,
     skippedSeedFiles,
@@ -789,6 +853,7 @@ export function syncPathsFromSource({
   mode = SYNC_MODES.HARNESS_ONLY,
   onWarn = console.warn,
   onLog = console.log,
+  syncConfig = getDefaultSyncConfig(),
 }) {
   const syncedManaged = []
   const seededFiles = []
@@ -796,13 +861,13 @@ export function syncPathsFromSource({
   const mergedFiles = []
   const seedOnlyPathsSkipped = mode === SYNC_MODES.HARNESS_ONLY
 
-  for (const path of managedPaths) {
+  for (const path of syncConfig.managedPaths) {
     const result = copyManagedPath(sourceRootPath, targetRootPath, path)
     if (result.copied) syncedManaged.push(path)
   }
 
   if (!seedOnlyPathsSkipped) {
-    for (const path of seedOnlyPaths) {
+    for (const path of syncConfig.seedOnlyPaths) {
       const result = copySeedOnlyPath(sourceRootPath, targetRootPath, path)
       if (result.reason === 'missing-source') {
         onWarn(`[skip] ${path} not found in ${repo}#${ref}`)
@@ -814,7 +879,7 @@ export function syncPathsFromSource({
     }
   }
 
-  for (const path of mergeKeepPaths) {
+  for (const path of syncConfig.mergeKeepPaths) {
     const result = mergeKeepPath(sourceRootPath, targetRootPath, path)
     if (result.reason === 'missing-source') {
       onWarn(`[skip] ${path} not found in ${repo}#${ref}`)
@@ -964,10 +1029,6 @@ function main() {
   const syncMode = parseSyncMode()
   const applyBuildContract = parseApplyBuildContract()
   console.log(`Syncing Bemoat boilerplate from ${repo}#${ref} (${syncMode} mode)`)
-  if (applyBuildContract) {
-    console.log(`Applying build contract scripts: ${buildContractPackageScripts.join(', ')}`)
-    console.log(`Applying build contract files: ${buildContractFilePaths.join(', ')}`)
-  }
   const git = createGitClient()
   const stashCreated = stashWorkingTreeIfNeeded(targetRoot, git)
 
@@ -979,6 +1040,15 @@ function main() {
       cwd: targetRoot,
     })
 
+    const syncConfig = getSourceSyncConfig(sourceRoot)
+
+    if (applyBuildContract) {
+      console.log(
+        `Applying build contract scripts: ${syncConfig.buildContractPackageScripts.join(', ')}`,
+      )
+      console.log(`Applying build contract files: ${syncConfig.buildContractFilePaths.join(', ')}`)
+    }
+
     const {
       syncedManaged,
       seededFiles,
@@ -989,6 +1059,7 @@ function main() {
       sourceRootPath: sourceRoot,
       targetRootPath: targetRoot,
       mode: syncMode,
+      syncConfig,
     })
 
     const packageSync = syncPackageManifest({
@@ -997,10 +1068,11 @@ function main() {
       repo,
       ref,
       applyBuildContract,
+      syncConfig,
     })
 
     const buildContractFiles = applyBuildContract
-      ? applyBuildContractFiles(sourceRoot, targetRoot)
+      ? applyBuildContractFiles(sourceRoot, targetRoot, syncConfig.buildContractFilePaths)
       : { applied: [], updated: [], skipped: [] }
 
     if (buildContractFiles.applied.length > 0) {
@@ -1044,6 +1116,7 @@ function main() {
           mergedFiles,
           packageSync,
           buildContractFiles,
+          syncConfig,
         }),
         null,
         2,

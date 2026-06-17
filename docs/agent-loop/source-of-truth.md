@@ -15,9 +15,11 @@ This document separates what **`bemoat-web-starter`** owns from what **child pro
 | Starter UI | Shared starter pages (home, projects, blog, custom order, etc.; seeded once) |
 | Shared utilities | Helper modules under `src/lib` (seeded once) |
 | Package scripts | Child-owned `package.json`; sync adds missing `bemoat:*` scripts only and generates `.bemoat/package-sync-proposal.md` for recommended scripts and dependencies |
-| Sync behavior | `scripts/sync-boilerplate.mjs`, `scripts/check-boilerplate-drift.mjs`, managed and seed-only path lists |
+| Sync behavior | `scripts/sync-boilerplate.mjs`, `scripts/check-boilerplate-drift.mjs`, `.bemoat/boilerplate-sync-manifest.json`, managed and seed-only path lists |
 
 Child projects receive these via **clone after Cloudflare deploy** (initial) and **`pnpm run boilerplate:sync`** (ongoing updates). Run **`pnpm run boilerplate:check`** first to see rails-managed drift without modifying files.
+
+After cloning the starter, sync reads **`.bemoat/boilerplate-sync-manifest.json`** from the cloned source so newly added managed paths apply in the same run (even when the child still has an older local `scripts/sync-boilerplate.mjs`). See [boilerplate-sync-command.md](../boilerplate-sync-command.md#source-driven-sync-manifest-one-run-managed-paths).
 
 **Existing projects** with their own app and schema should use harness-only mode:
 
@@ -51,6 +53,7 @@ These paths are overwritten on every sync:
 | `docs/hardening.md`, `docs/releases.md`, `docs/deploy-smoke-test.md`, `docs/cloudflare-environments.md`, `docs/schema-evolution.md` | Production hardening, releases, smoke test, Cloudflare env guide, and schema evolution |
 | `scripts/sync-boilerplate.mjs` | Sync script and path lists |
 | `scripts/check-boilerplate-drift.mjs` | Read-only drift check before sync |
+| `.bemoat/boilerplate-sync-manifest.json` | Source-of-truth sync config read from cloned starter (one-run managed path discovery) |
 | `scripts/deploy-smoke-test.mjs` | Optional deploy smoke test helper |
 | `scripts/guard-repo-safety.mjs` | Repository safety guard (secrets, resource IDs, destructive migrations) |
 | `scripts/guard-cloudflare-env.mjs` | Cloudflare deploy environment guard (blocks unsafe prod deploys) |

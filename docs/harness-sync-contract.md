@@ -41,6 +41,12 @@ pnpm run boilerplate:check -- --full
 
 CLI flags take precedence over `BEMOAT_SYNC_MODE`. Sync metadata in `.bemoat-boilerplate-sync.json` records `syncMode` and `seedOnlyPathsSkipped`.
 
+### Source-driven sync manifest
+
+The starter publishes **`.bemoat/boilerplate-sync-manifest.json`** — a static JSON copy of the sync path lists and package sync config. After cloning the starter, `scripts/sync-boilerplate.mjs` reads that manifest from the cloned source and uses it for the current run (`managedPaths`, `seedOnlyPaths`, `mergeKeepPaths`, package script lists). If the manifest is missing (very old starter ref), sync falls back to the local script constants.
+
+This prevents the **first-sync paradox**: when the starter adds a new managed path, child projects with an older local sync script still copy the new path in **one** run because path discovery happens from the cloned manifest, not only from the already-loaded local constants. Maintain the manifest in `bemoat-web-starter` whenever you change `managedPaths` or related lists in `scripts/sync-boilerplate.mjs` (keep them identical; `tests/int/boilerplate-sync.int.spec.ts` asserts parity).
+
 Starter modules (`src/app/(frontend)`, `src/collections`, `src/globals`, `src/components`, `src/hooks`, `src/access`, `src/lib`, `src/payload.config.ts`) are **not** harness.
 
 ## What stays child-owned
@@ -175,7 +181,7 @@ Current shared tests (listed in `managedPaths` in `scripts/sync-boilerplate.mjs`
 
 ## Rules for maintainers
 
-1. **New shared harness file** — Add the path to `managedPaths` in `scripts/sync-boilerplate.mjs` and ensure `tests/int/boilerplate-sync.int.spec.ts` covers it (directly or via the shared int-test contract test).
+1. **New shared harness file** — Add the path to `managedPaths` in `scripts/sync-boilerplate.mjs`, mirror the same entry in `.bemoat/boilerplate-sync-manifest.json`, and ensure `tests/int/boilerplate-sync.int.spec.ts` covers it (directly or via the shared int-test contract test).
 
 2. **New safe namespaced script** — Add to `managedPackageScripts` if sync should add it when missing. Add starter `bemoat:*` values in this repo's `package.json`.
 

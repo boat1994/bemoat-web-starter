@@ -628,6 +628,7 @@ describe('boilerplate sync managed paths', () => {
     const mod = await import('../../scripts/sync-boilerplate.mjs')
 
     expect(mod.managedPaths).toContain('AGENTS.md')
+    expect(mod.managedPaths).toContain(mod.syncManifestPath)
     expect(mod.managedPaths).toContain('scripts/check-boilerplate-drift.mjs')
     expect(mod.managedPaths).not.toContain('src/payload.config.ts')
     expect(mod.managedPaths).not.toContain('package.json')
@@ -712,6 +713,124 @@ describe('boilerplate sync managed paths', () => {
     expect(addCall).not.toContain('package.json')
     expect(addCall).toContain('AGENTS.md')
     expect(addCall).not.toContain('notes.txt')
+  })
+})
+
+describe('source-driven sync manifest', () => {
+  const fixtureRoot = resolve(process.cwd(), '.tmp-boilerplate-sync-manifest-test')
+
+  it('matches local sync constants in the starter repository', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const manifest = JSON.parse(
+      readFileSync(resolve(process.cwd(), mod.syncManifestPath), 'utf8'),
+    )
+
+    expect(manifest.managedPaths).toEqual(mod.managedPaths)
+    expect(manifest.seedOnlyPaths).toEqual(mod.seedOnlyPaths)
+    expect(manifest.mergeKeepPaths).toEqual(mod.mergeKeepPaths)
+    expect(manifest.managedPackageScripts).toEqual(mod.managedPackageScripts)
+    expect(manifest.suggestedPackageScripts).toEqual(mod.suggestedPackageScripts)
+    expect(manifest.buildContractPackageScripts).toEqual(mod.buildContractPackageScripts)
+    expect(manifest.buildContractFilePaths).toEqual(mod.buildContractFilePaths)
+    expect(manifest.suggestedPackageSections).toEqual(mod.suggestedPackageSections)
+  })
+
+  it('copies newly added managed paths from the source manifest in a single run', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+
+    rmSync(fixtureRoot, { recursive: true, force: true })
+    const sourceRoot = join(fixtureRoot, 'source')
+    const targetRoot = join(fixtureRoot, 'target')
+
+    mkdirSync(join(sourceRoot, '.new-harness-rail'), { recursive: true })
+    mkdirSync(join(sourceRoot, '.bemoat'), { recursive: true })
+    mkdirSync(targetRoot, { recursive: true })
+
+    writeFileSync(join(sourceRoot, '.new-harness-rail/README.md'), 'new harness rail\n')
+
+    const simulatedOldManagedPaths = mod.managedPaths.filter(
+      (path: string) => path !== '.agents' && path !== '.new-harness-rail',
+    )
+
+    writeFileSync(
+      join(sourceRoot, mod.syncManifestPath),
+      `${JSON.stringify(
+        {
+          version: 1,
+          managedPaths: [...simulatedOldManagedPaths, '.new-harness-rail'],
+          seedOnlyPaths: mod.seedOnlyPaths,
+          mergeKeepPaths: mod.mergeKeepPaths,
+          managedPackageScripts: mod.managedPackageScripts,
+          suggestedPackageScripts: mod.suggestedPackageScripts,
+          buildContractPackageScripts: mod.buildContractPackageScripts,
+          buildContractFilePaths: mod.buildContractFilePaths,
+          suggestedPackageSections: mod.suggestedPackageSections,
+        },
+        null,
+        2,
+      )}\n`,
+    )
+
+    const syncConfig = mod.getSourceSyncConfig(sourceRoot)
+
+    expect(simulatedOldManagedPaths).not.toContain('.new-harness-rail')
+    expect(syncConfig.managedPaths).toContain('.new-harness-rail')
+
+    const result = mod.syncPathsFromSource({
+      sourceRootPath: sourceRoot,
+      targetRootPath: targetRoot,
+      mode: mod.SYNC_MODES.HARNESS_ONLY,
+      syncConfig,
+      onWarn: () => {},
+      onLog: () => {},
+    })
+
+    expect(result.syncedManaged).toContain('.new-harness-rail')
+    expect(readFileSync(join(targetRoot, '.new-harness-rail/README.md'), 'utf8')).toBe('new harness rail\n')
+
+    const metadata = mod.buildSyncMetadata({
+      syncMode: mod.SYNC_MODES.HARNESS_ONLY,
+      seedOnlyPathsSkipped: true,
+      syncedManaged: result.syncedManaged,
+      syncConfig,
+    })
+
+    expect(metadata.managedPaths).toContain('.new-harness-rail')
+    expect(metadata.lastSyncedManagedPaths).toContain('.new-harness-rail')
+
+    rmSync(fixtureRoot, { recursive: true, force: true })
+  })
+
+  it('falls back to local constants when the source manifest is missing', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+
+    rmSync(fixtureRoot, { recursive: true, force: true })
+    const sourceRoot = join(fixtureRoot, 'source')
+    const targetRoot = join(fixtureRoot, 'target')
+
+    mkdirSync(sourceRoot, { recursive: true })
+    mkdirSync(targetRoot, { recursive: true })
+    writeFileSync(join(sourceRoot, 'AGENTS.md'), 'starter agents\n')
+
+    const syncConfig = mod.getSourceSyncConfig(sourceRoot)
+
+    expect(syncConfig.managedPaths).toEqual(mod.managedPaths)
+    expect(syncConfig.seedOnlyPaths).toEqual(mod.seedOnlyPaths)
+    expect(syncConfig.mergeKeepPaths).toEqual(mod.mergeKeepPaths)
+
+    const result = mod.syncPathsFromSource({
+      sourceRootPath: sourceRoot,
+      targetRootPath: targetRoot,
+      mode: mod.SYNC_MODES.HARNESS_ONLY,
+      syncConfig,
+      onWarn: () => {},
+      onLog: () => {},
+    })
+
+    expect(result.syncedManaged).toContain('AGENTS.md')
+    expect(readFileSync(join(targetRoot, 'AGENTS.md'), 'utf8')).toBe('starter agents\n')
+
+    rmSync(fixtureRoot, { recursive: true, force: true })
   })
 })
 
