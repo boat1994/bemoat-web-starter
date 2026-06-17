@@ -1,85 +1,127 @@
 import Link from 'next/link'
-import { getPayload } from 'payload'
 
-import { pickText } from '@/lib/payloadText'
-import type { Post, Project } from '@/payload-types'
-import config from '@/payload.config'
+import { homepageCtas } from '@/content/cta'
+import { homepageHero, pricingNote, problemSymptoms, processSteps } from '@/content/homepage'
+import { proofItems } from '@/content/proof'
+import { growthPathServices, primaryService } from '@/content/services'
 
-export const dynamic = 'force-dynamic'
-
-export default async function HomePage() {
-  const payload = await getPayload({ config: await config })
-
-  const [projects, posts] = await Promise.all([
-    payload.find({
-      collection: 'projects',
-      depth: 1,
-      limit: 6,
-      sort: '-updatedAt',
-      where: {
-        isFeaturedOnHome: {
-          equals: true,
-        },
-      },
-    }),
-    payload.find({
-      collection: 'posts',
-      depth: 1,
-      limit: 3,
-      sort: '-publishedAt',
-    }),
-  ])
-
+export default function HomePage() {
   return (
     <main>
       <section className="hero">
-        <p className="eyebrow">Payload Cloudflare boilerplate</p>
-        <h1>Project CMS, portfolio, blog, and custom request starter.</h1>
-        <p className="lead">
-          This starter keeps the reusable CMS and frontend structure ready for new Bemoat projects.
-        </p>
+        <p className="eyebrow">{homepageHero.eyebrow}</p>
+        <h1>{homepageHero.title}</h1>
+        <p className="lead">{homepageHero.lead}</p>
         <div className="actions">
-          <Link className="button primary" href="/admin">
-            Open admin
+          <Link className="button primary" href={homepageCtas.diagnostic.href}>
+            {homepageCtas.diagnostic.label}
           </Link>
-          <Link className="button" href="/projects">
-            View projects
+          <Link className="button" href={homepageCtas.cmsWebsite.href}>
+            {homepageCtas.cmsWebsite.label}
           </Link>
         </div>
       </section>
 
       <section className="section">
         <div className="sectionHeader">
-          <p className="eyebrow">Showcase</p>
-          <h2>Featured projects</h2>
+          <p className="eyebrow">The problem</p>
+          <h2>When business content changes faster than the website</h2>
+          <p className="muted">
+            Owner-led businesses feel this when updates pile up and the public site stops reflecting
+            how the business actually works today.
+          </p>
+        </div>
+        <ul className="symptomList">
+          {problemSymptoms.map((symptom) => (
+            <li key={symptom}>{symptom}</li>
+          ))}
+        </ul>
+      </section>
+
+      <section className="section">
+        <div className="sectionHeader">
+          <p className="eyebrow">Primary offer</p>
+          <h2>{primaryService.name}</h2>
+          <p className="lead">{primaryService.summary}</p>
+        </div>
+        <article className="card servicePrimary">
+          <ul className="deliverableList">
+            {primaryService.deliverables.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+          {primaryService.inquiryQuestion ? (
+            <p className="muted">{primaryService.inquiryQuestion}</p>
+          ) : null}
+        </article>
+        <p className="muted pricingNote">{pricingNote}</p>
+      </section>
+
+      <section className="section">
+        <div className="sectionHeader">
+          <p className="eyebrow">Growth path</p>
+          <h2>After the CMS foundation — or when operations get messy</h2>
         </div>
         <div className="grid">
-          {projects.docs.map((project: Project) => (
-            <Link className="card" href={`/projects/${project.slug}`} key={project.id}>
-              <p className="tag">{project.projectType || 'project'}</p>
-              <h3>{pickText(project.title, 'Untitled project')}</h3>
-              <p>{pickText(project.description, 'Add a short project description in Payload.')}</p>
-            </Link>
+          {growthPathServices.map((service) => (
+            <article className="card serviceSecondary" key={service.id}>
+              <p className="tag">{service.priority === 'secondary' ? 'Secondary path' : 'Later lane'}</p>
+              <h3>{service.name}</h3>
+              <p>{service.summary}</p>
+            </article>
           ))}
-          {projects.docs.length === 0 ? <p className="muted">No featured projects yet.</p> : null}
         </div>
       </section>
 
-      <section className="section split">
-        <div>
-          <p className="eyebrow">Content engine</p>
-          <h2>Blog module</h2>
-          <p className="muted">Draft, publish, and connect posts to reusable project records.</p>
+      <section className="section">
+        <div className="sectionHeader">
+          <p className="eyebrow">Proof</p>
+          <h2>Work preview</h2>
         </div>
-        <div className="stack">
-          {posts.docs.map((post: Post) => (
-            <Link className="rowCard" href={`/blog/${post.slug}`} key={post.id}>
-              <span>{pickText(post.title, 'Untitled post')}</span>
-              <small>{pickText(post.excerpt, 'No excerpt yet')}</small>
-            </Link>
+        {proofItems.map((item) => (
+          <article className="card proofCard" key={item.id}>
+            <p className="tag">{item.label}</p>
+            <h3>{item.title}</h3>
+            <p>{item.description}</p>
+            {item.href ? (
+              <Link className="button" href={item.href} rel="noopener noreferrer" target="_blank">
+                View live site
+              </Link>
+            ) : null}
+          </article>
+        ))}
+      </section>
+
+      <section className="section">
+        <div className="sectionHeader">
+          <p className="eyebrow">Process</p>
+          <h2>From diagnostic to launch</h2>
+        </div>
+        <ol className="processList">
+          {processSteps.map((step, index) => (
+            <li key={step.title}>
+              <span className="processStep">{index + 1}</span>
+              <div>
+                <h3>{step.title}</h3>
+                <p className="muted">{step.description}</p>
+              </div>
+            </li>
           ))}
-          <Link className="button" href="/blog">
-            View blog
+        </ol>
+      </section>
+
+      <section className="section finalCta">
+        <h2>Start with what changes most often in your business</h2>
+        <p className="lead">
+          Tell us what your team updates today — or say directly that you need a CMS-backed website
+          they can maintain.
+        </p>
+        <div className="actions">
+          <Link className="button primary" href={homepageCtas.diagnostic.href}>
+            {homepageCtas.diagnostic.label}
+          </Link>
+          <Link className="button" href={homepageCtas.cmsWebsite.href}>
+            {homepageCtas.cmsWebsite.label}
           </Link>
         </div>
       </section>
