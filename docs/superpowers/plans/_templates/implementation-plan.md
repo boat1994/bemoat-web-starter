@@ -6,37 +6,43 @@
 
 ## Required Source Inputs
 
-- Exact spec path:
-- Exact spec path:
+Use exact repo paths for every required input. Do not reference vague documents such as "the UX contract" without a concrete file path.
+
+- Exact repo path:
+- Exact repo path:
+
+## Mode
+
+-
 
 ## Non-Negotiable Direction
 
-- 
+-
 
 ## Repo Inspection Plan
 
 - Files to inspect before editing:
 - Existing patterns to follow:
 
-## Architecture Plan
+## Final Structure / Architecture
 
-- 
+-
 
-## Content Plan
+## Structured Content Plan
 
-- 
+-
 
-## Component Plan
+## Component / Module Plan
 
-- 
+-
 
 ## Styling Plan
 
-- 
+-
 
-## Test Plan
+## Test / Verification Plan
 
-- 
+-
 
 ## Commands
 
@@ -44,13 +50,13 @@
 # Add the exact commands required for this feature
 ```
 
-## PR Requirements
+## PR Preparation Requirements
 
-- 
+-
 
-## Risks
+## Risks / Open Questions
 
-- 
+-
 
 ## Composer Execution Prompt
 
