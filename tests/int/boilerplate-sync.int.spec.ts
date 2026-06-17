@@ -3,6 +3,25 @@ import { join, resolve } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
+type BuildSyncMetadataInput = {
+  syncMode: string
+  seedOnlyPathsSkipped: boolean
+  syncedManaged?: string[]
+  seededFiles?: string[]
+  skippedSeedFiles?: string[]
+  mergedFiles?: string[]
+  repo?: string
+  ref?: string
+}
+
+type BuildSyncMetadataParams = Parameters<
+  (typeof import('../../scripts/sync-boilerplate.mjs'))['buildSyncMetadata']
+>[0]
+
+function buildSyncMetadataInput(input: BuildSyncMetadataInput): BuildSyncMetadataParams {
+  return input as unknown as BuildSyncMetadataParams
+}
+
 /** Integration tests under tests/int that are starter-only and intentionally not synced. */
 const STARTER_ONLY_INT_TESTS: { path: string; reason: string }[] = [
   // All current tests/int/**/*.int.spec.ts files are shared harness tests for child projects.
@@ -942,12 +961,14 @@ describe('boilerplate sync modes', () => {
   it('records harness-only syncMode and seedOnlyPathsSkipped in metadata', async () => {
     const mod = await import('../../scripts/sync-boilerplate.mjs')
 
-    const metadata = mod.buildSyncMetadata({
-      syncMode: mod.SYNC_MODES.HARNESS_ONLY,
-      seedOnlyPathsSkipped: true,
-      syncedManaged: ['AGENTS.md'],
-      seededFiles: [],
-    })
+    const metadata = mod.buildSyncMetadata(
+      buildSyncMetadataInput({
+        syncMode: mod.SYNC_MODES.HARNESS_ONLY,
+        seedOnlyPathsSkipped: true,
+        syncedManaged: ['AGENTS.md'],
+        seededFiles: [],
+      }),
+    )
 
     expect(metadata.syncMode).toBe('harness-only')
     expect(metadata.seedOnlyPathsSkipped).toBe(true)
@@ -958,11 +979,13 @@ describe('boilerplate sync modes', () => {
   it('records full syncMode and seedOnlyPathsSkipped false in metadata', async () => {
     const mod = await import('../../scripts/sync-boilerplate.mjs')
 
-    const metadata = mod.buildSyncMetadata({
-      syncMode: mod.SYNC_MODES.FULL,
-      seedOnlyPathsSkipped: false,
-      seededFiles: ['src/collections/Posts.ts'],
-    })
+    const metadata = mod.buildSyncMetadata(
+      buildSyncMetadataInput({
+        syncMode: mod.SYNC_MODES.FULL,
+        seedOnlyPathsSkipped: false,
+        seededFiles: ['src/collections/Posts.ts'],
+      }),
+    )
 
     expect(metadata.syncMode).toBe('full')
     expect(metadata.seedOnlyPathsSkipped).toBe(false)
@@ -995,7 +1018,7 @@ describe('boilerplate sync modes', () => {
 describe('boilerplate drift check', () => {
   const fixtureRoot = resolve(process.cwd(), '.tmp-boilerplate-drift-test')
 
-  it('detects boilerplate source repository from package name fallback', async () => {
+  it('detects boilerplate source repository at git root from package name and origin', async () => {
     const mod = await import('../../scripts/check-boilerplate-drift.mjs')
 
     rmSync(fixtureRoot, { recursive: true, force: true })
@@ -1018,6 +1041,25 @@ describe('boilerplate drift check', () => {
     expect(
       mod.isBoilerplateSourceRepository(join(fixtureRoot, 'child'), 'boat1994/bemoat-web-starter'),
     ).toBe(false)
+
+    rmSync(fixtureRoot, { recursive: true, force: true })
+  })
+
+  it('treats nested starter fixture inside child repo as source despite inherited parent git origin', async () => {
+    const mod = await import('../../scripts/check-boilerplate-drift.mjs')
+
+    rmSync(fixtureRoot, { recursive: true, force: true })
+    mkdirSync(join(fixtureRoot, 'child-repo', 'starter-fixture'), { recursive: true })
+
+    writeFileSync(
+      join(fixtureRoot, 'child-repo/starter-fixture/package.json'),
+      `${JSON.stringify({ name: 'bemoat-web-starter' }, null, 2)}\n`,
+    )
+
+    const nestedFixture = join(fixtureRoot, 'child-repo/starter-fixture')
+    // Nested cwd inherits the parent checkout's git origin (any child repo), which must not
+    // override package-name detection for harness test fixtures.
+    expect(mod.isBoilerplateSourceRepository(nestedFixture, 'boat1994/bemoat-web-starter')).toBe(true)
 
     rmSync(fixtureRoot, { recursive: true, force: true })
   })
