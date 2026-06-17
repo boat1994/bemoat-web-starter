@@ -67,6 +67,19 @@ body:
     validations:
       required: true
 
+  - type: dropdown
+    id: task_size
+    attributes:
+      label: Task size
+      description: Guides how much brief and checklist agents need. See docs/agent-loop/checklist.md#task-size-tiers.
+      options:
+        - small — typo, copy, one-file low-risk change
+        - medium — new component, block, layout, or design-reference conversion
+        - core — schema, sync, CI, guards, agent rules, or cross-project reuse
+        - unsure — agent classifies before editing
+    validations:
+      required: false
+
   - type: textarea
     id: required_commands
     attributes:

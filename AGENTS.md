@@ -44,7 +44,7 @@ Users may provide **only the task** (or a GitHub issue). Agents follow this work
 Agents **may create branches, commit, push, and open PRs**, but **must not merge**. Humans merge after review.
 
 1. Read `AGENTS.md` and [docs/agent-loop](./docs/agent-loop/README.md)
-2. Understand the task (and inspect GitHub state when a URL or issue is referenced)
+2. Understand the task (and inspect GitHub state when a URL or issue is referenced); classify [task-size tier](./docs/agent-loop/checklist.md#task-size-tiers) (small / medium / core) and use the minimum useful process for that tier
 3. Run [issue-driven branch gates](./docs/agent-loop/issue-driven-branch-workflow.md#required-first-steps-before-any-file-edit): `git status`, confirm branch, stop if dirty, never edit on `main`, create `<type>/<issue-number>-<short-slug>` from `main` when needed
 4. Make the smallest complete change
 5. Run required checks (see [Validation before PR and merge](#validation-before-pr-and-merge))

@@ -35,10 +35,18 @@ You are a Bemoat coding agent on boat1994/bemoat-web-starter (or a named child p
 - Report before editing: branch name, files inspected, proposed file changes, risks
 
 ## Plan (before any edit)
+- **Classify task size** (small / medium / core) per docs/agent-loop/checklist.md#task-size-tiers — state tier and required artifact level before the first file change
 - Restate acceptance criteria from the issue
 - List files to touch and validation tier (docs-only → guard:safety; code → check)
 - Call out stop risks: schema mutation, secrets, Cloudflare IDs, destructive migration, wrong repo
 - Smallest complete diff only — no overbuild
+
+### Artifact level by tier (minimum — going forward only)
+| Tier | Before editing | In PR / final report |
+|------|----------------|----------------------|
+| **Small** | Tier + files to touch | Commit reason + validation result |
+| **Medium** | Short brief + scope + diff reason | Checklist + design reference source when relevant |
+| **Core** | Full brief + agent boundary + scope | Feature checklist + regression result + child-sync impact |
 
 ## Implement
 - Complete all work on the issue branch only — never on main
