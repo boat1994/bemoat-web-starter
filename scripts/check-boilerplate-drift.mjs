@@ -26,6 +26,20 @@ const targetRoot = process.cwd()
 const tempRoot = resolve(targetRoot, '.bemoat-check-tmp')
 const sourceRoot = join(tempRoot, 'source')
 
+function isGitRepositoryRoot(cwd) {
+  try {
+    const topLevel = execFileSync('git', ['rev-parse', '--show-toplevel'], {
+      cwd,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    }).trim()
+
+    return resolve(topLevel) === resolve(cwd)
+  } catch {
+    return false
+  }
+}
+
 function getGitOriginRepo(cwd) {
   const remote = execFileSync('git', ['remote', 'get-url', 'origin'], {
     cwd,
@@ -49,6 +63,10 @@ export function isBoilerplateSourceRepository(cwd = process.cwd(), boilerplateRe
     if (pkg.name !== 'bemoat-web-starter') return false
   } catch {
     return false
+  }
+
+  if (!isGitRepositoryRoot(cwd)) {
+    return true
   }
 
   try {
