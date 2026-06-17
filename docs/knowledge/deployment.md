@@ -25,10 +25,12 @@ Starter `wrangler.jsonc` IDs are for **this** starter project only.
 
 | Command | Purpose |
 |---------|---------|
-| `pnpm run deploy` | migrate D1 → optimize → build → deploy production |
+| `pnpm run deploy` | migrate remote D1 → optimize remote D1 → build → deploy production |
 | `pnpm run deploy:dev` | same pipeline with `CLOUDFLARE_ENV=dev` |
 | `pnpm run preview` | build + local preview worker |
 | `pnpm run smoke:deploy` | optional post-deploy smoke helper |
+
+`deploy:database` sets `PAYLOAD_MIGRATE_REMOTE=true` before `payload migrate`. Without that marker, Payload migrations can report success while updating Wrangler's local D1 simulation instead of the remote Cloudflare D1 database.
 
 Agents: **do not** run deploy in docs-only or harness PRs. Destructive migration and production deploy need human approval — see [security-and-migrations.md](../agent-loop/security-and-migrations.md).
 

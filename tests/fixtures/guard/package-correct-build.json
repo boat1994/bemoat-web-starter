@@ -4,6 +4,7 @@
     "build:next": "cross-env NODE_OPTIONS=\"--no-deprecation --max-old-space-size=8000\" pnpm exec next build",
     "build:cloudflare": "cross-env NODE_OPTIONS=\"--no-deprecation --max-old-space-size=8000\" pnpm exec opennextjs-cloudflare build",
     "cf:build": "pnpm run build",
-    "deploy:app": "pnpm run build && pnpm exec opennextjs-cloudflare deploy"
+    "deploy:app": "pnpm run build && pnpm exec opennextjs-cloudflare deploy",
+    "deploy:database": "cross-env NODE_ENV=production PAYLOAD_SECRET=ignore PAYLOAD_MIGRATE_REMOTE=true pnpm exec payload migrate && pnpm exec wrangler d1 execute D1 --command 'PRAGMA optimize' --remote"
   }
 }

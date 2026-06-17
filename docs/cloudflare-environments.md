@@ -53,10 +53,11 @@ pnpm run deploy
 
 This runs, in order:
 
-1. `deploy:database` — Payload migrate + D1 `PRAGMA optimize`
+1. `deploy:database` — Payload migrate against the remote D1 binding + remote D1 `PRAGMA optimize`
 2. `deploy:app` — OpenNext build + Worker deploy
 
 Neither step passes `--env` when `CLOUDFLARE_ENV` is unset.
+`deploy:database` must set `PAYLOAD_MIGRATE_REMOTE=true` so Payload migrations do not run against Wrangler's local D1 simulation.
 
 ### Cloudflare deploy button / CI
 

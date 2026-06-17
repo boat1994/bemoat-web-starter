@@ -17,6 +17,8 @@ export const NEXT_BUILD_PATTERN = 'next build'
 export const OPENNEXT_REENTRY_BUILD_COMMAND = 'pnpm run build'
 export const OPENNEXT_REENTRY_CONTEXT_MARKER = `${BUILD_CONTEXT_ENV}=${OPENNEXT_NEXT_BUILD_CONTEXT}`
 export const OPENNEXT_REENTRY_BUILD_COMMAND_PATTERN = /\bpnpm run build\b(?!:)/
+export const PAYLOAD_MIGRATE_PATTERN = 'payload migrate'
+export const PAYLOAD_REMOTE_MIGRATE_MARKER = 'PAYLOAD_MIGRATE_REMOTE=true'
 
 export function scanBuildScriptContract(scripts = {}, file = PACKAGE_JSON_PATH) {
   const violations = []
@@ -24,6 +26,7 @@ export function scanBuildScriptContract(scripts = {}, file = PACKAGE_JSON_PATH) 
   const buildNext = scripts['build:next'] ?? ''
   const buildCloudflare = scripts['build:cloudflare'] ?? ''
   const cfBuild = scripts['cf:build'] ?? ''
+  const deployDatabase = scripts['deploy:database'] ?? ''
 
   if (!build.includes(BUILD_WRAPPER_PATH)) {
     violations.push({
@@ -75,6 +78,15 @@ export function scanBuildScriptContract(scripts = {}, file = PACKAGE_JSON_PATH) 
       file,
       rule: 'cf-build-must-alias-build',
       message: 'scripts["cf:build"] must alias scripts.build via "pnpm run build"',
+    })
+  }
+
+  if (deployDatabase.includes(PAYLOAD_MIGRATE_PATTERN) && !deployDatabase.includes(PAYLOAD_REMOTE_MIGRATE_MARKER)) {
+    violations.push({
+      type: 'build-script-contract',
+      file,
+      rule: 'deploy-database-must-migrate-remote',
+      message: `scripts["deploy:database"] must set ${PAYLOAD_REMOTE_MIGRATE_MARKER} before running ${PAYLOAD_MIGRATE_PATTERN}`,
     })
   }
 
@@ -224,6 +236,7 @@ export function formatBuildScriptContractViolations(violations) {
     'scripts["build:next"] must run next build.',
     'scripts["build:cloudflare"] must run opennextjs-cloudflare build.',
     'scripts["cf:build"] must alias scripts.build.',
+    `scripts["deploy:database"] must set ${PAYLOAD_REMOTE_MIGRATE_MARKER} before Payload migrations.`,
     `${OPENNEXT_CONFIG_PATH} buildCommand must re-enter via ${OPENNEXT_REENTRY_CONTEXT_MARKER} ${OPENNEXT_REENTRY_BUILD_COMMAND}.`,
   ]
 

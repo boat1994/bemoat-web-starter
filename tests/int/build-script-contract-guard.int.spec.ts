@@ -45,6 +45,26 @@ describe('build script contract guard', () => {
     expect(violations).toEqual([])
   })
 
+  it('flags deploy database migrations that do not opt into remote bindings', async () => {
+    const mod = await import('../../scripts/guard-build-script-contract.mjs')
+
+    const violations = mod.scanBuildScriptContract(
+      {
+        build: 'node scripts/build.mjs',
+        'build:next': 'pnpm exec next build',
+        'build:cloudflare': 'pnpm exec opennextjs-cloudflare build',
+        'cf:build': 'pnpm run build',
+        'deploy:database':
+          "cross-env NODE_ENV=production PAYLOAD_SECRET=ignore pnpm exec payload migrate && pnpm exec wrangler d1 execute D1 --command 'PRAGMA optimize' --remote",
+      },
+      'package.json',
+    )
+
+    expect(
+      violations.some((item: { rule: string }) => item.rule === 'deploy-database-must-migrate-remote'),
+    ).toBe(true)
+  })
+
   it('flags a missing build wrapper file', async () => {
     const mod = await import('../../scripts/guard-build-script-contract.mjs')
 
