@@ -23,8 +23,8 @@
 3. `reference-pattern-handoff.md`
 4. `visual-direction-spec.md`
 5. `composer-handoff.md`
-6. `../../plans/{project}/{initiative}/{feature}/implementation-plan.md`
-7. `../../plans/{project}/{initiative}/{feature}/verification-plan.md`
+6. `docs/superpowers/plans/{project}/{initiative}/{feature}/implementation-plan.md`
+7. `docs/superpowers/plans/{project}/{initiative}/{feature}/verification-plan.md`
 
 ## Documents in This Feature Folder
 
