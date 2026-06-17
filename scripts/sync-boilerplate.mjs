@@ -20,6 +20,7 @@ const stashMessage = 'bemoat-boilerplate-sync: pre-sync stash'
 export const managedPaths = [
   // Agent and workflow rails
   'AGENTS.md',
+  '.agents',
   '.cursor/rules',
   'docs/agent-loop',
   'docs/hardening.md',

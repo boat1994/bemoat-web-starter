@@ -33,21 +33,23 @@ This starter includes the same development guidance used in the source project:
 - `AGENTS.md` for repository-wide Payload CMS development rules
 - `.cursor/rules/*` for Cursor rules covering Payload collections, fields, hooks, access control, endpoints, adapters, plugins, custom components, and critical security patterns
 - `.cursor/rules/superpowers-using-superpowers.mdc` to require the Superpowers skill workflow
+- `.agents/README.md` as a portable project-level entrypoint for Antigravity and future IDEs when native skill loading is unavailable
 - `.vscode/*` for recommended extensions, formatting, TypeScript SDK, and Next.js debugging
 
-All coding agents should begin task work with:
+Native skills remain preferred when available:
+
+- Cursor should use `.cursor/rules/*` and native Superpowers support first, then `.agents/README.md` as project fallback.
+- Codex should use native skills and `AGENTS.md` first, then `.agents/README.md` as project fallback.
+- Antigravity should use installed global skills first when available, then `.agents/README.md` as the portable project fallback.
+- Other IDEs should start at `.agents/README.md`, then follow `AGENTS.md` and `docs/agent-loop/README.md`.
+
+All coding agents with native Superpowers support should begin task work with:
 
 ```text
 superpowers:using-superpowers
 ```
 
-Skill source:
-
-```text
-/home/boat/.codex/plugins/cache/openai-curated/superpowers/c6ea566d/skills/using-superpowers/SKILL.md
-```
-
-Before responding, asking clarifying questions, planning, editing files, running implementation commands, or reviewing code, agents should check whether a skill applies and follow it first. User instructions remain the highest priority.
+Before responding, asking clarifying questions, planning, editing files, running implementation commands, or reviewing code, agents should check whether a skill applies and follow it first. User instructions remain the highest priority. Do not treat a local machine path as the only source of truth for native skill source; use installed native skills by name when available, and use `.agents/skills/*.md` only as the portable fallback.
 
 ## Development workflow
 
@@ -275,7 +277,7 @@ For the canonical agent loop (branch gates, validation, PR, report), see [docs/a
 
 **Harness-only sync brings in:**
 
-- Shared agent rules (`AGENTS.md`, `.cursor/rules`)
+- Shared agent rules (`AGENTS.md`, `.agents`, `.cursor/rules`)
 - GitHub CI workflow and templates
 - Safety guards (`guard-repo-safety`, `guard-cloudflare-env`)
 - Agent-loop and hardening docs
@@ -370,6 +372,7 @@ Starter modules are not harness. `package.json` remains child-owned in both mode
 These paths are source-of-truth and **may be overwritten** on every sync:
 
 - `AGENTS.md` repository agent instructions
+- `.agents/*` portable project-level agent fallback instructions
 - `.cursor/rules/*` workflow instructions and Cursor rule files
 - `.github/workflows/ci.yml` shared child-safe CI workflow (`bemoat:guard:safety`, `bemoat:test:int` only)
 - `.github/pull_request_template.md` PR template

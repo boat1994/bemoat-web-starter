@@ -27,7 +27,7 @@ After a child project exists, pull reusable improvements from this starter with:
 pnpm run boilerplate:sync
 ```
 
-Sync updates managed boilerplate paths, including agent rules (`AGENTS.md`, `.cursor/rules`), GitHub workflow rails (`.github/workflows/ci.yml`, PR and issue templates), `docs/agent-loop`, harness scripts (`guard-repo-safety`, `guard-cloudflare-env`, `install-git-hooks`, sync/drift/smoke), optional `.githooks`, harness integration tests, and the sync script itself.
+Sync updates managed boilerplate paths, including agent rules (`AGENTS.md`, `.agents`, `.cursor/rules`), GitHub workflow rails (`.github/workflows/ci.yml`, PR and issue templates), `docs/agent-loop`, harness scripts (`guard-repo-safety`, `guard-cloudflare-env`, `install-git-hooks`, sync/drift/smoke), optional `.githooks`, harness integration tests, and the sync script itself.
 
 Sync also merges **`.gitignore`**: child ignore rules are kept and missing starter rules are appended. It adds missing **`bemoat:*` scripts** when absent and writes **`.bemoat/package-sync-proposal.md`** with recommended non-namespaced scripts and dependencies for human review.
 
@@ -92,6 +92,7 @@ task → read AGENTS.md + agent-loop → git status & issue branch → edit → 
 
 All coding agents should start by reading:
 
+- [`.agents/README.md`](../../.agents/README.md) when native skill loading is unavailable
 - [`AGENTS.md`](../../AGENTS.md)
 - [`docs/agent-loop/operating-manual.md`](./operating-manual.md)
 
