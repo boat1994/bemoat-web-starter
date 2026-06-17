@@ -65,6 +65,42 @@ Recommended order when reviewing a feature:
 6. Implementation Plan
 7. Verification Plan
 
+## Canonical artifact names
+
+Use these exact names when creating, referencing, or linking planning artifacts:
+
+| Canonical name | Typical file |
+| --- | --- |
+| Product Spec | `product-spec.md` |
+| UX/UI Specification | `ux-ui-spec.md` |
+| Reference Pattern Handoff | `reference-pattern-handoff.md` |
+| Visual Direction Spec | `visual-direction-spec.md` |
+| Composer Handoff | `composer-handoff.md` |
+| Implementation Plan | `implementation-plan.md` |
+| Verification Plan | `verification-plan.md` |
+
+Do not use informal aliases such as:
+
+- UX/UI contract
+- UI feel contract
+- design contract
+- Mobbin handoff
+- the handoff
+- Batch spec
+
+When another document is required input, cite the canonical artifact name **and** the exact repo path (for example, `docs/superpowers/specs/acme/launch/homepage/ux-ui-spec.md`).
+
+## Generation self-check
+
+Before finalizing generated docs, confirm:
+
+- [ ] All artifact names use canonical names from the table above.
+- [ ] All references use exact repo paths — no vague pointers such as "the handoff" or "the design doc".
+- [ ] No vague document references remain.
+- [ ] No child-project-specific strategy is added to starter docs or starter templates.
+- [ ] No old flat dated paths are introduced for new feature docs.
+- [ ] Specs and plans are placed under `{project}/{initiative}/{feature}` folders.
+
 ## Starter safety notes
 
 - Do not dump all future specs directly into `docs/superpowers/specs/`.
