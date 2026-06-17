@@ -42,3 +42,7 @@
 - Do not copy reference copy.
 - Do not copy unsupported claims.
 - Capture interpretation and implementation-safe design patterns only.
+
+## Terminology Rules
+
+Use canonical artifact names only. Use exact repo paths when referencing other docs. Do not use informal aliases such as `UX/UI contract`, `UI feel contract`, `design contract`, `visual reference handoff`, or `the handoff`.

@@ -55,3 +55,7 @@ This document defines lightweight visual direction for one feature. This is not 
 - [ ] The document does not try to define a full design system.
 - [ ] The document does not try to define a component library.
 - [ ] The visual rules support both desktop and mobile review.
+
+## Terminology Rules
+
+Use canonical artifact names only. Use exact repo paths when referencing other docs. Do not use informal aliases such as `UX/UI contract`, `UI feel contract`, `design contract`, `visual reference handoff`, or `the handoff`.
