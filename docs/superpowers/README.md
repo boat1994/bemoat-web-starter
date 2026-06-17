@@ -84,7 +84,7 @@ Do not use informal aliases such as:
 - UX/UI contract
 - UI feel contract
 - design contract
-- Mobbin handoff
+- visual reference handoff
 - the handoff
 - Batch spec
 

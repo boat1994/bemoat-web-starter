@@ -45,4 +45,4 @@
 
 ## Terminology Rules
 
-Use canonical artifact names only. Use exact repo paths when referencing other docs. Do not use informal aliases such as `UX/UI contract`, `UI feel contract`, `design contract`, `Mobbin handoff`, or `the handoff`.
+Use canonical artifact names only. Use exact repo paths when referencing other docs. Do not use informal aliases such as `UX/UI contract`, `UI feel contract`, `design contract`, `visual reference handoff`, or `the handoff`.
