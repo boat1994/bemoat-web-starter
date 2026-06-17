@@ -193,6 +193,14 @@ If local uncommitted changes already exist, the script stashes only files outsid
 
 If a child project is still using the older sync script, copy `scripts/sync-boilerplate.mjs` from the starter into that project once before rerunning sync. The older script version did not sync itself forward.
 
+### Source-driven sync manifest (one-run managed paths)
+
+After cloning the starter, sync reads **`.bemoat/boilerplate-sync-manifest.json`** from the cloned source. That static JSON file is the source-of-truth sync config for the run: `managedPaths`, `seedOnlyPaths`, `mergeKeepPaths`, and package sync lists.
+
+**Why it exists:** child projects execute their **local** `scripts/sync-boilerplate.mjs`. When the starter adds a new managed path (for example `.agents`), an older local script may not list that path yet. Without the manifest, the first sync would update the local script but would have already used the old in-memory path list, so the new path would only copy on a **second** run. Reading the manifest from the cloned starter after clone fixes that first-sync paradox: newly added managed paths apply in the same run.
+
+If the cloned source has no manifest (very old starter ref), sync falls back to the local script constants and continues safely.
+
 Review **`.bemoat/package-sync-proposal.md`** for script and dependency drift (human review only). Update `package.json` manually when desired, then run **`pnpm install`** if dependencies changed:
 
 ```bash
