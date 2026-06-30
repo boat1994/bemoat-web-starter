@@ -10,6 +10,7 @@ const tempChildRoot = resolve(repoRoot, '.tmp-starter-acceptance-child')
 
 /** Child-facing bemoat:* scripts sync must be able to add when missing. */
 const REQUIRED_CHILD_BEMOAT_SCRIPTS = [
+  'bemoat:branch:check',
   'bemoat:guard:safety',
   'bemoat:test:int',
   'bemoat:boilerplate:sync',
@@ -21,11 +22,13 @@ const OPTIONAL_CHILD_BEMOAT_SCRIPTS = ['bemoat:guard:pack'] as const
 const ESSENTIAL_MANAGED_HARNESS_PATHS = [
   '.github/workflows/ci.yml',
   '.githooks',
+  'scripts/check-branch-safety.sh',
   'scripts/guard-pack.mjs',
   'scripts/guard-harness-contract.mjs',
   'scripts/sync-boilerplate.mjs',
   'scripts/check-boilerplate-drift.mjs',
   'vitest.config.mts',
+  'docs/workflow',
   'docs/harness-sync-contract.md',
   'docs/guard-pack.md',
 ] as const
@@ -51,6 +54,7 @@ describe('starter acceptance suite v1', () => {
       }
 
       expect(packageJSON.scripts['bemoat:guard:safety']).toBe('node scripts/guard-pack.mjs')
+      expect(packageJSON.scripts['bemoat:branch:check']).toBe('bash scripts/check-branch-safety.sh')
       expect(packageJSON.scripts['bemoat:test:int']).toContain('vitest run')
     })
 
@@ -84,6 +88,7 @@ describe('starter acceptance suite v1', () => {
 
       expect(harness.CHILD_FACING_HARNESS_PATHS).toEqual([
         '.github/workflows/ci.yml',
+        '.githooks/pre-commit',
         '.githooks/pre-push',
       ])
     })
@@ -203,6 +208,7 @@ describe('starter acceptance suite v1', () => {
       expect(result.seedOnlyPathsSkipped).toBe(true)
       expect(result.seededFiles).toEqual([])
       expect(result.syncedManaged).toContain('scripts/guard-pack.mjs')
+      expect(result.syncedManaged).toContain('scripts/check-branch-safety.sh')
       expect(result.syncedManaged).toContain('.github/workflows/ci.yml')
 
       rmSync(tempChildRoot, { recursive: true, force: true })

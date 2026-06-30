@@ -26,6 +26,7 @@ export const managedPaths = [
   syncManifestPath,
   '.cursor/rules',
   'docs/agent-loop',
+  'docs/workflow',
   'docs/hardening.md',
   'docs/releases.md',
   'docs/deploy-smoke-test.md',
@@ -56,6 +57,7 @@ export const managedPaths = [
   'scripts/guard-package-manager.mjs',
   'scripts/guard-env-placeholder.mjs',
   'scripts/guard-frontend-seo.mjs',
+  'scripts/check-branch-safety.sh',
   'scripts/install-git-hooks.mjs',
 
   // Local harness hooks and integration tests
@@ -69,6 +71,7 @@ export const managedPaths = [
   'tests/int/harness-contract-guard.int.spec.ts',
   'tests/int/build-script-contract-guard.int.spec.ts',
   'tests/int/build-wrapper.int.spec.ts',
+  'tests/int/branch-safety.int.spec.ts',
   'tests/int/guard-pack.int.spec.ts',
   'tests/int/starter-acceptance.int.spec.ts',
   'tests/int/open-next-config.int.spec.ts',
@@ -96,6 +99,7 @@ export const packageSyncProposalPath = '.bemoat/package-sync-proposal.md'
 
 /** Namespaced scripts safe to add when missing during sync. Never overwrite existing entries. */
 export const managedPackageScripts = [
+  'bemoat:branch:check',
   'bemoat:guard:safety',
   'bemoat:guard:pack',
   'bemoat:guard:harness-contract',
@@ -109,6 +113,7 @@ export const managedPackageScripts = [
 
 /** Non-namespaced scripts surfaced in the package sync proposal only — never auto-applied. */
 export const suggestedPackageScripts = [
+  'branch:check',
   'build',
   'build:next',
   'build:cloudflare',

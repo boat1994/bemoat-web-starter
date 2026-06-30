@@ -30,6 +30,7 @@ const STARTER_ONLY_INT_TESTS: { path: string; reason: string }[] = [
 /** README.md is project-owned and must not appear in managedPaths (see docs/harness-sync-contract.md). */
 
 const MANAGED_BEMOAT_PACKAGE_SCRIPTS = [
+  'bemoat:branch:check',
   'bemoat:guard:safety',
   'bemoat:guard:harness-contract',
   'bemoat:guard:cloudflare-env',
@@ -41,6 +42,7 @@ const MANAGED_BEMOAT_PACKAGE_SCRIPTS = [
 ]
 
 const PROPOSAL_ONLY_PACKAGE_SCRIPTS = [
+  'branch:check',
   'build',
   'build:next',
   'build:cloudflare',
@@ -104,10 +106,14 @@ describe('synced harness CI and hooks', () => {
     expect(ciWorkflow).not.toContain('pnpm run check')
   })
 
-  it('uses only child-safe bemoat:* scripts in synced pre-push hook', () => {
+  it('uses only child-safe bemoat:* scripts in synced hooks', () => {
+    const preCommit = readFileSync(resolve(process.cwd(), '.githooks/pre-commit'), 'utf8')
     const prePush = readFileSync(resolve(process.cwd(), '.githooks/pre-push'), 'utf8')
 
+    assertChildSafeHarnessScripts('.githooks/pre-commit', preCommit)
     assertChildSafeHarnessScripts('.githooks/pre-push', prePush)
+    expect(preCommit).toContain('bash scripts/check-branch-safety.sh')
+    expect(prePush).toContain('bash scripts/check-branch-safety.sh')
     expect(prePush).toContain('pnpm run bemoat:guard:safety')
     expect(prePush).toContain('pnpm run bemoat:test:int')
     expect(prePush).not.toContain('pnpm run typecheck')
@@ -133,12 +139,14 @@ describe('boilerplate sync managed paths', () => {
 
     const harnessPaths = [
       'docs/schema-evolution.md',
+      'docs/workflow',
       'docs/cloudflare-environments.md',
       'docs/boilerplate-sync-command.md',
       'scripts/guard-repo-safety.mjs',
       'scripts/guard-build-script-contract.mjs',
       'scripts/build.mjs',
       'scripts/guard-cloudflare-env.mjs',
+      'scripts/check-branch-safety.sh',
       'scripts/install-git-hooks.mjs',
       '.githooks',
       'vitest.config.mts',
@@ -147,6 +155,7 @@ describe('boilerplate sync managed paths', () => {
       'tests/int/repo-safety-guard.int.spec.ts',
       'tests/int/cloudflare-env-guard.int.spec.ts',
       'tests/int/boilerplate-sync.int.spec.ts',
+      'tests/int/branch-safety.int.spec.ts',
       'tests/int/harness-contract-guard.int.spec.ts',
       'tests/int/starter-acceptance.int.spec.ts',
       'tests/int/open-next-config.int.spec.ts',

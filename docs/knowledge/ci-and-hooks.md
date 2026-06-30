@@ -1,4 +1,4 @@
-# CI and pre-push
+# CI and local hooks
 
 ## Child-safe CI (synced)
 
@@ -20,12 +20,17 @@ Adds: `generate:importmap`, `generate:types`, `lint`, `typecheck`, `test:int`, `
 
 Starter maintainers: local `pnpm run check` before PR; CI strict workflow is the GitHub backstop.
 
-## Pre-push hook (optional)
+## Local hooks (optional)
 
 Install: `pnpm run hooks:install` (or `bemoat:hooks:install` in children).
 
+[`.githooks/pre-commit`](../../.githooks/pre-commit) runs:
+
+- `bash scripts/check-branch-safety.sh`
+
 [`.githooks/pre-push`](../../.githooks/pre-push) runs:
 
+- `bash scripts/check-branch-safety.sh`
 - `pnpm run bemoat:guard:safety`
 - `pnpm run bemoat:test:int`
 

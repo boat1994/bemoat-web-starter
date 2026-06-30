@@ -35,9 +35,9 @@ When unsure, round **up** one tier for source-of-truth or sync-managed paths; ro
 - [ ] If GitHub URL, issue, PR, branch, or CI run is referenced: inspected via GitHub skill or `gh`
 - [ ] **`git status` run**; current branch confirmed
 - [ ] **Working tree clean** (or stop and report unrelated dirty changes — no file edits)
-- [ ] **Not on `main`** for issue-based work — dedicated issue branch created first ([issue-driven-branch-workflow.md](./issue-driven-branch-workflow.md))
+- [ ] **Not on `main` or routine-coding on `develop`** for issue-based work — dedicated issue branch created first ([issue-driven-branch-workflow.md](./issue-driven-branch-workflow.md))
 - [ ] Issue branch follows `<type>/<issue-number>-<short-slug>` (e.g. `fix/41-opennext-build-contract`)
-- [ ] Branch created from current `main` when starting fresh
+- [ ] Branch created from current `develop` when starting fresh
 - [ ] No plan to copy D1 IDs, R2 names, Worker names, `.env`, or secrets across projects
 - [ ] Filled [state-template.md](./state-template.md) with task and objective
 
@@ -104,7 +104,7 @@ Run in **child repos** only. Full loop: [harness-sync-workflow.md](./harness-syn
 
 - [ ] Confirmed child repo (not `bemoat-web-starter`)
 - [ ] **`git status` run**; working tree clean (or stop and report)
-- [ ] **Not on `main`** — sync branch created first: `chore/sync-harness-from-starter-<source-pr-number>`
+- [ ] **Not on `main` or routine-syncing on `develop`** — sync branch created first: `chore/sync-harness-from-starter-<source-pr-number>`
 - [ ] Starter source PR or tag identified
 - [ ] `pnpm run boilerplate:sync -- --harness-only` (or `bemoat:boilerplate:sync`) run on sync branch
 - [ ] `pnpm run guard:safety` (or `bemoat:guard:safety`) passed
