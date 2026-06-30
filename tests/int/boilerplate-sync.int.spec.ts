@@ -31,8 +31,15 @@ const STARTER_ONLY_INT_TESTS: { path: string; reason: string }[] = [
 const STARTER_ONLY_DOCS: { path: string; reason: string }[] = [
   {
     path: 'docs/superpowers',
-    reason: 'Superpowers specs/plans are starter learning/reference docs, not child harness rails',
+    reason:
+      'Superpowers specs/plans are starter learning/reference docs; only plans/_templates and specs/_templates sync',
   },
+]
+
+/** Superpowers template subpaths that sync to child projects for agent planning workflows. */
+const SYNCED_SUPERPOWERS_TEMPLATE_PATHS = [
+  'docs/superpowers/plans/_templates',
+  'docs/superpowers/specs/_templates',
 ]
 
 /** README.md is project-owned and must not appear in managedPaths (see docs/harness-sync-contract.md). */
@@ -204,6 +211,19 @@ describe('boilerplate sync managed paths', () => {
         mod.managedPaths,
         `${entry.path} must not be in managedPaths: ${entry.reason}`,
       ).not.toContain(entry.path)
+    }
+  })
+
+  it('syncs superpowers planning templates while keeping docs/superpowers starter-only', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+
+    expect(mod.managedPaths).not.toContain('docs/superpowers')
+
+    for (const templatePath of SYNCED_SUPERPOWERS_TEMPLATE_PATHS) {
+      expect(
+        mod.managedPaths,
+        `${templatePath} must sync to child projects for agent planning workflows`,
+      ).toContain(templatePath)
     }
   })
 
@@ -900,6 +920,36 @@ describe('boilerplate sync copy behavior', () => {
 
     expect(result.copied).toBe(true)
     expect(readFileSync(join(fixtureRoot, 'target/AGENTS.md'), 'utf8')).toBe('starter agents\n')
+
+    rmSync(fixtureRoot, { recursive: true, force: true })
+  })
+
+  it('overwrites superpowers template files during managed path sync', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+
+    rmSync(fixtureRoot, { recursive: true, force: true })
+    mkdirSync(join(fixtureRoot, 'source/docs/superpowers/specs/_templates'), { recursive: true })
+    mkdirSync(join(fixtureRoot, 'target/docs/superpowers/specs/_templates'), { recursive: true })
+
+    writeFileSync(
+      join(fixtureRoot, 'source/docs/superpowers/specs/_templates/product-spec.md'),
+      'starter template\n',
+    )
+    writeFileSync(
+      join(fixtureRoot, 'target/docs/superpowers/specs/_templates/product-spec.md'),
+      'stale child template\n',
+    )
+
+    const result = mod.copyManagedPath(
+      join(fixtureRoot, 'source'),
+      join(fixtureRoot, 'target'),
+      'docs/superpowers/specs/_templates',
+    )
+
+    expect(result.copied).toBe(true)
+    expect(
+      readFileSync(join(fixtureRoot, 'target/docs/superpowers/specs/_templates/product-spec.md'), 'utf8'),
+    ).toBe('starter template\n')
 
     rmSync(fixtureRoot, { recursive: true, force: true })
   })

@@ -57,9 +57,16 @@ These live in `bemoat-web-starter` for learning, reference, and starter developm
 
 | Path | Purpose |
 |------|---------|
-| `docs/superpowers` | Superpowers specs, plans, and templates for starter-side planning work |
+| `docs/superpowers` (except `_templates` subpaths below) | Superpowers specs, plans, and historical planning work for starter-side reference |
 
-Child projects still get agent execution rails (`AGENTS.md`, `.agents`, `.cursor/rules`, `docs/agent-loop`, `docs/ai`, GitHub workflow rails, guards, sync scripts, harness tests). Agents invoke the native `superpowers:using-superpowers` skill or the portable fallback at `.agents/skills/using-superpowers.md` — not files under `docs/superpowers`.
+**Synced exception:** these template subpaths are in `managedPaths` and **are** copied to child projects:
+
+| Path | Purpose |
+|------|---------|
+| `docs/superpowers/plans/_templates` | Reusable implementation and verification plan formats |
+| `docs/superpowers/specs/_templates` | Reusable product, UX, and handoff spec formats |
+
+Child projects still get agent execution rails (`AGENTS.md`, `.agents`, `.cursor/rules`, `docs/agent-loop`, `docs/ai`, GitHub workflow rails, guards, sync scripts, harness tests). Agents invoke the native `superpowers:using-superpowers` skill or the portable fallback at `.agents/skills/using-superpowers.md` — not feature specs or plans under `docs/superpowers/{project}/…`.
 
 ## What stays child-owned
 
@@ -209,7 +216,7 @@ Current shared tests (listed in `managedPaths` in `scripts/sync-boilerplate.mjs`
 
 6. **Starter-only harness file** — Do not add to `managedPaths`. Document the path and reason in `STARTER_ONLY_INT_TESTS` in `tests/int/boilerplate-sync.int.spec.ts` so the contract test allows it.
 
-7. **Starter-only documentation** — Do not add to `managedPaths`. Document the path in `STARTER_ONLY_DOCS` in `tests/int/boilerplate-sync.int.spec.ts` (for example `docs/superpowers`).
+7. **Starter-only documentation** — Do not add blanket parent paths to `managedPaths`. Document the path in `STARTER_ONLY_DOCS` in `tests/int/boilerplate-sync.int.spec.ts` (for example `docs/superpowers`). Add explicit subpaths to `managedPaths` when part of a starter-only tree must still sync (for example `docs/superpowers/plans/_templates` and `docs/superpowers/specs/_templates`).
 
 8. **Do not sync** `wrangler.jsonc`, resource IDs, secrets, `.env` files, or `pnpm-lock.yaml`.
 

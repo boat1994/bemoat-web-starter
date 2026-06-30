@@ -79,11 +79,13 @@ Deploy **command recommendations** are part of the package sync proposal. **`wra
 
 ### Starter-only (not synced to child projects)
 
-These paths remain in `bemoat-web-starter` for learning and reference. They are **not** in `managedPaths` and are **not** copied by `boilerplate:sync`:
+These paths remain in `bemoat-web-starter` for learning and reference. The parent path is **not** in `managedPaths` and is **not** copied by `boilerplate:sync`:
 
 | Path | Purpose |
 |------|---------|
-| `docs/superpowers` | Superpowers specs, plans, and templates for starter-side planning |
+| `docs/superpowers` (except `_templates` subpaths) | Superpowers specs, plans, and historical planning work for starter-side reference |
+
+**Synced exception:** `docs/superpowers/plans/_templates` and `docs/superpowers/specs/_templates` are in `managedPaths` and sync to child projects for agent planning workflows.
 
 Child agents still start with native `superpowers:using-superpowers` or the portable fallback at `.agents/skills/using-superpowers.md`. See [harness-sync-contract.md](../harness-sync-contract.md#starter-only-paths-not-synced).
 

@@ -4,6 +4,20 @@ This folder holds reusable planning artifacts for projects created from `bemoat-
 
 Use it to keep product, design, and implementation work organized by feature instead of dropping every document into one flat directory.
 
+## Starter vs child sync boundary
+
+Most of `docs/superpowers` is **starter-only reference** — feature specs, plans, and historical planning work stay in `bemoat-web-starter` and are **not** copied by `pnpm run boilerplate:sync`.
+
+**Exception:** `_templates` under `plans/` and `specs/` **do sync** to child projects. They are managed harness paths required for agent planning workflows. Child projects receive updated templates from the starter; copy a template into a feature folder before customizing it locally.
+
+| Path | Synced to child projects? |
+| --- | --- |
+| `docs/superpowers/plans/_templates` | Yes — managed, overwritten on sync |
+| `docs/superpowers/specs/_templates` | Yes — managed, overwritten on sync |
+| `docs/superpowers/plans/{project}/…` | No — starter-only reference |
+| `docs/superpowers/specs/{project}/…` | No — starter-only reference |
+| `docs/superpowers/README.md` and other top-level docs | No — starter-only reference |
+
 ## What lives here
 
 - `specs/`: decision artifacts such as product scope, UX/UI direction, visual interpretation, reference handoff, and composer handoff.
@@ -51,7 +65,7 @@ Typical files include:
 
 ### `_templates/`
 
-Use `_templates/` as the starter-owned source for reusable formats. Child repos should copy templates into their feature folders and then customize the copied files there.
+Use `_templates/` as the starter-owned source for reusable formats. These folders sync to child projects via `boilerplate:sync`. Copy a template into your feature folder, then customize the copied file there — do not edit synced template files in place for feature-specific work.
 
 ## Reading order for a feature
 

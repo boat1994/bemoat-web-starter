@@ -43,6 +43,10 @@ export const managedPaths = [
   'docs/guard-pack.md',
   'docs/starter-acceptance-tests.md',
 
+  // Superpowers planning templates (starter-only except these subpaths)
+  'docs/superpowers/plans/_templates',
+  'docs/superpowers/specs/_templates',
+
   // GitHub workflow rails
   '.github/workflows/ci.yml',
   '.github/pull_request_template.md',
