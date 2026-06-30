@@ -20,6 +20,14 @@ starter-harness work when native development skills are unavailable.
     repository workflow requires it.
 13. Summarize changed files, commands run, test results, and risks.
 
+## UI Animation Tasks
+
+Before implementing non-trivial UI animation, read `.agents/skills/ui-animation.md` when native `ui-animation` skill loading is unavailable.
+
+Trigger it when the task includes drawer, collapse, expand, morph, handoff, travel, transition, choreography, motion polish, visual QA, Framer Motion, perceived continuity, blink, pop, snap, or jank.
+
+Keep CSS responsible for base layout, static styling, and simple one-property micro-transitions. Prefer Framer Motion for sequencing, height reveal, enter/exit, layout perception, same-object continuity, and state choreography.
+
 ## Validation Defaults
 
 - Docs-only changes: `pnpm run bemoat:guard:safety`.

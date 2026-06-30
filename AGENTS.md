@@ -18,6 +18,59 @@ You are an expert Payload CMS developer. When working with Payload projects, fol
 - If an issue, PR, commit, branch, CI run, or GitHub URL is referenced, **use the GitHub skill first when available** (or `gh` for Actions logs).
 - **Do not guess CI failures**—inspect failed workflow logs before proposing fixes.
 
+## UI Animation Development Policy
+
+For UI animation tasks, run the `ui-animation` skill before implementation and prefer Framer Motion for choreography unless the motion is a simple CSS-only micro transition.
+
+Use Framer Motion by default when animation involves:
+
+- multi-step UI animation
+- component state transitions
+- drawer, accordion, or expand-collapse choreography
+- layout morphing
+- enter or exit sequences
+- same-object continuity
+- timing, delay, sequencing, or visual perception
+- slow-motion QA
+
+CSS transitions are still allowed for:
+
+- simple hover states
+- color changes
+- tiny opacity transitions
+- static decorative micro-interactions
+- non-sequenced one-property transitions
+
+Trigger `ui-animation` before implementation when the task includes:
+
+- drawer
+- collapse or expand
+- morph
+- handoff
+- travel
+- transition
+- choreography
+- motion polish
+- visual QA
+- Framer Motion
+- perceived continuity
+- blink, pop, snap, or jank
+
+Animation development rules:
+
+1. Do not rely on passing unit tests as proof that motion is visually correct.
+2. Add or use a slow-motion QA mode when motion perception is unclear.
+3. Separate choreography into explicit phases before coding.
+4. Preserve visual anchors such as header top, card top, and object identity.
+5. Prefer local Framer Motion choreography over broad workflow or lifecycle changes.
+6. Keep CSS responsible for base layout and static styling.
+7. Use Framer Motion for sequencing, height reveal, enter/exit, and state choreography.
+8. Respect `prefers-reduced-motion`.
+9. Do not break existing state contracts or lifecycle timing unless the issue explicitly requires it.
+10. Report the visual QA path, changed animation selectors/components, and remaining motion risks.
+
+For drawer or expand-collapse animation, preserve a stable header or anchor, collapse previous compact content when needed, reveal container height downward, reveal inner content after container motion starts, and preserve same-object continuity. Avoid opacity-only replacement for structural changes, simultaneous hidden-to-open state jumps, and mount/unmount boundaries that create blink, pop, snap, or identity loss.
+
 ## Issue-driven branch workflow
 
 For **issue-based agent tasks**, follow [docs/agent-loop/issue-driven-branch-workflow.md](./docs/agent-loop/issue-driven-branch-workflow.md). Child projects inherit this rule via harness sync.
