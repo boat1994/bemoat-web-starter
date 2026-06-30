@@ -8,6 +8,7 @@ describe('harness contract guard', () => {
     const mod = await import('../../scripts/guard-harness-contract.mjs')
 
     expect(mod.CHILD_FACING_HARNESS_PATHS).toContain('.github/workflows/ci.yml')
+    expect(mod.CHILD_FACING_HARNESS_PATHS).toContain('.githooks/pre-commit')
     expect(mod.CHILD_FACING_HARNESS_PATHS).toContain('.githooks/pre-push')
     expect(mod.FORBIDDEN_RAW_SCRIPTS).toContain('lint')
     expect(mod.FORBIDDEN_RAW_SCRIPTS).toContain('build')
@@ -41,13 +42,15 @@ describe('harness contract guard', () => {
   it('is listed in managedPaths for boilerplate sync', async () => {
     const syncMod = await import('../../scripts/sync-boilerplate.mjs')
 
+    expect(syncMod.managedPaths).toContain('scripts/check-branch-safety.sh')
     expect(syncMod.managedPaths).toContain('scripts/guard-harness-contract.mjs')
+    expect(syncMod.managedPackageScripts).toContain('bemoat:branch:check')
     expect(syncMod.managedPackageScripts).toContain('bemoat:guard:harness-contract')
   })
 })
 
 describe('harness contract guard on disk', () => {
-  it('validates synced CI workflow and pre-push hook', async () => {
+  it('validates synced CI workflow and hooks', async () => {
     const mod = await import('../../scripts/guard-harness-contract.mjs')
 
     for (const relativePath of mod.CHILD_FACING_HARNESS_PATHS) {

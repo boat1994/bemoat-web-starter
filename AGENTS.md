@@ -27,9 +27,10 @@ For **issue-based agent tasks**, follow [docs/agent-loop/issue-driven-branch-wor
 1. Run `git status` and confirm the current branch.
 2. **Stop immediately** if the working tree is dirty with unrelated changes — report what exists; do not modify files.
 3. **Never modify `main` directly** — no issue work on `main`.
-4. If on `main`, create and switch to a dedicated issue branch first.
+4. **Do not implement directly on `develop`** unless explicitly doing integration maintenance.
+5. If on `main` or `develop`, create and switch to a dedicated issue branch from `develop` first.
 
-**Branch naming:** `<type>/<issue-number>-<short-slug>` (for example `fix/41-opennext-build-contract`, `chore/42-issue-driven-branch-workflow`).
+**Branch naming:** `<type>/<issue-number>-<short-slug>` (for example `fix/41-opennext-build-contract`, `feature/42-mobbin-reference-cms`, `chore/67-git-flow-branch-guardrails`). See [docs/workflow/git-flow.md](./docs/workflow/git-flow.md).
 
 **After development:** push the issue branch, then **open a PR** if none exists for the branch, or **update the existing PR** (description and/or comment) if one is already open. Do not mark the issue done until PR status is clear.
 
@@ -45,7 +46,7 @@ Agents **may create branches, commit, push, and open PRs**, but **must not merge
 
 1. Read `AGENTS.md` and [docs/agent-loop](./docs/agent-loop/README.md)
 2. Understand the task (and inspect GitHub state when a URL or issue is referenced); classify [task-size tier](./docs/agent-loop/checklist.md#task-size-tiers) (small / medium / core) and use the minimum useful process for that tier
-3. Run [issue-driven branch gates](./docs/agent-loop/issue-driven-branch-workflow.md#required-first-steps-before-any-file-edit): `git status`, confirm branch, stop if dirty, never edit on `main`, create `<type>/<issue-number>-<short-slug>` from `main` when needed
+3. Run [issue-driven branch gates](./docs/agent-loop/issue-driven-branch-workflow.md#required-first-steps-before-any-file-edit): `git status`, confirm branch, stop if dirty, never edit on `main` or routine-code on `develop`, create `<type>/<issue-number>-<short-slug>` from `develop` when needed
 4. Make the smallest complete change
 5. Run required checks (see [Validation before PR and merge](#validation-before-pr-and-merge))
 6. Show `git status` and diff summary
@@ -61,13 +62,13 @@ Agents **must complete the full branch-to-PR workflow** unless blocked.
 
 **Required flow:**
 
-1. Run `git status`; confirm branch; stop if working tree is dirty; never work on `main` directly.
-2. Create a dedicated issue branch from latest `main` when not already on one (`<type>/<issue-number>-<short-slug>`).
+1. Run `git status`; confirm branch; stop if working tree is dirty; never work on `main` directly or routine-code on `develop`.
+2. Create a dedicated issue branch from latest `develop` when not already on one (`<type>/<issue-number>-<short-slug>`).
 3. Implement the issue on that branch.
 4. Run relevant checks.
 5. Commit changes.
 6. Push the branch to origin.
-7. Open a pull request targeting `main`, **or update the existing PR** if the branch already has one.
+7. Open a pull request targeting `develop`, **or update the existing PR** if the branch already has one.
 8. Include `Closes #ISSUE_NUMBER` in the PR body when working from a GitHub issue.
 9. Post an implementation report comment on the source GitHub issue (see [Issue report after PR creation](#issue-report-after-pr-creation)).
 10. Before closing the issue, complete the [harness sync closeout checklist](./docs/agent-loop/issue-driven-branch-workflow.md#harness-sync-closeout-before-closing-the-issue) when the change affects source-of-truth or workflow rails.
@@ -196,9 +197,9 @@ Details: [docs/agent-loop/checklist.md](./docs/agent-loop/checklist.md), [docs/a
 
 ## Validation before PR and merge
 
-Agents must run the correct validation tier **before commit and PR**. **CI is the final source of truth** on GitHub; optional local pre-push hooks are a fast subset only (see [Optional local git hooks](#optional-local-git-hooks) in the root README).
+Agents must run the correct validation tier **before commit and PR**. **CI is the final source of truth** on GitHub; optional local hooks are a fast subset only (see [Optional local git hooks](#optional-local-git-hooks) in the root README).
 
-**Synced harness baseline:** Child projects receive `.github/workflows/ci.yml` and `.githooks/pre-push` that call only `bemoat:*` scripts (`bemoat:guard:safety`, `bemoat:test:int`). Package sync adds missing `bemoat:*` scripts only — it never auto-adds `guard:safety`, `check`, `lint`, `typecheck`, `build`, or deploy scripts. Full lint/type/build validation is follow-up work in each child project. In **`bemoat-web-starter` itself**, run the stricter tiers below locally; GitHub also runs [`.github/workflows/ci-starter.yml`](./.github/workflows/ci-starter.yml) (starter-only, not synced to children).
+**Synced harness baseline:** Child projects receive `.github/workflows/ci.yml`, `.githooks/pre-commit`, and `.githooks/pre-push`. Hooks run branch safety, and pre-push calls only `bemoat:*` scripts (`bemoat:guard:safety`, `bemoat:test:int`). Package sync adds missing `bemoat:*` scripts only — it never auto-adds `guard:safety`, `check`, `lint`, `typecheck`, `build`, or deploy scripts. Full lint/type/build validation is follow-up work in each child project. In **`bemoat-web-starter` itself**, run the stricter tiers below locally; GitHub also runs [`.github/workflows/ci-starter.yml`](./.github/workflows/ci-starter.yml) (starter-only, not synced to children).
 
 ### Validation tiers
 
@@ -233,11 +234,11 @@ Full policy: [docs/agent-loop/migration-draft-pr.md](./docs/agent-loop/migration
 ### Why lint before PR but not in pre-push
 
 - **Lint in `pnpm run check`** — agents and authors catch style and pattern issues before push; cheap compared to a failed CI round.
-- **Lint not in optional pre-push** — synced pre-push runs only `bemoat:guard:safety` and `bemoat:test:int`; typecheck, lint, and build stay out of the harness until child projects add those scripts intentionally.
+- **Lint not in optional pre-push** — synced pre-push runs branch safety, `bemoat:guard:safety`, and `bemoat:test:int`; typecheck, lint, and build stay out of the harness until child projects add those scripts intentionally.
 
 ### Optional local pre-push
 
-Not required. Install with `pnpm run bemoat:hooks:install` (or `pnpm run hooks:install` when defined) in child projects after sync. Runs `bemoat:guard:safety` and `bemoat:test:int` only. Does **not** replace CI or the `check` requirement before PR when those scripts exist.
+Not required. Install with `pnpm run bemoat:hooks:install` (or `pnpm run hooks:install` when defined) in child projects after sync. Runs branch safety before commit and push; pre-push also runs `bemoat:guard:safety` and `bemoat:test:int`. Does **not** replace CI or the `check` requirement before PR when those scripts exist.
 
 Agent loop checklists: [docs/agent-loop/checklist.md](./docs/agent-loop/checklist.md).
 

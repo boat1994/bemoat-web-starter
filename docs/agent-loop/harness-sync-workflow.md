@@ -27,7 +27,7 @@ starter PR merged → child sync branch → boilerplate sync → checks → diff
 | Step | What happens |
 |------|----------------|
 | **Starter PR merged** | Confirm the harness change is on `main` (or pin `BEMOAT_BOILERPLATE_REF` to a release tag). Note the **source PR number** for branch naming. |
-| **Child sync branch** | Create a dedicated branch from latest child `main` — never sync on `main`. |
+| **Child sync branch** | Create a dedicated branch from latest child `develop` — never sync on `main` or routine-sync directly on `develop`. |
 | **Boilerplate sync** | Run `pnpm run boilerplate:sync -- --harness-only` (or `bemoat:boilerplate:sync` in child repos). |
 | **Checks** | `pnpm run guard:safety` (or `bemoat:guard:safety`), `git diff --check`, optional drift check if script exists. |
 | **Diff review** | Verify only harness paths changed; no product code, secrets, or Cloudflare IDs. |
@@ -45,7 +45,8 @@ Run these in order. **Stop and report** if any gate fails — do not modify file
 2. **Confirm current branch** — `git branch --show-current`.
 3. **Dirty working tree** — if there are uncommitted changes (staged or unstaged) or untracked files that are not part of the sync task, **stop immediately**. Report what is already changed. Do not stash, reset, or edit over unrelated work.
 4. **Never sync on `main`** — no `boilerplate:sync`, commits, or pushes on `main` for harness sync work.
-5. **Create a sync branch when on `main`** — after a clean tree on `main`, create and switch to a dedicated sync branch before running sync or editing files.
+5. **Do not sync directly on `develop`** unless the task is explicitly integration maintenance.
+6. **Create a sync branch when on `main` or `develop`** — after a clean tree, create and switch to a dedicated sync branch from `develop` before running sync or editing files.
 
 If you are already on a dedicated sync branch with a clean tree (or only task-intentional changes), continue on that branch.
 
@@ -66,13 +67,13 @@ chore/sync-harness-from-starter-<source-pr-number>
 - `chore/sync-harness-from-starter-45`
 - `chore/sync-harness-from-starter-123`
 
-Create the branch from latest child `main`:
+Create the branch from latest child `develop`:
 
 ```bash
 git fetch origin
-git checkout main
-git pull origin main
-git checkout -b chore/sync-harness-from-starter-<source-pr-number>
+git switch develop
+git pull origin develop
+git switch -c chore/sync-harness-from-starter-<source-pr-number>
 ```
 
 ## Sync command
@@ -130,7 +131,7 @@ Stop and report instead of committing when any of these appear in the diff:
 When sync, checks, and diff review pass:
 
 1. **Check whether the current branch already has an open PR** — use the GitHub skill or `gh pr list --head "$(git branch --show-current)"`.
-2. **If no PR exists** — push the branch (`git push -u origin HEAD`) and **open a PR** targeting `main`. Link the source starter PR or child follow-up issue in the PR body.
+2. **If no PR exists** — push the branch (`git push -u origin HEAD`) and **open a PR** targeting `develop`. Link the source starter PR or child follow-up issue in the PR body.
 3. **If a PR already exists** — **update that PR** instead of opening a duplicate. Refresh the PR description and/or add a comment summarizing sync output, files changed, commands run, and test results.
 4. **Do not mark the issue done** until PR status is clear and a human has reviewed the harness diff.
 
@@ -196,8 +197,8 @@ Review PR, wait for CI, then merge if green.
 | Condition | Action |
 |-----------|--------|
 | Working tree dirty (unrelated changes) | Stop; report existing changes; no sync |
-| On `main` without creating sync branch first | Stop before sync; create sync branch |
-| Sync or commit on `main` | Forbidden — use sync branch |
+| On `main` or `develop` without creating sync branch first | Stop before sync; create sync branch |
+| Sync or commit on `main`, or routine-sync on `develop` | Forbidden — use sync branch |
 | Product code or secrets in diff | Stop before commit; fix scope or sync mode |
 | PR exists for branch | Update PR; do not open duplicate |
 | `boilerplate:check` script missing | Skip drift check; do not fail workflow |

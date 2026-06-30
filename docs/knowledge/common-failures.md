@@ -6,7 +6,7 @@ Actionable symptoms from current guards and CI. For guard internals see [guard-p
 
 | Symptom | Likely cause | Fix | Source |
 |---------|--------------|-----|--------|
-| Harness contract guard: forbidden script in CI | `.github/workflows/ci.yml` or `.githooks/pre-push` calls `lint`, `check`, `guard:safety`, `test:int`, etc. | Replace with `pnpm run bemoat:guard:safety` and `pnpm run bemoat:test:int` only | [harness-sync-contract.md](../harness-sync-contract.md), `scripts/guard-harness-contract.mjs` |
+| Harness contract guard: forbidden script in CI/hooks | `.github/workflows/ci.yml`, `.githooks/pre-commit`, or `.githooks/pre-push` calls raw scripts such as `lint`, `check`, `guard:safety`, `test:int`, etc. | Use child-safe `bemoat:*` scripts and direct branch safety shell checks only | [harness-sync-contract.md](../harness-sync-contract.md), `scripts/guard-harness-contract.mjs` |
 | `guard:safety` / `bemoat:guard:safety` fails on secrets | Token-like strings or `SECRET=` assignments in tracked files | Remove secrets; use `.env` locally; keep `.env.example` as placeholders | [guard-pack.md](../guard-pack.md) |
 | Env placeholder guard fails | Missing `.env.example` or real-looking values in `.env.example` | Add file with empty values (`KEY=`) or short documented placeholders | `scripts/guard-env-placeholder.mjs` |
 | Destructive SQL in migration | `DROP`, `DELETE FROM`, `TRUNCATE`, etc. in migration `up` | Use additive SQL; or add `bemoat:destructive-migration-approved` only with human approval | [security-and-migrations.md](../agent-loop/security-and-migrations.md) |

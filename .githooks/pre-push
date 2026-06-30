@@ -3,6 +3,9 @@
 # Runs a fast child-safe subset only — bemoat:* scripts that sync adds when missing.
 set -eu
 
+echo "pre-push: checking branch safety..."
+bash scripts/check-branch-safety.sh
+
 echo "pre-push: running repository safety guard..."
 pnpm run bemoat:guard:safety
 

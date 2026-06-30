@@ -1,0 +1,7 @@
+#!/usr/bin/env sh
+set -eu
+
+echo "pre-commit: checking branch safety..."
+bash scripts/check-branch-safety.sh
+
+echo "pre-commit: branch safety passed."

@@ -54,8 +54,8 @@ task → read AGENTS.md + agent-loop → git status & issue branch → edit → 
 | Step | What happens |
 |------|----------------|
 | **Task** | User gives a short prompt or GitHub issue. Scope, allowed files, and risks may also live in the [agent-task](../../.github/ISSUE_TEMPLATE/agent-task.yml) template. |
-| **Branch gates** | `git status`; stop if dirty; never work on `main`; create `<type>/<issue-number>-<short-slug>` from `main`. See [issue-driven-branch-workflow.md](./issue-driven-branch-workflow.md). |
-| **Branch** | Short-lived dedicated issue branch from `main`; naming convention documented in [issue-driven-branch-workflow.md](./issue-driven-branch-workflow.md). |
+| **Branch gates** | `git status`; stop if dirty; never work on `main` or routine-code on `develop`; create `<type>/<issue-number>-<short-slug>` from `develop`. See [issue-driven-branch-workflow.md](./issue-driven-branch-workflow.md) and [Git Flow guardrails](../workflow/git-flow.md). |
+| **Branch** | Short-lived dedicated issue branch from `develop`; naming convention documented in [issue-driven-branch-workflow.md](./issue-driven-branch-workflow.md). |
 | **Edit** | Follow `AGENTS.md`, allowed paths, and [checklist.md](./checklist.md). Smallest complete change. |
 | **Test** | Run validation tier from `AGENTS.md`: docs-only → `guard:safety`; code → `check` (required). `generate:importmap` / `generate:types` when needed. |
 | **Show diff** | `git status` and diff summary before commit. |
@@ -83,6 +83,7 @@ task → read AGENTS.md + agent-loop → git status & issue branch → edit → 
 | [migration-draft-pr.md](./migration-draft-pr.md) | Draft PR workflow for D1/Payload migrations |
 | [checklist.md](./checklist.md) | Before/during/PR/CI/merge checklists |
 | [source-of-truth.md](./source-of-truth.md) | What lives in starter vs child projects |
+| [../workflow/git-flow.md](../workflow/git-flow.md) | Git Flow branch roles, topic branch rules, hooks, and branch protection checklist |
 | [../hardening.md](../hardening.md) | Production hardening index (releases, drift check, smoke test, secrets, branch protection) |
 | [Knowledge base](https://github.com/boat1994/bemoat-web-starter/blob/main/docs/knowledge/README.md) | Starter-only — short notes on scripts, sync, guards, failures |
 | [ADR index](https://github.com/boat1994/bemoat-web-starter/blob/main/docs/adr/README.md) | Starter-only — why core starter choices exist |

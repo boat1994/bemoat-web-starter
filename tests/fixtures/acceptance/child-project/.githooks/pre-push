@@ -1,6 +1,9 @@
 #!/usr/bin/env sh
 set -eu
 
+echo "pre-push: checking branch safety..."
+bash scripts/check-branch-safety.sh
+
 echo "pre-push: running repository safety guard..."
 pnpm run bemoat:guard:safety
 

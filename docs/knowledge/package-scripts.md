@@ -8,13 +8,14 @@ Child-facing automation (synced CI, pre-push) may call **only** these:
 
 | Script | Purpose |
 |--------|---------|
+| `bemoat:branch:check` | Manual Git Flow branch safety check |
 | `bemoat:guard:safety` | Full central guard pack (CI + optional pre-push) |
 | `bemoat:guard:pack` | Same as above (explicit alias) |
 | `bemoat:test:int` | Shared Vitest integration tests |
 | `bemoat:guard:cloudflare-env` | Deploy env guard (when deploy scripts exist) |
 | `bemoat:check` | `bemoat:guard:safety` + lint + typecheck + `bemoat:test:int` (when child defines lint/typecheck) |
 | `bemoat:boilerplate:sync` / `bemoat:boilerplate:check` | Pull or audit harness from starter |
-| `bemoat:hooks:install` | Install optional `.githooks/pre-push` |
+| `bemoat:hooks:install` | Install optional `.githooks/pre-commit` and `.githooks/pre-push` |
 
 Sync adds missing `bemoat:*` entries in child `package.json` without overwriting existing values.
 
@@ -24,6 +25,7 @@ Used in **this repo** and optional child tooling — **not** wired into synced C
 
 | Script | Typical use |
 |--------|-------------|
+| `branch:check` | Starter alias for `scripts/check-branch-safety.sh` |
 | `guard:safety` | Starter alias to guard pack (used by `check` and ci-starter) |
 | `check` | `guard:safety` + lint + typecheck + `test:int` — **required before starter code PRs** |
 | `check:full` | lint + typecheck + full test + build — human pre-merge |
