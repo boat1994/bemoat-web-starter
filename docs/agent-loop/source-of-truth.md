@@ -9,8 +9,8 @@ This document separates what **`bemoat-web-starter`** owns from what **child pro
 | Agent rules | `AGENTS.md`, `.agents/*` |
 | Cursor rules | `.cursor/rules/*` |
 | GitHub templates | `.github/pull_request_template.md`, `.github/ISSUE_TEMPLATE/*`, shared workflows |
-| Agent-loop docs | `docs/agent-loop/*`, `docs/hardening.md`, `docs/releases.md`, `docs/deploy-smoke-test.md`, `docs/cloudflare-environments.md`, `docs/schema-evolution.md` |
-| Harness workflow | `scripts/guard-repo-safety.mjs`, `scripts/guard-cloudflare-env.mjs`, `scripts/install-git-hooks.mjs`, `.githooks`, `vitest.config.mts`, `vitest.setup.ts`, shared harness tests under `tests/int/` |
+| Agent-loop docs | `docs/agent-loop/*`, `docs/workflow/*`, `docs/hardening.md`, `docs/releases.md`, `docs/deploy-smoke-test.md`, `docs/cloudflare-environments.md`, `docs/schema-evolution.md` |
+| Harness workflow | `scripts/guard-repo-safety.mjs`, `scripts/guard-cloudflare-env.mjs`, `scripts/check-branch-safety.sh`, `scripts/install-git-hooks.mjs`, `.githooks`, `vitest.config.mts`, `vitest.setup.ts`, shared harness tests under `tests/int/` |
 | Payload schema (shared) | Shared collections and globals (seeded once) |
 | Starter UI | Shared starter pages (home, projects, blog, custom order, etc.; seeded once) |
 | Shared utilities | Helper modules under `src/lib` (seeded once) |
@@ -50,6 +50,7 @@ These paths are overwritten on every sync:
 | `.github/pull_request_template.md` | PR template |
 | `.github/ISSUE_TEMPLATE/agent-task.yml` | Agent task issue template |
 | `docs/agent-loop` | Agent operating loop docs |
+| `docs/workflow` | Branching and workflow policy docs |
 | `docs/hardening.md`, `docs/releases.md`, `docs/deploy-smoke-test.md`, `docs/cloudflare-environments.md`, `docs/schema-evolution.md` | Production hardening, releases, smoke test, Cloudflare env guide, and schema evolution |
 | `scripts/sync-boilerplate.mjs` | Sync script and path lists |
 | `scripts/check-boilerplate-drift.mjs` | Read-only drift check before sync |
@@ -57,15 +58,16 @@ These paths are overwritten on every sync:
 | `scripts/deploy-smoke-test.mjs` | Optional deploy smoke test helper |
 | `scripts/guard-repo-safety.mjs` | Repository safety guard (secrets, resource IDs, destructive migrations) |
 | `scripts/guard-cloudflare-env.mjs` | Cloudflare deploy environment guard (blocks unsafe prod deploys) |
-| `scripts/install-git-hooks.mjs` | Optional local pre-push harness installer |
-| `.githooks` | Optional pre-push hook (`bemoat:guard:safety`, `bemoat:test:int`) |
+| `scripts/check-branch-safety.sh` | Git Flow branch safety check for hooks and manual use |
+| `scripts/install-git-hooks.mjs` | Optional local hook installer |
+| `.githooks` | Optional pre-commit/pre-push hooks (branch safety, `bemoat:guard:safety`, `bemoat:test:int`) |
 | `vitest.config.mts`, `vitest.setup.ts` | Integration test harness for workflow rails |
 | `tests/int/*.int.spec.ts` (shared harness) | `api`, `boilerplate-sync`, `cloudflare-env-guard`, `open-next-config`, `repo-safety-guard` — all listed in `managedPaths`; see [harness-sync-contract.md](../harness-sync-contract.md) |
 | `docs/dev-boilerplate.md`, `docs/boilerplate-sync-command.md`, `docs/harness-sync-contract.md` | Boilerplate module, sync command, and harness contract notes |
 
 `package.json` is **child-owned**. Sync adds missing `bemoat:*` scripts only and writes **`.bemoat/package-sync-proposal.md`** with recommended non-namespaced scripts (`build`, `deploy`, `preview`, `check`, etc.) and dependencies. The proposal file is regenerated and included in the sync commit for human review. Apply package changes manually.
 
-Managed namespaced scripts: `bemoat:guard:safety`, `bemoat:guard:cloudflare-env`, `bemoat:test:int`, `bemoat:check`, `bemoat:boilerplate:sync`, `bemoat:boilerplate:check`, `bemoat:hooks:install`
+Managed namespaced scripts: `bemoat:branch:check`, `bemoat:guard:safety`, `bemoat:guard:cloudflare-env`, `bemoat:test:int`, `bemoat:check`, `bemoat:boilerplate:sync`, `bemoat:boilerplate:check`, `bemoat:hooks:install`
 
 `pnpm-lock.yaml` is not synced. After applying any proposal changes, run `pnpm install` in the child project.
 

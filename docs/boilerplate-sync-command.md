@@ -93,7 +93,7 @@ Starter modules are **not** harness. Use `harness-only` when the child project a
 - `docs/agent-loop/*`, `docs/hardening.md`, `docs/releases.md`, `docs/deploy-smoke-test.md`, `docs/cloudflare-environments.md`, `docs/schema-evolution.md`
 - `scripts/sync-boilerplate.mjs`, `scripts/check-boilerplate-drift.mjs`, `scripts/deploy-smoke-test.mjs`
 - `scripts/guard-repo-safety.mjs`, `scripts/guard-cloudflare-env.mjs`, `scripts/install-git-hooks.mjs`
-- `.githooks/pre-push` (optional local pre-push harness — `bemoat:guard:safety`, `bemoat:test:int` only)
+- `.githooks/pre-commit` and `.githooks/pre-push` (optional local branch safety and pre-push harness)
 - `vitest.config.mts`, `vitest.setup.ts`, and shared harness tests under `tests/int/`:
   - `tests/int/api.int.spec.ts`
   - `tests/int/boilerplate-sync.int.spec.ts`
@@ -110,7 +110,7 @@ See [harness-sync-contract.md](./harness-sync-contract.md) for the full harness 
 
 Default sync behavior:
 
-- adds missing **`bemoat:*` scripts** only (`bemoat:guard:safety`, `bemoat:guard:cloudflare-env`, `bemoat:test:int`, `bemoat:check`, `bemoat:boilerplate:sync`, `bemoat:boilerplate:check`, `bemoat:hooks:install`)
+- adds missing **`bemoat:*` scripts** only (`bemoat:branch:check`, `bemoat:guard:safety`, `bemoat:guard:cloudflare-env`, `bemoat:test:int`, `bemoat:check`, `bemoat:boilerplate:sync`, `bemoat:boilerplate:check`, `bemoat:hooks:install`)
 - never overwrites existing **`bemoat:*` scripts**
 - never adds, overwrites, removes, renames, or reorders deploy/build/check/test scripts **unless** you pass **`--apply-build-contract`** (see below)
 - never auto-adds, removes, bumps, or rewrites **`dependencies`** or **`devDependencies`**
@@ -142,7 +142,7 @@ Non-namespaced script drift surfaced in the proposal (never force-applied by def
 
 Dependency drift surfaced in the proposal: `dependencies`, `devDependencies`
 
-Synced CI and pre-push hooks assume only `bemoat:*` scripts exist. Full `lint`, `typecheck`, `build`, and `check` baselines are follow-up work in each child project — add those scripts manually from the proposal when ready, then extend local CI or pre-push if desired.
+Synced CI and hooks assume only `bemoat:*` scripts exist, plus direct shell execution of the synced branch safety script. Full `lint`, `typecheck`, `build`, and `check` baselines are follow-up work in each child project — add those scripts manually from the proposal when ready, then extend local CI or hooks if desired.
 
 `pnpm-lock.yaml` is never synced.
 

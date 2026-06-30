@@ -1,0 +1,44 @@
+---
+description: Git Flow branch safety for AI-assisted coding
+globs:
+  - "**/*"
+alwaysApply: true
+---
+
+# Branch safety
+
+Before editing files, run `git status` and confirm the current branch.
+
+Protected branches:
+
+- `main` is the stable release baseline. Do not edit, commit, or push routine work on `main`.
+- `develop` is the integration baseline. Do not implement routine work directly on `develop`.
+
+For normal issue work:
+
+1. Sync `develop`.
+2. Create a topic branch from `develop`.
+3. Implement on the topic branch.
+4. Open the PR into `develop`.
+
+Allowed implementation branch patterns:
+
+- `feature/*`
+- `feat/*`
+- `fix/*`
+- `refactor/*`
+- `chore/*`
+- `test/*`
+- `docs/*`
+- `release/*`
+- `hotfix/*`
+
+Use `ALLOW_INTEGRATION_BRANCH=1` only for explicit integration maintenance on `develop`.
+
+Manual check:
+
+```bash
+pnpm run branch:check
+```
+
+Canonical policy: `docs/workflow/git-flow.md`.

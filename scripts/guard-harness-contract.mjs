@@ -9,6 +9,7 @@ import { pathToFileURL } from 'node:url'
  */
 export const CHILD_FACING_HARNESS_PATHS = [
   '.github/workflows/ci.yml',
+  '.githooks/pre-commit',
   '.githooks/pre-push',
 ]
 

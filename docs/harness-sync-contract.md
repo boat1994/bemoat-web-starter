@@ -14,7 +14,7 @@ The harness is everything child projects need to run the same safety rails, work
 | Safety guards | `scripts/guard-pack.mjs` (orchestrator), `scripts/guard-repo-safety.mjs`, `scripts/guard-harness-contract.mjs`, `scripts/guard-package-manager.mjs`, `scripts/guard-env-placeholder.mjs`, `scripts/guard-cloudflare-env.mjs`, `scripts/guard-frontend-seo.mjs` — see [guard-pack.md](./guard-pack.md) |
 | Cloudflare deploy guards | Recommended `deploy` / `preview` scripts that call `guard:cloudflare-env` |
 | Sync and drift | `scripts/sync-boilerplate.mjs`, `scripts/check-boilerplate-drift.mjs` |
-| Local git hooks | `.githooks`, `scripts/install-git-hooks.mjs`, `hooks:install` |
+| Local git hooks | `.githooks`, `scripts/check-branch-safety.sh`, `scripts/install-git-hooks.mjs`, `hooks:install` |
 | Vitest harness | `vitest.config.mts`, `vitest.setup.ts` |
 | Shared integration tests | All `tests/int/**/*.int.spec.ts` files intended for child projects |
 
@@ -99,6 +99,7 @@ pnpm run boilerplate:sync -- --harness-only --apply-build-contract
 
 Managed namespaced scripts (see `managedPackageScripts` in `scripts/sync-boilerplate.mjs`):
 
+- `bemoat:branch:check`
 - `bemoat:guard:safety` (repo safety + harness contract)
 - `bemoat:guard:harness-contract` (standalone harness contract check)
 - `bemoat:guard:cloudflare-env`
@@ -110,7 +111,7 @@ Managed namespaced scripts (see `managedPackageScripts` in `scripts/sync-boilerp
 
 Suggested non-namespaced scripts (reported in proposal only — never auto-applied by default):
 
-- `build`, `build:next`, `build:cloudflare`, `cf:build`, `deploy`, `deploy:app`, `deploy:database`, `deploy:dev`, `preview`
+- `branch:check`, `build`, `build:next`, `build:cloudflare`, `cf:build`, `deploy`, `deploy:app`, `deploy:database`, `deploy:dev`, `preview`
 - `check`, `check:full`, `lint`, `typecheck`, `test`, `test:int`
 - `dev`, `start`
 
@@ -123,9 +124,10 @@ Package sync adds only missing `bemoat:*` scripts. Synced harness files must not
 | Harness file | Runs on CI / pre-push |
 |--------------|----------------------|
 | `.github/workflows/ci.yml` | `pnpm install --frozen-lockfile`, `pnpm run bemoat:guard:safety`, `pnpm run bemoat:test:int` |
-| `.githooks/pre-push` | `pnpm run bemoat:guard:safety`, `pnpm run bemoat:test:int` |
+| `.githooks/pre-commit` | `bash scripts/check-branch-safety.sh` |
+| `.githooks/pre-push` | `bash scripts/check-branch-safety.sh`, `pnpm run bemoat:guard:safety`, `pnpm run bemoat:test:int` |
 
-Do **not** call these directly from synced CI or pre-push: `guard:safety`, `guard:cloudflare-env`, `check`, `check:full`, `typecheck`, `lint`, `build`, `deploy`, `deploy:app`, `deploy:database`, `preview`, or `test:int`.
+Do **not** call these directly from synced CI or hooks: `guard:safety`, `guard:cloudflare-env`, `check`, `check:full`, `typecheck`, `lint`, `build`, `deploy`, `deploy:app`, `deploy:database`, `preview`, or `test:int`.
 
 Child projects may add stricter validation later (`check`, `lint`, `typecheck`, `build`, deploy scripts) and extend their own CI or pre-push when those scripts exist. `bemoat-web-starter` itself runs full validation locally and via [`.github/workflows/ci-starter.yml`](../.github/workflows/ci-starter.yml) (starter-only, not synced).
 
@@ -136,7 +138,8 @@ Child projects may add stricter validation later (`check`, `lint`, `typecheck`, 
 | Child-facing path | Purpose |
 |-------------------|---------|
 | `.github/workflows/ci.yml` | Synced GitHub Actions workflow |
-| `.githooks/pre-push` | Optional local pre-push hook |
+| `.githooks/pre-commit` | Optional local branch safety hook |
+| `.githooks/pre-push` | Optional local branch safety + pre-push hook |
 
 Human-facing templates (`.github/pull_request_template.md`, `.github/ISSUE_TEMPLATE/agent-task.yml`) may reference raw scripts as **local developer instructions** — they are not automation entry points and are not scanned by the guard.
 
@@ -154,15 +157,16 @@ Child projects should treat **`bemoat:*` as the public harness API**. Synced CI 
 
 | Script | Purpose |
 |--------|---------|
+| `bemoat:branch:check` | Manual Git Flow branch safety check |
 | `bemoat:guard:safety` | Central guard pack v1 (all reusable safety checks) |
 | `bemoat:guard:pack` | Explicit alias for the central guard pack |
 | `bemoat:test:int` | Shared Vitest integration tests |
 | `bemoat:guard:cloudflare-env` | Cloudflare deploy environment guard (when deploy scripts exist) |
 | `bemoat:check` | Optional stricter local/CI check when child defines `lint` and `typecheck` |
 | `bemoat:boilerplate:sync` / `bemoat:boilerplate:check` | Pull harness updates from starter |
-| `bemoat:hooks:install` | Install optional `.githooks/pre-push` |
+| `bemoat:hooks:install` | Install optional `.githooks/pre-commit` and `.githooks/pre-push` |
 
-Raw implementation scripts (`lint`, `typecheck`, `build`, `deploy`, `preview`, `check`, `guard:safety`, etc.) are **starter-internal or child-local**. Do not call them from synced CI or pre-push templates.
+Raw implementation scripts (`lint`, `typecheck`, `build`, `deploy`, `preview`, `check`, `guard:safety`, etc.) are **starter-internal or child-local**. Do not call them from synced CI or hook templates.
 
 ## Shared integration tests
 

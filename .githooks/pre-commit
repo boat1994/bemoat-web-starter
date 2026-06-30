@@ -1,0 +1,8 @@
+#!/usr/bin/env sh
+# Optional local pre-commit guard. Blocks routine commits on protected Git Flow branches.
+set -eu
+
+echo "pre-commit: checking branch safety..."
+bash scripts/check-branch-safety.sh
+
+echo "pre-commit: branch safety passed."

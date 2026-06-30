@@ -6,6 +6,7 @@
     ".bemoat/boilerplate-sync-manifest.json",
     ".cursor/rules",
     "docs/agent-loop",
+    "docs/workflow",
     "docs/hardening.md",
     "docs/releases.md",
     "docs/deploy-smoke-test.md",
@@ -32,6 +33,7 @@
     "scripts/guard-package-manager.mjs",
     "scripts/guard-env-placeholder.mjs",
     "scripts/guard-frontend-seo.mjs",
+    "scripts/check-branch-safety.sh",
     "scripts/install-git-hooks.mjs",
     ".githooks",
     "vitest.config.mts",
@@ -43,6 +45,7 @@
     "tests/int/harness-contract-guard.int.spec.ts",
     "tests/int/build-script-contract-guard.int.spec.ts",
     "tests/int/build-wrapper.int.spec.ts",
+    "tests/int/branch-safety.int.spec.ts",
     "tests/int/guard-pack.int.spec.ts",
     "tests/int/starter-acceptance.int.spec.ts",
     "tests/int/open-next-config.int.spec.ts",
@@ -63,6 +66,7 @@
   ],
   "mergeKeepPaths": [".gitignore"],
   "managedPackageScripts": [
+    "bemoat:branch:check",
     "bemoat:guard:safety",
     "bemoat:guard:pack",
     "bemoat:guard:harness-contract",
@@ -74,6 +78,7 @@
     "bemoat:hooks:install"
   ],
   "suggestedPackageScripts": [
+    "branch:check",
     "build",
     "build:next",
     "build:cloudflare",
