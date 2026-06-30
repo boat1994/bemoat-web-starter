@@ -19,6 +19,7 @@ Ask whether the change affects:
 - Boilerplate sync, harness assumptions, CI, or git hooks.
 - Child project compatibility.
 - Agent rules, fallback skills, or editor behavior.
+- UI animation, Framer Motion choreography, slow-motion QA, reduced-motion behavior, or perceived continuity.
 
 ## Validation Selection
 
@@ -27,6 +28,16 @@ Ask whether the change affects:
 - Code changes: run `pnpm run check`.
 - Payload schema changes: also run `pnpm run generate:types`.
 - Payload admin component changes: also run `pnpm run generate:importmap`.
+
+## Motion QA Reporting
+
+For non-trivial UI animation work, report:
+
+- Normal-speed visual QA result.
+- Slow-motion QA result when timing or continuity is unclear.
+- Reduced-motion behavior.
+- Changed animation selectors or components.
+- Remaining motion risks, especially blink, pop, snap, jank, or same-object identity loss.
 
 ## Report Format
 

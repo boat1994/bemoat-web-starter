@@ -39,6 +39,7 @@ Before planning, editing, reviewing, or running implementation commands:
 | --- | --- |
 | [`using-superpowers.md`](./skills/using-superpowers.md) | The IDE cannot invoke `superpowers:using-superpowers` natively. |
 | [`development-agent.md`](./skills/development-agent.md) | Normal implementation, documentation, or maintenance work. |
+| [`ui-animation.md`](./skills/ui-animation.md) | UI animation choreography, Framer Motion defaults, expand/collapse motion, perceived continuity, or visual motion QA when native `ui-animation` is unavailable. |
 | [`issue-workflow.md`](./skills/issue-workflow.md) | A GitHub issue, PR, branch, or URL drives the task. |
 | [`regression.md`](./skills/regression.md) | Before reporting completion, choosing validation, or assessing risk. |
 | [`payload-cms.md`](./skills/payload-cms.md) | Payload CMS collections, globals, hooks, access, endpoints, migrations, or admin components are in scope. |
