@@ -8,6 +8,7 @@ This document separates what **`bemoat-web-starter`** owns from what **child pro
 |------|----------|
 | Agent rules | `AGENTS.md`, `.agents/*` |
 | Cursor rules | `.cursor/rules/*` |
+| UI execution guardrails | `docs/ai/ui-skills.md`, `docs/ai/ui-execution-workflow.md`, `docs/ai/visual-qa-checklist.md`, `docs/ai/accessibility-baseline.md`, `prompts/ui/*` |
 | GitHub templates | `.github/pull_request_template.md`, `.github/ISSUE_TEMPLATE/*`, shared workflows |
 | Agent-loop docs | `docs/agent-loop/*`, `docs/workflow/*`, `docs/hardening.md`, `docs/releases.md`, `docs/deploy-smoke-test.md`, `docs/cloudflare-environments.md`, `docs/schema-evolution.md` |
 | Harness workflow | `scripts/guard-repo-safety.mjs`, `scripts/guard-cloudflare-env.mjs`, `scripts/check-branch-safety.sh`, `scripts/install-git-hooks.mjs`, `.githooks`, `vitest.config.mts`, `vitest.setup.ts`, shared harness tests under `tests/int/` |
@@ -46,6 +47,8 @@ These paths are overwritten on every sync:
 | `AGENTS.md` | Repository agent instructions |
 | `.agents` | Portable project-level agent fallback entrypoint and lightweight skills |
 | `.cursor/rules` | Cursor workflow rules |
+| `docs/ai/ui-skills.md`, `docs/ai/ui-execution-workflow.md`, `docs/ai/visual-qa-checklist.md`, `docs/ai/accessibility-baseline.md` | Reusable AI/UI execution guardrails, UI Skills workflow docs, visual QA, and accessibility baselines |
+| `prompts/ui` | Reusable UI prompt templates for skill selection, polish, section creation, and red-team review |
 | `.github/workflows/ci.yml` | Shared child-safe CI workflow (`bemoat:guard:safety`, `bemoat:test:int`) |
 | `.github/pull_request_template.md` | PR template |
 | `.github/ISSUE_TEMPLATE/agent-task.yml` | Agent task issue template |
