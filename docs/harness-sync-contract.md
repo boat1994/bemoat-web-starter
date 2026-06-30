@@ -66,7 +66,27 @@ These live in `bemoat-web-starter` for learning, reference, and starter developm
 | `docs/superpowers/plans/_templates` | Reusable implementation and verification plan formats |
 | `docs/superpowers/specs/_templates` | Reusable product, UX, and handoff spec formats |
 
-Child projects still get agent execution rails (`AGENTS.md`, `.agents`, `.cursor/rules`, `docs/agent-loop`, `docs/ai`, GitHub workflow rails, guards, sync scripts, harness tests). Agents invoke the native `superpowers:using-superpowers` skill or the portable fallback at `.agents/skills/using-superpowers.md` — not feature specs or plans under `docs/superpowers/{project}/…`.
+Child projects still get agent execution rails (`AGENTS.md`, `.agents`, `.cursor/rules`, `docs/agent-loop`, `docs/ai`, GitHub workflow rails, guards, sync scripts, harness tests). Agents invoke the native `superpowers:using-superpowers` skill or the portable fallback at `.agents/skills/using-superpowers.md` — not feature specs or plans under `docs/superpowers/{project}/…` in the starter repo.
+
+### Child project planning workflow
+
+Child repos do **not** receive `docs/superpowers/README.md`, `specs/README.md`, `plans/README.md`, or starter feature folders under `docs/superpowers/{project}/…`. They **do** receive the synced template paths above.
+
+| Synced path | Use |
+| --- | --- |
+| `docs/superpowers/specs/_templates` | Copy into `docs/superpowers/specs/{project}/{initiative}/{feature}/` before editing |
+| `docs/superpowers/plans/_templates` | Copy into `docs/superpowers/plans/{project}/{initiative}/{feature}/` before editing |
+
+Folder convention for child-project feature work:
+
+```text
+docs/superpowers/specs/{project}/{initiative}/{feature}/
+docs/superpowers/plans/{project}/{initiative}/{feature}/
+```
+
+Do not edit synced `_templates` files in place for feature-specific work. Keep child-project strategy, messaging, and business decisions in child feature folders.
+
+Canonical artifact names, reading order, and starter-side reference examples live in `docs/superpowers/README.md` in **bemoat-web-starter** only (not synced).
 
 ## What stays child-owned
 

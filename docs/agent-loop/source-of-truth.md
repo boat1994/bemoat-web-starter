@@ -87,7 +87,7 @@ These paths remain in `bemoat-web-starter` for learning and reference. The paren
 
 **Synced exception:** `docs/superpowers/plans/_templates` and `docs/superpowers/specs/_templates` are in `managedPaths` and sync to child projects for agent planning workflows.
 
-Child agents still start with native `superpowers:using-superpowers` or the portable fallback at `.agents/skills/using-superpowers.md`. See [harness-sync-contract.md](../harness-sync-contract.md#starter-only-paths-not-synced).
+Child agents still start with native `superpowers:using-superpowers` or the portable fallback at `.agents/skills/using-superpowers.md`. For the sync boundary and child-project folder conventions, see [harness-sync-contract.md](../harness-sync-contract.md#child-project-planning-workflow). Starter-only reference material (including `docs/superpowers/README.md`) stays in `bemoat-web-starter`.
 
 ### Merged keep-child-content by `boilerplate:sync`
 

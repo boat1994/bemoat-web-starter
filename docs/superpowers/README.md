@@ -16,7 +16,9 @@ Most of `docs/superpowers` is **starter-only reference** — feature specs, plan
 | `docs/superpowers/specs/_templates` | Yes — managed, overwritten on sync |
 | `docs/superpowers/plans/{project}/…` | No — starter-only reference |
 | `docs/superpowers/specs/{project}/…` | No — starter-only reference |
-| `docs/superpowers/README.md` and other top-level docs | No — starter-only reference |
+| `docs/superpowers/README.md`, `specs/README.md`, `plans/README.md` | No — starter-only reference |
+
+Child projects do **not** receive this README or other starter reference docs. Synced boundary and child-agent workflow live in [harness-sync-contract.md](../harness-sync-contract.md#child-project-planning-workflow) and [source-of-truth.md](../agent-loop/source-of-truth.md).
 
 ## What lives here
 
