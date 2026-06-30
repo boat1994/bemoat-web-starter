@@ -52,6 +52,7 @@ node_modules/
 # OpenNext
 .open-next
 .wrangler
+.wrangler-test
 
 # Bemoat boilerplate temp directories
 .bemoat-check-tmp/

@@ -92,7 +92,9 @@ function getCloudflareContextFromWrangler(): Promise<CloudflareContext> {
     ({ getPlatformProxy }) =>
       getPlatformProxy({
         environment: process.env.CLOUDFLARE_ENV,
-        persist: isTest ? false : undefined,
+        persist: isTest
+          ? { path: process.env.BEMOAT_TEST_WRANGLER_PERSIST ?? '.wrangler-test/state/v3' }
+          : undefined,
         remoteBindings:
           !isTest &&
           (process.env.PAYLOAD_MIGRATE_REMOTE === 'true' || (isProduction && !isCLI && !isBuild)),

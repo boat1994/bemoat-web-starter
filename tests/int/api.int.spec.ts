@@ -14,8 +14,9 @@ describe('API', () => {
     Object.assign(process.env, { NODE_ENV: 'test' })
     process.env.PAYLOAD_MIGRATE_REMOTE = 'false'
 
-    // Use a fresh local D1 binding so dev schema push does not prompt against persisted remote data.
-    rmSync(resolve('.wrangler/state/v3/d1'), { recursive: true, force: true })
+    // Wipe only the isolated test persist root (see vitest.setup.ts) — never dev `.wrangler/state`.
+    const testPersistRoot = process.env.BEMOAT_TEST_WRANGLER_PERSIST ?? '.wrangler-test/state/v3'
+    rmSync(resolve(testPersistRoot), { recursive: true, force: true })
 
     const { default: config } = await import('@/payload.config')
     const payloadConfig = await config
