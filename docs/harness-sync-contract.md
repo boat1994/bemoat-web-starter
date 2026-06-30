@@ -57,36 +57,25 @@ These live in `bemoat-web-starter` for learning, reference, and starter developm
 
 | Path | Purpose |
 |------|---------|
-| `docs/superpowers` (except `_templates` subpaths below) | Superpowers specs, plans, and historical planning work for starter-side reference |
+| `docs/superpowers` (except synced subpaths below) | Starter feature specs, plans, and historical planning work — not copied to child projects |
 
-**Synced exception:** these template subpaths are in `managedPaths` and **are** copied to child projects:
+**Synced subpaths** are in `managedPaths` and **are** copied to child projects:
 
 | Path | Purpose |
 |------|---------|
+| `docs/superpowers/README.md` | Canonical artifact names, reading order, folder conventions |
+| `docs/superpowers/specs/README.md` | Specs folder guidance |
+| `docs/superpowers/plans/README.md` | Plans folder guidance |
 | `docs/superpowers/plans/_templates` | Reusable implementation and verification plan formats |
 | `docs/superpowers/specs/_templates` | Reusable product, UX, and handoff spec formats |
 
-Child projects still get agent execution rails (`AGENTS.md`, `.agents`, `.cursor/rules`, `docs/agent-loop`, `docs/ai`, GitHub workflow rails, guards, sync scripts, harness tests). Agents invoke the native `superpowers:using-superpowers` skill or the portable fallback at `.agents/skills/using-superpowers.md` — not feature specs or plans under `docs/superpowers/{project}/…` in the starter repo.
+Child projects still get agent execution rails (`AGENTS.md`, `.agents`, `.cursor/rules`, `docs/agent-loop`, `docs/ai`, GitHub workflow rails, guards, sync scripts, harness tests). Agents invoke the native `superpowers:using-superpowers` skill or the portable fallback at `.agents/skills/using-superpowers.md` — not starter feature specs or plans under `docs/superpowers/{project}/…`.
 
 ### Child project planning workflow
 
-Child repos do **not** receive `docs/superpowers/README.md`, `specs/README.md`, `plans/README.md`, or starter feature folders under `docs/superpowers/{project}/…`. They **do** receive the synced template paths above.
+Child repos receive the synced README and template paths above. They do **not** receive starter feature folders under `docs/superpowers/{project}/…` — create child-local feature folders instead.
 
-| Synced path | Use |
-| --- | --- |
-| `docs/superpowers/specs/_templates` | Copy into `docs/superpowers/specs/{project}/{initiative}/{feature}/` before editing |
-| `docs/superpowers/plans/_templates` | Copy into `docs/superpowers/plans/{project}/{initiative}/{feature}/` before editing |
-
-Folder convention for child-project feature work:
-
-```text
-docs/superpowers/specs/{project}/{initiative}/{feature}/
-docs/superpowers/plans/{project}/{initiative}/{feature}/
-```
-
-Do not edit synced `_templates` files in place for feature-specific work. Keep child-project strategy, messaging, and business decisions in child feature folders.
-
-Canonical artifact names, reading order, and starter-side reference examples live in `docs/superpowers/README.md` in **bemoat-web-starter** only (not synced).
+For canonical artifact names, reading order, and folder conventions, read the **local synced** `docs/superpowers/README.md` after `boilerplate:sync`. Copy `_templates` into `docs/superpowers/{specs|plans}/{project}/{initiative}/{feature}/` before editing; do not edit synced template files in place for feature-specific work.
 
 ## What stays child-owned
 
@@ -236,7 +225,7 @@ Current shared tests (listed in `managedPaths` in `scripts/sync-boilerplate.mjs`
 
 6. **Starter-only harness file** — Do not add to `managedPaths`. Document the path and reason in `STARTER_ONLY_INT_TESTS` in `tests/int/boilerplate-sync.int.spec.ts` so the contract test allows it.
 
-7. **Starter-only documentation** — Do not add blanket parent paths to `managedPaths`. Document the path in `STARTER_ONLY_DOCS` in `tests/int/boilerplate-sync.int.spec.ts` (for example `docs/superpowers`). Add explicit subpaths to `managedPaths` when part of a starter-only tree must still sync (for example `docs/superpowers/plans/_templates` and `docs/superpowers/specs/_templates`).
+7. **Starter-only documentation** — Do not add blanket parent paths to `managedPaths`. Document the path in `STARTER_ONLY_DOCS` in `tests/int/boilerplate-sync.int.spec.ts` (for example `docs/superpowers`). Add explicit subpaths to `managedPaths` when part of a starter-only tree must still sync (for example `docs/superpowers/README.md`, `docs/superpowers/plans/_templates`, and `docs/superpowers/specs/_templates`).
 
 8. **Do not sync** `wrangler.jsonc`, resource IDs, secrets, `.env` files, or `pnpm-lock.yaml`.
 

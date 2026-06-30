@@ -43,7 +43,10 @@ export const managedPaths = [
   'docs/guard-pack.md',
   'docs/starter-acceptance-tests.md',
 
-  // Superpowers planning templates (starter-only except these subpaths)
+  // Superpowers planning harness (starter-only except these subpaths)
+  'docs/superpowers/README.md',
+  'docs/superpowers/specs/README.md',
+  'docs/superpowers/plans/README.md',
   'docs/superpowers/plans/_templates',
   'docs/superpowers/specs/_templates',
 

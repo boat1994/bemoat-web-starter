@@ -83,11 +83,11 @@ These paths remain in `bemoat-web-starter` for learning and reference. The paren
 
 | Path | Purpose |
 |------|---------|
-| `docs/superpowers` (except `_templates` subpaths) | Superpowers specs, plans, and historical planning work for starter-side reference |
+| `docs/superpowers` (except synced subpaths) | Starter feature specs, plans, and historical planning work — not copied to child projects |
 
-**Synced exception:** `docs/superpowers/plans/_templates` and `docs/superpowers/specs/_templates` are in `managedPaths` and sync to child projects for agent planning workflows.
+**Synced subpaths:** `docs/superpowers/README.md`, `docs/superpowers/specs/README.md`, `docs/superpowers/plans/README.md`, `docs/superpowers/plans/_templates`, and `docs/superpowers/specs/_templates` are in `managedPaths` and sync to child projects.
 
-Child agents still start with native `superpowers:using-superpowers` or the portable fallback at `.agents/skills/using-superpowers.md`. For the sync boundary and child-project folder conventions, see [harness-sync-contract.md](../harness-sync-contract.md#child-project-planning-workflow). Starter-only reference material (including `docs/superpowers/README.md`) stays in `bemoat-web-starter`.
+Child agents still start with native `superpowers:using-superpowers` or the portable fallback at `.agents/skills/using-superpowers.md`. For canonical artifact names, reading order, and folder conventions, read the **local synced** `docs/superpowers/README.md`. Sync boundary details: [harness-sync-contract.md](../harness-sync-contract.md#child-project-planning-workflow).
 
 ### Merged keep-child-content by `boilerplate:sync`
 

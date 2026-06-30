@@ -32,8 +32,15 @@ const STARTER_ONLY_DOCS: { path: string; reason: string }[] = [
   {
     path: 'docs/superpowers',
     reason:
-      'Superpowers specs/plans are starter learning/reference docs; only plans/_templates and specs/_templates sync',
+      'Superpowers feature folders are starter-only or child-local; README paths, plans/_templates, and specs/_templates sync as explicit subpaths',
   },
+]
+
+/** Superpowers README paths that sync to child projects for canonical planning conventions. */
+const SYNCED_SUPERPOWERS_README_PATHS = [
+  'docs/superpowers/README.md',
+  'docs/superpowers/specs/README.md',
+  'docs/superpowers/plans/README.md',
 ]
 
 /** Superpowers template subpaths that sync to child projects for agent planning workflows. */
@@ -214,10 +221,17 @@ describe('boilerplate sync managed paths', () => {
     }
   })
 
-  it('syncs superpowers planning templates while keeping docs/superpowers starter-only', async () => {
+  it('syncs superpowers README and template paths while keeping docs/superpowers starter-only', async () => {
     const mod = await import('../../scripts/sync-boilerplate.mjs')
 
     expect(mod.managedPaths).not.toContain('docs/superpowers')
+
+    for (const readmePath of SYNCED_SUPERPOWERS_README_PATHS) {
+      expect(
+        mod.managedPaths,
+        `${readmePath} must sync to child projects for canonical planning conventions`,
+      ).toContain(readmePath)
+    }
 
     for (const templatePath of SYNCED_SUPERPOWERS_TEMPLATE_PATHS) {
       expect(

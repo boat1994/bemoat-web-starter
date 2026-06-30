@@ -6,19 +6,21 @@ Use it to keep product, design, and implementation work organized by feature ins
 
 ## Starter vs child sync boundary
 
-Most of `docs/superpowers` is **starter-only reference** — feature specs, plans, and historical planning work stay in `bemoat-web-starter` and are **not** copied by `pnpm run boilerplate:sync`.
+Feature folders under `docs/superpowers/{project}/…` are **starter-only or child-local** — they are **not** copied by `pnpm run boilerplate:sync`. Starter reference examples and historical planning work stay in `bemoat-web-starter`; child projects create their own feature folders locally.
 
-**Exception:** `_templates` under `plans/` and `specs/` **do sync** to child projects. They are managed harness paths required for agent planning workflows. Child projects receive updated templates from the starter; copy a template into a feature folder before customizing it locally.
+**Synced harness paths** are managed and **overwritten on sync** so child projects share canonical planning conventions:
 
 | Path | Synced to child projects? |
 | --- | --- |
+| `docs/superpowers/README.md` | Yes — managed, overwritten on sync |
+| `docs/superpowers/specs/README.md` | Yes — managed, overwritten on sync |
+| `docs/superpowers/plans/README.md` | Yes — managed, overwritten on sync |
 | `docs/superpowers/plans/_templates` | Yes — managed, overwritten on sync |
 | `docs/superpowers/specs/_templates` | Yes — managed, overwritten on sync |
-| `docs/superpowers/plans/{project}/…` | No — starter-only reference |
-| `docs/superpowers/specs/{project}/…` | No — starter-only reference |
-| `docs/superpowers/README.md`, `specs/README.md`, `plans/README.md` | No — starter-only reference |
+| `docs/superpowers/plans/{project}/…` | No — starter-only or child-local |
+| `docs/superpowers/specs/{project}/…` | No — starter-only or child-local |
 
-Child projects do **not** receive this README or other starter reference docs. Synced boundary and child-agent workflow live in [harness-sync-contract.md](../harness-sync-contract.md#child-project-planning-workflow) and [source-of-truth.md](../agent-loop/source-of-truth.md).
+Child agents use the **local synced copy** of this README for canonical artifact names, reading order, and folder conventions. Harness sync details live in [harness-sync-contract.md](../harness-sync-contract.md#child-project-planning-workflow) and [source-of-truth.md](../agent-loop/source-of-truth.md).
 
 ## What lives here
 
