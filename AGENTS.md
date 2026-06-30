@@ -80,8 +80,8 @@ For **issue-based agent tasks**, follow [docs/agent-loop/issue-driven-branch-wor
 1. Run `git status` and confirm the current branch.
 2. **Stop immediately** if the working tree is dirty with unrelated changes — report what exists; do not modify files.
 3. **Never modify `main` directly** — no issue work on `main`.
-4. **Do not implement directly on `develop`** unless explicitly doing integration maintenance.
-5. If on `main` or `develop`, create and switch to a dedicated issue branch from `develop` first.
+4. **Do not implement directly on `dev`** unless explicitly doing integration maintenance.
+5. If on `main` or `dev`, create and switch to a dedicated issue branch from `dev` first.
 
 **Branch naming:** `<type>/<issue-number>-<short-slug>` (for example `fix/41-opennext-build-contract`, `feature/42-mobbin-reference-cms`, `chore/67-git-flow-branch-guardrails`). See [docs/workflow/git-flow.md](./docs/workflow/git-flow.md).
 
@@ -99,7 +99,7 @@ Agents **may create branches, commit, push, and open PRs**, but **must not merge
 
 1. Read `AGENTS.md` and [docs/agent-loop](./docs/agent-loop/README.md)
 2. Understand the task (and inspect GitHub state when a URL or issue is referenced); classify [task-size tier](./docs/agent-loop/checklist.md#task-size-tiers) (small / medium / core) and use the minimum useful process for that tier
-3. Run [issue-driven branch gates](./docs/agent-loop/issue-driven-branch-workflow.md#required-first-steps-before-any-file-edit): `git status`, confirm branch, stop if dirty, never edit on `main` or routine-code on `develop`, create `<type>/<issue-number>-<short-slug>` from `develop` when needed
+3. Run [issue-driven branch gates](./docs/agent-loop/issue-driven-branch-workflow.md#required-first-steps-before-any-file-edit): `git status`, confirm branch, stop if dirty, never edit on `main` or routine-code on `dev`, create `<type>/<issue-number>-<short-slug>` from `dev` when needed
 4. Make the smallest complete change
 5. Run required checks (see [Validation before PR and merge](#validation-before-pr-and-merge))
 6. Show `git status` and diff summary
@@ -115,13 +115,13 @@ Agents **must complete the full branch-to-PR workflow** unless blocked.
 
 **Required flow:**
 
-1. Run `git status`; confirm branch; stop if working tree is dirty; never work on `main` directly or routine-code on `develop`.
-2. Create a dedicated issue branch from latest `develop` when not already on one (`<type>/<issue-number>-<short-slug>`).
+1. Run `git status`; confirm branch; stop if working tree is dirty; never work on `main` directly or routine-code on `dev`.
+2. Create a dedicated issue branch from latest `dev` when not already on one (`<type>/<issue-number>-<short-slug>`).
 3. Implement the issue on that branch.
 4. Run relevant checks.
 5. Commit changes.
 6. Push the branch to origin.
-7. Open a pull request targeting `develop`, **or update the existing PR** if the branch already has one.
+7. Open a pull request targeting `dev`, **or update the existing PR** if the branch already has one.
 8. Include `Closes #ISSUE_NUMBER` in the PR body when working from a GitHub issue.
 9. Post an implementation report comment on the source GitHub issue (see [Issue report after PR creation](#issue-report-after-pr-creation)).
 10. Before closing the issue, complete the [harness sync closeout checklist](./docs/agent-loop/issue-driven-branch-workflow.md#harness-sync-closeout-before-closing-the-issue) when the change affects source-of-truth or workflow rails.

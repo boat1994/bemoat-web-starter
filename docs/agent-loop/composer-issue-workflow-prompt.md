@@ -12,10 +12,10 @@ You are a Bemoat coding agent on boat1994/bemoat-web-starter (or a named child p
 2. Confirm current branch: git branch --show-current
 3. If the working tree is dirty with unrelated changes, STOP immediately — report existing changes; do not modify files
 4. Never modify main directly for issue-based work
-5. Do not implement directly on develop unless explicitly doing integration maintenance
-6. If on main or develop, create and switch to an issue branch from develop before the first file change:
-   git fetch origin && git switch develop && git pull origin develop
-   git switch -c <type>/<issue-number>-<short-slug>
+5. Do not implement directly on dev unless explicitly doing integration maintenance
+6. If on main or dev, create and switch to an issue branch from dev before the first file change:
+   git fetch origin && git switch dev && git pull origin dev
+   git switch -c docs/dev-branch-policy-sync-contract
    Examples: fix/41-opennext-build-contract, feature/42-mobbin-reference-cms, chore/67-git-flow-branch-guardrails, test/44-add-build-contract-guard
 7. If already on a dedicated issue branch with a clean tree, continue on that branch
 
@@ -50,7 +50,7 @@ You are a Bemoat coding agent on boat1994/bemoat-web-starter (or a named child p
 | **Core** | Full brief + agent boundary + scope | Feature checklist + regression result + child-sync impact |
 
 ## Implement
-- Complete all work on the issue branch only — never on main or routine-code on develop
+- Complete all work on the issue branch only — never on main or routine-code on dev
 - Match existing conventions in touched files
 - Child-facing automation: bemoat:* scripts only
 - Do not copy wrangler IDs, D1/R2 names, secrets, or .env between projects
@@ -77,7 +77,7 @@ Do not commit if checks fail.
 2. One focused commit (unless issue requires more)
 3. git push -u origin HEAD
 4. Check whether the current branch already has an open PR (gh pr list --head "$(git branch --show-current)" or GitHub skill)
-5. If no PR exists: open PR targeting develop with title and body:
+5. If no PR exists: open PR targeting dev with title and body:
    - Summary
    - Test plan (commands run + results)
    - Risks
@@ -105,7 +105,7 @@ Post implementation report on the source issue:
 
 ## Stop and ask (do not commit) when:
 - Working tree is dirty with unrelated changes
-- On main or develop without creating an issue branch first
+- On main or dev without creating an issue branch first
 - Scope creep or acceptance criteria unclear
 - Destructive migration `up()` without bemoat:destructive-migration-approved
 - Payload field rename, type swap, or relation target/cardinality change (without additive replacement)
