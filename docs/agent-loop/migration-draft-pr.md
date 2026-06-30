@@ -21,7 +21,7 @@ Payload collection/global field changes that require a D1 migration also qualify
 2. Run `pnpm run generate:types` when Payload schema changed
 3. Commit changes (one focused commit unless the task requires more)
 4. Push the issue branch
-5. Open a **draft** PR targeting `develop` for normal migration work, or `main` only for approved hotfix/release work
+5. Open a **draft** PR targeting `dev` for normal migration work, or `main` only for approved hotfix/release work
 6. Post the implementation report on the source issue
 
 **Do not ask for human approval** before commit, push, or draft PR creation solely because migration files are in the diff.

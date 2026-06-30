@@ -106,6 +106,13 @@ describe('synced harness CI and hooks', () => {
     expect(ciWorkflow).not.toContain('pnpm run check')
   })
 
+  it('targets main and dev in the synced CI workflow', () => {
+    const ciWorkflow = readFileSync(resolve(process.cwd(), '.github/workflows/ci.yml'), 'utf8')
+
+    expect(ciWorkflow).toContain('branches:\n      - main\n      - dev')
+    expect(ciWorkflow).not.toContain('- develop')
+  })
+
   it('uses only child-safe bemoat:* scripts in synced hooks', () => {
     const preCommit = readFileSync(resolve(process.cwd(), '.githooks/pre-commit'), 'utf8')
     const prePush = readFileSync(resolve(process.cwd(), '.githooks/pre-push'), 'utf8')

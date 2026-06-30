@@ -53,9 +53,9 @@ Before responding, asking clarifying questions, planning, editing files, running
 
 ## Development workflow
 
-Short task prompts are enough for agents working in this repository. The operating rules live in [AGENTS.md](./AGENTS.md), the step-by-step loop is in [docs/agent-loop](./docs/agent-loop/README.md), the [Git Flow branch guardrails](./docs/workflow/git-flow.md) define `main`, `develop`, topic branches, hooks, and branch protection, the [issue-driven branch workflow](./docs/agent-loop/issue-driven-branch-workflow.md) covers dedicated issue branches, dirty-tree stops, no edits on `main`, no routine coding on `develop`, and PR open/update, the [starter knowledge base](./docs/knowledge/README.md) collects short operational notes (scripts, sync, guards, common failures), [production hardening](./docs/hardening.md) indexes release tags, drift check, smoke test, secrets, and branch protection, [security and migration guardrails](./docs/agent-loop/security-and-migrations.md) define stop conditions for secrets and production deploy; [migration draft PR workflow](./docs/agent-loop/migration-draft-pr.md) allows agents to open draft PRs for D1/Payload migrations after checks pass, [schema evolution](./docs/schema-evolution.md) defines additive-first Payload changes for production data, GitHub issue and PR templates capture task scope, and CI validates every pull request.
+Short task prompts are enough for agents working in this repository. The operating rules live in [AGENTS.md](./AGENTS.md), the step-by-step loop is in [docs/agent-loop](./docs/agent-loop/README.md), the [Git Flow branch guardrails](./docs/workflow/git-flow.md) define `main`, `dev`, topic branches, hooks, and branch protection, the [issue-driven branch workflow](./docs/agent-loop/issue-driven-branch-workflow.md) covers dedicated issue branches, dirty-tree stops, no edits on `main`, no routine coding on `dev`, and PR open/update, the [starter knowledge base](./docs/knowledge/README.md) collects short operational notes (scripts, sync, guards, common failures), [production hardening](./docs/hardening.md) indexes release tags, drift check, smoke test, secrets, and branch protection, [security and migration guardrails](./docs/agent-loop/security-and-migrations.md) define stop conditions for secrets and production deploy; [migration draft PR workflow](./docs/agent-loop/migration-draft-pr.md) allows agents to open draft PRs for D1/Payload migrations after checks pass, [schema evolution](./docs/schema-evolution.md) defines additive-first Payload changes for production data, GitHub issue and PR templates capture task scope, and CI validates every pull request.
 
-**Issue-based work:** run `git status` first, never modify `main` directly, do not routine-code on `develop`, create a topic branch from `develop` with naming `<type>/<issue-number>-<short-slug>`, stop on a dirty working tree, and open or update a PR into `develop` when development is complete. Paste-ready prompt: [composer-issue-workflow-prompt.md](./docs/agent-loop/composer-issue-workflow-prompt.md).
+**Issue-based work:** run `git status` first, never modify `main` directly, do not routine-code on `dev`, create a topic branch from `dev` with naming `<type>/<issue-number>-<short-slug>`, stop on a dirty working tree, and open or update a PR into `dev` when development is complete. Paste-ready prompt: [composer-issue-workflow-prompt.md](./docs/agent-loop/composer-issue-workflow-prompt.md).
 
 ```mermaid
 flowchart TD
@@ -66,7 +66,7 @@ flowchart TD
     D -->|No| F[Confirm task scope]
     E --> F
     F --> G0[git status — stop if dirty]
-    G0 --> G[Create issue branch from develop — never edit main or routine-code on develop]
+    G0 --> G[Create issue branch from dev — never edit main or routine-code on dev]
     G --> H[Make smallest complete change]
     H --> I[Run checks]
     I --> J{Checks pass?}
@@ -294,9 +294,9 @@ For the canonical agent loop (branch gates, validation, PR, report), see [docs/a
 `package.json` remains **child-owned**. Sync may add **missing `bemoat:*` scripts only**; it never overwrites existing `bemoat:*` scripts, never touches deploy/build/check/test scripts, and never touches `dependencies` or `devDependencies`. All other package differences appear in **`.bemoat/package-sync-proposal.md`** as human-review-only information (included in the sync commit).
 
 ```bash
-git switch develop
-git pull origin develop
-git switch -c chore/adopt-bemoat-harness
+git switch dev
+git pull origin dev
+git switch -c docs/dev-branch-policy-sync-contract
 
 pnpm run boilerplate:check -- --harness-only
 pnpm run boilerplate:sync -- --harness-only

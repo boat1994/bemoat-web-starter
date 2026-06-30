@@ -21,7 +21,7 @@ Plan → git status & branch gates → Acceptance criteria → Implement → Tes
 | Phase | Owner | Output |
 |-------|-------|--------|
 | **Plan** | GPT-5.5 | Repo (starter vs child), branch name, files to touch, validation tier, stop risks |
-| **Branch gates** | Composer 2.5 | `git status`, confirm branch, stop if dirty, never on `main` or routine-coding on `develop`, create `<type>/<issue-number>-<short-slug>` |
+| **Branch gates** | Composer 2.5 | `git status`, confirm branch, stop if dirty, never on `main` or routine-coding on `dev`, create `<type>/<issue-number>-<short-slug>` |
 | **Acceptance criteria** | GPT-5.5 | Numbered checklist from issue; explicit out-of-scope |
 | **Implement** | Composer 2.5 | Smallest complete diff; match conventions |
 | **Test** | Composer 2.5 | Commands per [validation tier](../../AGENTS.md#validation-before-pr-and-merge) |
@@ -78,7 +78,7 @@ In child repos use `pnpm run bemoat:guard:safety` and `pnpm run bemoat:check` wh
 
 ## Commit checklist
 
-- [ ] On correct branch from latest `develop`
+- [ ] On correct branch from latest `dev`
 - [ ] Only allowed files in diff
 - [ ] No `.env*`, secrets, tokens, or copied Cloudflare resource IDs
 - [ ] Validation tier passed (evidence, not assumption)
@@ -128,15 +128,19 @@ You are a Bemoat coding agent. Follow docs/agent-loop/operating-manual.md and do
 
 Repo: [bemoat-web-starter | child project name]
 Issue: [#N title + URL]
-Branch: <type>/<issue-number>-<short-slug> (create from develop if needed; never edit on main or routine-code on develop)
+Branch: <type>/<issue-number>-<short-slug> (create from dev if needed; never edit on main or routine-code on dev)
 
 Required first steps:
 1. git status
 2. Confirm current branch
 3. Stop if working tree is dirty with unrelated changes
 4. Never modify main directly
-5. Do not routine-code directly on develop
-6. Create issue branch from develop if on main or develop
+5. Do not routine-code directly on dev
+6. Create issue branch from dev if on main or dev:
+   git fetch origin
+   git switch dev
+   git pull origin dev
+   git switch -c docs/dev-branch-policy-sync-contract
 
 Roles:
 - Composer 2.5: implement, test, commit, push, PR (open or update), issue comment

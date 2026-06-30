@@ -48,16 +48,16 @@ describe('branch safety script', () => {
     expect(result.stderr).toContain('main is protected')
   })
 
-  it('blocks routine implementation on develop without an explicit bypass', () => {
-    const result = runBranchCheck('develop')
+  it('blocks routine implementation on dev without an explicit bypass', () => {
+    const result = runBranchCheck('dev')
 
     expect(result.status).toBe(1)
-    expect(result.stdout).toContain('Current branch: develop')
-    expect(result.stderr).toContain('develop is an integration branch')
+    expect(result.stdout).toContain('Current branch: dev')
+    expect(result.stderr).toContain('dev is an integration branch')
   })
 
-  it('allows develop only for explicit integration maintenance', () => {
-    const result = runBranchCheck('develop', { ALLOW_INTEGRATION_BRANCH: '1' })
+  it('allows dev only for explicit integration maintenance', () => {
+    const result = runBranchCheck('dev', { ALLOW_INTEGRATION_BRANCH: '1' })
 
     expect(result.status).toBe(0)
     expect(result.stdout).toContain('integration maintenance bypass enabled')
@@ -87,6 +87,6 @@ describe('branch safety script', () => {
 
     expect(result.status).toBe(1)
     expect(result.stderr).toContain('Unsupported implementation branch')
-    expect(result.stderr).toContain('git switch -c chore/67-git-flow-branch-guardrails develop')
+    expect(result.stderr).toContain('git switch -c chore/67-git-flow-branch-guardrails dev')
   })
 })

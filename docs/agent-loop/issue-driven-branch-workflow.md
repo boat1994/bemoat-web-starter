@@ -12,8 +12,8 @@ Run these in order. **Stop and report** if any gate fails — do not modify file
 2. **Confirm current branch** — `git branch --show-current`.
 3. **Dirty working tree** — if there are uncommitted changes (staged or unstaged) or untracked files that are not part of the task, **stop immediately**. Report what is already changed. Do not stash, reset, or edit over unrelated work.
 4. **Never modify `main` directly** — no commits, file edits, or pushes on `main` for issue-based work.
-5. **Do not implement directly on `develop`** — stop before routine coding unless the task is explicitly integration maintenance.
-6. **Create an issue branch when on `main` or `develop`** — after a clean tree, create and switch to a dedicated branch from `develop` before the first file change.
+5. **Do not implement directly on `dev`** — stop before routine coding unless the task is explicitly integration maintenance.
+6. **Create an issue branch when on `main` or `dev`** — after a clean tree, create and switch to a dedicated branch from `dev` before the first file change.
 
 If you are already on a dedicated issue branch with a clean tree (or only task-intentional changes), continue on that branch.
 
@@ -36,16 +36,16 @@ If you are already on a dedicated issue branch with a clean tree (or only task-i
 - `chore/67-git-flow-branch-guardrails`
 - `test/44-add-build-contract-guard`
 
-Create the branch from latest `develop`:
+Create the branch from latest `dev`:
 
 ```bash
 git fetch origin
-git switch develop
-git pull origin develop
-git switch -c <type>/<issue-number>-<short-slug>
+git switch dev
+git pull origin dev
+git switch -c docs/dev-branch-policy-sync-contract
 ```
 
-If a repository has not created `develop` yet, follow the bootstrap note in [Git Flow guardrails](../workflow/git-flow.md) and call out the temporary exception in the PR.
+If a repository has not created `dev` yet, follow the bootstrap note in [Git Flow guardrails](../workflow/git-flow.md) and call out the temporary exception in the PR.
 
 ## Implementation
 
@@ -58,7 +58,7 @@ If a repository has not created `develop` yet, follow the bootstrap note in [Git
 When implementation is complete and checks pass:
 
 1. **Check whether the current branch already has an open PR** — use the GitHub skill or `gh pr list --head "$(git branch --show-current)"`.
-2. **If no PR exists** — push the branch (`git push -u origin HEAD`) and **open a PR** targeting `develop`. Link the source issue (`Closes #N` in the PR body when appropriate).
+2. **If no PR exists** — push the branch (`git push -u origin HEAD`) and **open a PR** targeting `dev`. Link the source issue (`Closes #N` in the PR body when appropriate).
 3. **If a PR already exists** — **update that PR** instead of opening a duplicate. Refresh the PR description and/or add a comment summarizing the completed work, files changed, commands run, and test results.
 4. **Do not mark the issue done** until PR status is clear (PR URL known, body/comment updated, implementation report posted on the issue per [AGENTS.md § Issue report](../../AGENTS.md#issue-report-after-pr-creation)).
 
@@ -83,8 +83,8 @@ See [harness-sync-workflow.md](./harness-sync-workflow.md), [harness-sync-contra
 | Condition | Action |
 |-----------|--------|
 | Working tree dirty (unrelated changes) | Stop; report existing changes; no file edits |
-| On `main` or `develop` without creating issue branch first | Stop before editing; create issue branch |
-| Attempt to commit or push on `main` or routine-code on `develop` for issue work | Forbidden — use issue branch |
+| On `main` or `dev` without creating issue branch first | Stop before editing; create issue branch |
+| Attempt to commit or push on `main` or routine-code on `dev` for issue work | Forbidden — use issue branch |
 | PR exists for branch | Update PR; do not open duplicate |
 | Harness sync needed but not planned | Do not close issue; create follow-up or run sync |
 

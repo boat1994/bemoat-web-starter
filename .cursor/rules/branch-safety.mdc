@@ -12,14 +12,14 @@ Before editing files, run `git status` and confirm the current branch.
 Protected branches:
 
 - `main` is the stable release baseline. Do not edit, commit, or push routine work on `main`.
-- `develop` is the integration baseline. Do not implement routine work directly on `develop`.
+- `dev` is the integration baseline. Do not implement routine work directly on `dev`.
 
 For normal issue work:
 
-1. Sync `develop`.
-2. Create a topic branch from `develop`.
+1. Sync `dev`.
+2. Create a topic branch from `dev`.
 3. Implement on the topic branch.
-4. Open the PR into `develop`.
+4. Open the PR into `dev`.
 
 Allowed implementation branch patterns:
 
@@ -33,7 +33,7 @@ Allowed implementation branch patterns:
 - `release/*`
 - `hotfix/*`
 
-Use `ALLOW_INTEGRATION_BRANCH=1` only for explicit integration maintenance on `develop`.
+Use `ALLOW_INTEGRATION_BRANCH=1` only for explicit integration maintenance on `dev`.
 
 Manual check:
 
