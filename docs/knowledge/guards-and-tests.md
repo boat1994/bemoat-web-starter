@@ -20,6 +20,8 @@ Standalone: `pnpm run bemoat:guard:harness-contract`, `pnpm run bemoat:guard:clo
 | `pnpm run test:int` / `bemoat:test:int` | All `tests/int/**/*.int.spec.ts` |
 | `pnpm run check` | guard:safety + lint + typecheck + test:int (starter) |
 
+Integration tests use an isolated wrangler persist directory (`.wrangler-test/state/v3` by default via `BEMOAT_TEST_WRANGLER_PERSIST` in `vitest.setup.ts`). `api.int.spec.ts` wipes only that path before booting Payload so dev D1 under `.wrangler/state` is never touched.
+
 Notable specs: `guard-pack.int.spec.ts`, `harness-contract-guard.int.spec.ts`, `boilerplate-sync.int.spec.ts`, `starter-acceptance.int.spec.ts`.
 
 ## Starter acceptance suite v1
