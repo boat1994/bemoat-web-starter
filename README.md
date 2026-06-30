@@ -53,9 +53,9 @@ Before responding, asking clarifying questions, planning, editing files, running
 
 ## Development workflow
 
-Short task prompts are enough for agents working in this repository. The operating rules live in [AGENTS.md](./AGENTS.md), the step-by-step loop is in [docs/agent-loop](./docs/agent-loop/README.md), the [issue-driven branch workflow](./docs/agent-loop/issue-driven-branch-workflow.md) (dedicated issue branch, dirty-tree stop, no edits on `main`, PR open/update), the [starter knowledge base](./docs/knowledge/README.md) collects short operational notes (scripts, sync, guards, common failures), [production hardening](./docs/hardening.md) indexes release tags, drift check, smoke test, secrets, and branch protection, [security and migration guardrails](./docs/agent-loop/security-and-migrations.md) define stop conditions for secrets and production deploy; [migration draft PR workflow](./docs/agent-loop/migration-draft-pr.md) allows agents to open draft PRs for D1/Payload migrations after checks pass, [schema evolution](./docs/schema-evolution.md) defines additive-first Payload changes for production data, GitHub issue and PR templates capture task scope, and CI validates every pull request.
+Short task prompts are enough for agents working in this repository. The operating rules live in [AGENTS.md](./AGENTS.md), the step-by-step loop is in [docs/agent-loop](./docs/agent-loop/README.md), the [Git Flow branch guardrails](./docs/workflow/git-flow.md) define `main`, `develop`, topic branches, hooks, and branch protection, the [issue-driven branch workflow](./docs/agent-loop/issue-driven-branch-workflow.md) covers dedicated issue branches, dirty-tree stops, no edits on `main`, no routine coding on `develop`, and PR open/update, the [starter knowledge base](./docs/knowledge/README.md) collects short operational notes (scripts, sync, guards, common failures), [production hardening](./docs/hardening.md) indexes release tags, drift check, smoke test, secrets, and branch protection, [security and migration guardrails](./docs/agent-loop/security-and-migrations.md) define stop conditions for secrets and production deploy; [migration draft PR workflow](./docs/agent-loop/migration-draft-pr.md) allows agents to open draft PRs for D1/Payload migrations after checks pass, [schema evolution](./docs/schema-evolution.md) defines additive-first Payload changes for production data, GitHub issue and PR templates capture task scope, and CI validates every pull request.
 
-**Issue-based work:** run `git status` first, never modify `main` directly, use branch naming `<type>/<issue-number>-<short-slug>`, stop on a dirty working tree, and open or update a PR when development is complete. Paste-ready prompt: [composer-issue-workflow-prompt.md](./docs/agent-loop/composer-issue-workflow-prompt.md).
+**Issue-based work:** run `git status` first, never modify `main` directly, do not routine-code on `develop`, create a topic branch from `develop` with naming `<type>/<issue-number>-<short-slug>`, stop on a dirty working tree, and open or update a PR into `develop` when development is complete. Paste-ready prompt: [composer-issue-workflow-prompt.md](./docs/agent-loop/composer-issue-workflow-prompt.md).
 
 ```mermaid
 flowchart TD
@@ -66,7 +66,7 @@ flowchart TD
     D -->|No| F[Confirm task scope]
     E --> F
     F --> G0[git status — stop if dirty]
-    G0 --> G[Create issue branch from main — never edit main]
+    G0 --> G[Create issue branch from develop — never edit main or routine-code on develop]
     G --> H[Make smallest complete change]
     H --> I[Run checks]
     I --> J{Checks pass?}
@@ -105,7 +105,7 @@ Install pre-push checks locally (**not required**; CI validates every pull reque
 pnpm run hooks:install
 ```
 
-Pre-push runs a **fast child-safe subset** only: `bemoat:guard:safety`, `bemoat:test:int`.
+The installed hooks run branch safety before commit and push. Pre-push also runs a **fast child-safe subset** only: `bemoat:guard:safety`, `bemoat:test:int`.
 
 It intentionally **does not** run `typecheck`, `lint`, or `build` — child projects add those scripts when they are ready for stricter local validation.
 
@@ -116,22 +116,23 @@ It intentionally **does not** run `typecheck`, `lint`, or `build` — child proj
 | Before merge (human, when scripts exist) | `pnpm run check:full` when practical |
 | Every PR on GitHub (synced child CI) | `bemoat:guard:safety` + `bemoat:test:int` only |
 | Starter repo on GitHub | child-safe CI plus [starter strict workflow](./.github/workflows/ci-starter.yml) |
-| Optional before push | pre-push hook subset (`bemoat:*` only) |
+| Optional before commit/push | branch safety plus pre-push hook subset (`bemoat:*` only) |
 
 ### Child harness script contract
 
-Synced harness automation (`.github/workflows/ci.yml`, `.githooks/pre-push`) calls **only `bemoat:*` scripts**. Child projects should treat `bemoat:*` as the public harness API:
+Synced harness automation (`.github/workflows/ci.yml`, `.githooks/pre-commit`, `.githooks/pre-push`) uses branch safety plus **only `bemoat:*` scripts**. Child projects should treat `bemoat:*` as the public harness API:
 
 | Script | When to use |
 |--------|-------------|
+| `bemoat:branch:check` | Manual Git Flow branch safety check |
 | `bemoat:guard:safety` | Every PR (CI) and optional pre-push — repo safety + harness contract |
 | `bemoat:test:int` | Every PR (CI) and optional pre-push — shared integration tests |
 | `bemoat:guard:cloudflare-env` | Before deploy/preview when those scripts exist |
 | `bemoat:check` | Optional stricter validation when child defines `lint` and `typecheck` |
 | `bemoat:boilerplate:sync` / `bemoat:boilerplate:check` | Pull harness updates from starter |
-| `bemoat:hooks:install` | Install optional local pre-push hook |
+| `bemoat:hooks:install` | Install optional local pre-commit and pre-push hooks |
 
-Raw scripts (`lint`, `typecheck`, `build`, `deploy`, `preview`, `check`, `guard:safety`, etc.) are starter-internal or child-local. Do not wire them into synced CI or pre-push. Full contract: [docs/harness-sync-contract.md](./docs/harness-sync-contract.md).
+Raw scripts (`lint`, `typecheck`, `build`, `deploy`, `preview`, `check`, `guard:safety`, etc.) are starter-internal or child-local. Do not wire them into synced CI or hooks. Full contract: [docs/harness-sync-contract.md](./docs/harness-sync-contract.md).
 
 This template is expected to run on Cloudflare Paid Workers because the bundle can exceed the free Worker size limit.
 
@@ -293,9 +294,9 @@ For the canonical agent loop (branch gates, validation, PR, report), see [docs/a
 `package.json` remains **child-owned**. Sync may add **missing `bemoat:*` scripts only**; it never overwrites existing `bemoat:*` scripts, never touches deploy/build/check/test scripts, and never touches `dependencies` or `devDependencies`. All other package differences appear in **`.bemoat/package-sync-proposal.md`** as human-review-only information (included in the sync commit).
 
 ```bash
-git checkout main
-git pull
-git checkout -b chore/adopt-bemoat-harness
+git switch develop
+git pull origin develop
+git switch -c chore/adopt-bemoat-harness
 
 pnpm run boilerplate:check -- --harness-only
 pnpm run boilerplate:sync -- --harness-only
@@ -378,12 +379,13 @@ These paths are source-of-truth and **may be overwritten** on every sync:
 - `.github/pull_request_template.md` PR template
 - `.github/ISSUE_TEMPLATE/agent-task.yml` agent task issue template
 - `docs/agent-loop/*` agent operating loop docs
+- `docs/workflow/*` branching and workflow policy docs
 - `docs/hardening.md`, `docs/releases.md`, `docs/deploy-smoke-test.md`, `docs/cloudflare-environments.md`
 - `docs/schema-evolution.md` production-safe Payload schema evolution guide
 - `scripts/sync-boilerplate.mjs`, `scripts/check-boilerplate-drift.mjs`, `scripts/deploy-smoke-test.mjs`
-- `scripts/guard-repo-safety.mjs`, `scripts/guard-harness-contract.mjs`, `scripts/guard-cloudflare-env.mjs`, `scripts/install-git-hooks.mjs` repository safety guards and optional git hooks
-- `.githooks/pre-push` optional local pre-push harness (install with `pnpm run hooks:install`)
-- `vitest.config.mts`, `vitest.setup.ts`, and shared harness integration tests under `tests/int/` (`api`, `repo-safety-guard`, `cloudflare-env-guard`, `boilerplate-sync`, `harness-contract-guard`, `open-next-config`)
+- `scripts/guard-repo-safety.mjs`, `scripts/guard-harness-contract.mjs`, `scripts/guard-cloudflare-env.mjs`, `scripts/check-branch-safety.sh`, `scripts/install-git-hooks.mjs` repository safety guards and optional git hooks
+- `.githooks/pre-commit` and `.githooks/pre-push` optional local hooks (install with `pnpm run hooks:install`)
+- `vitest.config.mts`, `vitest.setup.ts`, and shared harness integration tests under `tests/int/` (`api`, `repo-safety-guard`, `cloudflare-env-guard`, `boilerplate-sync`, `branch-safety`, `harness-contract-guard`, `open-next-config`)
 - `docs/dev-boilerplate.md`, `docs/boilerplate-sync-command.md`, `docs/harness-sync-contract.md` boilerplate module and sync contract notes
 
 ### Package sync proposal (child-owned `package.json`)
@@ -395,9 +397,9 @@ These paths are source-of-truth and **may be overwritten** on every sync:
 - never auto-adds, removes, bumps, or rewrites `dependencies` or `devDependencies`
 - writes **`.bemoat/package-sync-proposal.md`** with script and dependency drift for human review only
 
-Managed namespaced scripts (added when missing): `bemoat:guard:safety`, `bemoat:guard:harness-contract`, `bemoat:guard:cloudflare-env`, `bemoat:test:int`, `bemoat:check`, `bemoat:boilerplate:sync`, `bemoat:boilerplate:check`, `bemoat:hooks:install`
+Managed namespaced scripts (added when missing): `bemoat:branch:check`, `bemoat:guard:safety`, `bemoat:guard:harness-contract`, `bemoat:guard:cloudflare-env`, `bemoat:test:int`, `bemoat:check`, `bemoat:boilerplate:sync`, `bemoat:boilerplate:check`, `bemoat:hooks:install`
 
-Non-namespaced script and dependency differences appear in the proposal under **Script drift report (human review only)** and **Dependency drift report (human review only)**. Synced CI and optional pre-push hooks assume only `bemoat:*` scripts exist — full `lint`, `typecheck`, `build`, and `check` baselines are follow-up work in each child project.
+Non-namespaced script and dependency differences appear in the proposal under **Script drift report (human review only)** and **Dependency drift report (human review only)**. Synced CI and optional hooks assume only `bemoat:*` scripts exist, plus direct shell execution of the synced branch safety script — full `lint`, `typecheck`, `build`, and `check` baselines are follow-up work in each child project.
 
 `pnpm-lock.yaml` is **not** synced. Review the package sync proposal manually before changing `package.json` or running `pnpm install`.
 
