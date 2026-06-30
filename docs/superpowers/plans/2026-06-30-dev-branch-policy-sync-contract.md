@@ -1,6 +1,6 @@
 # Dev Branch Policy Sync Contract Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Align the starter workflow rails so `dev` is the single documented integration branch before harness sync is run in child projects.
 
@@ -56,7 +56,7 @@
   - unsupported branch guidance points to `dev`.
   - synced CI includes `main` and `dev`, not `develop`.
 
-- [ ] **Step 1: Update the branch safety test to expect `dev`**
+- [x] **Step 1: Update the branch safety test to expect `dev`**
 
 Replace the two `develop` tests and unsupported-branch guidance expectation in `tests/int/branch-safety.int.spec.ts` with this code:
 
@@ -83,7 +83,7 @@ Then change the unsupported-branch assertion to:
     expect(result.stderr).toContain('git switch -c chore/67-git-flow-branch-guardrails dev')
 ```
 
-- [ ] **Step 2: Add synced CI branch target assertions**
+- [x] **Step 2: Add synced CI branch target assertions**
 
 In `tests/int/boilerplate-sync.int.spec.ts`, inside `describe('synced harness CI and hooks', () => {`, add this test after `uses only child-safe bemoat:* scripts in synced CI workflow`:
 
@@ -96,7 +96,7 @@ In `tests/int/boilerplate-sync.int.spec.ts`, inside `describe('synced harness CI
   })
 ```
 
-- [ ] **Step 3: Run focused tests and verify the expected failure**
+- [x] **Step 3: Run focused tests and verify the expected failure**
 
 Run:
 
@@ -106,7 +106,7 @@ pnpm exec vitest run --config ./vitest.config.mts tests/int/branch-safety.int.sp
 
 Expected: FAIL in `tests/int/branch-safety.int.spec.ts` because `scripts/check-branch-safety.sh` still protects `develop` and does not protect `dev`. The synced CI test should pass because `.github/workflows/ci.yml` already targets `main` and `dev`.
 
-- [ ] **Step 4: Commit the failing tests**
+- [x] **Step 4: Commit the failing tests**
 
 Run:
 
@@ -139,7 +139,7 @@ Expected: commit succeeds with only the two test files staged.
   - Active workflow docs consistently instruct agents to create branches from `dev` and target PRs to `dev`.
   - Historical/spec files may still mention `develop` when describing rejected alternatives or old context.
 
-- [ ] **Step 1: Replace the protected integration branch in the shell guard**
+- [x] **Step 1: Replace the protected integration branch in the shell guard**
 
 In `scripts/check-branch-safety.sh`, replace the whole `case "$branch" in` block with:
 
@@ -183,7 +183,7 @@ Also replace the detached-HEAD example near the top with:
   echo "  git switch -c chore/67-git-flow-branch-guardrails dev" >&2
 ```
 
-- [ ] **Step 2: Rewrite the canonical Git Flow doc**
+- [x] **Step 2: Rewrite the canonical Git Flow doc**
 
 In `docs/workflow/git-flow.md`, replace active branch-policy references as follows:
 
@@ -204,7 +204,7 @@ rg -n 'develop' docs/workflow/git-flow.md
 
 Expected: no output.
 
-- [ ] **Step 3: Update root agent and README workflow surfaces**
+- [x] **Step 3: Update root agent and README workflow surfaces**
 
 In `AGENTS.md` and `README.md`, replace active workflow language so these exact phrases appear:
 
@@ -228,7 +228,7 @@ For the README Mermaid node, use:
 Create issue branch from dev — never edit main or routine-code on dev
 ```
 
-- [ ] **Step 4: Update active agent-loop workflow docs**
+- [x] **Step 4: Update active agent-loop workflow docs**
 
 In these files, replace active `develop` workflow instructions with `dev`:
 
@@ -266,7 +266,7 @@ For bootstrap notes, use this wording:
 If a repository has not created `dev` yet, follow the bootstrap note in [Git Flow guardrails](../workflow/git-flow.md) and call out the temporary exception in the PR.
 ```
 
-- [ ] **Step 5: Search active workflow surfaces for stale `develop`**
+- [x] **Step 5: Search active workflow surfaces for stale `develop`**
 
 Run:
 
@@ -276,7 +276,7 @@ rg -n 'develop' AGENTS.md README.md docs/workflow docs/agent-loop scripts/check-
 
 Expected: no matches in those active workflow surfaces. If matches remain in the approved design spec or historical implementation plans outside this command, leave them unless they are active agent instructions.
 
-- [ ] **Step 6: Run focused tests and verify they pass**
+- [x] **Step 6: Run focused tests and verify they pass**
 
 Run:
 
@@ -286,7 +286,7 @@ pnpm exec vitest run --config ./vitest.config.mts tests/int/branch-safety.int.sp
 
 Expected: PASS. `branch-safety.int.spec.ts` should show `dev` protected and bypassable; `boilerplate-sync.int.spec.ts` should show child-synced CI stays on `main` and `dev`.
 
-- [ ] **Step 7: Commit the guard and docs alignment**
+- [x] **Step 7: Commit the guard and docs alignment**
 
 Run:
 
@@ -313,7 +313,7 @@ Expected: commit succeeds with only branch-policy docs and `scripts/check-branch
   - confirmation that no sync manifest change is needed,
   - confirmation that child sync should be delayed until this PR merges.
 
-- [ ] **Step 1: Confirm managed-path lists do not need changes**
+- [x] **Step 1: Confirm managed-path lists do not need changes**
 
 Run:
 
@@ -334,7 +334,7 @@ buildContractFilePaths: OK
 suggestedPackageSections: OK
 ```
 
-- [ ] **Step 2: Run whitespace validation**
+- [x] **Step 2: Run whitespace validation**
 
 Run:
 
@@ -344,7 +344,7 @@ git diff --check
 
 Expected: no output and exit code `0`.
 
-- [ ] **Step 3: Run guard safety**
+- [x] **Step 3: Run guard safety**
 
 Run:
 
@@ -358,7 +358,7 @@ Expected:
 Central guard pack passed.
 ```
 
-- [ ] **Step 4: Run full starter check**
+- [x] **Step 4: Run full starter check**
 
 Run:
 
@@ -368,7 +368,7 @@ pnpm run check
 
 Expected: PASS for `guard:safety`, `lint`, `typecheck`, and `test:int`.
 
-- [ ] **Step 5: Review changed files for scope**
+- [x] **Step 5: Review changed files for scope**
 
 Run:
 
@@ -397,7 +397,7 @@ tests/int/boilerplate-sync.int.spec.ts
 
 The spec and plan commits may already be present on the branch. No `src/**`, `wrangler.jsonc`, `.env*`, `pnpm-lock.yaml`, generated Payload types, migration files, or Cloudflare resource IDs should appear.
 
-- [ ] **Step 6: Commit validation fixes if validation required edits**
+- [x] **Step 6: Commit validation fixes if validation required edits**
 
 If Step 1 through Step 5 exposed a missed active workflow reference and the executor changed files, run:
 
@@ -408,7 +408,7 @@ git commit -m "chore: finish dev branch workflow validation"
 
 Expected: commit succeeds only when there were concrete validation edits. If no files changed after validation, skip this commit.
 
-- [ ] **Step 7: Push and open or update PR**
+- [x] **Step 7: Push and open or update PR**
 
 Run:
 
@@ -449,7 +449,7 @@ The PR body file must include:
 
 Expected: PR URL is printed.
 
-- [ ] **Step 8: Final sync-readiness note**
+- [x] **Step 8: Final sync-readiness note**
 
 Collect the final facts:
 
