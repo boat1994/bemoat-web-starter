@@ -140,6 +140,11 @@ describe('boilerplate sync managed paths', () => {
     const harnessPaths = [
       'docs/schema-evolution.md',
       'docs/workflow',
+      'docs/ai/ui-skills.md',
+      'docs/ai/ui-execution-workflow.md',
+      'docs/ai/visual-qa-checklist.md',
+      'docs/ai/accessibility-baseline.md',
+      'prompts/ui',
       'docs/cloudflare-environments.md',
       'docs/boilerplate-sync-command.md',
       'scripts/guard-repo-safety.mjs',
@@ -639,6 +644,12 @@ describe('boilerplate sync managed paths', () => {
     expect(mod.managedPaths).toContain('AGENTS.md')
     expect(mod.managedPaths).toContain(mod.syncManifestPath)
     expect(mod.managedPaths).toContain('scripts/check-boilerplate-drift.mjs')
+    expect(mod.managedPaths).toContain('docs/ai/ui-skills.md')
+    expect(mod.managedPaths).toContain('docs/ai/ui-execution-workflow.md')
+    expect(mod.managedPaths).toContain('docs/ai/visual-qa-checklist.md')
+    expect(mod.managedPaths).toContain('docs/ai/accessibility-baseline.md')
+    expect(mod.managedPaths).not.toContain('docs/ai')
+    expect(mod.managedPaths).toContain('prompts/ui')
     expect(mod.managedPaths).not.toContain('src/payload.config.ts')
     expect(mod.managedPaths).not.toContain('package.json')
     expect(mod.managedPaths).not.toContain('README.md')
