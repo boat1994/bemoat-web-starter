@@ -42,7 +42,6 @@ export const managedPaths = [
   'docs/harness-sync-contract.md',
   'docs/guard-pack.md',
   'docs/starter-acceptance-tests.md',
-  'docs/superpowers',
 
   // GitHub workflow rails
   '.github/workflows/ci.yml',

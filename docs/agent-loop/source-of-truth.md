@@ -11,6 +11,7 @@ This document separates what **`bemoat-web-starter`** owns from what **child pro
 | UI execution guardrails | `docs/ai/ui-skills.md`, `docs/ai/ui-execution-workflow.md`, `docs/ai/visual-qa-checklist.md`, `docs/ai/accessibility-baseline.md`, `prompts/ui/*` |
 | GitHub templates | `.github/pull_request_template.md`, `.github/ISSUE_TEMPLATE/*`, shared workflows |
 | Agent-loop docs | `docs/agent-loop/*`, `docs/workflow/*`, `docs/hardening.md`, `docs/releases.md`, `docs/deploy-smoke-test.md`, `docs/cloudflare-environments.md`, `docs/schema-evolution.md` |
+| Superpowers skill entry | Native `superpowers:using-superpowers` or portable fallback `.agents/skills/using-superpowers.md` — not `docs/superpowers/*` |
 | Harness workflow | `scripts/guard-repo-safety.mjs`, `scripts/guard-cloudflare-env.mjs`, `scripts/check-branch-safety.sh`, `scripts/install-git-hooks.mjs`, `.githooks`, `vitest.config.mts`, `vitest.setup.ts`, shared harness tests under `tests/int/` |
 | Payload schema (shared) | Shared collections and globals (seeded once) |
 | Starter UI | Shared starter pages (home, projects, blog, custom order, etc.; seeded once) |
@@ -75,6 +76,16 @@ Managed namespaced scripts: `bemoat:branch:check`, `bemoat:guard:safety`, `bemoa
 `pnpm-lock.yaml` is not synced. After applying any proposal changes, run `pnpm install` in the child project.
 
 Deploy **command recommendations** are part of the package sync proposal. **`wrangler.jsonc` and Cloudflare resource IDs remain child-owned** and are never overwritten by sync.
+
+### Starter-only (not synced to child projects)
+
+These paths remain in `bemoat-web-starter` for learning and reference. They are **not** in `managedPaths` and are **not** copied by `boilerplate:sync`:
+
+| Path | Purpose |
+|------|---------|
+| `docs/superpowers` | Superpowers specs, plans, and templates for starter-side planning |
+
+Child agents still start with native `superpowers:using-superpowers` or the portable fallback at `.agents/skills/using-superpowers.md`. See [harness-sync-contract.md](../harness-sync-contract.md#starter-only-paths-not-synced).
 
 ### Merged keep-child-content by `boilerplate:sync`
 

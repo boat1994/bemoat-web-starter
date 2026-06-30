@@ -11,6 +11,7 @@ The harness is everything child projects need to run the same safety rails, work
 | Agent rules | `AGENTS.md`, `.agents/*`, `.cursor/rules/*` |
 | UI execution guardrails | `docs/ai/ui-skills.md`, `docs/ai/ui-execution-workflow.md`, `docs/ai/visual-qa-checklist.md`, `docs/ai/accessibility-baseline.md`, `prompts/ui/*` |
 | Agent-loop docs | `docs/agent-loop/*`, `docs/hardening.md`, `docs/schema-evolution.md`, etc. |
+| Superpowers skill entry | Native `superpowers:using-superpowers` or portable fallback `.agents/skills/using-superpowers.md` (not `docs/superpowers/*`) |
 | GitHub workflow and templates | `.github/workflows/ci.yml` (child-safe `bemoat:*` only), PR template, issue templates |
 | Safety guards | `scripts/guard-pack.mjs` (orchestrator), `scripts/guard-repo-safety.mjs`, `scripts/guard-harness-contract.mjs`, `scripts/guard-package-manager.mjs`, `scripts/guard-env-placeholder.mjs`, `scripts/guard-cloudflare-env.mjs`, `scripts/guard-frontend-seo.mjs` — see [guard-pack.md](./guard-pack.md) |
 | Cloudflare deploy guards | Recommended `deploy` / `preview` scripts that call `guard:cloudflare-env` |
@@ -49,6 +50,16 @@ The starter publishes **`.bemoat/boilerplate-sync-manifest.json`** — a static 
 This prevents the **first-sync paradox**: when the starter adds a new managed path, child projects with an older local sync script still copy the new path in **one** run because path discovery happens from the cloned manifest, not only from the already-loaded local constants. Maintain the manifest in `bemoat-web-starter` whenever you change `managedPaths` or related lists in `scripts/sync-boilerplate.mjs` (keep them identical; `tests/int/boilerplate-sync.int.spec.ts` asserts parity).
 
 Starter modules (`src/app/(frontend)`, `src/collections`, `src/globals`, `src/components`, `src/hooks`, `src/access`, `src/lib`, `src/payload.config.ts`) are **not** harness.
+
+## Starter-only paths (not synced)
+
+These live in `bemoat-web-starter` for learning, reference, and starter development. They are **not** copied to child projects by `boilerplate:sync`:
+
+| Path | Purpose |
+|------|---------|
+| `docs/superpowers` | Superpowers specs, plans, and templates for starter-side planning work |
+
+Child projects still get agent execution rails (`AGENTS.md`, `.agents`, `.cursor/rules`, `docs/agent-loop`, `docs/ai`, GitHub workflow rails, guards, sync scripts, harness tests). Agents invoke the native `superpowers:using-superpowers` skill or the portable fallback at `.agents/skills/using-superpowers.md` — not files under `docs/superpowers`.
 
 ## What stays child-owned
 
@@ -198,8 +209,10 @@ Current shared tests (listed in `managedPaths` in `scripts/sync-boilerplate.mjs`
 
 6. **Starter-only harness file** — Do not add to `managedPaths`. Document the path and reason in `STARTER_ONLY_INT_TESTS` in `tests/int/boilerplate-sync.int.spec.ts` so the contract test allows it.
 
-7. **Do not sync** `wrangler.jsonc`, resource IDs, secrets, `.env` files, or `pnpm-lock.yaml`.
+7. **Starter-only documentation** — Do not add to `managedPaths`. Document the path in `STARTER_ONLY_DOCS` in `tests/int/boilerplate-sync.int.spec.ts` (for example `docs/superpowers`).
 
-8. **Do not add `README.md` to `managedPaths`.** Root README is project-owned. Existing projects keep their own README. Harness documentation lives under `docs/*` and `AGENTS.md`. `tests/int/boilerplate-sync.int.spec.ts` asserts `managedPaths` does not include `README.md`.
+8. **Do not sync** `wrangler.jsonc`, resource IDs, secrets, `.env` files, or `pnpm-lock.yaml`.
+
+9. **Do not add `README.md` to `managedPaths`.** Root README is project-owned. Existing projects keep their own README. Harness documentation lives under `docs/*` and `AGENTS.md`. `tests/int/boilerplate-sync.int.spec.ts` asserts `managedPaths` does not include `README.md`.
 
 See also: [source-of-truth.md](./agent-loop/source-of-truth.md), [boilerplate-sync-command.md](./boilerplate-sync-command.md), [child-project-migration-guide.md](./child-project-migration-guide.md) (harness migration playbook for child repos), root [README.md](../README.md#what-boilerplate-sync-updates).

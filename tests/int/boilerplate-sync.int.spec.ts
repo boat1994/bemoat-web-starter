@@ -27,6 +27,14 @@ const STARTER_ONLY_INT_TESTS: { path: string; reason: string }[] = [
   // All current tests/int/**/*.int.spec.ts files are shared harness tests for child projects.
 ]
 
+/** Documentation paths that are starter-only and intentionally not synced. */
+const STARTER_ONLY_DOCS: { path: string; reason: string }[] = [
+  {
+    path: 'docs/superpowers',
+    reason: 'Superpowers specs/plans are starter learning/reference docs, not child harness rails',
+  },
+]
+
 /** README.md is project-owned and must not appear in managedPaths (see docs/harness-sync-contract.md). */
 
 const MANAGED_BEMOAT_PACKAGE_SCRIPTS = [
@@ -185,6 +193,17 @@ describe('boilerplate sync managed paths', () => {
     for (const scriptName of PROPOSAL_ONLY_PACKAGE_SCRIPTS) {
       expect(mod.managedPackageScripts).not.toContain(scriptName)
       expect(mod.suggestedPackageScripts).toContain(scriptName)
+    }
+  })
+
+  it('documents starter-only docs paths outside managedPaths', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+
+    for (const entry of STARTER_ONLY_DOCS) {
+      expect(
+        mod.managedPaths,
+        `${entry.path} must not be in managedPaths: ${entry.reason}`,
+      ).not.toContain(entry.path)
     }
   })
 
@@ -660,6 +679,9 @@ describe('boilerplate sync managed paths', () => {
     expect(mod.managedPaths).not.toContain('src/payload.config.ts')
     expect(mod.managedPaths).not.toContain('package.json')
     expect(mod.managedPaths).not.toContain('README.md')
+    for (const entry of STARTER_ONLY_DOCS) {
+      expect(mod.managedPaths).not.toContain(entry.path)
+    }
     expect(mod.mergeKeepPaths).toContain('.gitignore')
     expect(mod.seedOnlyPaths).not.toContain('.gitignore')
     expect(mod.seedOnlyPaths).toContain('src/payload.config.ts')
