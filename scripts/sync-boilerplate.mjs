@@ -42,7 +42,13 @@ export const managedPaths = [
   'docs/harness-sync-contract.md',
   'docs/guard-pack.md',
   'docs/starter-acceptance-tests.md',
-  'docs/superpowers',
+
+  // Superpowers planning harness (starter-only except these subpaths)
+  'docs/superpowers/README.md',
+  'docs/superpowers/specs/README.md',
+  'docs/superpowers/plans/README.md',
+  'docs/superpowers/plans/_templates',
+  'docs/superpowers/specs/_templates',
 
   // GitHub workflow rails
   '.github/workflows/ci.yml',

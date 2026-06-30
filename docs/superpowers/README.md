@@ -4,6 +4,24 @@ This folder holds reusable planning artifacts for projects created from `bemoat-
 
 Use it to keep product, design, and implementation work organized by feature instead of dropping every document into one flat directory.
 
+## Starter vs child sync boundary
+
+Feature folders under `docs/superpowers/{project}/…` are **starter-only or child-local** — they are **not** copied by `pnpm run boilerplate:sync`. Starter reference examples and historical planning work stay in `bemoat-web-starter`; child projects create their own feature folders locally.
+
+**Synced harness paths** are managed and **overwritten on sync** so child projects share canonical planning conventions:
+
+| Path | Synced to child projects? |
+| --- | --- |
+| `docs/superpowers/README.md` | Yes — managed, overwritten on sync |
+| `docs/superpowers/specs/README.md` | Yes — managed, overwritten on sync |
+| `docs/superpowers/plans/README.md` | Yes — managed, overwritten on sync |
+| `docs/superpowers/plans/_templates` | Yes — managed, overwritten on sync |
+| `docs/superpowers/specs/_templates` | Yes — managed, overwritten on sync |
+| `docs/superpowers/plans/{project}/…` | No — starter-only or child-local |
+| `docs/superpowers/specs/{project}/…` | No — starter-only or child-local |
+
+Child agents use the **local synced copy** of this README for canonical artifact names, reading order, and folder conventions. Harness sync details live in [harness-sync-contract.md](../harness-sync-contract.md#child-project-planning-workflow) and [source-of-truth.md](../agent-loop/source-of-truth.md).
+
 ## What lives here
 
 - `specs/`: decision artifacts such as product scope, UX/UI direction, visual interpretation, reference handoff, and composer handoff.
@@ -51,7 +69,7 @@ Typical files include:
 
 ### `_templates/`
 
-Use `_templates/` as the starter-owned source for reusable formats. Child repos should copy templates into their feature folders and then customize the copied files there.
+Use `_templates/` as the starter-owned source for reusable formats. These folders sync to child projects via `boilerplate:sync`. Copy a template into your feature folder, then customize the copied file there — do not edit synced template files in place for feature-specific work.
 
 ## Reading order for a feature
 
