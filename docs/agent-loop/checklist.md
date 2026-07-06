@@ -47,8 +47,8 @@ When unsure, round **up** one tier for source-of-truth or sync-managed paths; ro
 - [ ] Reusable work targets `bemoat-web-starter`; project-specific work stays in child repos
 - [ ] Payload hooks pass `req` to nested operations
 - [ ] Local API with `user` sets `overrideAccess: false`
-- [ ] After admin component changes: `pnpm run generate:importmap`
-- [ ] After Payload schema changes: `pnpm run generate:types`
+- [ ] After admin component changes: starter `pnpm run generate:importmap`, or child-owned `generate:importmap` when present
+- [ ] After Payload schema changes: starter `pnpm run generate:types`, or child-owned `generate:types` when present
 - [ ] After D1 schema changes: `pnpm payload migrate:create` and review migration
 - [ ] Update session state (files changed, last command, blockers)
 
@@ -65,8 +65,10 @@ Stop instead of committing if the task is ambiguous, forbidden files are require
 - [ ] **Security pre-commit:** no copied Cloudflare account IDs, D1 IDs, R2 names, or Worker names
 - [ ] **Migration pre-commit:** destructive `up()` migration has `bemoat:destructive-migration-approved` or is additive-only (guard:safety must pass)
 - [ ] **Validation tier applied** (see [AGENTS.md § Validation](../../AGENTS.md#validation-before-pr-and-merge)):
-  - [ ] **Docs/markdown/CI only** (no code): `pnpm run guard:safety` passed
-  - [ ] **Code changes**: `pnpm run check` passed (**required** — includes lint with **zero warnings**, typecheck, test:int, guard:safety)
+  - [ ] **Starter docs/markdown/CI only** (no code): `pnpm run guard:safety` passed
+  - [ ] **Child docs/markdown/CI only** (no code): `pnpm run bemoat:guard:safety` passed
+  - [ ] **Starter code changes**: `pnpm run check` passed (**required** — includes lint with **zero warnings**, typecheck, test:int, guard:safety)
+  - [ ] **Child code changes**: `pnpm run bemoat:check` passed when the child supports its local `lint` and `typecheck` scripts; otherwise `pnpm run bemoat:guard:safety`, `pnpm run bemoat:test:int`, and the child-owned code checks that exist passed
 - [ ] Exactly one focused commit (unless task requires more)
 - [ ] No unrelated refactors in the commit
 
@@ -74,10 +76,12 @@ Stop instead of committing if the task is ambiguous, forbidden files are require
 
 - [ ] Acceptance criteria met
 - [ ] **Validation tier** same as before commit:
-  - [ ] Docs-only → `pnpm run guard:safety`
-  - [ ] Code changes → `pnpm run check` (**required**)
-- [ ] `pnpm run generate:types` if Payload schema changed
-- [ ] `pnpm run generate:importmap` if admin components changed
+  - [ ] Starter docs-only → `pnpm run guard:safety`
+  - [ ] Child docs-only → `pnpm run bemoat:guard:safety`
+  - [ ] Starter code changes → `pnpm run check` (**required**)
+  - [ ] Child code changes → `pnpm run bemoat:check` when supported; otherwise `pnpm run bemoat:guard:safety`, `pnpm run bemoat:test:int`, and existing child-owned code checks
+- [ ] `pnpm run generate:types` if Payload schema changed in the starter, or the child-owned `generate:types` script if present in a child project
+- [ ] `pnpm run generate:importmap` if admin components changed in the starter, or the child-owned `generate:importmap` script if present in a child project
 - [ ] Branch pushed to origin
 - [ ] Checked whether branch already has an open PR — **open new PR** or **update existing PR** (no duplicate)
 - [ ] **Migration PR:** opened or kept as **draft** (`gh pr create --draft`); title prefix `[D1 Migration]`, `[Payload Migration]`, or `[DB Migration]`; body includes migration safety checklist — see [migration-draft-pr.md](./migration-draft-pr.md)
@@ -92,7 +96,7 @@ Stop instead of committing if the task is ambiguous, forbidden files are require
 
 Complete when the change affects agent docs, CI, sync scripts, guards, or harness contracts. See [issue-driven-branch-workflow.md](./issue-driven-branch-workflow.md#harness-sync-closeout-before-closing-the-issue).
 
-- [ ] Decided whether child projects need `pnpm run boilerplate:sync` after merge
+- [ ] Decided whether child projects need harness sync after merge (`pnpm run bemoat:boilerplate:sync -- --harness-only` in child repos)
 - [ ] Sync scripts, drift checks, or harness contract guards reviewed for impact
 - [ ] `boilerplate:check` / `bemoat:boilerplate:check` behavior documented or updated if needed
 - [ ] Follow-up sync issue created and linked **or** sync completed — do not close source issue until resolved
@@ -106,10 +110,10 @@ Run in **child repos** only. Full loop: [harness-sync-workflow.md](./harness-syn
 - [ ] **`git status` run**; working tree clean (or stop and report)
 - [ ] **Not on `main` or routine-syncing on `dev`** — sync branch created first: `chore/sync-harness-from-starter-<source-pr-number>`
 - [ ] Starter source PR or tag identified
-- [ ] `pnpm run boilerplate:sync -- --harness-only` (or `bemoat:boilerplate:sync`) run on sync branch
-- [ ] `pnpm run guard:safety` (or `bemoat:guard:safety`) passed
+- [ ] `pnpm run bemoat:boilerplate:sync -- --harness-only` run on sync branch (or `pnpm run boilerplate:sync -- --harness-only` when the child defines the raw alias)
+- [ ] `pnpm run bemoat:guard:safety` passed
 - [ ] `git diff --check` passed
-- [ ] `pnpm run boilerplate:check -- --harness-only` run **only if** script exists in `package.json`
+- [ ] `pnpm run bemoat:boilerplate:check -- --harness-only` run when available (or raw `boilerplate:check` only when the child defines that alias)
 - [ ] Diff review: harness paths only; no product code, secrets, or Cloudflare IDs
 - [ ] Branch pushed; PR opened or existing PR updated (no duplicate)
 - [ ] Implementation report posted; **did not merge**

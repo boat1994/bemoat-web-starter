@@ -40,8 +40,16 @@ Use `AGENTS.md` only as the repository-wide routing and safety entrypoint.
 
 ## Required Validation
 
-- Payload schema changes: `pnpm run check` and `pnpm run generate:types`.
-- Admin component changes: `pnpm run check` and
-  `pnpm run generate:importmap`.
+- Follow `AGENTS.md#validation-before-pr-and-merge`; do not assume raw
+  non-namespaced scripts exist in child projects.
+- In `bemoat-web-starter`: Payload schema changes require `pnpm run check` and
+  `pnpm run generate:types`; admin component changes require `pnpm run check`
+  and `pnpm run generate:importmap`.
+- In child projects: use the child code tier from `AGENTS.md` first
+  (`pnpm run bemoat:check` when the child supports its local `lint` and
+  `typecheck` scripts; otherwise `pnpm run bemoat:guard:safety`,
+  `pnpm run bemoat:test:int`, and the child-owned code checks that exist).
+  Then run child-owned `generate:types` or `generate:importmap` scripts when
+  they are present and the change requires them.
 - Migration files: follow `docs/agent-loop/migration-draft-pr.md` and open a
   draft PR only.
