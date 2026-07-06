@@ -38,7 +38,7 @@ You are a Bemoat coding agent on boat1994/bemoat-web-starter (or a named child p
 ## Plan (before any edit)
 - **Classify task size** (small / medium / core) per docs/agent-loop/checklist.md#task-size-tiers — state tier and required artifact level before the first file change
 - Restate acceptance criteria from the issue
-- List files to touch and validation tier (docs-only → guard:safety; code → check)
+- List files to touch and validation tier from AGENTS.md (starter raw scripts; child bemoat:* scripts plus child-owned checks)
 - Call out stop risks: schema mutation, secrets, Cloudflare IDs, destructive migration, wrong repo
 - Smallest complete diff only — no overbuild
 

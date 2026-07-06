@@ -40,7 +40,7 @@ Copy this template into issue comments, PR descriptions, or agent handoff notes.
 | Starter code: `pnpm run check`; child code: `pnpm run bemoat:check` when supported, otherwise child-owned checks | | Required for code changes |
 | Starter admin: `pnpm run generate:importmap`; child admin: child-owned `generate:importmap` when present | N/A or pass/fail | |
 | Starter schema: `pnpm run generate:types`; child schema: child-owned `generate:types` when present | N/A or pass/fail | |
-| pnpm run check:full | | Before merge when practical |
+| Starter or child-local `pnpm run check:full` when defined | | Before merge when practical |
 | CI | | Link to run |
 
 ## Next action

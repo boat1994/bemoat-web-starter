@@ -8,7 +8,11 @@ Use with [checklist.md](./checklist.md), [migration-draft-pr.md](./migration-dra
 
 ## Programmatic guard
 
-CI and `pnpm run check` run `pnpm run guard:safety` (`scripts/guard-repo-safety.mjs`) to enforce the rules below in tracked/staged files.
+CI and validation commands run the central safety guard to enforce the rules
+below in tracked/staged files. In `bemoat-web-starter`, that is
+`pnpm run guard:safety` (also included in `pnpm run check`). In child projects,
+use `pnpm run bemoat:guard:safety`, or `pnpm run bemoat:check` when the child
+supports its stricter local `lint` and `typecheck` scripts.
 
 The guard fails when it finds:
 
@@ -123,7 +127,13 @@ Hidden after new field is stable:
 },
 ```
 
-`pnpm run guard:safety` blocks destructive migration keywords in migration `up` sections (including `RENAME COLUMN`, `RENAME TO`, `ALTER COLUMN`, `DROP INDEX`) unless the file contains `bemoat:destructive-migration-approved`. Semantic Payload renames and type changes are enforced via agent rules and the PR **Schema and Migration Safety** section—not by AST parsing.
+The central safety guard blocks destructive migration keywords in migration
+`up` sections (including `RENAME COLUMN`, `RENAME TO`, `ALTER COLUMN`,
+`DROP INDEX`) unless the file contains
+`bemoat:destructive-migration-approved`. Run starter `pnpm run guard:safety` or
+child `pnpm run bemoat:guard:safety` as appropriate. Semantic Payload renames
+and type changes are enforced via agent rules and the PR **Schema and Migration
+Safety** section—not by AST parsing.
 
 **Production migrations and deploys**
 
@@ -150,7 +160,10 @@ Confirm:
 - [ ] No destructive migration without human approval noted in the PR
 - [ ] `generate:types` / `generate:importmap` run if schema or admin components changed
 
-Optional pre-push (`pnpm run hooks:install`) runs guard + typecheck + test:int only — **not** lint. CI remains authoritative.
+Optional pre-push hooks can be installed with starter `pnpm run hooks:install`
+or child `pnpm run bemoat:hooks:install`. Synced child pre-push runs
+`bemoat:guard:safety` and `bemoat:test:int` only; child lint/type/build checks
+remain child-owned unless added locally. CI remains authoritative.
 
 ## When to stop instead of commit
 
