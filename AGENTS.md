@@ -247,6 +247,13 @@ Use additive replacements instead:
 - Remove old fields only after explicit human approval, production backup, and
   at least one stable release.
 
+## Spec and Plan Document Organization
+
+Design specifications (specs) and implementation plans must be organized according to the rules in `docs/superpowers/specs/README.md` and `docs/superpowers/plans/README.md`.
+- Never place flat design specs or implementation plan files directly in the root of `docs/superpowers/specs/` or `docs/superpowers/plans/`.
+- Always organize specs inside `{project}/{initiative}/{feature}/` subdirectories (e.g. `docs/superpowers/specs/bogus/catalog/minimal-luxury-detail/design.md`).
+- Always organize plans inside `{project}/{initiative}/{feature}/` subdirectories (e.g. `docs/superpowers/plans/bogus/catalog/minimal-luxury-detail/plan.md`).
+
 ## Security And Commit Safety
 
 - Do not commit secrets, `.env` files, Cloudflare account IDs, D1 IDs, R2 bucket
