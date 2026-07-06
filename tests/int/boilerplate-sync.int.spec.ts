@@ -156,6 +156,7 @@ describe('boilerplate sync managed paths', () => {
     const script = readFileSync(resolve(process.cwd(), 'scripts/sync-boilerplate.mjs'), 'utf8')
 
     expect(script).toContain("'AGENTS.md'")
+    expect(script).toContain("'ANTIGRAVITY.md'")
     expect(script).toContain("'.agents'")
     expect(script).toContain("'.cursor/rules'")
     expect(script).toContain("'.github/workflows/ci.yml'")
@@ -167,6 +168,7 @@ describe('boilerplate sync managed paths', () => {
     const mod = await import('../../scripts/sync-boilerplate.mjs')
 
     const harnessPaths = [
+      'ANTIGRAVITY.md',
       'docs/schema-evolution.md',
       'docs/workflow',
       'docs/ai/ui-skills.md',
