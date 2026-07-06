@@ -246,6 +246,12 @@ describe('boilerplate sync managed paths', () => {
   it('lists every shared harness int test in managedPaths', async () => {
     const mod = await import('../../scripts/sync-boilerplate.mjs')
 
+    const pkg = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf8'))
+    if (pkg.name !== 'bemoat-web-starter') {
+      // In child projects, child-local tests are allowed and won't be in managedPaths.
+      return
+    }
+
     const allIntTests = mod
       .listPathFiles(process.cwd(), 'tests/int')
       .filter((path: string) => path.endsWith('.int.spec.ts'))
