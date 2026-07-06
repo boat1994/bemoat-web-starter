@@ -33,7 +33,7 @@ skill runtime.
 | GitHub issue or PR skill | `.agents/skills/issue-workflow.md` |
 | Development workflow skill | `.agents/skills/development-agent.md` |
 | Verification or regression skill | `.agents/skills/regression.md` |
-| Payload CMS safety guidance | `.agents/skills/payload-cms.md` plus `AGENTS.md` |
+| Payload CMS safety guidance | `.agents/skills/payload-cms.md` plus `.cursor/rules/payload-overview.md` and related Payload rules |
 
 ## Stop Conditions
 
@@ -45,4 +45,3 @@ skill runtime.
 - Native skill instructions and project instructions conflict. In that case,
   follow the explicit user and repository instructions first, then report the
   conflict.
-

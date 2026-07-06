@@ -68,7 +68,7 @@ Score each row **0** (fail), **1** (partial), or **2** (pass). **Minimum to proc
 | 4 | Starter ref pinned or consciously chosen | Random commit | `main` without review | Tag or reviewed SHA (`BEMOAT_BOILERPLATE_REF`) | |
 | 5 | Sync mode confirmed **`harness-only`** | `--full` planned | Unsure | Explicit `--harness-only` | |
 | 6 | No pending Payload schema / migration work in same branch | Mixed scope | Related but separate issue | Harness-only scope | |
-| 7 | `pnpm run boilerplate:check -- --harness-only` run (audit) | Not run | Run but not read | Run and drift understood | |
+| 7 | `pnpm run bemoat:boilerplate:check -- --harness-only` run (audit) | Not run | Run but not read | Run and drift understood | |
 | 8 | Drift report reviewed; no surprise seed-only overwrites expected | Not reviewed | Skimmed | Every changed path categorized | |
 | 9 | Child `package.json` `bemoat:*` scripts understood | Missing scripts unknown | Partial list | All managed scripts present or planned | |
 | 10 | CI baseline known (child `.github/workflows/ci.yml` pre-sync) | Unknown | Assumed green | Recent green run or local equivalent | |
@@ -87,7 +87,7 @@ Score each row **0** (fail), **1** (partial), or **2** (pass). **Minimum to proc
 
 ## 5. Pre-sync audit checklist (read-only)
 
-**Mode: audit only — no `boilerplate:sync` yet.**
+**Mode: audit only — no `bemoat:boilerplate:sync` yet.**
 
 - [ ] Confirm repository is a **child project**, not `bemoat-web-starter`
 - [ ] Confirm task scope is **harness-only** (no product, schema, or dependency work)
@@ -96,7 +96,7 @@ Score each row **0** (fail), **1** (partial), or **2** (pass). **Minimum to proc
 - [ ] (Optional) Pin starter ref: `export BEMOAT_BOILERPLATE_REF=vX.Y.Z` — see [releases.md](./releases.md)
 - [ ] Run drift check:
   ```bash
-  pnpm run boilerplate:check -- --harness-only
+  pnpm run bemoat:boilerplate:check -- --harness-only
   ```
 - [ ] Save or copy drift output for the PR description
 - [ ] Verify drift touches **only** harness paths (see §7–§8)
@@ -127,14 +127,14 @@ If audit reveals forbidden paths would change, seed-only files would appear in d
 
 | Phase | Command | Modifies files? |
 |-------|---------|-----------------|
-| **Audit** | `pnpm run boilerplate:check -- --harness-only` | **No** |
-| **Sync** | `pnpm run boilerplate:sync -- --harness-only` | **Yes** (harness paths only) |
+| **Audit** | `pnpm run bemoat:boilerplate:check -- --harness-only` | **No** |
+| **Sync** | `pnpm run bemoat:boilerplate:sync -- --harness-only` | **Yes** (harness paths only) |
 
 ---
 
 ## 7. Allowed changed files
 
-After **`pnpm run boilerplate:sync -- --harness-only`**, the PR diff should include **only** paths from this list (plus sync metadata). If anything else appears, **stop before commit** (§13).
+After **`pnpm run bemoat:boilerplate:sync -- --harness-only`**, the PR diff should include **only** paths from this list (plus sync metadata). If anything else appears, **stop before commit** (§13).
 
 ### Rails-managed (`managedPaths`)
 
@@ -206,11 +206,11 @@ git checkout -b chore/harness-sync-YYYY-MM-DD # 2. create branch in child repo
 # export BEMOAT_BOILERPLATE_REF=vX.Y.Z
 
 # --- Audit mode (read-only) ---
-pnpm run boilerplate:check -- --harness-only  # 3. drift report
+pnpm run bemoat:boilerplate:check -- --harness-only  # 3. drift report
 # 4. inspect drift report — categorize every path (§7–§8)
 
 # --- Sync mode (writes files) ---
-pnpm run boilerplate:sync -- --harness-only   # 5. apply harness rails
+pnpm run bemoat:boilerplate:sync -- --harness-only   # 5. apply harness rails
 git status && git diff                        # 6. inspect diff — allowed files only?
 
 # --- Post-sync validation (child harness entrypoints) ---
@@ -242,7 +242,7 @@ Record results in the PR body. Stops are allowed if baseline is already red — 
 
 | Command | Required? | Purpose |
 |---------|-----------|---------|
-| `pnpm run boilerplate:check -- --harness-only` | **Yes** | Drift report; no file changes |
+| `pnpm run bemoat:boilerplate:check -- --harness-only` | **Yes** | Drift report; no file changes |
 | `pnpm run bemoat:guard:safety` | Recommended | Pre-sync guard baseline |
 | `pnpm run bemoat:test:int` | Recommended | Pre-sync test baseline |
 | `pnpm run bemoat:check` | If defined | Stricter local/CI check |
@@ -306,8 +306,8 @@ Harness-only boilerplate sync from `bemoat-web-starter` — **no product code ch
 ## Commands run
 
 ```bash
-pnpm run boilerplate:check -- --harness-only
-pnpm run boilerplate:sync -- --harness-only
+pnpm run bemoat:boilerplate:check -- --harness-only
+pnpm run bemoat:boilerplate:sync -- --harness-only
 pnpm run bemoat:guard:safety
 pnpm run bemoat:test:int
 # optional: pnpm run bemoat:check / pnpm run check / pnpm run build
@@ -426,12 +426,12 @@ Before requesting human merge:
 ## Quick reference: two modes
 
 ```text
-AUDIT MODE                          SYNC MODE
-────────────────────────────────    ────────────────────────────────
-boilerplate:check -- --harness-only boilerplate:sync -- --harness-only
-read drift report                   inspect git diff
-score readiness (§4)                run bemoat:guard:safety + test:int
-stop if forbidden paths             commit + PR + issue comment
+AUDIT MODE                                      SYNC MODE
+────────────────────────────────────────────    ────────────────────────────────────────────
+bemoat:boilerplate:check -- --harness-only      bemoat:boilerplate:sync -- --harness-only
+read drift report                               inspect git diff
+score readiness (§4)                            run bemoat:guard:safety + test:int
+stop if forbidden paths                         commit + PR + issue comment
 ```
 
 **Composer 2.5** executes the checklist. **GPT-5.5** owns stop/go on §13 triggers and red-team review before commit.

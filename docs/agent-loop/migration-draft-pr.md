@@ -18,7 +18,8 @@ Payload collection/global field changes that require a D1 migration also qualify
 ## Allowed automatically (after checks pass)
 
 1. Run the correct validation tier ([AGENTS.md § Validation](../../AGENTS.md#validation-before-pr-and-merge))
-2. Run `pnpm run generate:types` when Payload schema changed
+2. Run starter `pnpm run generate:types` when Payload schema changed, or the
+   child-owned `generate:types` script when present in a child project
 3. Commit changes (one focused commit unless the task requires more)
 4. Push the issue branch
 5. Open a **draft** PR targeting `dev` for normal migration work, or `main` only for approved hotfix/release work
@@ -102,8 +103,13 @@ Migration draft PR mode does **not** override these stop conditions:
 ## Example: open a migration draft PR
 
 ```bash
+# Starter:
 pnpm run generate:types   # if Payload schema changed
 pnpm run check
+
+# Child project:
+pnpm run bemoat:check     # when supported; otherwise run bemoat guard/test + child-owned checks
+# plus child-owned generate:types when present and Payload schema changed
 
 git add -A
 git commit -m "Add D1 migration for …"

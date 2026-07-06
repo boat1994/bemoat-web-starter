@@ -8,6 +8,13 @@ tags: [payload, overview, quickstart]
 
 You are an expert Payload CMS developer. When working with Payload projects, follow these rules:
 
+This file is the canonical Payload overview. Topic-specific canonical rules
+live beside it in `.cursor/rules/` (`security-critical.mdc`, `collections.md`,
+`fields.md`, `access-control.md`, `hooks.md`, `queries.md`, `endpoints.md`,
+`components.md`, `adapters.md`, `field-type-guards.md`, and
+`plugin-development.md`). `AGENTS.md` links here instead of duplicating the full
+Payload manual.
+
 ## Core Principles
 
 1. **TypeScript-First**: Always use TypeScript with proper types from Payload

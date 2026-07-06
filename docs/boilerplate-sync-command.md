@@ -7,13 +7,13 @@ This repo includes a one-command sync script for copying reusable boilerplate pi
 **Existing projects** (custom Payload schema, frontend, components) should adopt harness rails only:
 
 ```bash
-pnpm run boilerplate:sync -- --harness-only
+pnpm run bemoat:boilerplate:sync -- --harness-only
 ```
 
 **New child projects** or fresh starter-derived repos that still want missing starter modules seeded:
 
 ```bash
-pnpm run boilerplate:sync -- --full
+pnpm run bemoat:boilerplate:sync -- --full
 ```
 
 If you omit flags, sync defaults to **`harness-only`** (safe for existing repos).
@@ -21,21 +21,25 @@ If you omit flags, sync defaults to **`harness-only`** (safe for existing repos)
 Drift check uses the same modes:
 
 ```bash
-pnpm run boilerplate:check -- --harness-only
-pnpm run boilerplate:check -- --full
+pnpm run bemoat:boilerplate:check -- --harness-only
+pnpm run bemoat:boilerplate:check -- --full
 ```
+
+Use raw `boilerplate:sync` / `boilerplate:check` aliases only when a child
+project defines those non-namespaced scripts. In `bemoat-web-starter` itself,
+the raw aliases are available for starter development.
 
 Optional environment variable (CLI flags take precedence):
 
 ```bash
-BEMOAT_SYNC_MODE=harness-only pnpm run boilerplate:sync
-BEMOAT_SYNC_MODE=full pnpm run boilerplate:check
+BEMOAT_SYNC_MODE=harness-only pnpm run bemoat:boilerplate:sync
+BEMOAT_SYNC_MODE=full pnpm run bemoat:boilerplate:check
 ```
 
 Optional environment variable for the OpenNext build script contract (CLI flag takes precedence):
 
 ```bash
-BEMOAT_APPLY_BUILD_CONTRACT=1 pnpm run boilerplate:sync -- --harness-only
+BEMOAT_APPLY_BUILD_CONTRACT=1 pnpm run bemoat:boilerplate:sync -- --harness-only
 ```
 
 ### Apply build contract (opt-in)
@@ -43,7 +47,7 @@ BEMOAT_APPLY_BUILD_CONTRACT=1 pnpm run boilerplate:sync -- --harness-only
 Child projects stuck on the recursive OpenNext `build` script can apply the starter's split contract without hand-editing `package.json`:
 
 ```bash
-pnpm run boilerplate:sync -- --harness-only --apply-build-contract
+pnpm run bemoat:boilerplate:sync -- --harness-only --apply-build-contract
 ```
 
 This **overwrites** these child-owned scripts from the starter `package.json`, syncs `scripts/build.mjs`, and applies build-contract files:
@@ -71,7 +75,9 @@ Use the starter helper `src/lib/payloadBuildContext.ts` (`isPayloadBuildContext`
 
 If your child project has a custom payload config, apply the snippet manually or in a child-specific task — sync will not overwrite it.
 
-After merge of the build-contract fix into `bemoat-web-starter`, run the command above in **bemoat** (or any child) instead of copying scripts manually.
+After merge of the build-contract fix into `bemoat-web-starter`, run the
+namespaced command above in **bemoat** (or any child) instead of copying scripts
+manually.
 
 ## Sync modes
 
@@ -119,7 +125,7 @@ Default sync behavior:
 **Opt-in build contract** (`--apply-build-contract`):
 
 ```bash
-pnpm run boilerplate:sync -- --harness-only --apply-build-contract
+pnpm run bemoat:boilerplate:sync -- --harness-only --apply-build-contract
 ```
 
 Overwrites `build`, `build:next`, `build:cloudflare`, `cf:build`, `deploy:app`, and `preview` from the starter, syncs `scripts/build.mjs`, and applies `open-next.config.ts` from `buildContractFilePaths`. Use when fixing the recursive OpenNext build loop in child projects. All other non-namespaced scripts remain proposal-only.
@@ -169,13 +175,13 @@ It does not overwrite project-specific Cloudflare resources such as `wrangler.js
 ## Use a different source ref
 
 ```bash
-BEMOAT_BOILERPLATE_REF=dev pnpm run boilerplate:sync -- --harness-only
+BEMOAT_BOILERPLATE_REF=dev pnpm run bemoat:boilerplate:sync -- --harness-only
 ```
 
 ## Use a different source repository
 
 ```bash
-BEMOAT_BOILERPLATE_REPO=boat1994/bemoat-web-starter pnpm run boilerplate:sync -- --harness-only
+BEMOAT_BOILERPLATE_REPO=boat1994/bemoat-web-starter pnpm run bemoat:boilerplate:sync -- --harness-only
 ```
 
 ## After syncing

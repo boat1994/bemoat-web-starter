@@ -20,7 +20,34 @@ The harness is everything child projects need to run the same safety rails, work
 | Vitest harness | `vitest.config.mts`, `vitest.setup.ts` |
 | Shared integration tests | All `tests/int/**/*.int.spec.ts` files intended for child projects |
 
-Child projects receive harness **files** through **`pnpm run boilerplate:sync`**. Drift is reported by **`pnpm run boilerplate:check`**.
+Child projects receive harness **files** through
+**`pnpm run bemoat:boilerplate:sync -- --harness-only`**. Drift is reported by
+**`pnpm run bemoat:boilerplate:check -- --harness-only`**. Use raw
+`boilerplate:sync` / `boilerplate:check` aliases only when a child project
+defines them.
+
+## Canonical ownership of agent rules
+
+Some duplication is intentional because different tools consume different
+entrypoints. The canonical files below own the long-form policy; wrappers should
+stay short, preserve tool metadata such as globs or triggers, and link back to
+the canonical source.
+
+| Area | Canonical file(s) | Thin wrappers / entrypoints | Sync behavior |
+|------|-------------------|-----------------------------|---------------|
+| Root agent entrypoint | `AGENTS.md` | None | Managed; overwritten in child projects |
+| Starter vs child ownership | `docs/agent-loop/source-of-truth.md`, `docs/harness-sync-contract.md` | `AGENTS.md` summary, `.agents/skills/development-agent.md` | Managed |
+| Issue-driven branch workflow | `docs/agent-loop/issue-driven-branch-workflow.md`, `docs/workflow/git-flow.md` | `AGENTS.md` summary, `.agents/skills/issue-workflow.md`, `.cursor/rules/branch-safety.mdc` | Managed |
+| Validation and PR loop | `AGENTS.md`, `docs/agent-loop/checklist.md`, `docs/agent-loop/README.md` | `.agents/skills/development-agent.md`, `.agents/skills/regression.md` | Managed |
+| Payload CMS rules | `.cursor/rules/payload-overview.md` plus related Payload topic files in `.cursor/rules/`; `.agents/skills/payload-cms.md` is the portable fallback index | `AGENTS.md` summary | Managed |
+| Payload schema and migration safety | `docs/schema-evolution.md`, `docs/agent-loop/security-and-migrations.md`, `docs/agent-loop/migration-draft-pr.md` | `AGENTS.md` stop-condition summary, `.agents/skills/payload-cms.md` | Managed |
+| Superpowers workflow | Native `superpowers:using-superpowers`; portable fallback `.agents/skills/using-superpowers.md` | `.cursor/rules/superpowers-using-superpowers.mdc`, `AGENTS.md` summary | Managed for fallback files; native skill is external |
+| UI animation workflow | `.agents/skills/ui-animation.md`, `docs/ai/ui-execution-workflow.md`, `docs/ai/ui-skills.md` | `AGENTS.md` summary | Managed |
+| Tool-specific Cursor rules | Matching `.cursor/rules/*` file | Frontmatter metadata in `.mdc` files | Managed; keep trigger metadata and globs intact |
+
+When reducing duplication, first confirm the rule exists in its canonical file
+or move it there. Do not delete safety policy solely because it appears
+duplicated.
 
 ## Sync modes
 
@@ -33,13 +60,16 @@ Commands:
 
 ```bash
 # Existing repos (recommended)
-pnpm run boilerplate:sync -- --harness-only
-pnpm run boilerplate:check -- --harness-only
+pnpm run bemoat:boilerplate:sync -- --harness-only
+pnpm run bemoat:boilerplate:check -- --harness-only
 
 # New repos that want starter module seeding
-pnpm run boilerplate:sync -- --full
-pnpm run boilerplate:check -- --full
+pnpm run bemoat:boilerplate:sync -- --full
+pnpm run bemoat:boilerplate:check -- --full
 ```
+
+Use raw `boilerplate:sync` / `boilerplate:check` aliases only when the child
+project defines those non-namespaced scripts.
 
 CLI flags take precedence over `BEMOAT_SYNC_MODE`. Sync metadata in `.bemoat-boilerplate-sync.json` records `syncMode` and `seedOnlyPathsSkipped`.
 
@@ -122,7 +152,7 @@ After sync, review **`.bemoat/package-sync-proposal.md`**. Do not apply script o
 
 ```bash
 # Fix recursive OpenNext build or stale deploy scripts in child projects (overwrites build/deploy contract scripts + syncs scripts/build.mjs + open-next.config.ts)
-pnpm run boilerplate:sync -- --harness-only --apply-build-contract
+pnpm run bemoat:boilerplate:sync -- --harness-only --apply-build-contract
 ```
 
 Managed namespaced scripts (see `managedPackageScripts` in `scripts/sync-boilerplate.mjs`):

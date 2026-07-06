@@ -36,11 +36,11 @@ Copy this template into issue comments, PR descriptions, or agent handoff notes.
 | Command | Status | Notes |
 |---------|--------|-------|
 | Change type | docs-only / code | |
-| pnpm run guard:safety | | Required for docs-only; included in `check` |
-| pnpm run check | | **Required** for code changes |
-| pnpm run generate:importmap | N/A or pass/fail | |
-| pnpm run generate:types | N/A or pass/fail | |
-| pnpm run check:full | | Before merge when practical |
+| Starter docs: `pnpm run guard:safety`; child docs: `pnpm run bemoat:guard:safety` | | Required for docs-only |
+| Starter code: `pnpm run check`; child code: `pnpm run bemoat:check` when supported, otherwise child-owned checks | | Required for code changes |
+| Starter admin: `pnpm run generate:importmap`; child admin: child-owned `generate:importmap` when present | N/A or pass/fail | |
+| Starter schema: `pnpm run generate:types`; child schema: child-owned `generate:types` when present | N/A or pass/fail | |
+| Starter or child-local `pnpm run check:full` when defined | | Before merge when practical |
 | CI | | Link to run |
 
 ## Next action

@@ -38,7 +38,7 @@ You are a Bemoat coding agent on boat1994/bemoat-web-starter (or a named child p
 ## Plan (before any edit)
 - **Classify task size** (small / medium / core) per docs/agent-loop/checklist.md#task-size-tiers — state tier and required artifact level before the first file change
 - Restate acceptance criteria from the issue
-- List files to touch and validation tier (docs-only → guard:safety; code → check)
+- List files to touch and validation tier from AGENTS.md (starter raw scripts; child bemoat:* scripts plus child-owned checks)
 - Call out stop risks: schema mutation, secrets, Cloudflare IDs, destructive migration, wrong repo
 - Smallest complete diff only — no overbuild
 
@@ -58,10 +58,10 @@ You are a Bemoat coding agent on boat1994/bemoat-web-starter (or a named child p
 ## Test
 | Change | Command |
 |--------|---------|
-| Docs / markdown / CI config only | pnpm run guard:safety |
-| Code (TS, scripts, tests, components) | pnpm run check |
-| Payload schema | pnpm run check + pnpm run generate:types (+ D1 migration if needed) |
-| Admin components | pnpm run check + pnpm run generate:importmap |
+| Docs / markdown / CI config only | Starter: pnpm run guard:safety; child: pnpm run bemoat:guard:safety |
+| Code (TS, scripts, tests, components) | Starter: pnpm run check; child: pnpm run bemoat:check when supported, otherwise bemoat:guard:safety + bemoat:test:int + child-owned checks |
+| Payload schema | Matching code tier + starter generate:types or child-owned generate:types (+ D1 migration if needed) |
+| Admin components | Matching code tier + starter generate:importmap or child-owned generate:importmap |
 
 In child repos use bemoat:guard:safety / bemoat:check when defined.
 Do not commit if checks fail.
@@ -101,7 +101,7 @@ Post implementation report on the source issue:
 - Should boilerplate:check or bemoat:boilerplate:check be updated?
 - Does this require a follow-up sync issue for Bemoat or other child projects?
 - If sync is needed, do not close the issue until sync is completed or a linked follow-up issue is created
-- Child sync loop: docs/agent-loop/harness-sync-workflow.md (branch chore/sync-harness-from-starter-<source-pr-number>, pnpm run boilerplate:sync -- --harness-only, guard:safety, git diff --check)
+- Child sync loop: docs/agent-loop/harness-sync-workflow.md (branch chore/sync-harness-from-starter-<source-pr-number>, pnpm run bemoat:boilerplate:sync -- --harness-only, pnpm run bemoat:guard:safety, git diff --check)
 
 ## Stop and ask (do not commit) when:
 - Working tree is dirty with unrelated changes
