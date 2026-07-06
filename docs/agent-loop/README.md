@@ -24,8 +24,11 @@ Cloning `bemoat-web-starter` directly is only for **developing the starter itsel
 After a child project exists, pull reusable improvements from this starter with:
 
 ```bash
-pnpm run boilerplate:sync
+pnpm run bemoat:boilerplate:sync -- --harness-only
 ```
+
+Use raw `pnpm run boilerplate:sync -- --harness-only` only when that child
+defines the non-namespaced alias.
 
 Sync updates managed boilerplate paths, including agent rules (`AGENTS.md`, `.agents`, `.cursor/rules`), GitHub workflow rails (`.github/workflows/ci.yml`, PR and issue templates), `docs/agent-loop`, harness scripts (`guard-repo-safety`, `guard-cloudflare-env`, `install-git-hooks`, sync/drift/smoke), optional `.githooks`, harness integration tests, and the sync script itself.
 
@@ -57,7 +60,7 @@ task → read AGENTS.md + agent-loop → git status & issue branch → edit → 
 | **Branch gates** | `git status`; stop if dirty; never work on `main` or routine-code on `dev`; create `<type>/<issue-number>-<short-slug>` from `dev`. See [issue-driven-branch-workflow.md](./issue-driven-branch-workflow.md) and [Git Flow guardrails](../workflow/git-flow.md). |
 | **Branch** | Short-lived dedicated issue branch from `dev`; naming convention documented in [issue-driven-branch-workflow.md](./issue-driven-branch-workflow.md). |
 | **Edit** | Follow `AGENTS.md`, allowed paths, and [checklist.md](./checklist.md). Smallest complete change. |
-| **Test** | Run validation tier from `AGENTS.md`: docs-only → `guard:safety`; code → `check` (required). `generate:importmap` / `generate:types` when needed. |
+| **Test** | Run the validation tier from `AGENTS.md`. In the starter, use the raw starter scripts such as `guard:safety` / `check`; in child projects, default to `bemoat:*` harness scripts and child-owned code checks. |
 | **Show diff** | `git status` and diff summary before commit. |
 | **Commit** | One focused commit only if checks pass and only allowed files changed. See commit safety in `AGENTS.md`. |
 | **Push** | Push the branch to origin. |
