@@ -69,7 +69,7 @@ task → read AGENTS.md + agent-loop → git status & issue branch → edit → 
 | **Notify user** | Task summary, branch, files changed, commands run, test result, commit hash, PR URL, risks, and human-review items. |
 | **CI** | GitHub Actions must pass; inspect logs on failure—do not guess. |
 | **Review** | Human or reviewer agent; watch Payload, migration, Cloudflare, sync risks. |
-| **Merge** | **Human only.** Agents must not merge. Prefer `check:full` green when practical. |
+| **Merge** | **Human only.** Agents must not merge. Prefer the starter or child-local full check when defined and practical. |
 
 ## Artifacts in this folder
 

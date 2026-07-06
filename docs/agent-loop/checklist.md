@@ -131,7 +131,7 @@ Run in **child repos** only. Full loop: [harness-sync-workflow.md](./harness-syn
 
 - [ ] All required review threads resolved
 - [ ] CI green on the PR branch
-- [ ] `pnpm run check:full` run when practical before merge
+- [ ] Starter or child-local `pnpm run check:full` run when defined and practical before merge
 - [ ] Migration and Cloudflare risks acknowledged in PR
 - [ ] No sync-managed child edits that should have been upstreamed
 - [ ] Squash/merge only after checks and review—not on failing CI
