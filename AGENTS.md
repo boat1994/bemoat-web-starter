@@ -20,6 +20,29 @@ recreate long-form framework manuals here.
 | UI animation workflow | `.agents/skills/ui-animation.md`, `docs/ai/ui-execution-workflow.md` |
 | Harness sync contract | `docs/harness-sync-contract.md` |
 
+## Skill Workflow
+
+Before substantive response, planning, editing, running implementation commands,
+or reviewing code, check whether a native skill applies. If a relevant native
+skill is available, use it first and follow it.
+
+Required defaults:
+
+- Start task work with native `superpowers:using-superpowers` when available.
+- If native skill loading is unavailable, read
+  `.agents/skills/using-superpowers.md`.
+- For GitHub issues, PRs, branches, commits, CI runs, or GitHub URLs, use the
+  GitHub skill when available, or the `.agents/skills/issue-workflow.md`
+  fallback.
+- For Payload CMS work, use the Payload CMS skill/rules listed in the canonical
+  map.
+- For UI animation work, use the UI animation skill/rules listed in the
+  canonical map.
+
+User instructions remain highest priority. If a native skill and repository
+rule conflict, follow the explicit user/repository instruction and report the
+conflict.
+
 ## Bemoat Source Of Truth Rules
 
 - **`bemoat-web-starter` is the source of truth** for reusable Bemoat web
@@ -134,18 +157,20 @@ Stop and report instead of editing, committing, pushing, or opening a PR when:
 Run the correct validation before commit and PR. CI is the final source of
 truth on GitHub.
 
-| Change type | Required before commit/PR | Notes |
-| --- | --- | --- |
-| Docs, markdown, or CI config only | `pnpm run guard:safety` | Skip full `check` unless code changed. |
-| Harness sync docs or sync contract assumptions | `pnpm run guard:safety` and consider `pnpm run boilerplate:check` | Protect child sync behavior. |
-| Code changes (`.ts`, `.tsx`, `.mjs`, tests, scripts, components, collections, hooks) | `pnpm run check` | Required; lint must pass with zero warnings. |
-| Payload schema changes | `pnpm run check` and `pnpm run generate:types` | Include migrations when D1 schema changes. |
-| Admin component changes | `pnpm run check` and `pnpm run generate:importmap` | Required for Payload import map updates. |
-| D1 or Payload migration files | Same tier as triggering change; `generate:types` if schema changed | Open a draft PR only. |
+| Change type | In `bemoat-web-starter` | In child projects | Notes |
+| --- | --- | --- | --- |
+| Docs, markdown, or CI config only | `pnpm run guard:safety` | `pnpm run bemoat:guard:safety` | Skip full checks unless code changed. |
+| Harness sync docs or sync contract assumptions | `pnpm run guard:safety`; `pnpm run boilerplate:check` when useful | `pnpm run bemoat:guard:safety`; `pnpm run bemoat:boilerplate:check -- --harness-only` when checking sync drift | Protect child sync behavior. |
+| Code changes (`.ts`, `.tsx`, `.mjs`, tests, scripts, components, collections, hooks) | `pnpm run check` | `pnpm run bemoat:check` when the child supports its local `lint` and `typecheck` scripts; otherwise run `pnpm run bemoat:guard:safety`, `pnpm run bemoat:test:int`, and the child-owned code checks that exist | In this starter, lint must pass with zero warnings. |
+| Payload schema changes | `pnpm run check` and `pnpm run generate:types` | Child code tier plus the child-owned `generate:types` script when present | Include migrations when D1 schema changes. |
+| Admin component changes | `pnpm run check` and `pnpm run generate:importmap` | Child code tier plus the child-owned `generate:importmap` script when present | Required for Payload import map updates. |
+| D1 or Payload migration files | Same tier as triggering change; `generate:types` if schema changed | Same child tier as triggering change; child-owned `generate:types` if schema changed | Open a draft PR only. |
 
-In `bemoat-web-starter`, use the stricter local tiers above. Child projects
-receive a child-safe synced baseline where CI and optional pre-push call only
-`bemoat:*` scripts, as documented in `docs/harness-sync-contract.md`.
+Child projects receive a child-safe synced baseline where CI and optional
+pre-push call only `bemoat:*` scripts, as documented in
+`docs/harness-sync-contract.md`. Raw scripts such as `check`, `lint`,
+`typecheck`, and `guard:safety` are starter-internal or child-local and must not
+be assumed by synced automation.
 
 ### Migration Draft PR Mode
 
