@@ -23,11 +23,17 @@ Ask whether the change affects:
 
 ## Validation Selection
 
-- Docs-only changes: run `pnpm run bemoat:guard:safety`.
-- Sync or harness docs: also run `pnpm run bemoat:boilerplate:check`.
-- Code changes: run `pnpm run check`.
-- Payload schema changes: also run `pnpm run generate:types`.
-- Payload admin component changes: also run `pnpm run generate:importmap`.
+- Follow `AGENTS.md#validation-before-pr-and-merge`.
+- Docs-only changes: starter `pnpm run guard:safety`; child
+  `pnpm run bemoat:guard:safety`.
+- Sync or harness docs: in child projects also run
+  `pnpm run bemoat:boilerplate:check -- --harness-only` when available.
+- Code changes: starter `pnpm run check`; child `pnpm run bemoat:check` when
+  supported, otherwise `bemoat:guard:safety`, `bemoat:test:int`, and
+  child-owned code checks.
+- Payload schema or admin changes: run the matching code tier, then starter
+  `generate:types` / `generate:importmap` or child-owned generation scripts
+  when present.
 
 ## Motion QA Reporting
 
@@ -48,4 +54,3 @@ Include:
 - Known gaps.
 - Manual checks still needed.
 - Remaining risk.
-

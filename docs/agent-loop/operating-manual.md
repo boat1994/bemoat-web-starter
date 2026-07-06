@@ -45,7 +45,7 @@ Ask once at plan time. Full tables: [source-of-truth.md](./source-of-truth.md).
 | Child already customized a seed-only file | **Child** — port starter improvements manually if desired |
 | Unsure | Stop; triage via GitHub issue before editing |
 
-**After starter merge:** child projects follow [harness-sync-workflow.md](./harness-sync-workflow.md) (`pnpm run boilerplate:sync -- --harness-only` on branch `chore/sync-harness-from-starter-<source-pr-number>`). See also [harness-sync-contract.md](../harness-sync-contract.md).
+**After starter merge:** child projects follow [harness-sync-workflow.md](./harness-sync-workflow.md) (`pnpm run bemoat:boilerplate:sync -- --harness-only` on branch `chore/sync-harness-from-starter-<source-pr-number>`). See also [harness-sync-contract.md](../harness-sync-contract.md).
 
 ## Stop rule — avoid overbuild
 
@@ -69,12 +69,12 @@ Child-facing automation calls **`bemoat:*` scripts only**. Guards run through th
 
 | Change type | Before commit/PR |
 |-------------|------------------|
-| Docs / markdown / CI config only (no `.ts`, `.tsx`, `.mjs` app or script changes) | `pnpm run guard:safety` |
-| Code (TS, scripts, tests, components, collections) | `pnpm run check` (lint **zero warnings**, typecheck, test:int, guard:safety) |
-| Payload schema | `pnpm run check` + `pnpm run generate:types` + migration if D1 |
-| Admin components | `pnpm run check` + `pnpm run generate:importmap` |
+| Docs / markdown / CI config only (no `.ts`, `.tsx`, `.mjs` app or script changes) | Starter: `pnpm run guard:safety`; child: `pnpm run bemoat:guard:safety` |
+| Code (TS, scripts, tests, components, collections) | Starter: `pnpm run check`; child: `pnpm run bemoat:check` when supported, otherwise `bemoat:guard:safety`, `bemoat:test:int`, and child-owned code checks |
+| Payload schema | Matching code tier + starter `generate:types` or child-owned `generate:types` when present + migration if D1 |
+| Admin components | Matching code tier + starter `generate:importmap` or child-owned `generate:importmap` when present |
 
-In child repos use `pnpm run bemoat:guard:safety` and `pnpm run bemoat:check` when defined.
+Full validation contract: [AGENTS.md § Validation](../../AGENTS.md#validation-before-pr-and-merge).
 
 ## Commit checklist
 
@@ -153,7 +153,7 @@ Before editing, report: branch name, files inspected, proposed file changes, ris
 Rules:
 - Smallest complete diff; no overbuild or "while I'm here" changes
 - Starter = reusable harness/docs/schema; child = wrangler, D1/R2 IDs, secrets, customer features
-- Validation: docs-only → pnpm run guard:safety; code → pnpm run check
+- Validation: follow AGENTS.md validation split; starter uses raw scripts, child projects default to bemoat:* scripts and child-owned code checks
 - Child automation: bemoat:* scripts only
 - Complete branch → implement → check → commit → push → open or update PR → comment on issue
 - Before closing issue (workflow/source-of-truth): check harness sync impact; follow-up sync issue or sync step required

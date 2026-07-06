@@ -19,27 +19,32 @@ This document separates what **`bemoat-web-starter`** owns from what **child pro
 | Package scripts | Child-owned `package.json`; sync adds missing `bemoat:*` scripts only and generates `.bemoat/package-sync-proposal.md` for recommended scripts and dependencies |
 | Sync behavior | `scripts/sync-boilerplate.mjs`, `scripts/check-boilerplate-drift.mjs`, `.bemoat/boilerplate-sync-manifest.json`, managed and seed-only path lists |
 
-Child projects receive these via **clone after Cloudflare deploy** (initial) and **`pnpm run boilerplate:sync`** (ongoing updates). Run **`pnpm run boilerplate:check`** first to see rails-managed drift without modifying files.
+Child projects receive these via **clone after Cloudflare deploy** (initial) and
+**`pnpm run bemoat:boilerplate:sync -- --harness-only`** (ongoing updates). Run
+**`pnpm run bemoat:boilerplate:check -- --harness-only`** first to see
+rails-managed drift without modifying files. Use raw `boilerplate:sync` /
+`boilerplate:check` aliases only when the child defines those non-namespaced
+scripts.
 
 After cloning the starter, sync reads **`.bemoat/boilerplate-sync-manifest.json`** from the cloned source so newly added managed paths apply in the same run (even when the child still has an older local `scripts/sync-boilerplate.mjs`). See [boilerplate-sync-command.md](../boilerplate-sync-command.md#source-driven-sync-manifest-one-run-managed-paths).
 
 **Existing projects** with their own app and schema should use harness-only mode:
 
 ```bash
-pnpm run boilerplate:check -- --harness-only
-pnpm run boilerplate:sync -- --harness-only
+pnpm run bemoat:boilerplate:check -- --harness-only
+pnpm run bemoat:boilerplate:sync -- --harness-only
 ```
 
 **New child projects** that still want missing starter modules may use full mode:
 
 ```bash
-pnpm run boilerplate:check -- --full
-pnpm run boilerplate:sync -- --full
+pnpm run bemoat:boilerplate:check -- --full
+pnpm run bemoat:boilerplate:sync -- --full
 ```
 
 Default sync and drift check mode is **`harness-only`**. For stable production syncs, pin a **version tag** with `BEMOAT_BOILERPLATE_REF` instead of always using `main`—see [docs/releases.md](../releases.md).
 
-### Always synced by `boilerplate:sync` (rails-managed)
+### Always synced by `bemoat:boilerplate:sync` (rails-managed)
 
 These paths are overwritten on every sync:
 
@@ -79,7 +84,7 @@ Deploy **command recommendations** are part of the package sync proposal. **`wra
 
 ### Starter-only (not synced to child projects)
 
-These paths remain in `bemoat-web-starter` for learning and reference. The parent path is **not** in `managedPaths` and is **not** copied by `boilerplate:sync`:
+These paths remain in `bemoat-web-starter` for learning and reference. The parent path is **not** in `managedPaths` and is **not** copied by `bemoat:boilerplate:sync`:
 
 | Path | Purpose |
 |------|---------|
@@ -89,7 +94,7 @@ These paths remain in `bemoat-web-starter` for learning and reference. The paren
 
 Child agents still start with native `superpowers:using-superpowers` or the portable fallback at `.agents/skills/using-superpowers.md`. For canonical artifact names, reading order, and folder conventions, read the **local synced** `docs/superpowers/README.md`. Sync boundary details: [harness-sync-contract.md](../harness-sync-contract.md#child-project-planning-workflow).
 
-### Merged keep-child-content by `boilerplate:sync`
+### Merged keep-child-content by `bemoat:boilerplate:sync`
 
 These paths preserve existing child content and append missing starter entries:
 
@@ -97,7 +102,7 @@ These paths preserve existing child content and append missing starter entries:
 |------|---------|
 | `.gitignore` | Keep child ignore rules; append missing starter rules (for example Bemoat boilerplate temp directories) |
 
-### Seeded once by `boilerplate:sync` (starter app code) — `full` mode only
+### Seeded once by `bemoat:boilerplate:sync` (starter app code) — `full` mode only
 
 These paths are copied only when missing in the child project **and** sync runs with **`--full`**. Default **`harness-only`** sync skips them entirely. After customization, sync never overwrites them:
 
@@ -129,7 +134,7 @@ These paths are copied only when missing in the child project **and** sync runs 
 
 ## Rules
 
-1. **Reusable improvements go upstream** into `bemoat-web-starter`, then flow to children through `boilerplate:sync` (rails) or optional seed import (missing starter files).
+1. **Reusable improvements go upstream** into `bemoat-web-starter`, then flow to children through `bemoat:boilerplate:sync` (rails) or optional seed import (missing starter files).
 2. **Project-specific work stays in child projects**—do not open PRs here for one customer's Worker name or D1 ID.
 3. **Do not copy** Cloudflare resource IDs, `.env` files, or secrets across projects. See [security-and-migrations.md](./security-and-migrations.md).
 4. **Do not edit rails-managed files in child projects** unless you intend to upstream the same change to this starter; otherwise sync will overwrite or drift.

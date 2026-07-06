@@ -21,15 +21,15 @@ Do **not** use this workflow for:
 ## High-level loop
 
 ```text
-starter PR merged → child sync branch → boilerplate sync → checks → diff review → commit → open/update PR → report
+starter PR merged → child sync branch → bemoat harness sync → checks → diff review → commit → open/update PR → report
 ```
 
 | Step | What happens |
 |------|----------------|
 | **Starter PR merged** | Confirm the harness change is on `main` (or pin `BEMOAT_BOILERPLATE_REF` to a release tag). Note the **source PR number** for branch naming. |
 | **Child sync branch** | Create a dedicated branch from latest child `dev` — never sync on `main` or routine-sync directly on `dev`. |
-| **Boilerplate sync** | Run `pnpm run boilerplate:sync -- --harness-only` (or `bemoat:boilerplate:sync` in child repos). |
-| **Checks** | `pnpm run guard:safety` (or `bemoat:guard:safety`), `git diff --check`, optional drift check if script exists. |
+| **Boilerplate sync** | Run `pnpm run bemoat:boilerplate:sync -- --harness-only`. Use raw `boilerplate:sync` only when the child defines that alias. |
+| **Checks** | `pnpm run bemoat:guard:safety`, `git diff --check`, and `pnpm run bemoat:boilerplate:check -- --harness-only` when available. |
 | **Diff review** | Verify only harness paths changed; no product code, secrets, or Cloudflare IDs. |
 | **Commit** | One focused commit on the sync branch. |
 | **Open/update PR** | Push branch; open a new PR or update the existing one — no duplicates. |
@@ -44,7 +44,7 @@ Run these in order. **Stop and report** if any gate fails — do not modify file
 1. **`git status`** — inspect the working tree.
 2. **Confirm current branch** — `git branch --show-current`.
 3. **Dirty working tree** — if there are uncommitted changes (staged or unstaged) or untracked files that are not part of the sync task, **stop immediately**. Report what is already changed. Do not stash, reset, or edit over unrelated work.
-4. **Never sync on `main`** — no `boilerplate:sync`, commits, or pushes on `main` for harness sync work.
+4. **Never sync on `main`** — no harness sync command, commits, or pushes on `main` for harness sync work.
 5. **Do not sync directly on `dev`** unless the task is explicitly integration maintenance.
 6. **Create a sync branch when on `main` or `dev`** — after a clean tree, create and switch to a dedicated sync branch from `dev` before running sync or editing files.
 
@@ -81,21 +81,20 @@ git switch -c chore/sync-harness-from-starter-73
 Default mode for existing child projects is **harness-only**:
 
 ```bash
-pnpm run boilerplate:sync -- --harness-only
-```
-
-In child repos that received harness scripts via sync, prefer the namespaced alias when present:
-
-```bash
 pnpm run bemoat:boilerplate:sync -- --harness-only
 ```
+
+Use raw `pnpm run boilerplate:sync -- --harness-only` only when the child
+defines that non-namespaced alias.
 
 Optional: pin the starter ref before sync (recommended for production children):
 
 ```bash
 export BEMOAT_BOILERPLATE_REF=vX.Y.Z   # or a reviewed SHA
-pnpm run boilerplate:sync -- --harness-only
+pnpm run bemoat:boilerplate:sync -- --harness-only
 ```
+
+Use raw aliases with pinned refs only when the child defines them.
 
 **Audit before sync** (read-only) when the drift check script exists — see [Validation](#validation).
 
@@ -105,11 +104,14 @@ Run these **after sync** and **before commit**:
 
 | Check | Command | Required |
 |-------|---------|----------|
-| Repo safety | `pnpm run guard:safety` (child: `pnpm run bemoat:guard:safety` when defined) | **Yes** |
+| Repo safety | `pnpm run bemoat:guard:safety` | **Yes** |
 | Whitespace / conflict markers | `git diff --check` | **Yes** |
-| Boilerplate drift (audit) | `pnpm run boilerplate:check -- --harness-only` or `pnpm run bemoat:boilerplate:check -- --harness-only` | **Only if script exists** in `package.json` |
+| Boilerplate drift (audit) | `pnpm run bemoat:boilerplate:check -- --harness-only` | **When available** |
 
-Do **not** fail the workflow because `boilerplate:check` is missing — older children may not have the script yet. After sync adds it, run the drift check on the next sync.
+Do **not** fail the workflow because `bemoat:boilerplate:check` is missing —
+older children may not have the script yet. Use raw `boilerplate:check` only
+when the child defines that alias. After sync adds the namespaced script, run the
+drift check on the next sync.
 
 If the child defines `bemoat:check` and the sync touched harness tests or scripts, run `pnpm run bemoat:check` when practical before opening the PR.
 
@@ -166,13 +168,13 @@ Starter source: PR #<source-pr-number> (or tag <ref>)
 - <list key paths or count>
 
 ### Commands run
-- pnpm run boilerplate:sync -- --harness-only
-- pnpm run guard:safety
+- pnpm run bemoat:boilerplate:sync -- --harness-only
+- pnpm run bemoat:guard:safety
 - git diff --check
-- (optional) pnpm run boilerplate:check -- --harness-only
+- (optional) pnpm run bemoat:boilerplate:check -- --harness-only
 
 ### Test results
-- guard:safety: pass/fail
+- bemoat:guard:safety: pass/fail
 - git diff --check: pass/fail
 - drift check: pass/fail/skipped (script missing)
 
@@ -201,7 +203,7 @@ Review PR, wait for CI, then merge if green.
 | Sync or commit on `main`, or routine-sync on `dev` | Forbidden — use sync branch |
 | Product code or secrets in diff | Stop before commit; fix scope or sync mode |
 | PR exists for branch | Update PR; do not open duplicate |
-| `boilerplate:check` script missing | Skip drift check; do not fail workflow |
+| `bemoat:boilerplate:check` script missing | Skip drift check; do not fail workflow |
 
 ## Related docs
 

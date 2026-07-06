@@ -1,6 +1,6 @@
 # Issue-driven branch workflow
 
-Reusable rule for **issue-based agent tasks** in `bemoat-web-starter` and child projects that inherit harness docs via `pnpm run boilerplate:sync`.
+Reusable rule for **issue-based agent tasks** in `bemoat-web-starter` and child projects that inherit harness docs via `pnpm run bemoat:boilerplate:sync -- --harness-only`.
 
 Child projects receive this file through harness sync. Agents must follow it whenever work is tied to a GitHub issue.
 

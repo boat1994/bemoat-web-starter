@@ -53,8 +53,9 @@ conflict.
   button, then clone the generated project locally.
 - Do not recommend cloning this starter directly for real child projects unless
   the task is to develop the starter itself.
-- Reusable improvements belong in this starter and flow to children through
-  `pnpm run boilerplate:sync`. After a starter merge, child projects follow
+- Reusable improvements belong in this starter and flow to children through the
+  child harness sync workflow (`pnpm run bemoat:boilerplate:sync -- --harness-only`).
+  After a starter merge, child projects follow
   `docs/agent-loop/harness-sync-workflow.md`.
 - Rails-managed paths are overwritten by sync: agent docs, CI, sync scripts,
   guards, harness tests, and other paths listed in `managedPaths`.

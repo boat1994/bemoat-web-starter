@@ -57,12 +57,14 @@ Full workflow: [migration-draft-pr.md](./migration-draft-pr.md).
 
 **Payload schema changes**
 
-- Run `pnpm run generate:types` before commit
+- Run starter `pnpm run generate:types` before commit, or the child-owned
+  `generate:types` script when present in a child project
 - Review access control and hook changes for security impact
 
 **Admin component changes**
 
-- Run `pnpm run generate:importmap` before commit
+- Run starter `pnpm run generate:importmap` before commit, or the child-owned
+  `generate:importmap` script when present in a child project
 
 **D1 schema changes**
 
@@ -137,8 +139,8 @@ Before `git commit`, apply the validation tier from [AGENTS.md](../../AGENTS.md#
 
 | Change type | Run |
 |-------------|-----|
-| Docs / markdown / CI config only | `pnpm run guard:safety` |
-| Code changes | `pnpm run check` (**required** — includes guard:safety, lint with **zero warnings**, typecheck, test:int) |
+| Docs / markdown / CI config only | Starter: `pnpm run guard:safety`; child: `pnpm run bemoat:guard:safety` |
+| Code changes | Starter: `pnpm run check`; child: `pnpm run bemoat:check` when supported, otherwise `bemoat:guard:safety`, `bemoat:test:int`, and child-owned code checks |
 
 Confirm:
 
