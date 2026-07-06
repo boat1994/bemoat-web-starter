@@ -22,6 +22,7 @@ export const syncManifestPath = '.bemoat/boilerplate-sync-manifest.json'
 export const managedPaths = [
   // Agent and workflow rails
   'AGENTS.md',
+  'ANTIGRAVITY.md',
   '.agents',
   syncManifestPath,
   '.cursor/rules',

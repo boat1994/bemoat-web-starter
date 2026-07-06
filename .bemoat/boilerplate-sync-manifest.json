@@ -2,6 +2,7 @@
   "version": 1,
   "managedPaths": [
     "AGENTS.md",
+    "ANTIGRAVITY.md",
     ".agents",
     ".bemoat/boilerplate-sync-manifest.json",
     ".cursor/rules",

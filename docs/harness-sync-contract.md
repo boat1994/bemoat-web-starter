@@ -35,7 +35,7 @@ the canonical source.
 
 | Area | Canonical file(s) | Thin wrappers / entrypoints | Sync behavior |
 |------|-------------------|-----------------------------|---------------|
-| Root agent entrypoint | `AGENTS.md` | None | Managed; overwritten in child projects |
+| Root agent entrypoint | `AGENTS.md` | `ANTIGRAVITY.md` | Managed; overwritten in child projects |
 | Starter vs child ownership | `docs/agent-loop/source-of-truth.md`, `docs/harness-sync-contract.md` | `AGENTS.md` summary, `.agents/skills/development-agent.md` | Managed |
 | Issue-driven branch workflow | `docs/agent-loop/issue-driven-branch-workflow.md`, `docs/workflow/git-flow.md` | `AGENTS.md` summary, `.agents/skills/issue-workflow.md`, `.cursor/rules/branch-safety.mdc` | Managed |
 | Validation and PR loop | `AGENTS.md`, `docs/agent-loop/checklist.md`, `docs/agent-loop/README.md` | `.agents/skills/development-agent.md`, `.agents/skills/regression.md` | Managed |
@@ -243,7 +243,7 @@ Current shared tests (listed in `managedPaths` in `scripts/sync-boilerplate.mjs`
 
 ## Rules for maintainers
 
-1. **New shared harness file** — Add the path to `managedPaths` in `scripts/sync-boilerplate.mjs`, mirror the same entry in `.bemoat/boilerplate-sync-manifest.json`, and ensure `tests/int/boilerplate-sync.int.spec.ts` covers it (directly or via the shared int-test contract test).
+1. **New shared harness file** — Add the path to `managedPaths` in `scripts/sync-boilerplate.mjs`, mirror the same entry in `.bemoat/boilerplate-sync-manifest.json`, document new agent wrappers in the ownership table when relevant, and ensure `tests/int/boilerplate-sync.int.spec.ts` covers it (directly or via the shared int-test contract test).
 
 2. **New safe namespaced script** — Add to `managedPackageScripts` if sync should add it when missing. Add starter `bemoat:*` values in this repo's `package.json`.
 
