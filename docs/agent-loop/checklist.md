@@ -20,7 +20,7 @@ Prefer updating these docs over creating new templates or workflows.
 
 **Medium** tasks document *what* changed and *why* in the PR; link Mobbin, Figma, or other design references when the task is design-related.
 
-**Core** tasks add explicit boundaries (what is in/out of scope), checklist evidence, validation results, and whether child projects need `pnpm run boilerplate:sync` after merge.
+**Core** tasks add explicit boundaries (what is in/out of scope), checklist evidence, validation results, and whether child projects need harness sync (`pnpm run bemoat:boilerplate:sync -- --harness-only`) after merge.
 
 When unsure, round **up** one tier for source-of-truth or sync-managed paths; round **down** for clearly local, low-risk edits.
 

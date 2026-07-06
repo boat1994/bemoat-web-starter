@@ -42,7 +42,11 @@ Use `ALLOW_INTEGRATION_BRANCH=1` only for explicit integration maintenance on `d
 Manual check:
 
 ```bash
+# In bemoat-web-starter
 pnpm run branch:check
+
+# In child projects
+pnpm run bemoat:branch:check
 ```
 
 Canonical policy: `docs/workflow/git-flow.md`.

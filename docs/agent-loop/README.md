@@ -44,7 +44,7 @@ For a step-by-step harness migration in child repos (audit mode, sync mode, PR c
 
 Users do not need to repeat branch, check, commit, push, or PR steps in every message. Provide the task (or a GitHub issue); agents read `AGENTS.md` and this folder, then run the [Default Agent Workflow](../../AGENTS.md#default-agent-workflow) automatically unless you override it.
 
-Agents **must complete the full branch-to-PR workflow** by default — branch, implement, check, commit, push, open PR, comment on the source issue — without stopping after implementation or asking permission to commit/push/open PR/comment. See [GitHub workflow requirement](../../AGENTS.md#github-workflow-requirement) and [Issue report after PR creation](../../AGENTS.md#issue-report-after-pr-creation) for stop conditions.
+Agents **must complete the full branch-to-PR workflow** by default — branch, implement, check, commit, push, open PR, comment on the source issue — without stopping after implementation or asking permission to commit/push/open PR/comment. See [GitHub Workflow](../../AGENTS.md#github-workflow) and [Issue report after PR creation](../../AGENTS.md#issue-report-after-pr-creation) for stop conditions.
 
 ## High-level loop
 

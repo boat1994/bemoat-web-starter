@@ -32,13 +32,24 @@ Keep CSS responsible for base layout, static styling, and simple one-property mi
 
 ## Validation Defaults
 
-- Docs-only changes: `pnpm run bemoat:guard:safety`.
-- Docs that affect sync or harness assumptions:
-  `pnpm run bemoat:boilerplate:check` in addition to the safety guard.
+- Follow `AGENTS.md#validation-before-pr-and-merge`; do not assume raw
+  non-namespaced scripts exist in child projects.
+- Docs-only changes in this starter: `pnpm run guard:safety`.
+- Docs-only changes in child projects: `pnpm run bemoat:guard:safety`.
+- Docs that affect child sync or harness assumptions: also run
+  `pnpm run bemoat:boilerplate:check -- --harness-only` in child projects, or
+  `pnpm run boilerplate:check` in this starter when useful.
 - Code changes in this starter: `pnpm run check`.
-- Payload schema changes: `pnpm run check` and `pnpm run generate:types`.
-- Admin component changes: `pnpm run check` and
-  `pnpm run generate:importmap`.
+- Code changes in child projects: `pnpm run bemoat:check` when the child
+  supports its local `lint` and `typecheck` scripts; otherwise run
+  `pnpm run bemoat:guard:safety`, `pnpm run bemoat:test:int`, and the
+  child-owned code checks that exist.
+- Payload schema changes: run the matching code tier above, then starter
+  `pnpm run generate:types` or the child-owned `generate:types` script when
+  present.
+- Admin component changes: run the matching code tier above, then starter
+  `pnpm run generate:importmap` or the child-owned `generate:importmap` script
+  when present.
 
 ## Scope Rules
 

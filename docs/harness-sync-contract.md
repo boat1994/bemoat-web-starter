@@ -20,7 +20,11 @@ The harness is everything child projects need to run the same safety rails, work
 | Vitest harness | `vitest.config.mts`, `vitest.setup.ts` |
 | Shared integration tests | All `tests/int/**/*.int.spec.ts` files intended for child projects |
 
-Child projects receive harness **files** through **`pnpm run boilerplate:sync`**. Drift is reported by **`pnpm run boilerplate:check`**.
+Child projects receive harness **files** through
+**`pnpm run bemoat:boilerplate:sync -- --harness-only`**. Drift is reported by
+**`pnpm run bemoat:boilerplate:check -- --harness-only`**. Use raw
+`boilerplate:sync` / `boilerplate:check` aliases only when a child project
+defines them.
 
 ## Canonical ownership of agent rules
 
@@ -56,13 +60,16 @@ Commands:
 
 ```bash
 # Existing repos (recommended)
-pnpm run boilerplate:sync -- --harness-only
-pnpm run boilerplate:check -- --harness-only
+pnpm run bemoat:boilerplate:sync -- --harness-only
+pnpm run bemoat:boilerplate:check -- --harness-only
 
 # New repos that want starter module seeding
-pnpm run boilerplate:sync -- --full
-pnpm run boilerplate:check -- --full
+pnpm run bemoat:boilerplate:sync -- --full
+pnpm run bemoat:boilerplate:check -- --full
 ```
+
+Use raw `boilerplate:sync` / `boilerplate:check` aliases only when the child
+project defines those non-namespaced scripts.
 
 CLI flags take precedence over `BEMOAT_SYNC_MODE`. Sync metadata in `.bemoat-boilerplate-sync.json` records `syncMode` and `seedOnlyPathsSkipped`.
 
@@ -145,7 +152,7 @@ After sync, review **`.bemoat/package-sync-proposal.md`**. Do not apply script o
 
 ```bash
 # Fix recursive OpenNext build or stale deploy scripts in child projects (overwrites build/deploy contract scripts + syncs scripts/build.mjs + open-next.config.ts)
-pnpm run boilerplate:sync -- --harness-only --apply-build-contract
+pnpm run bemoat:boilerplate:sync -- --harness-only --apply-build-contract
 ```
 
 Managed namespaced scripts (see `managedPackageScripts` in `scripts/sync-boilerplate.mjs`):
