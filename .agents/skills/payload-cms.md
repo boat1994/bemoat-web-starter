@@ -5,20 +5,25 @@ hooks, access control, endpoints, migrations, admin components, or generated
 types are in scope and native Payload skills are unavailable.
 
 This file intentionally does not duplicate the full Payload rule set. The
-source of truth remains:
+canonical Payload rule set remains:
 
-- `AGENTS.md`
 - `.cursor/rules/payload-overview.md`
 - `.cursor/rules/security-critical.mdc`
 - `.cursor/rules/collections.md`
 - `.cursor/rules/fields.md`
+- `.cursor/rules/access-control-advanced.md`
 - `.cursor/rules/access-control.md`
 - `.cursor/rules/hooks.md`
 - `.cursor/rules/queries.md`
 - `.cursor/rules/endpoints.md`
 - `.cursor/rules/components.md`
+- `.cursor/rules/adapters.md`
+- `.cursor/rules/field-type-guards.md`
+- `.cursor/rules/plugin-development.md`
 - `docs/schema-evolution.md`
 - `docs/agent-loop/security-and-migrations.md`
+
+Use `AGENTS.md` only as the repository-wide routing and safety entrypoint.
 
 ## Required Safety Rules
 
@@ -31,6 +36,7 @@ source of truth remains:
   relationship cardinality.
 - Prefer additive schema changes, backfills, read fallbacks, and explicit human
   review before deletion.
+- Ensure roles exist when modifying collections or globals with access controls.
 
 ## Required Validation
 
@@ -39,4 +45,3 @@ source of truth remains:
   `pnpm run generate:importmap`.
 - Migration files: follow `docs/agent-loop/migration-draft-pr.md` and open a
   draft PR only.
-

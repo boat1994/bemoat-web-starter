@@ -12,7 +12,9 @@ starter-harness work when native development skills are unavailable.
 5. Run `git status`.
 6. Stop if the working tree is dirty with unrelated changes.
 7. Never edit `main` directly for issue work.
-8. Create the issue branch from `main` when needed.
+8. Create the issue branch from `dev` when needed. If `dev` does not exist,
+   follow the bootstrap note in `docs/workflow/git-flow.md` and call out the
+   temporary exception.
 9. Make the smallest complete change.
 10. Run the validation tier from `AGENTS.md`.
 11. Review `git status` and the diff summary.
@@ -48,4 +50,3 @@ Keep CSS responsible for base layout, static styling, and simple one-property mi
 - Do not edit project-specific infrastructure for a reusable starter task.
 - Do not commit secrets, `.env` files, Cloudflare IDs, D1 IDs, R2 bucket names,
   or Worker names.
-

@@ -22,6 +22,29 @@ The harness is everything child projects need to run the same safety rails, work
 
 Child projects receive harness **files** through **`pnpm run boilerplate:sync`**. Drift is reported by **`pnpm run boilerplate:check`**.
 
+## Canonical ownership of agent rules
+
+Some duplication is intentional because different tools consume different
+entrypoints. The canonical files below own the long-form policy; wrappers should
+stay short, preserve tool metadata such as globs or triggers, and link back to
+the canonical source.
+
+| Area | Canonical file(s) | Thin wrappers / entrypoints | Sync behavior |
+|------|-------------------|-----------------------------|---------------|
+| Root agent entrypoint | `AGENTS.md` | None | Managed; overwritten in child projects |
+| Starter vs child ownership | `docs/agent-loop/source-of-truth.md`, `docs/harness-sync-contract.md` | `AGENTS.md` summary, `.agents/skills/development-agent.md` | Managed |
+| Issue-driven branch workflow | `docs/agent-loop/issue-driven-branch-workflow.md`, `docs/workflow/git-flow.md` | `AGENTS.md` summary, `.agents/skills/issue-workflow.md`, `.cursor/rules/branch-safety.mdc` | Managed |
+| Validation and PR loop | `AGENTS.md`, `docs/agent-loop/checklist.md`, `docs/agent-loop/README.md` | `.agents/skills/development-agent.md`, `.agents/skills/regression.md` | Managed |
+| Payload CMS rules | `.cursor/rules/payload-overview.md` plus related Payload topic files in `.cursor/rules/`; `.agents/skills/payload-cms.md` is the portable fallback index | `AGENTS.md` summary | Managed |
+| Payload schema and migration safety | `docs/schema-evolution.md`, `docs/agent-loop/security-and-migrations.md`, `docs/agent-loop/migration-draft-pr.md` | `AGENTS.md` stop-condition summary, `.agents/skills/payload-cms.md` | Managed |
+| Superpowers workflow | Native `superpowers:using-superpowers`; portable fallback `.agents/skills/using-superpowers.md` | `.cursor/rules/superpowers-using-superpowers.mdc`, `AGENTS.md` summary | Managed for fallback files; native skill is external |
+| UI animation workflow | `.agents/skills/ui-animation.md`, `docs/ai/ui-execution-workflow.md`, `docs/ai/ui-skills.md` | `AGENTS.md` summary | Managed |
+| Tool-specific Cursor rules | Matching `.cursor/rules/*` file | Frontmatter metadata in `.mdc` files | Managed; keep trigger metadata and globs intact |
+
+When reducing duplication, first confirm the rule exists in its canonical file
+or move it there. Do not delete safety policy solely because it appears
+duplicated.
+
 ## Sync modes
 
 | Mode | When to use | Starter modules |
