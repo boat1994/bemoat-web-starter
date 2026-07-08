@@ -71,8 +71,8 @@ Child projects receive starter harness updates through **explicit sync** — not
 
 ```bash
 # In a child project (from latest dev)
-pnpm run bemoat:boilerplate:check -- --harness-only
 pnpm run bemoat:boilerplate:sync -- --harness-only
+pnpm run bemoat:boilerplate:check -- --harness-only
 ```
 
 - **`harness-only`** (default): agent rules, CI, guards, sync scripts, harness tests — does not overwrite child app code.
@@ -80,7 +80,7 @@ pnpm run bemoat:boilerplate:sync -- --harness-only
 
 `package.json` stays child-owned. Sync adds missing `bemoat:*` scripts only and writes `.bemoat/package-sync-proposal.md` for human review.
 
-Pin a release tag for safer production syncs: `BEMOAT_BOILERPLATE_REF=v0.3.0-sync-rails`.
+For production syncs, pin a known-good release tag from [docs/releases.md](./docs/releases.md) with `BEMOAT_BOILERPLATE_REF` instead of syncing an unreviewed moving branch.
 
 Deeper guides:
 
@@ -199,7 +199,7 @@ pnpm run deploy:dev
 pnpm run generate:importmap
 pnpm run generate:types
 pnpm payload migrate:create
-pnpm run boilerplate:sync
+pnpm run bemoat:boilerplate:sync -- --harness-only
 pnpm run smoke:deploy
 ```
 
