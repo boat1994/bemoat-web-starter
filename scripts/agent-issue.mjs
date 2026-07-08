@@ -23,7 +23,7 @@ function run(command, args, options = {}) {
 }
 
 function parseIssueNumber(argv = process.argv.slice(2)) {
-  const issueNumber = argv[0]?.trim()
+  const issueNumber = argv.find((arg) => arg !== '--')?.trim()
 
   if (!issueNumber || !/^[1-9]\d*$/.test(issueNumber)) {
     return null
@@ -155,31 +155,32 @@ function buildNextStep({
 
   if (!branchSafetyOk) {
     const branchNameToUse = suggestedBranchName ?? `feature/${issueNumber}-issue`
+    const manualStep = "Create a topic branch from the repo's current integration baseline."
 
     if (branchName === 'main' && !devBranchAvailable) {
       return {
-        label: 'Next recommended command',
-        value: `git switch -c ${branchNameToUse}`,
+        label: 'Next manual step',
+        value: `${manualStep}\nExample when dev is unavailable: git switch -c ${branchNameToUse}`,
       }
     }
 
     if (branchName === 'main') {
       return {
-        label: 'Next recommended command',
-        value: `git switch dev && git pull origin dev && git switch -c ${branchNameToUse}`,
+        label: 'Next manual step',
+        value: `${manualStep}\nExample when dev exists: git switch dev && git pull origin dev && git switch -c ${branchNameToUse}`,
       }
     }
 
     if (branchName === 'dev') {
       return {
-        label: 'Next recommended command',
-        value: `git switch -c ${branchNameToUse}`,
+        label: 'Next manual step',
+        value: `${manualStep}\nExample from the current dev branch: git switch -c ${branchNameToUse}`,
       }
     }
 
     return {
-      label: 'Next recommended command',
-      value: `git switch -c ${branchNameToUse}`,
+      label: 'Next manual step',
+      value: `${manualStep}\nExample: git switch -c ${branchNameToUse}`,
     }
   }
 
@@ -261,7 +262,8 @@ export function runAgentIssuePreflight({
   }
 
   if (suggestedBranchName) {
-    output.push(`Suggested branch: ${suggestedBranchName}`)
+    output.push(`Suggested branch default: ${suggestedBranchName}`)
+    output.push('Adjust the prefix if this is docs, fix, chore, test, or refactor work.')
   }
 
   if (!devBranchAvailable) {
@@ -276,9 +278,9 @@ export function runAgentIssuePreflight({
 
   output.push('')
   output.push('Validation guidance:')
-  output.push('- Starter docs-only changes: pnpm run guard:safety')
-  output.push('- Starter code or script changes: pnpm run check')
-  output.push('- Child repos follow the bemoat:* validation tier in AGENTS.md')
+  output.push('- Follow the validation tier in AGENTS.md.')
+  output.push('- Starter code/script changes usually require pnpm run check.')
+  output.push('- Child repos must use the bemoat:* tier documented in AGENTS.md.')
   output.push('')
   output.push(`${nextStep.label}: ${nextStep.value}`)
 

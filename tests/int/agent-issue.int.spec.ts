@@ -89,8 +89,25 @@ printf '%s' '{"title":"Minimal bemoat:agent:issue contract for issue-driven AI w
     expect(result.stdout).toContain('Git status --short:\n<clean>')
     expect(result.stdout).toContain('Title: Minimal bemoat:agent:issue contract for issue-driven AI workflow')
     expect(result.stdout).toContain('URL: https://github.com/boat1994/bemoat-web-starter/issues/83')
-    expect(result.stdout).toContain('Suggested branch: feature/83-minimal-bemoat-agent-issue-contract-for-issue-dr')
+    expect(result.stdout).toContain(
+      'Suggested branch default: feature/83-minimal-bemoat-agent-issue-contract-for-issue-dr',
+    )
+    expect(result.stdout).toContain('Adjust the prefix if this is docs, fix, chore, test, or refactor work.')
+    expect(result.stdout).toContain('Validation guidance:')
+    expect(result.stdout).toContain('- Follow the validation tier in AGENTS.md.')
+    expect(result.stdout).toContain('- Starter code/script changes usually require pnpm run check.')
+    expect(result.stdout).toContain('- Child repos must use the bemoat:* tier documented in AGENTS.md.')
+    expect(result.stdout).not.toContain('Starter docs-only changes: pnpm run guard:safety')
     expect(result.stdout).toContain('Next manual step: Read the listed docs')
+  })
+
+  it('accepts the documented pnpm argument separator before the issue number', () => {
+    const root = createRepo('feature/83-agent-issue')
+
+    const result = runAgentIssue(root, ['--', '83'])
+
+    expect(result.status).toBe(0)
+    expect(result.stdout).toContain('Issue number: 83')
   })
 
   it('fails on main and suggests a topic branch command without mutating the repo', () => {
@@ -118,8 +135,12 @@ printf '%s' '{"title":"Minimal bemoat:agent:issue contract for issue-driven AI w
     expect(result.stdout).toContain('main is protected and read-only for direct coding')
     expect(result.stdout).toContain('Repo bootstrap note:')
     expect(result.stdout).toContain(
-      'Next recommended command: git switch -c feature/83-minimal-bemoat-agent-issue-contract-for-issue-dr',
+      "Next manual step: Create a topic branch from the repo's current integration baseline.",
     )
+    expect(result.stdout).toContain(
+      'Example when dev is unavailable: git switch -c feature/83-minimal-bemoat-agent-issue-contract-for-issue-dr',
+    )
+    expect(result.stdout).not.toContain('Next recommended command:')
     expect(afterBranches).toBe(beforeBranches)
   })
 
@@ -137,8 +158,12 @@ printf '%s' '{"title":"Minimal bemoat:agent:issue contract for issue-driven AI w
     expect(result.status).toBe(1)
     expect(result.stdout).toContain('dev is an integration branch, not a routine implementation branch')
     expect(result.stdout).toContain(
-      'Next recommended command: git switch -c feature/83-minimal-bemoat-agent-issue-contract-for-issue-dr',
+      "Next manual step: Create a topic branch from the repo's current integration baseline.",
     )
+    expect(result.stdout).toContain(
+      'Example from the current dev branch: git switch -c feature/83-minimal-bemoat-agent-issue-contract-for-issue-dr',
+    )
+    expect(result.stdout).not.toContain('Next recommended command:')
   })
 
   it('fails when the working tree is dirty', () => {
