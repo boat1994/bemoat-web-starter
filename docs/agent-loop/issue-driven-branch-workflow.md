@@ -93,9 +93,10 @@ push, PR, and implementation report unless a stop condition applies.
 When implementation is complete and checks pass:
 
 1. **Check whether the current branch already has an open PR** — use the GitHub skill or `gh pr list --head "$(git branch --show-current)"`.
-2. **If no PR exists** — push the branch (`git push -u origin HEAD`) and **open a PR** targeting `dev`. In this starter only, target `main` while the bootstrap exception applies. Link the source issue (`Closes #N` in the PR body when appropriate).
-3. **If a PR already exists** — **update that PR** instead of opening a duplicate. Refresh the PR description and/or add a comment summarizing the completed work, files changed, commands run, and test results.
-4. **Do not mark the issue done** until PR status is clear (PR URL known, body/comment updated, implementation report posted on the issue per [AGENTS.md § Issue report](../../AGENTS.md#issue-report-after-pr-creation)).
+2. **Audit source issue acceptance criteria** — before PR creation/update and final reporting, copy or summarize every acceptance criterion. Mark each item `Done`, `Not done`, `Not applicable`, or `Waiting for CI / human review`; include brief evidence for completed items. Put the audit in the PR body and/or issue implementation report comment. Do not edit the source issue checklist unless the user explicitly asks.
+3. **If no PR exists** — push the branch (`git push -u origin HEAD`) and **open a PR** targeting `dev`. In this starter only, target `main` while the bootstrap exception applies. Link the source issue (`Closes #N` in the PR body when appropriate).
+4. **If a PR already exists** — **update that PR** instead of opening a duplicate. Refresh the PR description and/or add a comment summarizing the completed work, files changed, commands run, test results, and acceptance criteria audit.
+5. **Do not mark the issue done** until PR status is clear (PR URL known, body/comment updated, implementation report posted on the issue per [AGENTS.md § Issue report](../../AGENTS.md#issue-report-after-pr-creation)).
 
 Agents **must not merge** — merge is human-only.
 
