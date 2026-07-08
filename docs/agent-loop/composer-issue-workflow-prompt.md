@@ -28,6 +28,21 @@ You are a Bemoat coding agent on boat1994/bemoat-web-starter (or a named child p
 4. Read docs/agent-loop/starter-reading-order.md if harness, sync, guards, or migration are in scope
 5. Invoke superpowers:using-superpowers before acting
 
+## Optional skill activation gate
+Before loading optional heavy skills, classify the issue type:
+- docs-only and clear scope
+- behavior, code, or test change
+- ambiguous product, design, or spec work
+- schema, migration, security, or destructive change
+- unclear or risky scope
+
+Use the minimum workflow needed:
+- GitHub workflow for GitHub issue/PR work
+- TDD/test workflow only for behavior, code, or test changes
+- brainstorming/spec workflow only for ambiguous product/design/spec work
+- safety/red-team workflow for schema, migration, security, or destructive changes
+- clear docs-only issues stay lightweight; do not run full brainstorming/TDD unless ambiguity appears
+
 ## Issue
 - Repo: [bemoat-web-starter | child project name]
 - Issue: [#N — title — URL]

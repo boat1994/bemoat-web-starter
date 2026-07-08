@@ -44,6 +44,13 @@ For a step-by-step harness migration in child repos (audit mode, sync mode, PR c
 
 Users do not need to repeat branch, check, commit, push, or PR steps in every message. Provide the task (or a GitHub issue); agents read `AGENTS.md` and this folder, then run the [Default Agent Workflow](../../AGENTS.md#default-agent-workflow) automatically unless you override it.
 
+Before loading optional heavy skills, agents classify the issue type and use
+the minimum workflow needed. GitHub issue/PR work still uses the GitHub
+workflow. Clear docs-only issues stay lightweight; TDD/test workflows are for
+behavior, code, or test changes; brainstorming/spec workflows are for ambiguous
+product, design, or spec work; safety workflows are for schema, migration,
+security, or destructive changes.
+
 For issue-based work, agents pause once after branch setup and a passing issue
 preflight: they summarize the issue goal, intended scope, out-of-scope work,
 files or areas to inspect, expected validation, and notable risks or
@@ -55,14 +62,15 @@ After that trigger, agents **must complete the full branch-to-PR workflow** by d
 ## High-level loop
 
 ```text
-task → read AGENTS.md + agent-loop → git status & issue branch → intent checkpoint → human trigger → edit → test → show diff → commit → push → open or update PR → comment on issue → notify user
-                                                                                                                                                                      ↓
-                                                                                                                                                CI → review → merge (human only)
+task → read AGENTS.md + agent-loop → classify optional skills → git status & issue branch → intent checkpoint → human trigger → edit → test → show diff → commit → push → open or update PR → comment on issue → notify user
+                                                                                                                                                                                                 ↓
+                                                                                                                                                                           CI → review → merge (human only)
 ```
 
 | Step | What happens |
 |------|----------------|
 | **Task** | User gives a short prompt or GitHub issue. Scope, allowed files, and risks may also live in the [agent-task](../../.github/ISSUE_TEMPLATE/agent-task.yml) template. |
+| **Skill gate** | Classify the issue type before optional heavy skills. Use GitHub workflow for GitHub work; reserve TDD/test, brainstorming/spec, and safety workflows for tasks that need them. |
 | **Branch gates** | `git status`; stop if dirty; never work on `main` or routine-code on `dev`; if the only blocker is a clean protected or integration branch, create `<type>/<issue-number>-<short-slug>` and rerun issue preflight. See [issue-driven-branch-workflow.md](./issue-driven-branch-workflow.md) and [Git Flow guardrails](../workflow/git-flow.md). |
 | **Branch** | Short-lived dedicated issue branch from `dev`; use the safest protected baseline only while the repo has no `dev` branch. Naming convention documented in [issue-driven-branch-workflow.md](./issue-driven-branch-workflow.md). |
 | **Intent checkpoint** | After branch setup and a passing issue preflight, summarize issue goal, intended scope, out-of-scope work, files or areas to inspect, expected validation, and risks or assumptions. Wait for an explicit human trigger before editing. |

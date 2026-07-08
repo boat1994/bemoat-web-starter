@@ -39,6 +39,23 @@ Required defaults:
 - For UI animation work, use the UI animation skill/rules listed in the
   canonical map.
 
+Before loading optional heavy skills beyond the required workflow entrypoints,
+classify the task type and use the minimum workflow needed:
+
+- **GitHub issue/PR work:** use the GitHub workflow skill or fallback.
+- **Docs-only with clear scope:** keep the lightweight issue workflow; do not
+  run full brainstorming, spec, TDD, or test-design gates unless ambiguity
+  appears.
+- **Behavior, code, or test changes:** use the relevant TDD/test workflow.
+- **Ambiguous product, design, or spec work:** use the brainstorming/spec
+  workflow.
+- **Schema, migration, security, or destructive changes:** use the relevant
+  safety, migration, Payload, or red-team workflow.
+
+This gate does not weaken mandatory issue workflow requirements. It only
+prevents optional heavy skills from being loaded for clear tasks that do not
+need them.
+
 User instructions remain highest priority. If a native skill and repository
 rule conflict, follow the explicit user/repository instruction and report the
 conflict.

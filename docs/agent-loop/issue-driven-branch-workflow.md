@@ -32,6 +32,29 @@ files until branch setup is complete and preflight passes.
 
 If you are already on a dedicated issue branch with a clean tree (or only task-intentional changes), continue on that branch.
 
+## Optional skill activation gate
+
+Before loading optional heavy skills, classify the issue or task type:
+
+- docs-only and clear scope
+- behavior, code, or test change
+- ambiguous product, design, or spec work
+- schema, migration, security, or destructive change
+- unclear or risky scope
+
+Use the minimum workflow needed:
+
+- GitHub issue or PR work uses the GitHub workflow skill or fallback.
+- Clear docs-only issues use the lightweight issue workflow and do not need the
+  full brainstorming/spec or TDD/test gate unless ambiguity appears.
+- Behavior, code, or test changes use the relevant TDD/test workflow.
+- Ambiguous product, design, or spec work uses the brainstorming/spec workflow.
+- Schema, migration, security, or destructive changes use the relevant safety,
+  migration, Payload, or red-team workflow.
+
+This gate does not change `bemoat:agent:issue`: the command remains read-only,
+does not create branches, and does not start editing.
+
 ## Branch naming convention
 
 ```
