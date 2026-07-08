@@ -44,14 +44,20 @@ For a step-by-step harness migration in child repos (audit mode, sync mode, PR c
 
 Users do not need to repeat branch, check, commit, push, or PR steps in every message. Provide the task (or a GitHub issue); agents read `AGENTS.md` and this folder, then run the [Default Agent Workflow](../../AGENTS.md#default-agent-workflow) automatically unless you override it.
 
-Agents **must complete the full branch-to-PR workflow** by default — branch, implement, check, commit, push, open PR, comment on the source issue — without stopping after implementation or asking permission to commit/push/open PR/comment. See [GitHub Workflow](../../AGENTS.md#github-workflow) and [Issue report after PR creation](../../AGENTS.md#issue-report-after-pr-creation) for stop conditions.
+For issue-based work, agents pause once after branch setup and a passing issue
+preflight: they summarize the issue goal, intended scope, out-of-scope work,
+files or areas to inspect, expected validation, and notable risks or
+assumptions. They must wait for an explicit human trigger such as `proceed`,
+`continue`, `start dev`, `เริ่มได้`, or `dev ได้` before editing files.
+
+After that trigger, agents **must complete the full branch-to-PR workflow** by default — implement, check, commit, push, open PR, comment on the source issue — without stopping after implementation or asking permission to commit/push/open PR/comment. See [GitHub Workflow](../../AGENTS.md#github-workflow) and [Issue report after PR creation](../../AGENTS.md#issue-report-after-pr-creation) for stop conditions.
 
 ## High-level loop
 
 ```text
-task → read AGENTS.md + agent-loop → git status & issue branch → edit → test → show diff → commit → push → open or update PR → comment on issue → notify user
-                                                                                                                              ↓
-                                                                                                        CI → review → merge (human only)
+task → read AGENTS.md + agent-loop → git status & issue branch → intent checkpoint → human trigger → edit → test → show diff → commit → push → open or update PR → comment on issue → notify user
+                                                                                                                                                                      ↓
+                                                                                                                                                CI → review → merge (human only)
 ```
 
 | Step | What happens |
@@ -59,6 +65,7 @@ task → read AGENTS.md + agent-loop → git status & issue branch → edit → 
 | **Task** | User gives a short prompt or GitHub issue. Scope, allowed files, and risks may also live in the [agent-task](../../.github/ISSUE_TEMPLATE/agent-task.yml) template. |
 | **Branch gates** | `git status`; stop if dirty; never work on `main` or routine-code on `dev`; if the only blocker is a clean protected or integration branch, create `<type>/<issue-number>-<short-slug>` and rerun issue preflight. See [issue-driven-branch-workflow.md](./issue-driven-branch-workflow.md) and [Git Flow guardrails](../workflow/git-flow.md). |
 | **Branch** | Short-lived dedicated issue branch from `dev`; use the safest protected baseline only while the repo has no `dev` branch. Naming convention documented in [issue-driven-branch-workflow.md](./issue-driven-branch-workflow.md). |
+| **Intent checkpoint** | After branch setup and a passing issue preflight, summarize issue goal, intended scope, out-of-scope work, files or areas to inspect, expected validation, and risks or assumptions. Wait for an explicit human trigger before editing. |
 | **Edit** | Follow `AGENTS.md`, allowed paths, and [checklist.md](./checklist.md). Smallest complete change. |
 | **Test** | Run the validation tier from `AGENTS.md`. In the starter, use the raw starter scripts such as `guard:safety` / `check`; in child projects, default to `bemoat:*` harness scripts and child-owned code checks. |
 | **Show diff** | `git status` and diff summary before commit. |
