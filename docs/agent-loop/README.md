@@ -57,8 +57,8 @@ task → read AGENTS.md + agent-loop → git status & issue branch → edit → 
 | Step | What happens |
 |------|----------------|
 | **Task** | User gives a short prompt or GitHub issue. Scope, allowed files, and risks may also live in the [agent-task](../../.github/ISSUE_TEMPLATE/agent-task.yml) template. |
-| **Branch gates** | `git status`; stop if dirty; never work on `main` or routine-code on `dev`; create `<type>/<issue-number>-<short-slug>` from `dev`. See [issue-driven-branch-workflow.md](./issue-driven-branch-workflow.md) and [Git Flow guardrails](../workflow/git-flow.md). |
-| **Branch** | Short-lived dedicated issue branch from `dev`; naming convention documented in [issue-driven-branch-workflow.md](./issue-driven-branch-workflow.md). |
+| **Branch gates** | `git status`; stop if dirty; never work on `main` or routine-code on `dev`; if the only blocker is a clean protected or integration branch, create `<type>/<issue-number>-<short-slug>` and rerun issue preflight. See [issue-driven-branch-workflow.md](./issue-driven-branch-workflow.md) and [Git Flow guardrails](../workflow/git-flow.md). |
+| **Branch** | Short-lived dedicated issue branch from `dev`; use the safest protected baseline only while the repo has no `dev` branch. Naming convention documented in [issue-driven-branch-workflow.md](./issue-driven-branch-workflow.md). |
 | **Edit** | Follow `AGENTS.md`, allowed paths, and [checklist.md](./checklist.md). Smallest complete change. |
 | **Test** | Run the validation tier from `AGENTS.md`. In the starter, use the raw starter scripts such as `guard:safety` / `check`; in child projects, default to `bemoat:*` harness scripts and child-owned code checks. |
 | **Show diff** | `git status` and diff summary before commit. |

@@ -89,7 +89,12 @@ Run:
 pnpm run bemoat:agent:issue -- <issue-number>
 ```
 
-If it cannot continue, report the blocker and do not edit files.
+If the blocker is a dirty working tree, unrelated repo state, a failed git
+command, or anything that risks overwriting human work, report the blocker and
+do not edit files. If the only blocker is a clean protected or integration
+branch, treat it as branch setup: create an issue-related topic branch, rerun
+`pnpm run bemoat:agent:issue -- <issue-number>`, and continue only after the
+preflight passes.
 
 1. Read the issue or task, `AGENTS.md`, and `docs/agent-loop/README.md`.
 2. Run `git status` and confirm the current branch.
@@ -97,7 +102,8 @@ If it cannot continue, report the blocker and do not edit files.
    changes.
 4. Never modify `main` directly.
 5. Do not implement routine work directly on `dev`.
-6. If on `main` or `dev`, create a dedicated issue branch before editing.
+6. If on a clean `main` or `dev`, create a dedicated issue branch before
+   editing, then rerun the issue preflight.
 
 Branch naming:
 
@@ -117,7 +123,8 @@ docs/77-agent-rules-entrypoint
 Create normal issue branches from latest `dev`. If a repository has no `dev`
 branch yet, follow the bootstrap note in `docs/workflow/git-flow.md`: use the
 safest available protected baseline, call out the temporary exception in the
-PR, and do not merge yourself.
+PR, and do not merge yourself. This starter currently has no `dev` branch, so
+use topic branches from `main` and target `main` as the bootstrap exception.
 
 Before editing, report the branch name, files inspected, proposed file changes,
 and notable risks.
@@ -140,7 +147,8 @@ commit" or "docs only, no PR."
 8. Commit exactly one focused change only if checks pass and only allowed files
    changed.
 9. Push the issue branch.
-10. Open a PR targeting `dev`, or update the existing PR for the branch.
+10. Open a PR targeting `dev`, or update the existing PR for the branch. In
+    this starter only, target `main` while the bootstrap exception applies.
 11. Include `Closes #<issue-number>` in the PR body for GitHub issue work.
 12. Post an implementation report comment on the source issue.
 13. Notify the user with the final response checklist below.
