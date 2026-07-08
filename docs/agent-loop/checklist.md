@@ -79,6 +79,16 @@ Stop instead of committing if the task is ambiguous, forbidden files are require
 ## Before PR
 
 - [ ] Acceptance criteria met
+- [ ] Source issue acceptance criteria audited before PR creation/update and
+      final reporting
+- [ ] Each acceptance criterion marked `Done`, `Not done`, `Not applicable`,
+      or `Waiting for CI / human review`
+- [ ] Completed acceptance criteria include brief evidence, such as changed
+      files, validation commands, command results, or explicit rationale
+- [ ] Source issue checklist left unchanged unless the user explicitly asked
+      for it to be edited
+- [ ] Acceptance criteria audit included in the PR body and/or issue
+      implementation report comment
 - [ ] **Validation tier** same as before commit:
   - [ ] Starter docs-only → `pnpm run guard:safety`
   - [ ] Child docs-only → `pnpm run bemoat:guard:safety`

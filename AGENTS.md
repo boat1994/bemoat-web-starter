@@ -165,12 +165,16 @@ commit" or "docs only, no PR."
 9. Commit exactly one focused change only if checks pass and only allowed files
    changed.
 10. Push the issue branch.
-11. Open a PR targeting `dev`, or update the existing PR for the branch. In
+11. Audit the source issue acceptance criteria before PR creation/update and
+    final reporting. Copy or summarize each criterion, mark it `Done`,
+    `Not done`, `Not applicable`, or `Waiting for CI / human review`, and
+    include brief evidence for completed items.
+12. Open a PR targeting `dev`, or update the existing PR for the branch. In
     this starter only, target `main` while the bootstrap exception applies.
-12. Include `Closes #<issue-number>` in the PR body for GitHub issue work.
-13. Post an implementation report comment on the source issue.
-14. Notify the user with the final response checklist below.
-15. Do not merge.
+13. Include `Closes #<issue-number>` in the PR body for GitHub issue work.
+14. Post an implementation report comment on the source issue.
+15. Notify the user with the final response checklist below.
+16. Do not merge.
 
 ### Stop Conditions
 
@@ -327,9 +331,18 @@ After opening or updating the PR, add a comment to the source issue with:
 - Files changed
 - Commands run
 - Test results
+- Acceptance criteria audit
 - Remaining risks
 - Human review needed
 - Next suggested step
+
+Before PR creation/update and final reporting, audit the source issue's
+acceptance criteria. Copy or summarize every criterion and mark each item as
+`Done`, `Not done`, `Not applicable`, or `Waiting for CI / human review`.
+Completed items must include brief evidence, such as changed files, validation
+commands, command results, or an explicit rationale. Put the audit in the PR
+body and/or the issue implementation report comment. Do not edit the source
+issue checklist unless the user explicitly asks.
 
 Use this template:
 
@@ -349,6 +362,9 @@ Branch: `<BRANCH_NAME>`
 - ...
 
 ### Test results
+- ...
+
+### Acceptance criteria audit
 - ...
 
 ### Remaining risks
@@ -372,6 +388,7 @@ End every task with:
 - Files changed
 - Commands run
 - Test result
+- Acceptance criteria audit
 - Commit hash
 - PR URL
 - Risks

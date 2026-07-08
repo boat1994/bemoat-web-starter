@@ -50,12 +50,12 @@ files or areas to inspect, expected validation, and notable risks or
 assumptions. They must wait for an explicit human trigger such as `proceed`,
 `continue`, `start dev`, `เริ่มได้`, or `dev ได้` before editing files.
 
-After that trigger, agents **must complete the full branch-to-PR workflow** by default — implement, check, commit, push, open PR, comment on the source issue — without stopping after implementation or asking permission to commit/push/open PR/comment. See [GitHub Workflow](../../AGENTS.md#github-workflow) and [Issue report after PR creation](../../AGENTS.md#issue-report-after-pr-creation) for stop conditions.
+After that trigger, agents **must complete the full branch-to-PR workflow** by default — implement, check, commit, push, audit acceptance criteria, open PR, comment on the source issue — without stopping after implementation or asking permission to commit/push/open PR/comment. See [GitHub Workflow](../../AGENTS.md#github-workflow) and [Issue report after PR creation](../../AGENTS.md#issue-report-after-pr-creation) for stop conditions.
 
 ## High-level loop
 
 ```text
-task → read AGENTS.md + agent-loop → git status & issue branch → intent checkpoint → human trigger → edit → test → show diff → commit → push → open or update PR → comment on issue → notify user
+task → read AGENTS.md + agent-loop → git status & issue branch → intent checkpoint → human trigger → edit → test → show diff → commit → push → AC audit → open or update PR → comment on issue → notify user
                                                                                                                                                                       ↓
                                                                                                                                                 CI → review → merge (human only)
 ```
@@ -71,8 +71,9 @@ task → read AGENTS.md + agent-loop → git status & issue branch → intent ch
 | **Show diff** | `git status` and diff summary before commit. |
 | **Commit** | One focused commit only if checks pass and only allowed files changed. See commit safety in `AGENTS.md`. |
 | **Push** | Push the branch to origin. |
-| **Open PR** | Open a new PR or **update the existing PR** if the branch already has one. Fill out the [pull request template](../../.github/pull_request_template.md). Include `Closes #<issue-number>`, summary, test plan, risks, and human-review notes. **Migration PRs:** draft only — see [migration-draft-pr.md](./migration-draft-pr.md). |
-| **Comment on issue** | Post the implementation report on the source GitHub issue with PR link and review checklist. See [Issue report after PR creation](../../AGENTS.md#issue-report-after-pr-creation). |
+| **AC audit** | Before PR creation/update and final reporting, copy or summarize the source issue acceptance criteria. Mark each item `Done`, `Not done`, `Not applicable`, or `Waiting for CI / human review`, and include brief evidence for completed items. Do not edit the source issue checklist unless explicitly instructed. |
+| **Open PR** | Open a new PR or **update the existing PR** if the branch already has one. Fill out the [pull request template](../../.github/pull_request_template.md). Include `Closes #<issue-number>`, summary, test plan, acceptance criteria audit, risks, and human-review notes. **Migration PRs:** draft only — see [migration-draft-pr.md](./migration-draft-pr.md). |
+| **Comment on issue** | Post the implementation report on the source GitHub issue with PR link, acceptance criteria audit, and review checklist. See [Issue report after PR creation](../../AGENTS.md#issue-report-after-pr-creation). |
 | **Notify user** | Task summary, branch, files changed, commands run, test result, commit hash, PR URL, risks, and human-review items. |
 | **CI** | GitHub Actions must pass; inspect logs on failure—do not guess. |
 | **Review** | Human or reviewer agent; watch Payload, migration, Cloudflare, sync risks. |
