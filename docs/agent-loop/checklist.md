@@ -30,6 +30,9 @@ When unsure, round **up** one tier for source-of-truth or sync-managed paths; ro
 - [ ] Read `AGENTS.md` and this folder
 - [ ] Understood the task; confirmed no user override (e.g. "do not commit")
 - [ ] **Task-size tier classified** (small / medium / core) — see [Task-size tiers](#task-size-tiers)
+- [ ] **Optional skill gate applied** — clear docs-only issues stayed
+      lightweight; TDD/test, brainstorming/spec, and safety workflows loaded
+      only when the task type required them
 - [ ] Confirmed correct repo: **starter** vs **child project**
 - [ ] Read issue/PR goal, acceptance criteria, allowed and forbidden paths
 - [ ] If GitHub URL, issue, PR, branch, or CI run is referenced: inspected via GitHub skill or `gh`
