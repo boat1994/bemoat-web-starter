@@ -82,6 +82,15 @@ conflict.
 For issue-based work, follow
 `docs/agent-loop/issue-driven-branch-workflow.md`.
 
+For issue-based work, do not edit files first.
+Run:
+
+```bash
+pnpm run bemoat:agent:issue -- <issue-number>
+```
+
+If it cannot continue, report the blocker and do not edit files.
+
 1. Read the issue or task, `AGENTS.md`, and `docs/agent-loop/README.md`.
 2. Run `git status` and confirm the current branch.
 3. Stop if the working tree has unrelated staged, unstaged, or untracked

@@ -52,6 +52,7 @@ const SYNCED_SUPERPOWERS_TEMPLATE_PATHS = [
 /** README.md is project-owned and must not appear in managedPaths (see docs/harness-sync-contract.md). */
 
 const MANAGED_BEMOAT_PACKAGE_SCRIPTS = [
+  'bemoat:agent:issue',
   'bemoat:branch:check',
   'bemoat:guard:safety',
   'bemoat:guard:harness-contract',
@@ -178,6 +179,7 @@ describe('boilerplate sync managed paths', () => {
       'prompts/ui',
       'docs/cloudflare-environments.md',
       'docs/boilerplate-sync-command.md',
+      'scripts/agent-issue.mjs',
       'scripts/guard-repo-safety.mjs',
       'scripts/guard-build-script-contract.mjs',
       'scripts/build.mjs',
@@ -191,6 +193,7 @@ describe('boilerplate sync managed paths', () => {
       'tests/int/repo-safety-guard.int.spec.ts',
       'tests/int/cloudflare-env-guard.int.spec.ts',
       'tests/int/boilerplate-sync.int.spec.ts',
+      'tests/int/agent-issue.int.spec.ts',
       'tests/int/branch-safety.int.spec.ts',
       'tests/int/harness-contract-guard.int.spec.ts',
       'tests/int/starter-acceptance.int.spec.ts',
