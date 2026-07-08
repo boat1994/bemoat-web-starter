@@ -62,10 +62,30 @@ git switch -c docs/dev-branch-policy-sync-contract
 
 If a repository has not created `dev` yet, follow the bootstrap note in [Git Flow guardrails](../workflow/git-flow.md) and call out the temporary exception in the PR. This starter currently has no `dev` branch, so use topic branches from `main` and target `main` as the bootstrap exception.
 
+## Post-preflight implementation trigger
+
+After branch setup and a passing issue preflight, do not edit files
+immediately. First summarize the implementation intent for the human:
+
+- issue goal
+- intended scope
+- out-of-scope work
+- files or areas to inspect
+- expected validation commands
+- notable risks or assumptions
+
+Then wait for the user to explicitly trigger implementation before modifying
+files. Clear triggers include `proceed`, `continue`, `start dev`, `เริ่มได้`,
+and `dev ได้`.
+
+This checkpoint controls the start of file edits only. Once the human triggers
+implementation, continue the normal issue workflow through validation, commit,
+push, PR, and implementation report unless a stop condition applies.
+
 ## Implementation
 
 - Complete all issue work on the **issue branch** only.
-- Before editing, report: branch name, files inspected, proposed file changes, risks.
+- Before editing, complete the post-preflight implementation trigger above.
 - Follow validation tiers in [AGENTS.md](../../AGENTS.md#validation-before-pr-and-merge).
 
 ## PR open or update (after development)
@@ -99,6 +119,7 @@ See [harness-sync-workflow.md](./harness-sync-workflow.md), [harness-sync-contra
 |-----------|--------|
 | Working tree dirty (unrelated changes) | Stop; report existing changes; no file edits |
 | On `main` or `dev` without creating issue branch first | Stop before editing; create issue branch |
+| Preflight passed but no implementation trigger yet | Summarize intent; wait for explicit human trigger before editing |
 | Attempt to commit or push on `main` or routine-code on `dev` for issue work | Forbidden — use issue branch |
 | PR exists for branch | Update PR; do not open duplicate |
 | Harness sync needed but not planned | Do not close issue; create follow-up or run sync |

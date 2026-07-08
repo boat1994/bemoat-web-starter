@@ -39,6 +39,9 @@ When unsure, round **up** one tier for source-of-truth or sync-managed paths; ro
 - [ ] Issue branch follows `<type>/<issue-number>-<short-slug>` (e.g. `fix/41-opennext-build-contract`)
 - [ ] Branch created from current `dev` when starting fresh, or from the
       documented bootstrap baseline if the repo has no `dev` branch yet
+- [ ] After issue preflight passed, summarized goal, scope, out-of-scope work,
+      files or areas to inspect, expected validation, and risks or assumptions
+- [ ] Explicit user trigger received before editing files
 - [ ] No plan to copy D1 IDs, R2 names, Worker names, `.env`, or secrets across projects
 - [ ] Filled [state-template.md](./state-template.md) with task and objective
 

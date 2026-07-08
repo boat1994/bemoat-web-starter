@@ -129,6 +129,22 @@ use topic branches from `main` and target `main` as the bootstrap exception.
 Before editing, report the branch name, files inspected, proposed file changes,
 and notable risks.
 
+After branch setup and a passing issue preflight, do not edit files
+immediately. First summarize:
+
+- issue goal
+- intended scope
+- out-of-scope work
+- files or areas to inspect
+- expected validation commands
+- notable risks or assumptions
+
+Then wait for the user to explicitly trigger implementation before modifying
+files. Accept clear triggers such as `proceed`, `continue`, `start dev`,
+`เริ่มได้`, or `dev ได้`. After that trigger, enter the normal development
+workflow without asking again for commit, push, PR, or issue-comment approval
+unless a stop condition applies.
+
 ## Default Agent Workflow
 
 Users may provide only the task or a GitHub issue. Follow this loop
@@ -141,18 +157,20 @@ commit" or "docs only, no PR."
 3. Classify task size using `docs/agent-loop/checklist.md` and use the minimum
    useful process for that tier.
 4. Run the branch gates above.
-5. Make the smallest complete change.
-6. Run the required validation tier.
-7. Show `git status` and a diff summary.
-8. Commit exactly one focused change only if checks pass and only allowed files
+5. For issue-based work, summarize implementation intent after preflight passes
+   and wait for an explicit user trigger before editing files.
+6. Make the smallest complete change.
+7. Run the required validation tier.
+8. Show `git status` and a diff summary.
+9. Commit exactly one focused change only if checks pass and only allowed files
    changed.
-9. Push the issue branch.
-10. Open a PR targeting `dev`, or update the existing PR for the branch. In
+10. Push the issue branch.
+11. Open a PR targeting `dev`, or update the existing PR for the branch. In
     this starter only, target `main` while the bootstrap exception applies.
-11. Include `Closes #<issue-number>` in the PR body for GitHub issue work.
-12. Post an implementation report comment on the source issue.
-13. Notify the user with the final response checklist below.
-14. Do not merge.
+12. Include `Closes #<issue-number>` in the PR body for GitHub issue work.
+13. Post an implementation report comment on the source issue.
+14. Notify the user with the final response checklist below.
+15. Do not merge.
 
 ### Stop Conditions
 

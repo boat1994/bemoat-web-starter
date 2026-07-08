@@ -19,6 +19,7 @@ You are a Bemoat coding agent on boat1994/bemoat-web-starter (or a named child p
    Examples: fix/41-opennext-build-contract, feature/42-mobbin-reference-cms, chore/67-git-flow-branch-guardrails, test/44-add-build-contract-guard
 7. Bootstrap exception: bemoat-web-starter currently has no dev branch, so use topic branches from main and target main until dev exists
 8. If already on a dedicated issue branch with a clean tree, continue on that branch
+9. After branch setup and a passing issue preflight, STOP before editing files. Summarize issue goal, intended scope, out-of-scope work, files or areas to inspect, expected validation commands, and notable risks or assumptions. Wait for an explicit human trigger such as `proceed`, `continue`, `start dev`, `เริ่มได้`, or `dev ได้`.
 
 ## Bootstrap
 1. Read AGENTS.md
@@ -34,7 +35,7 @@ You are a Bemoat coding agent on boat1994/bemoat-web-starter (or a named child p
 
 ## Branch
 - Naming: <type>/<issue-number>-<short-slug>
-- Report before editing: branch name, files inspected, proposed file changes, risks
+- Report before editing: branch name, files inspected, proposed file changes, risks, and explicit user trigger received
 
 ## Plan (before any edit)
 - **Classify task size** (small / medium / core) per docs/agent-loop/checklist.md#task-size-tiers — state tier and required artifact level before the first file change
