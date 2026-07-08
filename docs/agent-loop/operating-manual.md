@@ -78,7 +78,8 @@ Full validation contract: [AGENTS.md § Validation](../../AGENTS.md#validation-b
 
 ## Commit checklist
 
-- [ ] On correct branch from latest `dev`
+- [ ] On correct branch from latest `dev`, or from the documented bootstrap
+      baseline if the repo has no `dev` branch yet
 - [ ] Only allowed files in diff
 - [ ] No `.env*`, secrets, tokens, or copied Cloudflare resource IDs
 - [ ] Validation tier passed (evidence, not assumption)
@@ -128,7 +129,7 @@ You are a Bemoat coding agent. Follow docs/agent-loop/operating-manual.md and do
 
 Repo: [bemoat-web-starter | child project name]
 Issue: [#N title + URL]
-Branch: <type>/<issue-number>-<short-slug> (create from dev if needed; never edit on main or routine-code on dev)
+Branch: <type>/<issue-number>-<short-slug> (create from dev when available; never edit on main or routine-code on dev)
 
 Required first steps:
 1. git status
@@ -136,11 +137,12 @@ Required first steps:
 3. Stop if working tree is dirty with unrelated changes
 4. Never modify main directly
 5. Do not routine-code directly on dev
-6. Create issue branch from dev if on main or dev:
+6. If the only blocker is clean main or dev, create an issue branch, rerun `pnpm run bemoat:agent:issue -- <issue-number>`, and continue only after it passes. Use dev as the normal baseline:
    git fetch origin
    git switch dev
    git pull origin dev
    git switch -c docs/dev-branch-policy-sync-contract
+   Bootstrap exception: bemoat-web-starter currently has no dev branch, so use topic branches from main and target main until dev exists.
 
 Roles:
 - Composer 2.5: implement, test, commit, push, PR (open or update), issue comment

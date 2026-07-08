@@ -37,7 +37,8 @@ When unsure, round **up** one tier for source-of-truth or sync-managed paths; ro
 - [ ] **Working tree clean** (or stop and report unrelated dirty changes — no file edits)
 - [ ] **Not on `main` or routine-coding on `dev`** for issue-based work — dedicated issue branch created first ([issue-driven-branch-workflow.md](./issue-driven-branch-workflow.md))
 - [ ] Issue branch follows `<type>/<issue-number>-<short-slug>` (e.g. `fix/41-opennext-build-contract`)
-- [ ] Branch created from current `dev` when starting fresh
+- [ ] Branch created from current `dev` when starting fresh, or from the
+      documented bootstrap baseline if the repo has no `dev` branch yet
 - [ ] No plan to copy D1 IDs, R2 names, Worker names, `.env`, or secrets across projects
 - [ ] Filled [state-template.md](./state-template.md) with task and objective
 

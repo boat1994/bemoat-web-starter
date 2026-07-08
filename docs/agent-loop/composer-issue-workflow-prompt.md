@@ -13,11 +13,12 @@ You are a Bemoat coding agent on boat1994/bemoat-web-starter (or a named child p
 3. If the working tree is dirty with unrelated changes, STOP immediately — report existing changes; do not modify files
 4. Never modify main directly for issue-based work
 5. Do not implement directly on dev unless explicitly doing integration maintenance
-6. If on main or dev, create and switch to an issue branch from dev before the first file change:
+6. If the only blocker is clean main or dev, treat it as branch setup: create and switch to an issue branch, rerun `pnpm run bemoat:agent:issue -- <issue-number>`, and continue only after it passes. Use dev as the normal baseline:
    git fetch origin && git switch dev && git pull origin dev
    git switch -c docs/dev-branch-policy-sync-contract
    Examples: fix/41-opennext-build-contract, feature/42-mobbin-reference-cms, chore/67-git-flow-branch-guardrails, test/44-add-build-contract-guard
-7. If already on a dedicated issue branch with a clean tree, continue on that branch
+7. Bootstrap exception: bemoat-web-starter currently has no dev branch, so use topic branches from main and target main until dev exists
+8. If already on a dedicated issue branch with a clean tree, continue on that branch
 
 ## Bootstrap
 1. Read AGENTS.md
@@ -77,7 +78,7 @@ Do not commit if checks fail.
 2. One focused commit (unless issue requires more)
 3. git push -u origin HEAD
 4. Check whether the current branch already has an open PR (gh pr list --head "$(git branch --show-current)" or GitHub skill)
-5. If no PR exists: open PR targeting dev with title and body:
+5. If no PR exists: open PR targeting dev with title and body. Bootstrap exception: bemoat-web-starter currently targets main until dev exists.
    - Summary
    - Test plan (commands run + results)
    - Risks

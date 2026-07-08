@@ -162,3 +162,5 @@ Recommended `dev` protections:
 ## Bootstrap note
 
 Older repos may not have `dev` yet. Create `dev` once from current `main`, push it, and enable branch protection before moving routine work to Git Flow. Until `dev` exists, use the safest available protected baseline and call out the temporary exception in the PR.
+
+`bemoat-web-starter` currently has no `dev` branch. For this starter only, create topic branches from `main` and target PRs to `main` as the bootstrap exception. Child projects should continue to use `dev` as the normal integration branch unless they explicitly document a different branch model.

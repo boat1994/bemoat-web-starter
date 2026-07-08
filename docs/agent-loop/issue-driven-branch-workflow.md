@@ -13,16 +13,22 @@ Run:
 pnpm run bemoat:agent:issue -- <issue-number>
 ```
 
-If it cannot continue, report the blocker and do not edit files.
+If the blocker is a dirty working tree, unrelated repo state, a failed git
+command, or anything that risks overwriting human work, report the blocker and
+do not edit files. If the only blocker is a clean protected or integration
+branch, treat it as branch setup: create an issue-related topic branch, rerun
+`pnpm run bemoat:agent:issue -- <issue-number>`, and continue only after the
+preflight passes.
 
-Run these in order. **Stop and report** if any gate fails — do not modify files.
+Run these in order. **Stop and report** if a hard blocker fails; do not modify
+files until branch setup is complete and preflight passes.
 
 1. **`git status`** — inspect the working tree.
 2. **Confirm current branch** — `git branch --show-current`.
 3. **Dirty working tree** — if there are uncommitted changes (staged or unstaged) or untracked files that are not part of the task, **stop immediately**. Report what is already changed. Do not stash, reset, or edit over unrelated work.
 4. **Never modify `main` directly** — no commits, file edits, or pushes on `main` for issue-based work.
 5. **Do not implement directly on `dev`** — stop before routine coding unless the task is explicitly integration maintenance.
-6. **Create an issue branch when on `main` or `dev`** — after a clean tree, create and switch to a dedicated branch from `dev` before the first file change.
+6. **Create an issue branch when on a clean `main` or `dev`** — after a clean tree, create and switch to a dedicated branch from `dev` before the first file change, then rerun the issue preflight.
 
 If you are already on a dedicated issue branch with a clean tree (or only task-intentional changes), continue on that branch.
 
@@ -54,7 +60,7 @@ git pull origin dev
 git switch -c docs/dev-branch-policy-sync-contract
 ```
 
-If a repository has not created `dev` yet, follow the bootstrap note in [Git Flow guardrails](../workflow/git-flow.md) and call out the temporary exception in the PR.
+If a repository has not created `dev` yet, follow the bootstrap note in [Git Flow guardrails](../workflow/git-flow.md) and call out the temporary exception in the PR. This starter currently has no `dev` branch, so use topic branches from `main` and target `main` as the bootstrap exception.
 
 ## Implementation
 
@@ -67,7 +73,7 @@ If a repository has not created `dev` yet, follow the bootstrap note in [Git Flo
 When implementation is complete and checks pass:
 
 1. **Check whether the current branch already has an open PR** — use the GitHub skill or `gh pr list --head "$(git branch --show-current)"`.
-2. **If no PR exists** — push the branch (`git push -u origin HEAD`) and **open a PR** targeting `dev`. Link the source issue (`Closes #N` in the PR body when appropriate).
+2. **If no PR exists** — push the branch (`git push -u origin HEAD`) and **open a PR** targeting `dev`. In this starter only, target `main` while the bootstrap exception applies. Link the source issue (`Closes #N` in the PR body when appropriate).
 3. **If a PR already exists** — **update that PR** instead of opening a duplicate. Refresh the PR description and/or add a comment summarizing the completed work, files changed, commands run, and test results.
 4. **Do not mark the issue done** until PR status is clear (PR URL known, body/comment updated, implementation report posted on the issue per [AGENTS.md § Issue report](../../AGENTS.md#issue-report-after-pr-creation)).
 
