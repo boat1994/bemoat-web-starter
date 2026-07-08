@@ -2,231 +2,126 @@
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/boat1994/bemoat-web-starter)
 
-A reusable Payload 3, Next.js, and Cloudflare starter for Bemoat projects.
+A reusable Payload 3, Next.js, and Cloudflare starter for Bemoat projects. This repository is the **source of truth** for shared CMS schema, starter pages, agent rules, CI patterns, sync behavior, and harness docs.
 
-This starter is based on the Payload Cloudflare D1 template and extended with reusable CMS and frontend modules.
+Real product repositories should start from the **[Deploy to Cloudflare](https://deploy.workers.cloudflare.com/?url=https://github.com/boat1994/bemoat-web-starter)** button, then clone the generated child project — not this starter directly.
 
-## What is included
+## What this repo is
 
-- Payload 3 CMS
-- Next.js app router frontend
-- Cloudflare Workers deployment through OpenNext
-- Cloudflare D1 database binding
-- Cloudflare R2 media storage binding
-- Generic project CMS schema
-- Blog CMS schema
-- Custom order page global
-- Site settings global
-- Thai and English localization
-- One-command boilerplate sync for child projects
-- VS Code and Cursor workspace defaults
-- Payload CMS agent rules and Superpowers workflow guidance
+- Payload 3 CMS with Cloudflare D1 and R2
+- Next.js app router frontend deployed through OpenNext on Cloudflare Workers
+- Generic project and blog CMS modules, site globals, and Thai/English localization
+- Agent workflow rails, safety guards, GitHub templates, and CI patterns
+- One-command harness sync for child projects
 
-## Source history
+Clone this repository **only** when improving `bemoat-web-starter` itself (shared collections, starter pages, CI, agent docs, sync scripts).
 
-The first Bemoat boilerplate layer was extracted from working project code and cleaned up for reuse in new repositories.
+## When to change starter vs child project
 
-## Agent and editor setup
+| Change | Where it belongs |
+| --- | --- |
+| Reusable agent rules, guards, CI, sync scripts, harness docs | **This starter** → sync to children with `bemoat:boilerplate:sync` |
+| Shared Payload collections, starter pages, starter utilities | **This starter** (seeded once into new children) |
+| `wrangler.jsonc`, D1 IDs, R2 bucket names, Worker names | **Child project** |
+| `.env` files, Cloudflare secrets, domains, customer integrations | **Child project** |
+| Product-specific schema, frontend, and business logic | **Child project** |
 
-This starter includes the same development guidance used in the source project:
+Full ownership boundaries: [docs/agent-loop/source-of-truth.md](./docs/agent-loop/source-of-truth.md).
 
-- `AGENTS.md` for repository-wide Payload CMS development rules
-- `.cursor/rules/*` for Cursor rules covering Payload collections, fields, hooks, access control, endpoints, adapters, plugins, custom components, and critical security patterns
-- `.cursor/rules/superpowers-using-superpowers.mdc` to require the Superpowers skill workflow
-- `.agents/README.md` as a portable project-level entrypoint for Antigravity and future IDEs when native skill loading is unavailable
-- `.vscode/*` for recommended extensions, formatting, TypeScript SDK, and Next.js debugging
+## Agent workflow quick start
 
-Native skills remain preferred when available:
+For issue-based work, run preflight **before any file edit**:
 
-- Cursor should use `.cursor/rules/*` and native Superpowers support first, then `.agents/README.md` as project fallback.
-- Codex should use native skills and `AGENTS.md` first, then `.agents/README.md` as project fallback.
-- Antigravity should use installed global skills first when available, then `.agents/README.md` as the portable project fallback.
-- Other IDEs should start at `.agents/README.md`, then follow `AGENTS.md` and `docs/agent-loop/README.md`.
+```bash
+pnpm run bemoat:agent:issue -- <issue-number>
+```
 
-All coding agents with native Superpowers support should begin task work with:
+High-level loop:
 
 ```text
-superpowers:using-superpowers
+read issue → preflight → branch setup if needed → rerun preflight → summarize intent → wait for human trigger → implement → validate → AC audit/report → PR
 ```
 
-Before responding, asking clarifying questions, planning, editing files, running implementation commands, or reviewing code, agents should check whether a skill applies and follow it first. User instructions remain the highest priority. Do not treat a local machine path as the only source of truth for native skill source; use installed native skills by name when available, and use `.agents/skills/*.md` only as the portable fallback.
+Key rules:
 
-## Development workflow
+- Stop on a dirty working tree with unrelated changes.
+- Never edit `main` directly. Do not routine-code on `dev`.
+- If preflight fails only because you are on a clean protected branch, create a topic branch and rerun preflight.
+- After preflight passes, summarize scope and wait for an explicit human trigger (`proceed`, `continue`, `start dev`, etc.) before editing files.
+- Agents may commit, push, and open PRs; humans merge.
 
-Short task prompts are enough for agents working in this repository. The operating rules live in [AGENTS.md](./AGENTS.md), the step-by-step loop is in [docs/agent-loop](./docs/agent-loop/README.md), the [Git Flow branch guardrails](./docs/workflow/git-flow.md) define `main`, `dev`, topic branches, hooks, and branch protection, the [issue-driven branch workflow](./docs/agent-loop/issue-driven-branch-workflow.md) covers dedicated issue branches, dirty-tree stops, no edits on `main`, no routine coding on `dev`, and PR open/update, the [starter knowledge base](./docs/knowledge/README.md) collects short operational notes (scripts, sync, guards, common failures), [production hardening](./docs/hardening.md) indexes release tags, drift check, smoke test, secrets, and branch protection, [security and migration guardrails](./docs/agent-loop/security-and-migrations.md) define stop conditions for secrets and production deploy; [migration draft PR workflow](./docs/agent-loop/migration-draft-pr.md) allows agents to open draft PRs for D1/Payload migrations after checks pass, [schema evolution](./docs/schema-evolution.md) defines additive-first Payload changes for production data, GitHub issue and PR templates capture task scope, and CI validates every pull request.
+Paste-ready agent prompt: [docs/agent-loop/composer-issue-workflow-prompt.md](./docs/agent-loop/composer-issue-workflow-prompt.md).
 
-**Issue-based work:** run `git status` first, never modify `main` directly, do not routine-code on `dev`, create a topic branch from `dev` with naming `<type>/<issue-number>-<short-slug>`, stop on a dirty working tree, and open or update a PR into `dev` when development is complete. Paste-ready prompt: [composer-issue-workflow-prompt.md](./docs/agent-loop/composer-issue-workflow-prompt.md).
+## Branch and PR policy
 
-```mermaid
-flowchart TD
-    A[User gives task or GitHub issue] --> B[Agent starts with superpowers]
-    B --> C[Read AGENTS.md and docs/agent-loop]
-    C --> D{GitHub URL or issue?}
-    D -->|Yes| E[Use GitHub skill to inspect real state]
-    D -->|No| F[Confirm task scope]
-    E --> F
-    F --> G0[git status — stop if dirty]
-    G0 --> G[Create issue branch from dev — never edit main or routine-code on dev]
-    G --> H[Make smallest complete change]
-    H --> I[Run checks]
-    I --> J{Checks pass?}
-    J -->|No| K[Stop and report exact failure]
-    J -->|Yes| L[Show git status and diff summary]
-    L --> M{Only allowed files changed?}
-    M -->|No| N[Stop and report scope violation]
-    M -->|Yes| O[Commit]
-    O --> P[Push branch]
-    P --> Q{PR exists for branch?}
-    Q -->|No| Q1[Open PR]
-    Q -->|Yes| Q2[Update existing PR]
-    Q1 --> R[CI runs]
-    Q2 --> R
-    R --> S{CI green?}
-    S -->|No| T[Inspect logs, fix in same branch]
-    T --> H
-    S -->|Yes| U[Notify user with PR URL and risks]
-    U --> V[Human review]
-    V --> W[Human merges]
-```
+| Repository | Integration branch | Topic branches from | PR target |
+| --- | --- | --- | --- |
+| **This starter** (bootstrap) | `main` (no `dev` yet) | `main` | `main` — call out the bootstrap exception in the PR |
+| **Child projects** (normal) | `dev` | `dev` | `dev` |
 
-## Production schema evolution
+Branch naming: `<type>/<issue-number>-<short-slug>` (for example `docs/92-refresh-readme-docs`).
 
-Payload schema changes that touch production CMS data must be **additive-first**: add new fields or collections instead of renaming, retyping, or retargeting existing fields in place. Mark superseded fields as **deprecated** in Payload admin (`admin.description`, optionally `readOnly` or `hidden`). Remove old fields only after a production D1 backup, human approval, and at least one stable release.
+Allowed prefixes: `feature/*`, `feat/*`, `fix/*`, `refactor/*`, `chore/*`, `test/*`, `docs/*`, `release/*`, `hotfix/*`.
 
-Full policy, examples, and checklist: [docs/schema-evolution.md](./docs/schema-evolution.md).
+Full policy: [docs/workflow/git-flow.md](./docs/workflow/git-flow.md) and [docs/agent-loop/issue-driven-branch-workflow.md](./docs/agent-loop/issue-driven-branch-workflow.md).
 
-**Mantra:** Additive first. Backfill second. Switch reads third. Deprecate old fields fourth. Delete last, only with backup and explicit approval.
+## Child project harness sync
 
-### Optional local git hooks
-
-Install pre-push checks locally (**not required**; CI validates every pull request):
+Child projects receive starter harness updates through **explicit sync** — not by editing this repo in place.
 
 ```bash
-pnpm run hooks:install
+# In a child project (from latest dev)
+pnpm run bemoat:boilerplate:sync -- --harness-only
+pnpm run bemoat:boilerplate:check -- --harness-only
 ```
 
-The installed hooks run branch safety before commit and push. Pre-push also runs a **fast child-safe subset** only: `bemoat:guard:safety`, `bemoat:test:int`.
+- **`harness-only`** (default): agent rules, CI, guards, sync scripts, harness tests — does not overwrite child app code.
+- **`full`**: also seeds missing starter modules once for new projects.
 
-It intentionally **does not** run `typecheck`, `lint`, or `build` — child projects add those scripts when they are ready for stricter local validation.
+`package.json` stays child-owned. Sync adds missing `bemoat:*` scripts only and writes `.bemoat/package-sync-proposal.md` for human review.
 
-| When | Command |
-|------|---------|
-| Docs/markdown/CI only (starter / child with scripts) | `pnpm run guard:safety` or `pnpm run bemoat:guard:safety` |
-| Code changes before commit/PR (when scripts exist) | `pnpm run check` (**required** in starter, lint must have **zero warnings**) |
-| Before merge (human, when scripts exist) | `pnpm run check:full` when practical |
-| Every PR on GitHub (synced child CI) | `bemoat:guard:safety` + `bemoat:test:int` only |
-| Starter repo on GitHub | child-safe CI plus [starter strict workflow](./.github/workflows/ci-starter.yml) |
-| Optional before commit/push | branch safety plus pre-push hook subset (`bemoat:*` only) |
+For production syncs, pin a known-good release tag from [docs/releases.md](./docs/releases.md) with `BEMOAT_BOILERPLATE_REF` instead of syncing an unreviewed moving branch.
 
-### Child harness script contract
+Deeper guides:
 
-Synced harness automation (`.github/workflows/ci.yml`, `.githooks/pre-commit`, `.githooks/pre-push`) uses branch safety plus **only `bemoat:*` scripts**. Child projects should treat `bemoat:*` as the public harness API:
+- [docs/harness-sync-contract.md](./docs/harness-sync-contract.md)
+- [docs/agent-loop/harness-sync-workflow.md](./docs/agent-loop/harness-sync-workflow.md)
+- [docs/boilerplate-sync-command.md](./docs/boilerplate-sync-command.md)
 
-| Script | When to use |
-|--------|-------------|
-| `bemoat:branch:check` | Manual Git Flow branch safety check |
-| `bemoat:guard:safety` | Every PR (CI) and optional pre-push — repo safety + harness contract |
-| `bemoat:test:int` | Every PR (CI) and optional pre-push — shared integration tests |
-| `bemoat:guard:cloudflare-env` | Before deploy/preview when those scripts exist |
-| `bemoat:check` | Optional stricter validation when child defines `lint` and `typecheck` |
-| `bemoat:boilerplate:sync` / `bemoat:boilerplate:check` | Pull harness updates from starter |
-| `bemoat:hooks:install` | Install optional local pre-commit and pre-push hooks |
+## Validation
 
-Raw scripts (`lint`, `typecheck`, `build`, `deploy`, `preview`, `check`, `guard:safety`, etc.) are starter-internal or child-local. Do not wire them into synced CI or hooks. Full contract: [docs/harness-sync-contract.md](./docs/harness-sync-contract.md).
-
-This template is expected to run on Cloudflare Paid Workers because the bundle can exceed the free Worker size limit.
-
-Do not copy one project's Cloudflare resources into another project without changing them first:
-
-- D1 database ID
-- D1 database name
-- R2 bucket name
-- Worker name
-- Environment variables
-- Secrets
-
-## Cloudflare deploy button settings
-
-When Cloudflare asks for commands, use pnpm:
-
-```text
-Build command: pnpm run build
-Deploy command: pnpm run deploy
-```
-
-The npm scripts internally use `pnpm exec` for OpenNext, Payload, and Wrangler so the local project binaries are used consistently.
-
-## Local setup
-
-```bash
-pnpm install
-pnpm wrangler login
-pnpm dev
-```
-
-## Generate Payload files
-
-Run these after changing Payload collections, globals, admin fields, or import map components:
-
-```bash
-pnpm run generate:importmap
-pnpm run generate:types
-```
-
-## Create migrations
-
-Run this before deploying schema changes to Cloudflare D1:
-
-```bash
-pnpm payload migrate:create
-```
-
-Review the generated migration before running deploy.
-
-## Deploy
-
-You can start from the Cloudflare deploy button at the top of this README, or deploy manually after setting up your Cloudflare resources.
-
-```bash
-pnpm run deploy
-```
-
-The deploy command runs Payload migrations against the remote D1 binding, optimizes remote D1, builds the app, and deploys the Worker.
-
-After deploy, run the [deploy smoke test checklist](./docs/deploy-smoke-test.md) to confirm frontend, admin, Payload, D1, R2, and Cloudflare routing.
-
-## Cloudflare environments (production vs dev)
-
-Bemoat projects use **two deploy targets**. Full guide (synced to child projects): **[docs/cloudflare-environments.md](./docs/cloudflare-environments.md)**.
-
-| Target | Command | Config |
+| Change type | Command (starter) | Command (child) |
 | --- | --- | --- |
-| **Production** (main branch, Cloudflare auto-deploy) | `pnpm run deploy` | Top-level `wrangler.jsonc` — **no** `--env` |
-| **Dev** (local only, isolated Worker/D1/R2) | `pnpm run deploy:dev` | `wrangler.jsonc` → `env.dev` |
+| Docs, markdown, or CI config only | `pnpm run guard:safety` | `pnpm run bemoat:guard:safety` |
+| Code, scripts, or tests | `pnpm run check` | `pnpm run bemoat:check` when defined; otherwise `bemoat:guard:safety` + `bemoat:test:int` |
+| Payload schema changes | `pnpm run check` + `generate:types` | Same child tier + child `generate:types` |
+| D1 or Payload migrations | Same as triggering change; open a **draft** PR | Same |
 
-**Rules that prevent confusion:**
+Every GitHub PR runs child-safe CI (`bemoat:guard:safety`, `bemoat:test:int`). The starter also runs [strict CI](./.github/workflows/ci-starter.yml).
 
-- Production does **not** use `env.production` or `CLOUDFLARE_ENV=production`.
-- Dev is explicit: `deploy:dev` sets `CLOUDFLARE_ENV=dev` and passes `--env=dev`.
-- Never point `env.dev` at production D1 or R2 — create separate dev resources in Cloudflare first.
-- `pnpm run deploy` and `pnpm run preview` run `guard:cloudflare-env` first (blocks `CLOUDFLARE_ENV=production` and duplicate dev bindings).
-- `wrangler.jsonc` is **project-specific** and is not overwritten by boilerplate sync; copy the `env.dev` pattern from the starter into your child project and fill in your dev D1 ID and bucket names.
+Optional local hooks: `pnpm run hooks:install` (branch safety + fast `bemoat:*` subset on pre-push).
 
-```bash
-# Production (live site)
-pnpm run deploy
+## Source-of-truth docs
 
-# Dev stack from your laptop (after env.dev is configured)
-pnpm run deploy:dev
-```
+| Topic | Doc |
+| --- | --- |
+| Agent entrypoint | [AGENTS.md](./AGENTS.md) |
+| Working loop and checklist | [docs/agent-loop/README.md](./docs/agent-loop/README.md) |
+| Issue-driven branches | [docs/agent-loop/issue-driven-branch-workflow.md](./docs/agent-loop/issue-driven-branch-workflow.md) |
+| Starter vs child ownership | [docs/agent-loop/source-of-truth.md](./docs/agent-loop/source-of-truth.md) |
+| Harness sync contract | [docs/harness-sync-contract.md](./docs/harness-sync-contract.md) |
+| Git Flow guardrails | [docs/workflow/git-flow.md](./docs/workflow/git-flow.md) |
+| Production schema evolution | [docs/schema-evolution.md](./docs/schema-evolution.md) |
+| Security and migrations | [docs/agent-loop/security-and-migrations.md](./docs/agent-loop/security-and-migrations.md) |
+| Cloudflare environments | [docs/cloudflare-environments.md](./docs/cloudflare-environments.md) |
+| Releases and sync tags | [docs/releases.md](./docs/releases.md) |
+| Operational notes | [docs/knowledge/README.md](./docs/knowledge/README.md) |
 
 ## Recommended project flow (deploy-first)
 
-Real Bemoat projects should **not** start by cloning this repository directly. Use the deploy-first path:
-
-1. Click **[Deploy to Cloudflare](https://deploy.workers.cloudflare.com/?url=https://github.com/boat1994/bemoat-web-starter)** at the top of this README.
-2. Let Cloudflare create or connect the project and provision Worker, D1, R2, and secrets for that deployment.
-3. Clone the **generated child project** repository locally (the repo Cloudflare creates or connects—not this starter).
+1. Click **[Deploy to Cloudflare](https://deploy.workers.cloudflare.com/?url=https://github.com/boat1994/bemoat-web-starter)**.
+2. Let Cloudflare provision Worker, D1, R2, and secrets for the new project.
+3. Clone the **generated child repository** locally.
 4. Run local setup:
 
 ```bash
@@ -237,23 +132,11 @@ pnpm payload migrate:create
 pnpm dev
 ```
 
-5. Review any new migration, test locally, then deploy with `pnpm run deploy`.
+5. Review migrations, test locally, then deploy with `pnpm run deploy`.
 
-After the project is real, configure project-specific values in the child repo:
-
-- `package.json` name
-- `wrangler.jsonc` Worker name
-- D1 database config
-- R2 bucket config
-- Site metadata
-- Domain and environment variables
-- Agent rules that are no longer relevant to the child project
-
-For the full agent operating loop, see [docs/agent-loop/README.md](./docs/agent-loop/README.md).
+Configure project-specific values in the child repo: `wrangler.jsonc`, D1/R2 bindings, domains, and environment variables. Do not copy one project's Cloudflare resource IDs into another.
 
 ## Developing this starter
-
-Clone this repository **only** when improving `bemoat-web-starter` itself (shared collections, starter pages, CI, agent docs, sync script):
 
 ```bash
 git clone https://github.com/boat1994/bemoat-web-starter.git
@@ -262,249 +145,48 @@ pnpm install
 pnpm dev
 ```
 
-Do not use this clone-first path to start a customer or product repository.
-
-## Boilerplate sync command
-
-**Existing child projects** can pull the latest reusable boilerplate layer from this starter with one command. Sync is for **updating** projects that already exist after deploy—not the primary way to create a new project.
-
-For **release tags, changelog policy, and when to sync from `main` vs a stable tag**, see [docs/releases.md](./docs/releases.md).
-
-## Adopt harness in an existing project
-
-Use this workflow when an **existing Bemoat repository** already has its own Payload schema, frontend routes, components, hooks, access rules, lib utilities, and `payload.config.ts`. These projects should adopt **harness rails only** — not starter application modules.
-
-For the canonical agent loop (branch gates, validation, PR, report), see [docs/agent-loop/harness-sync-workflow.md](./docs/agent-loop/harness-sync-workflow.md).
-
-**Harness-only sync brings in:**
-
-- Shared agent rules (`AGENTS.md`, `.agents`, `.cursor/rules`)
-- GitHub CI workflow and templates
-- Safety guards (`guard-repo-safety`, `guard-cloudflare-env`)
-- Agent-loop and hardening docs
-- Sync and drift scripts, optional git hooks
-- Vitest harness and shared integration tests under `tests/int/`
-
-**Harness-only sync does not bring in:**
-
-- Payload starter collections, globals, hooks, or access helpers
-- Frontend starter pages under `src/app/(frontend)`
-- Starter components, lib utilities, or `src/payload.config.ts`
-
-`package.json` remains **child-owned**. Sync may add **missing `bemoat:*` scripts only**; it never overwrites existing `bemoat:*` scripts, never touches deploy/build/check/test scripts, and never touches `dependencies` or `devDependencies`. All other package differences appear in **`.bemoat/package-sync-proposal.md`** as human-review-only information (included in the sync commit).
-
-```bash
-git switch dev
-git pull origin dev
-git switch -c docs/dev-branch-policy-sync-contract
-
-pnpm run boilerplate:check -- --harness-only
-pnpm run boilerplate:sync -- --harness-only
-```
-
-After sync:
-
-1. Review **`.bemoat/package-sync-proposal.md`** for script and dependency drift (human review only). Do not apply automatically — update `package.json` manually when desired.
-2. Run **`pnpm install`** if you changed dependencies.
-3. Run **`pnpm run check`** to verify harness rails locally.
-4. Commit, push, and open a PR for human review.
-
-Use **`--full`** only for **new** child projects that intentionally want missing starter modules copied once. See [docs/boilerplate-sync-command.md](./docs/boilerplate-sync-command.md) and [docs/harness-sync-contract.md](./docs/harness-sync-contract.md).
-
-Before syncing, check which rails-managed boilerplate files differ from the starter. Use **`harness-only`** for existing projects; use **`full`** only when you also want to see missing starter seed files.
-
-```bash
-# Existing projects (default)
-pnpm run boilerplate:check -- --harness-only
-
-# New projects that may still import missing starter modules
-pnpm run boilerplate:check -- --full
-```
-
-In **`bemoat-web-starter` itself** (the source repository), this command exits successfully with a skip message — it is intended for **child projects** comparing against upstream boilerplate. Starter development should use git diff and CI instead.
-
-The check reports managed drift (must sync), missing seed files (**`full` mode only**), customized seed files (ignored), merge-keep drift for `.gitignore`, and an informational package sync proposal when scripts or dependencies differ. `package.json` is child-owned; sync never auto-overwrites deploy, build, check, test, or dependency entries. When managed drift or missing seed files are reported, apply updates with:
-
-```bash
-# Existing projects (recommended)
-pnpm run boilerplate:sync -- --harness-only
-
-# New projects that want starter module seeding
-pnpm run boilerplate:sync -- --full
-```
-
-By default, check and sync use:
-
-```text
-boat1994/bemoat-web-starter#main
-```
-
-For safer production updates, pin a version tag instead:
-
-```bash
-BEMOAT_BOILERPLATE_REF=v0.3.0-sync-rails pnpm run boilerplate:sync -- --harness-only
-```
-
-## Sync from another branch
-
-```bash
-BEMOAT_BOILERPLATE_REF=dev pnpm run boilerplate:sync -- --harness-only
-```
-
-## Sync from another repository
-
-```bash
-BEMOAT_BOILERPLATE_REPO=boat1994/bemoat-web-starter pnpm run boilerplate:sync -- --harness-only
-```
-
-## Sync modes
-
-| Mode | Use when | Starter modules |
-|------|----------|-----------------|
-| **`harness-only`** (default) | Existing Bemoat projects with custom schema, frontend, and app code | Skipped — does not copy `src/collections`, `src/globals`, `src/app/(frontend)`, `src/components`, `src/hooks`, `src/access`, `src/lib`, or `src/payload.config.ts` |
-| **`full`** | New child projects or repos that still want missing starter files imported once | Copied only when missing; never overwrites existing child files |
-
-Starter modules are not harness. `package.json` remains child-owned in both modes.
-
-## What boilerplate sync updates
-
-### Always synced rails
-
-These paths are source-of-truth and **may be overwritten** on every sync:
-
-- `AGENTS.md` repository agent instructions
-- `.agents/*` portable project-level agent fallback instructions
-- `.cursor/rules/*` workflow instructions and Cursor rule files
-- `.github/workflows/ci.yml` shared child-safe CI workflow (`bemoat:guard:safety`, `bemoat:test:int` only)
-- `.github/pull_request_template.md` PR template
-- `.github/ISSUE_TEMPLATE/agent-task.yml` agent task issue template
-- `docs/agent-loop/*` agent operating loop docs
-- `docs/workflow/*` branching and workflow policy docs
-- `docs/hardening.md`, `docs/releases.md`, `docs/deploy-smoke-test.md`, `docs/cloudflare-environments.md`
-- `docs/schema-evolution.md` production-safe Payload schema evolution guide
-- `scripts/sync-boilerplate.mjs`, `scripts/check-boilerplate-drift.mjs`, `scripts/deploy-smoke-test.mjs`
-- `scripts/guard-repo-safety.mjs`, `scripts/guard-harness-contract.mjs`, `scripts/guard-cloudflare-env.mjs`, `scripts/check-branch-safety.sh`, `scripts/install-git-hooks.mjs` repository safety guards and optional git hooks
-- `.githooks/pre-commit` and `.githooks/pre-push` optional local hooks (install with `pnpm run hooks:install`)
-- `vitest.config.mts`, `vitest.setup.ts`, and shared harness integration tests under `tests/int/` (`api`, `repo-safety-guard`, `cloudflare-env-guard`, `boilerplate-sync`, `branch-safety`, `harness-contract-guard`, `open-next-config`)
-- `docs/dev-boilerplate.md`, `docs/boilerplate-sync-command.md`, `docs/harness-sync-contract.md` boilerplate module and sync contract notes
-
-### Package sync proposal (child-owned `package.json`)
-
-`package.json` is **child-owned** and is not treated as a managed rails file. Sync:
-
-- adds **missing `bemoat:*` scripts only** (never overwrites existing `bemoat:*` entries)
-- never adds, overwrites, removes, renames, or reorders deploy/build/check/test scripts (`build`, `deploy`, `deploy:app`, `deploy:database`, `deploy:dev`, `preview`, `check`, `check:full`, `lint`, `typecheck`, `test`, `test:int`, `dev`, `start`, or any other non-namespaced script) unless the human explicitly opts into the build/deploy contract with `--apply-build-contract`
-- never auto-adds, removes, bumps, or rewrites `dependencies` or `devDependencies`
-- writes **`.bemoat/package-sync-proposal.md`** with script and dependency drift for human review only
-
-Managed namespaced scripts (added when missing): `bemoat:branch:check`, `bemoat:guard:safety`, `bemoat:guard:harness-contract`, `bemoat:guard:cloudflare-env`, `bemoat:test:int`, `bemoat:check`, `bemoat:boilerplate:sync`, `bemoat:boilerplate:check`, `bemoat:hooks:install`
-
-Non-namespaced script and dependency differences appear in the proposal under **Script drift report (human review only)** and **Dependency drift report (human review only)**. Synced CI and optional hooks assume only `bemoat:*` scripts exist, plus direct shell execution of the synced branch safety script — full `lint`, `typecheck`, `build`, and `check` baselines are follow-up work in each child project.
-
-`pnpm-lock.yaml` is **not** synced. Review the package sync proposal manually before changing `package.json` or running `pnpm install`.
-
-### Merge-keep paths
-
-These paths keep existing child content and append missing starter entries during sync:
-
-- `.gitignore` — child ignore rules are preserved; missing starter rules (such as `.bemoat-check-tmp/` and `.bemoat-sync-tmp/`) are appended under a `# Added by bemoat boilerplate sync` section
-
-### Seeded-once starter files (`full` mode only)
-
-These paths are processed only with **`pnpm run boilerplate:sync -- --full`**. Default **`harness-only`** sync skips them.
-
-These paths are copied **only when missing** in the child project. After the child customizes them, sync **never overwrites** them:
-
-- `src/app/(frontend)/*` starter pages (home, projects, blog, custom order, etc.)
-- `src/components/*` shared UI and admin extension placeholders
-- `src/collections/*`, `src/globals/*`, `src/hooks/*`, `src/access/*`
-- `src/lib/*` shared utilities
-- `src/payload.config.ts`
-
-Frontend pages, collections, globals, components, and product UI are safe to customize in child projects after initial import. If a reusable improvement is needed across projects, upstream it to the starter and manually port it—or add a new seed file path.
-
-`src/app/(payload)/*` is Payload admin framework integration and is not part of boilerplate sync.
-
-## What boilerplate sync does not update
-
-The sync script intentionally does not overwrite project-specific infrastructure or content:
-
-- `wrangler.jsonc` (deploy script **recommendations** are proposed; Cloudflare **config** is not synced)
-- `package.json` non-namespaced scripts and dependencies (review `.bemoat/package-sync-proposal.md` for drift; never auto-applied)
-- D1 database IDs
-- R2 bucket names
-- Worker names
-- `.env` files
-- Cloudflare secrets
-- Root `README.md` (child projects may keep project-specific README wording; adopt starter README sections manually if desired)
-- Existing customized starter app files (seed-only paths that already exist in the child)
-- Project-specific business modules and integrations
-
-This keeps each project safe while still allowing agent workflow rails to move forward.
-
-## After every sync
-
-The sync command now creates a Git commit automatically for the files it changes:
-
-- every synced path in `managedPaths`
-- newly seeded files from `seedOnlyPaths` (**`full` mode only**)
-- merge-keep updates such as `.gitignore` when starter ignore rules were appended
-- `.bemoat/package-sync-proposal.md` (regenerated each sync for human review)
-- `package.json` only when missing `bemoat:*` scripts were added
-- `.bemoat-boilerplate-sync.json`
-
-Review **`.bemoat/package-sync-proposal.md`** for script and dependency drift (human review only). Update `package.json` manually when desired, then run `pnpm install`.
-
-If you have local uncommitted changes first, the script stashes only files outside the rails-managed scope before syncing and restores them after the sync commit is created. Existing edits on rails-managed files are replaced by the fresh sync output instead of being reapplied afterward. Customized seed-only files are left untouched.
-
-If a child project still has the older sync script, copy `scripts/sync-boilerplate.mjs` from this starter into that project once, then run sync again. Older copies of the script did not sync themselves forward.
-
-After reviewing the package sync proposal and applying any manual `package.json` changes:
+## Local setup and deploy
 
 ```bash
 pnpm install
+pnpm wrangler login
+pnpm dev
+```
+
+Cloudflare deploy button commands:
+
+```text
+Build command: pnpm run build
+Deploy command: pnpm run deploy
+```
+
+| Target | Command |
+| --- | --- |
+| Production | `pnpm run deploy` |
+| Dev stack (isolated Worker/D1/R2) | `pnpm run deploy:dev` |
+
+After Payload schema or admin component changes:
+
+```bash
 pnpm run generate:importmap
 pnpm run generate:types
+```
+
+Before deploying schema changes to D1:
+
+```bash
 pnpm payload migrate:create
 ```
 
-Then review the migration and test locally before deploying.
+Post-deploy smoke test: [docs/deploy-smoke-test.md](./docs/deploy-smoke-test.md).
 
-## Current CMS modules
+## What's included
 
-### Core
+**Core CMS:** Users, Media, BlogMedia, Projects, Categories, Tags, Posts, BlogCategories.
 
-- Users
-- Media
-- BlogMedia
+**Globals:** SiteSettings, CustomOrderPage.
 
-### Projects and portfolio
-
-- Projects
-- Categories
-- Tags
-
-### Blog
-
-- Posts
-- BlogCategories
-
-### Globals
-
-- SiteSettings
-- CustomOrderPage
-
-## Intentionally not included yet
-
-The first boilerplate layer does not include project-specific operations modules:
-
-- Orders
-- LINE integration
-- Payment slip review
-- Copilot
-- Handoff workflow
-
-These modules depend on project-specific APIs, secrets, collections, and operations rules. Add them later as a separate boilerplate layer when the interface is stable.
+**Not included yet:** Orders, LINE integration, payment slip review, Copilot, handoff workflow — add these as separate layers when stable.
 
 ## Useful commands
 
@@ -517,48 +199,18 @@ pnpm run deploy:dev
 pnpm run generate:importmap
 pnpm run generate:types
 pnpm payload migrate:create
-pnpm run boilerplate:sync
+pnpm run bemoat:boilerplate:sync -- --harness-only
 pnpm run smoke:deploy
 ```
 
-Set `BEMOAT_SMOKE_BASE_URL` to your deployed URL when running the optional smoke script. See [docs/deploy-smoke-test.md](./docs/deploy-smoke-test.md).
+Set `BEMOAT_SMOKE_BASE_URL` when running the optional smoke script.
 
 ## Troubleshooting
 
-### Build says `Unknown command: build`
+**`Unknown command: build`** — use the universal wrapper in `scripts/build.mjs`; do not use `payload build`.
 
-Make sure the build script uses the universal wrapper entrypoint:
+**Admin field component not found** — run `pnpm run generate:importmap`.
 
-```json
-"build": "cross-env NODE_OPTIONS=\"--no-deprecation --max-old-space-size=8000\" node scripts/build.mjs",
-"build:next": "cross-env NODE_OPTIONS=\"--no-deprecation --max-old-space-size=8000\" pnpm exec next build",
-"build:cloudflare": "cross-env NODE_OPTIONS=\"--no-deprecation --max-old-space-size=8000\" pnpm exec opennextjs-cloudflare build"
-```
+**Stale Payload types** — run `pnpm run generate:types`.
 
-Do not use `payload build`.
-
-### Admin field component not found
-
-Run:
-
-```bash
-pnpm run generate:importmap
-```
-
-### Payload types are stale
-
-Run:
-
-```bash
-pnpm run generate:types
-```
-
-### D1 schema does not match collections
-
-Create and review a migration:
-
-```bash
-pnpm payload migrate:create
-```
-
-Then deploy only after the migration looks correct.
+**D1 schema drift** — run `pnpm payload migrate:create`, review the migration, then deploy.
