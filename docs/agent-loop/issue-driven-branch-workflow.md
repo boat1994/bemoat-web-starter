@@ -6,6 +6,15 @@ Child projects receive this file through harness sync. Agents must follow it whe
 
 ## Required first steps (before any file edit)
 
+For issue-based work, do not edit files first.
+Run:
+
+```bash
+pnpm run bemoat:agent:issue -- <issue-number>
+```
+
+If it cannot continue, report the blocker and do not edit files.
+
 Run these in order. **Stop and report** if any gate fails — do not modify files.
 
 1. **`git status`** — inspect the working tree.

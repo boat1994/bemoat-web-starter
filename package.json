@@ -37,6 +37,7 @@
     "typecheck": "pnpm exec tsc --noEmit",
     "boilerplate:sync": "node scripts/sync-boilerplate.mjs",
     "boilerplate:check": "node scripts/check-boilerplate-drift.mjs",
+    "bemoat:agent:issue": "node scripts/agent-issue.mjs",
     "bemoat:branch:check": "bash scripts/check-branch-safety.sh",
     "bemoat:boilerplate:sync": "node scripts/sync-boilerplate.mjs",
     "bemoat:boilerplate:check": "node scripts/check-boilerplate-drift.mjs",

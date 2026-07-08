@@ -13,6 +13,15 @@ Before editing, stop and summarize:
 - Files you plan to inspect or change.
 - Verification commands you will run before the final response.
 
+For issue-based work, do not edit files first.
+Run:
+
+```bash
+pnpm run bemoat:agent:issue -- <issue-number>
+```
+
+If it cannot continue, report the blocker and do not edit files.
+
 Do not edit until that preflight summary is complete and the branch guard rails
 in `AGENTS.md` are satisfied. Do not duplicate or reinterpret the guard rails
 here; follow the canonical docs when anything conflicts or is missing.
