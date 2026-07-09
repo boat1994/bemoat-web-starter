@@ -103,11 +103,18 @@ printf '%s' '{"title":"Minimal bemoat:agent:issue contract for issue-driven AI w
 
   it('accepts the documented pnpm argument separator before the issue number', () => {
     const root = createRepo('feature/83-agent-issue')
+    const pathValue = withStubbedGh(
+      root,
+      `#!/usr/bin/env sh
+printf '%s' '{"title":"Minimal bemoat:agent:issue contract for issue-driven AI workflow","url":"https://github.com/boat1994/bemoat-web-starter/issues/83"}'
+`,
+    )
 
-    const result = runAgentIssue(root, ['--', '83'])
+    const result = runAgentIssue(root, ['--', '83'], { PATH: pathValue })
 
     expect(result.status).toBe(0)
     expect(result.stdout).toContain('Issue number: 83')
+    expect(result.stdout).toContain('Title: Minimal bemoat:agent:issue contract for issue-driven AI workflow')
   })
 
   it('fails on main and suggests a topic branch command without mutating the repo', () => {
@@ -168,13 +175,21 @@ printf '%s' '{"title":"Minimal bemoat:agent:issue contract for issue-driven AI w
 
   it('fails when the working tree is dirty', () => {
     const root = createRepo('feature/83-agent-issue')
+    const pathValue = withStubbedGh(
+      root,
+      `#!/usr/bin/env sh
+echo 'offline test gh stub' >&2
+exit 1
+`,
+    )
     writeFileSync(join(root, 'dirty.txt'), 'pending change\n')
 
-    const result = runAgentIssue(root, ['83'])
+    const result = runAgentIssue(root, ['83'], { PATH: pathValue })
 
     expect(result.status).toBe(1)
     expect(result.stdout).toContain('Git status --short:\n?? dirty.txt')
     expect(result.stdout).toContain('Working tree: not clean.')
+    expect(result.stdout).toContain('Metadata unavailable: offline test gh stub')
     expect(result.stdout).toContain('Report the dirty working tree blocker and do not edit files.')
   })
 
