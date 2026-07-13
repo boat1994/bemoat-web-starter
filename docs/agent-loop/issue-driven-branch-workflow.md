@@ -4,6 +4,11 @@ Reusable rule for **issue-based agent tasks** in `bemoat-web-starter` and child 
 
 Child projects receive this file through harness sync. Agents must follow it whenever work is tied to a GitHub issue.
 
+When creating or normalizing a GitHub issue from a conversation, use
+[issue-intake-contract.md](./issue-intake-contract.md) as the canonical intake
+structure instead of duplicating issue-shaping guidance in multiple workflow
+docs.
+
 ## Required first steps (before any file edit)
 
 For issue-based work, do not edit files first.
