@@ -1,9 +1,46 @@
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 
 import { afterEach, describe, expect, it } from 'vitest'
+
+import {
+  analyzeExactHeadCi,
+  analyzeProgressTracking,
+  isCheckSuccessful,
+  normalizeStatusChecks,
+  parseDurableProgress,
+  parseIssueDeclarations,
+  parseIssueReference,
+  runAgentIssuePreflight,
+  validatePlanPath,
+} from '../../scripts/agent-issue.mjs'
+
+const PRODUCTION_PR103_ROLLUP = [
+  {
+    __typename: 'CheckRun',
+    completedAt: '2026-07-13T13:48:20Z',
+    conclusion: 'SUCCESS',
+    detailsUrl:
+      'https://github.com/boat1994/bemoat-web-starter/actions/runs/29255089356/job/86833152417',
+    name: 'starter-ci',
+    startedAt: '2026-07-13T13:46:10Z',
+    status: 'COMPLETED',
+    workflowName: 'CI (starter strict)',
+  },
+  {
+    __typename: 'CheckRun',
+    completedAt: '2026-07-13T13:46:45Z',
+    conclusion: 'SUCCESS',
+    detailsUrl:
+      'https://github.com/boat1994/bemoat-web-starter/actions/runs/29255089357/job/86833152618',
+    name: 'ci',
+    startedAt: '2026-07-13T13:46:10Z',
+    status: 'COMPLETED',
+    workflowName: 'CI',
+  },
+]
 
 const repoRoot = process.cwd()
 const scriptPath = resolve(repoRoot, 'scripts/agent-issue.mjs')
@@ -31,7 +68,18 @@ function createRepo(branch: string) {
 
   expect(remote.status, remote.stderr).toBe(0)
 
+  spawnSync('git', ['config', 'user.email', 'agent-issue@test'], { cwd: root, encoding: 'utf8' })
+  spawnSync('git', ['config', 'user.name', 'Agent Issue Test'], { cwd: root, encoding: 'utf8' })
+
   return root
+}
+
+function seedTrackedFile(root: string, relativePath: string, content: string) {
+  const absolute = join(root, relativePath)
+  mkdirSync(dirname(absolute), { recursive: true })
+  writeFileSync(absolute, content)
+  spawnSync('git', ['add', relativePath], { cwd: root, encoding: 'utf8' })
+  spawnSync('git', ['commit', '-m', 'seed fixture'], { cwd: root, encoding: 'utf8' })
 }
 
 function writeExecutable(filePath: string, content: string) {
@@ -64,6 +112,165 @@ afterEach(() => {
   }
 })
 
+describe('agent issue parsing helpers', () => {
+  it('parses declared Main Issue, plan path, and current stage fields', () => {
+    const body = `
+Main Issue: #106
+Implementation Plan: \`docs/superpowers/plans/bogus/growth/ads-line-v1/task-d-growth-v1-implementation-plan.md\`
+
+## Current Stage
+- Current Slice: Slice B
+- Current Task or gate: Task 3
+- Active Task Issue: #121
+- Active PR: #122
+- Relevant plan section: Slice B — Acquisition Handoff
+
+## Next Permitted Action
+Open the review gate issue.
+`
+
+    const declarations = parseIssueDeclarations(body)
+
+    expect(declarations.declaresMainIssue).toBe(true)
+    expect(declarations.mainIssueRef).toBe('#106')
+    expect(declarations.declaresImplementationPlan).toBe(true)
+    expect(declarations.implementationPlanPath).toBe(
+      'docs/superpowers/plans/bogus/growth/ads-line-v1/task-d-growth-v1-implementation-plan.md',
+    )
+    expect(declarations.currentStage).toMatchObject({
+      current_slice: 'Slice B',
+      active_pr: '#122',
+    })
+    expect(declarations.nextPermittedAction).toBe('Open the review gate issue.')
+  })
+
+  it('parses GitHub issue template ### headings from agent-task form fields', () => {
+    const body = `
+### Main Issue (Core / multi-stage)
+
+#106
+
+### Implementation Plan path (Core / multi-stage)
+
+docs/superpowers/plans/sample/implementation-plan.md
+
+### Active PR
+
+#122
+`
+
+    const declarations = parseIssueDeclarations(body)
+
+    expect(declarations.declaresMainIssue).toBe(true)
+    expect(declarations.mainIssueRef).toBe('#106')
+    expect(declarations.declaresImplementationPlan).toBe(true)
+    expect(declarations.implementationPlanPath).toBe(
+      'docs/superpowers/plans/sample/implementation-plan.md',
+    )
+    expect(declarations.activePrRef).toBe('#122')
+  })
+
+  it('does not treat Parent section prose as a declared Main Issue', () => {
+    const body = `## Parent
+
+None — this is an upstream harness-standard issue.`
+
+    const declarations = parseIssueDeclarations(body)
+
+    expect(declarations.declaresMainIssue).toBe(false)
+  })
+
+  it('ignores durable progress examples inside fenced code blocks', () => {
+    const body = `
+Recommended form:
+
+\`\`\`md
+## Durable Progress
+- [ ] Example only
+\`\`\`
+
+## Acceptance Criteria
+- [ ] Real criterion
+`
+
+    const progress = parseDurableProgress(body)
+
+    expect(progress.hasChecklist).toBe(false)
+    expect(progress.firstIncomplete).toBeNull()
+  })
+
+  it('finds the first incomplete durable milestone', () => {
+    const body = `
+## Durable Progress
+
+### Slice A — Foundation
+- [x] Task 1 implementation complete
+- [ ] Exact-head CI passed
+
+### Slice B — Acquisition Handoff
+- [ ] Task 3 implementation complete
+`
+
+    const progress = parseDurableProgress(body)
+
+    expect(progress.firstIncomplete?.label).toBe('Exact-head CI passed')
+    expect(progress.firstIncomplete?.slice).toBe('Slice A — Foundation')
+  })
+
+  it('parses owner/repo issue references', () => {
+    expect(parseIssueReference('boat1994/bogus-jewelry#106')).toEqual({
+      repo: 'boat1994/bogus-jewelry',
+      number: '106',
+    })
+    expect(parseIssueReference('#119', 'boat1994/bemoat-web-starter')).toEqual({
+      repo: 'boat1994/bemoat-web-starter',
+      number: '119',
+    })
+  })
+
+  it('validates plan paths and relevant sections', () => {
+    const root = createRepo('feature/101-agent-issue')
+    const planPath = 'docs/superpowers/plans/sample/implementation-plan.md'
+    const absolute = join(root, planPath)
+    mkdirSync(join(root, 'docs/superpowers/plans/sample'), { recursive: true })
+    writeFileSync(
+      absolute,
+      '# Implementation Plan\n\n## Slice A — Foundation\n\nDetails.\n',
+    )
+
+    expect(validatePlanPath(root, planPath, 'Slice A — Foundation').ok).toBe(true)
+    expect(validatePlanPath(root, planPath, 'Missing Slice').ok).toBe(false)
+    expect(validatePlanPath(root, 'docs/missing-plan.md').ok).toBe(false)
+  })
+
+  it('distinguishes exact-head CI from older successful CI evidence', () => {
+    const production = analyzeExactHeadCi({
+      headRefOid: '0e02e42e9c6953bd4a18e8f78f44ca6044e4b5d2',
+      statusCheckRollup: PRODUCTION_PR103_ROLLUP,
+    })
+    const legacyExactHead = analyzeExactHeadCi({
+      headRefOid: 'abc123def456',
+      statusCheckRollup: {
+        contexts: [{ state: 'SUCCESS', targetUrl: 'https://github.com/runs/abc123def456' }],
+      },
+    })
+    const legacyOlderSha = analyzeExactHeadCi({
+      headRefOid: 'currentheadsha111',
+      statusCheckRollup: {
+        contexts: [{ state: 'SUCCESS', targetUrl: 'https://github.com/runs/oldsha999' }],
+      },
+    })
+
+    expect(normalizeStatusChecks(PRODUCTION_PR103_ROLLUP)).toHaveLength(2)
+    expect(isCheckSuccessful(PRODUCTION_PR103_ROLLUP[0])).toBe(true)
+    expect(production.exactHeadVerified).toBe(true)
+    expect(production.summary).toContain('Exact-head CI verified for 0e02e42')
+    expect(legacyExactHead.exactHeadVerified).toBe(true)
+    expect(legacyOlderSha.exactHeadVerified).toBe(false)
+    expect(legacyOlderSha.olderShaSuccess).toBe(true)
+  })
+})
+
 describe('agent issue preflight', () => {
   it('exits non-zero when the issue number is missing', () => {
     const root = createRepo('feature/83-agent-issue')
@@ -78,7 +285,15 @@ describe('agent issue preflight', () => {
     const pathValue = withStubbedGh(
       root,
       `#!/usr/bin/env sh
-printf '%s' '{"title":"Minimal bemoat:agent:issue contract for issue-driven AI workflow","url":"https://github.com/boat1994/bemoat-web-starter/issues/83"}'
+case "$*" in
+  *"--json"*"title,url,body,labels"*)
+    printf '%s' '{"title":"Minimal bemoat:agent:issue contract for issue-driven AI workflow","url":"https://github.com/boat1994/bemoat-web-starter/issues/83","body":"## Goal\\nSmall standalone task.","labels":[]}'
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
 `,
     )
 
@@ -92,13 +307,12 @@ printf '%s' '{"title":"Minimal bemoat:agent:issue contract for issue-driven AI w
     expect(result.stdout).toContain(
       'Suggested branch default: feature/83-minimal-bemoat-agent-issue-contract-for-issue-dr',
     )
-    expect(result.stdout).toContain('Adjust the prefix if this is docs, fix, chore, test, or refactor work.')
+    expect(result.stdout).toContain('Progress tracking:')
+    expect(result.stdout).toContain('No Main Issue declared — expected for valid Small or standalone tasks.')
     expect(result.stdout).toContain('Validation guidance:')
     expect(result.stdout).toContain('- Follow the validation tier in AGENTS.md.')
-    expect(result.stdout).toContain('- Starter code/script changes usually require pnpm run check.')
-    expect(result.stdout).toContain('- Child repos must use the bemoat:* tier documented in AGENTS.md.')
-    expect(result.stdout).not.toContain('Starter docs-only changes: pnpm run guard:safety')
     expect(result.stdout).toContain('Next manual step: Read the listed docs')
+    expect(result.stdout).toContain('docs/agent-loop/project-progress-tracking.md')
   })
 
   it('accepts the documented pnpm argument separator before the issue number', () => {
@@ -106,7 +320,7 @@ printf '%s' '{"title":"Minimal bemoat:agent:issue contract for issue-driven AI w
     const pathValue = withStubbedGh(
       root,
       `#!/usr/bin/env sh
-printf '%s' '{"title":"Minimal bemoat:agent:issue contract for issue-driven AI workflow","url":"https://github.com/boat1994/bemoat-web-starter/issues/83"}'
+printf '%s' '{"title":"Minimal bemoat:agent:issue contract for issue-driven AI workflow","url":"https://github.com/boat1994/bemoat-web-starter/issues/83","body":"","labels":[]}'
 `,
     )
 
@@ -122,7 +336,7 @@ printf '%s' '{"title":"Minimal bemoat:agent:issue contract for issue-driven AI w
     const pathValue = withStubbedGh(
       root,
       `#!/usr/bin/env sh
-printf '%s' '{"title":"Minimal bemoat:agent:issue contract for issue-driven AI workflow","url":"https://github.com/boat1994/bemoat-web-starter/issues/83"}'
+printf '%s' '{"title":"Minimal bemoat:agent:issue contract for issue-driven AI workflow","url":"https://github.com/boat1994/bemoat-web-starter/issues/83","body":"","labels":[]}'
 `,
     )
 
@@ -140,14 +354,9 @@ printf '%s' '{"title":"Minimal bemoat:agent:issue contract for issue-driven AI w
 
     expect(result.status).toBe(1)
     expect(result.stdout).toContain('main is protected and read-only for direct coding')
-    expect(result.stdout).toContain('Repo bootstrap note:')
     expect(result.stdout).toContain(
       "Next manual step: Create a topic branch from the repo's current integration baseline.",
     )
-    expect(result.stdout).toContain(
-      'Example when dev is unavailable: git switch -c feature/83-minimal-bemoat-agent-issue-contract-for-issue-dr',
-    )
-    expect(result.stdout).not.toContain('Next recommended command:')
     expect(afterBranches).toBe(beforeBranches)
   })
 
@@ -156,7 +365,7 @@ printf '%s' '{"title":"Minimal bemoat:agent:issue contract for issue-driven AI w
     const pathValue = withStubbedGh(
       root,
       `#!/usr/bin/env sh
-printf '%s' '{"title":"Minimal bemoat:agent:issue contract for issue-driven AI workflow","url":"https://github.com/boat1994/bemoat-web-starter/issues/83"}'
+printf '%s' '{"title":"Minimal bemoat:agent:issue contract for issue-driven AI workflow","url":"https://github.com/boat1994/bemoat-web-starter/issues/83","body":"","labels":[]}'
 `,
     )
 
@@ -164,13 +373,6 @@ printf '%s' '{"title":"Minimal bemoat:agent:issue contract for issue-driven AI w
 
     expect(result.status).toBe(1)
     expect(result.stdout).toContain('dev is an integration branch, not a routine implementation branch')
-    expect(result.stdout).toContain(
-      "Next manual step: Create a topic branch from the repo's current integration baseline.",
-    )
-    expect(result.stdout).toContain(
-      'Example from the current dev branch: git switch -c feature/83-minimal-bemoat-agent-issue-contract-for-issue-dr',
-    )
-    expect(result.stdout).not.toContain('Next recommended command:')
   })
 
   it('fails when the working tree is dirty', () => {
@@ -210,5 +412,228 @@ exit 1
     expect(result.stdout).toContain(
       'Best-effort issue URL: https://github.com/boat1994/bemoat-web-starter/issues/83',
     )
+  })
+
+  it('reports linked Main Issue milestones and next action', () => {
+    const root = createRepo('feature/121-agent-issue')
+    const planPath = 'docs/superpowers/plans/sample/implementation-plan.md'
+    seedTrackedFile(root, planPath, '# Implementation Plan\n\n## Slice B — Acquisition Handoff\n')
+
+    const pathValue = withStubbedGh(
+      root,
+      `#!/usr/bin/env sh
+case "$*" in
+  *"issue view 121"*)
+    printf '%s' '{"title":"Slice B task","url":"https://github.com/boat1994/bemoat-web-starter/issues/121","body":"Main Issue: #106\\nImplementation Plan: \`docs/superpowers/plans/sample/implementation-plan.md\`\\nActive PR: #122\\n\\n## Current Stage\\n- Current Slice: Slice B\\n- Relevant plan section: Slice B — Acquisition Handoff\\n\\n## Next Permitted Action\\nFinish the review gate.","labels":[]}'
+    ;;
+  *"issue view 106"*)
+    printf '%s' '{"title":"Growth V1 Main Issue","url":"https://github.com/boat1994/bogus-jewelry/issues/106","body":"## Durable Progress\\n\\n### Slice A — Foundation\\n- [x] Task 1 implementation complete\\n\\n### Slice B — Acquisition Handoff\\n- [ ] Exact-head CI passed","state":"OPEN"}'
+    ;;
+  *"pr view 122"*)
+    printf '%s' '{"title":"Slice B PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/122","headRefName":"feature/121-slice-b","baseRefName":"main","headRefOid":"abc123def456","state":"OPEN","statusCheckRollup":[{"__typename":"CheckRun","conclusion":"SUCCESS","detailsUrl":"https://github.com/boat1994/bemoat-web-starter/actions/runs/1/job/1","name":"ci","status":"COMPLETED","workflowName":"CI"}],"commits":[]}'
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`,
+    )
+
+    const result = runAgentIssue(root, ['121'], { PATH: pathValue })
+
+    expect(result.status).toBe(0)
+    expect(result.stdout).toContain('Declared Main Issue: #106')
+    expect(result.stdout).toContain('First incomplete milestone: Slice B — Acquisition Handoff — Exact-head CI passed')
+    expect(result.stdout).toContain('Relevant plan section: Slice B — Acquisition Handoff')
+    expect(result.stdout).toContain('Next permitted action: Finish the review gate.')
+    expect(result.stdout).toContain('Exact-head CI: Exact-head CI verified for abc123d (1 successful check(s)).')
+    expect(result.stdout).not.toContain('Hard blockers:')
+  })
+
+  it('blocks whenever a declared Active PR cannot be resolved', () => {
+    const root = createRepo('feature/210-agent-issue')
+    const analysis = analyzeProgressTracking({
+      cwd: root,
+      activeIssueBody: 'Active PR: #999\n\n## Goal\nImplement something small.',
+      env: {
+        ...process.env,
+        PATH: withStubbedGh(
+          root,
+          `#!/usr/bin/env sh
+case "$*" in
+  *"pr view 999"*)
+    echo 'not found' >&2
+    exit 1
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`,
+        ),
+      },
+    })
+
+    expect(analysis.blockers.join(' ')).toContain('Declared Active PR could not be identified: #999')
+  })
+
+  it('blocks when the active task targets a later slice than the Main Issue prerequisite', () => {
+    const root = createRepo('feature/211-agent-issue')
+    const analysis = analyzeProgressTracking({
+      cwd: root,
+      activeIssueBody: `
+Main Issue: #106
+
+## Current Stage
+- Current Slice: Slice C — Checkout
+`,
+      env: {
+        ...process.env,
+        PATH: withStubbedGh(
+          root,
+          `#!/usr/bin/env sh
+case "$*" in
+  *"issue view 106"*)
+    printf '%s' '{"title":"Growth V1 Main Issue","url":"https://github.com/boat1994/bogus-jewelry/issues/106","body":"## Durable Progress\\n\\n### Slice B — Acquisition Handoff\\n- [ ] Exact-head CI passed","state":"OPEN"}'
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`,
+        ),
+      },
+    })
+
+    expect(analysis.blockers.join(' ')).toContain(
+      'Main Issue prerequisite milestone remains incomplete in Slice B — Acquisition Handoff',
+    )
+  })
+
+  it('blocks when linked Main Issue reports blocking findings', () => {
+    const root = createRepo('feature/212-agent-issue')
+    const analysis = analyzeProgressTracking({
+      cwd: root,
+      activeIssueBody: 'Main Issue: #106',
+      env: {
+        ...process.env,
+        PATH: withStubbedGh(
+          root,
+          `#!/usr/bin/env sh
+case "$*" in
+  *"issue view 106"*)
+    printf '%s' '{"title":"Growth V1 Main Issue","url":"https://github.com/boat1994/bogus-jewelry/issues/106","body":"## Current Stage\\n- Blocking findings: Critical auth regression open\\n\\n## Durable Progress\\n- [ ] Exact-head CI passed","state":"OPEN"}'
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`,
+        ),
+      },
+    })
+
+    expect(analysis.blockers.join(' ')).toContain(
+      'Unresolved Critical or Important findings on Main Issue block dependent work',
+    )
+  })
+
+  it('blocks when a declared Main Issue or Implementation Plan cannot be resolved', () => {
+    const root = createRepo('feature/200-agent-issue')
+    const pathValue = withStubbedGh(
+      root,
+      `#!/usr/bin/env sh
+case "$*" in
+  *"issue view 200"*)
+    printf '%s' '{"title":"Broken linkage","url":"https://github.com/boat1994/bemoat-web-starter/issues/200","body":"Main Issue: #999\\nImplementation Plan: \`docs/missing-plan.md\`","labels":[]}'
+    ;;
+  *"issue view 999"*)
+    echo 'Could not resolve to an issue' >&2
+    exit 1
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`,
+    )
+
+    const result = runAgentIssue(root, ['200'], { PATH: pathValue })
+
+    expect(result.status).toBe(1)
+    expect(result.stdout).toContain('Hard blockers:')
+    expect(result.stdout).toContain('Declared Main Issue could not be found: #999')
+    expect(result.stdout).toContain('Implementation Plan path does not exist: docs/missing-plan.md')
+    expect(result.stdout).toContain(
+      'Resolve the progress-tracking blockers above before continuing implementation.',
+    )
+  })
+
+  it('warns when older CI exists but exact-head verification is not confirmed', () => {
+    const root = createRepo('feature/201-agent-issue')
+    const analysis = analyzeProgressTracking({
+      cwd: root,
+      activeIssueBody: `
+Active PR: #130
+
+## Durable Progress
+- [ ] Exact-head CI passed
+`,
+      env: {
+        ...process.env,
+        PATH: withStubbedGh(
+          root,
+          `#!/usr/bin/env sh
+case "$*" in
+  *"pr view 130"*)
+    printf '%s' '{"title":"Older CI PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/130","headRefName":"feature/201","baseRefName":"main","headRefOid":"currentheadsha111","state":"OPEN","statusCheckRollup":{"contexts":[{"state":"SUCCESS","targetUrl":"https://github.com/runs/oldsha999"}]},"commits":[]}'
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`,
+        ),
+      },
+    })
+
+    expect(analysis.warnings.join(' ')).toContain('older SHA')
+    expect(analysis.report.exactHeadCi?.exactHeadVerified).toBe(false)
+  })
+
+  it('keeps preflight read-only through the exported runner', () => {
+    const root = createRepo('feature/101-agent-issue')
+    const beforeStatus = spawnSync('git', ['status', '--short'], {
+      cwd: root,
+      encoding: 'utf8',
+    }).stdout
+
+    const report = runAgentIssuePreflight({
+      cwd: root,
+      argv: ['101'],
+      env: {
+        ...process.env,
+        PATH: withStubbedGh(
+          root,
+          `#!/usr/bin/env sh
+printf '%s' '{"title":"Harness task","url":"https://github.com/boat1994/bemoat-web-starter/issues/101","body":"Small task","labels":[]}'
+`,
+        ),
+      },
+    })
+
+    const afterStatus = spawnSync('git', ['status', '--short'], {
+      cwd: root,
+      encoding: 'utf8',
+    }).stdout
+
+    expect(report.ok).toBe(true)
+    expect(beforeStatus).toBe(afterStatus)
   })
 })

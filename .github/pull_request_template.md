@@ -2,6 +2,23 @@
 
 <!-- What problem does this PR solve? Does this belong in bemoat-web-starter or a child project? -->
 
+## Progress tracking (Core / multi-stage)
+
+<!-- Link durable progress back to the Main Issue. See docs/agent-loop/project-progress-tracking.md -->
+
+- Main Issue:
+- Active Task Issue:
+- Canonical Implementation Plan:
+- Relevant plan section:
+- Approved base branch:
+- Base SHA:
+- Current head SHA:
+- Exact-head CI:
+- Durable milestones proven by this PR:
+- Unresolved Critical or Important findings:
+- Founder gate:
+- Child-sync impact:
+
 ## Changes
 
 <!-- Bullet list of what changed and why. -->
