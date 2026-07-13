@@ -146,6 +146,72 @@ function extractBacktickPath(text) {
   return match ? match[1].trim() : text.trim()
 }
 
+function isMeaningfulIssueRef(value) {
+  if (!value) return false
+  const trimmed = value.trim()
+  if (/^none\b/i.test(trimmed)) return false
+  return /(?:^|\s)(?:[\w.-]+\/[\w.-]+)?#?\d+\b/.test(trimmed)
+}
+
+function parseIssueFormSection(source, headingPrefix) {
+  const pattern = new RegExp(
+    `^###\\s+${headingPrefix}[^\\n]*\\n+([^#][\\s\\S]*?)(?=\\n###\\s|\\n##\\s|\\n*$)`,
+    'im',
+  )
+  const match = source.match(pattern)
+  if (!match) return null
+
+  const value = match[1]
+    .split('\n')
+    .map((line) => line.trim())
+    .find((line) => line.length > 0 && !/^[-*_]+$/.test(line))
+
+  return value ?? null
+}
+
+function assignDeclarationValue(declarations, key, value, options = {}) {
+  if (!value) return
+  const trimmed = value.trim()
+  if (!trimmed || /^none\b/i.test(trimmed)) return
+
+  if (key === 'mainIssueRef') {
+    if (!isMeaningfulIssueRef(trimmed)) return
+    declarations.declaresMainIssue = true
+    declarations.mainIssueRef = trimmed
+    return
+  }
+
+  if (key === 'implementationPlanPath') {
+    declarations.declaresImplementationPlan = true
+    declarations.implementationPlanPath = extractBacktickPath(trimmed)
+    return
+  }
+
+  if (key === 'relevantPlanSection') {
+    declarations.relevantPlanSection = trimmed
+    return
+  }
+
+  if (key === 'activeTaskIssueRef') {
+    declarations.activeTaskIssueRef = trimmed
+    return
+  }
+
+  if (key === 'activePrRef') {
+    declarations.activePrRef = trimmed
+    return
+  }
+
+  if (key === 'approvedBase') {
+    declarations.approvedBase = trimmed
+    return
+  }
+
+  if (options.currentStageKey) {
+    declarations.currentStage[options.currentStageKey] = trimmed
+  }
+}
+
 export function parseIssueDeclarations(body = '') {
   const source = stripFencedCodeBlocks(body)
   const declarations = {
@@ -163,42 +229,59 @@ export function parseIssueDeclarations(body = '') {
   }
 
   const mainIssueMatch = source.match(
-    /(?:^|\n)\s*(?:Main(?:\s+GitHub)?\s+Issue|Parent(?:\s+Issue)?)\s*:\s*(.+)/im,
+    /(?:^|\n)\s*(?:Main(?:\s+GitHub)?\s+Issue|Parent\s+Issue)\s*:\s*(.+)/im,
   )
-  if (mainIssueMatch) {
-    declarations.declaresMainIssue = true
-    declarations.mainIssueRef = mainIssueMatch[1].trim()
-  }
+  assignDeclarationValue(declarations, 'mainIssueRef', mainIssueMatch?.[1] ?? null)
 
   const planMatch = source.match(
     /(?:^|\n)\s*(?:Canonical\s+)?Implementation\s+Plan(?:\s+path)?\s*:\s*(.+)/im,
   )
-  if (planMatch) {
-    declarations.declaresImplementationPlan = true
-    declarations.implementationPlanPath = extractBacktickPath(planMatch[1])
-  }
+  assignDeclarationValue(declarations, 'implementationPlanPath', planMatch?.[1] ?? null)
 
   const relevantSectionMatch = source.match(
     /(?:^|\n)\s*Relevant\s+plan\s+section\s*:\s*(.+)/im,
   )
-  if (relevantSectionMatch) {
-    declarations.relevantPlanSection = relevantSectionMatch[1].trim()
-  }
+  assignDeclarationValue(
+    declarations,
+    'relevantPlanSection',
+    relevantSectionMatch?.[1] ?? null,
+  )
 
   const activeTaskMatch = source.match(/(?:^|\n)\s*Active\s+Task\s+Issue\s*:\s*(.+)/im)
-  if (activeTaskMatch) {
-    declarations.activeTaskIssueRef = activeTaskMatch[1].trim()
-  }
+  assignDeclarationValue(declarations, 'activeTaskIssueRef', activeTaskMatch?.[1] ?? null)
 
   const activePrMatch = source.match(/(?:^|\n)\s*Active\s+PR\s*:\s*(.+)/im)
-  if (activePrMatch) {
-    declarations.activePrRef = activePrMatch[1].trim()
-  }
+  assignDeclarationValue(declarations, 'activePrRef', activePrMatch?.[1] ?? null)
 
   const approvedBaseMatch = source.match(/(?:^|\n)\s*Approved\s+base(?:\s+branch)?\s*:\s*(.+)/im)
-  if (approvedBaseMatch) {
-    declarations.approvedBase = approvedBaseMatch[1].trim()
-  }
+  assignDeclarationValue(declarations, 'approvedBase', approvedBaseMatch?.[1] ?? null)
+
+  assignDeclarationValue(
+    declarations,
+    'mainIssueRef',
+    parseIssueFormSection(source, 'Main Issue'),
+  )
+  assignDeclarationValue(
+    declarations,
+    'implementationPlanPath',
+    parseIssueFormSection(source, 'Implementation Plan path'),
+  )
+  assignDeclarationValue(
+    declarations,
+    'relevantPlanSection',
+    parseIssueFormSection(source, 'Relevant plan section'),
+  )
+  assignDeclarationValue(
+    declarations,
+    'activeTaskIssueRef',
+    parseIssueFormSection(source, 'Active Task Issue'),
+  )
+  assignDeclarationValue(declarations, 'activePrRef', parseIssueFormSection(source, 'Active PR'))
+  assignDeclarationValue(
+    declarations,
+    'approvedBase',
+    parseIssueFormSection(source, 'Approved base branch'),
+  )
 
   const taskSizeMatch = source.match(
     /(?:^|\n)\s*(?:Task\s+size|This is a)\s*[:\s]*\**\s*(small|medium|core)\b/i,
@@ -448,6 +531,43 @@ export function validatePlanPath(cwd, planPath, relevantSection = null) {
   return { ok: true, planPath, absolutePath, relevantSection }
 }
 
+export function normalizeStatusChecks(statusCheckRollup) {
+  if (!statusCheckRollup) return []
+  if (Array.isArray(statusCheckRollup)) return statusCheckRollup
+  if (Array.isArray(statusCheckRollup.contexts)) return statusCheckRollup.contexts
+  return []
+}
+
+export function isCheckSuccessful(check) {
+  if (!check) return false
+  if (check.conclusion === 'SUCCESS') return true
+  if (check.state === 'SUCCESS') return true
+  return false
+}
+
+export function isCheckFailed(check) {
+  if (!check) return false
+  if (check.conclusion === 'FAILURE' || check.conclusion === 'CANCELLED') return true
+  if (check.state === 'FAILURE') return true
+  return false
+}
+
+function checkReferencesHeadSha(check, headSha) {
+  if (!check || !headSha) return false
+  const headShort = headSha.slice(0, 7)
+  const haystack = [
+    check.targetUrl,
+    check.detailsUrl,
+    check.description,
+    check.name,
+    check.context,
+  ]
+    .filter(Boolean)
+    .join(' ')
+
+  return haystack.includes(headSha) || haystack.includes(headShort)
+}
+
 export function analyzeExactHeadCi(pr) {
   if (!pr) {
     return {
@@ -460,9 +580,11 @@ export function analyzeExactHeadCi(pr) {
   }
 
   const headSha = pr.headRefOid ?? null
-  const checks = pr.statusCheckRollup?.contexts ?? []
-  const successfulChecks = checks.filter((check) => check.state === 'SUCCESS')
+  const checks = normalizeStatusChecks(pr.statusCheckRollup)
+  const successfulChecks = checks.filter(isCheckSuccessful)
+  const failedChecks = checks.filter(isCheckFailed)
   const latestSuccessful = successfulChecks[0] ?? null
+  const usesProductionRollup = Array.isArray(pr.statusCheckRollup)
 
   if (!headSha) {
     return {
@@ -486,12 +608,20 @@ export function analyzeExactHeadCi(pr) {
   }
 
   const headShort = headSha.slice(0, 7)
-  const exactHeadSuccess = successfulChecks.some((check) => {
-    const haystack = `${check.targetUrl ?? ''} ${check.description ?? ''}`
-    return haystack.includes(headSha) || haystack.includes(headShort)
-  })
+  const explicitHeadMatch = successfulChecks.some((check) => checkReferencesHeadSha(check, headSha))
+  const explicitOlderShaSuccess = successfulChecks.some(
+    (check) => !checkReferencesHeadSha(check, headSha),
+  )
   const anySuccess = successfulChecks.length > 0
-  const ciSha = latestSuccessful?.description?.match(/\b[a-f0-9]{7,40}\b/i)?.[0] ?? null
+
+  // gh pr view returns statusCheckRollup as an array scoped to the current PR head.
+  const exactHeadSuccess =
+    failedChecks.length === 0 &&
+    anySuccess &&
+    (usesProductionRollup || explicitHeadMatch)
+
+  const ciSha =
+    latestSuccessful?.description?.match(/\b[a-f0-9]{7,40}\b/i)?.[0] ?? headSha
 
   return {
     available: true,
@@ -499,12 +629,33 @@ export function analyzeExactHeadCi(pr) {
     headSha,
     ciSha,
     summary: exactHeadSuccess
-      ? `Exact-head CI verified for ${headShort}.`
-      : anySuccess
-        ? 'Successful CI exists, but exact-head verification is not confirmed for the current PR head SHA.'
-        : 'CI has not succeeded for the current PR head.',
-    olderShaSuccess: anySuccess && !exactHeadSuccess,
+      ? `Exact-head CI verified for ${headShort} (${successfulChecks.length} successful check(s)).`
+      : failedChecks.length > 0
+        ? 'CI checks failed for the current PR head.'
+        : anySuccess
+          ? 'Successful CI exists, but exact-head verification is not confirmed for the current PR head SHA.'
+          : 'CI has not succeeded for the current PR head.',
+    olderShaSuccess: anySuccess && !exactHeadSuccess && explicitOlderShaSuccess,
   }
+}
+
+function normalizeSliceName(slice) {
+  if (!slice) return ''
+  return slice.split('—')[0].trim().toLowerCase()
+}
+
+function checkPrerequisiteMilestone(mainProgress, declarations) {
+  const incomplete = mainProgress.firstIncomplete
+  if (!incomplete?.slice) return null
+
+  const taskSlice = declarations.currentStage.current_slice
+  if (!taskSlice) return null
+
+  if (normalizeSliceName(taskSlice) !== normalizeSliceName(incomplete.slice)) {
+    return `Main Issue prerequisite milestone remains incomplete in ${incomplete.slice}: ${incomplete.label}`
+  }
+
+  return null
 }
 
 function detectBlockingFindings(currentStage = {}) {
@@ -566,6 +717,7 @@ export function analyzeProgressTracking({
     } else {
       report.mainIssue = mainIssueResult.issue
       const mainProgress = parseDurableProgress(mainIssueResult.issue.body ?? '')
+      const mainDeclarations = parseIssueDeclarations(mainIssueResult.issue.body ?? '')
       report.durableProgress = mainProgress
       report.firstIncompleteMilestone = mainProgress.firstIncomplete
       if (mainProgress.malformed) {
@@ -573,6 +725,18 @@ export function analyzeProgressTracking({
       }
       if (!mainProgress.hasChecklist) {
         warnings.push('Declared Main Issue has no supported Durable Progress checklist yet.')
+      }
+
+      const prerequisiteBlocker = checkPrerequisiteMilestone(mainProgress, declarations)
+      if (prerequisiteBlocker) {
+        blockers.push(prerequisiteBlocker)
+      }
+
+      const mainBlockingFindings = detectBlockingFindings(mainDeclarations.currentStage)
+      if (mainBlockingFindings.length > 0) {
+        blockers.push(
+          `Unresolved Critical or Important findings on Main Issue block dependent work: ${mainBlockingFindings.join('; ')}`,
+        )
       }
     }
   } else if (
@@ -607,11 +771,7 @@ export function analyzeProgressTracking({
   if (activePrRef) {
     const prResult = fetchPrByReference(cwd, activePrRef, env)
     if (!prResult.ok) {
-      if (/exact-head|ci passed|merge approval|pr merged/i.test(activeIssueBody)) {
-        blockers.push(`Active PR is required but could not be identified: ${activePrRef}`)
-      } else {
-        warnings.push(`Active PR reference could not be resolved: ${activePrRef}`)
-      }
+      blockers.push(`Declared Active PR could not be identified: ${activePrRef}`)
     } else {
       report.pr = prResult.pr
       report.exactHeadCi = analyzeExactHeadCi(prResult.pr)

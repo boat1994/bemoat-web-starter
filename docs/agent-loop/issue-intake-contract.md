@@ -59,6 +59,11 @@ The point where this issue is complete without expanding into future work.
 Sections with no meaningful content may be omitted. Do not add filler merely to
 complete the template.
 
+For Core or multi-stage work, also follow
+[project-progress-tracking.md](./project-progress-tracking.md) and use the
+`agent-task` template optional Main Issue / Implementation Plan fields or the
+equivalent `Main Issue:` / `### Main Issue` declarations.
+
 ## Normalization rules
 
 When converting a conversation into an issue, ChatGPT must:

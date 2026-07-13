@@ -8,12 +8,39 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   analyzeExactHeadCi,
   analyzeProgressTracking,
+  isCheckSuccessful,
+  normalizeStatusChecks,
   parseDurableProgress,
   parseIssueDeclarations,
   parseIssueReference,
   runAgentIssuePreflight,
   validatePlanPath,
 } from '../../scripts/agent-issue.mjs'
+
+const PRODUCTION_PR103_ROLLUP = [
+  {
+    __typename: 'CheckRun',
+    completedAt: '2026-07-13T13:48:20Z',
+    conclusion: 'SUCCESS',
+    detailsUrl:
+      'https://github.com/boat1994/bemoat-web-starter/actions/runs/29255089356/job/86833152417',
+    name: 'starter-ci',
+    startedAt: '2026-07-13T13:46:10Z',
+    status: 'COMPLETED',
+    workflowName: 'CI (starter strict)',
+  },
+  {
+    __typename: 'CheckRun',
+    completedAt: '2026-07-13T13:46:45Z',
+    conclusion: 'SUCCESS',
+    detailsUrl:
+      'https://github.com/boat1994/bemoat-web-starter/actions/runs/29255089357/job/86833152618',
+    name: 'ci',
+    startedAt: '2026-07-13T13:46:10Z',
+    status: 'COMPLETED',
+    workflowName: 'CI',
+  },
+]
 
 const repoRoot = process.cwd()
 const scriptPath = resolve(repoRoot, 'scripts/agent-issue.mjs')
@@ -117,6 +144,42 @@ Open the review gate issue.
     expect(declarations.nextPermittedAction).toBe('Open the review gate issue.')
   })
 
+  it('parses GitHub issue template ### headings from agent-task form fields', () => {
+    const body = `
+### Main Issue (Core / multi-stage)
+
+#106
+
+### Implementation Plan path (Core / multi-stage)
+
+docs/superpowers/plans/sample/implementation-plan.md
+
+### Active PR
+
+#122
+`
+
+    const declarations = parseIssueDeclarations(body)
+
+    expect(declarations.declaresMainIssue).toBe(true)
+    expect(declarations.mainIssueRef).toBe('#106')
+    expect(declarations.declaresImplementationPlan).toBe(true)
+    expect(declarations.implementationPlanPath).toBe(
+      'docs/superpowers/plans/sample/implementation-plan.md',
+    )
+    expect(declarations.activePrRef).toBe('#122')
+  })
+
+  it('does not treat Parent section prose as a declared Main Issue', () => {
+    const body = `## Parent
+
+None — this is an upstream harness-standard issue.`
+
+    const declarations = parseIssueDeclarations(body)
+
+    expect(declarations.declaresMainIssue).toBe(false)
+  })
+
   it('ignores durable progress examples inside fenced code blocks', () => {
     const body = `
 Recommended form:
@@ -181,22 +244,30 @@ Recommended form:
   })
 
   it('distinguishes exact-head CI from older successful CI evidence', () => {
-    const exactHead = analyzeExactHeadCi({
+    const production = analyzeExactHeadCi({
+      headRefOid: '0e02e42e9c6953bd4a18e8f78f44ca6044e4b5d2',
+      statusCheckRollup: PRODUCTION_PR103_ROLLUP,
+    })
+    const legacyExactHead = analyzeExactHeadCi({
       headRefOid: 'abc123def456',
       statusCheckRollup: {
         contexts: [{ state: 'SUCCESS', targetUrl: 'https://github.com/runs/abc123def456' }],
       },
     })
-    const olderSha = analyzeExactHeadCi({
+    const legacyOlderSha = analyzeExactHeadCi({
       headRefOid: 'currentheadsha111',
       statusCheckRollup: {
         contexts: [{ state: 'SUCCESS', targetUrl: 'https://github.com/runs/oldsha999' }],
       },
     })
 
-    expect(exactHead.exactHeadVerified).toBe(true)
-    expect(olderSha.exactHeadVerified).toBe(false)
-    expect(olderSha.olderShaSuccess).toBe(true)
+    expect(normalizeStatusChecks(PRODUCTION_PR103_ROLLUP)).toHaveLength(2)
+    expect(isCheckSuccessful(PRODUCTION_PR103_ROLLUP[0])).toBe(true)
+    expect(production.exactHeadVerified).toBe(true)
+    expect(production.summary).toContain('Exact-head CI verified for 0e02e42')
+    expect(legacyExactHead.exactHeadVerified).toBe(true)
+    expect(legacyOlderSha.exactHeadVerified).toBe(false)
+    expect(legacyOlderSha.olderShaSuccess).toBe(true)
   })
 })
 
@@ -359,7 +430,7 @@ case "$*" in
     printf '%s' '{"title":"Growth V1 Main Issue","url":"https://github.com/boat1994/bogus-jewelry/issues/106","body":"## Durable Progress\\n\\n### Slice A — Foundation\\n- [x] Task 1 implementation complete\\n\\n### Slice B — Acquisition Handoff\\n- [ ] Exact-head CI passed","state":"OPEN"}'
     ;;
   *"pr view 122"*)
-    printf '%s' '{"title":"Slice B PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/122","headRefName":"feature/121-slice-b","baseRefName":"main","headRefOid":"abc123def456","state":"OPEN","statusCheckRollup":{"contexts":[{"state":"SUCCESS","targetUrl":"https://github.com/runs/abc123def456"}]},"commits":[]}'
+    printf '%s' '{"title":"Slice B PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/122","headRefName":"feature/121-slice-b","baseRefName":"main","headRefOid":"abc123def456","state":"OPEN","statusCheckRollup":[{"__typename":"CheckRun","conclusion":"SUCCESS","detailsUrl":"https://github.com/boat1994/bemoat-web-starter/actions/runs/1/job/1","name":"ci","status":"COMPLETED","workflowName":"CI"}],"commits":[]}'
     ;;
   *)
     echo "unexpected gh call: $*" >&2
@@ -376,8 +447,99 @@ esac
     expect(result.stdout).toContain('First incomplete milestone: Slice B — Acquisition Handoff — Exact-head CI passed')
     expect(result.stdout).toContain('Relevant plan section: Slice B — Acquisition Handoff')
     expect(result.stdout).toContain('Next permitted action: Finish the review gate.')
-    expect(result.stdout).toContain('Exact-head CI: Exact-head CI verified for abc123d.')
+    expect(result.stdout).toContain('Exact-head CI: Exact-head CI verified for abc123d (1 successful check(s)).')
     expect(result.stdout).not.toContain('Hard blockers:')
+  })
+
+  it('blocks whenever a declared Active PR cannot be resolved', () => {
+    const root = createRepo('feature/210-agent-issue')
+    const analysis = analyzeProgressTracking({
+      cwd: root,
+      activeIssueBody: 'Active PR: #999\n\n## Goal\nImplement something small.',
+      env: {
+        ...process.env,
+        PATH: withStubbedGh(
+          root,
+          `#!/usr/bin/env sh
+case "$*" in
+  *"pr view 999"*)
+    echo 'not found' >&2
+    exit 1
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`,
+        ),
+      },
+    })
+
+    expect(analysis.blockers.join(' ')).toContain('Declared Active PR could not be identified: #999')
+  })
+
+  it('blocks when the active task targets a later slice than the Main Issue prerequisite', () => {
+    const root = createRepo('feature/211-agent-issue')
+    const analysis = analyzeProgressTracking({
+      cwd: root,
+      activeIssueBody: `
+Main Issue: #106
+
+## Current Stage
+- Current Slice: Slice C — Checkout
+`,
+      env: {
+        ...process.env,
+        PATH: withStubbedGh(
+          root,
+          `#!/usr/bin/env sh
+case "$*" in
+  *"issue view 106"*)
+    printf '%s' '{"title":"Growth V1 Main Issue","url":"https://github.com/boat1994/bogus-jewelry/issues/106","body":"## Durable Progress\\n\\n### Slice B — Acquisition Handoff\\n- [ ] Exact-head CI passed","state":"OPEN"}'
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`,
+        ),
+      },
+    })
+
+    expect(analysis.blockers.join(' ')).toContain(
+      'Main Issue prerequisite milestone remains incomplete in Slice B — Acquisition Handoff',
+    )
+  })
+
+  it('blocks when linked Main Issue reports blocking findings', () => {
+    const root = createRepo('feature/212-agent-issue')
+    const analysis = analyzeProgressTracking({
+      cwd: root,
+      activeIssueBody: 'Main Issue: #106',
+      env: {
+        ...process.env,
+        PATH: withStubbedGh(
+          root,
+          `#!/usr/bin/env sh
+case "$*" in
+  *"issue view 106"*)
+    printf '%s' '{"title":"Growth V1 Main Issue","url":"https://github.com/boat1994/bogus-jewelry/issues/106","body":"## Current Stage\\n- Blocking findings: Critical auth regression open\\n\\n## Durable Progress\\n- [ ] Exact-head CI passed","state":"OPEN"}'
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`,
+        ),
+      },
+    })
+
+    expect(analysis.blockers.join(' ')).toContain(
+      'Unresolved Critical or Important findings on Main Issue block dependent work',
+    )
   })
 
   it('blocks when a declared Main Issue or Implementation Plan cannot be resolved', () => {
