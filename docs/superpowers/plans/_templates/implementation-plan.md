@@ -4,6 +4,24 @@
 
 -
 
+## Main Issue
+
+Link the durable progress tracker for Core or multi-stage work. Omit for Small standalone tasks.
+
+- Main GitHub Issue: #<number> or <owner>/<repo>#<number>
+- Relevant durable milestone section in the Main Issue: (Slice / Task heading)
+
+The Main Issue owns durable project stage. This plan owns roadmap, dependencies, contracts, and verification requirements — not the cross-session current-state tracker.
+
+## Stable Task or Slice headings
+
+Use stable `##` or `###` headings that the Main Issue can reference without scanning the entire plan:
+
+- Slice A — <name>
+- Slice B — <name>
+
+Task-step checkboxes below are execution instructions inside this plan, not the durable project tracker.
+
 ## Required Source Inputs
 
 Use exact repo paths for every required input. Do not reference vague documents such as "the design doc" or "the handoff" without a concrete file path. Use canonical artifact names and exact repo paths.

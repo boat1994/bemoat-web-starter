@@ -80,6 +80,94 @@ body:
     validations:
       required: false
 
+  - type: markdown
+    attributes:
+      value: |
+        **Core / multi-stage only** — omit the fields below for valid Small or standalone tasks.
+        See docs/agent-loop/project-progress-tracking.md for durable progress boundaries.
+
+  - type: input
+    id: main_issue
+    attributes:
+      label: Main Issue (Core / multi-stage)
+      description: Durable project-stage tracker. Example `#106` or `owner/repo#106`. Leave blank for Small tasks.
+      placeholder: "#106"
+    validations:
+      required: false
+
+  - type: input
+    id: implementation_plan
+    attributes:
+      label: Implementation Plan path (Core / multi-stage)
+      description: Canonical roadmap and execution contract. Example `docs/superpowers/plans/acme/launch/homepage/implementation-plan.md`
+      placeholder: docs/superpowers/plans/...
+    validations:
+      required: false
+
+  - type: input
+    id: relevant_plan_section
+    attributes:
+      label: Relevant plan section
+      description: Stable Slice or Task heading the Main Issue references. Omit when not yet known.
+      placeholder: Slice A — Foundation
+    validations:
+      required: false
+
+  - type: input
+    id: approved_base
+    attributes:
+      label: Approved base branch
+      description: Branch the active PR targets. Example `dev` or `main` during bootstrap.
+      placeholder: dev
+    validations:
+      required: false
+
+  - type: textarea
+    id: durable_progress
+    attributes:
+      label: Durable Progress (Main Issue only)
+      description: Concise milestone checklist for the Main Issue. Task Issues link here instead of duplicating.
+      placeholder: |
+        ## Durable Progress
+
+        ### Slice A — Foundation
+        - [ ] Task 1 implementation complete
+        - [ ] Exact-head CI passed
+        - [ ] Founder merge approval
+        - [ ] PR merged into the approved base branch
+
+        ## Current Stage
+        - Current Slice:
+        - Current Task or gate:
+        - Active Task Issue:
+        - Active PR:
+        - Relevant plan section:
+        - Blocking findings:
+        - Founder gate:
+
+        ## Next Permitted Action
+        One concrete action only.
+    validations:
+      required: false
+
+  - type: input
+    id: active_task_issue
+    attributes:
+      label: Active Task Issue
+      description: Current bounded Task Issue pointer. Example `#119`.
+      placeholder: "#119"
+    validations:
+      required: false
+
+  - type: input
+    id: active_pr
+    attributes:
+      label: Active PR
+      description: Current implementation PR pointer. Example `#120`.
+      placeholder: "#120"
+    validations:
+      required: false
+
   - type: textarea
     id: required_commands
     attributes:

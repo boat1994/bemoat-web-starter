@@ -22,6 +22,8 @@ Prefer updating these docs over creating new templates or workflows.
 
 **Core** tasks add explicit boundaries (what is in/out of scope), checklist evidence, validation results, and whether child projects need harness sync (`pnpm run bemoat:boilerplate:sync -- --harness-only`) after merge.
 
+For Core or multi-stage initiatives, use the Main GitHub Issue checklist as the durable project-stage tracker and the Implementation Plan as the roadmap contract. See [project-progress-tracking.md](./project-progress-tracking.md). Use `.superpowers/sdd/progress.md` for temporary local/session progress only.
+
 When planning or specification expansion is material, use the
 [self red-team scope gate](./self-red-team-scope-gate.md) before adding another
 planning pass or requesting High Reasoning. Keep it optional and lightweight for

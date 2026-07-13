@@ -2,6 +2,18 @@
 
 Plans are execution artifacts. They describe how a feature will be implemented, verified, and delivered based on already-written specs.
 
+## Plan versus Main Issue boundaries
+
+For Core or multi-stage initiatives:
+
+- The **Implementation Plan** is the canonical roadmap and execution contract: Tasks, Slices, ordering, dependencies, contracts, deliverables, and verification requirements.
+- The **Main GitHub Issue checklist** is the canonical durable project-stage tracker across sessions.
+- `.superpowers/sdd/progress.md` is temporary local/session execution state only.
+
+The plan must not become a duplicate current-state dashboard. Task-step checkboxes inside a plan are execution instructions, not the durable cross-session tracker.
+
+Small tasks do not require a full plan or parent progress issue. See [project-progress-tracking.md](../../agent-loop/project-progress-tracking.md).
+
 ## Organize by feature
 
 Do not keep new plans as a flat list in the root `plans/` folder. Group them by project, initiative, and feature:
