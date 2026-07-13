@@ -14,6 +14,7 @@ recreate long-form framework manuals here.
 | Starter vs child ownership | `docs/agent-loop/source-of-truth.md`, `docs/harness-sync-contract.md` |
 | Issue branch workflow | `docs/agent-loop/issue-driven-branch-workflow.md`, `docs/workflow/git-flow.md` |
 | Agent loop and checklist | `docs/agent-loop/README.md`, `docs/agent-loop/checklist.md` |
+| Self red-team scope gate | `docs/agent-loop/self-red-team-scope-gate.md`, `docs/agent-loop/self-red-team-scope-gate-prompt.md` |
 | Security and migrations | `docs/agent-loop/security-and-migrations.md`, `docs/schema-evolution.md` |
 | Payload CMS rules | `.cursor/rules/payload-overview.md` and related `.cursor/rules/payload-*.md` / topic files; fallback `.agents/skills/payload-cms.md` |
 | Superpowers workflow | Native `superpowers:using-superpowers`; fallback `.agents/skills/using-superpowers.md` |
