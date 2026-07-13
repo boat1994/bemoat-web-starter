@@ -22,6 +22,11 @@ Prefer updating these docs over creating new templates or workflows.
 
 **Core** tasks add explicit boundaries (what is in/out of scope), checklist evidence, validation results, and whether child projects need harness sync (`pnpm run bemoat:boilerplate:sync -- --harness-only`) after merge.
 
+When planning or specification expansion is material, use the
+[self red-team scope gate](./self-red-team-scope-gate.md) before adding another
+planning pass or requesting High Reasoning. Keep it optional and lightweight for
+Small tasks with clear acceptance criteria.
+
 When unsure, round **up** one tier for source-of-truth or sync-managed paths; round **down** for clearly local, low-risk edits.
 
 ## Before coding
@@ -42,6 +47,8 @@ When unsure, round **up** one tier for source-of-truth or sync-managed paths; ro
 - [ ] After issue preflight passed, summarized goal, scope, out-of-scope work,
       files or areas to inspect, expected validation, and risks or assumptions
 - [ ] Explicit user trigger received before editing files
+- [ ] If planning/specification expansion is material, ran or explicitly skipped
+      the self red-team scope gate with a short reason
 - [ ] No plan to copy D1 IDs, R2 names, Worker names, `.env`, or secrets across projects
 - [ ] Filled [state-template.md](./state-template.md) with task and objective
 
