@@ -42,7 +42,19 @@ GitHub role comments (`HANDOFF`, `RESULT`, `REVIEW_VERDICT`) are **compact delta
 
 **Length guideline:** Aim for about **15–25 lines**. That is a writing guideline, not a hard parser limit. Cutting material risk information to hit a line count is a failure. Lengthening for a material delta, blocker, or founder gate is correct.
 
-Paste-ready defaults are the **concise operational templates** below. The **full reference templates** document every field; do not paste them as the default comment shape.
+Paste-ready defaults are the **concise operational templates** below. The **full reference templates** keep complete documentation-only fenced examples plus field catalogs; do not paste the full reference block as the default comment shape.
+
+### Temporary local-only detail artifact
+
+When a compact `REVIEW_VERDICT` (or correction `HANDOFF`) cannot safely carry enough implementation detail, the reviewer may create a **temporary local scratch file** with the necessary correction detail.
+
+Requirements:
+
+- Prefer an **OS temp path outside the repo**; otherwise use a path proven ignored by Git.
+- Never commit, push, attach to GitHub, or treat the file as canonical or GitHub-verified evidence.
+- Use it only when the correction agent **shares the same local workspace**.
+- Keep durable and file-level findings in **PR review threads**.
+- **Delete** the temp file before posting the correction `## RESULT` or any `PASS` verdict, and verify it is absent and untracked.
 
 ## Comment types
 
@@ -188,9 +200,60 @@ For the complete field catalog, see [Full reference templates](#full-reference-t
 
 ## Full reference templates (documentation only)
 
-**Not the paste-ready default.** Use these to recall required fields when drafting a compact delta. Do not paste the full reference block into GitHub comments unless a material risk requires the extra detail.
+**Not the paste-ready default.** These complete templates document every field. Prefer the concise operational templates when posting comments. Do not paste these full blocks into GitHub unless a material risk requires the extra detail.
 
-### HANDOFF reference fields
+### HANDOFF reference template
+
+Mission Control posts `## HANDOFF` to authorize the next role. Include only the minimum fields relevant to the phase; in compact deltas, state unchanged scope as a pointer rather than a full restatement.
+
+```markdown
+## HANDOFF
+
+### Task log
+- Timestamp: `<ISO-8601 with timezone>`
+- Task / Issue: #<number> — <short task name>
+- Phase: Dev (implementation) | Reviewer | Red Team | Correction
+- Executing role: Mission Control
+- Model / reasoning: <model + tier> | human
+
+**Target role / phase:** Dev (implementation) | Reviewer | Red Team | Correction
+
+**Single objective:**
+<!-- One sentence. What must be true when this phase ends? -->
+
+**Execution profile:**
+<!-- When Mission Control sets it: model, reasoning tier, agent tool. Omit if default. -->
+
+**Canonical references:**
+- Task Issue: #<number> (this issue)
+- Main Issue: #<number> (if applicable)
+- Plan section: `docs/superpowers/plans/<path>` § <section> (if applicable)
+- PR: <PR_URL> (if continuing existing work)
+- Prior RESULT / REVIEW_VERDICT: <url> (when correcting or re-reviewing)
+
+**Expected state (verify live before acting):**
+- Branch: `<branch-name>`
+- Approved base: `<main|dev|...>`
+- Expected head SHA: `<sha>` (snapshot—verify on GitHub)
+
+**Allowed scope:**
+<!-- Files, behaviors, and outcomes permitted in this phase -->
+
+**Prohibited actions:**
+<!-- e.g. no merge, no child sync, no schema migration, no scope expansion -->
+
+**Required verification:**
+<!-- Commands, exact-head CI, review gates, founder approval -->
+
+**Stop conditions:**
+<!-- When to stop and post RESULT without continuing -->
+
+**Founder gate:**
+<!-- Required | Not required | Already approved in <link> -->
+
+**Next expected handoff:**
+<!-- e.g. Dev posts ## RESULT; Reviewer posts ## REVIEW_VERDICT -->
+```
 
 | Field | Required when |
 |-------|----------------|
@@ -198,7 +261,7 @@ For the complete field catalog, see [Full reference templates](#full-reference-t
 | Target role / phase | Always |
 | Single objective | Always |
 | Execution profile | Mission Control specifies model/reasoning |
-| Canonical references | Task Issue always; Main Issue/Plan/PR when they exist |
+| Canonical references | Task Issue always; Main Issue/Plan/PR/prior verdict when they exist |
 | Expected state | Code work continues on an existing branch or PR |
 | Allowed scope | Always (state as **delta** when prior HANDOFF already defined unchanged scope) |
 | Prohibited actions | Always (delta or pointer when unchanged) |
@@ -207,7 +270,62 @@ For the complete field catalog, see [Full reference templates](#full-reference-t
 | Founder gate | When merge, production, or destructive work is in scope |
 | Next expected handoff | Always |
 
-### RESULT reference fields
+### RESULT reference template
+
+Dev/Builder agents post `## RESULT` after implementation or correction. This extends the existing implementation report—do not create a second parallel report. Prefer evidence links over transcripts.
+
+```markdown
+## RESULT
+
+### Task log
+- Timestamp: `<ISO-8601 with timezone>` (completion; include start time when useful)
+- Task / Issue: #<number> — <short task name>
+- Phase: Dev (implementation) | Dev (correction)
+- Executing role: Dev / Builder
+- Model / reasoning: <model + tier> | human
+
+**Role / phase completed:** Dev (implementation) | Dev (correction)
+
+**Code state (verify live on GitHub):**
+- Branch: `<branch-name>`
+- Approved base: `<main|dev|...>`
+- Committed head SHA: `<sha>` (snapshot)
+
+**PR:** <PR_URL>
+
+### Summary
+- ...
+
+### Files or artifacts changed
+- ...
+
+### Commands run
+- `...` → pass/fail
+
+### GitHub-verified evidence
+- PR head SHA (from GitHub): `<sha>`
+- Exact-head CI: <CI_RUN_URL> → pass/fail/pending
+- Other GitHub links: ...
+
+### Local-only evidence
+- `pnpm run check` → pass/fail (local)
+- Other local commands or observations: ...
+
+### Acceptance criteria audit
+- [ ] Criterion — `Done` | `Not done` | `Not applicable` | `Waiting for CI / human review` — brief evidence
+
+### Blockers
+- None | ...
+
+### Residual risks
+- ...
+
+### Prohibited next action
+<!-- e.g. do not merge, do not start Slice B, do not sync child repos -->
+
+### Next handoff
+<!-- e.g. Reviewer: post ## REVIEW_VERDICT after PR review and exact-head CI -->
+```
 
 | Field | Required when |
 |-------|----------------|
@@ -225,7 +343,52 @@ For the complete field catalog, see [Full reference templates](#full-reference-t
 | Prohibited next action | When dependent work must not start |
 | Next handoff | Always |
 
-### REVIEW_VERDICT reference fields
+### REVIEW_VERDICT reference template
+
+Reviewer or Red Team posts `## REVIEW_VERDICT` with gate-level summary. Put file-level findings in PR review threads and link them here. If compact form cannot carry enough correction detail, use a [temporary local-only detail artifact](#temporary-local-only-detail-artifact)—never paste a second source of truth into GitHub comments.
+
+```markdown
+## REVIEW_VERDICT
+
+### Task log
+- Timestamp: `<ISO-8601 with timezone>`
+- Task / Issue: #<number> — <short task name>
+- Phase: Reviewer | Red Team | Re-review
+- Executing role: Reviewer / Red Team
+- Model / reasoning: <model + tier> | human
+
+**Reviewed PR:** <PR_URL>
+**Approved base:** `<main|dev|...>`
+**Exact head reviewed:** `<sha>` (snapshot—verify current PR head matches)
+
+**Verdict:** PASS | BLOCKED
+
+### Critical / Important findings summary
+- Critical: None | <one-line summary + link to PR thread>
+- Important: None | <one-line summary + link to PR thread>
+
+### Detailed findings (PR threads)
+- <file or topic>: <PR_REVIEW_THREAD_URL>
+
+### Evidence gaps
+- None | <missing exact-head CI, missing commands, stale SHA, etc.>
+
+### Gate status
+- Exact-head CI: pass/fail/pending — <CI_RUN_URL>
+- Acceptance criteria: met / not met / partial
+- Open Critical/Important blockers: None | ...
+
+### Required corrections
+- None | <actionable list when BLOCKED>
+
+### Re-review condition
+<!-- What Dev must satisfy before the next REVIEW_VERDICT; e.g. fix threads X,Y and push new head -->
+
+**Founder gate:** Required before merge | Not required | Already approved in <link>
+
+### Next handoff
+<!-- e.g. Mission Control posts correction HANDOFF | founder approval | merge by human -->
+```
 
 | Field | Required when |
 |-------|----------------|
@@ -472,6 +635,7 @@ Use before acting on a handoff, posting a dependent HANDOFF, treating a gate as 
 - [ ] **Latest handoff only** — Acting on the newest approved, non-superseded HANDOFF for this phase
 - [ ] **No duplicate reporting** — RESULT used instead of a parallel ad-hoc report format
 - [ ] **Length guideline respected without unsafe cuts** — ~15–25 lines preferred; material risk content kept even if longer
+- [ ] **Temp detail artifact cleaned up** — If a local-only scratch file was used, it lived outside the repo (or was Git-ignored), was never committed/pushed/attached, and is deleted/absent/untracked before RESULT or PASS
 
 ---
 
