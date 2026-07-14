@@ -23,6 +23,10 @@ import {
   runHarnessContractGuard,
 } from './guard-harness-contract.mjs'
 import {
+  formatMissionControlContractViolations,
+  runMissionControlContractGuard,
+} from './guard-mission-control-contract.mjs'
+import {
   formatPackageManagerViolations,
   runPackageManagerGuard,
 } from './guard-package-manager.mjs'
@@ -71,6 +75,12 @@ export const GUARD_PACK = [
     summary: 'Frontend metadata and optional sitemap/robots route files',
     run: runFrontendSeoGuard,
     format: formatFrontendSeoViolations,
+  },
+  {
+    id: 'mission-control-contract',
+    summary: 'Mission Control guide, loader, templates, sync ownership, and review invariants',
+    run: runMissionControlContractGuard,
+    format: formatMissionControlContractViolations,
   },
 ]
 

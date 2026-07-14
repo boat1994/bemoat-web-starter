@@ -11,9 +11,10 @@ The harness is everything child projects need to run the same safety rails, work
 | Agent rules | `AGENTS.md`, `.agents/*`, `.cursor/rules/*` |
 | UI execution guardrails | `docs/ai/ui-skills.md`, `docs/ai/ui-execution-workflow.md`, `docs/ai/visual-qa-checklist.md`, `docs/ai/accessibility-baseline.md`, `prompts/ui/*` |
 | Agent-loop docs | `docs/agent-loop/*`, `docs/hardening.md`, `docs/schema-evolution.md`, etc. |
+| Mission Control policy | `docs/mission-control/*`, `prompts/mission-control/chatgpt-project-loader.md`, `scripts/guard-mission-control-contract.mjs` |
 | Superpowers skill entry | Native `superpowers:using-superpowers` or portable fallback `.agents/skills/using-superpowers.md` (not `docs/superpowers/*`) |
 | GitHub workflow and templates | `.github/workflows/ci.yml` (child-safe `bemoat:*` only), PR template, issue templates |
-| Safety guards | `scripts/guard-pack.mjs` (orchestrator), `scripts/guard-repo-safety.mjs`, `scripts/guard-harness-contract.mjs`, `scripts/guard-package-manager.mjs`, `scripts/guard-env-placeholder.mjs`, `scripts/guard-cloudflare-env.mjs`, `scripts/guard-frontend-seo.mjs` — see [guard-pack.md](./guard-pack.md) |
+| Safety guards | `scripts/guard-pack.mjs` (orchestrator), `scripts/guard-repo-safety.mjs`, `scripts/guard-harness-contract.mjs`, `scripts/guard-mission-control-contract.mjs`, `scripts/guard-package-manager.mjs`, `scripts/guard-env-placeholder.mjs`, `scripts/guard-cloudflare-env.mjs`, `scripts/guard-frontend-seo.mjs` — see [guard-pack.md](./guard-pack.md) |
 | Cloudflare deploy guards | Recommended `deploy` / `preview` scripts that call `guard:cloudflare-env` |
 | Sync and drift | `scripts/sync-boilerplate.mjs`, `scripts/check-boilerplate-drift.mjs` |
 | Local git hooks | `.githooks`, `scripts/check-branch-safety.sh`, `scripts/install-git-hooks.mjs`, `hooks:install` |
@@ -43,6 +44,7 @@ the canonical source.
 | Payload schema and migration safety | `docs/schema-evolution.md`, `docs/agent-loop/security-and-migrations.md`, `docs/agent-loop/migration-draft-pr.md` | `AGENTS.md` stop-condition summary, `.agents/skills/payload-cms.md` | Managed |
 | Superpowers workflow | Native `superpowers:using-superpowers`; portable fallback `.agents/skills/using-superpowers.md` | `.cursor/rules/superpowers-using-superpowers.mdc`, `AGENTS.md` summary | Managed for fallback files; native skill is external |
 | UI animation workflow | `.agents/skills/ui-animation.md`, `docs/ai/ui-execution-workflow.md`, `docs/ai/ui-skills.md` | `AGENTS.md` summary | Managed |
+| Mission Control | `docs/mission-control/mission-control-guide.md` | `prompts/mission-control/chatgpt-project-loader.md`, `AGENTS.md` pointer, handoff/RESULT templates | Managed guide/loader/templates; live `.bemoat/mission-control-overrides.md` is child-owned and never managed |
 | Tool-specific Cursor rules | Matching `.cursor/rules/*` file | Frontmatter metadata in `.mdc` files | Managed; keep trigger metadata and globs intact |
 
 When reducing duplication, first confirm the rule exists in its canonical file
@@ -121,6 +123,7 @@ These are **not** part of the harness sync contract:
 - `.env` files and Cloudflare secrets
 - Custom domains
 - Customized seed-only app files (`src/app/(frontend)/*`, collections, etc.)
+- `.bemoat/mission-control-overrides.md` (child Mission Control project gates; never overwrite or delete on sync)
 
 Deploy **script recommendations** are surfaced in a package sync proposal. Cloudflare **resource config** stays in each child repo.
 
@@ -220,6 +223,7 @@ Child projects should treat **`bemoat:*` as the public harness API**. Synced CI 
 | `bemoat:guard:pack` | Explicit alias for the central guard pack |
 | `bemoat:test:int` | Shared Vitest integration tests |
 | `bemoat:guard:cloudflare-env` | Cloudflare deploy environment guard (when deploy scripts exist) |
+| `bemoat:guard:mission-control-contract` | Mission Control policy/loader/sync contract guard |
 | `bemoat:check` | Optional stricter local/CI check when child defines `lint` and `typecheck` |
 | `bemoat:boilerplate:sync` / `bemoat:boilerplate:check` | Pull harness updates from starter |
 | `bemoat:hooks:install` | Install optional `.githooks/pre-commit` and `.githooks/pre-push` |
@@ -237,6 +241,7 @@ Current shared tests (listed in `managedPaths` in `scripts/sync-boilerplate.mjs`
 - `tests/int/cloudflare-env-guard.int.spec.ts`
 - `tests/int/guard-pack.int.spec.ts`
 - `tests/int/harness-contract-guard.int.spec.ts`
+- `tests/int/mission-control-contract.int.spec.ts`
 - `tests/int/open-next-config.int.spec.ts`
 - `tests/int/repo-safety-guard.int.spec.ts`
 - `tests/int/starter-acceptance.int.spec.ts` (acceptance contract — see [starter-acceptance-tests.md](./starter-acceptance-tests.md))

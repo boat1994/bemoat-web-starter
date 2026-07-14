@@ -11,9 +11,9 @@ one role. For GitHub comment handoffs on Active Task Issues, follow
 
 **Produces:** `## HANDOFF` | **Consumes:** `## RESULT`, `## REVIEW_VERDICT`
 
-**Must:** Before merge, run the [pre-merge checklist reconciliation gate](./role-handoff-contract.md#pre-merge-checklist-reconciliation-gate).
+**Must:** Before merge, run the [pre-merge checklist reconciliation gate](./role-handoff-contract.md#pre-merge-checklist-reconciliation-gate). Follow [../mission-control/mission-control-guide.md](../mission-control/mission-control-guide.md) for review-cycle budget, durable state blocks, and Core MC-gated review verdicts.
 
-**Must not:** Infer founder approval; skip live GitHub state verification; paste self-contained restatements of Issue body, full ACs, or prior evidence (use compact deltas).
+**Must not:** Infer founder approval; skip live GitHub state verification; paste self-contained restatements of Issue body, full ACs, or prior evidence (use compact deltas); autonomously start Review 4; reset review counters from chat history.
 
 ## Role comment map
 

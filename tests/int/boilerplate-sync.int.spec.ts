@@ -56,6 +56,7 @@ const MANAGED_BEMOAT_PACKAGE_SCRIPTS = [
   'bemoat:branch:check',
   'bemoat:guard:safety',
   'bemoat:guard:harness-contract',
+  'bemoat:guard:mission-control-contract',
   'bemoat:guard:cloudflare-env',
   'bemoat:test:int',
   'bemoat:check',
@@ -177,10 +178,17 @@ describe('boilerplate sync managed paths', () => {
       'docs/ai/visual-qa-checklist.md',
       'docs/ai/accessibility-baseline.md',
       'prompts/ui',
+      'docs/mission-control/README.md',
+      'docs/mission-control/mission-control-guide.md',
+      'docs/mission-control/handoff-template.md',
+      'docs/mission-control/result-template.md',
+      'docs/mission-control/project-overrides.example.md',
+      'prompts/mission-control/chatgpt-project-loader.md',
       'docs/cloudflare-environments.md',
       'docs/boilerplate-sync-command.md',
       'scripts/agent-issue.mjs',
       'scripts/guard-repo-safety.mjs',
+      'scripts/guard-mission-control-contract.mjs',
       'scripts/guard-build-script-contract.mjs',
       'scripts/build.mjs',
       'scripts/guard-cloudflare-env.mjs',
@@ -196,14 +204,18 @@ describe('boilerplate sync managed paths', () => {
       'tests/int/agent-issue.int.spec.ts',
       'tests/int/branch-safety.int.spec.ts',
       'tests/int/harness-contract-guard.int.spec.ts',
+      'tests/int/mission-control-contract.int.spec.ts',
       'tests/int/starter-acceptance.int.spec.ts',
       'tests/int/open-next-config.int.spec.ts',
       'tests/int/payload-build-context.int.spec.ts',
+      'tests/fixtures/mission-control',
     ]
 
     for (const path of harnessPaths) {
       expect(mod.managedPaths).toContain(path)
     }
+
+    expect(mod.managedPaths).not.toContain('.bemoat/mission-control-overrides.md')
 
     for (const scriptName of MANAGED_BEMOAT_PACKAGE_SCRIPTS) {
       expect(mod.managedPackageScripts).toContain(scriptName)

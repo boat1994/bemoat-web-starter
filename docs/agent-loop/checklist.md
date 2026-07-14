@@ -156,8 +156,11 @@ Run in **child repos** only. Full loop: [harness-sync-workflow.md](./harness-syn
 
 ## Merge readiness
 
+- [ ] For Core / multi-stage Mission Control tasks: durable state block and review cycle follow
+      [../mission-control/mission-control-guide.md](../mission-control/mission-control-guide.md)
 - [ ] Reviewer `## REVIEW_VERDICT` posted on Task Issue when review gate applies;
-      [role-handoff-contract.md](./role-handoff-contract.md) manual validation checklist satisfied
+      [role-handoff-contract.md](./role-handoff-contract.md) manual validation checklist satisfied;
+      Core MC-gated verdicts use the enum in the Mission Control guide
 - [ ] **Pre-merge checklist reconciliation** — Mission Control audited Issue checkboxes against live verified evidence and applied a safe body update (re-fetch confirmed) or obtained explicit founder acceptance of a mapped reconciliation comment per [role-handoff-contract.md](./role-handoff-contract.md#pre-merge-checklist-reconciliation-gate)
 - [ ] All required review threads resolved
 - [ ] CI green on the PR branch
