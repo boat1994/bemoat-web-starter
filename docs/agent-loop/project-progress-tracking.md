@@ -149,7 +149,7 @@ Use `.superpowers/sdd/progress.md` for temporary execution progress. Do **not** 
 ### Before PR creation or update
 
 - audit the active Task Issue acceptance criteria
-- post or update the Task Issue implementation report
+- post or update the Task Issue `## RESULT` per [role-handoff-contract.md](./role-handoff-contract.md)
 - update only Main Issue milestones that are already durably proven
 - identify the current gate and next permitted action
 
@@ -184,7 +184,7 @@ Before closing a Task Issue or marking a durable Main Issue milestone:
 3. Confirm no open Critical or Important findings block the gate.
 4. Record founder approval only when explicitly given.
 5. Update the Main Issue only for durably proven milestone or gate changes.
-6. Post the implementation report on the Task Issue with PR URL, commands, test results, and acceptance criteria audit.
+6. Post `## RESULT` on the Task Issue (implementation report) with PR URL, commands, test results, and acceptance criteria audit. See [role-handoff-contract.md](./role-handoff-contract.md).
 
 ## Preflight (`bemoat:agent:issue`)
 

@@ -324,7 +324,12 @@ motion risks.
 ## Issue Report After PR Creation
 
 When work comes from a GitHub issue, opening the PR is not the final step.
-After opening or updating the PR, add a comment to the source issue with:
+After opening or updating the PR, add a `## RESULT` comment on the source
+issue per [role-handoff-contract.md](docs/agent-loop/role-handoff-contract.md).
+Gate-level reviewer summaries use `## REVIEW_VERDICT` on the same Task Issue;
+detailed code findings stay in PR review threads.
+
+The comment must include:
 
 - PR URL
 - Branch name
@@ -345,10 +350,11 @@ commands, command results, or an explicit rationale. Put the audit in the PR
 body and/or the issue implementation report comment. Do not edit the source
 issue checklist unless the user explicitly asks.
 
-Use this template:
+Use this template (`## RESULT` is canonical; `## Implementation PR ready` is an
+accepted alias during transition):
 
 ```markdown
-## Implementation PR ready
+## RESULT
 
 PR: <PR_URL>
 Branch: `<BRANCH_NAME>`
