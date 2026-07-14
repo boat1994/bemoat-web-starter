@@ -74,7 +74,7 @@ max_review_cycles: 4
     const oversized = [
       'Read docs/mission-control/mission-control-guide.md',
       '## Review-cycle budget',
-      ...Array.from({ length: 90 }, (_, i) => `line ${i}`),
+      ...Array.from({ length: 170 }, (_, i) => `line ${i}`),
     ].join('\n')
 
     const violations = mod.scanLoaderContent(mod.LOADER_PATH, oversized)

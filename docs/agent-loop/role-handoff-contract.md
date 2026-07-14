@@ -2,7 +2,27 @@
 
 Canonical GitHub comment format for handing work between Mission Control, Dev/Builder agents, and Reviewer/Red Team roles on an **Active Task Issue**.
 
-This document defines **comment transport only**. It does not change artifact precedence. For source-of-truth boundaries, conflict resolution, exact-head CI, and Main Issue milestone rules, see [project-progress-tracking.md](./project-progress-tracking.md). For Mission Control review budget, durable Issue state markers, completion gates, and Core MC-gated `REVIEW_VERDICT` enums, see [../mission-control/mission-control-guide.md](../mission-control/mission-control-guide.md).
+This document defines **comment transport only**. It does not change artifact precedence. For source-of-truth boundaries, conflict resolution, exact-head CI, and Main Issue milestone rules, see [project-progress-tracking.md](./project-progress-tracking.md). For Mission Control review budget, durable Issue state markers, completion gates, and Core MC-gated `REVIEW_VERDICT` vocabulary, see [../mission-control/mission-control-guide.md](../mission-control/mission-control-guide.md).
+
+### Core Mission Control verdict vocabulary
+
+When a task is under Mission Control (Core / multi-stage), `## REVIEW_VERDICT`
+must use exactly one of these values — the same enum as the Mission Control
+guide and RESULT template:
+
+```text
+CORRECTION REQUIRED
+ELIGIBLE FOR FOUNDER REVIEW
+BLOCKED FOR FOUNDER DECISION
+BLOCKED EXTERNAL
+STATE CONFLICT
+```
+
+Do not use bare `PASS` / `BLOCKED` as the verdict line for Core Mission Control
+work. Those legacy shorthand words are retired for MC-gated tasks; map prior
+docs mentally as: `PASS` → `ELIGIBLE FOR FOUNDER REVIEW`, and
+`BLOCKED` → `CORRECTION REQUIRED` (or a more specific `BLOCKED_*` /
+`STATE CONFLICT` outcome when that is what the evidence requires).
 
 ## Purpose
 
@@ -54,7 +74,7 @@ Requirements:
 - Never commit, push, attach to GitHub, or treat the file as canonical or GitHub-verified evidence.
 - Use it only when the correction agent **shares the same local workspace**.
 - Keep durable and file-level findings in **PR review threads**.
-- **Delete** the temp file before posting the correction `## RESULT` or any `PASS` verdict, and verify it is absent and untracked.
+- **Delete** the temp file before posting the correction `## RESULT` or any `ELIGIBLE FOR FOUNDER REVIEW` verdict, and verify it is absent and untracked.
 
 ## Comment types
 
@@ -64,7 +84,7 @@ Post these markers on the **Active Task Issue** as searchable headings:
 |--------|--------|---------|
 | `## HANDOFF` | Mission Control | Send bounded work to the next role or phase |
 | `## RESULT` | Dev/Builder agent | Report implementation or correction outcome |
-| `## REVIEW_VERDICT` | Reviewer / Red Team | Summarize PASS or BLOCKED gate status |
+| `## REVIEW_VERDICT` | Reviewer / Red Team | Gate-level review result using the Core Mission Control verdict enum |
 
 Do not invent parallel report formats. `## RESULT` **is** the implementation report shape defined in [AGENTS.md § Issue report](../../AGENTS.md#issue-report-after-pr-creation). The legacy heading `## Implementation PR ready` is an alias during transition; prefer `## RESULT` for new comments.
 
@@ -97,7 +117,7 @@ Separate evidence clearly in every `RESULT` and `REVIEW_VERDICT`:
 | **GitHub-verified evidence** | Observable on GitHub without trusting local-only claims | PR URL, current head SHA from GitHub, exact-head CI run URL and conclusion, merged commit on approved base |
 | **Local-only evidence** | Useful context that GitHub has not independently confirmed | Local `pnpm run check` output, unstaged working tree notes, agent session observations |
 
-Do not present local-only evidence as GitHub-verified. Do not infer founder approval from CI green or a reviewer PASS.
+Do not present local-only evidence as GitHub-verified. Do not infer founder approval from CI green or a reviewer `ELIGIBLE FOR FOUNDER REVIEW`.
 
 ## Execution audit fields
 
@@ -177,7 +197,7 @@ Use these for posted comments. Include only the fields needed for this phase. Pr
 - Model / reasoning: <model + tier> | human
 
 **PR / base / head:** <PR_URL> · `<base>` · `<sha>` (verify live)
-**Verdict:** PASS | BLOCKED
+**Verdict:** CORRECTION REQUIRED | ELIGIBLE FOR FOUNDER REVIEW | BLOCKED FOR FOUNDER DECISION | BLOCKED EXTERNAL | STATE CONFLICT
 **Findings:** Critical: None|<summary + thread> · Important: None|<summary + thread>
 **Threads:** <PR_REVIEW_THREAD_URL> (file-level detail stays on the PR)
 **Gates:** exact-head CI <url> → pass/fail · open blockers: None|...
@@ -361,7 +381,7 @@ Reviewer or Red Team posts `## REVIEW_VERDICT` with gate-level summary. Put file
 **Approved base:** `<main|dev|...>`
 **Exact head reviewed:** `<sha>` (snapshot—verify current PR head matches)
 
-**Verdict:** PASS | BLOCKED
+**Verdict:** CORRECTION REQUIRED | ELIGIBLE FOR FOUNDER REVIEW | BLOCKED FOR FOUNDER DECISION | BLOCKED EXTERNAL | STATE CONFLICT
 
 ### Critical / Important findings summary
 - Critical: None | <one-line summary + link to PR thread>
@@ -379,7 +399,7 @@ Reviewer or Red Team posts `## REVIEW_VERDICT` with gate-level summary. Put file
 - Open Critical/Important blockers: None | ...
 
 ### Required corrections
-- None | <actionable list when BLOCKED>
+- None | <actionable list when CORRECTION REQUIRED or BLOCKED FOR FOUNDER DECISION>
 
 ### Re-review condition
 <!-- What Dev must satisfy before the next REVIEW_VERDICT; e.g. fix threads X,Y and push new head -->
@@ -394,13 +414,13 @@ Reviewer or Red Team posts `## REVIEW_VERDICT` with gate-level summary. Put file
 |-------|----------------|
 | Task log (timestamp, task/Issue/phase, executing role; model/reasoning when AI) | Always |
 | Reviewed PR, approved base, exact head | Always |
-| Verdict PASS or BLOCKED | Always |
+| Verdict (Core Mission Control enum) | Always |
 | Critical / Important summary | Always |
 | PR thread links | File-level findings exist |
 | Evidence gaps | Any verification missing |
 | Gate status | Always |
-| Required corrections | BLOCKED |
-| Re-review condition | BLOCKED or changes requested |
+| Required corrections | CORRECTION REQUIRED or BLOCKED FOR FOUNDER DECISION |
+| Re-review condition | CORRECTION REQUIRED or changes requested |
 | Founder gate | Merge or production in scope |
 | Next handoff | Always |
 
@@ -438,7 +458,7 @@ Correction and re-review are the usual places agents over-paste. Prefer the good
 
 **Target:** Dev (correction)
 **Objective:** Fix Important finding — add duplicated-context validation item per PR thread.
-**Links:** Issue #106 · BLOCKED REVIEW_VERDICT <url> · PR <url>#discussion_r...
+**Links:** Issue #106 · CORRECTION REQUIRED REVIEW_VERDICT <url> · PR <url>#discussion_r...
 **State (verify live):** `docs/106-compact-delta-handoff-comments` · base `main` · head `abc1234`
 **Delta scope:** `docs/agent-loop/role-handoff-contract.md` only
 **Verify:** `pnpm run guard:safety`; resolve the PR thread
@@ -446,13 +466,13 @@ Correction and re-review are the usual places agents over-paste. Prefer the good
 **Next:** Dev `## RESULT` → re-review
 ```
 
-### PASS re-review REVIEW_VERDICT
+### Eligible re-review REVIEW_VERDICT
 
 **Bad** (transcript + Issue restatement):
 
 ```markdown
 ## REVIEW_VERDICT
-**Verdict:** PASS
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
 **Recap of Issue #106 goal, scope, and all ACs:** ...
 **Full prior RESULT command log:** ...
 **Inline file diffs and review essay:** ...
@@ -471,7 +491,7 @@ Correction and re-review are the usual places agents over-paste. Prefer the good
 - Model / reasoning: GPT-5.6 Codex, medium
 
 **PR / base / head:** <PR_URL> · `main` · `def5678` (verify live)
-**Verdict:** PASS
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
 **Findings:** Critical: None · Important: None (thread resolved)
 **Threads:** <prior discussion URL>
 **Gates:** exact-head CI <url> → pass · open blockers: None
@@ -530,7 +550,7 @@ One full cycle on Active Task Issue #106 with a docs PR (standalone task; no Mai
 **Next:** Reviewer `## REVIEW_VERDICT`
 ```
 
-### 3. REVIEW_VERDICT — BLOCKED
+### 3. REVIEW_VERDICT — CORRECTION REQUIRED
 
 ```markdown
 ## REVIEW_VERDICT
@@ -543,7 +563,7 @@ One full cycle on Active Task Issue #106 with a docs PR (standalone task; no Mai
 - Model / reasoning: GPT-5.6 Codex, medium
 
 **PR / base / head:** <PR_URL> · `main` · `abc1234`
-**Verdict:** BLOCKED
+**Verdict:** CORRECTION REQUIRED
 **Findings:** Important: missing duplicated-context validation item — <thread url>
 **Gates:** exact-head CI pass · open blockers: 1 Important
 **Corrections / re-review:** Add validation item; push; resolve thread
@@ -564,8 +584,8 @@ One full cycle on Active Task Issue #106 with a docs PR (standalone task; no Mai
 - Model / reasoning: human
 
 **Target:** Dev (correction)
-**Objective:** Add duplicated-context validation item per BLOCKED verdict thread.
-**Links:** Issue #106 · prior BLOCKED REVIEW_VERDICT <url> · PR thread <url>
+**Objective:** Add duplicated-context validation item per CORRECTION REQUIRED verdict thread.
+**Links:** Issue #106 · prior CORRECTION REQUIRED REVIEW_VERDICT <url> · PR thread <url>
 **State (verify live):** branch `docs/106-…` · head `abc1234`
 **Delta scope:** contract checklist only
 **Verify:** `pnpm run guard:safety`; resolve thread
@@ -590,11 +610,11 @@ One full cycle on Active Task Issue #106 with a docs PR (standalone task; no Mai
 **Summary:** Added duplicated-context validation checklist item
 **Evidence:** GitHub — head `def5678`, CI <url> → pass; Local — guard:safety pass
 **AC audit:** validation AC — Done
-**Prohibited next:** Do not merge until PASS
+**Prohibited next:** Do not merge until ELIGIBLE FOR FOUNDER REVIEW
 **Next:** Reviewer `## REVIEW_VERDICT`
 ```
 
-### 6. REVIEW_VERDICT — PASS → founder gate
+### 6. REVIEW_VERDICT — ELIGIBLE FOR FOUNDER REVIEW → founder gate
 
 ```markdown
 ## REVIEW_VERDICT
@@ -607,7 +627,7 @@ One full cycle on Active Task Issue #106 with a docs PR (standalone task; no Mai
 - Model / reasoning: GPT-5.6 Codex, medium
 
 **PR / base / head:** <PR_URL> · `main` · `def5678`
-**Verdict:** PASS
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
 **Findings:** Critical: None · Important: None
 **Gates:** exact-head CI pass · open blockers: None
 **Founder gate:** Required before merge
@@ -631,11 +651,11 @@ Use before acting on a handoff, posting a dependent HANDOFF, treating a gate as 
 - [ ] **Allowed scope and stop conditions** — HANDOFF defines boundaries; implementation stayed within them; material stops/founder gates not dropped for brevity
 - [ ] **No open Critical/Important blockers** — REVIEW_VERDICT and PR threads show none before dependent work
 - [ ] **Prohibited next action respected** — No merge, child sync, or dependent slice started early
-- [ ] **Founder gate explicit** — Approval is linked or stated; not inferred from CI or reviewer PASS
+- [ ] **Founder gate explicit** — Approval is linked or stated; not inferred from CI or reviewer `ELIGIBLE FOR FOUNDER REVIEW`
 - [ ] **Latest handoff only** — Acting on the newest approved, non-superseded HANDOFF for this phase
 - [ ] **No duplicate reporting** — RESULT used instead of a parallel ad-hoc report format
 - [ ] **Length guideline respected without unsafe cuts** — ~15–25 lines preferred; material risk content kept even if longer
-- [ ] **Temp detail artifact cleaned up** — If a local-only scratch file was used, it lived outside the repo (or was Git-ignored), was never committed/pushed/attached, and is deleted/absent/untracked before RESULT or PASS
+- [ ] **Temp detail artifact cleaned up** — If a local-only scratch file was used, it lived outside the repo (or was Git-ignored), was never committed/pushed/attached, and is deleted/absent/untracked before RESULT or `ELIGIBLE FOR FOUNDER REVIEW`
 
 ---
 

@@ -21,7 +21,10 @@ Compact GitHub comment transport (`## HANDOFF`, `## RESULT`,
 [role-handoff-contract.md](../agent-loop/role-handoff-contract.md). Full field
 checklists live in [handoff-template.md](./handoff-template.md) and
 [result-template.md](./result-template.md). For Core MC-gated review,
-`## REVIEW_VERDICT` must use the verdict enum in this guide.
+`## REVIEW_VERDICT` must use the reviewer verdict enum in this guide. The
+role-handoff contract uses the same vocabulary for Core Mission Control work;
+do not invent alternate gate words such as bare `PASS` / `BLOCKED` for Core
+MC-gated tasks.
 
 <!-- bemoat-mc:invariant:no-autonomous-review-4 -->
 <!-- bemoat-mc:invariant:no-silent-reset -->
@@ -342,7 +345,7 @@ bundle implementation, review, merge, and next-task discovery into one run.
 Dev and Reviewer report via [result-template.md](./result-template.md) and the
 compact operational templates in the role-handoff contract.
 
-Reviewer verdict must be exactly one of:
+Reviewer verdict for Core Mission Control work must be exactly one of:
 
 ```text
 CORRECTION REQUIRED
@@ -351,6 +354,10 @@ BLOCKED FOR FOUNDER DECISION
 BLOCKED EXTERNAL
 STATE CONFLICT
 ```
+
+This enum is authoritative for Core / multi-stage Mission Control review. Compact
+`## REVIEW_VERDICT` comments keep the role-handoff heading and shape, but the
+verdict line must use this vocabulary.
 
 ## Follow-up issue policy
 

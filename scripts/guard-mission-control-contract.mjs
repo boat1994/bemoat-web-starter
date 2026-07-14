@@ -102,7 +102,7 @@ export const REQUIRED_VERDICTS = [
   'STATE CONFLICT',
 ]
 
-export const LOADER_MAX_LINES = 80
+export const LOADER_MAX_LINES = 160
 export const LOADER_FORBIDDEN_TITLES = ['## Review-cycle budget', '## Finding severity']
 
 const REQUIRED_FRONTMATTER_KEYS = [
