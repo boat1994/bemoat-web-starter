@@ -96,8 +96,8 @@ Stop instead of committing if the task is ambiguous, forbidden files are require
       files, validation commands, command results, or explicit rationale
 - [ ] Source issue checklist left unchanged unless the user explicitly asked
       for it to be edited
-- [ ] Acceptance criteria audit included in the PR body and/or issue
-      implementation report comment
+- [ ] Acceptance criteria audit included in the PR body and/or Task Issue
+      `## RESULT` comment per [role-handoff-contract.md](./role-handoff-contract.md)
 - [ ] **Validation tier** same as before commit:
   - [ ] Starter docs-only → `pnpm run guard:safety`
   - [ ] Child docs-only → `pnpm run bemoat:guard:safety`
@@ -112,6 +112,9 @@ Stop instead of committing if the task is ambiguous, forbidden files are require
 - [ ] PR opened or updated; template complete: goal, changes, source-of-truth impact, Payload impact, commands, test result, risk review
 - [ ] Clear answer: does this belong in starter or a child project?
 - [ ] Agent notes and [state-template.md](./state-template.md) updated for reviewers
+      (local/session only; Task Issue handoffs use [role-handoff-contract.md](./role-handoff-contract.md))
+- [ ] Task Issue `## RESULT` posted per [role-handoff-contract.md](./role-handoff-contract.md)
+- [ ] [role-handoff-contract.md](./role-handoff-contract.md) manual validation checklist satisfied when acting on or posting handoffs
 - [ ] User notified with: task summary, branch, files changed, commands run, test result, commit hash, PR URL, risks, human review needed
 - [ ] **Did not merge** — merge is human-only
 
@@ -139,7 +142,7 @@ Run in **child repos** only. Full loop: [harness-sync-workflow.md](./harness-syn
 - [ ] `pnpm run bemoat:boilerplate:check -- --harness-only` run when available (or raw `boilerplate:check` only when the child defines that alias)
 - [ ] Diff review: harness paths only; no product code, secrets, or Cloudflare IDs
 - [ ] Branch pushed; PR opened or existing PR updated (no duplicate)
-- [ ] Implementation report posted; **did not merge**
+- [ ] Task Issue `## RESULT` posted; **did not merge**
 
 ## CI failure
 
@@ -152,6 +155,8 @@ Run in **child repos** only. Full loop: [harness-sync-workflow.md](./harness-syn
 
 ## Merge readiness
 
+- [ ] Reviewer `## REVIEW_VERDICT` posted on Task Issue when review gate applies;
+      [role-handoff-contract.md](./role-handoff-contract.md) manual validation checklist satisfied
 - [ ] All required review threads resolved
 - [ ] CI green on the PR branch
 - [ ] Starter or child-local `pnpm run check:full` run when defined and practical before merge

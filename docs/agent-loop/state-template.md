@@ -1,6 +1,10 @@
 # Agent session state
 
-Copy this template into issue comments, PR descriptions, or agent handoff notes. Update it before ending a session so the next agent can continue without re-discovery.
+Copy this template for **local/session recovery** (interrupted work, PR
+descriptions, or private execution notes). For GitHub role transport between
+Mission Control, Dev, and Reviewer on an Active Task Issue, use
+[role-handoff-contract.md](./role-handoff-contract.md) (`## HANDOFF`, `## RESULT`,
+`## REVIEW_VERDICT`) instead of this template.
 
 ```markdown
 ## Task

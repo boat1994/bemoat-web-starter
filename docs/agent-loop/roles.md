@@ -1,6 +1,26 @@
 # Agent roles
 
-Use these roles to split work across specialized agents. One session may play one role; hand off with [state-template.md](./state-template.md).
+Use these roles to split work across specialized agents. One session may play
+one role. For GitHub comment handoffs on Active Task Issues, follow
+[role-handoff-contract.md](./role-handoff-contract.md). Use
+[state-template.md](./state-template.md) only for local/session recovery.
+
+## Mission Control
+
+**Purpose:** Orchestrate phases, post bounded `## HANDOFF` comments, and authorize the next role.
+
+**Produces:** `## HANDOFF` | **Consumes:** `## RESULT`, `## REVIEW_VERDICT`
+
+**Must not:** Infer founder approval; skip live GitHub state verification; copy long plans into comments.
+
+## Role comment map
+
+| Role | Produces | Consumes |
+|------|----------|----------|
+| Mission Control | `## HANDOFF` | `## RESULT`, `## REVIEW_VERDICT` |
+| Builder / Dev | `## RESULT` | `## HANDOFF` |
+| Reviewer / Red Team | `## REVIEW_VERDICT` | `## HANDOFF`, `## RESULT` |
+| GitHub Triage | — (state summary) | `## HANDOFF` when orienting |
 
 ## Builder Agent
 

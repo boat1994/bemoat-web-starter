@@ -73,7 +73,7 @@ task → read AGENTS.md + agent-loop → git status & issue branch → intent ch
 | **Push** | Push the branch to origin. |
 | **AC audit** | Before PR creation/update and final reporting, copy or summarize the source issue acceptance criteria. Mark each item `Done`, `Not done`, `Not applicable`, or `Waiting for CI / human review`, and include brief evidence for completed items. Do not edit the source issue checklist unless explicitly instructed. |
 | **Open PR** | Open a new PR or **update the existing PR** if the branch already has one. Fill out the [pull request template](../../.github/pull_request_template.md). Include `Closes #<issue-number>`, summary, test plan, acceptance criteria audit, risks, and human-review notes. **Migration PRs:** draft only — see [migration-draft-pr.md](./migration-draft-pr.md). |
-| **Comment on issue** | Post the implementation report on the source GitHub issue with PR link, acceptance criteria audit, and review checklist. See [Issue report after PR creation](../../AGENTS.md#issue-report-after-pr-creation). |
+| **Comment on issue** | Post `## RESULT` on the source Task Issue (implementation report) and `## REVIEW_VERDICT` when reviewing. See [role-handoff-contract.md](./role-handoff-contract.md) and [Issue report after PR creation](../../AGENTS.md#issue-report-after-pr-creation). |
 | **Notify user** | Task summary, branch, files changed, commands run, test result, commit hash, PR URL, risks, and human-review items. |
 | **CI** | GitHub Actions must pass; inspect logs on failure—do not guess. |
 | **Review** | Human or reviewer agent; watch Payload, migration, Cloudflare, sync risks. |
@@ -86,6 +86,7 @@ task → read AGENTS.md + agent-loop → git status & issue branch → intent ch
 | [starter-reading-order.md](./starter-reading-order.md) | Ordered docs for new tasks (operating manual → migration → ADRs → KB → guards → acceptance) |
 | [issue-driven-branch-workflow.md](./issue-driven-branch-workflow.md) | Issue branch gates, naming, PR open/update, harness sync closeout |
 | [project-progress-tracking.md](./project-progress-tracking.md) | Main Issue durable progress, Plan boundaries, exact-head CI, resume protocol |
+| [role-handoff-contract.md](./role-handoff-contract.md) | GitHub comment transport: HANDOFF, RESULT, REVIEW_VERDICT on Task Issues |
 | [self-red-team-scope-gate.md](./self-red-team-scope-gate.md) | Optional scope gate for material planning, specification expansion, and High Reasoning passes |
 | [self-red-team-scope-gate-prompt.md](./self-red-team-scope-gate-prompt.md) | Copy/paste prompt for one constrained self red-team pass |
 | [harness-sync-workflow.md](./harness-sync-workflow.md) | Child project harness sync loop after starter merge |
