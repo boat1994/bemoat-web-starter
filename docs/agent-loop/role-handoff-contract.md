@@ -66,6 +66,19 @@ Separate evidence clearly in every `RESULT` and `REVIEW_VERDICT`:
 
 Do not present local-only evidence as GitHub-verified. Do not infer founder approval from CI green or a reviewer PASS.
 
+## Execution audit fields
+
+Every `HANDOFF`, `RESULT`, and `REVIEW_VERDICT` records a compact **Task log** so Mission Control can reconstruct who ran which phase and when. Keep this short—do not paste full command logs or review transcripts.
+
+| Audit field | Required when |
+|-------------|---------------|
+| Timestamp with timezone | Always (use ISO-8601 with offset, e.g. `2026-07-14T18:50:32+07:00`) |
+| Task / Issue and phase | Always |
+| Executing role | Always |
+| Model and reasoning | An AI agent performs the phase (omit for human-only Mission Control/founder notes, or record `human`) |
+
+These audit fields are **minimum fields** alongside the role-specific tables below. They do not replace artifact precedence in [project-progress-tracking.md](./project-progress-tracking.md).
+
 ---
 
 ## HANDOFF template
@@ -74,6 +87,13 @@ Mission Control posts `## HANDOFF` to authorize the next role. Include only the 
 
 ```markdown
 ## HANDOFF
+
+### Task log
+- Timestamp: `<ISO-8601 with timezone>`
+- Task / Issue: #<number> — <short task name>
+- Phase: Dev (implementation) | Reviewer | Red Team | Correction
+- Executing role: Mission Control
+- Model / reasoning: <model + tier> | human
 
 **Target role / phase:** Dev (implementation) | Reviewer | Red Team | Correction
 
@@ -117,6 +137,7 @@ Mission Control posts `## HANDOFF` to authorize the next role. Include only the 
 
 | Field | Required when |
 |-------|----------------|
+| Task log (timestamp, task/Issue/phase, executing role; model/reasoning when AI) | Always |
 | Target role / phase | Always |
 | Single objective | Always |
 | Execution profile | Mission Control specifies model/reasoning |
@@ -137,6 +158,13 @@ Dev/Builder agents post `## RESULT` after implementation or correction. This ext
 
 ```markdown
 ## RESULT
+
+### Task log
+- Timestamp: `<ISO-8601 with timezone>` (completion; include start time when useful)
+- Task / Issue: #<number> — <short task name>
+- Phase: Dev (implementation) | Dev (correction)
+- Executing role: Dev / Builder
+- Model / reasoning: <model + tier> | human
 
 **Role / phase completed:** Dev (implementation) | Dev (correction)
 
@@ -185,6 +213,7 @@ Dev/Builder agents post `## RESULT` after implementation or correction. This ext
 
 | Field | Required when |
 |-------|----------------|
+| Task log (timestamp, task/Issue/phase, executing role; model/reasoning when AI) | Always |
 | Role / phase completed | Always |
 | Branch, approved base, committed head | Code state exists |
 | Summary | Always |
@@ -206,6 +235,13 @@ Reviewer or Red Team posts `## REVIEW_VERDICT` with gate-level summary. Put file
 
 ```markdown
 ## REVIEW_VERDICT
+
+### Task log
+- Timestamp: `<ISO-8601 with timezone>`
+- Task / Issue: #<number> — <short task name>
+- Phase: Reviewer | Red Team | Re-review
+- Executing role: Reviewer / Red Team
+- Model / reasoning: <model + tier> | human
 
 **Reviewed PR:** <PR_URL>
 **Approved base:** `<main|dev|...>`
@@ -244,6 +280,7 @@ Reviewer or Red Team posts `## REVIEW_VERDICT` with gate-level summary. Put file
 
 | Field | Required when |
 |-------|----------------|
+| Task log (timestamp, task/Issue/phase, executing role; model/reasoning when AI) | Always |
 | Reviewed PR, approved base, exact head | Always |
 | Verdict PASS or BLOCKED | Always |
 | Critical / Important summary | Always |
@@ -259,12 +296,19 @@ Reviewer or Red Team posts `## REVIEW_VERDICT` with gate-level summary. Put file
 
 ## Lifecycle example
 
-One full cycle on Active Task Issue #42 (Slice A), with Main Issue #10 and PR #55. SHAs and CI URLs are snapshots; each receiver verifies live state.
+One full cycle on Active Task Issue #104 with PR #105 (standalone task; no Main Issue). SHAs and CI URLs are snapshots; each receiver verifies live state.
 
 ### 1. HANDOFF — Mission Control → Dev
 
 ```markdown
 ## HANDOFF
+
+### Task log
+- Timestamp: `2026-07-14T18:00:00+07:00`
+- Task / Issue: #104 — GitHub-native handoff contract
+- Phase: Dev (implementation)
+- Executing role: Mission Control
+- Model / reasoning: human
 
 **Target role / phase:** Dev (implementation)
 
@@ -298,6 +342,13 @@ One full cycle on Active Task Issue #42 (Slice A), with Main Issue #10 and PR #5
 ```markdown
 ## RESULT
 
+### Task log
+- Timestamp: `2026-07-14T18:20:00+07:00`
+- Task / Issue: #104 — GitHub-native handoff contract
+- Phase: Dev (implementation)
+- Executing role: Dev / Builder
+- Model / reasoning: Composer 2.5, medium
+
 **Role / phase completed:** Dev (implementation)
 
 **Code state:**
@@ -305,7 +356,7 @@ One full cycle on Active Task Issue #42 (Slice A), with Main Issue #10 and PR #5
 - Approved base: `main`
 - Committed head SHA: `abc1234` (snapshot)
 
-**PR:** https://github.com/boat1994/bemoat-web-starter/pull/55
+**PR:** https://github.com/boat1994/bemoat-web-starter/pull/105
 
 ### Summary
 - Added `role-handoff-contract.md` and wrapper doc links.
@@ -347,7 +398,14 @@ One full cycle on Active Task Issue #42 (Slice A), with Main Issue #10 and PR #5
 ```markdown
 ## REVIEW_VERDICT
 
-**Reviewed PR:** https://github.com/boat1994/bemoat-web-starter/pull/55
+### Task log
+- Timestamp: `2026-07-14T18:30:00+07:00`
+- Task / Issue: #104 — GitHub-native handoff contract
+- Phase: Reviewer
+- Executing role: Reviewer / Red Team
+- Model / reasoning: GPT-5.6 Codex, medium
+
+**Reviewed PR:** https://github.com/boat1994/bemoat-web-starter/pull/105
 **Approved base:** `main`
 **Exact head reviewed:** `abc1234`
 
@@ -357,7 +415,7 @@ One full cycle on Active Task Issue #42 (Slice A), with Main Issue #10 and PR #5
 - Important: Missing manual validation checklist item for stale SHA — see PR thread
 
 ### Detailed findings (PR threads)
-- `docs/agent-loop/role-handoff-contract.md`: https://github.com/.../pull/55#discussion_r123
+- `docs/agent-loop/role-handoff-contract.md`: https://github.com/.../pull/105#discussion_r123
 
 ### Evidence gaps
 - None
@@ -383,13 +441,20 @@ One full cycle on Active Task Issue #42 (Slice A), with Main Issue #10 and PR #5
 ```markdown
 ## HANDOFF
 
+### Task log
+- Timestamp: `2026-07-14T18:35:00+07:00`
+- Task / Issue: #104 — GitHub-native handoff contract
+- Phase: Dev (correction)
+- Executing role: Mission Control
+- Model / reasoning: human
+
 **Target role / phase:** Dev (correction)
 
 **Single objective:** Address Important finding: add stale SHA checklist item per PR thread.
 
 **Canonical references:**
 - Task Issue: #104
-- PR: https://github.com/boat1994/bemoat-web-starter/pull/55
+- PR: https://github.com/boat1994/bemoat-web-starter/pull/105
 
 **Expected state:**
 - Branch: `docs/104-github-native-handoff-comments`
@@ -414,6 +479,13 @@ One full cycle on Active Task Issue #42 (Slice A), with Main Issue #10 and PR #5
 ```markdown
 ## RESULT
 
+### Task log
+- Timestamp: `2026-07-14T18:45:00+07:00`
+- Task / Issue: #104 — GitHub-native handoff contract
+- Phase: Dev (correction)
+- Executing role: Dev / Builder
+- Model / reasoning: Composer 2.5, medium
+
 **Role / phase completed:** Dev (correction)
 
 **Code state:**
@@ -421,7 +493,7 @@ One full cycle on Active Task Issue #42 (Slice A), with Main Issue #10 and PR #5
 - Approved base: `main`
 - Committed head SHA: `def5678` (snapshot)
 
-**PR:** https://github.com/boat1994/bemoat-web-starter/pull/55
+**PR:** https://github.com/boat1994/bemoat-web-starter/pull/105
 
 ### Summary
 - Added stale SHA item to manual validation checklist.
@@ -448,7 +520,14 @@ One full cycle on Active Task Issue #42 (Slice A), with Main Issue #10 and PR #5
 ```markdown
 ## REVIEW_VERDICT
 
-**Reviewed PR:** https://github.com/boat1994/bemoat-web-starter/pull/55
+### Task log
+- Timestamp: `2026-07-14T18:55:00+07:00`
+- Task / Issue: #104 — GitHub-native handoff contract
+- Phase: Re-review
+- Executing role: Reviewer / Red Team
+- Model / reasoning: GPT-5.6 Codex, medium
+
+**Reviewed PR:** https://github.com/boat1994/bemoat-web-starter/pull/105
 **Approved base:** `main`
 **Exact head reviewed:** `def5678`
 
@@ -468,7 +547,7 @@ One full cycle on Active Task Issue #42 (Slice A), with Main Issue #10 and PR #5
 **Founder gate:** Required before merge to `main` (human review)
 
 ### Next handoff
-- Human founder: review PR, merge if acceptable. Mission Control may update Main Issue milestone after merge.
+- Human founder: review PR, merge if acceptable. Mission Control may record the durable milestone after merge when a Main Issue exists.
 ```
 
 ---
@@ -478,6 +557,7 @@ One full cycle on Active Task Issue #42 (Slice A), with Main Issue #10 and PR #5
 Use before acting on a handoff, posting a dependent HANDOFF, or treating a gate as passed:
 
 - [ ] **Canonical references present** — Task Issue linked; Main Issue, Plan section, and PR linked when they exist
+- [ ] **Task log present** — Timestamp with timezone, task/Issue/phase, executing role; model/reasoning when an AI agent ran the phase
 - [ ] **Live state verified** — Ran `bemoat:agent:issue` and confirmed branch, base, and PR head on GitHub
 - [ ] **No stale SHA** — Comment head SHA matches current GitHub PR head (or correction HANDOFF explains expected drift)
 - [ ] **Exact-head CI** — Required CI is for the **current** PR head, not an older SHA
