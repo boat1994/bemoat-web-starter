@@ -168,6 +168,44 @@ body:
     validations:
       required: false
 
+  - type: markdown
+    attributes:
+      value: |
+        **Mission Control state (Core / multi-stage only)** — omit for Small standalone tasks.
+        Paste and maintain the marker block on the Active Task Issue. Update only content between the markers.
+        See `docs/mission-control/mission-control-guide.md`.
+
+  - type: textarea
+    id: mission_control_state
+    attributes:
+      label: Mission Control state (Core / multi-stage)
+      description: Durable review-cycle state for the Active Task Issue. Leave blank for Small tasks.
+      placeholder: |
+        <!-- bemoat-mission-control-state:start -->
+        ```yaml
+        schema_version: 1
+        state: READY
+        review_cycle: 0
+        full_review_count: 0
+        approved_base: main
+        active_task_issue: null
+        active_pr: null
+        current_head: null
+        last_reviewed_head: null
+        guide_version: 1.0.0
+        guide_source_ref: main
+        guide_source_sha: null
+        open_blockers: []
+        follow_up_issues: []
+        next_permitted_action: "Run issue preflight and prepare implementation brief"
+        material_change_status: none
+        updated_at: null
+        updated_by: null
+        ```
+        <!-- bemoat-mission-control-state:end -->
+    validations:
+      required: false
+
   - type: textarea
     id: required_commands
     attributes:

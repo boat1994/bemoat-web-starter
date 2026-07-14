@@ -2,7 +2,7 @@
 
 Canonical GitHub comment format for handing work between Mission Control, Dev/Builder agents, and Reviewer/Red Team roles on an **Active Task Issue**.
 
-This document defines **comment transport only**. It does not change artifact precedence. For source-of-truth boundaries, conflict resolution, exact-head CI, and Main Issue milestone rules, see [project-progress-tracking.md](./project-progress-tracking.md).
+This document defines **comment transport only**. It does not change artifact precedence. For source-of-truth boundaries, conflict resolution, exact-head CI, and Main Issue milestone rules, see [project-progress-tracking.md](./project-progress-tracking.md). For Mission Control review budget, durable Issue state markers, completion gates, and Core MC-gated `REVIEW_VERDICT` enums, see [../mission-control/mission-control-guide.md](../mission-control/mission-control-guide.md).
 
 ## Purpose
 

@@ -43,6 +43,12 @@ export const managedPaths = [
   'docs/harness-sync-contract.md',
   'docs/guard-pack.md',
   'docs/starter-acceptance-tests.md',
+  'docs/mission-control/README.md',
+  'docs/mission-control/mission-control-guide.md',
+  'docs/mission-control/handoff-template.md',
+  'docs/mission-control/result-template.md',
+  'docs/mission-control/project-overrides.example.md',
+  'prompts/mission-control/chatgpt-project-loader.md',
 
   // Superpowers planning harness (starter-only except these subpaths)
   'docs/superpowers/README.md',
@@ -62,6 +68,7 @@ export const managedPaths = [
   'scripts/deploy-smoke-test.mjs',
   'scripts/guard-repo-safety.mjs',
   'scripts/guard-harness-contract.mjs',
+  'scripts/guard-mission-control-contract.mjs',
   'scripts/guard-build-script-contract.mjs',
   'scripts/build.mjs',
   'scripts/agent-issue.mjs',
@@ -87,12 +94,14 @@ export const managedPaths = [
   'tests/int/branch-safety.int.spec.ts',
   'tests/int/agent-issue.int.spec.ts',
   'tests/int/guard-pack.int.spec.ts',
+  'tests/int/mission-control-contract.int.spec.ts',
   'tests/int/starter-acceptance.int.spec.ts',
   'tests/int/open-next-config.int.spec.ts',
   'tests/int/payload-build-context.int.spec.ts',
   'tests/fixtures/guard',
   'tests/fixtures/acceptance',
   'tests/fixtures/boilerplate-sync',
+  'tests/fixtures/mission-control',
 ]
 
 export const seedOnlyPaths = [
@@ -118,6 +127,7 @@ export const managedPackageScripts = [
   'bemoat:guard:safety',
   'bemoat:guard:pack',
   'bemoat:guard:harness-contract',
+  'bemoat:guard:mission-control-contract',
   'bemoat:guard:cloudflare-env',
   'bemoat:test:int',
   'bemoat:check',

@@ -20,6 +20,18 @@ recreate long-form framework manuals here.
 | Superpowers workflow | Native `superpowers:using-superpowers`; fallback `.agents/skills/using-superpowers.md` |
 | UI animation workflow | `.agents/skills/ui-animation.md`, `docs/ai/ui-execution-workflow.md` |
 | Harness sync contract | `docs/harness-sync-contract.md` |
+| Mission Control | `docs/mission-control/mission-control-guide.md`, `prompts/mission-control/chatgpt-project-loader.md` |
+
+## Mission Control
+
+For Mission Control coordination, read and follow:
+
+`docs/mission-control/mission-control-guide.md`
+
+Use `prompts/mission-control/chatgpt-project-loader.md` as the copyable ChatGPT
+Project bootstrap. Do not duplicate the long-form policy in this file or in
+Project instructions. Compact GitHub comment transport remains
+`docs/agent-loop/role-handoff-contract.md`.
 
 ## Skill Workflow
 
