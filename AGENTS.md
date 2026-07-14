@@ -324,67 +324,36 @@ motion risks.
 ## Issue Report After PR Creation
 
 When work comes from a GitHub issue, opening the PR is not the final step.
-After opening or updating the PR, add a `## RESULT` comment on the source
-issue per [role-handoff-contract.md](docs/agent-loop/role-handoff-contract.md).
+After opening or updating the PR, add a compact `## RESULT` comment on the
+source issue per the **operational** template in
+[role-handoff-contract.md](docs/agent-loop/role-handoff-contract.md).
 Gate-level reviewer summaries use `## REVIEW_VERDICT` on the same Task Issue;
-detailed code findings stay in PR review threads.
+detailed code findings stay in PR review threads. Role comments are
+**compact deltas**—link canonical Issue/PR/evidence instead of restating the
+Issue body, full acceptance-criteria set, or command transcripts.
 
-The comment must include:
+The comment must cover (link evidence; do not paste long logs):
 
-- PR URL
-- Branch name
-- Summary of changes
-- Files changed
-- Commands run
-- Test results
+- PR URL and branch / head
+- Summary of changes and files changed
+- Commands and test results
 - Acceptance criteria audit
-- Remaining risks
-- Human review needed
-- Next suggested step
+- Remaining risks, human review needed, next handoff
 
 Before PR creation/update and final reporting, audit the source issue's
 acceptance criteria. Copy or summarize every criterion and mark each item as
 `Done`, `Not done`, `Not applicable`, or `Waiting for CI / human review`.
 Completed items must include brief evidence, such as changed files, validation
 commands, command results, or an explicit rationale. Put the audit in the PR
-body and/or the issue implementation report comment. Do not edit the source
-issue checklist unless the user explicitly asks.
+body and/or the issue `## RESULT` comment.
 
-Use this template (`## RESULT` is canonical; `## Implementation PR ready` is an
-accepted alias during transition):
+Do **not** routinely edit the source Issue checklist from Dev/Builder work.
+Pre-merge checklist ticks are Mission Control only, under the
+[pre-merge checklist reconciliation gate](docs/agent-loop/role-handoff-contract.md#pre-merge-checklist-reconciliation-gate).
 
-```markdown
-## RESULT
-
-PR: <PR_URL>
-Branch: `<BRANCH_NAME>`
-
-### Summary
-- ...
-
-### Files changed
-- ...
-
-### Commands run
-- ...
-
-### Test results
-- ...
-
-### Acceptance criteria audit
-- ...
-
-### Remaining risks
-- ...
-
-### Human review needed
-- ...
-
-### Next suggested step
-Review PR, wait for CI, then merge if green.
-
-Closes when PR is merged.
-```
+Prefer `## RESULT` (legacy `## Implementation PR ready` remains an accepted
+alias during transition). Paste the concise operational RESULT template from
+the role-handoff contract—not a self-contained restatement of the Issue.
 
 ## Final Response Format
 
