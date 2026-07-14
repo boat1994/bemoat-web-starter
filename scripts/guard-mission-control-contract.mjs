@@ -7,6 +7,7 @@ export const GUIDE_PATH = 'docs/mission-control/mission-control-guide.md'
 export const LOADER_PATH = 'prompts/mission-control/chatgpt-project-loader.md'
 export const HANDOFF_PATH = 'docs/mission-control/handoff-template.md'
 export const RESULT_PATH = 'docs/mission-control/result-template.md'
+export const ROLE_HANDOFF_PATH = 'docs/agent-loop/role-handoff-contract.md'
 export const README_PATH = 'docs/mission-control/README.md'
 export const OVERRIDE_EXAMPLE_PATH = 'docs/mission-control/project-overrides.example.md'
 export const LIVE_OVERRIDE_PATH = '.bemoat/mission-control-overrides.md'
@@ -102,8 +103,11 @@ export const REQUIRED_VERDICTS = [
   'STATE CONFLICT',
 ]
 
-export const LOADER_MAX_LINES = 160
+export const LOADER_MAX_LINES = 80
 export const LOADER_FORBIDDEN_TITLES = ['## Review-cycle budget', '## Finding severity']
+
+/** Bare legacy Core verdict option list — must not appear as an allowed enum. */
+export const LEGACY_BARE_CORE_VERDICT_RE = /\bPASS\s*\|\s*BLOCKED\b/
 
 const REQUIRED_FRONTMATTER_KEYS = [
   'policy_id',
@@ -293,6 +297,39 @@ export function scanResultTemplate(relativePath, content) {
   return violations
 }
 
+/**
+ * Core MC-gated review transport must list the canonical verdict enum and must
+ * not offer bare legacy `PASS | BLOCKED` as allowed Core verdict options.
+ */
+export function scanRoleHandoffContract(relativePath, content) {
+  const violations = []
+  if (content == null) {
+    violations.push(violation('MC011', relativePath, 'Role handoff contract is missing'))
+    return violations
+  }
+  for (const verdict of REQUIRED_VERDICTS) {
+    if (!content.includes(verdict)) {
+      violations.push(
+        violation(
+          'MC011',
+          relativePath,
+          `Role handoff contract missing Core verdict: ${verdict}`,
+        ),
+      )
+    }
+  }
+  if (LEGACY_BARE_CORE_VERDICT_RE.test(content)) {
+    violations.push(
+      violation(
+        'MC011',
+        relativePath,
+        'Role handoff contract must not use bare legacy Core verdicts (PASS | BLOCKED)',
+      ),
+    )
+  }
+  return violations
+}
+
 export function scanManagedPathsContract(managedPaths) {
   const violations = []
   const paths = managedPaths ?? []
@@ -339,6 +376,9 @@ export function runMissionControlContractGuard({
 
   const result = readOptional(root, RESULT_PATH, readFile)
   violations.push(...scanResultTemplate(RESULT_PATH, result))
+
+  const roleHandoff = readOptional(root, ROLE_HANDOFF_PATH, readFile)
+  violations.push(...scanRoleHandoffContract(ROLE_HANDOFF_PATH, roleHandoff))
 
   let paths = managedPaths
   if (!paths) {

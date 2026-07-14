@@ -69,16 +69,32 @@ max_review_cycles: 4
     expect(violations.some((v: { rule: string }) => v.rule === 'MC006')).toBe(true)
   })
 
+  it('fails when loader exceeds thin bootstrap line limit', async () => {
+    const mod = await import('../../scripts/guard-mission-control-contract.mjs')
+    const oversized = [
+      'Read docs/mission-control/mission-control-guide.md',
+      ...Array.from({ length: mod.LOADER_MAX_LINES + 1 }, (_, i) => `line ${i}`),
+    ].join('\n')
+
+    const violations = mod.scanLoaderContent(mod.LOADER_PATH, oversized)
+    expect(violations.some((v: { rule: string }) => v.rule === 'MC007')).toBe(true)
+  })
+
   it('fails when loader duplicates long-form policy', async () => {
     const mod = await import('../../scripts/guard-mission-control-contract.mjs')
     const oversized = [
       'Read docs/mission-control/mission-control-guide.md',
       '## Review-cycle budget',
-      ...Array.from({ length: 170 }, (_, i) => `line ${i}`),
+      'keep thin',
     ].join('\n')
 
     const violations = mod.scanLoaderContent(mod.LOADER_PATH, oversized)
     expect(violations.some((v: { rule: string }) => v.rule === 'MC007')).toBe(true)
+  })
+
+  it('keeps the thin-loader ceiling at 80 lines', async () => {
+    const mod = await import('../../scripts/guard-mission-control-contract.mjs')
+    expect(mod.LOADER_MAX_LINES).toBe(80)
   })
 
   it('fails when AGENTS.md lacks the Mission Control pointer', async () => {
@@ -100,6 +116,52 @@ max_review_cycles: 4
     const violations = mod.scanResultTemplate(mod.RESULT_PATH, '## RESULT\n- Role:\n')
 
     expect(violations.some((v: { rule: string }) => v.rule === 'MC011')).toBe(true)
+  })
+
+  it('fails when role-handoff Core verdict enum is incomplete', async () => {
+    const mod = await import('../../scripts/guard-mission-control-contract.mjs')
+    const violations = mod.scanRoleHandoffContract(
+      mod.ROLE_HANDOFF_PATH,
+      '## REVIEW_VERDICT\n**Verdict:** ELIGIBLE FOR FOUNDER REVIEW\n',
+    )
+
+    expect(violations.some((v: { rule: string; message: string }) => v.rule === 'MC011')).toBe(
+      true,
+    )
+    expect(
+      violations.some(
+        (v: { message: string }) =>
+          v.message.includes('missing Core verdict') && v.message.includes('CORRECTION REQUIRED'),
+      ),
+    ).toBe(true)
+  })
+
+  it('fails when role-handoff uses bare legacy Core verdicts', async () => {
+    const mod = await import('../../scripts/guard-mission-control-contract.mjs')
+    const content = [
+      'CORRECTION REQUIRED',
+      'ELIGIBLE FOR FOUNDER REVIEW',
+      'BLOCKED FOR FOUNDER DECISION',
+      'BLOCKED EXTERNAL',
+      'STATE CONFLICT',
+      '**Verdict:** PASS | BLOCKED',
+    ].join('\n')
+
+    const violations = mod.scanRoleHandoffContract(mod.ROLE_HANDOFF_PATH, content)
+    expect(
+      violations.some(
+        (v: { rule: string; message: string }) =>
+          v.rule === 'MC011' && v.message.includes('bare legacy Core verdicts'),
+      ),
+    ).toBe(true)
+  })
+
+  it('accepts the repository role-handoff Core verdict vocabulary', async () => {
+    const mod = await import('../../scripts/guard-mission-control-contract.mjs')
+    const content = readFileSync(resolve(process.cwd(), mod.ROLE_HANDOFF_PATH), 'utf8')
+    const violations = mod.scanRoleHandoffContract(mod.ROLE_HANDOFF_PATH, content)
+
+    expect(violations).toEqual([])
   })
 
   it('fails when live override path is in managedPaths', async () => {
