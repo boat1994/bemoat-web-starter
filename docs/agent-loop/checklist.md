@@ -114,6 +114,7 @@ Stop instead of committing if the task is ambiguous, forbidden files are require
 - [ ] Agent notes and [state-template.md](./state-template.md) updated for reviewers
       (local/session only; Task Issue handoffs use [role-handoff-contract.md](./role-handoff-contract.md))
 - [ ] Task Issue `## RESULT` posted per [role-handoff-contract.md](./role-handoff-contract.md)
+      operational (compact-delta) template
 - [ ] [role-handoff-contract.md](./role-handoff-contract.md) manual validation checklist satisfied when acting on or posting handoffs
 - [ ] User notified with: task summary, branch, files changed, commands run, test result, commit hash, PR URL, risks, human review needed
 - [ ] **Did not merge** — merge is human-only
@@ -157,6 +158,7 @@ Run in **child repos** only. Full loop: [harness-sync-workflow.md](./harness-syn
 
 - [ ] Reviewer `## REVIEW_VERDICT` posted on Task Issue when review gate applies;
       [role-handoff-contract.md](./role-handoff-contract.md) manual validation checklist satisfied
+- [ ] **Pre-merge checklist reconciliation** — Mission Control audited Issue checkboxes against live verified evidence and applied a safe body update (re-fetch confirmed) or obtained explicit founder acceptance of a mapped reconciliation comment per [role-handoff-contract.md](./role-handoff-contract.md#pre-merge-checklist-reconciliation-gate)
 - [ ] All required review threads resolved
 - [ ] CI green on the PR branch
 - [ ] Starter or child-local `pnpm run check:full` run when defined and practical before merge

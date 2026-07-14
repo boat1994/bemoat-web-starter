@@ -7,11 +7,13 @@ one role. For GitHub comment handoffs on Active Task Issues, follow
 
 ## Mission Control
 
-**Purpose:** Orchestrate phases, post bounded `## HANDOFF` comments, and authorize the next role.
+**Purpose:** Orchestrate phases, post bounded compact-delta `## HANDOFF` comments, and authorize the next role.
 
 **Produces:** `## HANDOFF` | **Consumes:** `## RESULT`, `## REVIEW_VERDICT`
 
-**Must not:** Infer founder approval; skip live GitHub state verification; copy long plans into comments.
+**Must:** Before merge, run the [pre-merge checklist reconciliation gate](./role-handoff-contract.md#pre-merge-checklist-reconciliation-gate).
+
+**Must not:** Infer founder approval; skip live GitHub state verification; paste self-contained restatements of Issue body, full ACs, or prior evidence (use compact deltas).
 
 ## Role comment map
 
