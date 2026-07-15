@@ -24,6 +24,11 @@ Prefer updating these docs over creating new templates or workflows.
 
 For Core or multi-stage initiatives, use the Main GitHub Issue checklist as the durable project-stage tracker and the Implementation Plan as the roadmap contract. See [project-progress-tracking.md](./project-progress-tracking.md). Use `.superpowers/sdd/progress.md` for temporary local/session progress only.
 
+Mission Control managed state is **not implied by Core**. Require it only when
+the task declares `Mission Control mode: required`, or for the legacy Core
+shape that declares both a Main Issue and an Implementation Plan. Otherwise a
+missing state block is warning-only; never silently create one during preflight.
+
 When planning or specification expansion is material, use the
 [self red-team scope gate](./self-red-team-scope-gate.md) before adding another
 planning pass or requesting High Reasoning. Keep it optional and lightweight for
@@ -184,7 +189,7 @@ Run in **child repos** only. Full loop: [harness-sync-workflow.md](./harness-syn
 
 ## Merge readiness
 
-- [ ] For Core / multi-stage Mission Control tasks: durable state block and review cycle follow
+- [ ] For Mission Control-managed tasks: durable state block and review cycle follow
       [../mission-control/mission-control-guide.md](../mission-control/mission-control-guide.md)
 - [ ] Reviewer `## REVIEW_VERDICT` posted on Task Issue when review gate applies;
       [role-handoff-contract.md](./role-handoff-contract.md) manual validation checklist satisfied;

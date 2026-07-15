@@ -161,6 +161,7 @@ pnpm run bemoat:boilerplate:sync -- --harness-only --apply-build-contract
 Managed namespaced scripts (see `managedPackageScripts` in `scripts/sync-boilerplate.mjs`):
 
 - `bemoat:branch:check`
+- `bemoat:issue:comment` — validates and safely posts a Mission Control `HANDOFF`, `RESULT`, or `REVIEW_VERDICT` comment; sync adds the wrapper only when the child has no existing namespaced entry
 - `bemoat:guard:safety` (repo safety + harness contract)
 - `bemoat:guard:harness-contract` (standalone harness contract check)
 - `bemoat:guard:cloudflare-env`
@@ -239,6 +240,7 @@ Current shared tests (listed in `managedPaths` in `scripts/sync-boilerplate.mjs`
 - `tests/int/api.int.spec.ts`
 - `tests/int/boilerplate-sync.int.spec.ts`
 - `tests/int/cloudflare-env-guard.int.spec.ts`
+- `tests/int/post-role-comment.int.spec.ts`
 - `tests/int/guard-pack.int.spec.ts`
 - `tests/int/harness-contract-guard.int.spec.ts`
 - `tests/int/mission-control-contract.int.spec.ts`

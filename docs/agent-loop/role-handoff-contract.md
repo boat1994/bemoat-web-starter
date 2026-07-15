@@ -6,7 +6,9 @@ This document defines **comment transport only**. It does not change artifact pr
 
 ### Core Mission Control verdict vocabulary
 
-When a task is under Mission Control (Core / multi-stage), `## REVIEW_VERDICT`
+When a task is Mission Control-managed (`Mission Control mode: required`, or
+the legacy Core task that declares both a Main Issue and an Implementation
+Plan), `## REVIEW_VERDICT`
 must use exactly one of these values — the same enum as the Mission Control
 guide and RESULT template:
 
@@ -23,6 +25,10 @@ work. Those legacy shorthand words are retired for MC-gated tasks; map prior
 docs mentally as: `PASS` → `ELIGIBLE FOR FOUNDER REVIEW`, and
 `BLOCKED` → `CORRECTION REQUIRED` (or a more specific `BLOCKED_*` /
 `STATE CONFLICT` outcome when that is what the evidence requires).
+
+Mission Control management is not implied by the Core tier alone. A missing
+state block on a non-managed task is warning-only; managed state must never be
+silently initialized.
 
 ## Purpose
 
@@ -42,6 +48,20 @@ The remaining gap is **transport between roles**. Mission Control, Dev, and Revi
 > Execute the latest approved HANDOFF in Issue #106 after verifying live GitHub state.
 
 Use this contract instead of copying long prompts, plan excerpts, command logs, or review transcripts into every comment.
+
+Use the wrapper to validate and post a concise operational comment:
+
+```text
+pnpm run bemoat:issue:comment -- <issue-number> [--repo owner/repo] [--body-file <path>] [--check] [--allow-warning]
+```
+
+Provide the body through `--body-file` or stdin, never both. The wrapper
+validates the concise operational heading and its required fields: exactly one
+`## HANDOFF`, `## RESULT`, or `## REVIEW_VERDICT`. It does not accept the
+full reference templates below as post-ready bodies; reduce those examples to
+the operational shape first. Use `--check` to validate without posting, and
+use `--allow-warning` only to acknowledge a length warning. The wrapper does
+not replace live preflight or Founder gates.
 
 ## Compact-delta contract
 
@@ -107,6 +127,11 @@ Before implementation, correction, or re-review:
 1. Run `pnpm run bemoat:agent:issue -- <issue-number>` (read-only preflight).
 2. Inspect the live PR head, approved base, merge state, and exact-head CI with `gh` or the GitHub UI.
 3. Treat stale SHA or non-exact-head CI as a blocker until live state is confirmed.
+
+Routine in-scope diagnosis, CI reruns, evidence reconciliation, and localized
+corrections do not require Founder approval. Preserve Founder gates for material
+scope/AC/architecture changes, exhausted review budget, reopening, merge,
+production/migration/destructive work, and required manual QA.
 
 ## Evidence types
 
