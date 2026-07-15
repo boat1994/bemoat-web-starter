@@ -31,6 +31,34 @@ Small tasks with clear acceptance criteria.
 
 When unsure, round **up** one tier for source-of-truth or sync-managed paths; round **down** for clearly local, low-risk edits.
 
+## Optional local milestone checkpoints
+
+For **Medium/Core** work on a dedicated issue branch, agents may optionally
+create local checkpoint commits when a proven milestone has real recovery value.
+Small tasks should normally produce the final commit directly without
+checkpoints. Checkpoints are temporary implementation aids, not required
+ceremony:
+
+- `wip(red): ...` — the focused check fails for the expected reason. An
+  unexplained failure is a debug condition, not a checkpoint milestone.
+- `wip(green): ...` — the smallest implementation makes the focused check
+  pass.
+- `wip(verify): ...` — a named, bounded verification milestone is complete,
+  with its scope and result known.
+
+Keep checkpoint commits local and do not push them by default. Do not use their
+SHAs as PR, review, milestone, Mission Control, `current_head`, or CI evidence,
+and do not report them in `## RESULT`. Before review or PR evidence:
+
+1. Run the required validation tier.
+2. Squash all local checkpoints into one focused final commit.
+3. Confirm the branch to be pushed contains no `wip(...)` checkpoint commits.
+4. Push only the final commit.
+
+This policy adds no automatic commit, push, PR, or durable state behavior and
+does not permit rewriting protected-branch history. The actual PR head and
+exact-head CI remain the durable evidence for review.
+
 ## Before coding
 
 - [ ] Started with `superpowers:using-superpowers`
@@ -82,7 +110,7 @@ Stop instead of committing if the task is ambiguous, forbidden files are require
   - [ ] **Child docs/markdown/CI only** (no code): `pnpm run bemoat:guard:safety` passed
   - [ ] **Starter code changes**: `pnpm run check` passed (**required** — includes lint with **zero warnings**, typecheck, test:int, guard:safety)
   - [ ] **Child code changes**: `pnpm run bemoat:check` passed when the child supports its local `lint` and `typecheck` scripts; otherwise `pnpm run bemoat:guard:safety`, `pnpm run bemoat:test:int`, and the child-owned code checks that exist passed
-- [ ] Exactly one focused commit (unless task requires more)
+- [ ] Exactly one focused final commit is prepared before PR; temporary checkpoint commits, if any, are squashed into it
 - [ ] No unrelated refactors in the commit
 
 ## Before PR
