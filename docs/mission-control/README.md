@@ -131,17 +131,17 @@ pnpm run bemoat:boilerplate:sync -- --harness-only
 
 ## How to migrate existing tasks
 
-When an active Core task already has review history but no valid state block:
+When an active task that requires managed Mission Control state already has review history but no valid state block:
 
 1. Reconstruct completed review rounds from Issue/PR comments when evidence is
    clear.
 2. Write the marker block with reconstructed `review_cycle` and
    `last_reviewed_head`.
 3. If reconstruction is ambiguous, ask the Founder once for the starting cycle.
-4. Return `STATE MIGRATION REQUIRED` until migration is complete.
+4. Return `STATE_MIGRATION_REQUIRED` until migration is complete.
 5. Do **not** silently grant a fresh three-cycle budget.
 
-Starter marker skeleton for Active Task Issues (Core / multi-stage only):
+Starter marker skeleton for Active Task Issues that explicitly require Mission Control state, or legacy Core tasks declaring both a Main Issue and Implementation Plan:
 
 ````md
 <!-- bemoat-mission-control-state:start -->
@@ -151,7 +151,7 @@ state: READY
 review_cycle: 0
 full_review_count: 0
 approved_base: main
-active_task_issue: null
+active_task_issue: "#<this active task issue>"
 active_pr: null
 current_head: null
 last_reviewed_head: null

@@ -222,6 +222,7 @@ export function parseIssueDeclarations(body = '') {
     activePrRef: null,
     approvedBase: null,
     taskSize: null,
+    missionControlMode: null,
     nextPermittedAction: null,
     currentStage: {},
     declaresMainIssue: false,
@@ -283,11 +284,29 @@ export function parseIssueDeclarations(body = '') {
     parseIssueFormSection(source, 'Approved base branch'),
   )
 
+  const formTaskSize = parseIssueFormSection(source, 'Task size')
+  if (formTaskSize && /^(small|medium|core)$/i.test(formTaskSize)) {
+    declarations.taskSize = formTaskSize.toLowerCase()
+  }
+  const formMissionControlMode = parseIssueFormSection(source, 'Mission Control mode')
+  if (formMissionControlMode && /^(required|optional|not required)$/i.test(formMissionControlMode)) {
+    declarations.missionControlMode = formMissionControlMode.toLowerCase() === 'required'
+      ? 'required'
+      : 'optional'
+  }
+
   const taskSizeMatch = source.match(
     /(?:^|\n)\s*(?:Task\s+size|This is a)\s*[:\s]*\**\s*(small|medium|core)\b/i,
   )
   if (taskSizeMatch) {
     declarations.taskSize = taskSizeMatch[1].toLowerCase()
+  }
+
+  const missionControlModeMatch = source.match(
+    /(?:^|\n)\s*Mission\s+Control\s+mode\s*:\s*(required|optional)\b/im,
+  )
+  if (missionControlModeMatch) {
+    declarations.missionControlMode = missionControlModeMatch[1].toLowerCase()
   }
 
   const nextActionSection = source.match(
@@ -358,6 +377,156 @@ export function parseDurableProgress(body = '') {
     firstIncomplete,
     malformed: durableSection[1].trim().length > 0 && milestones.length === 0,
   }
+}
+
+const missionControlStates = new Set([
+  'READY',
+  'IN_PROGRESS',
+  'AWAITING_REVIEW_1',
+  'CORRECTION_REQUIRED_1',
+  'AWAITING_REVIEW_2',
+  'CORRECTION_REQUIRED_2',
+  'AWAITING_REVIEW_3',
+  'BLOCKED_FOR_FOUNDER_DECISION',
+  'ELIGIBLE_FOR_FOUNDER_REVIEW',
+  'DONE',
+  'BLOCKED_EXTERNAL',
+  'STATE_CONFLICT',
+  'STATE_MIGRATION_REQUIRED',
+])
+
+const missionControlRequiredKeys = [
+  'schema_version', 'state', 'review_cycle', 'full_review_count', 'approved_base',
+  'active_task_issue', 'active_pr', 'current_head', 'last_reviewed_head',
+  'guide_version', 'guide_source_ref', 'guide_source_sha', 'open_blockers',
+  'follow_up_issues', 'next_permitted_action', 'material_change_status', 'updated_at',
+  'updated_by',
+]
+
+function parseMissionControlScalar(value) {
+  const trimmed = value.trim()
+  if (trimmed === 'null') return null
+  if (trimmed === '[]') return []
+  if (/^\d+$/.test(trimmed)) return Number(trimmed)
+  const quoted = trimmed.match(/^(["'])(.*)\1$/)
+  return quoted ? quoted[2] : trimmed
+}
+
+const missionControlArrayKeys = new Set(['open_blockers', 'follow_up_issues'])
+
+/**
+ * @typedef {{
+ *   schema_version: number,
+ *   state: string,
+ *   review_cycle: number,
+ *   full_review_count: number,
+ *   approved_base: string,
+ *   active_task_issue: string | null,
+ *   active_pr: string | null,
+ *   current_head: string | null,
+ *   last_reviewed_head: string | null,
+ *   guide_version: string,
+ *   guide_source_ref: string,
+ *   guide_source_sha: string | null,
+ *   open_blockers: unknown[],
+ *   follow_up_issues: unknown[],
+ *   next_permitted_action: string,
+ *   material_change_status: string,
+ *   updated_at: string | null,
+ *   updated_by: string | null,
+ * }} MissionControlState
+ */
+
+/** @returns {{present: boolean, valid: boolean, reason?: string, state: MissionControlState | null}} */
+export function parseMissionControlState(body = '') {
+  const starts = [...body.matchAll(/<!--\s*bemoat-mission-control-state:start\s*-->/g)]
+  const ends = [...body.matchAll(/<!--\s*bemoat-mission-control-state:end\s*-->/g)]
+  if (starts.length === 0 && ends.length === 0) return { present: false, valid: false, state: null }
+  if (starts.length !== 1 || ends.length !== 1 || starts[0].index > ends[0].index) {
+    return { present: true, valid: false, reason: 'exactly one balanced marker pair is required' }
+  }
+
+  const raw = body.slice(starts[0].index + starts[0][0].length, ends[0].index)
+    .replace(/```yaml\s*|```/g, '')
+  /** @type {Record<string, unknown>} */
+  const state = {}
+  let listKey = null
+  for (const line of raw.split('\n')) {
+    if (!line.trim() || /^\s*#/.test(line)) continue
+    const listItem = line.match(/^\s*-\s+(.+?)\s*$/)
+    if (listItem) {
+      if (!listKey) return { present: true, valid: false, reason: `unreadable state line: ${line.trim()}` }
+      state[listKey].push(parseMissionControlScalar(listItem[1]))
+      continue
+    }
+    const match = line.match(/^\s*([a-z_]+)\s*:\s*(.*?)\s*$/)
+    if (!match) return { present: true, valid: false, reason: `unreadable state line: ${line.trim()}` }
+    if (Object.hasOwn(state, match[1])) return { present: true, valid: false, reason: `duplicate state key: ${match[1]}` }
+    if (match[2] === '' && missionControlArrayKeys.has(match[1])) {
+      state[match[1]] = []
+      listKey = match[1]
+    } else {
+      state[match[1]] = parseMissionControlScalar(match[2])
+      listKey = null
+    }
+  }
+
+  const missing = missionControlRequiredKeys.filter((key) => !Object.hasOwn(state, key))
+  if (missing.length > 0) return { present: true, valid: false, reason: `missing required state key(s): ${missing.join(', ')}` }
+  if (state.schema_version !== 1) return { present: true, valid: false, reason: 'unsupported schema_version' }
+  if (typeof state.state !== 'string' || !missionControlStates.has(state.state)) {
+    return { present: true, valid: false, reason: 'invalid state enum' }
+  }
+  const nullableStringKeys = ['active_task_issue', 'active_pr', 'current_head', 'last_reviewed_head', 'guide_source_sha', 'updated_at', 'updated_by']
+  const requiredStringKeys = ['approved_base', 'guide_version', 'guide_source_ref', 'next_permitted_action', 'material_change_status']
+  if (nullableStringKeys.some((key) => state[key] !== null && typeof state[key] !== 'string') ||
+      requiredStringKeys.some((key) => typeof state[key] !== 'string' || state[key].length === 0)) {
+    return { present: true, valid: false, reason: 'invalid required state field type' }
+  }
+  if (!Number.isInteger(state.review_cycle) || !Number.isInteger(state.full_review_count) || state.review_cycle < 0 || state.review_cycle > 3 || state.full_review_count < 0 || state.full_review_count > 1 || state.full_review_count > state.review_cycle) {
+    return { present: true, valid: false, reason: 'impossible review counter values' }
+  }
+  if (!Array.isArray(state.open_blockers) || !Array.isArray(state.follow_up_issues)) {
+    return { present: true, valid: false, reason: 'open_blockers and follow_up_issues must be arrays' }
+  }
+  if (state.review_cycle > 0 && typeof state.last_reviewed_head !== 'string') {
+    return { present: true, valid: false, reason: 'reviewed cycles require last_reviewed_head' }
+  }
+
+  const expectedCycles = {
+    READY: 0,
+    IN_PROGRESS: 0,
+    AWAITING_REVIEW_1: 0,
+    CORRECTION_REQUIRED_1: 1,
+    AWAITING_REVIEW_2: 1,
+    CORRECTION_REQUIRED_2: 2,
+    AWAITING_REVIEW_3: 2,
+  }
+  if (Object.hasOwn(expectedCycles, state.state) && state.review_cycle !== expectedCycles[state.state]) {
+    return { present: true, valid: false, reason: 'state and review_cycle are inconsistent' }
+  }
+  const expectedFullReviewCounts = {
+    READY: 0,
+    IN_PROGRESS: 0,
+    AWAITING_REVIEW_1: 0,
+    CORRECTION_REQUIRED_1: 1,
+    AWAITING_REVIEW_2: 1,
+    CORRECTION_REQUIRED_2: 1,
+    AWAITING_REVIEW_3: 1,
+    BLOCKED_FOR_FOUNDER_DECISION: 1,
+    ELIGIBLE_FOR_FOUNDER_REVIEW: 1,
+    DONE: 1,
+  }
+  if (Object.hasOwn(expectedFullReviewCounts, state.state) && state.full_review_count !== expectedFullReviewCounts[state.state]) {
+    return { present: true, valid: false, reason: 'state and full_review_count are inconsistent' }
+  }
+
+  return { present: true, valid: true, state: /** @type {MissionControlState} */ (state) }
+}
+
+function stateRequiresPrEvidence(state) {
+  return /^(AWAITING_REVIEW_|CORRECTION_REQUIRED_)/.test(state) ||
+    ['BLOCKED_FOR_FOUNDER_DECISION', 'ELIGIBLE_FOR_FOUNDER_REVIEW', 'DONE'].includes(state)
 }
 
 export function parseIssueReference(reference, defaultRepo = null) {
@@ -669,8 +838,10 @@ function detectBlockingFindings(currentStage = {}) {
 }
 
 function detectFounderGate(currentStage = {}, milestones = []) {
-  const founderGateOpen = milestones.some(
-    (item) => /founder/i.test(item.label) && !item.complete,
+  const firstIncomplete = milestones.find((item) => !item.complete)
+  const currentTask = currentStage.current_task_or_gate?.trim() ?? ''
+  const founderGateOpen = Boolean(
+    /founder/i.test(currentTask) || (firstIncomplete && /founder/i.test(firstIncomplete.label)),
   )
   const founderValue = currentStage.founder_gate?.trim() ?? ''
   const explicitOpen =
@@ -685,6 +856,7 @@ function detectFounderGate(currentStage = {}, milestones = []) {
 export function analyzeProgressTracking({
   cwd = process.cwd(),
   activeIssueBody = '',
+  activeIssueNumber = null,
   env = process.env,
 } = {}) {
   const blockers = []
@@ -709,6 +881,36 @@ export function analyzeProgressTracking({
   const taskSize = declarations.taskSize
   const isSmallTask = taskSize === 'small'
   const activeIssueSource = stripFencedCodeBlocks(activeIssueBody)
+  const stateAnalysis = parseMissionControlState(activeIssueBody)
+  const stateRequired =
+    declarations.missionControlMode === 'required' ||
+    (taskSize === 'core' && declarations.declaresMainIssue && declarations.declaresImplementationPlan)
+  const state = stateAnalysis.state
+  const stateNeedsPrEvidence = stateAnalysis.valid && stateRequiresPrEvidence(state.state)
+
+  report.missionControlState = stateAnalysis
+  if (!stateAnalysis.present) {
+    if (stateRequired) {
+      blockers.push('STATE_MIGRATION_REQUIRED: managed Mission Control state is required but absent.')
+    } else {
+      warnings.push('Mission Control state is absent — normal for standalone tasks not opted into managed state.')
+    }
+  } else if (!stateAnalysis.valid) {
+    blockers.push(`STATE_MIGRATION_REQUIRED: ${stateAnalysis.reason}.`)
+  } else if (activeIssueNumber) {
+    const defaultRepo = getDefaultRepo(cwd)
+    const stateTaskIssue = parseIssueReference(String(state.active_task_issue ?? ''), defaultRepo)
+    if (
+      !stateTaskIssue ||
+      stateTaskIssue.number !== String(activeIssueNumber) ||
+      (stateTaskIssue.repo && defaultRepo && stateTaskIssue.repo !== defaultRepo)
+    ) {
+      blockers.push('STATE_CONFLICT: state active_task_issue does not match the live task Issue.')
+    }
+  }
+  if (stateAnalysis.valid && ['STATE_CONFLICT', 'STATE_MIGRATION_REQUIRED', 'BLOCKED_EXTERNAL'].includes(state.state)) {
+    blockers.push(`${state.state}: recorded Mission Control state requires reconciliation before continuing.`)
+  }
 
   if (declarations.declaresMainIssue) {
     const mainIssueResult = fetchIssueByReference(cwd, declarations.mainIssueRef, env)
@@ -766,15 +968,57 @@ export function analyzeProgressTracking({
     warnings.push('No Implementation Plan declared — expected for valid Small or Medium tasks.')
   }
 
-  const activePrRef =
-    declarations.activePrRef || declarations.currentStage.active_pr || null
+  const declaredActivePrRef = declarations.activePrRef || declarations.currentStage.active_pr || null
+  const stateActivePrRef =
+    state?.active_pr === null || state?.active_pr === undefined ? null : String(state.active_pr)
+  const activePrRef = declaredActivePrRef || stateActivePrRef
+  if (stateAnalysis.valid && (declaredActivePrRef || stateActivePrRef)) {
+    const declaredPr = parsePrReference(declaredActivePrRef)
+    const recordedPr = parsePrReference(stateActivePrRef)
+    if (
+      !declaredPr ||
+      !recordedPr ||
+      declaredPr.number !== recordedPr.number ||
+      (declaredPr.repo && recordedPr.repo && declaredPr.repo !== recordedPr.repo)
+    ) {
+      blockers.push('STATE_CONFLICT: state active_pr does not match the declared Active PR.')
+    }
+  }
+  if (stateNeedsPrEvidence && (!state.active_pr || !state.current_head)) {
+    blockers.push('STATE_MIGRATION_REQUIRED: review or eligibility state requires active_pr and current_head.')
+  }
   if (activePrRef) {
     const prResult = fetchPrByReference(cwd, activePrRef, env)
     if (!prResult.ok) {
-      blockers.push(`Declared Active PR could not be identified: ${activePrRef}`)
+      if (stateRequired || stateNeedsPrEvidence) {
+        blockers.push(`BLOCKED_EXTERNAL: required Active PR evidence is unavailable: ${activePrRef}`)
+      } else {
+        blockers.push(`Declared Active PR could not be identified: ${activePrRef}`)
+      }
     } else {
       report.pr = prResult.pr
       report.exactHeadCi = analyzeExactHeadCi(prResult.pr)
+      if (stateAnalysis.valid) {
+        const expectedPr = parsePrReference(String(state.active_pr ?? ''))
+        if (expectedPr?.number && expectedPr.number !== String(prResult.reference.number)) {
+          blockers.push('STATE_CONFLICT: state active_pr does not match the live PR reference.')
+        }
+        if (state.approved_base !== prResult.pr.baseRefName) {
+          blockers.push('STATE_CONFLICT: state approved_base does not match the live PR base.')
+        }
+        if (state.current_head && state.current_head !== prResult.pr.headRefOid) {
+          blockers.push('STATE_CONFLICT: state current_head does not match the live PR head.')
+        }
+        if (prResult.pr.state === 'MERGED' && state.state !== 'DONE') {
+          blockers.push('STATE_CONFLICT: merged PR completion must reconcile to DONE.')
+        }
+        if (prResult.pr.state === 'CLOSED' && state.state !== 'DONE') {
+          blockers.push('STATE_CONFLICT: closed PR conflicts with the recorded non-terminal state.')
+        }
+        if (state.state === 'DONE' && prResult.pr.state !== 'MERGED') {
+          blockers.push('STATE_CONFLICT: DONE requires a merged active PR.')
+        }
+      }
       if (report.exactHeadCi.olderShaSuccess) {
         warnings.push(
           'Successful CI exists for an older SHA — exact-head CI is required for current evidence.',
@@ -789,6 +1033,9 @@ export function analyzeProgressTracking({
       }
     }
   }
+  if (stateNeedsPrEvidence && !activePrRef) {
+    blockers.push('BLOCKED_EXTERNAL: required Active PR evidence is unavailable.')
+  }
 
   const blockingFindings = detectBlockingFindings(declarations.currentStage)
   if (blockingFindings.length > 0) {
@@ -799,7 +1046,7 @@ export function analyzeProgressTracking({
 
   const founderGate = detectFounderGate(declarations.currentStage, durableProgress.milestones)
   if (founderGate.open) {
-    warnings.push('Founder gate remains open — do not infer approval from technical readiness or green CI.')
+    blockers.push('Founder gate remains open — do not infer approval from technical readiness or green CI.')
   }
 
   report.nextPermittedAction =
@@ -1018,6 +1265,7 @@ export function runAgentIssuePreflight({
       ? analyzeProgressTracking({
           cwd,
           activeIssueBody: issueMetadata.body,
+          activeIssueNumber: issueNumber,
           env,
         })
       : {
@@ -1124,6 +1372,6 @@ function main() {
   process.exit(report.exitCode)
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (process.argv[1] && (resolve(process.argv[1]) === fileURLToPath(import.meta.url) || process.argv[1].endsWith('/agent-issue.mjs'))) {
   main()
 }

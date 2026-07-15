@@ -13,6 +13,7 @@ import {
   parseDurableProgress,
   parseIssueDeclarations,
   parseIssueReference,
+  parseMissionControlState,
   runAgentIssuePreflight,
   validatePlanPath,
 } from '../../scripts/agent-issue.mjs'
@@ -96,6 +97,34 @@ function withStubbedGh(root: string, content: string) {
   writeExecutable(ghPath, content)
 
   return `${binDir}:${process.env.PATH ?? ''}`
+}
+
+function managedState(overrides: Record<string, string> = {}) {
+  const fields: Record<string, string> = {
+    schema_version: '1',
+    state: 'IN_PROGRESS',
+    review_cycle: '0',
+    full_review_count: '0',
+    approved_base: 'main',
+    active_task_issue: '"115"',
+    active_pr: '"116"',
+    current_head: 'newhead',
+    last_reviewed_head: 'null',
+    guide_version: '1.0.0',
+    guide_source_ref: 'main',
+    guide_source_sha: 'null',
+    open_blockers: '[]',
+    follow_up_issues: '[]',
+    next_permitted_action: 'Implement',
+    material_change_status: 'none',
+    updated_at: 'null',
+    updated_by: 'null',
+    ...overrides,
+  }
+
+  return `<!-- bemoat-mission-control-state:start -->\n${Object.entries(fields)
+    .map(([key, value]) => `${key}: ${value}`)
+    .join('\n')}\n<!-- bemoat-mission-control-state:end -->`
 }
 
 function runAgentIssue(root: string, args: string[], env: Record<string, string> = {}) {
@@ -635,5 +664,250 @@ printf '%s' '{"title":"Harness task","url":"https://github.com/boat1994/bemoat-w
 
     expect(report.ok).toBe(true)
     expect(beforeStatus).toBe(afterStatus)
+  })
+
+  it('warns, rather than blocks, when a standalone Core task has no managed state', () => {
+    const root = createRepo('feature/115-standalone-core')
+    const analysis = analyzeProgressTracking({
+      cwd: root,
+      activeIssueBody: 'Task size: Core\n\n## Goal\nBounded standalone correction.',
+    })
+
+    expect(analysis.blockers).toEqual([])
+    expect(analysis.warnings.join(' ')).toContain('Mission Control state is absent')
+  })
+
+  it('requires managed state for an explicitly required task and rejects malformed state', () => {
+    const root = createRepo('feature/115-malformed-state')
+    const analysis = analyzeProgressTracking({
+      cwd: root,
+      activeIssueBody: `
+Task size: Core
+Mission Control mode: required
+<!-- bemoat-mission-control-state:start -->
+schema_version: 1
+state: NOT_A_STATE
+<!-- bemoat-mission-control-state:end -->`,
+    })
+
+    expect(analysis.blockers.join(' ')).toContain('STATE_MIGRATION_REQUIRED')
+  })
+
+  it('requires a state block for legacy Core tasks with both Main Issue and Implementation Plan', () => {
+    const root = createRepo('feature/115-legacy-state')
+    const planPath = 'docs/superpowers/plans/sample/implementation-plan.md'
+    seedTrackedFile(root, planPath, '# Implementation Plan\n')
+    const analysis = analyzeProgressTracking({
+      cwd: root,
+      activeIssueBody: `Task size: Core
+Main Issue: #106
+Implementation Plan: \`${planPath}\``,
+      env: {
+        ...process.env,
+        PATH: withStubbedGh(
+          root,
+          `#!/usr/bin/env sh
+printf '%s' '{"title":"Main","url":"https://github.com/boat1994/bemoat-web-starter/issues/106","body":"","state":"OPEN"}'
+`,
+        ),
+      },
+    })
+
+    expect(analysis.blockers.join(' ')).toContain('STATE_MIGRATION_REQUIRED')
+  })
+
+  it('blocks state conflicts when the recorded PR head disagrees with live evidence', () => {
+    const root = createRepo('feature/115-state-conflict')
+    const analysis = analyzeProgressTracking({
+      cwd: root,
+      activeIssueBody: `
+Task size: Core
+Mission Control mode: required
+<!-- bemoat-mission-control-state:start -->
+schema_version: 1
+state: IN_PROGRESS
+review_cycle: 0
+full_review_count: 0
+approved_base: main
+active_task_issue: "115"
+active_pr: "116"
+current_head: oldhead
+last_reviewed_head: null
+guide_version: 1.0.0
+guide_source_ref: main
+guide_source_sha: null
+open_blockers: []
+follow_up_issues: []
+next_permitted_action: "Implement"
+material_change_status: none
+updated_at: null
+updated_by: null
+<!-- bemoat-mission-control-state:end -->`,
+      env: {
+        ...process.env,
+        PATH: withStubbedGh(
+          root,
+          `#!/usr/bin/env sh
+case "$*" in
+  *"pr view 116"*) printf '%s' '{"title":"PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/116","headRefName":"feature/115","baseRefName":"main","headRefOid":"newhead","state":"OPEN","statusCheckRollup":[],"commits":[]}' ;;
+  *) echo "unexpected gh call: $*" >&2; exit 1 ;;
+esac
+`,
+        ),
+      },
+    })
+
+    expect(analysis.blockers.join(' ')).toContain('STATE_CONFLICT')
+  })
+
+  it('does not warn for a future Founder milestone after the current incomplete task', () => {
+    const root = createRepo('feature/115-founder-ordering')
+    const analysis = analyzeProgressTracking({
+      cwd: root,
+      activeIssueBody: `
+## Durable Progress
+### Slice A
+- [ ] Implement current task
+### Slice B
+- [ ] Founder merge approval
+
+## Current Stage
+- Current Task or gate: Implement current task`,
+    })
+
+    expect(analysis.warnings.join(' ')).not.toContain('Founder gate remains open')
+  })
+
+  it('parses required mode and Core tier from GitHub Issue Form headings', () => {
+    const declarations = parseIssueDeclarations(`
+### Task size
+
+core
+
+### Mission Control mode
+
+required`)
+
+    expect(declarations.taskSize).toBe('core')
+    expect(declarations.missionControlMode).toBe('required')
+  })
+
+  it('requires state for a form-created managed task', () => {
+    const analysis = analyzeProgressTracking({
+      activeIssueBody: `### Task size
+
+core
+
+### Mission Control mode
+
+required`,
+    })
+
+    expect(analysis.blockers.join(' ')).toContain('STATE_MIGRATION_REQUIRED')
+  })
+
+  it('accepts a valid v1 state block with non-empty YAML lists', () => {
+    const state = parseMissionControlState(managedState({
+      open_blockers: '\n  - await exact-head CI',
+      follow_up_issues: '\n  - "#117"',
+    }))
+
+    expect(state.valid).toBe(true)
+    expect(state.state?.open_blockers).toEqual(['await exact-head CI'])
+    expect(state.state?.follow_up_issues).toEqual(['#117'])
+  })
+
+  it('rejects duplicate or unbalanced state marker blocks', () => {
+    expect(parseMissionControlState(`${managedState()}\n<!-- bemoat-mission-control-state:start -->`)).toMatchObject({
+      valid: false,
+      reason: expect.stringContaining('exactly one balanced'),
+    })
+    expect(parseMissionControlState('<!-- bemoat-mission-control-state:end -->')).toMatchObject({
+      valid: false,
+      reason: expect.stringContaining('exactly one balanced'),
+    })
+  })
+
+  it('rejects unsupported schemas and impossible review counters', () => {
+    expect(parseMissionControlState(managedState({ schema_version: '2' }))).toMatchObject({
+      valid: false,
+      reason: 'unsupported schema_version',
+    })
+    expect(parseMissionControlState(managedState({
+      state: 'AWAITING_REVIEW_2',
+      review_cycle: '1',
+      full_review_count: '0',
+      last_reviewed_head: 'oldhead',
+    }))).toMatchObject({
+      valid: false,
+      reason: expect.stringContaining('full_review_count'),
+    })
+  })
+
+  it('blocks a task, PR, base, and head mismatch against live state', () => {
+    const root = createRepo('feature/115-live-conflicts')
+    const analysis = analyzeProgressTracking({
+      cwd: root,
+      activeIssueNumber: '115',
+      activeIssueBody: `Mission Control mode: required
+Active PR: #117
+${managedState({ active_task_issue: '"114"', approved_base: 'dev', current_head: 'oldhead' })}`,
+      env: {
+        ...process.env,
+        PATH: withStubbedGh(root, `#!/usr/bin/env sh
+case "$*" in
+  *"pr view 117"*) printf '%s' '{"title":"PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/117","headRefName":"feature/115","baseRefName":"main","headRefOid":"newhead","state":"OPEN","statusCheckRollup":[],"commits":[]}' ;;
+  *) echo "unexpected gh call: $*" >&2; exit 1 ;;
+esac
+`),
+      },
+    })
+
+    expect(analysis.blockers.filter((blocker) => blocker.includes('STATE_CONFLICT'))).toHaveLength(5)
+  })
+
+  it('blocks DONE when its active PR is not merged', () => {
+    const root = createRepo('feature/115-terminal-conflict')
+    const analysis = analyzeProgressTracking({
+      cwd: root,
+      activeIssueNumber: '115',
+      activeIssueBody: `Mission Control mode: required
+${managedState({ state: 'DONE', review_cycle: '1', full_review_count: '1', last_reviewed_head: 'newhead' })}`,
+      env: {
+        ...process.env,
+        PATH: withStubbedGh(root, `#!/usr/bin/env sh
+printf '%s' '{"title":"PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/116","headRefName":"feature/115","baseRefName":"main","headRefOid":"newhead","state":"OPEN","statusCheckRollup":[],"commits":[]}'
+`),
+      },
+    })
+
+    expect(analysis.blockers.join(' ')).toContain('STATE_CONFLICT')
+  })
+
+  it('surfaces recorded terminal classifications and unavailable required PR evidence as blockers', () => {
+    const root = createRepo('feature/115-external-state')
+    const conflict = analyzeProgressTracking({
+      cwd: root,
+      activeIssueBody: `Mission Control mode: required
+${managedState({ state: 'STATE_CONFLICT', active_pr: 'null', current_head: 'null' })}`,
+    })
+    const unavailable = analyzeProgressTracking({
+      cwd: root,
+      activeIssueBody: `Mission Control mode: required
+${managedState({ state: 'AWAITING_REVIEW_1' })}`,
+      env: { ...process.env, PATH: withStubbedGh(root, '#!/usr/bin/env sh\necho offline >&2\nexit 1\n') },
+    })
+
+    expect(conflict.blockers.join(' ')).toContain('STATE_CONFLICT')
+    expect(unavailable.blockers.join(' ')).toContain('BLOCKED_EXTERNAL')
+  })
+
+  it('blocks when the declared current stage is a Founder gate', () => {
+    const analysis = analyzeProgressTracking({
+      activeIssueBody: `## Current Stage
+- Current Task or gate: Founder merge approval`,
+    })
+
+    expect(analysis.blockers.join(' ')).toContain('Founder gate remains open')
   })
 })

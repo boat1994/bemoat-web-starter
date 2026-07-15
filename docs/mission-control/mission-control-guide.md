@@ -40,6 +40,21 @@ the result, identifies one next action, and stops.
 Mission Control is not an implementation agent and not a perpetual code
 reviewer.
 
+## Applicability and preflight outcomes
+
+Mission Control durable state is an explicit workflow choice, **not a task-size
+tier**. A task requires managed state when it declares `Mission Control mode:
+required`. For backwards compatibility, a Core task that declares both a Main
+Issue and an Implementation Plan is also managed state. Small, Medium, and
+standalone Core tasks that do neither remain valid without a state block.
+
+`bemoat:agent:issue` is read-only. It classifies a missing state block on a
+non-managed task as a warning; it must not initialize one. For a managed task,
+an absent or malformed block is `STATE_MIGRATION_REQUIRED`; disagreement with
+the live Issue/PR/base/head/terminal state is `STATE_CONFLICT`; and required
+live evidence that cannot be obtained is `BLOCKED_EXTERNAL`. These outcomes
+require reconciliation, never a silent reset or inferred review count.
+
 ## Roles and authority boundaries
 
 ### Mission Control
@@ -75,10 +90,12 @@ review cycle independently.
 
 ### Founder
 
-Owns: scope and Acceptance Criteria exceptions; material-change authorization
-after review has begun; decisions after the review budget is exhausted; merge
-approval; reopening after Founder Review or completion when evidence is
-disputed.
+Owns: material scope, Acceptance Criteria, or architecture changes;
+authorization after the review budget is exhausted; merge approval; reopening
+after Founder Review or completion when evidence is disputed; production,
+migration, destructive work, and required manual-QA decisions. Founder
+approval is not required for routine in-scope diagnosis, CI reruns, evidence
+reconciliation, or localized corrections that preserve the approved contract.
 
 ## Responsibility/source-of-truth model
 
@@ -96,7 +113,7 @@ disputed.
 
 ### Conflict behavior
 
-If durable sources conflict, return `STATE CONFLICT`, identify the conflicting
+If durable sources conflict, return `STATE_CONFLICT`, identify the conflicting
 fields and links, request or apply one bounded reconciliation action, and stop.
 Do not guess which state is correct.
 
@@ -110,7 +127,7 @@ At the start of every Mission Control run:
 4. Report repository, policy ref, policy commit SHA, and guide version.
 5. Read the approved Implementation Plan, Main Issue, Active Task Issue, active PR exact head, and exact-head CI/check status.
 6. Read the existing Mission Control state block before choosing an action.
-7. If durable sources conflict, return `STATE CONFLICT` and stop.
+7. If durable sources conflict, return `STATE_CONFLICT` and stop.
 8. Perform exactly one bounded action or state transition.
 9. Write the durable result to GitHub, identify one next permitted action, and stop.
 
@@ -132,7 +149,7 @@ state: READY
 review_cycle: 0
 full_review_count: 0
 approved_base: main
-active_task_issue: null
+active_task_issue: "#<this active task issue>"
 active_pr: null
 current_head: null
 last_reviewed_head: null
@@ -158,7 +175,7 @@ updated_by: null
 - A correction commit does not reset the cycle.
 - `last_reviewed_head` records the exact head SHA covered by the most recent completed review.
 - If PR head changes after review, the previous verdict remains historical evidence but does not cover the new head.
-- If the block is malformed or absent on a legacy active task, return `STATE MIGRATION REQUIRED`; do not silently initialize as Review 1.
+- If a managed task has a malformed or absent block, return `STATE_MIGRATION_REQUIRED`; do not silently initialize as Review 1.
 
 ## State machine and allowed transitions
 
@@ -374,19 +391,19 @@ blockers.
 ## Stop conditions
 
 Stop after one bounded Mission Control action or state transition. Stop on
-`STATE CONFLICT`, `STATE MIGRATION REQUIRED`, Founder gate, exhausted review
+`STATE_CONFLICT`, `STATE_MIGRATION_REQUIRED`, Founder gate, exhausted review
 budget without autonomous Review 4, or when evidence cannot be proven
-(`BLOCKED EXTERNAL`).
+(`BLOCKED_EXTERNAL`).
 
 ## Existing-task migration behavior
 
-For an existing task already under review without a valid state block:
+For a managed existing task already under review without a valid state block:
 
 1. Reconstruct prior completed review rounds from Issue/PR comments where evidence is clear.
 2. Record the reconstructed count and reviewed SHAs.
 3. If the count cannot be proven, ask the Founder to set the starting cycle once.
 4. Do not grant a fresh three-cycle budget by default.
-5. Return `STATE MIGRATION REQUIRED` until migration is complete.
+5. Return `STATE_MIGRATION_REQUIRED` until migration is complete.
 
 ## Repository-specific override behavior
 
@@ -396,7 +413,7 @@ sync-managed). See [project-overrides.example.md](./project-overrides.example.md
 Overrides may add/narrow project requirements. They must not relax shared
 invariants (review budget, completion gate, severity rules, exact-head
 requirements, auto-merge bans, silent reset bans). Conflicting overrides yield
-`STATE CONFLICT`.
+`STATE_CONFLICT`.
 
 ## Worked examples
 

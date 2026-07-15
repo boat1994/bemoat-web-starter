@@ -146,6 +146,12 @@ A Slice is not fully complete until its PR is merged into the approved base bran
 
 Use `.superpowers/sdd/progress.md` for temporary execution progress. Do **not** edit the Main Issue for every command, retry, RED/GREEN transition, minor corrective commit, or CI rerun.
 
+Mission Control may reconcile verified Issue/PR evidence and make localized
+in-scope corrections without a Founder decision. Founder decisions remain
+required for material scope, Acceptance Criteria, or architecture changes;
+exhausted review budget; reopening; merge; production, migration, destructive
+work, and required manual QA.
+
 ### Before PR creation or update
 
 - audit the active Task Issue acceptance criteria
@@ -190,6 +196,12 @@ Before closing a Task Issue or marking a durable Main Issue milestone:
 
 `pnpm run bemoat:agent:issue -- <issue-number>` stays **read-only**. It must never mutate issue checklists, plan files, PR state, branch state, or CI state.
 
+Managed Mission Control state is opt-in, not tier-driven: it is required only
+for `Mission Control mode: required`, plus legacy Core tasks declaring both a
+Main Issue and an Implementation Plan. Missing state for other valid
+Small/Medium/standalone Core work is warning-only. Never silently initialize a
+state block.
+
 ### Hard blockers
 
 Produce a clear blocker when:
@@ -201,6 +213,10 @@ Produce a clear blocker when:
 - exact-head CI is required by the current gate but current-head status cannot be verified
 - the current gate is blocked by unresolved Critical or Important findings
 - dependent work would begin before the Main Issue and GitHub evidence prove the prerequisite milestone
+- a managed task has no valid state block (`STATE_MIGRATION_REQUIRED`), or its
+  recorded Issue/PR/base/head/terminal state conflicts with live evidence
+  (`STATE_CONFLICT`)
+- required live Issue/PR/CI evidence cannot be retrieved (`BLOCKED_EXTERNAL`)
 
 ### Warnings only
 
@@ -210,6 +226,11 @@ Produce a warning, not a blocker, when:
 - the issue has no Implementation Plan because the work does not require one
 - the Main Issue is missing optional convenience metadata but the next permitted action is still deterministic
 - older CI exists but exact-head CI is also available and authoritative
+- a non-managed task has no Mission Control state block
+
+For Founder gates, block only on a declared current gate or the first
+incomplete Founder milestone. Future Founder milestones do not block the
+current permitted action.
 
 Do not silently fall back to a previous agent summary when declared GitHub or plan state is missing.
 
