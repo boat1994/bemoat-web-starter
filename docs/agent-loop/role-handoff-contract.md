@@ -181,8 +181,11 @@ Use these for posted comments. Include only the fields needed for this phase. Pr
 **AC audit:** Issue #<n> criteria — Done / Not done / N/A / Waiting (short status + pointer; no full restatement of Issue body)
 **Blockers / risks:** None | <delta>
 **Prohibited next:** <if any>
+**Efficiency:** Normal | High usage | Looped | Manual intervention
 **Next:** <expected next comment>
 ```
+
+`**Efficiency:**` is **optional**. Omit it on unremarkable runs. Include it when a qualitative signal helps later workflow analysis (abnormal resource use, agent loops, or human intervention). Allowed values: `Normal`, `High usage`, `Looped`, `Manual intervention`. You may append an approximate token count only when a tool shows a clear number **and** the run is abnormal — never require token recording when data is missing or the run is normal.
 
 ### REVIEW_VERDICT (operational)
 
@@ -211,7 +214,7 @@ Use these for posted comments. Include only the fields needed for this phase. Pr
 | Comment | Always include | Include when material |
 |---------|----------------|------------------------|
 | HANDOFF | Task log, target, objective, Task Issue link, next | Model, state/head, prior verdict link, delta scope, verify, stop, founder gate |
-| RESULT | Task log, completed phase, summary, next | Branch/base/head, PR, evidence links, short AC status, blockers, prohibited next |
+| RESULT | Task log, completed phase, summary, next | Branch/base/head, PR, evidence links, short AC status, blockers, prohibited next, Efficiency |
 | REVIEW_VERDICT | Task log, PR/base/head, verdict, findings summary, gates, next | Thread links, corrections, re-review condition, founder gate |
 
 For the complete field catalog, see [Full reference templates](#full-reference-templates-documentation-only).
@@ -340,6 +343,9 @@ Dev/Builder agents post `## RESULT` after implementation or correction. This ext
 ### Residual risks
 - ...
 
+### Efficiency
+<!-- Optional. Normal | High usage | Looped | Manual intervention. Omit when unremarkable. Approximate tokens only when tool-visible and the run is abnormal. -->
+
 ### Prohibited next action
 <!-- e.g. do not merge, do not start Slice B, do not sync child repos -->
 
@@ -360,6 +366,7 @@ Dev/Builder agents post `## RESULT` after implementation or correction. This ext
 | Acceptance criteria audit | Task Issue has acceptance criteria (status + brief evidence pointer; do not paste Issue body) |
 | Blockers | When work cannot proceed |
 | Residual risks | When risks remain |
+| Efficiency | When a qualitative execution signal helps later analysis (omit when unremarkable; approximate tokens only when tool-visible and abnormal) |
 | Prohibited next action | When dependent work must not start |
 | Next handoff | Always |
 
@@ -611,6 +618,7 @@ One full cycle on Active Task Issue #106 with a docs PR (standalone task; no Mai
 **Evidence:** GitHub — head `def5678`, CI <url> → pass; Local — guard:safety pass
 **AC audit:** validation AC — Done
 **Prohibited next:** Do not merge until ELIGIBLE FOR FOUNDER REVIEW
+**Efficiency:** Looped
 **Next:** Reviewer `## REVIEW_VERDICT`
 ```
 
