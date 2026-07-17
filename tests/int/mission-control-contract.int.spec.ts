@@ -7,6 +7,28 @@ const fixturesRoot = resolve(process.cwd(), 'tests/fixtures/mission-control')
 const tmpRoot = resolve(process.cwd(), '.tmp-mission-control-contract-test')
 
 describe('mission-control contract guard', () => {
+  it('fails when cost-aware routing invariants are incomplete', async () => {
+    const mod = await import('../../scripts/guard-mission-control-contract.mjs')
+    expect(mod.REQUIRED_COST_AWARE_GUIDE_PHRASES).toEqual(
+      expect.arrayContaining([
+        'Delta Review uses the lowest reasoning level that can reliably verify the bounded change.',
+        'FAST defaults to focused verification without independent high-reasoning review.',
+        'STANDARD defaults to one risk-adjusted semantic review: Medium for bounded normal-risk work and High only for material ambiguity or significant connected risk.',
+        'MANAGED defaults to one independent High Full Semantic Review, followed by bounded Delta Review.',
+        'A Full Semantic Review escalation requires at least one explicit proven trigger.',
+      ]),
+    )
+    const guide = readFileSync(resolve(process.cwd(), mod.GUIDE_PATH), 'utf8')
+    const missingOperationalRule = guide.replace(
+      'A durable state transition does not itself require or authorize a separate model run.',
+      'A durable state transition may require a separate model run.',
+    )
+
+    const violations = mod.scanGuideContent(mod.GUIDE_PATH, missingOperationalRule)
+
+    expect(violations.some((v: { rule: string; message: string }) => v.rule === 'MC012')).toBe(true)
+  })
+
   it('fails when the Double-Loop Review Gate contract is incomplete', async () => {
     const mod = await import('../../scripts/guard-mission-control-contract.mjs')
 

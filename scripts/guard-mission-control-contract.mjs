@@ -147,6 +147,20 @@ export const REQUIRED_DOUBLE_LOOP_TRANSPORT_FIELDS = [
   '**Verify / stop:**',
 ]
 
+/** Stable capability/risk routing invariants; runtime model names stay replaceable. */
+export const REQUIRED_COST_AWARE_GUIDE_PHRASES = [
+  'A durable state transition does not itself require or authorize a separate model run.',
+  'Keep a distinct durable state only when it changes execution authority or owner, next permitted action, required evidence, failure-handling path, or a Founder/human approval requirement.',
+  'Mechanical verification uses deterministic scripts, or a low-reasoning coordinator when automation is unavailable; it is not a high-reasoning semantic review.',
+  'A changed commit or head alone is not a trigger for another Full Semantic Review.',
+  'Review routing depends on capability and proven risk; runtime model names remain replaceable configuration.',
+  'Delta Review uses the lowest reasoning level that can reliably verify the bounded change.',
+  'FAST defaults to focused verification without independent high-reasoning review.',
+  'STANDARD defaults to one risk-adjusted semantic review: Medium for bounded normal-risk work and High only for material ambiguity or significant connected risk.',
+  'MANAGED defaults to one independent High Full Semantic Review, followed by bounded Delta Review.',
+  'A Full Semantic Review escalation requires at least one explicit proven trigger.',
+]
+
 export const LOADER_MAX_LINES = 80
 export const LOADER_FORBIDDEN_TITLES = ['## Review-cycle budget', '## Finding severity']
 
@@ -306,6 +320,13 @@ export function scanGuideContent(relativePath, content) {
     violations.push(
       violation('MC012', relativePath, 'Guide must define the Double-Loop gate as a no-code checkpoint'),
     )
+  }
+  for (const phrase of REQUIRED_COST_AWARE_GUIDE_PHRASES) {
+    if (!content.includes(phrase)) {
+      violations.push(
+        violation('MC012', relativePath, `Guide missing cost-aware routing invariant: ${phrase}`),
+      )
+    }
   }
 
   return violations

@@ -49,6 +49,7 @@ Rules that change day-to-day behavior:
 
 - GitHub Issues/PR/CI are authoritative; chat is context only.
 - One bounded Mission Control action (or one state transition) per run.
+- A durable state transition does not by itself require another model run.
 - Review 2/3 never restart a repository-wide search after a small correction.
 - Minor/Nit cannot block completion.
 - Founder gate remains required for merge.
@@ -197,6 +198,24 @@ Important findings should be fixed inside remaining budget when bounded.
 Minor/Nit become follow-ups. After Review 3, Mission Control chooses
 `ELIGIBLE FOR FOUNDER REVIEW`, `BLOCKED FOR FOUNDER DECISION`, or
 `BLOCKED EXTERNAL`—never Review 4.
+
+## Cost-aware review routing
+
+Mechanical head/CI/scope/state checks use scripts or low-reasoning coordination;
+they are not semantic-review runs. One Full Semantic Review is the expensive
+default, then corrections stay delta-bounded unless a proven material/high-risk
+trigger or Founder authorization requires another full review. A changed head by
+itself requires exact-head verification, not a full re-review.
+
+| Profile | Default semantic review |
+| --- | --- |
+| FAST | Focused verification; no independent high-reasoning review by default. |
+| STANDARD | One risk-adjusted review; Medium for bounded normal-risk work, High for material ambiguity or significant connected risk. |
+| MANAGED | One independent High Full Semantic Review, then bounded Delta Review. |
+
+Runtime model names are replaceable configuration: routing is based on required
+capability and proven risk. Review 3 remains bounded; unresolved non-convergence
+routes to #121 Double-Loop Review or Founder decision, never automatic Review 4.
 
 ## Common commands
 
