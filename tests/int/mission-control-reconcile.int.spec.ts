@@ -117,6 +117,29 @@ describe('mission-control reconcile classifiers', () => {
     ).toBe(true)
   })
 
+  it('fails closed when RESULT omits a PR identifier', () => {
+    const lag = classifyDeliveryLag(
+      { state: 'IN_PROGRESS', active_pr: '#123', current_head: null },
+      { number: '123', headRefOid: 'abc1234' },
+      { exactHeadVerified: true },
+      { parsed: { headSha: 'abc1234', prNumber: null } },
+    )
+
+    expect(lag.kind).toBe('STATE_CONFLICT')
+    expect(lag.reason).toContain('RESULT PR identifier missing')
+  })
+
+  it('fails closed when REVIEW_VERDICT omits a PR identifier', () => {
+    const lag = classifyReviewLag(
+      { state: 'AWAITING_REVIEW_1', review_cycle: 0, last_reviewed_head: null },
+      { number: '123', headRefOid: 'abc1234' },
+      { parsed: { verdict: 'ELIGIBLE FOR FOUNDER REVIEW', headSha: 'abc1234', prNumber: null } },
+    )
+
+    expect(lag.kind).toBe('STATE_CONFLICT')
+    expect(lag.reason).toContain('REVIEW_VERDICT PR identifier missing')
+  })
+
   it('fails closed when RESULT references a different PR at the same head', () => {
     const lag = classifyDeliveryLag(
       { state: 'IN_PROGRESS', active_pr: '#123', current_head: null },

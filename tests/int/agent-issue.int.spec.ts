@@ -989,4 +989,42 @@ esac
     expect(analysis.blockers.join(' ')).toContain('STATE_CONFLICT: RESULT PR does not match live PR')
     expect(analysis.report.reconciliation?.proposal).toBeNull()
   })
+
+  it('blocks when RESULT omits a PR identifier', () => {
+    const root = createRepo('feature/120-delivery-pr-missing')
+    const resultComment = [
+      '## RESULT',
+      '',
+      '**Completed:** Dev (implementation)',
+      '**State:** branch `feature/120` · base `main` · head `abc1234`',
+      '**Summary:** delivery complete',
+      '**Next:** Reviewer ## REVIEW_VERDICT',
+    ].join('\n')
+    const commentsPayload = JSON.stringify({
+      comments: [{ body: resultComment, createdAt: '2026-07-17T10:00:00+07:00' }],
+    }).replace(/'/g, `'\"'\"'`)
+
+    const analysis = analyzeProgressTracking({
+      cwd: root,
+      activeIssueNumber: '120',
+      activeIssueBody: `Mission Control mode: required
+${managedState({ state: 'IN_PROGRESS', active_pr: '"123"', current_head: 'null', active_task_issue: '"120"' })}`,
+      env: {
+        ...process.env,
+        PATH: withStubbedGh(
+          root,
+          `#!/usr/bin/env sh
+case "$*" in
+  *"issue view 120"*"comments"*) printf '%s' '${commentsPayload}' ;;
+  *"pr view 123"*) printf '%s' '{"title":"PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/123","headRefName":"feature/120","baseRefName":"main","headRefOid":"abc1234","state":"OPEN","statusCheckRollup":[{"__typename":"CheckRun","conclusion":"SUCCESS","status":"COMPLETED","name":"ci"}],"commits":[]}' ;;
+  *) echo "unexpected gh call: $*" >&2; exit 1 ;;
+esac
+`,
+        ),
+      },
+    })
+
+    expect(analysis.blockers.join(' ')).toContain('STATE_CONFLICT: RESULT PR identifier missing')
+    expect(analysis.report.reconciliation?.proposal).toBeNull()
+  })
 })

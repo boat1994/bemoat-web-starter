@@ -92,6 +92,9 @@ export function classifyDeliveryLag(managedState, livePr, exactHeadCi, latestRes
   }
 
   const resultPr = latestResult?.parsed?.prNumber ?? null
+  if (latestResult && !resultPr) {
+    return { lag: false, kind: 'STATE_CONFLICT', reason: 'RESULT PR identifier missing' }
+  }
   if (resultPr && String(resultPr) !== String(livePr.number)) {
     return { lag: false, kind: 'STATE_CONFLICT', reason: 'RESULT PR does not match live PR' }
   }
@@ -130,6 +133,9 @@ export function classifyReviewLag(managedState, livePr, latestVerdict = null) {
   }
 
   const verdictPr = latestVerdict.parsed.prNumber ?? null
+  if (livePr?.number && !verdictPr) {
+    return { lag: false, kind: 'STATE_CONFLICT', reason: 'REVIEW_VERDICT PR identifier missing' }
+  }
   if (verdictPr && livePr?.number && String(verdictPr) !== String(livePr.number)) {
     return { lag: false, kind: 'STATE_CONFLICT', reason: 'REVIEW_VERDICT PR does not match live PR' }
   }
