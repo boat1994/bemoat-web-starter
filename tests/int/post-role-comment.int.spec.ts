@@ -79,6 +79,17 @@ const documentedReviewVerdict = `## REVIEW_VERDICT
 - Founder review
 `
 
+const fastResult = `## RESULT
+**Profile:** FAST
+**Task:** #119 · \`feature/119-fast\` → \`main\` · head \`abc1234\`
+**PR:** https://github.com/acme/repo/pull/119
+**Completed:** Added the bounded FAST-path change.
+**Evidence:** Local — focused test → pass; GitHub — exact-head CI → pass
+**AC audit:** Done
+**Risks / escalation:** None
+**Next:** Founder review / merge decision
+`
+
 function tempFile(name: string, content: string) {
   const directory = mkdtempSync(join(tmpdir(), 'bemoat-role-comment-'))
   tempPaths.push(directory)
@@ -128,6 +139,10 @@ describe('bemoat:issue:comment', () => {
 
   it('accepts the documented REVIEW_VERDICT reference form', () => {
     expect(run(['115', '--check'], { input: documentedReviewVerdict }).status).toBe(0)
+  })
+
+  it('accepts the documented FAST RESULT form', () => {
+    expect(run(['119', '--check'], { input: fastResult }).status).toBe(0)
   })
 
   it('posts through gh argument vectors and a body file', () => {

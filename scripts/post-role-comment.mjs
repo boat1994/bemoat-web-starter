@@ -18,6 +18,7 @@ const REQUIRED_FIELD_SHAPES = {
   RESULT: [
     [...TASK_LOG_FIELDS, '**Completed:**', '**Summary:**', '**Next:**'],
     [...TASK_LOG_FIELDS, '**Role / phase completed:**', '### Summary', '### Files or artifacts changed', '### Commands run', '### Next handoff'],
+    ['**Profile:**', '**Task:**', '**PR:**', '**Completed:**', '**Evidence:**', '**AC audit:**', '**Risks / escalation:**', '**Next:**'],
   ],
   REVIEW_VERDICT: [
     [...TASK_LOG_FIELDS, '**PR / base / head:**', '**Verdict:**', '**Findings:**', '**Gates:**', '**Next:**'],
@@ -88,6 +89,9 @@ function validationErrors(body) {
   const matchedShape = REQUIRED_FIELD_SHAPES[role].find((shape) => shape.every((field) => hasNonEmptyField(body, field)))
   if (!matchedShape) {
     errors.push(`${role} is missing required operational fields or values`)
+  }
+  if (role === 'RESULT' && /^\*\*Profile:\*\*/m.test(body) && !/^\*\*Profile:\*\*\s*FAST\s*$/m.test(body)) {
+    errors.push('RESULT profile transport is only supported for FAST')
   }
   if (role === 'REVIEW_VERDICT') {
     const verdict = body.match(/^\*\*Verdict:\*\*\s*(.+?)\s*$/m)?.[1]?.trim()

@@ -213,6 +213,58 @@ function assignDeclarationValue(declarations, key, value, options = {}) {
   }
 }
 
+/**
+ * @param {{
+ *   taskSize?: string | null
+ *   missionControlMode?: string | null
+ *   declaresMainIssue?: boolean
+ *   declaresImplementationPlan?: boolean
+ * }} declarations
+ */
+export function deriveWorkflowProfile({
+  taskSize,
+  missionControlMode,
+  declaresMainIssue = false,
+  declaresImplementationPlan = false,
+} = {}) {
+  if (
+    missionControlMode === 'required' ||
+    (taskSize === 'core' && declaresMainIssue && declaresImplementationPlan)
+  ) {
+    return {
+      name: 'MANAGED',
+      nextAction: 'Use the managed-state workflow and its required bounded role transition.',
+    }
+  }
+
+  if (missionControlMode === 'unsure') {
+    return {
+      name: 'STANDARD',
+      nextAction: 'Use STANDARD safeguards and resolve the Mission Control mode before treating work as FAST.',
+    }
+  }
+
+  if (missionControlMode !== 'optional') {
+    return null
+  }
+
+  if (taskSize === 'small') {
+    return {
+      name: 'FAST',
+      nextAction: 'Follow the FAST lifecycle: focused implementation and verification, one commit, PR, compact RESULT, then Founder review.',
+    }
+  }
+
+  if (taskSize === 'medium' || taskSize === 'core') {
+    return {
+      name: 'STANDARD',
+      nextAction: 'Use the STANDARD workflow with risk-adjusted verification and the existing Founder merge gate.',
+    }
+  }
+
+  return null
+}
+
 export function parseIssueDeclarations(body = '') {
   const source = stripFencedCodeBlocks(body)
   const declarations = {
@@ -290,24 +342,26 @@ export function parseIssueDeclarations(body = '') {
     declarations.taskSize = formTaskSize.toLowerCase()
   }
   const formMissionControlMode = parseIssueFormSection(source, 'Mission Control mode')
-  if (formMissionControlMode && /^(required|optional|not required)$/i.test(formMissionControlMode)) {
-    declarations.missionControlMode = formMissionControlMode.toLowerCase() === 'required'
-      ? 'required'
-      : 'optional'
+  if (formMissionControlMode && /^(required|optional|not required|unsure)$/i.test(formMissionControlMode)) {
+    const normalizedMode = formMissionControlMode.toLowerCase()
+    declarations.missionControlMode =
+      normalizedMode === 'required' ? 'required' : normalizedMode === 'unsure' ? 'unsure' : 'optional'
   }
 
   const taskSizeMatch = source.match(
-    /(?:^|\n)\s*(?:Task\s+size|This is a)\s*[:\s]*\**\s*(small|medium|core)\b/i,
+    /(?:^|\n)\s*(?:[-*]\s*)?(?:Task\s+size|Tier|This is a)\s*[:\s]*\**\s*(small|medium|core)\b/i,
   )
   if (taskSizeMatch) {
     declarations.taskSize = taskSizeMatch[1].toLowerCase()
   }
 
   const missionControlModeMatch = source.match(
-    /(?:^|\n)\s*Mission\s+Control\s+mode\s*:\s*(required|optional)\b/im,
+    /(?:^|\n)\s*(?:[-*]\s*)?Mission\s+Control\s+mode\s*:\s*(required|optional|not required|unsure)\b/im,
   )
   if (missionControlModeMatch) {
-    declarations.missionControlMode = missionControlModeMatch[1].toLowerCase()
+    const normalizedMode = missionControlModeMatch[1].toLowerCase()
+    declarations.missionControlMode =
+      normalizedMode === 'required' ? 'required' : normalizedMode === 'unsure' ? 'unsure' : 'optional'
   }
 
   const nextActionSection = source.match(
@@ -898,6 +952,7 @@ export function analyzeProgressTracking({
   const declarations = parseIssueDeclarations(activeIssueBody)
   const report = {
     declarations,
+    workflowProfile: deriveWorkflowProfile(declarations),
     durableProgress: declarations.declaresMainIssue
       ? { hasChecklist: false, milestones: [], firstIncomplete: null, malformed: false }
       : parseDurableProgress(activeIssueBody),
@@ -1246,6 +1301,11 @@ function formatProgressSection(progressAnalysis) {
   const { blockers, warnings, report } = progressAnalysis
 
   lines.push('Progress tracking:')
+
+  if (report.workflowProfile) {
+    lines.push(`Workflow profile: ${report.workflowProfile.name}`)
+    lines.push(`Profile next action: ${report.workflowProfile.nextAction}`)
+  }
 
   if (report.declarations.declaresMainIssue) {
     lines.push(`Declared Main Issue: ${report.declarations.mainIssueRef}`)
