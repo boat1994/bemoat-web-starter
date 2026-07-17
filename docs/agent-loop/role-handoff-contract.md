@@ -213,6 +213,23 @@ Use these for posted comments. Include only the fields needed for this phase. Pr
 
 `**Efficiency:**` is **optional**. Omit it on unremarkable runs. Include it when a qualitative signal helps later workflow analysis (abnormal resource use, agent loops, or human intervention). Allowed values: `Normal`, `High usage`, `Looped`, `Manual intervention`. You may append an approximate token count only when a tool shows a clear number **and** the run is abnormal — never require token recording when data is missing or the run is normal.
 
+### FAST RESULT (operational)
+
+Use only for `Small + Mission Control not required` work that has not triggered
+an escalation. It is a compact `## RESULT`, not a new comment type.
+
+```markdown
+## RESULT
+**Profile:** FAST
+**Task:** #<number> · `<branch>` → `<base>` · head `<sha>`
+**PR:** <PR_URL>
+**Completed:** <one-sentence bounded result>
+**Evidence:** Local — `<focused command>` → pass; GitHub — exact-head CI <url> → pass
+**AC audit:** Done | N/A | Waiting for Founder review
+**Risks / escalation:** None | <trigger and stop>
+**Next:** Founder review / merge decision
+```
+
 ### REVIEW_VERDICT (operational)
 
 ```markdown

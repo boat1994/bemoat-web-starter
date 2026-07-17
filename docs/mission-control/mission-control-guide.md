@@ -58,6 +58,40 @@ the live Issue/PR/base/head/terminal state is `STATE_CONFLICT`; and required
 live evidence that cannot be obtained is `BLOCKED_EXTERNAL`. These outcomes
 require reconciliation, never a silent reset or inferred review count.
 
+## Workflow profiles
+
+Derive one profile from the declared task tier and Mission Control mode; this
+is routing guidance, not another state machine or durable taxonomy.
+
+| Declared task | Profile | Default path |
+| --- | --- | --- |
+| Small + Mission Control not required | FAST | Focused implementation and verification → one commit → PR → compact `RESULT` → Founder review/merge |
+| Medium/Core + Mission Control not required | STANDARD | Existing risk-adjusted implementation, verification, and Founder merge gates |
+| Any tier + Mission Control required | MANAGED | Existing bounded role/state/review workflow |
+| Mission Control mode unsure | STANDARD | Resolve the mode before treating the task as FAST |
+
+### FAST
+
+FAST skips the Mission Control state block, Main Issue reconciliation,
+multi-role orchestration, automatic Red Team, new plan/spec documents,
+checkpoint commits, and `HANDOFF` / `REVIEW_VERDICT` when one agent completes
+the task without a review gate.
+
+It still requires branch safety, concise acceptance criteria, focused
+verification, required lint/typecheck/tests, UI manual QA when applicable, one
+focused final commit, a PR, a compact `RESULT`, and Founder-controlled merge.
+
+Escalate out of FAST before another implementation attempt when scope includes
+a schema/migration, authentication/authorization/security behavior, payment,
+Finance, order state, PII, shared API/component contract, destructive or
+production operation; when acceptance criteria are unclear; when focused
+verification fails without explanation; when one correction does not converge;
+or when scope/architecture changes materially. Route the triggered
+non-convergence diagnosis to #121; do not create a FAST-specific state machine.
+
+Legacy Core tasks that declare both a Main Issue and an Implementation Plan
+remain MANAGED, regardless of an optional or absent mode declaration.
+
 ## Roles and authority boundaries
 
 ### Mission Control

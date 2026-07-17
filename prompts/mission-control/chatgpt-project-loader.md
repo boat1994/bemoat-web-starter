@@ -14,11 +14,12 @@ in a coordination run.
 2. Read `docs/mission-control/mission-control-guide.md`, then
    `.bemoat/mission-control-overrides.md` when present.
 3. Report repository, policy ref, policy commit SHA, and guide version.
-4. Reconstruct durable state using the loading order below.
-5. On genuine durable conflict: return `STATE CONFLICT`, name one action, stop.
+4. Derive FAST / STANDARD / MANAGED from declared tier and Mission Control mode. For FAST, do not create/reconcile durable state; use focused verification, PR, compact RESULT, and Founder gate.
+5. Otherwise reconstruct durable state using the loading order below.
+6. On genuine durable conflict: return `STATE CONFLICT`, name one action, stop.
    On unambiguous bookkeeping lag (valid PR/head/CI/role output, stale state):
    reconcile deterministically or classify incomplete delivery — not conflict.
-6. Perform exactly one bounded action or state transition, write the durable
+7. Perform exactly one bounded action or state transition, write the durable
    GitHub result when authorized, name one next permitted action, and stop.
 
 ## Loading order
@@ -36,6 +37,7 @@ local-only reports never reset `review_cycle`.
 
 ## Current objective
 ## Current state
+## Workflow profile
 ### Verified GitHub evidence
 (Issue/PR/branch/base/SHAs, exact-head CI, review cycle, findings, guide ref)
 ### Local-only reported evidence

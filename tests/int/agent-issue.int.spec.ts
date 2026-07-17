@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   analyzeExactHeadCi,
   analyzeProgressTracking,
+  deriveWorkflowProfile,
   isCheckSuccessful,
   normalizeStatusChecks,
   parseDurableProgress,
@@ -790,6 +791,78 @@ required`)
 
     expect(declarations.taskSize).toBe('core')
     expect(declarations.missionControlMode).toBe('required')
+  })
+
+  it('derives FAST, STANDARD, and MANAGED profiles from the declared tier and mode', () => {
+    expect(
+      deriveWorkflowProfile({
+        taskSize: 'small',
+        missionControlMode: 'optional',
+      }),
+    ).toMatchObject({ name: 'FAST' })
+    expect(
+      deriveWorkflowProfile({
+        taskSize: 'medium',
+        missionControlMode: 'optional',
+      }),
+    ).toMatchObject({ name: 'STANDARD' })
+    expect(
+      deriveWorkflowProfile({
+        taskSize: 'core',
+        missionControlMode: 'required',
+      }),
+    ).toMatchObject({ name: 'MANAGED' })
+    expect(
+      deriveWorkflowProfile({
+        taskSize: 'core',
+        missionControlMode: 'optional',
+        declaresMainIssue: true,
+        declaresImplementationPlan: true,
+      }),
+    ).toMatchObject({ name: 'MANAGED' })
+    expect(
+      deriveWorkflowProfile({
+        taskSize: 'small',
+        missionControlMode: 'unsure',
+      }),
+    ).toMatchObject({ name: 'STANDARD' })
+  })
+
+  it('parses bullet-style Tier and not required mode, then reports a compact FAST preflight next action', () => {
+    const declarations = parseIssueDeclarations(`
+- Tier: Small
+- Mission Control mode: not required`)
+
+    expect(declarations.taskSize).toBe('small')
+    expect(declarations.missionControlMode).toBe('optional')
+
+    const root = createRepo('feature/119-fast-profile')
+    const report = runAgentIssuePreflight({
+      cwd: root,
+      argv: ['119'],
+      env: {
+        ...process.env,
+        PATH: withStubbedGh(
+          root,
+          `#!/usr/bin/env sh
+printf '%s' '{"title":"FAST profile","url":"https://github.com/boat1994/bemoat-web-starter/issues/119","body":"- Tier: Small\\n- Mission Control mode: not required","labels":[]}'`,
+        ),
+      },
+    })
+
+    expect(report.output).toContain('Workflow profile: FAST')
+    expect(report.output.join('\n')).toContain(
+      'Profile next action: Follow the FAST lifecycle: focused implementation and verification',
+    )
+  })
+
+  it('parses unsure Mission Control mode for deterministic conservative routing', () => {
+    const declarations = parseIssueDeclarations(`
+- Tier: Small
+- Mission Control mode: unsure`)
+
+    expect(declarations.missionControlMode).toBe('unsure')
+    expect(deriveWorkflowProfile(declarations)).toMatchObject({ name: 'STANDARD' })
   })
 
   it('requires state for a form-created managed task', () => {
