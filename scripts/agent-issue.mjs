@@ -1146,7 +1146,11 @@ export function analyzeProgressTracking({
     })
     report.reconciliation = reconciliation
 
-    if (reconciliation.proposal?.type === 'delivery' && preDeliveryLag) {
+    if (reconciliation.delivery?.kind === 'STATE_CONFLICT') {
+      blockers.push(`STATE_CONFLICT: ${reconciliation.delivery.reason}.`)
+    } else if (reconciliation.review?.kind === 'STATE_CONFLICT') {
+      blockers.push(`STATE_CONFLICT: ${reconciliation.review.reason}.`)
+    } else if (reconciliation.proposal?.type === 'delivery' && preDeliveryLag) {
       warnings.push(
         `Deterministic delivery reconciliation available: set state to ${reconciliation.proposal.fields.state} with PR ${reconciliation.proposal.fields.active_pr}.`,
       )

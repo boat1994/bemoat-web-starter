@@ -80,7 +80,7 @@ describe('mission-control reconcile classifiers', () => {
 
     expect(fields.state).toBe('ELIGIBLE_FOR_FOUNDER_REVIEW')
     expect(fields.last_reviewed_head).toBe('abc1234')
-    expect(fields.review_cycle).toBe(0)
+    expect(fields.review_cycle).toBe(1)
     expect(fields.full_review_count).toBe(1)
   })
 
@@ -115,6 +115,29 @@ describe('mission-control reconcile classifiers', () => {
         stateConflictBlockers: ['STATE_CONFLICT: state current_head does not match the live PR head.'],
       }),
     ).toBe(true)
+  })
+
+  it('fails closed when RESULT references a different PR at the same head', () => {
+    const lag = classifyDeliveryLag(
+      { state: 'IN_PROGRESS', active_pr: '#123', current_head: null },
+      { number: '123', headRefOid: 'abc1234' },
+      { exactHeadVerified: true },
+      { parsed: { headSha: 'abc1234', prNumber: '121' } },
+    )
+
+    expect(lag.kind).toBe('STATE_CONFLICT')
+    expect(lag.reason).toContain('RESULT PR does not match live PR')
+  })
+
+  it('fails closed when REVIEW_VERDICT references a different PR at the same head', () => {
+    const lag = classifyReviewLag(
+      { state: 'AWAITING_REVIEW_1', review_cycle: 0, last_reviewed_head: null },
+      { number: '123', headRefOid: 'abc1234' },
+      { parsed: { verdict: 'ELIGIBLE FOR FOUNDER REVIEW', headSha: 'abc1234', prNumber: '121' } },
+    )
+
+    expect(lag.kind).toBe('STATE_CONFLICT')
+    expect(lag.reason).toContain('REVIEW_VERDICT PR does not match live PR')
   })
 
   it('scenario 5: founder merge transition stays separate from migration/deploy', () => {
@@ -177,5 +200,18 @@ describe('mission-control reconcile classifiers', () => {
     expect(analysis.genuineConflict).toBe(false)
     expect(analysis.proposal?.type).toBe('delivery')
     expect(analysis.proposal?.fields.state).toBe('AWAITING_REVIEW_1')
+  })
+
+  it('records review_cycle 1 after a completed eligible Review 1 verdict', () => {
+    const fields = proposeReviewReconciliation({
+      verdict: 'CORRECTION REQUIRED',
+      reviewedHead: 'abc1234',
+      reviewCycle: 0,
+      fullReviewCount: 1,
+    })
+
+    expect(fields.state).toBe('CORRECTION_REQUIRED_1')
+    expect(fields.review_cycle).toBe(1)
+    expect(fields.full_review_count).toBe(2)
   })
 })

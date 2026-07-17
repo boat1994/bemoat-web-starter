@@ -91,6 +91,11 @@ export function classifyDeliveryLag(managedState, livePr, exactHeadCi, latestRes
     return { lag: true, kind: 'INCOMPLETE_DELIVERY', reason: 'missing live PR evidence' }
   }
 
+  const resultPr = latestResult?.parsed?.prNumber ?? null
+  if (resultPr && String(resultPr) !== String(livePr.number)) {
+    return { lag: false, kind: 'STATE_CONFLICT', reason: 'RESULT PR does not match live PR' }
+  }
+
   const resultHead = latestResult?.parsed?.headSha ?? null
   const headsAlign =
     !resultHead || resultHead === livePr.headRefOid || resultHead.startsWith(livePr.headRefOid.slice(0, 7))
@@ -122,6 +127,11 @@ export function classifyReviewLag(managedState, livePr, latestVerdict = null) {
 
   if (!CORE_VERDICTS.has(verdict)) {
     return { lag: false, kind: 'STATE_CONFLICT', reason: 'invalid review verdict enum' }
+  }
+
+  const verdictPr = latestVerdict.parsed.prNumber ?? null
+  if (verdictPr && livePr?.number && String(verdictPr) !== String(livePr.number)) {
+    return { lag: false, kind: 'STATE_CONFLICT', reason: 'REVIEW_VERDICT PR does not match live PR' }
   }
 
   if (reviewedHead && livePr?.headRefOid && reviewedHead !== livePr.headRefOid) {
@@ -189,8 +199,7 @@ export function resolveVerdictState(verdict, currentReviewCycle = 0) {
 
 export function proposeReviewReconciliation(input) {
   const reviewCycle = input.reviewCycle ?? 0
-  const nextCycle =
-    input.verdict === 'CORRECTION REQUIRED' ? Math.min(reviewCycle + 1, 3) : reviewCycle
+  const nextCycle = Math.min(reviewCycle + 1, 3)
   const nextFullReviewCount =
     input.verdict === 'CORRECTION REQUIRED'
       ? Math.min((input.fullReviewCount ?? reviewCycle) + 1, 3)
