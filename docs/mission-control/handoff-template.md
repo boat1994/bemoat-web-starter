@@ -29,3 +29,16 @@ merge, and next-task discovery into one run.
 - Required manual QA:
 - Stop condition:
 - Expected RESULT format:
+
+### Double-Loop Review fields (conditional)
+
+Use only when the gate is triggered; retain the existing `## HANDOFF` heading.
+
+- Loop gate: triggered / trigger evidence / no-code checkpoint
+- Failure class: IMPLEMENTATION | SPECIFICATION | VALIDATION | DECOMPOSITION | TOOL_OR_MODEL | ENVIRONMENT | UNKNOWN
+- Invalidated assumptions:
+- Decision: CONTINUE_IMPLEMENTATION | REVISE_SPECIFICATION | REVISE_VALIDATION | SPLIT_OR_REDECOMPOSE_TASK | CHANGE_TOOL_OR_MODEL | REPAIR_ENVIRONMENT | BLOCKED_EXTERNAL | BLOCKED_FOR_FOUNDER_DECISION | CREATE_FOLLOW_UP_ISSUE
+- Next experiment:
+- Material difference from prior attempts:
+- Allowed / prohibited files and actions:
+- Verify / stop condition:

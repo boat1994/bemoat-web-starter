@@ -230,6 +230,29 @@ an escalation. It is a compact `## RESULT`, not a new comment type.
 **Next:** Founder review / merge decision
 ```
 
+### Double-Loop Review (conditional fields)
+
+Use these fields only when a proven trigger requires the no-code diagnostic
+checkpoint. Keep the existing `## HANDOFF` or `## RESULT` heading; this is not
+a fourth comment type. A triggered HANDOFF prohibits code edits until one
+bounded decision is recorded.
+
+```markdown
+**Loop gate:** Triggered — no code edits
+**Failure class:** IMPLEMENTATION | SPECIFICATION | VALIDATION | DECOMPOSITION | TOOL_OR_MODEL | ENVIRONMENT | UNKNOWN
+**Invalidated assumptions:** <evidence-backed list>
+**Decision:** CONTINUE_IMPLEMENTATION | REVISE_SPECIFICATION | REVISE_VALIDATION | SPLIT_OR_REDECOMPOSE_TASK | CHANGE_TOOL_OR_MODEL | REPAIR_ENVIRONMENT | BLOCKED_EXTERNAL | BLOCKED_FOR_FOUNDER_DECISION | CREATE_FOLLOW_UP_ISSUE
+**Next experiment:** <smallest discriminating experiment or blocker>
+**Material difference:** <why it is not another materially similar edit>
+**Allowed / prohibited:** <bounded files/actions; code edits prohibited until decision>
+**Verify / stop:** <evidence to collect and exact stop condition>
+```
+
+`UNKNOWN` cannot authorize another materially similar edit. Include the existing
+`**Founder gate:**` field when a material change, exhausted review budget, or
+other Founder-owned decision is implicated. For managed tasks, also preserve
+the existing state fields rather than creating a Double-Loop state model.
+
 ### REVIEW_VERDICT (operational)
 
 ```markdown

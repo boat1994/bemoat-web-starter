@@ -32,6 +32,7 @@ MC-gated tasks.
 <!-- bemoat-mc:invariant:delivery-owns-awaiting-review-1 -->
 <!-- bemoat-mc:invariant:reviewer-owns-counters -->
 <!-- bemoat-mc:invariant:deterministic-reconciliation-not-conflict -->
+<!-- bemoat-mc:invariant:double-loop-no-similar-edit-without-decision -->
 
 ## Purpose
 
@@ -91,6 +92,65 @@ non-convergence diagnosis to #121; do not create a FAST-specific state machine.
 
 Legacy Core tasks that declare both a Main Issue and an Implementation Plan
 remain MANAGED, regardless of an optional or absent mode declaration.
+
+## Double-Loop Review Gate
+
+The Double-Loop Review Gate is a **no-code diagnostic checkpoint** between a
+proven non-converging or structurally suspicious failure and another materially
+similar edit. It complements, rather than replaces, normal implementation
+diagnosis, TDD, CI, manual QA, bounded review cycles, or Founder decisions.
+
+Single-loop correction is: identify a clear implementation defect, make one
+materially different correction, then verify it. Double-Loop Review is: stop
+code edits; test whether the objective, assumptions, specification, validation,
+decomposition, tool/model, or environment is the actual cause; record one
+bounded decision and the smallest differentiating experiment; then stop or
+authorize only that experiment.
+
+| Profile | Trigger for the no-code checkpoint |
+| --- | --- |
+| FAST | Focused verification fails without explanation, or the task does not converge within one correction loop. Exit FAST; do not create a FAST state machine. |
+| STANDARD | Two materially similar attempts fail without new evidence; the diff/workarounds grow without Acceptance-Criteria progress; tests pass while required behavior fails; scope/objective drifts; repeated local masking changes hide the cause; or the next attempt cannot state a material difference. |
+| MANAGED / high-risk | The first failure involving security, authorization, payment/Finance, destructive data risk, schema/migration, or production operations; before a material scope, AC, architecture, API, or validation-contract change; otherwise after two materially similar normal-risk attempts. |
+
+Classify each triggered gate as exactly one primary class, supported by evidence:
+
+```text
+IMPLEMENTATION
+SPECIFICATION
+VALIDATION
+DECOMPOSITION
+TOOL_OR_MODEL
+ENVIRONMENT
+UNKNOWN
+```
+
+Use exactly one resulting decision:
+
+```text
+CONTINUE_IMPLEMENTATION
+REVISE_SPECIFICATION
+REVISE_VALIDATION
+SPLIT_OR_REDECOMPOSE_TASK
+CHANGE_TOOL_OR_MODEL
+REPAIR_ENVIRONMENT
+BLOCKED_EXTERNAL
+BLOCKED_FOR_FOUNDER_DECISION
+CREATE_FOLLOW_UP_ISSUE
+```
+
+`CONTINUE_IMPLEMENTATION` requires concrete evidence and a smallest next
+experiment that materially differs from prior attempts. `UNKNOWN` must not authorize another materially similar edit. It must produce a smaller diagnostic
+experiment or a blocker. Material changes, exhausted review budget, production,
+migration, destructive actions, and merge authority remain Founder gates.
+
+Record the gate using existing `## HANDOFF` or `## RESULT` transport only; do
+not create a new state, comment type, attempt counter, telemetry store, or
+recursive review. A triggered `## HANDOFF` explicitly prohibits code edits
+until the decision is recorded. Managed tasks reuse existing
+`next_permitted_action`, `material_change_status`, blocker, and Founder-gate
+fields; a Double-Loop Review does not reset review counters or authorize Review
+4.
 
 ## Roles and authority boundaries
 
