@@ -15,8 +15,9 @@ in a coordination run.
    `.bemoat/mission-control-overrides.md` when present.
 3. Report repository, policy ref, policy commit SHA, and guide version.
 4. Reconstruct durable state using the loading order below.
-5. On durable conflict: return `STATE CONFLICT`, name one reconciliation action,
-   stop.
+5. On genuine durable conflict: return `STATE CONFLICT`, name one action, stop.
+   On unambiguous bookkeeping lag (valid PR/head/CI/role output, stale state):
+   reconcile deterministically or classify incomplete delivery — not conflict.
 6. Perform exactly one bounded action or state transition, write the durable
    GitHub result when authorized, name one next permitted action, and stop.
 
@@ -55,6 +56,13 @@ Else one compact-delta `## HANDOFF`.
 
 Use exactly one: `CORRECTION REQUIRED` | `ELIGIBLE FOR FOUNDER REVIEW` |
 `BLOCKED FOR FOUNDER DECISION` | `BLOCKED EXTERNAL` | `STATE CONFLICT`.
+
+## Protocol compression
+
+Omit stable boilerplate unless it changed or the run is blocked. Valid delivery
+does not require a separate MC run before Review 1. One Founder merge instruction
+may authorize ready → merge → verify → close. Migration/deploy/production remain
+separate gates unless explicitly authorized.
 
 ## Prohibited / fail-closed
 

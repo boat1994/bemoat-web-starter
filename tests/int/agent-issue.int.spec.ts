@@ -910,4 +910,44 @@ ${managedState({ state: 'AWAITING_REVIEW_1' })}`,
 
     expect(analysis.blockers.join(' ')).toContain('Founder gate remains open')
   })
+
+  it('surfaces deterministic delivery reconciliation for stale post-RESULT state', () => {
+    const root = createRepo('feature/120-delivery-reconcile')
+    const resultComment = [
+      '## RESULT',
+      '',
+      '**Completed:** Dev (implementation)',
+      '**State:** branch `feature/120` · base `main` · head `abc1234`',
+      '**PR:** https://github.com/boat1994/bemoat-web-starter/pull/121',
+      '**Summary:** delivery complete',
+      '**Next:** Reviewer ## REVIEW_VERDICT',
+    ].join('\n')
+    const commentsPayload = JSON.stringify({
+      comments: [{ body: resultComment, createdAt: '2026-07-17T10:00:00+07:00' }],
+    }).replace(/'/g, `'\"'\"'`)
+
+    const analysis = analyzeProgressTracking({
+      cwd: root,
+      activeIssueNumber: '120',
+      activeIssueBody: `Mission Control mode: required
+${managedState({ state: 'IN_PROGRESS', active_pr: 'null', current_head: 'null', active_task_issue: '"120"' })}`,
+      env: {
+        ...process.env,
+        PATH: withStubbedGh(
+          root,
+          `#!/usr/bin/env sh
+case "$*" in
+  *"issue view 120"*"comments"*) printf '%s' '${commentsPayload}' ;;
+  *"pr view 121"*) printf '%s' '{"title":"PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/121","headRefName":"feature/120","baseRefName":"main","headRefOid":"abc1234","state":"OPEN","statusCheckRollup":[{"__typename":"CheckRun","conclusion":"SUCCESS","status":"COMPLETED","name":"ci"}],"commits":[]}' ;;
+  *) echo "unexpected gh call: $*" >&2; exit 1 ;;
+esac
+`,
+        ),
+      },
+    })
+
+    expect(analysis.blockers.filter((blocker) => blocker.includes('STATE_CONFLICT'))).toHaveLength(0)
+    expect(analysis.report.reconciliation?.proposal?.type).toBe('delivery')
+    expect(analysis.warnings.join(' ')).toContain('Deterministic delivery reconciliation available')
+  })
 })

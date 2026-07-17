@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
+import { analyzeReconciliation, findLatestRoleComment } from './mission-control-reconcile.mjs'
 
 const moduleDir = dirname(fileURLToPath(import.meta.url))
 const branchSafetyScriptPath = resolve(moduleDir, 'check-branch-safety.sh')
@@ -625,6 +626,39 @@ function fetchIssueByReference(cwd, reference, env = process.env) {
   }
 }
 
+function fetchIssueComments(cwd, issueNumber, env = process.env) {
+  if (!issueNumber) {
+    return { ok: false, reason: 'Issue number is required for comment lookup.' }
+  }
+
+  const args = ['issue', 'view', issueNumber, '--json', 'comments']
+  const defaultRepo = getDefaultRepo(cwd)
+  if (defaultRepo) {
+    args.push('--repo', defaultRepo)
+  }
+
+  const result = run('gh', args, { cwd, env })
+  if (result.status !== 0) {
+    return {
+      ok: false,
+      reason: result.stderr.trim() || result.stdout.trim() || 'GitHub issue comment lookup failed.',
+    }
+  }
+
+  try {
+    const payload = JSON.parse(result.stdout)
+    return {
+      ok: true,
+      comments: Array.isArray(payload.comments) ? payload.comments : [],
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      reason: `Invalid issue comments JSON: ${error instanceof Error ? error.message : String(error)}`,
+    }
+  }
+}
+
 function fetchPrByReference(cwd, reference, env = process.env) {
   const parsed = parsePrReference(reference)
   if (!parsed?.number) {
@@ -875,6 +909,7 @@ export function analyzeProgressTracking({
     nextPermittedAction: null,
     currentStageSummary: null,
     relevantPlanSection: null,
+    reconciliation: null,
   }
 
   const durableProgress = report.durableProgress
@@ -971,7 +1006,29 @@ export function analyzeProgressTracking({
   const declaredActivePrRef = declarations.activePrRef || declarations.currentStage.active_pr || null
   const stateActivePrRef =
     state?.active_pr === null || state?.active_pr === undefined ? null : String(state.active_pr)
-  const activePrRef = declaredActivePrRef || stateActivePrRef
+  let activePrRef = declaredActivePrRef || stateActivePrRef
+
+  const preDeliveryLag =
+    stateAnalysis.valid &&
+    state &&
+    ['READY', 'IN_PROGRESS'].includes(state.state) &&
+    (!state.active_pr || !state.current_head || state.state !== 'AWAITING_REVIEW_1')
+  const postReviewLag =
+    stateAnalysis.valid && state && /^(AWAITING_REVIEW_|CORRECTION_REQUIRED_)/.test(state.state)
+
+  let latestResult = null
+  let latestVerdict = null
+  if (stateRequired && activeIssueNumber && (preDeliveryLag || postReviewLag)) {
+    const commentResult = fetchIssueComments(cwd, activeIssueNumber, env)
+    if (commentResult.ok) {
+      latestResult = findLatestRoleComment(commentResult.comments, 'RESULT')
+      latestVerdict = findLatestRoleComment(commentResult.comments, 'REVIEW_VERDICT')
+      if (!activePrRef && latestResult?.parsed?.prNumber) {
+        activePrRef = `#${latestResult.parsed.prNumber}`
+      }
+    }
+  }
+
   if (stateAnalysis.valid && (declaredActivePrRef || stateActivePrRef)) {
     const declaredPr = parsePrReference(declaredActivePrRef)
     const recordedPr = parsePrReference(stateActivePrRef)
@@ -1065,6 +1122,41 @@ export function analyzeProgressTracking({
       declarations.relevantPlanSection || declarations.currentStage.relevant_plan_section || null,
     approvedBase: declarations.approvedBase || declarations.currentStage.approved_base || null,
     founderGate: founderGate.value,
+  }
+
+  report.reconciliation = null
+  if (stateRequired && stateAnalysis.valid && state) {
+    const livePr =
+      report.pr && report.pr.headRefOid
+        ? {
+            number: report.pr.reference?.number ?? parsePrReference(activePrRef)?.number,
+            headRefOid: report.pr.headRefOid,
+            baseRefName: report.pr.baseRefName,
+          }
+        : null
+
+    const reconciliation = analyzeReconciliation({
+      managedState: state,
+      livePr,
+      exactHeadCi: report.exactHeadCi,
+      latestResult,
+      latestVerdict,
+      activeTaskIssue: activeIssueNumber,
+      stateConflictBlockers: blockers.filter((blocker) => blocker.includes('STATE_CONFLICT')),
+    })
+    report.reconciliation = reconciliation
+
+    if (reconciliation.proposal?.type === 'delivery' && preDeliveryLag) {
+      warnings.push(
+        `Deterministic delivery reconciliation available: set state to ${reconciliation.proposal.fields.state} with PR ${reconciliation.proposal.fields.active_pr}.`,
+      )
+    } else if (reconciliation.proposal?.type === 'review' && postReviewLag) {
+      warnings.push(
+        `Deterministic review reconciliation available: set state to ${reconciliation.proposal.fields.state}.`,
+      )
+    } else if (reconciliation.delivery?.kind === 'INCOMPLETE_DELIVERY' && preDeliveryLag) {
+      warnings.push(`Incomplete delivery: ${reconciliation.delivery.reason}.`)
+    }
   }
 
   return { blockers, warnings, report }
