@@ -33,6 +33,8 @@ MC-gated tasks.
 <!-- bemoat-mc:invariant:reviewer-owns-counters -->
 <!-- bemoat-mc:invariant:deterministic-reconciliation-not-conflict -->
 <!-- bemoat-mc:invariant:double-loop-no-similar-edit-without-decision -->
+<!-- bemoat-mc:invariant:durable-state-is-not-an-agent-stage -->
+<!-- bemoat-mc:invariant:changed-head-is-not-full-review-escalation -->
 
 ## Purpose
 
@@ -43,6 +45,8 @@ the result, identifies one next action, and stops.
 
 Mission Control is not an implementation agent and not a perpetual code
 reviewer.
+
+A durable state records authority, evidence, and the next permitted action; it is not an agent execution stage. A durable state transition does not itself require or authorize a separate model run.
 
 ## Applicability and preflight outcomes
 
@@ -71,6 +75,9 @@ is routing guidance, not another state machine or durable taxonomy.
 | Any tier + Mission Control required | MANAGED | Existing bounded role/state/review workflow |
 | Mission Control mode unsure | STANDARD | Resolve the mode before treating the task as FAST |
 
+The profile chooses review routing, not additional states or comment types.
+Review routing depends on capability and proven risk; runtime model names remain replaceable configuration.
+
 ### FAST
 
 FAST skips the Mission Control state block, Main Issue reconciliation,
@@ -92,6 +99,34 @@ non-convergence diagnosis to #121; do not create a FAST-specific state machine.
 
 Legacy Core tasks that declare both a Main Issue and an Implementation Plan
 remain MANAGED, regardless of an optional or absent mode declaration.
+
+### Profile review defaults
+
+| Profile | Semantic review default | Corrections and escalation |
+| --- | --- | --- |
+| FAST | No independent high-reasoning review by default; use focused verification and compact `RESULT`. | Escalate only when #119 conditions are proven; Founder merge gate remains. |
+| STANDARD | One risk-adjusted semantic review. Use Medium when the change is bounded and normal-risk; use High only for material ambiguity or significant connected risk. | Later corrections use bounded Delta Review. |
+| MANAGED | One independent High Full Semantic Review by default. | Later corrections use bounded Delta Review; repeat High only through a proven full-review escalation. |
+
+Where independent first review is required by the profile or an existing task
+gate, it remains independent. These defaults do not waive exact-head evidence,
+Founder authority, or #107's three-cycle limit.
+
+FAST defaults to focused verification without independent high-reasoning review.
+STANDARD defaults to one risk-adjusted semantic review: Medium for bounded normal-risk work and High only for material ambiguity or significant connected risk.
+MANAGED defaults to one independent High Full Semantic Review, followed by bounded Delta Review.
+
+## Operational-stage minimization and state necessity
+
+Keep a distinct durable state only when it changes execution authority or owner, next permitted action, required evidence, failure-handling path, or a Founder/human approval requirement. Do not add a state merely to label a review number, review mode, model/reasoning level, bookkeeping action, or agent run.
+
+Keep `review_cycle`, `review_mode`, `last_reviewed_head`, findings, and
+`next_permitted_action` as explicit durable fields or evidence when applicable;
+they do not create duplicate operational stages or a second phase/state model.
+Atomic role completion writes its result and resulting canonical state in the
+same authorized run. Mechanical checks and deterministic reconciliation may be
+performed in that run without routing a separate agent just to rename or advance
+state.
 
 ## Double-Loop Review Gate
 
@@ -314,10 +349,11 @@ retaining full evidence in GitHub.
 ## Integration boundaries
 
 - **#107** remains the canonical Mission Control foundation. v1.1 is additive.
-- **#119** owns FAST / STANDARD / MANAGED profile derivation — not this Issue.
+- **#119** owns FAST / STANDARD / MANAGED profile derivation and escalation
+  conditions; this guide applies the compatible review-routing defaults.
 - **#121** owns the bounded Double-Loop Review Gate — not this Issue.
-- **#122** owns review-stage minimization and cost-aware routing — not this Issue.
-  v1.1 preserves compatibility; do not implement #122 scope here.
+- **#122** implements review-stage minimization and cost-aware routing while
+  preserving #107, #119, #120, and #121 compatibility.
 
 ## Bootstrap and state reconstruction
 
@@ -431,9 +467,41 @@ evidence and authorized reason.
 Normal review is limited to three cycles per task (`max_review_cycles: 3`).
 Mission Control must not autonomously start Review 4.
 
+Normal routing is Review 1 → Full Semantic Review, Review 2 → Delta Review,
+Review 3 → bounded Delta Review or Blocker verification. Non-convergence after
+the bounded budget routes to the #121 Double-Loop Review Gate or a Founder
+decision; it never authorizes automatic Review 4.
+
+## Cost-aware review routing
+
+Mechanical verification uses deterministic scripts, or a low-reasoning coordinator when automation is unavailable; it is not a high-reasoning semantic review. Mechanical work includes proving PR/head equality, exact-head CI,
+approved file scope, required evidence/state fields, review counters, and
+unresolved-finding consistency.
+
+Full Semantic Review evaluates Acceptance Criteria and business objective,
+connected correctness/regressions, architecture and contract implications, and
+applicable security, authorization, payment/Finance, schema, migration, and
+data-integrity risk. It also determines whether evidence proves required
+behavior rather than merely matching an implementation.
+
+Delta Review is limited to enumerated prior findings, the diff since
+`last_reviewed_head`, directly affected behavior, and exact-head checks for the
+corrected head. It must not restart a repository-wide review. Delta Review uses the lowest reasoning level that can reliably verify the bounded change.
+
+A changed commit or head alone is not a trigger for another Full Semantic Review. A new full review is permitted only when at least one proven trigger is
+recorded: the correction changes an Acceptance Criterion, architecture, API
+contract, schema, migration, security boundary, payment/Finance invariant, or
+production behavior; files or behavior materially exceed the authorized
+correction scope; the delta is too broad to preserve prior review coverage; the
+prior reviewed head cannot be established reliably; a new Blocker/Critical
+invalidates the original review assumptions; or the Founder explicitly
+authorizes a new full review.
+
+A Full Semantic Review escalation requires at least one explicit proven trigger.
+
 ## Full-review rules
 
-**Review 1 — Full review** is task-bounded. Scope:
+**Review 1 — Full Semantic Review** is task-bounded. Scope:
 
 - task Acceptance Criteria;
 - correctness of changed behavior;
@@ -448,7 +516,7 @@ verification required for each blocking finding.
 
 ## Delta-review rules
 
-**Review 2 — Delta review** after a small correction. Scope limited to:
+**Review 2 — Delta Review** after a small correction. Scope limited to:
 
 - enumerated findings from Review 1;
 - files changed since `last_reviewed_head`;
@@ -461,13 +529,14 @@ delta becomes a follow-up issue.
 
 ## Blocker-verification rules
 
-**Review 3 — Blocker verification** only. Scope:
+**Review 3 — Blocker verification or bounded Delta Review** only. Scope:
 
 - unresolved Blocker/Critical findings;
 - the correction delta for those findings;
 - exact-head checks required to prove resolution.
 
-Not a general quality-improvement pass.
+It is not a general quality-improvement pass and never becomes a repository-wide
+review.
 
 After Review 3, choose only one of:
 
@@ -519,10 +588,11 @@ or personal preference without concrete evidence.
 
 ## Material-change rules
 
-A completed review does not return to full review unless a material change is
-proven (architecture boundary; schema/migration; auth/security boundary; AC
-change; public API/contract; broad behavior outside reviewed delta; replacement
-approach making prior evidence inapplicable).
+A completed review does not return to full review unless a material/high-risk
+change is proven: architecture boundary; schema/migration; auth/security
+boundary; payment/Finance invariant; production behavior; AC change; public
+API/contract; broad behavior outside reviewed delta; replacement approach making
+prior evidence inapplicable; or reviewed-head integrity cannot be established.
 
 Not material by itself: wording/docs; naming/formatting; metadata; small
 localized bug correction; focused regression test; refactor with proven
