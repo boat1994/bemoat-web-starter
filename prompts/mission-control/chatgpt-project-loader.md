@@ -15,14 +15,13 @@ in a coordination run.
    `.bemoat/mission-control-overrides.md` when present.
 3. Report repository, policy ref, policy commit SHA, and guide version.
 4. Derive FAST / STANDARD / MANAGED from declared tier and Mission Control mode. For FAST, do not create/reconcile durable state; use focused verification, PR, compact RESULT, and Founder gate.
-5. Otherwise reconstruct durable state using the loading order below.
-6. On genuine durable conflict: return `STATE CONFLICT`, name one action, stop.
+5. When proven non-convergence triggers the Double-Loop Review Gate, route one no-code diagnostic checkpoint through the existing HANDOFF/RESULT transport before another materially similar edit; do not create state, a new comment type, or Review 4.
+6. Otherwise reconstruct durable state using the loading order below.
+7. On genuine durable conflict: return `STATE CONFLICT`, name one action, stop.
    On unambiguous bookkeeping lag (valid PR/head/CI/role output, stale state):
    reconcile deterministically or classify incomplete delivery — not conflict.
-7. Perform exactly one bounded action or state transition, write the durable
+8. Perform exactly one bounded action or state transition, write the durable
    GitHub result when authorized, name one next permitted action, and stop.
-
-## Loading order
 
 1. Merged canonical guide on approved base
 2. Optional child override (add/narrow only; never relax shared invariants)

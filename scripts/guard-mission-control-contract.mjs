@@ -114,6 +114,39 @@ export const REQUIRED_VERDICTS = [
   'STATE CONFLICT',
 ]
 
+export const DOUBLE_LOOP_FAILURE_CLASSES = [
+  'IMPLEMENTATION',
+  'SPECIFICATION',
+  'VALIDATION',
+  'DECOMPOSITION',
+  'TOOL_OR_MODEL',
+  'ENVIRONMENT',
+  'UNKNOWN',
+]
+
+export const DOUBLE_LOOP_ALLOWED_DECISIONS = [
+  'CONTINUE_IMPLEMENTATION',
+  'REVISE_SPECIFICATION',
+  'REVISE_VALIDATION',
+  'SPLIT_OR_REDECOMPOSE_TASK',
+  'CHANGE_TOOL_OR_MODEL',
+  'REPAIR_ENVIRONMENT',
+  'BLOCKED_EXTERNAL',
+  'BLOCKED_FOR_FOUNDER_DECISION',
+  'CREATE_FOLLOW_UP_ISSUE',
+]
+
+export const REQUIRED_DOUBLE_LOOP_TRANSPORT_FIELDS = [
+  '**Loop gate:**',
+  '**Failure class:**',
+  '**Invalidated assumptions:**',
+  '**Decision:**',
+  '**Next experiment:**',
+  '**Material difference:**',
+  '**Allowed / prohibited:**',
+  '**Verify / stop:**',
+]
+
 export const LOADER_MAX_LINES = 80
 export const LOADER_FORBIDDEN_TITLES = ['## Review-cycle budget', '## Finding severity']
 
@@ -250,6 +283,30 @@ export function scanGuideContent(relativePath, content) {
   if (!content.includes('Minor/Nit findings must not block')) {
     violations.push(violation('MC012', relativePath, 'Guide must state Minor/Nit findings must not block'))
   }
+  for (const failureClass of DOUBLE_LOOP_FAILURE_CLASSES) {
+    if (!content.includes(failureClass)) {
+      violations.push(
+        violation('MC012', relativePath, `Guide missing Double-Loop failure class: ${failureClass}`),
+      )
+    }
+  }
+  for (const decision of DOUBLE_LOOP_ALLOWED_DECISIONS) {
+    if (!content.includes(decision)) {
+      violations.push(
+        violation('MC012', relativePath, `Guide missing Double-Loop decision: ${decision}`),
+      )
+    }
+  }
+  if (!content.includes('`UNKNOWN` must not authorize another materially similar edit.')) {
+    violations.push(
+      violation('MC012', relativePath, 'Guide must prohibit UNKNOWN from authorizing a similar edit'),
+    )
+  }
+  if (!content.includes('no-code diagnostic checkpoint')) {
+    violations.push(
+      violation('MC012', relativePath, 'Guide must define the Double-Loop gate as a no-code checkpoint'),
+    )
+  }
 
   return violations
 }
@@ -371,6 +428,13 @@ export function scanRoleHandoffContract(relativePath, content) {
         'Role handoff contract must not use bare legacy Core verdicts (PASS | BLOCKED)',
       ),
     )
+  }
+  for (const field of REQUIRED_DOUBLE_LOOP_TRANSPORT_FIELDS) {
+    if (!content.includes(field)) {
+      violations.push(
+        violation('MC011', relativePath, `Role handoff contract missing Double-Loop field: ${field}`),
+      )
+    }
   }
   return violations
 }

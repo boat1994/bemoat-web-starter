@@ -30,6 +30,19 @@ from the enum below. This is the same vocabulary as
 - Next permitted action:
 - Stop confirmation:
 
+### Double-Loop Review outcome (conditional)
+
+Use only after a triggered no-code diagnostic checkpoint; retain `## RESULT`.
+
+- Loop gate and trigger evidence:
+- Failure class: IMPLEMENTATION | SPECIFICATION | VALIDATION | DECOMPOSITION | TOOL_OR_MODEL | ENVIRONMENT | UNKNOWN
+- Invalidated assumptions:
+- Decision: CONTINUE_IMPLEMENTATION | REVISE_SPECIFICATION | REVISE_VALIDATION | SPLIT_OR_REDECOMPOSE_TASK | CHANGE_TOOL_OR_MODEL | REPAIR_ENVIRONMENT | BLOCKED_EXTERNAL | BLOCKED_FOR_FOUNDER_DECISION | CREATE_FOLLOW_UP_ISSUE
+- Smallest next experiment or blocker:
+- Material difference from prior attempts:
+- Allowed / prohibited actions:
+- Verification and stop condition:
+
 ## Reviewer verdict enum
 
 Reviewer verdict must be exactly one of:

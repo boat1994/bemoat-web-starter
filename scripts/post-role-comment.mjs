@@ -26,6 +26,36 @@ const REQUIRED_FIELD_SHAPES = {
   ],
 }
 const MAX_COMPACT_LENGTH = 6_000
+const DOUBLE_LOOP_FIELDS = [
+  '**Loop gate:**',
+  '**Failure class:**',
+  '**Invalidated assumptions:**',
+  '**Decision:**',
+  '**Next experiment:**',
+  '**Material difference:**',
+  '**Allowed / prohibited:**',
+  '**Verify / stop:**',
+]
+const DOUBLE_LOOP_FAILURE_CLASSES = [
+  'IMPLEMENTATION',
+  'SPECIFICATION',
+  'VALIDATION',
+  'DECOMPOSITION',
+  'TOOL_OR_MODEL',
+  'ENVIRONMENT',
+  'UNKNOWN',
+]
+const DOUBLE_LOOP_ALLOWED_DECISIONS = [
+  'CONTINUE_IMPLEMENTATION',
+  'REVISE_SPECIFICATION',
+  'REVISE_VALIDATION',
+  'SPLIT_OR_REDECOMPOSE_TASK',
+  'CHANGE_TOOL_OR_MODEL',
+  'REPAIR_ENVIRONMENT',
+  'BLOCKED_EXTERNAL',
+  'BLOCKED_FOR_FOUNDER_DECISION',
+  'CREATE_FOLLOW_UP_ISSUE',
+]
 
 function usage(message) {
   if (message) process.stderr.write(`ERROR: ${message}\n`)
@@ -93,6 +123,26 @@ function validationErrors(body) {
   if (role === 'RESULT' && /^\*\*Profile:\*\*/m.test(body) && !/^\*\*Profile:\*\*\s*FAST\s*$/m.test(body)) {
     errors.push('RESULT profile transport is only supported for FAST')
   }
+  const hasDoubleLoopFields = /^\*\*Loop gate:\*\*/m.test(body)
+  if (hasDoubleLoopFields && !['HANDOFF', 'RESULT'].includes(role)) {
+    errors.push('Double-Loop Review fields are only supported for HANDOFF or RESULT')
+  }
+  if (hasDoubleLoopFields) {
+    for (const field of DOUBLE_LOOP_FIELDS) {
+      if (!hasNonEmptyField(body, field)) errors.push(`Double-Loop Review is missing required field: ${field}`)
+    }
+    const failureClass = readFieldValue(body, '**Failure class:**')
+    const decision = readFieldValue(body, '**Decision:**')
+    if (!DOUBLE_LOOP_FAILURE_CLASSES.includes(failureClass)) {
+      errors.push('Double-Loop Review failure class must use the constrained vocabulary')
+    }
+    if (!DOUBLE_LOOP_ALLOWED_DECISIONS.includes(decision)) {
+      errors.push('Double-Loop Review decision must use the constrained vocabulary')
+    }
+    if (failureClass === 'UNKNOWN' && decision === 'CONTINUE_IMPLEMENTATION') {
+      errors.push('UNKNOWN cannot authorize CONTINUE_IMPLEMENTATION')
+    }
+  }
   if (role === 'REVIEW_VERDICT') {
     const verdict = body.match(/^\*\*Verdict:\*\*\s*(.+?)\s*$/m)?.[1]?.trim()
     if (!CORE_VERDICTS.includes(verdict)) errors.push('Verdict must use the Core review verdict enum')
@@ -106,6 +156,11 @@ function hasNonEmptyField(body, field) {
     return new RegExp(`^${escapedField}[ \\t]*\\r?\\n(?![ \\t]*(?:#|<!--))[ \\t]*(?:[-*][ \\t]+)?\\S`, 'mi').test(body)
   }
   return new RegExp(`^[ \\t]*(?:[-*][ \\t]+)?${escapedField}[ \\t]*\\S`, 'mi').test(body)
+}
+
+function readFieldValue(body, field) {
+  const escapedField = field.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return new RegExp(`^[ \\t]*${escapedField}[ \\t]*(.+?)\\s*$`, 'mi').exec(body)?.[1]?.trim() ?? ''
 }
 
 function createBodyFile(body) {

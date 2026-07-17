@@ -7,6 +7,42 @@ const fixturesRoot = resolve(process.cwd(), 'tests/fixtures/mission-control')
 const tmpRoot = resolve(process.cwd(), '.tmp-mission-control-contract-test')
 
 describe('mission-control contract guard', () => {
+  it('fails when the Double-Loop Review Gate contract is incomplete', async () => {
+    const mod = await import('../../scripts/guard-mission-control-contract.mjs')
+
+    expect(mod.DOUBLE_LOOP_FAILURE_CLASSES).toEqual([
+      'IMPLEMENTATION',
+      'SPECIFICATION',
+      'VALIDATION',
+      'DECOMPOSITION',
+      'TOOL_OR_MODEL',
+      'ENVIRONMENT',
+      'UNKNOWN',
+    ])
+    expect(mod.DOUBLE_LOOP_ALLOWED_DECISIONS).toContain('CONTINUE_IMPLEMENTATION')
+    expect(mod.DOUBLE_LOOP_ALLOWED_DECISIONS).toContain('BLOCKED_FOR_FOUNDER_DECISION')
+
+    const guide = readFileSync(resolve(process.cwd(), mod.GUIDE_PATH), 'utf8')
+    const missingUnknownSafeguard = guide.replace(
+      '`UNKNOWN` must not authorize another materially similar edit.',
+      '`UNKNOWN` may continue implementation.',
+    )
+
+    const violations = mod.scanGuideContent(mod.GUIDE_PATH, missingUnknownSafeguard)
+
+    expect(violations.some((v: { rule: string; message: string }) => v.rule === 'MC012')).toBe(true)
+  })
+
+  it('fails when compact transport omits the Double-Loop Review fields', async () => {
+    const mod = await import('../../scripts/guard-mission-control-contract.mjs')
+    const contract = readFileSync(resolve(process.cwd(), mod.ROLE_HANDOFF_PATH), 'utf8')
+    const missingDecision = contract.replace('**Decision:**', '**Outcome:**')
+
+    const violations = mod.scanRoleHandoffContract(mod.ROLE_HANDOFF_PATH, missingDecision)
+
+    expect(violations.some((v: { rule: string; message: string }) => v.rule === 'MC011')).toBe(true)
+  })
+
   it('passes on the current repository', async () => {
     const mod = await import('../../scripts/guard-mission-control-contract.mjs')
     const violations = mod.runMissionControlContractGuard()

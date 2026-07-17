@@ -90,6 +90,17 @@ const fastResult = `## RESULT
 **Next:** Founder review / merge decision
 `
 
+const doubleLoopHandoff = `${bodies.HANDOFF}
+**Loop gate:** Triggered — no code edits
+**Failure class:** UNKNOWN
+**Invalidated assumptions:** The timeout change would reveal the root cause.
+**Decision:** REVISE_VALIDATION
+**Next experiment:** Capture the user-flow assertion without changing product code.
+**Material difference:** It tests validation evidence instead of changing another timeout.
+**Allowed / prohibited:** Test and documentation only; product code edits prohibited.
+**Verify / stop:** Run the focused assertion; stop if the evidence remains ambiguous.
+`
+
 function tempFile(name: string, content: string) {
   const directory = mkdtempSync(join(tmpdir(), 'bemoat-role-comment-'))
   tempPaths.push(directory)
@@ -143,6 +154,28 @@ describe('bemoat:issue:comment', () => {
 
   it('accepts the documented FAST RESULT form', () => {
     expect(run(['119', '--check'], { input: fastResult }).status).toBe(0)
+  })
+
+  it('accepts a complete conditional Double-Loop HANDOFF', () => {
+    expect(run(['121', '--check'], { input: doubleLoopHandoff }).status).toBe(0)
+  })
+
+  it('rejects a triggered Double-Loop HANDOFF without a bounded decision', () => {
+    const result = run(['121', '--check'], {
+      input: doubleLoopHandoff.replace('**Decision:** REVISE_VALIDATION\n', ''),
+    })
+
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain('Double-Loop Review is missing required field')
+  })
+
+  it('rejects UNKNOWN when it authorizes another implementation attempt', () => {
+    const result = run(['121', '--check'], {
+      input: doubleLoopHandoff.replace('**Decision:** REVISE_VALIDATION', '**Decision:** CONTINUE_IMPLEMENTATION'),
+    })
+
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain('UNKNOWN cannot authorize CONTINUE_IMPLEMENTATION')
   })
 
   it('posts through gh argument vectors and a body file', () => {
