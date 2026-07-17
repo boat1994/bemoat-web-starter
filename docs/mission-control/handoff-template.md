@@ -17,6 +17,7 @@ merge, and next-task discovery into one run.
 - Current head SHA:
 - Guide version/ref/SHA:
 - Assigned role: Dev | Reviewer | Founder
+- Execution role: Integration Builder | Delivery Coordinator | Reviewer | State Reconciler | Mission Control
 - Review type: none | full | delta | blocker-verification
 - Review cycle:
 - Model/reasoning guidance:

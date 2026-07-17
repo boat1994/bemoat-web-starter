@@ -1,6 +1,6 @@
 ---
 policy_id: bemoat-mission-control
-version: 1.0.0
+version: 1.1.0
 scope: repository-development
 canonical_repository: boat1994/bemoat-web-starter
 max_review_cycles: 3
@@ -29,6 +29,9 @@ MC-gated tasks.
 <!-- bemoat-mc:invariant:no-autonomous-review-4 -->
 <!-- bemoat-mc:invariant:no-silent-reset -->
 <!-- bemoat-mc:invariant:minor-nit-non-blocking -->
+<!-- bemoat-mc:invariant:delivery-owns-awaiting-review-1 -->
+<!-- bemoat-mc:invariant:reviewer-owns-counters -->
+<!-- bemoat-mc:invariant:deterministic-reconciliation-not-conflict -->
 
 ## Purpose
 
@@ -76,17 +79,25 @@ May: implement only the active bounded scope; run required checks; commit and
 push to the approved issue branch; update/open the PR; post a RESULT with exact
 head SHA and evidence.
 
-Must not: silently fix unrelated findings; reset review counters; reinterpret
-Acceptance Criteria; merge.
+When acting as **Delivery Coordinator**, may also update only the managed state
+block between `bemoat-mission-control-state` markers to record `AWAITING_REVIEW_1`
+with `active_pr` and `current_head` in the same authorized run as the successful
+`## RESULT`.
+
+Must not: silently fix unrelated findings; reset or increment review counters;
+reinterpret Acceptance Criteria; merge; perform review; edit the Issue acceptance
+criteria checklist.
 
 ### Reviewer
 
 May: perform the review type assigned by Mission Control; issue findings with
-evidence and required verification; produce one allowed verdict.
+evidence and required verification; produce one allowed verdict; update the
+managed state block atomically with the `## REVIEW_VERDICT` (counters,
+`last_reviewed_head`, and resulting state).
 
 Must not: expand a delta review into a full repository review; block on
 unproven hypotheticals; treat Minor/Nit findings as blockers; start another
-review cycle independently.
+review cycle independently; merge or start the next task.
 
 ### Founder
 
@@ -113,9 +124,106 @@ reconciliation, or localized corrections that preserve the approved contract.
 
 ### Conflict behavior
 
-If durable sources conflict, return `STATE_CONFLICT`, identify the conflicting
-fields and links, request or apply one bounded reconciliation action, and stop.
-Do not guess which state is correct.
+Distinguish **bookkeeping lag** from **genuine conflict**:
+
+- **Bookkeeping lag:** one unambiguous live PR, exact head, exact-head CI result,
+  and durable role output (`## RESULT` or `## REVIEW_VERDICT`) exist, but the
+  managed state block is stale. Treat as **incomplete role delivery** or apply
+  **deterministic reconciliation** — not `STATE CONFLICT`.
+- **Genuine conflict:** contradictory durable evidence such as wrong or
+  competing PR; head mismatch or unsafe ancestry; stale or non-matching CI;
+  conflicting task pointer; inconsistent review history; scope or authorization
+  mismatch. Return `STATE CONFLICT`, identify the conflicting fields and links,
+  request or apply one bounded reconciliation action, and stop.
+
+Do not guess which state is correct when evidence is contradictory.
+
+## Execution roles and atomic completions
+
+One role completion must leave one complete durable transition. Reuse existing
+`## HANDOFF`, `## RESULT`, and `## REVIEW_VERDICT` transport — do not create a
+new operational comment type or second durable state store.
+
+```text
+Integration Builder completion
+= verified bounded implementation + durable handoff to delivery
+
+Delivery Coordinator completion
+= final commit + Draft PR + exact-head CI + RESULT + AWAITING_REVIEW_1 state block
+
+Independent/Delta Reviewer completion
+= REVIEW_VERDICT + reviewed exact head + counters/findings + resulting state
+
+Diagnostic Reviewer completion
+= evidence + failure class + invalidated assumptions + one smallest next experiment or blocker
+
+State Reconciler completion
+= deterministic state repair from unambiguous evidence, or explicit STATE_CONFLICT
+
+Founder-authorized merge transition
+= verify authorization/head/CI + mark ready when needed + merge + verify merge commit + DONE/close
+```
+
+A **State Reconciler** may normalize facts that are already proven. It may not
+choose product behavior, expand scope, waive review, or infer missing
+authorization.
+
+## Role-owned durable state updates
+
+| Field / artifact | Authoritative owner |
+| --- | --- |
+| `active_pr`, `current_head` after delivery | Delivery Coordinator (same run as `## RESULT`) |
+| `state: AWAITING_REVIEW_1` after delivery | Delivery Coordinator |
+| `review_cycle`, `full_review_count` | Reviewer only (with `## REVIEW_VERDICT`) |
+| `last_reviewed_head` | Reviewer only |
+| Resulting correction/eligibility state | Reviewer or State Reconciler from verdict evidence |
+| `DONE` / terminal closure | Founder-authorized merge transition or State Reconciler from merge evidence |
+| Issue acceptance criteria checklist | Mission Control pre-merge reconciliation only |
+
+Delivery and Reviewer roles may update **only** content between the
+`bemoat-mission-control-state` markers. They must preserve human-authored Issue
+content outside the markers. Dev must never increment `review_cycle` or
+`full_review_count`.
+
+## Deterministic reconciliation
+
+When bookkeeping lag is unambiguous, Mission Control or a State Reconciler
+should repair the managed state block without requiring a separate coordination
+run before Review 1 or the next permitted action.
+
+Reconciliation inputs (all must agree):
+
+- exactly one active PR for the task;
+- live PR head matches the durable role output head;
+- exact-head CI passes for that head;
+- latest non-superseded `## RESULT` or `## REVIEW_VERDICT` supports the transition.
+
+If any input is missing or contradictory, stop with `STATE CONFLICT` or
+`INCOMPLETE_DELIVERY` (when the producing role has not finished its atomic
+transition) — never infer authorization or review outcomes.
+
+## Protocol compression
+
+Routine successful transitions should return compact user-facing output while
+retaining full evidence in GitHub.
+
+- Omit stable repository, policy, model, and prompt boilerplate unless it
+  changed, is required for a decision, or the run is blocked.
+- Do not require a separate Mission Control run between valid delivery and
+  Review 1, or between a completed review and its next state.
+- One explicit Founder merge instruction may authorize the bounded
+  ready → merge → verify → close sequence.
+- Migration, deployment, production mutation, destructive rollback, material
+  scope change, and starting dependent work remain separately gated unless
+  explicitly authorized.
+
+## Integration boundaries
+
+- **#107** remains the canonical Mission Control foundation. v1.1 is additive.
+- **#119** owns FAST / STANDARD / MANAGED profile derivation — not this Issue.
+- **#121** owns the bounded Double-Loop Review Gate — not this Issue.
+- **#122** owns review-stage minimization and cost-aware routing — not this Issue.
+  v1.1 preserves compatibility; do not implement #122 scope here.
 
 ## Bootstrap and state reconstruction
 
@@ -127,7 +235,9 @@ At the start of every Mission Control run:
 4. Report repository, policy ref, policy commit SHA, and guide version.
 5. Read the approved Implementation Plan, Main Issue, Active Task Issue, active PR exact head, and exact-head CI/check status.
 6. Read the existing Mission Control state block before choosing an action.
-7. If durable sources conflict, return `STATE_CONFLICT` and stop.
+7. If durable sources genuinely conflict, return `STATE_CONFLICT` and stop. If
+   only bookkeeping lag is proven, reconcile deterministically or classify as
+   incomplete delivery.
 8. Perform exactly one bounded action or state transition.
 9. Write the durable result to GitHub, identify one next permitted action, and stop.
 
@@ -153,7 +263,7 @@ active_task_issue: "#<this active task issue>"
 active_pr: null
 current_head: null
 last_reviewed_head: null
-guide_version: 1.0.0
+guide_version: 1.1.0
 guide_source_ref: main
 guide_source_sha: null
 open_blockers: []
@@ -170,7 +280,12 @@ updated_by: null
 
 ### State update rules
 
+- Delivery Coordinator must write `AWAITING_REVIEW_1` with `active_pr` and
+  `current_head` in the same authorized run as a successful delivery `## RESULT`.
+- Reviewer must write `review_cycle`, `full_review_count`, `last_reviewed_head`,
+  and the resulting state in the same authorized run as `## REVIEW_VERDICT`.
 - `review_cycle` increments only when a reviewer posts a completed verdict for a new review cycle.
+- Dev must never increment `review_cycle` or `full_review_count`.
 - Reading state, rerunning CI, or refreshing GitHub metadata does not increment the cycle.
 - A correction commit does not reset the cycle.
 - `last_reviewed_head` records the exact head SHA covered by the most recent completed review.
@@ -414,6 +529,39 @@ Overrides may add/narrow project requirements. They must not relax shared
 invariants (review budget, completion gate, severity rules, exact-head
 requirements, auto-merge bans, silent reset bans). Conflicting overrides yield
 `STATE_CONFLICT`.
+
+## Compact transition examples
+
+### Delivery success (Delivery Coordinator)
+
+```markdown
+## RESULT
+**Completed:** Dev (implementation)
+**PR:** <PR_URL> · head `<sha>`
+**Managed state:** AWAITING_REVIEW_1 · PR #N · `<sha>` · counters unchanged (0/0)
+**Next:** Reviewer `## REVIEW_VERDICT` on exact head
+```
+
+### Review eligibility after verdict
+
+```markdown
+## REVIEW_VERDICT
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+**Managed state:** ELIGIBLE_FOR_FOUNDER_REVIEW · cycle 3 · last_reviewed_head `<sha>`
+**Next:** Founder merge authorization
+```
+
+### Founder merge success
+
+```markdown
+Merged PR #N at verified head `<sha>` → merge commit `<merge_sha>`.
+Managed state: DONE. Migration/deploy not authorized in this transition.
+```
+
+### Terminal closure
+
+Task #N closed DONE. Active PR merged; exact-head CI and review gates satisfied.
+Next permitted action: none on this task.
 
 ## Worked examples
 

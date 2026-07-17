@@ -36,7 +36,7 @@ After:
 
 ```text
 Mission Control HANDOFF
-  → Dev RESULT
+  → Dev RESULT + state AWAITING_REVIEW_1 (atomic delivery)
   → Review 1 (full, task-bounded)
   → Correction RESULT (when required)
   → Review 2 (delta only)
@@ -155,7 +155,7 @@ active_task_issue: "#<this active task issue>"
 active_pr: null
 current_head: null
 last_reviewed_head: null
-guide_version: 1.0.0
+guide_version: 1.1.0
 guide_source_ref: main
 guide_source_sha: null
 open_blockers: []
@@ -221,7 +221,8 @@ pnpm run bemoat:boilerplate:sync -- --harness-only
 | Symptom | Response |
 | --- | --- |
 | Guide missing on approved base | `BLOCKED EXTERNAL` — do not fall back to task-branch policy |
-| Plan / Issue / PR / state disagree | `STATE CONFLICT` — one reconciliation action, then stop |
+| Plan / Issue / PR / state disagree (contradictory evidence) | `STATE CONFLICT` — one reconciliation action, then stop |
+| Valid PR/head/CI/RESULT but stale state block | Deterministic reconciliation or incomplete delivery — not `STATE CONFLICT` |
 | Active task mid-review without state block | `STATE MIGRATION REQUIRED` — migrate; do not reset budget |
 | PR head moved after a review | Prior verdict is historical only; cover the new exact head |
 | Want another full review after a tiny fix | Not allowed; assign Review 2 delta unless Founder authorizes material change |

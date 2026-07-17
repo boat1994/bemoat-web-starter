@@ -32,6 +32,12 @@ Plan → git status & branch gates → Acceptance criteria → Implement → Tes
 
 Full workflow rails: [README.md](./README.md), [checklist.md](./checklist.md), [AGENTS.md](../../AGENTS.md#default-agent-workflow).
 
+**Mission Control v1.1 (managed tasks):** Delivery Coordinator owns the atomic
+delivery transition — `## RESULT` plus managed state `AWAITING_REVIEW_1` with
+`active_pr` and `current_head` in the same run. Reviewer owns counters and
+`last_reviewed_head` atomically with `## REVIEW_VERDICT`. See
+[mission-control-guide.md § Execution roles](../mission-control/mission-control-guide.md#execution-roles-and-atomic-completions).
+
 ## Starter vs child — decision rule
 
 Ask once at plan time. Full tables: [source-of-truth.md](./source-of-truth.md).

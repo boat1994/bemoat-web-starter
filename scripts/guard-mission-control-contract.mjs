@@ -14,6 +14,8 @@ export const LIVE_OVERRIDE_PATH = '.bemoat/mission-control-overrides.md'
 export const AGENTS_PATH = 'AGENTS.md'
 export const MANIFEST_PATH = '.bemoat/boilerplate-sync-manifest.json'
 export const SYNC_SCRIPT_PATH = 'scripts/sync-boilerplate.mjs'
+export const RECONCILE_SCRIPT_PATH = 'scripts/mission-control-reconcile.mjs'
+export const RECONCILE_TEST_PATH = 'tests/int/mission-control-reconcile.int.spec.ts'
 export const GUARD_SCRIPT_PATH = 'scripts/guard-mission-control-contract.mjs'
 export const INT_TEST_PATH = 'tests/int/mission-control-contract.int.spec.ts'
 export const FIXTURES_PATH = 'tests/fixtures/mission-control'
@@ -26,7 +28,9 @@ export const MC_MANAGED_PATHS = [
   OVERRIDE_EXAMPLE_PATH,
   LOADER_PATH,
   GUARD_SCRIPT_PATH,
+  RECONCILE_SCRIPT_PATH,
   INT_TEST_PATH,
+  RECONCILE_TEST_PATH,
   FIXTURES_PATH,
 ]
 
@@ -34,6 +38,11 @@ export const REQUIRED_GUIDE_SECTIONS = [
   '## Purpose',
   '## Roles and authority boundaries',
   '## Responsibility/source-of-truth model',
+  '## Execution roles and atomic completions',
+  '## Role-owned durable state updates',
+  '## Deterministic reconciliation',
+  '## Protocol compression',
+  '## Integration boundaries',
   '## Bootstrap and state reconstruction',
   '## Durable Mission Control state schema',
   '## State machine and allowed transitions',
@@ -52,6 +61,7 @@ export const REQUIRED_GUIDE_SECTIONS = [
   '## Stop conditions',
   '## Existing-task migration behavior',
   '## Repository-specific override behavior',
+  '## Compact transition examples',
   '## Worked examples',
 ]
 
@@ -63,6 +73,7 @@ export const REQUIRED_HANDOFF_FIELDS = [
   'Current head SHA:',
   'Guide version/ref/SHA:',
   'Assigned role:',
+  'Execution role:',
   'Review type:',
   'Review cycle:',
   'Model/reasoning guidance:',
@@ -204,6 +215,35 @@ export function scanGuideContent(relativePath, content) {
       violation('MC012', relativePath, 'Guide missing Minor/Nit non-blocking invariant marker'),
     )
   }
+  if (!content.includes('<!-- bemoat-mc:invariant:delivery-owns-awaiting-review-1 -->')) {
+    violations.push(
+      violation('MC012', relativePath, 'Guide missing delivery-owns-awaiting-review-1 invariant marker'),
+    )
+  }
+  if (!content.includes('<!-- bemoat-mc:invariant:reviewer-owns-counters -->')) {
+    violations.push(
+      violation('MC012', relativePath, 'Guide missing reviewer-owns-counters invariant marker'),
+    )
+  }
+  if (!content.includes('<!-- bemoat-mc:invariant:deterministic-reconciliation-not-conflict -->')) {
+    violations.push(
+      violation(
+        'MC012',
+        relativePath,
+        'Guide missing deterministic-reconciliation-not-conflict invariant marker',
+      ),
+    )
+  }
+  if (!content.includes('AWAITING_REVIEW_1 state block')) {
+    violations.push(
+      violation('MC012', relativePath, 'Guide must require atomic delivery to AWAITING_REVIEW_1'),
+    )
+  }
+  if (!content.includes('must never increment `review_cycle` or `full_review_count`')) {
+    violations.push(
+      violation('MC012', relativePath, 'Guide must forbid Dev from incrementing review counters'),
+    )
+  }
   if (!content.includes('must not autonomously start Review 4')) {
     violations.push(violation('MC012', relativePath, 'Guide must forbid autonomous Review 4'))
   }
@@ -288,6 +328,11 @@ export function scanResultTemplate(relativePath, content) {
     if (!content.includes(field)) {
       violations.push(violation('MC011', relativePath, `RESULT template missing field: ${field}`))
     }
+  }
+  if (!content.includes('AWAITING_REVIEW_1')) {
+    violations.push(
+      violation('MC011', relativePath, 'RESULT template must document AWAITING_REVIEW_1 delivery state'),
+    )
   }
   for (const verdict of REQUIRED_VERDICTS) {
     if (!content.includes(verdict)) {

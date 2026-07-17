@@ -23,6 +23,8 @@ from the enum below. This is the same vocabulary as
 - Findings and dispositions:
 - Review cycle/verdict:
 - Durable GitHub state updated:
+  - Delivery: `state: AWAITING_REVIEW_1`, `active_pr`, `current_head`; counters remain `0`/`0`
+  - Review: resulting state, `review_cycle`, `full_review_count`, `last_reviewed_head`
 - Blockers:
 - Follow-up Issues created:
 - Next permitted action:

@@ -203,6 +203,7 @@ Use these for posted comments. Include only the fields needed for this phase. Pr
 **PR:** <PR_URL>
 **Summary:** <1–3 bullets of what changed>
 **Evidence:** GitHub — head `<sha>`, CI <url> → pass/fail; Local — `<cmd>` → pass/fail
+**Managed state:** AWAITING_REVIEW_1 · PR #<n> · `<sha>` · counters unchanged (0/0) — required when Delivery Coordinator completes initial delivery on managed tasks
 **AC audit:** Issue #<n> criteria — Done / Not done / N/A / Waiting (short status + pointer; no full restatement of Issue body)
 **Blockers / risks:** None | <delta>
 **Prohibited next:** <if any>
@@ -229,6 +230,7 @@ Use these for posted comments. Include only the fields needed for this phase. Pr
 **Findings:** Critical: None|<summary + thread> · Important: None|<summary + thread>
 **Threads:** <PR_REVIEW_THREAD_URL> (file-level detail stays on the PR)
 **Gates:** exact-head CI <url> → pass/fail · open blockers: None|...
+**Managed state:** <next state> · cycle <n> · full_review_count <n> · last_reviewed_head `<sha>` — required on managed tasks; write atomically with verdict
 **Corrections / re-review:** None | <delta>
 **Founder gate:** Required | Not required | <link>
 **Next:** <expected next comment>
@@ -239,8 +241,27 @@ Use these for posted comments. Include only the fields needed for this phase. Pr
 | Comment | Always include | Include when material |
 |---------|----------------|------------------------|
 | HANDOFF | Task log, target, objective, Task Issue link, next | Model, state/head, prior verdict link, delta scope, verify, stop, founder gate |
-| RESULT | Task log, completed phase, summary, next | Branch/base/head, PR, evidence links, short AC status, blockers, prohibited next, Efficiency |
-| REVIEW_VERDICT | Task log, PR/base/head, verdict, findings summary, gates, next | Thread links, corrections, re-review condition, founder gate |
+| RESULT | Task log, completed phase, summary, next | Branch/base/head, PR, evidence links, Managed state (delivery), short AC status, blockers, prohibited next, Efficiency |
+| REVIEW_VERDICT | Task log, PR/base/head, verdict, findings summary, gates, next | Managed state (review), thread links, corrections, re-review condition, founder gate |
+
+## Atomic delivery and review (managed tasks)
+
+On managed tasks (`Mission Control mode: required`), role completion must be
+**atomic**: the role comment and the managed state block update happen in the
+same authorized run.
+
+- **Delivery Coordinator:** after Draft PR + passing exact-head CI, post
+  `## RESULT` and update the state block to `AWAITING_REVIEW_1` with
+  `active_pr`, `current_head`, and counters unchanged at `0`/`0`.
+- **Reviewer:** post `## REVIEW_VERDICT` and update `review_cycle`,
+  `full_review_count`, `last_reviewed_head`, and the resulting state in the same
+  run.
+- **Allowed Issue edits:** only content between `bemoat-mission-control-state`
+  markers. Do not edit acceptance-criteria checklists (Mission Control
+  pre-merge reconciliation only).
+- **Bookkeeping lag:** if PR/head/CI/RESULT are valid but the state block is
+  stale, Mission Control reconciles deterministically — this is not
+  `STATE_CONFLICT`.
 
 For the complete field catalog, see [Full reference templates](#full-reference-templates-documentation-only).
 
