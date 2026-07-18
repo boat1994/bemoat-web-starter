@@ -1146,6 +1146,52 @@ describe('boilerplate sync copy behavior', () => {
 
     rmSync(fixtureRoot, { recursive: true, force: true })
   })
+
+  it('fails closed when bemoat:typecheck differs from the managed public contract', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+
+    expect(() => mod.assertExactManagedPackageScripts(
+      { scripts: { 'bemoat:typecheck': 'node scripts/bemoat-typecheck.mjs' } },
+      { scripts: { 'bemoat:typecheck': 'echo bypassed' } },
+    )).toThrow('bemoat:typecheck')
+  })
+
+  it('fails before package mutation when bemoat:typecheck diverges', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const sourceRoot = join(fixtureRoot, 'exact-source')
+    const targetRoot = join(fixtureRoot, 'exact-target')
+
+    rmSync(fixtureRoot, { recursive: true, force: true })
+    mkdirSync(sourceRoot, { recursive: true })
+    mkdirSync(targetRoot, { recursive: true })
+    writeFileSync(join(sourceRoot, 'package.json'), JSON.stringify({ scripts: { 'bemoat:typecheck': 'node scripts/bemoat-typecheck.mjs' } }))
+    writeFileSync(join(targetRoot, 'package.json'), JSON.stringify({ scripts: { 'bemoat:typecheck': 'echo bypassed' } }))
+
+    expect(() => mod.syncPackageManifest({ sourceRootPath: sourceRoot, targetRootPath: targetRoot })).toThrow('bemoat:typecheck')
+    expect(JSON.parse(readFileSync(join(targetRoot, 'package.json'), 'utf8')).scripts['bemoat:typecheck']).toBe('echo bypassed')
+    expect(existsSync(join(targetRoot, '.bemoat/package-sync-proposal.md'))).toBe(false)
+
+    rmSync(fixtureRoot, { recursive: true, force: true })
+  })
+
+  it('does not commit synced rails when post-copy validation fails', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const calls: string[] = []
+    const git = {
+      hasWorkingTreeChanges() { return false },
+      stashPush() {},
+      addPaths() { calls.push('add') },
+      hasStagedChanges() { calls.push('staged'); return true },
+      commit() { calls.push('commit') },
+      stashPop() {},
+    }
+
+    expect(() => mod.commitValidatedSyncChanges(
+      { repo: 'boat1994/bemoat-web-starter', ref: 'main', targetRoot: '/tmp/bemoat-child' },
+      { git, validate: () => { throw new Error('post-copy validation failed') } },
+    )).toThrow('post-copy validation failed')
+    expect(calls).toEqual([])
+  })
 })
 
 describe('boilerplate sync modes', () => {

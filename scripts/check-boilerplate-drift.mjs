@@ -176,6 +176,9 @@ export function compareToolchainContractDrift({ sourceRoot: source, targetRoot: 
   if (targetPackage.devDependencies?.typescript !== contract.typescript) {
     drift.push(`package.json TypeScript must pin ${contract.typescript}`)
   }
+  if (targetPackage.scripts?.['bemoat:typecheck'] !== 'node scripts/bemoat-typecheck.mjs') {
+    drift.push('package.json bemoat:typecheck must match the managed toolchain contract')
+  }
   if (targetConfig.compilerOptions?.strict !== true || targetConfig.compilerOptions?.strictNullChecks === false) {
     drift.push('tsconfig.json must preserve strict mode and effective strictNullChecks')
   }

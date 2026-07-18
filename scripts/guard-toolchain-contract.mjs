@@ -12,23 +12,33 @@ function readJSON(path, readFile = readTextFile) {
   return JSON.parse(readFile(path, 'utf8'))
 }
 
-function readJsonc(path, readFile = readTextFile) {
-  const parsed = ts.parseConfigFileTextToJson(path, readFile(path, 'utf8'))
-  if (parsed.error) throw new Error(ts.flattenDiagnosticMessageText(parsed.error.messageText, '\\n'))
-  return parsed.config
-}
-
 function violation(rule, message, file = TOOLCHAIN_CONTRACT_PATH) {
   return { rule, message, file }
 }
 
-export function scanToolchainContract({ root = process.cwd(), readFile = readTextFile } = {}) {
-  const contractPath = resolve(root, TOOLCHAIN_CONTRACT_PATH)
+function parseEffectiveProject(configPath, readFile) {
+  const host = {
+    ...ts.sys,
+    readFile: (path) => readFile(path),
+  }
+  const config = ts.readConfigFile(configPath, host.readFile)
+  if (config.error) return { errors: [config.error], options: {}, fileNames: [] }
+  return ts.parseJsonConfigFileContent(config.config, host, resolve(configPath), undefined, configPath)
+}
+
+function getImporterTypeScript(lockfile) {
+  const importerSection = lockfile.slice(0, lockfile.indexOf('\npackages:') === -1 ? undefined : lockfile.indexOf('\npackages:'))
+  const importer = importerSection.match(/^  \.:\n([\s\S]*)$/m)?.[1]
+  const typeScript = importer?.match(/^      typescript:\n        specifier: ([^\n]+)\n        version: ([^\n]+)/m)
+  return typeScript ? { specifier: typeScript[1], version: typeScript[2] } : null
+}
+
+export function scanToolchainContract({ root = process.cwd(), contractRoot = root, readFile = readTextFile } = {}) {
+  const contractPath = resolve(contractRoot, TOOLCHAIN_CONTRACT_PATH)
   if (!existsSync(contractPath)) return [violation('missing-contract', 'Managed toolchain contract is missing')]
 
   const contract = readJSON(contractPath, readFile)
   const packageJSON = readJSON(resolve(root, 'package.json'), readFile)
-  const rootConfig = readJsonc(resolve(root, 'tsconfig.json'), readFile)
   const strictConfigPath = resolve(root, contract.compiler.harnessStrictConfig)
   const violations = []
 
@@ -39,9 +49,9 @@ export function scanToolchainContract({ root = process.cwd(), readFile = readTex
     violations.push(violation('node-engine', `package.json must require Node >=${contract.node}`, 'package.json'))
   }
 
-  const lockfile = readFile(resolve(root, 'pnpm-lock.yaml'), 'utf8')
-  if (!lockfile.includes(`typescript@${contract.typescript}`)) {
-    violations.push(violation('typescript-lockfile', `pnpm-lock.yaml must resolve typescript@${contract.typescript}`, 'pnpm-lock.yaml'))
+  const importerTypeScript = getImporterTypeScript(readFile(resolve(root, 'pnpm-lock.yaml'), 'utf8'))
+  if (!importerTypeScript || importerTypeScript.specifier !== contract.typescript || importerTypeScript.version !== contract.typescript) {
+    violations.push(violation('typescript-lockfile-importer', `Root pnpm importer must specify and resolve typescript@${contract.typescript}`, 'pnpm-lock.yaml'))
   }
 
   try {
@@ -53,10 +63,14 @@ export function scanToolchainContract({ root = process.cwd(), readFile = readTex
     violations.push(violation('typescript-installed', 'Installed TypeScript could not be proven', 'node_modules/typescript/package.json'))
   }
 
-  if (rootConfig.compilerOptions?.strict !== contract.compiler.strict) {
+  const rootConfig = parseEffectiveProject(resolve(root, 'tsconfig.json'), readFile)
+  if (rootConfig.errors.length > 0) {
+    violations.push(violation('root-config', 'Root tsconfig must resolve without errors', 'tsconfig.json'))
+  }
+  if (rootConfig.options.strict !== contract.compiler.strict) {
     violations.push(violation('root-strict', 'Root tsconfig must preserve strict mode', 'tsconfig.json'))
   }
-  if (rootConfig.compilerOptions?.strictNullChecks !== contract.compiler.starterRootStrictNullChecks) {
+  if (rootConfig.options.strictNullChecks !== contract.compiler.starterRootStrictNullChecks) {
     violations.push(violation('root-strict-null-checks', 'Root tsconfig strictNullChecks must match the registered starter exception', 'tsconfig.json'))
   }
   if (!existsSync(strictConfigPath)) {
@@ -64,14 +78,25 @@ export function scanToolchainContract({ root = process.cwd(), readFile = readTex
     return violations
   }
 
-  const strictConfig = readJSON(strictConfigPath, readFile)
-  if (strictConfig.compilerOptions?.strict !== true || strictConfig.compilerOptions?.strictNullChecks !== true) {
+  const strictConfig = parseEffectiveProject(strictConfigPath, readFile)
+  if (strictConfig.errors.length > 0) {
+    violations.push(violation('harness-config', 'Harness strict tsconfig must resolve without errors', contract.compiler.harnessStrictConfig))
+  }
+  if (strictConfig.options.strict !== true || strictConfig.options.strictNullChecks !== true) {
     violations.push(violation('harness-strict-null-checks', 'Harness strict tsconfig must force strict and strictNullChecks', contract.compiler.harnessStrictConfig))
   }
-  const includes = strictConfig.include ?? []
-  for (const required of [contract.compiler.ambientInput, ...contract.compiler.harnessRoots]) {
-    if (!includes.includes(required)) {
-      violations.push(violation('missing-harness-root', `Harness strict tsconfig must include ${required}`, contract.compiler.harnessStrictConfig))
+  const effectiveFiles = new Set(strictConfig.fileNames.map((file) => resolve(file)))
+  const requiredInputs = [contract.compiler.ambientInput, ...contract.compiler.harnessRoots]
+  for (const required of requiredInputs) {
+    const requiredFiles = ts.sys.readDirectory(root, ['.ts', '.mts', '.cts'], undefined, [required])
+    if (requiredFiles.length === 0) {
+      violations.push(violation('missing-harness-root', `Managed harness root ${required} did not resolve to a file`, contract.compiler.harnessStrictConfig))
+      continue
+    }
+    for (const file of requiredFiles) {
+      if (!effectiveFiles.has(resolve(file))) {
+        violations.push(violation('missing-harness-project-file', `Harness strict project excludes required input ${required}`, contract.compiler.harnessStrictConfig))
+      }
     }
   }
 
