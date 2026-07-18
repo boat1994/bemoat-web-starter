@@ -37,5 +37,8 @@ jobs:
       - name: Repository safety guard
         run: pnpm run bemoat:guard:safety
 
+      - name: TypeScript validation
+        run: pnpm run bemoat:typecheck
+
       - name: Integration tests
         run: pnpm run bemoat:test:int

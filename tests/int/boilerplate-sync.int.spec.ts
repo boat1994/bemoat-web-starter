@@ -60,6 +60,7 @@ const MANAGED_BEMOAT_PACKAGE_SCRIPTS = [
   'bemoat:guard:mission-control-contract',
   'bemoat:guard:cloudflare-env',
   'bemoat:test:int',
+  'bemoat:typecheck',
   'bemoat:check',
   'bemoat:boilerplate:sync',
   'bemoat:boilerplate:check',
@@ -194,6 +195,10 @@ describe('boilerplate sync managed paths', () => {
       'scripts/guard-build-script-contract.mjs',
       'scripts/build.mjs',
       'scripts/guard-cloudflare-env.mjs',
+      'scripts/guard-toolchain-contract.mjs',
+      'scripts/bemoat-typecheck.mjs',
+      'tsconfig.harness-strict.json',
+      '.bemoat/toolchain-contract.json',
       'scripts/check-branch-safety.sh',
       'scripts/install-git-hooks.mjs',
       '.githooks',
@@ -211,6 +216,7 @@ describe('boilerplate sync managed paths', () => {
       'tests/int/starter-acceptance.int.spec.ts',
       'tests/int/open-next-config.int.spec.ts',
       'tests/int/payload-build-context.int.spec.ts',
+      'tests/int/toolchain-contract.int.spec.ts',
       'tests/fixtures/mission-control',
     ]
 
@@ -594,7 +600,8 @@ describe('boilerplate sync managed paths', () => {
   it('records applied build contract files in sync metadata', async () => {
     const mod = await import('../../scripts/sync-boilerplate.mjs')
 
-    const metadata = mod.buildSyncMetadata({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped runtime .mjs boundary
+    const metadata = (mod.buildSyncMetadata as unknown as (input: unknown) => any)({
       syncMode: mod.SYNC_MODES.HARNESS_ONLY,
       seedOnlyPathsSkipped: true,
       buildContractFiles: {
@@ -897,7 +904,8 @@ describe('source-driven sync manifest', () => {
     expect(result.syncedManaged).toContain('.new-harness-rail')
     expect(readFileSync(join(targetRoot, '.new-harness-rail/README.md'), 'utf8')).toBe('new harness rail\n')
 
-    const metadata = mod.buildSyncMetadata({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped runtime .mjs boundary
+    const metadata = (mod.buildSyncMetadata as unknown as (input: unknown) => any)({
       syncMode: mod.SYNC_MODES.HARNESS_ONLY,
       seedOnlyPathsSkipped: true,
       syncedManaged: result.syncedManaged,
@@ -1138,6 +1146,80 @@ describe('boilerplate sync copy behavior', () => {
 
     rmSync(fixtureRoot, { recursive: true, force: true })
   })
+
+  it('fails closed when bemoat:typecheck differs from the managed public contract', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+
+    expect(() => mod.assertExactManagedPackageScripts(
+      { scripts: { 'bemoat:typecheck': 'node scripts/bemoat-typecheck.mjs' } },
+      { scripts: { 'bemoat:typecheck': 'echo bypassed' } },
+    )).toThrow('bemoat:typecheck')
+  })
+
+  it('fails before package mutation when bemoat:typecheck diverges', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const sourceRoot = join(fixtureRoot, 'exact-source')
+    const targetRoot = join(fixtureRoot, 'exact-target')
+
+    rmSync(fixtureRoot, { recursive: true, force: true })
+    mkdirSync(sourceRoot, { recursive: true })
+    mkdirSync(targetRoot, { recursive: true })
+    writeFileSync(join(sourceRoot, 'package.json'), JSON.stringify({ scripts: { 'bemoat:typecheck': 'node scripts/bemoat-typecheck.mjs' } }))
+    writeFileSync(join(targetRoot, 'package.json'), JSON.stringify({ scripts: { 'bemoat:typecheck': 'echo bypassed' } }))
+
+    expect(() => mod.syncPackageManifest({ sourceRootPath: sourceRoot, targetRootPath: targetRoot })).toThrow('bemoat:typecheck')
+    expect(JSON.parse(readFileSync(join(targetRoot, 'package.json'), 'utf8')).scripts['bemoat:typecheck']).toBe('echo bypassed')
+    expect(existsSync(join(targetRoot, '.bemoat/package-sync-proposal.md'))).toBe(false)
+
+    rmSync(fixtureRoot, { recursive: true, force: true })
+  })
+
+  it('allows first-sync bootstrap to reach copied-rail validation but rejects partial rails before mutation', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const targetRoot = join(fixtureRoot, 'bootstrap-target')
+
+    rmSync(fixtureRoot, { recursive: true, force: true })
+    mkdirSync(targetRoot, { recursive: true })
+    expect(mod.isFirstToolchainBootstrap(targetRoot)).toBe(true)
+    const logs: string[] = []
+    expect(mod.runToolchainPreflight({
+      targetRootPath: targetRoot,
+      contractRootPath: '/tmp/source',
+      assertContract: () => { throw new Error('must wait for copied rails') },
+      log: (line: string) => logs.push(line),
+    })).toBe('bootstrap')
+    expect(logs).toEqual(['[sync] first-sync toolchain bootstrap: validating copied rails before commit'])
+
+    mkdirSync(join(targetRoot, '.bemoat'), { recursive: true })
+    writeFileSync(join(targetRoot, '.bemoat/toolchain-contract.json'), '{}')
+    expect(mod.isFirstToolchainBootstrap(targetRoot)).toBe(false)
+    expect(() => mod.runToolchainPreflight({
+      targetRootPath: targetRoot,
+      contractRootPath: '/tmp/source',
+      assertContract: () => { throw new Error('partial rails fail before mutation') },
+    })).toThrow('partial rails fail before mutation')
+
+    rmSync(fixtureRoot, { recursive: true, force: true })
+  })
+
+  it('does not commit synced rails when post-copy validation fails', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const calls: string[] = []
+    const git = {
+      hasWorkingTreeChanges() { return false },
+      stashPush() {},
+      addPaths() { calls.push('add') },
+      hasStagedChanges() { calls.push('staged'); return true },
+      commit() { calls.push('commit') },
+      stashPop() {},
+    }
+
+    expect(() => mod.commitValidatedSyncChanges(
+      { repo: 'boat1994/bemoat-web-starter', ref: 'main', targetRoot: '/tmp/bemoat-child' },
+      { git, validate: () => { throw new Error('post-copy validation failed') } },
+    )).toThrow('post-copy validation failed')
+    expect(calls).toEqual([])
+  })
 })
 
 describe('boilerplate sync modes', () => {
@@ -1254,7 +1336,7 @@ describe('boilerplate sync modes', () => {
   it('suggests harness-only next commands without Payload migration steps', async () => {
     const mod = await import('../../scripts/sync-boilerplate.mjs')
 
-    const commands = mod.getSuggestedNextCommands(mod.SYNC_MODES.HARNESS_ONLY, {
+    const commands = (mod.getSuggestedNextCommands as unknown as (mode: string, options: unknown) => string[])(mod.SYNC_MODES.HARNESS_ONLY, {
       proposalPath: '.bemoat/package-sync-proposal.md',
     })
 

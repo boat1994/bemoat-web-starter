@@ -14,6 +14,7 @@ describe('central guard pack', () => {
       'harness-contract',
       'build-script-contract',
       'package-manager',
+      'toolchain-contract',
       'env-placeholder',
       'cloudflare-config',
       'frontend-seo',
@@ -45,6 +46,9 @@ describe('central guard pack', () => {
     expect(syncMod.managedPaths).toContain('scripts/guard-pack.mjs')
     expect(syncMod.managedPaths).toContain('scripts/guard-build-script-contract.mjs')
     expect(syncMod.managedPaths).toContain('scripts/guard-package-manager.mjs')
+    expect(syncMod.managedPaths).toContain('scripts/guard-toolchain-contract.mjs')
+    expect(syncMod.managedPaths).toContain('tsconfig.harness-strict.json')
+    expect(syncMod.managedPackageScripts).toContain('bemoat:typecheck')
     expect(syncMod.managedPaths).toContain('scripts/guard-env-placeholder.mjs')
     expect(syncMod.managedPaths).toContain('scripts/guard-frontend-seo.mjs')
     expect(syncMod.managedPaths).toContain('scripts/guard-mission-control-contract.mjs')

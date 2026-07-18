@@ -3,6 +3,7 @@ import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statS
 import { dirname, join, resolve } from 'node:path'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
+import { scanToolchainContract } from './guard-toolchain-contract.mjs'
 
 export const SYNC_MODES = {
   HARNESS_ONLY: 'harness-only',
@@ -77,6 +78,10 @@ export const managedPaths = [
   'scripts/guard-cloudflare-env.mjs',
   'scripts/guard-pack.mjs',
   'scripts/guard-package-manager.mjs',
+  'scripts/guard-toolchain-contract.mjs',
+  'scripts/bemoat-typecheck.mjs',
+  'tsconfig.harness-strict.json',
+  '.bemoat/toolchain-contract.json',
   'scripts/guard-env-placeholder.mjs',
   'scripts/guard-frontend-seo.mjs',
   'scripts/check-branch-safety.sh',
@@ -99,6 +104,7 @@ export const managedPaths = [
   'tests/int/guard-pack.int.spec.ts',
   'tests/int/mission-control-contract.int.spec.ts',
   'tests/int/mission-control-reconcile.int.spec.ts',
+  'tests/int/toolchain-contract.int.spec.ts',
   'tests/int/starter-acceptance.int.spec.ts',
   'tests/int/open-next-config.int.spec.ts',
   'tests/int/payload-build-context.int.spec.ts',
@@ -135,11 +141,14 @@ export const managedPackageScripts = [
   'bemoat:guard:mission-control-contract',
   'bemoat:guard:cloudflare-env',
   'bemoat:test:int',
+  'bemoat:typecheck',
   'bemoat:check',
   'bemoat:boilerplate:sync',
   'bemoat:boilerplate:check',
   'bemoat:hooks:install',
 ]
+
+export const exactManagedPackageScripts = ['bemoat:typecheck']
 
 /** Non-namespaced scripts surfaced in the package sync proposal only — never auto-applied. */
 export const suggestedPackageScripts = [
@@ -439,6 +448,45 @@ export function applyManagedPackageScripts(
   return { packageJSON: nextPackage, addedScripts }
 }
 
+export function assertExactManagedPackageScripts(sourcePackage, targetPackage, scriptNames = exactManagedPackageScripts) {
+  for (const scriptName of scriptNames) {
+    const sourceValue = sourcePackage.scripts?.[scriptName]
+    const targetValue = targetPackage.scripts?.[scriptName]
+    if (!sourceValue || targetValue === undefined) continue
+    if (targetValue !== sourceValue) {
+      throw new Error(`Managed package script ${scriptName} diverges from the boilerplate contract`)
+    }
+  }
+}
+
+export function assertToolchainContract({ targetRootPath, contractRootPath = targetRoot }) {
+  const violations = scanToolchainContract({ root: targetRootPath, contractRoot: contractRootPath })
+  if (violations.length > 0) {
+    throw new Error(`Toolchain contract validation failed:\n${violations.map((item) => `- [${item.rule}] ${item.message}`).join('\n')}`)
+  }
+}
+
+const toolchainBootstrapPaths = [
+  'scripts/guard-toolchain-contract.mjs',
+  'scripts/bemoat-typecheck.mjs',
+  'tsconfig.harness-strict.json',
+  '.bemoat/toolchain-contract.json',
+]
+
+export function isFirstToolchainBootstrap(targetRootPath) {
+  return toolchainBootstrapPaths.every((path) => !existsSync(join(targetRootPath, path)))
+}
+
+export function runToolchainPreflight({ targetRootPath, contractRootPath, assertContract = assertToolchainContract, log = console.log }) {
+  if (isFirstToolchainBootstrap(targetRootPath)) {
+    log('[sync] first-sync toolchain bootstrap: validating copied rails before commit')
+    return 'bootstrap'
+  }
+
+  assertContract({ targetRootPath, contractRootPath })
+  return 'validated'
+}
+
 export function applyBuildContractScripts(
   sourcePackage,
   targetPackage,
@@ -689,6 +737,7 @@ export function syncPackageManifest({
 
   const sourcePackage = readJSON(sourcePackagePath)
   const targetPackage = readJSON(targetPackagePath)
+  assertExactManagedPackageScripts(sourcePackage, targetPackage)
   const { packageJSON: managedPackageJSON, addedScripts } = applyManagedPackageScripts(
     sourcePackage,
     targetPackage,
@@ -821,6 +870,11 @@ export function commitSyncedChanges(
 
   git.commit(targetRoot, `sync boilerplate from ${repo}#${ref}`)
   return true
+}
+
+export function commitValidatedSyncChanges(options, { validate = () => {}, git = createGitClient() } = {}) {
+  validate()
+  return commitSyncedChanges(options, git)
 }
 
 export function restoreStashIfNeeded(cwd, stashCreated, git = createGitClient()) {
@@ -1066,7 +1120,7 @@ function main() {
   const applyBuildContract = parseApplyBuildContract()
   console.log(`Syncing Bemoat boilerplate from ${repo}#${ref} (${syncMode} mode)`)
   const git = createGitClient()
-  const stashCreated = stashWorkingTreeIfNeeded(targetRoot, git)
+  let stashCreated = false
 
   try {
     rmSync(tempRoot, { recursive: true, force: true })
@@ -1077,6 +1131,15 @@ function main() {
     })
 
     const syncConfig = getSourceSyncConfig(sourceRoot)
+    const sourcePackage = readJSON(join(sourceRoot, 'package.json'))
+    const targetPackage = readJSON(join(targetRoot, 'package.json'))
+    // Existing public typecheck scripts are a bootstrap gate, not a mutable rail.
+    assertExactManagedPackageScripts(sourcePackage, targetPackage)
+    // A pre-contract child cannot satisfy rails that have not been copied yet.
+    // Only a completely absent rail set is allowed to bootstrap; partial rails fail closed.
+    runToolchainPreflight({ targetRootPath: targetRoot, contractRootPath: sourceRoot })
+
+    stashCreated = stashWorkingTreeIfNeeded(targetRoot, git)
 
     if (applyBuildContract) {
       console.log(
@@ -1168,15 +1231,18 @@ function main() {
       ...buildContractFiles.applied,
       ...buildContractFiles.updated,
     ]
-    if (commitSyncedChanges(
+    if (commitValidatedSyncChanges(
       {
         repo,
         ref,
         targetRoot,
         syncedPaths: pathsToCommit,
         includePackageJson: packageSync.packageChanged,
+      }, {
+        git,
+        // The copied rails must still satisfy the contract before they can be committed or reported.
+        validate: () => assertToolchainContract({ targetRootPath: targetRoot }),
       },
-      git,
     )) {
       console.log('[sync] committed sync changes')
     } else {

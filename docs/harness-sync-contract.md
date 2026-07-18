@@ -151,6 +151,15 @@ Listed in `mergeKeepPaths` in `scripts/sync-boilerplate.mjs`. Drift check fails 
 | `dependencies` / `devDependencies` | **Never touched** — drift reported in `.bemoat/package-sync-proposal.md` (human review only) |
 | `pnpm-lock.yaml` | Never synced |
 
+### Managed toolchain contract
+
+`.bemoat/toolchain-contract.json`, `tsconfig.harness-strict.json`, and the
+`bemoat:typecheck` script are managed harness compatibility data. Children pin
+the contract's exact TypeScript version, retain `strict: true` and effective
+`strictNullChecks: true`, and run `pnpm run bemoat:typecheck` in synced CI.
+Application dependencies remain child-owned; sync proposes rather than rewrites
+them.
+
 After sync, review **`.bemoat/package-sync-proposal.md`**. Do not apply script or dependency changes automatically unless you used **`--apply-build-contract`** for the build/deploy scripts. Update `package.json` manually for other drift when desired, then run **`pnpm install`**.
 
 ```bash

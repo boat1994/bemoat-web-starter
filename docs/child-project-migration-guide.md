@@ -215,6 +215,7 @@ git status && git diff                        # 6. inspect diff — allowed file
 
 # --- Post-sync validation (child harness entrypoints) ---
 pnpm run bemoat:guard:safety                  # 7. central guard pack
+pnpm run bemoat:typecheck                      # managed TypeScript + strict harness validation
 pnpm run bemoat:test:int                      # 8. shared integration tests
 
 # --- Optional stricter child-local checks ---
