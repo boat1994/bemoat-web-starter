@@ -204,6 +204,8 @@ describe('boilerplate sync managed paths', () => {
       '.githooks',
       'vitest.config.mts',
       'vitest.setup.ts',
+      'tests/helpers/vitestProcessLock.ts',
+      'tests/setup/vitestGlobalSetup.ts',
       'tests/int/api.int.spec.ts',
       'tests/int/repo-safety-guard.int.spec.ts',
       'tests/int/cloudflare-env-guard.int.spec.ts',
@@ -217,6 +219,7 @@ describe('boilerplate sync managed paths', () => {
       'tests/int/open-next-config.int.spec.ts',
       'tests/int/payload-build-context.int.spec.ts',
       'tests/int/toolchain-contract.int.spec.ts',
+      'tests/int/vitest-process-lock.int.spec.ts',
       'tests/fixtures/mission-control',
     ]
 

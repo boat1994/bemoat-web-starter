@@ -18,7 +18,7 @@ The harness is everything child projects need to run the same safety rails, work
 | Cloudflare deploy guards | Recommended `deploy` / `preview` scripts that call `guard:cloudflare-env` |
 | Sync and drift | `scripts/sync-boilerplate.mjs`, `scripts/check-boilerplate-drift.mjs` |
 | Local git hooks | `.githooks`, `scripts/check-branch-safety.sh`, `scripts/install-git-hooks.mjs`, `hooks:install` |
-| Vitest harness | `vitest.config.mts`, `vitest.setup.ts` |
+| Vitest harness | `vitest.config.mts`, `vitest.setup.ts`, checkout-scoped process-lock helper and global setup |
 | Shared integration tests | All `tests/int/**/*.int.spec.ts` files intended for child projects |
 
 Child projects receive harness **files** through
@@ -256,6 +256,8 @@ Current shared tests (listed in `managedPaths` in `scripts/sync-boilerplate.mjs`
 - `tests/int/open-next-config.int.spec.ts`
 - `tests/int/repo-safety-guard.int.spec.ts`
 - `tests/int/starter-acceptance.int.spec.ts` (acceptance contract — see [starter-acceptance-tests.md](./starter-acceptance-tests.md))
+- `tests/int/toolchain-contract.int.spec.ts`
+- `tests/int/vitest-process-lock.int.spec.ts`
 
 ## Rules for maintainers
 

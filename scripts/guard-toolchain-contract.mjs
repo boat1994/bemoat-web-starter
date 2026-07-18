@@ -40,8 +40,8 @@ function getImporterTypeScript(lockfile) {
   return typeScript ? { specifier: typeScript[1], version: typeScript[2] } : null
 }
 
-export function getExpectedRootStrictNullChecks({ root, contractRoot, contract }) {
-  return resolve(root) === resolve(contractRoot)
+export function getExpectedRootStrictNullChecks({ root, contractRoot, contract, packageJSON }) {
+  return resolve(root) === resolve(contractRoot) && packageJSON?.name === 'bemoat-web-starter'
     ? contract.compiler.starterRootStrictNullChecks
     : contract.compiler.childStrictNullChecks
 }
@@ -83,7 +83,12 @@ export function scanToolchainContract({ root = process.cwd(), contractRoot = roo
   if (rootConfig.options.strict !== contract.compiler.strict) {
     violations.push(violation('root-strict', 'Root tsconfig must preserve strict mode', 'tsconfig.json'))
   }
-  const expectedRootStrictNullChecks = getExpectedRootStrictNullChecks({ root, contractRoot, contract })
+  const expectedRootStrictNullChecks = getExpectedRootStrictNullChecks({
+    root,
+    contractRoot,
+    contract,
+    packageJSON,
+  })
   if (rootConfig.options.strictNullChecks !== expectedRootStrictNullChecks) {
     violations.push(violation(
       'root-strict-null-checks',
