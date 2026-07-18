@@ -466,6 +466,27 @@ export function assertToolchainContract({ targetRootPath, contractRootPath = tar
   }
 }
 
+const toolchainBootstrapPaths = [
+  'scripts/guard-toolchain-contract.mjs',
+  'scripts/bemoat-typecheck.mjs',
+  'tsconfig.harness-strict.json',
+  '.bemoat/toolchain-contract.json',
+]
+
+export function isFirstToolchainBootstrap(targetRootPath) {
+  return toolchainBootstrapPaths.every((path) => !existsSync(join(targetRootPath, path)))
+}
+
+export function runToolchainPreflight({ targetRootPath, contractRootPath, assertContract = assertToolchainContract, log = console.log }) {
+  if (isFirstToolchainBootstrap(targetRootPath)) {
+    log('[sync] first-sync toolchain bootstrap: validating copied rails before commit')
+    return 'bootstrap'
+  }
+
+  assertContract({ targetRootPath, contractRootPath })
+  return 'validated'
+}
+
 export function applyBuildContractScripts(
   sourcePackage,
   targetPackage,
@@ -1114,8 +1135,9 @@ function main() {
     const targetPackage = readJSON(join(targetRoot, 'package.json'))
     // Existing public typecheck scripts are a bootstrap gate, not a mutable rail.
     assertExactManagedPackageScripts(sourcePackage, targetPackage)
-    // Validate the child against the source contract before any child mutation.
-    assertToolchainContract({ targetRootPath: targetRoot, contractRootPath: sourceRoot })
+    // A pre-contract child cannot satisfy rails that have not been copied yet.
+    // Only a completely absent rail set is allowed to bootstrap; partial rails fail closed.
+    runToolchainPreflight({ targetRootPath: targetRoot, contractRootPath: sourceRoot })
 
     stashCreated = stashWorkingTreeIfNeeded(targetRoot, git)
 

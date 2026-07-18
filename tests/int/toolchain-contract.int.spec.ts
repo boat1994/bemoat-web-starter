@@ -44,6 +44,30 @@ describe('toolchain contract', () => {
     }).some((item: { rule: string }) => item.rule === 'typescript-lockfile-importer')).toBe(true)
   })
 
+  it('fails when only a later workspace importer declares the approved TypeScript', async () => {
+    const mod = await import('../../scripts/guard-toolchain-contract.mjs')
+    const lockfile = readFileSync(resolve(process.cwd(), 'pnpm-lock.yaml'), 'utf8')
+      .replace(/\n      typescript:\n        specifier: 6\.0\.3\n        version: 6\.0\.3/, '')
+      .replace('\npackages:', '\n\n  packages/child:\n    devDependencies:\n      typescript:\n        specifier: 6.0.3\n        version: 6.0.3\n\npackages:')
+
+    expect(mod.scanToolchainContract({
+      root: process.cwd(),
+      readFile: (path: string) => path.endsWith('pnpm-lock.yaml') ? lockfile : readFileSync(path, 'utf8'),
+    }).some((item: { rule: string }) => item.rule === 'typescript-lockfile-importer')).toBe(true)
+  })
+
+  it('uses the starter-only nullability exception only for the contract root', async () => {
+    const mod = await import('../../scripts/guard-toolchain-contract.mjs')
+    const contract = JSON.parse(readFileSync(resolve(process.cwd(), '.bemoat/toolchain-contract.json'), 'utf8'))
+
+    expect(mod.getExpectedRootStrictNullChecks({
+      root: '/tmp/starter', contractRoot: '/tmp/starter', contract,
+    })).toBe(false)
+    expect(mod.getExpectedRootStrictNullChecks({
+      root: '/tmp/child', contractRoot: '/tmp/starter', contract,
+    })).toBe(true)
+  })
+
   it('fails when an inherited exclusion removes a managed harness root', async () => {
     const mod = await import('../../scripts/guard-toolchain-contract.mjs')
     const strictConfig = JSON.parse(readFileSync(resolve(process.cwd(), 'tsconfig.harness-strict.json'), 'utf8'))

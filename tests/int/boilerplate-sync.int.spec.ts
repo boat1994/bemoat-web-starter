@@ -1174,6 +1174,34 @@ describe('boilerplate sync copy behavior', () => {
     rmSync(fixtureRoot, { recursive: true, force: true })
   })
 
+  it('allows first-sync bootstrap to reach copied-rail validation but rejects partial rails before mutation', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const targetRoot = join(fixtureRoot, 'bootstrap-target')
+
+    rmSync(fixtureRoot, { recursive: true, force: true })
+    mkdirSync(targetRoot, { recursive: true })
+    expect(mod.isFirstToolchainBootstrap(targetRoot)).toBe(true)
+    const logs: string[] = []
+    expect(mod.runToolchainPreflight({
+      targetRootPath: targetRoot,
+      contractRootPath: '/tmp/source',
+      assertContract: () => { throw new Error('must wait for copied rails') },
+      log: (line: string) => logs.push(line),
+    })).toBe('bootstrap')
+    expect(logs).toEqual(['[sync] first-sync toolchain bootstrap: validating copied rails before commit'])
+
+    mkdirSync(join(targetRoot, '.bemoat'), { recursive: true })
+    writeFileSync(join(targetRoot, '.bemoat/toolchain-contract.json'), '{}')
+    expect(mod.isFirstToolchainBootstrap(targetRoot)).toBe(false)
+    expect(() => mod.runToolchainPreflight({
+      targetRootPath: targetRoot,
+      contractRootPath: '/tmp/source',
+      assertContract: () => { throw new Error('partial rails fail before mutation') },
+    })).toThrow('partial rails fail before mutation')
+
+    rmSync(fixtureRoot, { recursive: true, force: true })
+  })
+
   it('does not commit synced rails when post-copy validation fails', async () => {
     const mod = await import('../../scripts/sync-boilerplate.mjs')
     const calls: string[] = []

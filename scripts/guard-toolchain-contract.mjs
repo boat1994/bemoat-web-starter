@@ -28,9 +28,22 @@ function parseEffectiveProject(configPath, readFile) {
 
 function getImporterTypeScript(lockfile) {
   const importerSection = lockfile.slice(0, lockfile.indexOf('\npackages:') === -1 ? undefined : lockfile.indexOf('\npackages:'))
-  const importer = importerSection.match(/^  \.:\n([\s\S]*)$/m)?.[1]
+  const rootImporterStart = importerSection.search(/^  \.:\n/m)
+  if (rootImporterStart === -1) return null
+  const rootImporterBodyStart = rootImporterStart + '  .:\n'.length
+  const nextImporter = importerSection.slice(rootImporterBodyStart).search(/^  [^ ].*:\n/m)
+  const importer = importerSection.slice(
+    rootImporterBodyStart,
+    nextImporter === -1 ? undefined : rootImporterBodyStart + nextImporter,
+  )
   const typeScript = importer?.match(/^      typescript:\n        specifier: ([^\n]+)\n        version: ([^\n]+)/m)
   return typeScript ? { specifier: typeScript[1], version: typeScript[2] } : null
+}
+
+export function getExpectedRootStrictNullChecks({ root, contractRoot, contract }) {
+  return resolve(root) === resolve(contractRoot)
+    ? contract.compiler.starterRootStrictNullChecks
+    : contract.compiler.childStrictNullChecks
 }
 
 export function scanToolchainContract({ root = process.cwd(), contractRoot = root, readFile = readTextFile } = {}) {
@@ -70,8 +83,15 @@ export function scanToolchainContract({ root = process.cwd(), contractRoot = roo
   if (rootConfig.options.strict !== contract.compiler.strict) {
     violations.push(violation('root-strict', 'Root tsconfig must preserve strict mode', 'tsconfig.json'))
   }
-  if (rootConfig.options.strictNullChecks !== contract.compiler.starterRootStrictNullChecks) {
-    violations.push(violation('root-strict-null-checks', 'Root tsconfig strictNullChecks must match the registered starter exception', 'tsconfig.json'))
+  const expectedRootStrictNullChecks = getExpectedRootStrictNullChecks({ root, contractRoot, contract })
+  if (rootConfig.options.strictNullChecks !== expectedRootStrictNullChecks) {
+    violations.push(violation(
+      'root-strict-null-checks',
+      expectedRootStrictNullChecks
+        ? 'Child root tsconfig must preserve effective strictNullChecks: true'
+        : 'Starter root tsconfig strictNullChecks must match the registered exception',
+      'tsconfig.json',
+    ))
   }
   if (!existsSync(strictConfigPath)) {
     violations.push(violation('missing-harness-config', 'Harness strict tsconfig is missing', contract.compiler.harnessStrictConfig))
