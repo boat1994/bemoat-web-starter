@@ -61,10 +61,22 @@ describe('toolchain contract', () => {
     const contract = JSON.parse(readFileSync(resolve(process.cwd(), '.bemoat/toolchain-contract.json'), 'utf8'))
 
     expect(mod.getExpectedRootStrictNullChecks({
-      root: '/tmp/starter', contractRoot: '/tmp/starter', contract,
+      root: '/tmp/starter',
+      contractRoot: '/tmp/starter',
+      contract,
+      packageJSON: { name: 'bemoat-web-starter' },
     })).toBe(false)
     expect(mod.getExpectedRootStrictNullChecks({
-      root: '/tmp/child', contractRoot: '/tmp/starter', contract,
+      root: '/tmp/child',
+      contractRoot: '/tmp/starter',
+      contract,
+      packageJSON: { name: 'child-project' },
+    })).toBe(true)
+    expect(mod.getExpectedRootStrictNullChecks({
+      root: '/tmp/cloned-source',
+      contractRoot: '/tmp/cloned-source',
+      contract,
+      packageJSON: { name: 'child-project' },
     })).toBe(true)
   })
 
