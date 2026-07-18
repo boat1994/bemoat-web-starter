@@ -30,6 +30,10 @@ import {
   formatPackageManagerViolations,
   runPackageManagerGuard,
 } from './guard-package-manager.mjs'
+import {
+  formatToolchainContractViolations,
+  scanToolchainContract,
+} from './guard-toolchain-contract.mjs'
 import { formatViolations, runRepoSafetyGuard } from './guard-repo-safety.mjs'
 
 /** Ordered central guard pack — each entry is a reusable, deterministic check. */
@@ -57,6 +61,12 @@ export const GUARD_PACK = [
     summary: 'Package manager drift (lockfiles and non-pnpm automation commands)',
     run: runPackageManagerGuard,
     format: formatPackageManagerViolations,
+  },
+  {
+    id: 'toolchain-contract',
+    summary: 'Managed TypeScript, Node, lockfile, and strict-harness compiler contract',
+    run: scanToolchainContract,
+    format: formatToolchainContractViolations,
   },
   {
     id: 'env-placeholder',

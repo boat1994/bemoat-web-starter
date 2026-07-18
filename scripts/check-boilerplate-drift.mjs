@@ -162,6 +162,26 @@ export function comparePackageProposalDrift({ sourceRoot: source, targetRoot: ta
   return getPackageProposalReport(source, target)
 }
 
+export function compareToolchainContractDrift({ sourceRoot: source, targetRoot: target }) {
+  const contractPath = join(source, '.bemoat/toolchain-contract.json')
+  const targetPackagePath = join(target, 'package.json')
+  const targetConfigPath = join(target, 'tsconfig.json')
+  if (!existsSync(contractPath) || !existsSync(targetPackagePath) || !existsSync(targetConfigPath)) return []
+
+  const contract = readJSON(contractPath)
+  const targetPackage = readJSON(targetPackagePath)
+  const targetConfig = JSON.parse(readFileSync(targetConfigPath, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '').replace(/,\s*([}\]])/g, '$1'))
+  const drift = []
+
+  if (targetPackage.devDependencies?.typescript !== contract.typescript) {
+    drift.push(`package.json TypeScript must pin ${contract.typescript}`)
+  }
+  if (targetConfig.compilerOptions?.strict !== true || targetConfig.compilerOptions?.strictNullChecks === false) {
+    drift.push('tsconfig.json must preserve strict mode and effective strictNullChecks')
+  }
+  return drift
+}
+
 export function compareSeedOnlyDrift({
   sourceRoot: source,
   targetRoot: target,
@@ -233,12 +253,13 @@ export function compareBoilerplateDriftByMode({
   const managed = compareBoilerplateDrift({ sourceRoot: source, targetRoot: target, paths: managedPaths })
   const mergeKeep = compareMergeKeepDrift({ sourceRoot: source, targetRoot: target, paths: mergeKeepPaths })
   const packageProposal = comparePackageProposalDrift({ sourceRoot: source, targetRoot: target })
+  const toolchain = compareToolchainContractDrift({ sourceRoot: source, targetRoot: target })
   const seedOnlyPathsSkipped = mode === SYNC_MODES.HARNESS_ONLY
   const seed = seedOnlyPathsSkipped
     ? { missingSeed: [], customized: [], identical: [], skipped: true }
     : { ...compareSeedOnlyDrift({ sourceRoot: source, targetRoot: target, paths: seedOnlyPaths }), skipped: false }
 
-  return { managed, seed, mergeKeep, packageProposal, syncMode: mode, seedOnlyPathsSkipped }
+  return { managed, seed, mergeKeep, packageProposal, toolchain, syncMode: mode, seedOnlyPathsSkipped }
 }
 
 export function compareFullBoilerplateDrift({ sourceRoot: source, targetRoot: target, mode = SYNC_MODES.FULL }) {
@@ -249,8 +270,9 @@ export function getDriftExitCode(report) {
   const hasManagedDrift = report.managed.missing.length > 0 || report.managed.changed.length > 0
   const hasMissingSeed = !report.seedOnlyPathsSkipped && report.seed.missingSeed.length > 0
   const hasMergeKeepDrift = report.mergeKeep.missing.length > 0 || report.mergeKeep.changed.length > 0
+  const hasToolchainDrift = report.toolchain?.length > 0
 
-  if (hasManagedDrift || hasMissingSeed || hasMergeKeepDrift) return 1
+  if (hasManagedDrift || hasMissingSeed || hasMergeKeepDrift || hasToolchainDrift) return 1
   return 0
 }
 

@@ -122,6 +122,10 @@ Default sync behavior:
 - never auto-adds, removes, bumps, or rewrites **`dependencies`** or **`devDependencies`**
 - writes **`.bemoat/package-sync-proposal.md`** with script and dependency drift for human review only
 
+Toolchain policy is the exception: review `.bemoat/toolchain-contract.json` and
+manually align the child package and lockfile to its exact TypeScript pin before
+running `pnpm run bemoat:typecheck`.
+
 **Opt-in build contract** (`--apply-build-contract`):
 
 ```bash

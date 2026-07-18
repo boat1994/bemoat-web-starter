@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import {
+/* eslint-disable @typescript-eslint/no-explicit-any -- untyped runtime .mjs boundary */
+import * as reconcileModule from '../../scripts/mission-control-reconcile.mjs'
+
+// Shared .mjs scripts expose runtime behavior, not TypeScript declarations. Keep
+// the strict-project boundary explicit without changing the production API.
+const {
   analyzeReconciliation,
   classifyDeliveryLag,
   classifyMergeDrift,
@@ -10,7 +15,7 @@ import {
   parseRoleCommentBody,
   proposeDeliveryReconciliation,
   proposeReviewReconciliation,
-} from '../../scripts/mission-control-reconcile.mjs'
+} = reconcileModule as unknown as Record<string, (...args: any[]) => any>
 
 const sampleResult = `## RESULT
 

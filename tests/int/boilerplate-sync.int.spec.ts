@@ -60,6 +60,7 @@ const MANAGED_BEMOAT_PACKAGE_SCRIPTS = [
   'bemoat:guard:mission-control-contract',
   'bemoat:guard:cloudflare-env',
   'bemoat:test:int',
+  'bemoat:typecheck',
   'bemoat:check',
   'bemoat:boilerplate:sync',
   'bemoat:boilerplate:check',
@@ -194,6 +195,10 @@ describe('boilerplate sync managed paths', () => {
       'scripts/guard-build-script-contract.mjs',
       'scripts/build.mjs',
       'scripts/guard-cloudflare-env.mjs',
+      'scripts/guard-toolchain-contract.mjs',
+      'scripts/bemoat-typecheck.mjs',
+      'tsconfig.harness-strict.json',
+      '.bemoat/toolchain-contract.json',
       'scripts/check-branch-safety.sh',
       'scripts/install-git-hooks.mjs',
       '.githooks',
@@ -211,6 +216,7 @@ describe('boilerplate sync managed paths', () => {
       'tests/int/starter-acceptance.int.spec.ts',
       'tests/int/open-next-config.int.spec.ts',
       'tests/int/payload-build-context.int.spec.ts',
+      'tests/int/toolchain-contract.int.spec.ts',
       'tests/fixtures/mission-control',
     ]
 
@@ -594,7 +600,8 @@ describe('boilerplate sync managed paths', () => {
   it('records applied build contract files in sync metadata', async () => {
     const mod = await import('../../scripts/sync-boilerplate.mjs')
 
-    const metadata = mod.buildSyncMetadata({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped runtime .mjs boundary
+    const metadata = (mod.buildSyncMetadata as unknown as (input: unknown) => any)({
       syncMode: mod.SYNC_MODES.HARNESS_ONLY,
       seedOnlyPathsSkipped: true,
       buildContractFiles: {
@@ -897,7 +904,8 @@ describe('source-driven sync manifest', () => {
     expect(result.syncedManaged).toContain('.new-harness-rail')
     expect(readFileSync(join(targetRoot, '.new-harness-rail/README.md'), 'utf8')).toBe('new harness rail\n')
 
-    const metadata = mod.buildSyncMetadata({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped runtime .mjs boundary
+    const metadata = (mod.buildSyncMetadata as unknown as (input: unknown) => any)({
       syncMode: mod.SYNC_MODES.HARNESS_ONLY,
       seedOnlyPathsSkipped: true,
       syncedManaged: result.syncedManaged,
@@ -1254,7 +1262,7 @@ describe('boilerplate sync modes', () => {
   it('suggests harness-only next commands without Payload migration steps', async () => {
     const mod = await import('../../scripts/sync-boilerplate.mjs')
 
-    const commands = mod.getSuggestedNextCommands(mod.SYNC_MODES.HARNESS_ONLY, {
+    const commands = (mod.getSuggestedNextCommands as unknown as (mode: string, options: unknown) => string[])(mod.SYNC_MODES.HARNESS_ONLY, {
       proposalPath: '.bemoat/package-sync-proposal.md',
     })
 

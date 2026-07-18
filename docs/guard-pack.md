@@ -1,5 +1,9 @@
 # Central guard pack v1
 
+The pack includes the managed toolchain-contract guard: it fails closed when
+the exact TypeScript pin, Node floor, installed/lockfile proof, or strict
+harness compiler roots diverge from `.bemoat/toolchain-contract.json`.
+
 Reusable, deterministic checks that catch common agent and sync mistakes before they reach child repos. The pack is the single entry point for CI and local pre-PR validation.
 
 ## Commands

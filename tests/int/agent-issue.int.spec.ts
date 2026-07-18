@@ -5,7 +5,12 @@ import { spawnSync } from 'node:child_process'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
-import {
+/* eslint-disable @typescript-eslint/no-explicit-any -- untyped runtime .mjs boundary */
+import * as agentIssueModule from '../../scripts/agent-issue.mjs'
+
+// Shared .mjs scripts expose runtime behavior, not TypeScript declarations. Keep
+// the strict-project boundary explicit without changing the production API.
+const {
   analyzeExactHeadCi,
   analyzeProgressTracking,
   deriveWorkflowProfile,
@@ -17,7 +22,7 @@ import {
   parseMissionControlState,
   runAgentIssuePreflight,
   validatePlanPath,
-} from '../../scripts/agent-issue.mjs'
+} = agentIssueModule as unknown as Record<string, (...args: any[]) => any>
 
 const PRODUCTION_PR103_ROLLUP = [
   {
@@ -936,7 +941,7 @@ esac
       },
     })
 
-    expect(analysis.blockers.filter((blocker) => blocker.includes('STATE_CONFLICT'))).toHaveLength(5)
+    expect(analysis.blockers.filter((blocker: string) => blocker.includes('STATE_CONFLICT'))).toHaveLength(5)
   })
 
   it('blocks DONE when its active PR is not merged', () => {
@@ -1019,7 +1024,7 @@ esac
       },
     })
 
-    expect(analysis.blockers.filter((blocker) => blocker.includes('STATE_CONFLICT'))).toHaveLength(0)
+    expect(analysis.blockers.filter((blocker: string) => blocker.includes('STATE_CONFLICT'))).toHaveLength(0)
     expect(analysis.report.reconciliation?.proposal?.type).toBe('delivery')
     expect(analysis.warnings.join(' ')).toContain('Deterministic delivery reconciliation available')
   })
