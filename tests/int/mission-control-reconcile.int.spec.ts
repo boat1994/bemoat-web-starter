@@ -87,6 +87,20 @@ describe('mission-control reconcile classifiers', () => {
     expect(fields.last_reviewed_head).toBe('abc1234')
     expect(fields.review_cycle).toBe(1)
     expect(fields.full_review_count).toBe(1)
+    expect(fields.next_permitted_action).toBe('Founder merge authorization required before merge.')
+  })
+
+  it('BLOCKED FOR FOUNDER DECISION next action is Approve/Decline without pre-approval prompt', () => {
+    const fields = proposeReviewReconciliation({
+      verdict: 'BLOCKED FOR FOUNDER DECISION',
+      reviewedHead: 'abc1234',
+      reviewCycle: 3,
+      fullReviewCount: 1,
+    })
+
+    expect(fields.state).toBe('BLOCKED_FOR_FOUNDER_DECISION')
+    expect(fields.next_permitted_action).toContain('Approve or Decline')
+    expect(fields.next_permitted_action).toContain('no implementation prompt until Approve')
   })
 
   it('scenario 3: stale post-RESULT state reconciles deterministically', () => {

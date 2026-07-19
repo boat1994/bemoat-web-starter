@@ -155,6 +155,47 @@ max_review_cycles: 4
     expect(mod.LOADER_MAX_LINES).toBe(80)
   })
 
+  it('requires lean Founder Decision invariants in guide and loader', async () => {
+    const mod = await import('../../scripts/guard-mission-control-contract.mjs')
+    const guide = readFileSync(resolve(process.cwd(), mod.GUIDE_PATH), 'utf8')
+    const loader = readFileSync(resolve(process.cwd(), mod.LOADER_PATH), 'utf8')
+
+    expect(mod.REQUIRED_GUIDE_SECTIONS).toContain('## Lean Founder Decision')
+    expect(mod.REQUIRED_LEAN_FOUNDER_DECISION_PHRASES.length).toBeGreaterThan(0)
+    expect(mod.REQUIRED_LEAN_FOUNDER_LOADER_PHRASES.length).toBeGreaterThan(0)
+
+    for (const phrase of mod.REQUIRED_LEAN_FOUNDER_DECISION_PHRASES) {
+      expect(guide).toContain(phrase)
+    }
+    for (const phrase of mod.REQUIRED_LEAN_FOUNDER_LOADER_PHRASES) {
+      expect(loader).toContain(phrase)
+    }
+
+    const strippedGuide = guide.replace(
+      'Do not include Suggested model, Ready-to-paste prompts',
+      'Suggested model and Ready-to-paste are allowed before Approve',
+    )
+    const guideViolations = mod.scanGuideContent(mod.GUIDE_PATH, strippedGuide)
+    expect(
+      guideViolations.some(
+        (v: { rule: string; message: string }) =>
+          v.rule === 'MC012' && v.message.includes('lean Founder Decision'),
+      ),
+    ).toBe(true)
+
+    const strippedLoader = loader.replace(
+      'Do not include Suggested model, Ready-to-paste',
+      'Suggested model and Ready-to-paste may appear before Approve',
+    )
+    const loaderViolations = mod.scanLoaderContent(mod.LOADER_PATH, strippedLoader)
+    expect(
+      loaderViolations.some(
+        (v: { rule: string; message: string }) =>
+          v.rule === 'MC007' && v.message.includes('lean Founder Decision'),
+      ),
+    ).toBe(true)
+  })
+
   it('fails when AGENTS.md lacks the Mission Control pointer', async () => {
     const mod = await import('../../scripts/guard-mission-control-contract.mjs')
     const violations = mod.scanAgentsPointer(mod.AGENTS_PATH, '# Agents\n')
