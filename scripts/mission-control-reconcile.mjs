@@ -228,7 +228,7 @@ function nextActionForVerdict(verdict, reviewCycle) {
     return 'Founder merge authorization required before merge.'
   }
   if (verdict === 'BLOCKED FOR FOUNDER DECISION') {
-    return 'Founder decision required on remaining Blocker/Critical findings.'
+    return 'Founder Approve or Decline on remaining Blocker/Critical; no implementation prompt until Approve.'
   }
   if (verdict === 'BLOCKED EXTERNAL') {
     return 'Resolve external blocker before continuing.'

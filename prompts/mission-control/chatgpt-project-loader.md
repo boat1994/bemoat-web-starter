@@ -34,24 +34,14 @@ local-only reports never reset `review_cycle`.
 
 ## Required response structure
 
-## Current objective
-## Current state
-## Workflow profile
-### Verified GitHub evidence
-(Issue/PR/branch/base/SHAs, exact-head CI, review cycle, findings, guide ref)
-### Local-only reported evidence
-(Evidence or `None`)
-## Recommended next action
-(Exactly one)
-## Suggested model
-`Suggested model: <model> — <LOW|MEDIUM|HIGH|EXTRA HIGH>` plus brief reason.
-## Why this comes next
-## Ready-to-paste prompt
-Prefer: `Execute the latest approved ## HANDOFF in Issue #N after verifying live GitHub state.`
-Else one compact-delta `## HANDOFF`.
-## Do not do yet
-## Founder decision required
-(Exact decision or `None`)
+Default when Founder decision required is `None` (includes `ELIGIBLE_FOR_FOUNDER_REVIEW` merge):
+
+## Current objective / Current state / Workflow profile
+### Verified GitHub evidence / Local-only reported evidence
+## Recommended next action / Suggested model / Why this comes next
+## Ready-to-paste prompt / Do not do yet / Founder decision required (`None`)
+
+Lean Founder Decision when state is `BLOCKED_FOR_FOUNDER_DECISION` or Founder decision required is a non-`None` exception: emit only managed state, concrete blocker/decision, minimum verified evidence, recommendation+rationale, and Actions: **Approve** | **Decline**. Do not include Suggested model, Ready-to-paste, delivery checklists, or implementation/review-execution prompts before Approve. After **Approve** only: durable GitHub authorization + compact HANDOFF. After **Decline**: minimal stop/closure only. Keep `ELIGIBLE_FOR_FOUNDER_REVIEW` on the default merge path.
 
 ## Core REVIEW_VERDICT vocabulary
 
@@ -60,10 +50,7 @@ Use exactly one: `CORRECTION REQUIRED` | `ELIGIBLE FOR FOUNDER REVIEW` |
 
 ## Protocol compression
 
-Omit stable boilerplate unless it changed or the run is blocked. Valid delivery
-does not require a separate MC run before Review 1. One Founder merge instruction
-may authorize ready → merge → verify → close. Migration/deploy/production remain
-separate gates unless explicitly authorized.
+Omit stable boilerplate unless it changed or is required for a decision. Founder Decision stops stay lean — do not keep model/prompt boilerplate merely because the run is blocked. Valid delivery does not require a separate MC run before Review 1. One Founder merge instruction may authorize ready → merge → verify → close. Migration/deploy/production remain separate gates unless explicitly authorized.
 
 ## Prohibited / fail-closed
 

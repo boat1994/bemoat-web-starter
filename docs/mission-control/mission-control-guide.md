@@ -1,6 +1,6 @@
 ---
 policy_id: bemoat-mission-control
-version: 1.1.0
+version: 1.2.0
 scope: repository-development
 canonical_repository: boat1994/bemoat-web-starter
 max_review_cycles: 3
@@ -337,7 +337,9 @@ Routine successful transitions should return compact user-facing output while
 retaining full evidence in GitHub.
 
 - Omit stable repository, policy, model, and prompt boilerplate unless it
-  changed, is required for a decision, or the run is blocked.
+  changed or is required for a decision.
+- Founder Decision stops stay lean by default — do not keep model or
+  Ready-to-paste prompt boilerplate merely because the run is blocked.
 - Do not require a separate Mission Control run between valid delivery and
   Review 1, or between a completed review and its next state.
 - One explicit Founder merge instruction may authorize the bounded
@@ -393,7 +395,7 @@ active_task_issue: "#<this active task issue>"
 active_pr: null
 current_head: null
 last_reviewed_head: null
-guide_version: 1.1.0
+guide_version: 1.2.0
 guide_source_ref: main
 guide_source_sha: null
 open_blockers: []
@@ -455,8 +457,17 @@ AWAITING_REVIEW_2 -> ELIGIBLE_FOR_FOUNDER_REVIEW
 CORRECTION_REQUIRED_2 -> AWAITING_REVIEW_3
 AWAITING_REVIEW_3 -> ELIGIBLE_FOR_FOUNDER_REVIEW
 AWAITING_REVIEW_3 -> BLOCKED_FOR_FOUNDER_DECISION
+BLOCKED_FOR_FOUNDER_DECISION -> IN_PROGRESS
+BLOCKED_FOR_FOUNDER_DECISION -> DONE
 ELIGIBLE_FOR_FOUNDER_REVIEW -> DONE
 ```
+
+`BLOCKED_FOR_FOUNDER_DECISION -> IN_PROGRESS` requires an explicit Founder
+**Approve** of the named exception or next step, plus durable GitHub
+authorization for that named step only. `BLOCKED_FOR_FOUNDER_DECISION -> DONE`
+requires an explicit Founder **Decline** (stop/closure). Neither transition
+authorizes Review 4, merge, migration, or deploy unless the named Founder
+decision explicitly includes that gate.
 
 Any normal state may transition to `BLOCKED_EXTERNAL`, `STATE_CONFLICT`, or
 `STATE_MIGRATION_REQUIRED` when proven. No backward transition without exact
@@ -603,6 +614,34 @@ records `material_change_status: proposed` and stops. Founder decides whether
 to authorize a new full review, split into a new Issue, or revert. A new
 full-review budget must never be created automatically.
 
+## Lean Founder Decision
+
+When managed state is `BLOCKED_FOR_FOUNDER_DECISION`, or an equivalent exception
+escalation sets Founder decision required to a non-`None` value, Mission Control
+presents a lean decision card only:
+
+- current managed state;
+- the concrete blocker or decision being escalated;
+- the minimum verified evidence needed to understand the decision;
+- a concise recommendation and rationale;
+- the two available actions: **Approve** or **Decline**.
+
+The primary Founder reply is exactly **Approve** or **Decline**. Do not include Suggested model, Ready-to-paste prompts, delivery checklists, or
+implementation/review-execution prompts before Approve.
+
+Post-decision:
+
+- **Approve** → write durable GitHub authorization for the named exception or
+  next step, then emit the compact `## HANDOFF` / implementation handoff for
+  that named step only. Transition `BLOCKED_FOR_FOUNDER_DECISION` →
+  `IN_PROGRESS` when execution is authorized.
+- **Decline** → write only the minimal stop/closure transition
+  (`BLOCKED_FOR_FOUNDER_DECISION` → `DONE` or follow-up Issue creation when
+  required). Do not generate implementation content.
+
+`ELIGIBLE_FOR_FOUNDER_REVIEW` merge authorization stays on the existing
+compressed Founder merge instruction path and is not this lean card.
+
 ## Completion gate
 
 A task becomes `ELIGIBLE FOR FOUNDER REVIEW` only when all are true:
@@ -744,7 +783,21 @@ follow-up Issue. Task becomes `ELIGIBLE FOR FOUNDER REVIEW`.
 ### Verified blocker remains after Review 3
 
 One proven Blocker/Critical remains → `BLOCKED FOR FOUNDER DECISION`. No Review
-4.
+4. Mission Control returns the lean Approve/Decline card only — no Suggested
+model or Ready-to-paste prompt yet.
+
+### Founder Approves a blocked exception
+
+Founder replies **Approve** to the named exception. Mission Control writes
+durable GitHub authorization, emits a compact `## HANDOFF` for that named step
+only, and moves managed state to `IN_PROGRESS`. Review 4, merge, migration, and
+deploy remain unauthorized unless the named decision explicitly includes them.
+
+### Founder Declines a blocked exception
+
+Founder replies **Decline**. Mission Control records stop/closure
+(`BLOCKED_FOR_FOUNDER_DECISION` → `DONE` or a follow-up Issue only) with no
+implementation prompt.
 
 ### New session mid-task
 

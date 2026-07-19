@@ -52,6 +52,7 @@ export const REQUIRED_GUIDE_SECTIONS = [
   '## Blocker-verification rules',
   '## Finding severity and evidence requirements',
   '## Material-change rules',
+  '## Lean Founder Decision',
   '## Completion gate',
   '## Reopening rules',
   '## Handoff contract',
@@ -159,6 +160,26 @@ export const REQUIRED_COST_AWARE_GUIDE_PHRASES = [
   'STANDARD defaults to one risk-adjusted semantic review: Medium for bounded normal-risk work and High only for material ambiguity or significant connected risk.',
   'MANAGED defaults to one independent High Full Semantic Review, followed by bounded Delta Review.',
   'A Full Semantic Review escalation requires at least one explicit proven trigger.',
+]
+
+/** Lean Founder Decision UX invariants for BLOCKED_FOR_FOUNDER_DECISION stops. */
+export const REQUIRED_LEAN_FOUNDER_DECISION_PHRASES = [
+  'Founder Decision stops stay lean by default',
+  'the two available actions: **Approve** or **Decline**',
+  'Do not include Suggested model, Ready-to-paste prompts',
+  '`ELIGIBLE_FOR_FOUNDER_REVIEW` merge authorization stays on the existing',
+  'BLOCKED_FOR_FOUNDER_DECISION -> IN_PROGRESS',
+  'BLOCKED_FOR_FOUNDER_DECISION -> DONE',
+]
+
+export const REQUIRED_LEAN_FOUNDER_LOADER_PHRASES = [
+  'Lean Founder Decision when state is `BLOCKED_FOR_FOUNDER_DECISION`',
+  'Actions: **Approve** | **Decline**',
+  'Do not include Suggested model, Ready-to-paste',
+  'After **Approve** only: durable GitHub authorization + compact HANDOFF',
+  'After **Decline**: minimal stop/closure only',
+  'Keep `ELIGIBLE_FOR_FOUNDER_REVIEW` on the default merge path',
+  'Founder Decision stops stay lean',
 ]
 
 export const LOADER_MAX_LINES = 80
@@ -328,6 +349,13 @@ export function scanGuideContent(relativePath, content) {
       )
     }
   }
+  for (const phrase of REQUIRED_LEAN_FOUNDER_DECISION_PHRASES) {
+    if (!content.includes(phrase)) {
+      violations.push(
+        violation('MC012', relativePath, `Guide missing lean Founder Decision invariant: ${phrase}`),
+      )
+    }
+  }
 
   return violations
 }
@@ -361,6 +389,14 @@ export function scanLoaderContent(relativePath, content) {
     if (content.includes(title)) {
       violations.push(
         violation('MC007', relativePath, `Loader duplicates long-form policy heading: ${title}`),
+      )
+    }
+  }
+
+  for (const phrase of REQUIRED_LEAN_FOUNDER_LOADER_PHRASES) {
+    if (!content.includes(phrase)) {
+      violations.push(
+        violation('MC007', relativePath, `Loader missing lean Founder Decision invariant: ${phrase}`),
       )
     }
   }

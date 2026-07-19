@@ -26,6 +26,13 @@ docs mentally as: `PASS` → `ELIGIBLE FOR FOUNDER REVIEW`, and
 `BLOCKED` → `CORRECTION REQUIRED` (or a more specific `BLOCKED_*` /
 `STATE CONFLICT` outcome when that is what the evidence requires).
 
+ChatGPT Mission Control Founder Decision UX for `BLOCKED FOR FOUNDER DECISION`
+(and equivalent non-`None` Founder decision escalations) is a lean
+Approve/Decline card. Durable GitHub transport remains existing
+`## REVIEW_VERDICT` and, only after Founder **Approve**, a compact `## HANDOFF`.
+Do not invent a new comment type for Founder Decision. `ELIGIBLE FOR FOUNDER
+REVIEW` merge authorization is unchanged.
+
 Mission Control management is not implied by the Core tier alone. A missing
 state block on a non-managed task is warning-only; managed state must never be
 silently initialized.
