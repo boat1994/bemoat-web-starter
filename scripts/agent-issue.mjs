@@ -4,6 +4,10 @@ import { dirname, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { analyzeReconciliation, findLatestRoleComment } from './mission-control-reconcile.mjs'
+import {
+  buildCorrectionCapsule,
+  parseCorrectionContract,
+} from './correction-contract.mjs'
 
 const moduleDir = dirname(fileURLToPath(import.meta.url))
 const branchSafetyScriptPath = resolve(moduleDir, 'check-branch-safety.sh')
@@ -29,14 +33,37 @@ function run(command, args, options = {}) {
   }
 }
 
-function parseIssueNumber(argv = process.argv.slice(2)) {
-  const issueNumber = argv.find((arg) => arg !== '--')?.trim()
+function parseAgentIssueArgs(argv = process.argv.slice(2)) {
+  const tokens = argv.filter((arg) => arg !== '--')
+  let phase = null
+  const positional = []
 
-  if (!issueNumber || !/^[1-9]\d*$/.test(issueNumber)) {
-    return null
+  for (let index = 0; index < tokens.length; index += 1) {
+    const argument = tokens[index]
+    if (argument === '--phase') {
+      const value = tokens[index + 1]
+      if (!value || value.startsWith('-')) {
+        return { error: '--phase requires a value' }
+      }
+      if (phase) return { error: '--phase may be provided only once' }
+      phase = value
+      index += 1
+      continue
+    }
+    if (argument.startsWith('-')) {
+      return { error: `unexpected argument: ${argument}` }
+    }
+    positional.push(argument)
   }
 
-  return issueNumber
+  if (positional.length !== 1 || !/^[1-9]\d*$/.test(positional[0])) {
+    return { error: 'missing or invalid issue number' }
+  }
+  if (phase !== null && phase !== 'correction') {
+    return { error: '--phase supports only correction' }
+  }
+
+  return { issueNumber: positional[0], phase }
 }
 
 function getCurrentBranch(cwd = process.cwd()) {
@@ -1386,23 +1413,584 @@ function formatProgressSection(progressAnalysis) {
   return lines
 }
 
+function extractVerdictPrBaseAndHead(verdictBody) {
+  const match = verdictBody.match(
+    /\*\*PR\s*\/\s*base\s*\/\s*head:\*\*[^\n]*·\s*`([^`]+)`\s*·\s*`([0-9a-f]{7,40})`/i,
+  )
+  return { base: match?.[1]?.trim() ?? null, head: match?.[2] ?? null }
+}
+
+function asciiCaseFold(value) {
+  return String(value).toLowerCase()
+}
+
+function foldedPrIdentityKey(owner, repo, number) {
+  return `${asciiCaseFold(owner)}/${asciiCaseFold(repo)}#${number}`
+}
+
+/**
+ * Parse one complete live/verdict GitHub pull URL value.
+ * Rejects prefixes, suffixes, encoding, authority tricks, and WHATWG-normalized
+ * forms that differ from the raw supported contract.
+ */
+export function parseCompleteGitHubPullUrl(raw) {
+  if (typeof raw !== 'string' || raw.length === 0) {
+    return { ok: false, reason: 'live PR identity URL is missing or empty' }
+  }
+
+  // No silent trim/repair: raw value must already be the complete URL.
+  if (raw !== raw.trim() || /[\s\u00a0\u2000-\u200b\u2028\u2029\u3000]/.test(raw)) {
+    return { ok: false, reason: 'live PR identity URL contains whitespace' }
+  }
+  if (/[\u0000-\u001f\u007f\u0080-\u009f\\%]/.test(raw) || /\p{Cc}|\p{Cf}/u.test(raw)) {
+    return { ok: false, reason: 'live PR identity URL contains forbidden raw characters' }
+  }
+  if (!raw.startsWith('https://')) {
+    return { ok: false, reason: 'live PR identity URL must use literal lowercase https' }
+  }
+
+  const afterScheme = raw.slice('https://'.length)
+  const slashIdx = afterScheme.indexOf('/')
+  if (slashIdx <= 0) {
+    return { ok: false, reason: 'live PR identity URL authority is malformed' }
+  }
+  const rawAuthority = afterScheme.slice(0, slashIdx)
+  if (rawAuthority.includes('@') || rawAuthority.includes(':') || rawAuthority.includes('[')) {
+    return { ok: false, reason: 'live PR identity URL must not include userinfo or port' }
+  }
+  if (asciiCaseFold(rawAuthority) !== 'github.com') {
+    return { ok: false, reason: 'live PR identity URL host must be github.com' }
+  }
+
+  let parsed
+  try {
+    parsed = new URL(raw)
+  } catch {
+    return { ok: false, reason: 'live PR identity URL is present but unparseable' }
+  }
+
+  if (parsed.protocol !== 'https:') {
+    return { ok: false, reason: 'live PR identity URL must use https' }
+  }
+  if (parsed.hostname !== 'github.com') {
+    return { ok: false, reason: 'live PR identity URL host must be github.com' }
+  }
+  if (parsed.username || parsed.password || parsed.port) {
+    return { ok: false, reason: 'live PR identity URL must not include credentials or port' }
+  }
+  if (parsed.search || parsed.hash) {
+    return { ok: false, reason: 'live PR identity URL must not include query or fragment' }
+  }
+
+  const rawPath = afterScheme.slice(slashIdx)
+  if (rawPath !== parsed.pathname) {
+    return { ok: false, reason: 'live PR identity URL path is not a complete canonical value' }
+  }
+
+  const segments = parsed.pathname.split('/')
+  if (segments.length !== 5 || segments[0] !== '') {
+    return { ok: false, reason: 'live PR identity URL path structure is invalid' }
+  }
+
+  const [, owner, repo, pullLiteral, number] = segments
+  if (pullLiteral !== 'pull') {
+    return { ok: false, reason: 'live PR identity URL path must include /pull/' }
+  }
+  if (!owner || !repo || !/^[\w.-]+$/.test(owner) || !/^[\w.-]+$/.test(repo)) {
+    return { ok: false, reason: 'live PR identity URL owner/repository must be ASCII path segments' }
+  }
+  if (!/^[1-9][0-9]*$/.test(number)) {
+    return { ok: false, reason: 'live PR identity URL pull number must be a positive integer' }
+  }
+  if (rawPath !== `/${owner}/${repo}/pull/${number}`) {
+    return { ok: false, reason: 'live PR identity URL path is not a complete canonical value' }
+  }
+
+  return {
+    ok: true,
+    identity: {
+      owner,
+      repo,
+      number,
+      key: foldedPrIdentityKey(owner, repo, number),
+    },
+  }
+}
+
+/**
+ * Structurally valid GitHub pull-review discussion fragment (`#discussion_rN`).
+ * Broader `#discussion` substrings are intentionally not accepted.
+ */
+function isGitHubReviewDiscussionFragment(fragment) {
+  return typeof fragment === 'string' && /^#discussion_r[0-9]+$/i.test(fragment)
+}
+
+/**
+ * Benign same-PR review-thread pointer — not PR identity evidence.
+ * Requires a valid review-discussion fragment, a fragment-stripped complete
+ * canonical pull URL, and an exact match to the established canonical identity.
+ */
+function isSourceThreadDiscussionPointer(candidate, canonicalIdentity) {
+  if (typeof candidate !== 'string' || candidate.length === 0 || !canonicalIdentity) {
+    return false
+  }
+
+  const hashIdx = candidate.indexOf('#')
+  if (hashIdx < 0) return false
+
+  const fragment = candidate.slice(hashIdx)
+  if (!isGitHubReviewDiscussionFragment(fragment)) return false
+
+  const stripped = candidate.slice(0, hashIdx)
+  const parsed = parseCompleteGitHubPullUrl(stripped)
+  if (!parsed.ok) return false
+
+  return (
+    foldedPrIdentityKey(
+      parsed.identity.owner,
+      parsed.identity.repo,
+      parsed.identity.number,
+    ) ===
+    foldedPrIdentityKey(
+      canonicalIdentity.owner,
+      canonicalIdentity.repo,
+      canonicalIdentity.number,
+    )
+  )
+}
+
+/**
+ * True when a token is plausibly PR identity evidence (absolute pull URL or
+ * `/pull/...` path), independent of whether the complete-URL parser accepts it.
+ */
+function isPlausiblePullIdentityCandidate(candidate) {
+  if (typeof candidate !== 'string' || candidate.length === 0) return false
+  if (/^https:\/\//i.test(candidate)) {
+    return /\/pull\//i.test(candidate)
+  }
+  return /^\/(?:[\w.-]+\/[\w.-]+\/)?pull\//i.test(candidate)
+}
+
+/**
+ * Collect repository-qualified PR identities from a verdict body.
+ * Only complete canonical pull URLs count as valid identities. Malformed
+ * identity-like pull URL/path candidates are preserved as conflicting
+ * evidence instead of being silently discarded. `PR #N` shorthand is
+ * qualified against the current repository when available.
+ * Same-PR `#discussion_rN` source-thread pointers matching `canonicalIdentity`
+ * are excluded; other `#discussion*` candidates remain identity evidence.
+ */
+function collectVerdictPrIdentities(verdictBody, defaultRepo, canonicalIdentity = null) {
+  const identities = []
+  const malformedCandidates = []
+  const seenMalformed = new Set()
+
+  const recordMalformed = (candidate, reason) => {
+    if (seenMalformed.has(candidate)) return
+    seenMalformed.add(candidate)
+    malformedCandidates.push({ candidate, reason, source: 'url' })
+  }
+
+  const considerUrlOrPathCandidate = (rawCandidate) => {
+    let candidate = rawCandidate.replace(/[),.;:]+$/g, '')
+
+    const hashIdx = candidate.indexOf('#')
+    if (hashIdx >= 0) {
+      const fragment = candidate.slice(hashIdx)
+      if (isGitHubReviewDiscussionFragment(fragment)) {
+        if (isSourceThreadDiscussionPointer(candidate, canonicalIdentity)) {
+          return
+        }
+        // Valid discussion fragment that is not a matching same-PR pointer:
+        // strip the fragment and route the remainder through normal identity /
+        // malformed rejection so disguised conflicts cannot bypass checks.
+        candidate = candidate.slice(0, hashIdx)
+      }
+    }
+
+    if (!isPlausiblePullIdentityCandidate(candidate)) return
+    const parsed = parseCompleteGitHubPullUrl(candidate)
+    if (!parsed.ok) {
+      recordMalformed(candidate, parsed.reason || 'malformed PR identity candidate')
+      return
+    }
+    identities.push({
+      ...parsed.identity,
+      source: 'url',
+    })
+  }
+
+  const httpsCandidateRe = /https:\/\/[^\s"'<>\]]+/gi
+  for (const match of verdictBody.matchAll(httpsCandidateRe)) {
+    considerUrlOrPathCandidate(match[0])
+  }
+
+  // Relative or root-relative pull paths are identity-like even without a host.
+  const pathCandidateRe = /(?:^|[\s"'<>(\[])(\/(?:[\w.-]+\/[\w.-]+\/)?pull\/[^\s"'<>\]]*)/gi
+  for (const match of verdictBody.matchAll(pathCandidateRe)) {
+    considerUrlOrPathCandidate(match[1])
+  }
+
+  const shorthandRe = /\bPR\s*#([0-9]+)\b/gi
+  for (const match of verdictBody.matchAll(shorthandRe)) {
+    const number = match[1]
+    if (!/^[1-9][0-9]*$/.test(number)) continue
+    if (!defaultRepo || !defaultRepo.includes('/')) {
+      identities.push({
+        owner: null,
+        repo: null,
+        number,
+        key: `#${number}`,
+        source: 'shorthand',
+      })
+      continue
+    }
+    const [owner, repo] = defaultRepo.split('/')
+    identities.push({
+      owner,
+      repo,
+      number,
+      key: foldedPrIdentityKey(owner, repo, number),
+      source: 'shorthand',
+    })
+  }
+
+  return { identities, malformedCandidates }
+}
+
+/**
+ * Resolve one canonical repository-qualified PR identity from the visible
+ * `PR / base / head` evidence, rejecting foreign repositories and multiple
+ * distinct or repeated PR references anywhere in the verdict.
+ */
+function resolveCanonicalVerdictPrIdentity(verdictBody, defaultRepo) {
+  if (!defaultRepo || !defaultRepo.includes('/')) {
+    return {
+      ok: false,
+      errors: ['current repository identity is unavailable for PR reconciliation'],
+    }
+  }
+
+  const lineMatch = verdictBody.match(/\*\*PR\s*\/\s*base\s*\/\s*head:\*\*([^\n]*)/i)
+  if (!lineMatch) {
+    return {
+      ok: false,
+      errors: ['REVIEW_VERDICT is missing a `PR / base / head` line with an exact head SHA'],
+    }
+  }
+
+  const line = lineMatch[1]
+  const firstToken = line.trim().split(/\s+/)[0] ?? ''
+  const parsedLineUrl = parseCompleteGitHubPullUrl(firstToken)
+  const lineShorthand = line.match(/\bPR\s*#([1-9][0-9]*)\b/i)
+  if (!parsedLineUrl.ok && !lineShorthand) {
+    return {
+      ok: false,
+      errors: ['REVIEW_VERDICT does not uniquely identify a live PR by number or URL'],
+    }
+  }
+
+  const [defaultOwner, defaultRepoName] = defaultRepo.split('/')
+  let canonical
+  if (parsedLineUrl.ok) {
+    canonical = parsedLineUrl.identity
+  } else {
+    canonical = {
+      owner: defaultOwner,
+      repo: defaultRepoName,
+      number: lineShorthand[1],
+      key: foldedPrIdentityKey(defaultOwner, defaultRepoName, lineShorthand[1]),
+    }
+  }
+
+  const canonicalKey = foldedPrIdentityKey(canonical.owner, canonical.repo, canonical.number)
+  const defaultKey = foldedPrIdentityKey(defaultOwner, defaultRepoName, canonical.number)
+  if (
+    asciiCaseFold(canonical.owner) !== asciiCaseFold(defaultOwner) ||
+    asciiCaseFold(canonical.repo) !== asciiCaseFold(defaultRepoName)
+  ) {
+    return {
+      ok: false,
+      errors: [
+        `REVIEW_VERDICT PR identity ${canonicalKey} does not match the current repository ${defaultRepo}`,
+      ],
+    }
+  }
+
+  const { identities: allIdentities, malformedCandidates } = collectVerdictPrIdentities(
+    verdictBody,
+    defaultRepo,
+    canonical,
+  )
+  if (malformedCandidates.length > 0) {
+    const samples = malformedCandidates
+      .slice(0, 3)
+      .map((entry) => entry.candidate)
+      .join(', ')
+    return {
+      ok: false,
+      errors: [
+        `REVIEW_VERDICT contains malformed PR identity evidence (${samples})`,
+      ],
+    }
+  }
+
+  const distinctKeys = [...new Set(allIdentities.map((identity) => identity.key))]
+  if (allIdentities.length !== 1) {
+    if (distinctKeys.length > 1) {
+      return {
+        ok: false,
+        errors: [
+          `REVIEW_VERDICT contains multiple distinct PR identities (${distinctKeys.join(', ')})`,
+        ],
+      }
+    }
+    if (allIdentities.length > 1) {
+      return {
+        ok: false,
+        errors: [
+          `REVIEW_VERDICT repeats the same PR identity more than once (${distinctKeys[0] ?? canonicalKey})`,
+        ],
+      }
+    }
+    return {
+      ok: false,
+      errors: ['REVIEW_VERDICT does not uniquely identify a live PR by number or URL'],
+    }
+  }
+
+  if (allIdentities[0].key !== defaultKey && allIdentities[0].key !== canonicalKey) {
+    return {
+      ok: false,
+      errors: [
+        `REVIEW_VERDICT PR identity ${allIdentities[0].key} does not match the current repository ${defaultRepo}`,
+      ],
+    }
+  }
+
+  return {
+    ok: true,
+    identity: {
+      owner: defaultOwner,
+      repo: defaultRepoName,
+      number: canonical.number,
+      key: defaultKey,
+    },
+  }
+}
+
+/**
+ * Reconcile the immutable contract reviewed_head against the visible verdict
+ * head, then against uniquely identified live PR evidence, before granting
+ * correction edit authorization. Fails closed for missing or mismatched PR
+ * identity, head, base, state, or unavailable required evidence.
+ * GitHub orchestration stays here — the correction-contract module remains pure.
+ */
+function reconcileCorrectionPrEvidence({ cwd, env, verdictBody, contractReviewedHead }) {
+  const defaultRepo = getDefaultRepo(cwd)
+  const identityResult = resolveCanonicalVerdictPrIdentity(verdictBody, defaultRepo)
+  if (!identityResult.ok) {
+    return { ok: false, errors: identityResult.errors }
+  }
+
+  const { number: prNumber, key: prIdentity } = identityResult.identity
+
+  const { base: verdictBase, head: verdictHead } = extractVerdictPrBaseAndHead(verdictBody)
+  if (!verdictHead) {
+    return {
+      ok: false,
+      errors: ['REVIEW_VERDICT is missing a `PR / base / head` line with an exact head SHA'],
+    }
+  }
+  if (verdictHead !== contractReviewedHead) {
+    return {
+      ok: false,
+      errors: ['REVIEW_VERDICT head contradicts the immutable contract reviewed_head'],
+    }
+  }
+
+  const prResult = fetchPrByReference(cwd, `${defaultRepo}#${prNumber}`, env)
+  if (!prResult.ok) {
+    return { ok: false, errors: [`live PR evidence is unavailable: ${prResult.reason}`] }
+  }
+
+  const livePr = prResult.pr
+  if (!livePr?.headRefOid || !livePr?.baseRefName || !livePr?.state) {
+    return {
+      ok: false,
+      errors: ['live PR evidence is missing required identity, head, base, or state fields'],
+    }
+  }
+
+  const errors = []
+  // Require authoritative, parseable repository-qualified live identity from the
+  // fetched PR response. Do not infer identity solely from the requested PR number,
+  // and do not skip reconciliation when url is absent or unparseable.
+  if (livePr.url == null || String(livePr.url).length === 0) {
+    errors.push('live PR evidence is missing required repository-qualified identity URL')
+  } else {
+    const liveUrlRaw = String(livePr.url)
+    const parsedLive = parseCompleteGitHubPullUrl(liveUrlRaw)
+    if (!parsedLive.ok) {
+      errors.push(parsedLive.reason || 'live PR identity URL is present but unparseable')
+    } else {
+      const liveKey = parsedLive.identity.key
+      if (liveKey !== prIdentity) {
+        errors.push(`live PR identity ${liveKey} does not match REVIEW_VERDICT PR identity ${prIdentity}`)
+      }
+
+      // Alternate identity-like fields are never fallbacks; a conflict is ambiguous.
+      if (Object.prototype.hasOwnProperty.call(livePr, 'number') && livePr.number != null) {
+        const alternateNumber = String(livePr.number)
+        if (alternateNumber !== parsedLive.identity.number) {
+          errors.push(
+            `live PR identity is ambiguous: url pull ${parsedLive.identity.number} conflicts with number field ${alternateNumber}`,
+          )
+        }
+      }
+      if (Object.prototype.hasOwnProperty.call(livePr, 'html_url') && livePr.html_url != null) {
+        const alternateHtml = String(livePr.html_url)
+        const parsedHtml = parseCompleteGitHubPullUrl(alternateHtml)
+        if (!parsedHtml.ok || parsedHtml.identity.key !== liveKey) {
+          errors.push('live PR identity is ambiguous: html_url conflicts with url')
+        }
+      }
+    }
+  }
+  if (livePr.headRefOid !== contractReviewedHead) {
+    errors.push('live PR head does not match the immutable contract reviewed_head')
+  }
+  if (verdictBase && livePr.baseRefName !== verdictBase) {
+    errors.push('live PR base does not match the REVIEW_VERDICT approved base')
+  }
+  if (livePr.state !== 'OPEN') {
+    errors.push(`live PR state is ${livePr.state}, not OPEN`)
+  }
+
+  return { ok: errors.length === 0, errors, prNumber, prIdentity, livePr }
+}
+
+function runCorrectionPhasePreflight({
+  cwd,
+  env,
+  issueNumber,
+  branchName,
+  statusShort,
+  dirty,
+  branchSafety,
+  issueMetadata,
+  fallbackIssueUrl,
+}) {
+  const output = [
+    'Bemoat correction-mode preflight',
+    `Issue number: ${issueNumber}`,
+    `Current branch: ${branchName}`,
+    `Working tree: ${dirty ? 'not clean' : 'clean'}`,
+  ]
+
+  if (!branchSafety.ok) {
+    output.push('Stop: branch safety failed before correction edit authorization.')
+    output.push(...(branchSafety.lines.length > 0 ? branchSafety.lines : ['<no branch safety output>']))
+    return { ok: false, exitCode: 1, usageError: false, output, issueNumber, branchName, statusShort, issueMetadata }
+  }
+
+  if (dirty) {
+    output.push('Stop: dirty working tree blocks correction edit authorization.')
+    return { ok: false, exitCode: 1, usageError: false, output, issueNumber, branchName, statusShort, issueMetadata }
+  }
+
+  const commentResult = fetchIssueComments(cwd, issueNumber, env)
+  if (!commentResult.ok) {
+    output.push(`Stop: cannot reconstruct canonical findings (${commentResult.reason}).`)
+    return { ok: false, exitCode: 1, usageError: false, output, issueNumber, branchName, statusShort, issueMetadata }
+  }
+
+  const latestVerdict = findLatestRoleComment(commentResult.comments, 'REVIEW_VERDICT')
+  if (!latestVerdict?.comment?.body) {
+    output.push('Stop: missing correction-eligible REVIEW_VERDICT with immutable findings.')
+    return { ok: false, exitCode: 1, usageError: false, output, issueNumber, branchName, statusShort, issueMetadata }
+  }
+
+  if (latestVerdict.parsed?.verdict !== 'CORRECTION REQUIRED') {
+    output.push(
+      `Stop: latest REVIEW_VERDICT is ${latestVerdict.parsed?.verdict ?? 'unknown'}, not CORRECTION REQUIRED.`,
+    )
+    return { ok: false, exitCode: 1, usageError: false, output, issueNumber, branchName, statusShort, issueMetadata }
+  }
+
+  const parsedContract = parseCorrectionContract(latestVerdict.comment.body)
+  if (!parsedContract.ok) {
+    output.push('Stop: canonical finding evidence is missing, malformed, or inconsistent.')
+    for (const error of parsedContract.errors) output.push(`- ${error}`)
+    return { ok: false, exitCode: 1, usageError: false, output, issueNumber, branchName, statusShort, issueMetadata }
+  }
+
+  const reconciliation = reconcileCorrectionPrEvidence({
+    cwd,
+    env,
+    verdictBody: latestVerdict.comment.body,
+    contractReviewedHead: parsedContract.contract.reviewed_head,
+  })
+  if (!reconciliation.ok) {
+    output.push('Stop: live PR evidence does not reconcile with the immutable contract head before correction edit authorization.')
+    for (const error of reconciliation.errors) output.push(`- ${error}`)
+    return { ok: false, exitCode: 1, usageError: false, output, issueNumber, branchName, statusShort, issueMetadata }
+  }
+
+  const prUrl =
+    reconciliation.livePr?.url ||
+    (reconciliation.prIdentity
+      ? `https://github.com/${reconciliation.prIdentity.replace('#', '/pull/')}`
+      : reconciliation.prNumber
+        ? `PR #${reconciliation.prNumber}`
+        : null)
+  const issueRef =
+    issueMetadata.available && issueMetadata.url
+      ? issueMetadata.url
+      : fallbackIssueUrl || `#${issueNumber}`
+
+  const capsule = buildCorrectionCapsule(parsedContract.contract, {
+    issueNumber,
+    prUrl: prUrl || '(not provided)',
+  })
+
+  return {
+    ok: true,
+    exitCode: 0,
+    usageError: false,
+    output: [
+      'Bemoat correction-mode preflight',
+      `Issue: ${issueRef}`,
+      ...capsule.lines,
+      'Edit authorization: granted for the immutable finding set only.',
+    ],
+    issueNumber,
+    branchName,
+    statusShort,
+    issueMetadata,
+    correctionContract: parsedContract.contract,
+  }
+}
+
 export function runAgentIssuePreflight({
   cwd = process.cwd(),
   argv = process.argv.slice(2),
   env = process.env,
 } = {}) {
-  const issueNumber = parseIssueNumber(argv)
-  if (!issueNumber) {
+  const parsedArgs = parseAgentIssueArgs(argv)
+  if (parsedArgs.error) {
     return {
       ok: false,
       exitCode: 1,
       usageError: true,
       output: [
-        'Issue preflight failed: missing or invalid issue number.',
-        'Usage: pnpm run bemoat:agent:issue -- <issue-number>',
+        `Issue preflight failed: ${parsedArgs.error}.`,
+        'Usage: pnpm run bemoat:agent:issue -- <issue-number> [--phase correction]',
       ],
     }
   }
+
+  const { issueNumber, phase } = parsedArgs
 
   const branchName = getCurrentBranch(cwd)
   const statusShort = getStatusShort(cwd)
@@ -1415,6 +2003,20 @@ export function runAgentIssuePreflight({
       : null
   const branchSafety = runBranchSafety(cwd)
   const devBranchAvailable = hasDevBranch(cwd)
+
+  if (phase === 'correction') {
+    return runCorrectionPhasePreflight({
+      cwd,
+      env,
+      issueNumber,
+      branchName,
+      statusShort,
+      dirty,
+      branchSafety,
+      issueMetadata,
+      fallbackIssueUrl,
+    })
+  }
 
   const progressAnalysis =
     issueMetadata.available && issueMetadata.body

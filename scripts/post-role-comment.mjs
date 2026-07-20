@@ -3,6 +3,12 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
+import {
+  isCorrectionPhaseResult,
+  parseCorrectionContract,
+  validateCorrectionRoleComment,
+} from './correction-contract.mjs'
+import { findLatestRoleComment } from './mission-control-reconcile.mjs'
 
 const ROLE_HEADINGS = ['HANDOFF', 'RESULT', 'REVIEW_VERDICT']
 const CORE_VERDICTS = [
@@ -64,7 +70,13 @@ function usage(message) {
 }
 
 function parseArgs(argv) {
-  const options = { issue: null, repo: null, bodyFile: null, check: false, allowWarning: false }
+  const options = {
+    issue: null,
+    repo: null,
+    bodyFile: null,
+    check: false,
+    allowWarning: false,
+  }
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index]
     if (argument === '--') continue
@@ -150,6 +162,80 @@ function validationErrors(body) {
   return { errors, role }
 }
 
+/**
+ * Reconstruct the immutable canonical correction contract from the latest
+ * correction-eligible REVIEW_VERDICT on the live Issue. This is the only
+ * supported source of canonical findings for a correction RESULT — there is
+ * no caller-supplied override, so the normal posting path cannot bypass
+ * identity, base, diff, or prohibited-scope validation by omitting an input.
+ * @param {{ issue: string, repo: string | null }} options
+ */
+function reconstructCanonicalContract({ issue, repo }) {
+  const args = ['issue', 'view', issue, '--json', 'comments']
+  if (repo) args.push('--repo', repo)
+  const result = spawnSync('gh', args, { encoding: 'utf8' })
+  if (result.error || result.status !== 0) {
+    return {
+      ok: false,
+      errors: [
+        `unable to reconstruct the canonical correction contract from Issue #${issue}: ${
+          result.stderr?.trim() || result.error?.message || 'gh issue view failed'
+        }`,
+      ],
+    }
+  }
+
+  let payload
+  try {
+    payload = JSON.parse(result.stdout)
+  } catch (error) {
+    return {
+      ok: false,
+      errors: [`invalid issue comments JSON while reconstructing the canonical contract: ${
+        error instanceof Error ? error.message : String(error)
+      }`],
+    }
+  }
+
+  const comments = Array.isArray(payload.comments) ? payload.comments : []
+  const latestVerdict = findLatestRoleComment(comments, 'REVIEW_VERDICT')
+  if (!latestVerdict?.comment?.body) {
+    return { ok: false, errors: ['no REVIEW_VERDICT comment was found on the Issue to reconstruct the canonical contract'] }
+  }
+  if (latestVerdict.parsed?.verdict !== 'CORRECTION REQUIRED') {
+    return {
+      ok: false,
+      errors: [`latest REVIEW_VERDICT is ${latestVerdict.parsed?.verdict ?? 'unknown'}, not CORRECTION REQUIRED`],
+    }
+  }
+
+  const parsed = parseCorrectionContract(latestVerdict.comment.body)
+  if (!parsed.ok) return { ok: false, errors: parsed.errors }
+  return { ok: true, contract: parsed.contract }
+}
+
+/**
+ * Reconstruct the actual changed files for the correction by diffing the
+ * working tree against the immutable canonical reviewed_head — never a
+ * caller-supplied path list.
+ * @param {{ reviewedHead: string }} options
+ */
+function reconstructCorrectionDiffFiles({ reviewedHead }) {
+  const result = spawnSync('git', ['diff', '--name-only', reviewedHead, 'HEAD'], { encoding: 'utf8' })
+  if (result.error || result.status !== 0) {
+    return {
+      ok: false,
+      errors: [
+        `unable to reconstruct the actual correction diff against reviewed_head ${reviewedHead}: ${
+          result.stderr?.trim() || result.error?.message || 'git diff failed'
+        }`,
+      ],
+    }
+  }
+  const files = result.stdout.split('\n').map((line) => line.trim()).filter(Boolean)
+  return { ok: true, files }
+}
+
 function hasNonEmptyField(body, field) {
   const escapedField = field.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   if (field.startsWith('###')) {
@@ -184,6 +270,37 @@ function main() {
   const { errors, role } = validationErrors(body)
   if (errors.length) {
     for (const error of errors) process.stderr.write(`ERROR: ${error}\n`)
+    process.exitCode = 1
+    return
+  }
+
+  let canonicalContract = null
+  let diffFiles = []
+  if (role === 'RESULT' && isCorrectionPhaseResult(body)) {
+    const contractResult = reconstructCanonicalContract({ issue: parsed.options.issue, repo: parsed.options.repo })
+    if (!contractResult.ok) {
+      for (const error of contractResult.errors) process.stderr.write(`ERROR: ${error}\n`)
+      process.exitCode = 1
+      return
+    }
+    const diffResult = reconstructCorrectionDiffFiles({ reviewedHead: contractResult.contract.reviewed_head })
+    if (!diffResult.ok) {
+      for (const error of diffResult.errors) process.stderr.write(`ERROR: ${error}\n`)
+      process.exitCode = 1
+      return
+    }
+    canonicalContract = contractResult.contract
+    diffFiles = diffResult.files
+  }
+
+  const correction = validateCorrectionRoleComment({
+    role,
+    body,
+    diffFiles,
+    canonicalContract,
+  })
+  if (!correction.ok) {
+    for (const error of correction.errors) process.stderr.write(`ERROR: ${error}\n`)
     process.exitCode = 1
     return
   }

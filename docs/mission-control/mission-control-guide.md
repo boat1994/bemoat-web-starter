@@ -538,6 +538,13 @@ Do not restart a repository-wide search. A new Blocker/Critical inside the
 changed delta may block. Newly noticed Important/Minor/Nit outside the assigned
 delta becomes a follow-up issue.
 
+Reviewers own immutable finding identity.
+Correction agents may not rename, reinterpret, regroup, substitute, add, or omit findings.
+Correction delivery does not resolve original PR review threads; the bounded
+Delta Reviewer verifies each original finding against the correction delta and
+owns thread resolution.
+File names, test names, and green CI alone never prove semantic completion.
+
 ## Blocker-verification rules
 
 **Review 3 — Blocker verification or bounded Delta Review** only. Scope:

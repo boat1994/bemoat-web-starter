@@ -141,6 +141,144 @@ function runAgentIssue(root: string, args: string[], env: Record<string, string>
   })
 }
 
+const MATRIX_OWNER = 'boat1994'
+const MATRIX_REPO = 'bemoat-web-starter'
+const MATRIX_PR = '200'
+const MATRIX_HEAD = 'abc1234'
+const MATRIX_CANONICAL = `https://github.com/${MATRIX_OWNER}/${MATRIX_REPO}/pull/${MATRIX_PR}`
+
+type LiveUrlMatrixCase = {
+  id: number
+  name: string
+  expected: 'ACCEPT' | 'REJECT'
+  liveUrl?: string | null
+  livePrExtra?: Record<string, unknown>
+  omitUrl?: boolean
+  prNumber?: string
+  verdictPrUrl?: string
+  verdictFindingsExtra?: string
+  verdictOnly?: boolean
+}
+
+/**
+ * Drive correction preflight against one closed live-PR URL contract row.
+ * Fixture JSON is written to disk so whitespace/control/encoding bytes survive.
+ */
+function runLiveUrlMatrixCase(matrixCase: LiveUrlMatrixCase) {
+  const root = createRepo('feature/136-immutable-correction-contract')
+  // Keep fixture files outside the git work tree so correction preflight stays clean.
+  const fixtureDir = mkdtempSync(join(tmpdir(), 'bemoat-agent-issue-fixtures-'))
+  tempRoots.push(fixtureDir)
+  const prNumber = matrixCase.prNumber ?? MATRIX_PR
+  const verdictPrUrl =
+    matrixCase.verdictPrUrl ??
+    `https://github.com/${MATRIX_OWNER}/${MATRIX_REPO}/pull/${prNumber}`
+  const findingsExtra = matrixCase.verdictFindingsExtra ?? ''
+  const verdictBody = `## REVIEW_VERDICT
+**PR / base / head:** ${verdictPrUrl} · \`main\` · \`${MATRIX_HEAD}\`
+**Verdict:** CORRECTION REQUIRED
+**Findings:** Important: boundary bug${findingsExtra}
+**Gates:** exact-head CI https://example.test/ci → pass
+**Next:** Dev posts correction RESULT
+
+\`\`\`json
+{
+  "schema_version": 1,
+  "reviewed_head": "${MATRIX_HEAD}",
+  "findings": [
+    {
+      "id": "MC-R1-001",
+      "canonical_summary": "supplied-timezone month boundaries are incorrect",
+      "source_thread": "https://github.com/${MATRIX_OWNER}/${MATRIX_REPO}/pull/${prNumber}#discussion_r1",
+      "required_evidence": ["Bangkok exact UTC boundary"]
+    }
+  ]
+}
+\`\`\`
+`
+  const commentsPath = join(fixtureDir, 'comments.json')
+  writeFileSync(commentsPath, JSON.stringify({
+    comments: [{ body: verdictBody, createdAt: '2026-07-20T10:00:00+07:00' }],
+  }))
+
+  const livePr: Record<string, unknown> = {
+    title: 'Correction PR',
+    headRefName: 'feature/136',
+    baseRefName: 'main',
+    headRefOid: MATRIX_HEAD,
+    state: 'OPEN',
+    statusCheckRollup: [],
+    commits: [],
+    ...matrixCase.livePrExtra,
+  }
+  if (!matrixCase.omitUrl && !matrixCase.verdictOnly) {
+    if (matrixCase.liveUrl === null) {
+      livePr.url = null
+    } else if (matrixCase.liveUrl !== undefined) {
+      livePr.url = matrixCase.liveUrl
+    } else {
+      livePr.url = MATRIX_CANONICAL
+    }
+  } else if (matrixCase.omitUrl) {
+    // intentionally no url
+  } else if (matrixCase.verdictOnly) {
+    livePr.url = MATRIX_CANONICAL
+  }
+
+  const prPath = join(fixtureDir, 'pr.json')
+  writeFileSync(prPath, JSON.stringify(livePr))
+
+  const issuePath = join(fixtureDir, 'issue.json')
+  writeFileSync(
+    issuePath,
+    JSON.stringify({
+      title: 'Immutable correction contract',
+      url: 'https://github.com/boat1994/bemoat-web-starter/issues/136',
+      body: '',
+      labels: [],
+    }),
+  )
+
+  return runAgentIssue(root, ['136', '--phase', 'correction'], {
+    PATH: withStubbedGh(
+      root,
+      `#!/usr/bin/env sh
+case "$*" in
+  *"issue view 136"*"title,url,body,labels"*)
+    cat "${issuePath}"
+    ;;
+  *"issue view 136"*"comments"*)
+    cat "${commentsPath}"
+    ;;
+  *"pr view ${prNumber}"*|*"pr view 201"*|*"pr view 0"*|*"pr view 0123"*)
+    cat "${prPath}"
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`,
+    ),
+  })
+}
+
+function expectMatrixOutcome(
+  result: ReturnType<typeof runAgentIssue>,
+  expected: 'ACCEPT' | 'REJECT',
+  name: string,
+) {
+  if (expected === 'ACCEPT') {
+    expect(result.status, `${name}\n${result.stderr || result.stdout}`).toBe(0)
+    expect(result.stdout, name).toContain('Playback verified:')
+    expect(result.stdout, name).toContain('Edit authorization: granted')
+  } else {
+    expect(result.status, `${name}\n${result.stderr || result.stdout}`).not.toBe(0)
+    expect(result.stdout, name).not.toContain('Edit authorization: granted')
+    expect(result.stdout, name).not.toMatch(/Playback verified:/)
+  }
+}
+
 afterEach(() => {
   for (const root of tempRoots.splice(0)) {
     rmSync(root, { recursive: true, force: true })
@@ -1104,5 +1242,1074 @@ esac
 
     expect(analysis.blockers.join(' ')).toContain('STATE_CONFLICT: RESULT PR identifier missing')
     expect(analysis.report.reconciliation?.proposal).toBeNull()
+  })
+
+  it('prints a compact correction capsule when --phase correction reconstructs canonical findings', () => {
+    const root = createRepo('feature/136-immutable-correction-contract')
+    const verdictBody = `## REVIEW_VERDICT
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · \`main\` · \`abc1234\`
+**Verdict:** CORRECTION REQUIRED
+**Findings:** Important: boundary bug
+**Gates:** exact-head CI https://example.test/ci → pass
+**Next:** Dev posts correction RESULT
+
+\`\`\`json
+{
+  "schema_version": 1,
+  "reviewed_head": "abc1234",
+  "findings": [
+    {
+      "id": "MC-R1-001",
+      "canonical_summary": "supplied-timezone month boundaries are incorrect",
+      "source_thread": "https://github.com/boat1994/bemoat-web-starter/pull/200#discussion_r1",
+      "required_evidence": ["Bangkok exact UTC boundary"],
+      "expected_areas": ["month boundary calculation"],
+      "prohibited_areas": ["src/unrelated/reversal.ts"]
+    }
+  ]
+}
+\`\`\`
+`
+    const commentsPayload = JSON.stringify({
+      comments: [{ body: verdictBody, createdAt: '2026-07-20T10:00:00+07:00' }],
+    }).replace(/'/g, `'\"'\"'`)
+
+    const result = runAgentIssue(root, ['136', '--phase', 'correction'], {
+      PATH: withStubbedGh(
+        root,
+        `#!/usr/bin/env sh
+case "$*" in
+  *"issue view 136"*"title,url,body,labels"*)
+    printf '%s' '{"title":"Immutable correction contract","url":"https://github.com/boat1994/bemoat-web-starter/issues/136","body":"## Goal\\nImplement Minimal Hybrid.","labels":[]}'
+    ;;
+  *"issue view 136"*"comments"*)
+    printf '%s' '${commentsPayload}'
+    ;;
+  *"pr view 200"*)
+    printf '%s' '{"title":"Correction PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/200","headRefName":"feature/136","baseRefName":"main","headRefOid":"abc1234","state":"OPEN","statusCheckRollup":[],"commits":[]}'
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`,
+      ),
+    })
+
+    expect(result.status, result.stderr || result.stdout).toBe(0)
+    expect(result.stdout).toContain('Correction capsule')
+    expect(result.stdout).toContain('Playback verified: 1/1 canonical findings')
+    expect(result.stdout).toContain('MC-R1-001: supplied-timezone month boundaries are incorrect')
+    expect(result.stdout).not.toContain('Docs to read before implementation:')
+  })
+
+  it('fails closed when the verdict PR/base/head line contradicts the immutable contract reviewed_head (MC-R1-002)', () => {
+    const root = createRepo('feature/136-immutable-correction-contract')
+    const verdictBody = `## REVIEW_VERDICT
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · \`main\` · \`deadbeef00\`
+**Verdict:** CORRECTION REQUIRED
+**Findings:** Important: boundary bug
+**Gates:** exact-head CI https://example.test/ci → pass
+**Next:** Dev posts correction RESULT
+
+\`\`\`json
+{
+  "schema_version": 1,
+  "reviewed_head": "abc1234",
+  "findings": [
+    {
+      "id": "MC-R1-001",
+      "canonical_summary": "supplied-timezone month boundaries are incorrect",
+      "source_thread": "https://github.com/boat1994/bemoat-web-starter/pull/200#discussion_r1",
+      "required_evidence": ["Bangkok exact UTC boundary"]
+    }
+  ]
+}
+\`\`\`
+`
+    const commentsPayload = JSON.stringify({
+      comments: [{ body: verdictBody, createdAt: '2026-07-20T10:00:00+07:00' }],
+    }).replace(/'/g, `'\"'\"'`)
+
+    const result = runAgentIssue(root, ['136', '--phase', 'correction'], {
+      PATH: withStubbedGh(
+        root,
+        `#!/usr/bin/env sh
+case "$*" in
+  *"issue view 136"*"title,url,body,labels"*)
+    printf '%s' '{"title":"Immutable correction contract","url":"https://github.com/boat1994/bemoat-web-starter/issues/136","body":"","labels":[]}'
+    ;;
+  *"issue view 136"*"comments"*)
+    printf '%s' '${commentsPayload}'
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`,
+      ),
+    })
+
+    expect(result.status).toBe(1)
+    expect(result.stdout).toMatch(/contract reviewed_head|contradict/i)
+    expect(result.stdout).not.toContain('Edit authorization: granted')
+  })
+
+  it('fails closed when live PR evidence is unavailable before correction edit authorization (MC-R1-002)', () => {
+    const root = createRepo('feature/136-immutable-correction-contract')
+    const verdictBody = `## REVIEW_VERDICT
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · \`main\` · \`abc1234\`
+**Verdict:** CORRECTION REQUIRED
+**Findings:** Important: boundary bug
+**Gates:** exact-head CI https://example.test/ci → pass
+**Next:** Dev posts correction RESULT
+
+\`\`\`json
+{
+  "schema_version": 1,
+  "reviewed_head": "abc1234",
+  "findings": [
+    {
+      "id": "MC-R1-001",
+      "canonical_summary": "supplied-timezone month boundaries are incorrect",
+      "source_thread": "https://github.com/boat1994/bemoat-web-starter/pull/200#discussion_r1",
+      "required_evidence": ["Bangkok exact UTC boundary"]
+    }
+  ]
+}
+\`\`\`
+`
+    const commentsPayload = JSON.stringify({
+      comments: [{ body: verdictBody, createdAt: '2026-07-20T10:00:00+07:00' }],
+    }).replace(/'/g, `'\"'\"'`)
+
+    const result = runAgentIssue(root, ['136', '--phase', 'correction'], {
+      PATH: withStubbedGh(
+        root,
+        `#!/usr/bin/env sh
+case "$*" in
+  *"issue view 136"*"title,url,body,labels"*)
+    printf '%s' '{"title":"Immutable correction contract","url":"https://github.com/boat1994/bemoat-web-starter/issues/136","body":"","labels":[]}'
+    ;;
+  *"issue view 136"*"comments"*)
+    printf '%s' '${commentsPayload}'
+    ;;
+  *"pr view 200"*)
+    echo "not found" >&2
+    exit 1
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`,
+      ),
+    })
+
+    expect(result.status).toBe(1)
+    expect(result.stdout).toMatch(/live PR evidence is unavailable/i)
+    expect(result.stdout).not.toContain('Edit authorization: granted')
+  })
+
+  it('fails closed when the live PR head disagrees with the immutable contract reviewed_head (MC-R1-002)', () => {
+    const root = createRepo('feature/136-immutable-correction-contract')
+    const verdictBody = `## REVIEW_VERDICT
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · \`main\` · \`abc1234\`
+**Verdict:** CORRECTION REQUIRED
+**Findings:** Important: boundary bug
+**Gates:** exact-head CI https://example.test/ci → pass
+**Next:** Dev posts correction RESULT
+
+\`\`\`json
+{
+  "schema_version": 1,
+  "reviewed_head": "abc1234",
+  "findings": [
+    {
+      "id": "MC-R1-001",
+      "canonical_summary": "supplied-timezone month boundaries are incorrect",
+      "source_thread": "https://github.com/boat1994/bemoat-web-starter/pull/200#discussion_r1",
+      "required_evidence": ["Bangkok exact UTC boundary"]
+    }
+  ]
+}
+\`\`\`
+`
+    const commentsPayload = JSON.stringify({
+      comments: [{ body: verdictBody, createdAt: '2026-07-20T10:00:00+07:00' }],
+    }).replace(/'/g, `'\"'\"'`)
+
+    const result = runAgentIssue(root, ['136', '--phase', 'correction'], {
+      PATH: withStubbedGh(
+        root,
+        `#!/usr/bin/env sh
+case "$*" in
+  *"issue view 136"*"title,url,body,labels"*)
+    printf '%s' '{"title":"Immutable correction contract","url":"https://github.com/boat1994/bemoat-web-starter/issues/136","body":"","labels":[]}'
+    ;;
+  *"issue view 136"*"comments"*)
+    printf '%s' '${commentsPayload}'
+    ;;
+  *"pr view 200"*)
+    printf '%s' '{"title":"Correction PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/200","headRefName":"feature/136","baseRefName":"main","headRefOid":"movedaheadhash","state":"OPEN","statusCheckRollup":[],"commits":[]}'
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`,
+      ),
+    })
+
+    expect(result.status).toBe(1)
+    expect(result.stdout).toMatch(/live PR head does not match/i)
+    expect(result.stdout).not.toContain('Edit authorization: granted')
+  })
+
+  it('fails closed when the live PR base disagrees with the REVIEW_VERDICT approved base (MC-R1-002)', () => {
+    const root = createRepo('feature/136-immutable-correction-contract')
+    const verdictBody = `## REVIEW_VERDICT
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · \`main\` · \`abc1234\`
+**Verdict:** CORRECTION REQUIRED
+**Findings:** Important: boundary bug
+**Gates:** exact-head CI https://example.test/ci → pass
+**Next:** Dev posts correction RESULT
+
+\`\`\`json
+{
+  "schema_version": 1,
+  "reviewed_head": "abc1234",
+  "findings": [
+    {
+      "id": "MC-R1-001",
+      "canonical_summary": "supplied-timezone month boundaries are incorrect",
+      "source_thread": "https://github.com/boat1994/bemoat-web-starter/pull/200#discussion_r1",
+      "required_evidence": ["Bangkok exact UTC boundary"]
+    }
+  ]
+}
+\`\`\`
+`
+    const commentsPayload = JSON.stringify({
+      comments: [{ body: verdictBody, createdAt: '2026-07-20T10:00:00+07:00' }],
+    }).replace(/'/g, `'\"'\"'`)
+
+    const result = runAgentIssue(root, ['136', '--phase', 'correction'], {
+      PATH: withStubbedGh(
+        root,
+        `#!/usr/bin/env sh
+case "$*" in
+  *"issue view 136"*"title,url,body,labels"*)
+    printf '%s' '{"title":"Immutable correction contract","url":"https://github.com/boat1994/bemoat-web-starter/issues/136","body":"","labels":[]}'
+    ;;
+  *"issue view 136"*"comments"*)
+    printf '%s' '${commentsPayload}'
+    ;;
+  *"pr view 200"*)
+    printf '%s' '{"title":"Correction PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/200","headRefName":"feature/136","baseRefName":"dev","headRefOid":"abc1234","state":"OPEN","statusCheckRollup":[],"commits":[]}'
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`,
+      ),
+    })
+
+    expect(result.status).toBe(1)
+    expect(result.stdout).toMatch(/live PR base does not match/i)
+    expect(result.stdout).not.toContain('Edit authorization: granted')
+  })
+
+  it('fails closed when the live PR is no longer open before correction edit authorization (MC-R1-002)', () => {
+    const root = createRepo('feature/136-immutable-correction-contract')
+    const verdictBody = `## REVIEW_VERDICT
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · \`main\` · \`abc1234\`
+**Verdict:** CORRECTION REQUIRED
+**Findings:** Important: boundary bug
+**Gates:** exact-head CI https://example.test/ci → pass
+**Next:** Dev posts correction RESULT
+
+\`\`\`json
+{
+  "schema_version": 1,
+  "reviewed_head": "abc1234",
+  "findings": [
+    {
+      "id": "MC-R1-001",
+      "canonical_summary": "supplied-timezone month boundaries are incorrect",
+      "source_thread": "https://github.com/boat1994/bemoat-web-starter/pull/200#discussion_r1",
+      "required_evidence": ["Bangkok exact UTC boundary"]
+    }
+  ]
+}
+\`\`\`
+`
+    const commentsPayload = JSON.stringify({
+      comments: [{ body: verdictBody, createdAt: '2026-07-20T10:00:00+07:00' }],
+    }).replace(/'/g, `'\"'\"'`)
+
+    const result = runAgentIssue(root, ['136', '--phase', 'correction'], {
+      PATH: withStubbedGh(
+        root,
+        `#!/usr/bin/env sh
+case "$*" in
+  *"issue view 136"*"title,url,body,labels"*)
+    printf '%s' '{"title":"Immutable correction contract","url":"https://github.com/boat1994/bemoat-web-starter/issues/136","body":"","labels":[]}'
+    ;;
+  *"issue view 136"*"comments"*)
+    printf '%s' '${commentsPayload}'
+    ;;
+  *"pr view 200"*)
+    printf '%s' '{"title":"Correction PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/200","headRefName":"feature/136","baseRefName":"main","headRefOid":"abc1234","state":"MERGED","statusCheckRollup":[],"commits":[]}'
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`,
+      ),
+    })
+
+    expect(result.status).toBe(1)
+    expect(result.stdout).toMatch(/live PR state is MERGED, not OPEN/i)
+    expect(result.stdout).not.toContain('Edit authorization: granted')
+  })
+
+  it('fails closed when the verdict PR URL is in a foreign repository (MC-R1-002)', () => {
+    const root = createRepo('feature/136-immutable-correction-contract')
+    const verdictBody = `## REVIEW_VERDICT
+**PR / base / head:** https://github.com/other/repository/pull/200 · \`main\` · \`abc1234\`
+**Verdict:** CORRECTION REQUIRED
+**Findings:** Important: boundary bug
+**Gates:** exact-head CI https://example.test/ci → pass
+**Next:** Dev posts correction RESULT
+
+\`\`\`json
+{
+  "schema_version": 1,
+  "reviewed_head": "abc1234",
+  "findings": [
+    {
+      "id": "MC-R1-001",
+      "canonical_summary": "supplied-timezone month boundaries are incorrect",
+      "source_thread": "https://github.com/other/repository/pull/200#discussion_r1",
+      "required_evidence": ["Bangkok exact UTC boundary"]
+    }
+  ]
+}
+\`\`\`
+`
+    const commentsPayload = JSON.stringify({
+      comments: [{ body: verdictBody, createdAt: '2026-07-20T10:00:00+07:00' }],
+    }).replace(/'/g, `'\"'\"'`)
+
+    const result = runAgentIssue(root, ['136', '--phase', 'correction'], {
+      PATH: withStubbedGh(
+        root,
+        `#!/usr/bin/env sh
+case "$*" in
+  *"issue view 136"*"title,url,body,labels"*)
+    printf '%s' '{"title":"Immutable correction contract","url":"https://github.com/boat1994/bemoat-web-starter/issues/136","body":"","labels":[]}'
+    ;;
+  *"issue view 136"*"comments"*)
+    printf '%s' '${commentsPayload}'
+    ;;
+  *"pr view 200"*)
+    printf '%s' '{"title":"Wrong repo PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/200","headRefName":"feature/136","baseRefName":"main","headRefOid":"abc1234","state":"OPEN","statusCheckRollup":[],"commits":[]}'
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`,
+      ),
+    })
+
+    expect(result.status).toBe(1)
+    expect(result.stdout).toMatch(/PR identity|repository|foreign|mismatch/i)
+    expect(result.stdout).not.toContain('Edit authorization: granted')
+    expect(result.stdout).not.toContain('Playback verified')
+  })
+
+  it('fails closed when the verdict contains two distinct PR URLs (MC-R1-002)', () => {
+    const root = createRepo('feature/136-immutable-correction-contract')
+    const verdictBody = `## REVIEW_VERDICT
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · \`main\` · \`abc1234\`
+**Verdict:** CORRECTION REQUIRED
+**Findings:** Important: boundary bug
+**Gates:** exact-head CI https://example.test/ci → pass
+**Also:** https://github.com/boat1994/bemoat-web-starter/pull/201
+**Next:** Dev posts correction RESULT
+
+\`\`\`json
+{
+  "schema_version": 1,
+  "reviewed_head": "abc1234",
+  "findings": [
+    {
+      "id": "MC-R1-001",
+      "canonical_summary": "supplied-timezone month boundaries are incorrect",
+      "source_thread": "https://github.com/boat1994/bemoat-web-starter/pull/200#discussion_r1",
+      "required_evidence": ["Bangkok exact UTC boundary"]
+    }
+  ]
+}
+\`\`\`
+`
+    const commentsPayload = JSON.stringify({
+      comments: [{ body: verdictBody, createdAt: '2026-07-20T10:00:00+07:00' }],
+    }).replace(/'/g, `'\"'\"'`)
+
+    const result = runAgentIssue(root, ['136', '--phase', 'correction'], {
+      PATH: withStubbedGh(
+        root,
+        `#!/usr/bin/env sh
+case "$*" in
+  *"issue view 136"*"title,url,body,labels"*)
+    printf '%s' '{"title":"Immutable correction contract","url":"https://github.com/boat1994/bemoat-web-starter/issues/136","body":"","labels":[]}'
+    ;;
+  *"issue view 136"*"comments"*)
+    printf '%s' '${commentsPayload}'
+    ;;
+  *"pr view 200"*|*"pr view 201"*)
+    printf '%s' '{"title":"Correction PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/200","headRefName":"feature/136","baseRefName":"main","headRefOid":"abc1234","state":"OPEN","statusCheckRollup":[],"commits":[]}'
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`,
+      ),
+    })
+
+    expect(result.status).toBe(1)
+    expect(result.stdout).toMatch(/distinct PR|multiple PR|conflicting PR identity|PR identity/i)
+    expect(result.stdout).not.toContain('Edit authorization: granted')
+    expect(result.stdout).not.toContain('Playback verified')
+  })
+
+  it('fails closed when a canonical PR URL conflicts with a different PR #N shorthand (MC-R1-002)', () => {
+    const root = createRepo('feature/136-immutable-correction-contract')
+    const verdictBody = `## REVIEW_VERDICT
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · \`main\` · \`abc1234\`
+**Verdict:** CORRECTION REQUIRED
+**Findings:** Important: boundary bug · see PR #201
+**Gates:** exact-head CI https://example.test/ci → pass
+**Next:** Dev posts correction RESULT
+
+\`\`\`json
+{
+  "schema_version": 1,
+  "reviewed_head": "abc1234",
+  "findings": [
+    {
+      "id": "MC-R1-001",
+      "canonical_summary": "supplied-timezone month boundaries are incorrect",
+      "source_thread": "https://github.com/boat1994/bemoat-web-starter/pull/200#discussion_r1",
+      "required_evidence": ["Bangkok exact UTC boundary"]
+    }
+  ]
+}
+\`\`\`
+`
+    const commentsPayload = JSON.stringify({
+      comments: [{ body: verdictBody, createdAt: '2026-07-20T10:00:00+07:00' }],
+    }).replace(/'/g, `'\"'\"'`)
+
+    const result = runAgentIssue(root, ['136', '--phase', 'correction'], {
+      PATH: withStubbedGh(
+        root,
+        `#!/usr/bin/env sh
+case "$*" in
+  *"issue view 136"*"title,url,body,labels"*)
+    printf '%s' '{"title":"Immutable correction contract","url":"https://github.com/boat1994/bemoat-web-starter/issues/136","body":"","labels":[]}'
+    ;;
+  *"issue view 136"*"comments"*)
+    printf '%s' '${commentsPayload}'
+    ;;
+  *"pr view 200"*|*"pr view 201"*)
+    printf '%s' '{"title":"Correction PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/200","headRefName":"feature/136","baseRefName":"main","headRefOid":"abc1234","state":"OPEN","statusCheckRollup":[],"commits":[]}'
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`,
+      ),
+    })
+
+    expect(result.status).toBe(1)
+    expect(result.stdout).toMatch(/distinct PR|multiple PR|conflicting PR identity|PR identity/i)
+    expect(result.stdout).not.toContain('Edit authorization: granted')
+    expect(result.stdout).not.toContain('Playback verified')
+  })
+
+  it('fails closed when repeated same PR identity appears as verdict URL and PR #N (MC-R1-002 matrix #51)', () => {
+    const result = runLiveUrlMatrixCase({
+      id: 51,
+      name: 'repeated same verdict URL/PR #N',
+      expected: 'REJECT',
+      verdictFindingsExtra: ' · PR #200 · https://github.com/boat1994/bemoat-web-starter/pull/200',
+      verdictOnly: true,
+    })
+    expectMatrixOutcome(result, 'REJECT', 'matrix #51 repeated same verdict URL/PR #N')
+  })
+
+  describe('MC-R1-002 malformed secondary identity-like verdict candidates', () => {
+    const malformedSecondaryCases: Array<{
+      name: string
+      verdictFindingsExtra: string
+    }> = [
+      {
+        name: 'valid canonical + junk-suffixed pull URL',
+        verdictFindingsExtra: `\n**Also:** https://github.com/${MATRIX_OWNER}/${MATRIX_REPO}/pull/${MATRIX_PR}junk`,
+      },
+      {
+        name: 'valid canonical + relative /pull/extra path',
+        verdictFindingsExtra: `\n**Also:** /pull/${MATRIX_PR}/extra`,
+      },
+      {
+        name: 'valid canonical + authority-confusion candidate',
+        verdictFindingsExtra: `\n**Also:** https://github.com@evil.example/${MATRIX_OWNER}/${MATRIX_REPO}/pull/${MATRIX_PR}`,
+      },
+      {
+        name: 'valid canonical + malformed foreign-repository candidate',
+        verdictFindingsExtra: `\n**Also:** https://github.com/other/repository/pull/${MATRIX_PR}junk`,
+      },
+      {
+        name: 'valid canonical + malformed same-identity prefix/suffix candidate',
+        verdictFindingsExtra: `\n**Also:** https://github.com/${MATRIX_OWNER}/${MATRIX_REPO}/pull/${MATRIX_PR}%2Fextra`,
+      },
+    ]
+
+    it.each(malformedSecondaryCases)(
+      'fails closed for $name (MC-R1-002)',
+      ({ name, verdictFindingsExtra }) => {
+        const result = runLiveUrlMatrixCase({
+          id: 0,
+          name,
+          expected: 'REJECT',
+          verdictFindingsExtra,
+          verdictOnly: true,
+        })
+        expectMatrixOutcome(result, 'REJECT', name)
+        expect(result.stdout, name).toMatch(
+          /malformed PR identity|malformed.*identity|identity-like|conflicting.*identity|PR identity/i,
+        )
+      },
+    )
+
+    it('still authorizes when the only secondary pull URL is a #discussion source_thread pointer (MC-R1-002)', () => {
+      const result = runLiveUrlMatrixCase({
+        id: 0,
+        name: 'discussion source_thread excluded',
+        expected: 'ACCEPT',
+        verdictFindingsExtra: `\n**Threads:** https://github.com/${MATRIX_OWNER}/${MATRIX_REPO}/pull/${MATRIX_PR}#discussion_r1`,
+        verdictOnly: true,
+      })
+      expectMatrixOutcome(result, 'ACCEPT', 'discussion source_thread excluded')
+    })
+
+    describe('MC-R1-002 structural #discussion source-thread classification', () => {
+      const discussionAdversarialCases: Array<{
+        name: string
+        expected: 'ACCEPT' | 'REJECT'
+        verdictFindingsExtra: string
+      }> = [
+        {
+          name: 'conflicting pull number with #discussion fragment must fail closed',
+          expected: 'REJECT',
+          verdictFindingsExtra: `\n**Also:** https://github.com/${MATRIX_OWNER}/${MATRIX_REPO}/pull/999#discussion_r1`,
+        },
+        {
+          name: 'foreign repository pull URL with #discussion fragment must fail closed',
+          expected: 'REJECT',
+          verdictFindingsExtra: `\n**Also:** https://github.com/other/repository/pull/${MATRIX_PR}#discussion_r1`,
+        },
+        {
+          name: 'malformed junk-suffix pull path with #discussion fragment must fail closed',
+          expected: 'REJECT',
+          verdictFindingsExtra: `\n**Also:** https://github.com/${MATRIX_OWNER}/${MATRIX_REPO}/pull/${MATRIX_PR}junk#discussion_r1`,
+        },
+        {
+          name: 'canonical same-PR #discussion_r source-thread pointer remains excluded',
+          expected: 'ACCEPT',
+          verdictFindingsExtra: `\n**Threads:** https://github.com/${MATRIX_OWNER}/${MATRIX_REPO}/pull/${MATRIX_PR}#discussion_r3612092679`,
+        },
+        {
+          name: 'arbitrary fragment containing discussion substring must not qualify as source-thread',
+          expected: 'REJECT',
+          verdictFindingsExtra: `\n**Also:** https://github.com/${MATRIX_OWNER}/${MATRIX_REPO}/pull/${MATRIX_PR}#discussion_extra`,
+        },
+      ]
+
+      it.each(discussionAdversarialCases)(
+        '$expected for $name (MC-R1-002)',
+        ({ name, expected, verdictFindingsExtra }) => {
+          const result = runLiveUrlMatrixCase({
+            id: 0,
+            name,
+            expected,
+            verdictFindingsExtra,
+            verdictOnly: true,
+          })
+          expectMatrixOutcome(result, expected, name)
+          if (expected === 'REJECT') {
+            expect(result.stdout, name).toMatch(
+              /malformed PR identity|malformed.*identity|identity-like|conflicting.*identity|multiple distinct PR|PR identity/i,
+            )
+          }
+        },
+      )
+    })
+  })
+
+  it('fails closed when successful live PR evidence omits the identity URL (MC-R1-002)', () => {
+    const root = createRepo('feature/136-immutable-correction-contract')
+    const verdictBody = `## REVIEW_VERDICT
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · \`main\` · \`abc1234\`
+**Verdict:** CORRECTION REQUIRED
+**Findings:** Important: boundary bug
+**Gates:** exact-head CI https://example.test/ci → pass
+**Next:** Dev posts correction RESULT
+
+\`\`\`json
+{
+  "schema_version": 1,
+  "reviewed_head": "abc1234",
+  "findings": [
+    {
+      "id": "MC-R1-001",
+      "canonical_summary": "supplied-timezone month boundaries are incorrect",
+      "source_thread": "https://github.com/boat1994/bemoat-web-starter/pull/200#discussion_r1",
+      "required_evidence": ["Bangkok exact UTC boundary"]
+    }
+  ]
+}
+\`\`\`
+`
+    const commentsPayload = JSON.stringify({
+      comments: [{ body: verdictBody, createdAt: '2026-07-20T10:00:00+07:00' }],
+    }).replace(/'/g, `'\"'\"'`)
+
+    const result = runAgentIssue(root, ['136', '--phase', 'correction'], {
+      PATH: withStubbedGh(
+        root,
+        `#!/usr/bin/env sh
+case "$*" in
+  *"issue view 136"*"title,url,body,labels"*)
+    printf '%s' '{"title":"Immutable correction contract","url":"https://github.com/boat1994/bemoat-web-starter/issues/136","body":"","labels":[]}'
+    ;;
+  *"issue view 136"*"comments"*)
+    printf '%s' '${commentsPayload}'
+    ;;
+  *"pr view 200"*)
+    printf '%s' '{"title":"Correction PR","headRefName":"feature/136","baseRefName":"main","headRefOid":"abc1234","state":"OPEN","statusCheckRollup":[],"commits":[]}'
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`,
+      ),
+    })
+
+    expect(result.status).toBe(1)
+    expect(result.stdout).toMatch(/live PR (evidence is missing|identity).*url|missing.*identity URL|repository-qualified identity/i)
+    expect(result.stdout).not.toContain('Edit authorization: granted')
+    expect(result.stdout).not.toContain('Playback verified')
+  })
+
+  it('fails closed when successful live PR evidence has an unparseable identity URL (MC-R1-002)', () => {
+    const root = createRepo('feature/136-immutable-correction-contract')
+    const verdictBody = `## REVIEW_VERDICT
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · \`main\` · \`abc1234\`
+**Verdict:** CORRECTION REQUIRED
+**Findings:** Important: boundary bug
+**Gates:** exact-head CI https://example.test/ci → pass
+**Next:** Dev posts correction RESULT
+
+\`\`\`json
+{
+  "schema_version": 1,
+  "reviewed_head": "abc1234",
+  "findings": [
+    {
+      "id": "MC-R1-001",
+      "canonical_summary": "supplied-timezone month boundaries are incorrect",
+      "source_thread": "https://github.com/boat1994/bemoat-web-starter/pull/200#discussion_r1",
+      "required_evidence": ["Bangkok exact UTC boundary"]
+    }
+  ]
+}
+\`\`\`
+`
+    const commentsPayload = JSON.stringify({
+      comments: [{ body: verdictBody, createdAt: '2026-07-20T10:00:00+07:00' }],
+    }).replace(/'/g, `'\"'\"'`)
+
+    const result = runAgentIssue(root, ['136', '--phase', 'correction'], {
+      PATH: withStubbedGh(
+        root,
+        `#!/usr/bin/env sh
+case "$*" in
+  *"issue view 136"*"title,url,body,labels"*)
+    printf '%s' '{"title":"Immutable correction contract","url":"https://github.com/boat1994/bemoat-web-starter/issues/136","body":"","labels":[]}'
+    ;;
+  *"issue view 136"*"comments"*)
+    printf '%s' '${commentsPayload}'
+    ;;
+  *"pr view 200"*)
+    printf '%s' '{"title":"Correction PR","url":"not-a-github-pull-request-url","headRefName":"feature/136","baseRefName":"main","headRefOid":"abc1234","state":"OPEN","statusCheckRollup":[],"commits":[]}'
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`,
+      ),
+    })
+
+    expect(result.status).toBe(1)
+    expect(result.stdout).toMatch(/unparseable|malformed|live PR identity/i)
+    expect(result.stdout).not.toContain('Edit authorization: granted')
+    expect(result.stdout).not.toContain('Playback verified')
+  })
+
+  describe('MC-R1-002 closed 56-case live PR URL contract matrix', () => {
+    const matrixCases: LiveUrlMatrixCase[] = [
+      { id: 1, name: 'exact canonical identity', expected: 'ACCEPT', liveUrl: MATRIX_CANONICAL },
+      { id: 2, name: 'canonical + trailing slash', expected: 'REJECT', liveUrl: `${MATRIX_CANONICAL}/` },
+      { id: 3, name: 'canonical + query', expected: 'REJECT', liveUrl: `${MATRIX_CANONICAL}?x=1` },
+      { id: 4, name: 'canonical + fragment', expected: 'REJECT', liveUrl: `${MATRIX_CANONICAL}#discussion` },
+      {
+        id: 5,
+        name: 'mixed-case hostname',
+        expected: 'ACCEPT',
+        liveUrl: `https://GitHub.COM/${MATRIX_OWNER}/${MATRIX_REPO}/pull/${MATRIX_PR}`,
+      },
+      {
+        id: 6,
+        name: 'owner case variant',
+        expected: 'ACCEPT',
+        liveUrl: `https://github.com/Boat1994/${MATRIX_REPO}/pull/${MATRIX_PR}`,
+      },
+      {
+        id: 7,
+        name: 'repository case variant',
+        expected: 'ACCEPT',
+        liveUrl: `https://github.com/${MATRIX_OWNER}/Bemoat-Web-Starter/pull/${MATRIX_PR}`,
+      },
+      {
+        id: 8,
+        name: 'percent-encoded pull token',
+        expected: 'REJECT',
+        liveUrl: `https://github.com/${MATRIX_OWNER}/${MATRIX_REPO}/pul%6C/${MATRIX_PR}`,
+      },
+      {
+        id: 9,
+        name: 'GitHub Enterprise host',
+        expected: 'REJECT',
+        liveUrl: `https://github.enterprise.example/${MATRIX_OWNER}/${MATRIX_REPO}/pull/${MATRIX_PR}`,
+      },
+      {
+        id: 10,
+        name: 'api.github.com pulls URL',
+        expected: 'REJECT',
+        liveUrl: `https://api.github.com/repos/${MATRIX_OWNER}/${MATRIX_REPO}/pulls/${MATRIX_PR}`,
+      },
+      { id: 11, name: 'number with junk suffix', expected: 'REJECT', liveUrl: `${MATRIX_CANONICAL}junk` },
+      { id: 12, name: 'extra path segment', expected: 'REJECT', liveUrl: `${MATRIX_CANONICAL}/extra` },
+      { id: 13, name: 'number with trailing dot', expected: 'REJECT', liveUrl: `${MATRIX_CANONICAL}.` },
+      {
+        id: 14,
+        name: 'plus-prefixed number',
+        expected: 'REJECT',
+        liveUrl: `https://github.com/${MATRIX_OWNER}/${MATRIX_REPO}/pull/+${MATRIX_PR}`,
+      },
+      {
+        id: 15,
+        name: 'minus-prefixed number',
+        expected: 'REJECT',
+        liveUrl: `https://github.com/${MATRIX_OWNER}/${MATRIX_REPO}/pull/-${MATRIX_PR}`,
+      },
+      {
+        id: 16,
+        name: 'zero PR number with matching adversarial evidence',
+        expected: 'REJECT',
+        prNumber: '0',
+        verdictPrUrl: `https://github.com/${MATRIX_OWNER}/${MATRIX_REPO}/pull/0`,
+        liveUrl: `https://github.com/${MATRIX_OWNER}/${MATRIX_REPO}/pull/0`,
+      },
+      {
+        id: 17,
+        name: 'leading-zero PR number with matching adversarial evidence',
+        expected: 'REJECT',
+        prNumber: '0123',
+        verdictPrUrl: `https://github.com/${MATRIX_OWNER}/${MATRIX_REPO}/pull/0123`,
+        liveUrl: `https://github.com/${MATRIX_OWNER}/${MATRIX_REPO}/pull/0123`,
+      },
+      {
+        id: 18,
+        name: 'userinfo authority confusion',
+        expected: 'REJECT',
+        liveUrl: `https://github.com@evil.example/${MATRIX_OWNER}/${MATRIX_REPO}/pull/${MATRIX_PR}`,
+      },
+      {
+        id: 19,
+        name: 'host suffix confusion',
+        expected: 'REJECT',
+        liveUrl: `https://github.com.evil.example/${MATRIX_OWNER}/${MATRIX_REPO}/pull/${MATRIX_PR}`,
+      },
+      {
+        id: 20,
+        name: 'http scheme',
+        expected: 'REJECT',
+        liveUrl: `http://github.com/${MATRIX_OWNER}/${MATRIX_REPO}/pull/${MATRIX_PR}`,
+      },
+      {
+        id: 21,
+        name: 'uppercase HTTPS scheme',
+        expected: 'REJECT',
+        liveUrl: `HTTPS://github.com/${MATRIX_OWNER}/${MATRIX_REPO}/pull/${MATRIX_PR}`,
+      },
+      {
+        id: 22,
+        name: 'missing scheme',
+        expected: 'REJECT',
+        liveUrl: `github.com/${MATRIX_OWNER}/${MATRIX_REPO}/pull/${MATRIX_PR}`,
+      },
+      {
+        id: 23,
+        name: 'protocol-relative URL',
+        expected: 'REJECT',
+        liveUrl: `//github.com/${MATRIX_OWNER}/${MATRIX_REPO}/pull/${MATRIX_PR}`,
+      },
+      {
+        id: 24,
+        name: 'explicit port 443',
+        expected: 'REJECT',
+        liveUrl: `https://github.com:443/${MATRIX_OWNER}/${MATRIX_REPO}/pull/${MATRIX_PR}`,
+      },
+      {
+        id: 25,
+        name: 'encoded slash in owner',
+        expected: 'REJECT',
+        liveUrl: `https://github.com/boat%2F1994/${MATRIX_REPO}/pull/${MATRIX_PR}`,
+      },
+      { id: 26, name: 'encoded slash suffix after number', expected: 'REJECT', liveUrl: `${MATRIX_CANONICAL}%2Fextra` },
+      { id: 27, name: 'encoded backslash suffix after number', expected: 'REJECT', liveUrl: `${MATRIX_CANONICAL}%5Cextra` },
+      {
+        id: 28,
+        name: 'double-encoded separator suffix',
+        expected: 'REJECT',
+        liveUrl: `${MATRIX_CANONICAL}%252Fextra`,
+      },
+      {
+        id: 29,
+        name: 'dot segment before pull',
+        expected: 'REJECT',
+        liveUrl: `https://github.com/${MATRIX_OWNER}/${MATRIX_REPO}/./pull/${MATRIX_PR}`,
+      },
+      {
+        id: 30,
+        name: 'encoded dot segment before pull',
+        expected: 'REJECT',
+        liveUrl: `https://github.com/${MATRIX_OWNER}/${MATRIX_REPO}/%2e/pull/${MATRIX_PR}`,
+      },
+      { id: 31, name: 'dot-dot segment after number', expected: 'REJECT', liveUrl: `${MATRIX_CANONICAL}/../extra` },
+      {
+        id: 32,
+        name: 'encoded dot-dot segment after number',
+        expected: 'REJECT',
+        liveUrl: `${MATRIX_CANONICAL}/%2e%2e/extra`,
+      },
+      {
+        id: 33,
+        name: 'literal backslashes throughout',
+        expected: 'REJECT',
+        liveUrl: `https:\\\\github.com\\${MATRIX_OWNER}\\${MATRIX_REPO}\\pull\\${MATRIX_PR}`,
+      },
+      { id: 34, name: 'canonical plus backslash extra', expected: 'REJECT', liveUrl: `${MATRIX_CANONICAL}\\extra` },
+      { id: 35, name: 'leading ASCII whitespace', expected: 'REJECT', liveUrl: ` ${MATRIX_CANONICAL}` },
+      { id: 36, name: 'trailing ASCII whitespace', expected: 'REJECT', liveUrl: `${MATRIX_CANONICAL} ` },
+      {
+        id: 37,
+        name: 'control before and after canonical URL',
+        expected: 'REJECT',
+        liveUrl: `\n${MATRIX_CANONICAL}\u007f`,
+      },
+      {
+        id: 38,
+        name: 'control inside path before number',
+        expected: 'REJECT',
+        liveUrl: `https://github.com/${MATRIX_OWNER}/${MATRIX_REPO}/pull/\t${MATRIX_PR}`,
+      },
+      { id: 39, name: 'canonical followed by punctuation', expected: 'REJECT', liveUrl: `${MATRIX_CANONICAL}).` },
+      { id: 40, name: 'canonical followed by junk text', expected: 'REJECT', liveUrl: `${MATRIX_CANONICAL} more-text` },
+      {
+        id: 41,
+        name: 'canonical followed by another URL',
+        expected: 'REJECT',
+        liveUrl: `${MATRIX_CANONICAL}https://github.com/${MATRIX_OWNER}/${MATRIX_REPO}/pull/201`,
+      },
+      {
+        id: 42,
+        name: 'query containing conflicting PR identity',
+        expected: 'REJECT',
+        liveUrl: `${MATRIX_CANONICAL}?other=https://github.com/${MATRIX_OWNER}/${MATRIX_REPO}/pull/201`,
+      },
+      {
+        id: 43,
+        name: 'fragment containing conflicting PR identity',
+        expected: 'REJECT',
+        liveUrl: `${MATRIX_CANONICAL}#https://github.com/${MATRIX_OWNER}/${MATRIX_REPO}/pull/201`,
+      },
+      {
+        id: 44,
+        name: 'Unicode confusable hostname',
+        expected: 'REJECT',
+        liveUrl: `https://githuḃ.com/${MATRIX_OWNER}/${MATRIX_REPO}/pull/${MATRIX_PR}`,
+      },
+      {
+        id: 45,
+        name: 'Unicode confusable owner token',
+        expected: 'REJECT',
+        liveUrl: `https://github.com/bοat1994/${MATRIX_REPO}/pull/${MATRIX_PR}`,
+      },
+      {
+        id: 46,
+        name: 'foreign owner',
+        expected: 'REJECT',
+        liveUrl: `https://github.com/other-owner/${MATRIX_REPO}/pull/${MATRIX_PR}`,
+      },
+      {
+        id: 47,
+        name: 'foreign repository',
+        expected: 'REJECT',
+        liveUrl: `https://github.com/${MATRIX_OWNER}/other-repo/pull/${MATRIX_PR}`,
+      },
+      {
+        id: 48,
+        name: 'wrong PR number',
+        expected: 'REJECT',
+        liveUrl: `https://github.com/${MATRIX_OWNER}/${MATRIX_REPO}/pull/201`,
+      },
+      {
+        id: 49,
+        name: 'repeated same canonical URL in live url value',
+        expected: 'REJECT',
+        liveUrl: `${MATRIX_CANONICAL}${MATRIX_CANONICAL}`,
+      },
+      {
+        id: 50,
+        name: 'canonical plus conflicting second identity in live url',
+        expected: 'REJECT',
+        liveUrl: `${MATRIX_CANONICAL} https://github.com/${MATRIX_OWNER}/${MATRIX_REPO}/pull/201`,
+      },
+      {
+        id: 51,
+        name: 'repeated same PR identity in verdict URL/PR #N evidence',
+        expected: 'REJECT',
+        verdictFindingsExtra: ' · PR #200',
+        verdictOnly: true,
+      },
+      {
+        id: 52,
+        name: 'conflicting distinct verdict PR URLs',
+        expected: 'REJECT',
+        verdictFindingsExtra: `\n**Also:** https://github.com/${MATRIX_OWNER}/${MATRIX_REPO}/pull/201`,
+        verdictOnly: true,
+      },
+      {
+        id: 53,
+        name: 'valid url plus conflicting injected number field',
+        expected: 'REJECT',
+        liveUrl: MATRIX_CANONICAL,
+        livePrExtra: { number: 201 },
+      },
+      {
+        id: 54,
+        name: 'missing url plus html_url fallback',
+        expected: 'REJECT',
+        omitUrl: true,
+        livePrExtra: {
+          html_url: MATRIX_CANONICAL,
+          number: Number(MATRIX_PR),
+        },
+      },
+      {
+        id: 55,
+        name: 'canonical embedded with junk prefix and suffix',
+        expected: 'REJECT',
+        liveUrl: `junk${MATRIX_CANONICAL}junk`,
+      },
+      {
+        id: 56,
+        name: 'canonical substring embedded in foreign URL path',
+        expected: 'REJECT',
+        liveUrl: `https://evil.example/${MATRIX_CANONICAL}junk`,
+      },
+    ]
+
+    it.each(matrixCases)(
+      'matrix #$id $name → $expected',
+      (matrixCase) => {
+        const result = runLiveUrlMatrixCase(matrixCase)
+        expectMatrixOutcome(result, matrixCase.expected, `#${matrixCase.id} ${matrixCase.name}`)
+      },
+    )
+  })
+
+  it('fails closed in correction mode when canonical findings are missing', () => {
+    const root = createRepo('feature/136-immutable-correction-contract')
+    const commentsPayload = JSON.stringify({
+      comments: [
+        {
+          body: `## REVIEW_VERDICT
+**Verdict:** CORRECTION REQUIRED
+**Findings:** Important: boundary bug
+**Gates:** exact-head CI → pass
+**Next:** Dev
+`,
+          createdAt: '2026-07-20T10:00:00+07:00',
+        },
+      ],
+    }).replace(/'/g, `'\"'\"'`)
+
+    const result = runAgentIssue(root, ['136', '--phase', 'correction'], {
+      PATH: withStubbedGh(
+        root,
+        `#!/usr/bin/env sh
+case "$*" in
+  *"issue view 136"*"title,url,body,labels"*)
+    printf '%s' '{"title":"Immutable correction contract","url":"https://github.com/boat1994/bemoat-web-starter/issues/136","body":"","labels":[]}'
+    ;;
+  *"issue view 136"*"comments"*)
+    printf '%s' '${commentsPayload}'
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`,
+      ),
+    })
+
+    expect(result.status).toBe(1)
+    expect(result.stdout).toContain('canonical finding evidence is missing')
   })
 })
