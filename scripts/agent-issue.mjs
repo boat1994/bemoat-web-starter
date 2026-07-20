@@ -1579,11 +1579,19 @@ function reconcileCorrectionPrEvidence({ cwd, env, verdictBody, contractReviewed
   }
 
   const errors = []
-  if (livePr.url) {
-    const liveUrlMatch = String(livePr.url).match(
+  // Require authoritative, parseable repository-qualified live identity from the
+  // fetched PR response. Do not infer identity solely from the requested PR number,
+  // and do not skip reconciliation when url is absent or unparseable.
+  const liveUrl = livePr.url == null ? '' : String(livePr.url).trim()
+  if (!liveUrl) {
+    errors.push('live PR evidence is missing required repository-qualified identity URL')
+  } else {
+    const liveUrlMatch = liveUrl.match(
       /https:\/\/github\.com\/([\w.-]+)\/([\w.-]+)\/pull\/(\d+)/i,
     )
-    if (liveUrlMatch) {
+    if (!liveUrlMatch) {
+      errors.push('live PR identity URL is present but unparseable')
+    } else {
       const liveKey = `${liveUrlMatch[1]}/${liveUrlMatch[2]}#${liveUrlMatch[3]}`
       if (liveKey !== prIdentity) {
         errors.push(`live PR identity ${liveKey} does not match REVIEW_VERDICT PR identity ${prIdentity}`)
