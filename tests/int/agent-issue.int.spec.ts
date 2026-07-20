@@ -1765,6 +1765,62 @@ esac
     expectMatrixOutcome(result, 'REJECT', 'matrix #51 repeated same verdict URL/PR #N')
   })
 
+  describe('MC-R1-002 malformed secondary identity-like verdict candidates', () => {
+    const malformedSecondaryCases: Array<{
+      name: string
+      verdictFindingsExtra: string
+    }> = [
+      {
+        name: 'valid canonical + junk-suffixed pull URL',
+        verdictFindingsExtra: `\n**Also:** https://github.com/${MATRIX_OWNER}/${MATRIX_REPO}/pull/${MATRIX_PR}junk`,
+      },
+      {
+        name: 'valid canonical + relative /pull/extra path',
+        verdictFindingsExtra: `\n**Also:** /pull/${MATRIX_PR}/extra`,
+      },
+      {
+        name: 'valid canonical + authority-confusion candidate',
+        verdictFindingsExtra: `\n**Also:** https://github.com@evil.example/${MATRIX_OWNER}/${MATRIX_REPO}/pull/${MATRIX_PR}`,
+      },
+      {
+        name: 'valid canonical + malformed foreign-repository candidate',
+        verdictFindingsExtra: `\n**Also:** https://github.com/other/repository/pull/${MATRIX_PR}junk`,
+      },
+      {
+        name: 'valid canonical + malformed same-identity prefix/suffix candidate',
+        verdictFindingsExtra: `\n**Also:** https://github.com/${MATRIX_OWNER}/${MATRIX_REPO}/pull/${MATRIX_PR}%2Fextra`,
+      },
+    ]
+
+    it.each(malformedSecondaryCases)(
+      'fails closed for $name (MC-R1-002)',
+      ({ name, verdictFindingsExtra }) => {
+        const result = runLiveUrlMatrixCase({
+          id: 0,
+          name,
+          expected: 'REJECT',
+          verdictFindingsExtra,
+          verdictOnly: true,
+        })
+        expectMatrixOutcome(result, 'REJECT', name)
+        expect(result.stdout, name).toMatch(
+          /malformed PR identity|malformed.*identity|identity-like|conflicting.*identity|PR identity/i,
+        )
+      },
+    )
+
+    it('still authorizes when the only secondary pull URL is a #discussion source_thread pointer (MC-R1-002)', () => {
+      const result = runLiveUrlMatrixCase({
+        id: 0,
+        name: 'discussion source_thread excluded',
+        expected: 'ACCEPT',
+        verdictFindingsExtra: `\n**Threads:** https://github.com/${MATRIX_OWNER}/${MATRIX_REPO}/pull/${MATRIX_PR}#discussion_r1`,
+        verdictOnly: true,
+      })
+      expectMatrixOutcome(result, 'ACCEPT', 'discussion source_thread excluded')
+    })
+  })
+
   it('fails closed when successful live PR evidence omits the identity URL (MC-R1-002)', () => {
     const root = createRepo('feature/136-immutable-correction-contract')
     const verdictBody = `## REVIEW_VERDICT

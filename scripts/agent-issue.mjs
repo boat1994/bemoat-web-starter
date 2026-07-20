@@ -1518,21 +1518,67 @@ export function parseCompleteGitHubPullUrl(raw) {
 }
 
 /**
+ * Canonical review-thread pointers (`.../pull/N#discussion...`) are not PR
+ * identity evidence and must not poison identity reconciliation.
+ */
+function isSourceThreadDiscussionPointer(candidate) {
+  return /#discussion/i.test(candidate)
+}
+
+/**
+ * True when a token is plausibly PR identity evidence (absolute pull URL or
+ * `/pull/...` path), independent of whether the complete-URL parser accepts it.
+ */
+function isPlausiblePullIdentityCandidate(candidate) {
+  if (typeof candidate !== 'string' || candidate.length === 0) return false
+  if (isSourceThreadDiscussionPointer(candidate)) return false
+  if (/^https:\/\//i.test(candidate)) {
+    return /\/pull\//i.test(candidate)
+  }
+  return /^\/(?:[\w.-]+\/[\w.-]+\/)?pull\//i.test(candidate)
+}
+
+/**
  * Collect repository-qualified PR identities from a verdict body.
- * Only complete canonical pull URLs count. `PR #N` shorthand is qualified
- * against the current repository when available.
+ * Only complete canonical pull URLs count as valid identities. Malformed
+ * identity-like pull URL/path candidates are preserved as conflicting
+ * evidence instead of being silently discarded. `PR #N` shorthand is
+ * qualified against the current repository when available.
  */
 function collectVerdictPrIdentities(verdictBody, defaultRepo) {
   const identities = []
-  const candidateRe = /https:\/\/[^\s"'<>\]]+/gi
-  for (const match of verdictBody.matchAll(candidateRe)) {
-    const candidate = match[0].replace(/[),.;:]+$/g, '')
+  const malformedCandidates = []
+  const seenMalformed = new Set()
+
+  const recordMalformed = (candidate, reason) => {
+    if (seenMalformed.has(candidate)) return
+    seenMalformed.add(candidate)
+    malformedCandidates.push({ candidate, reason, source: 'url' })
+  }
+
+  const considerUrlOrPathCandidate = (rawCandidate) => {
+    const candidate = rawCandidate.replace(/[),.;:]+$/g, '')
+    if (!isPlausiblePullIdentityCandidate(candidate)) return
     const parsed = parseCompleteGitHubPullUrl(candidate)
-    if (!parsed.ok) continue
+    if (!parsed.ok) {
+      recordMalformed(candidate, parsed.reason || 'malformed PR identity candidate')
+      return
+    }
     identities.push({
       ...parsed.identity,
       source: 'url',
     })
+  }
+
+  const httpsCandidateRe = /https:\/\/[^\s"'<>\]]+/gi
+  for (const match of verdictBody.matchAll(httpsCandidateRe)) {
+    considerUrlOrPathCandidate(match[0])
+  }
+
+  // Relative or root-relative pull paths are identity-like even without a host.
+  const pathCandidateRe = /(?:^|[\s"'<>(\[])(\/(?:[\w.-]+\/[\w.-]+\/)?pull\/[^\s"'<>\]]*)/gi
+  for (const match of verdictBody.matchAll(pathCandidateRe)) {
+    considerUrlOrPathCandidate(match[1])
   }
 
   const shorthandRe = /\bPR\s*#([0-9]+)\b/gi
@@ -1559,7 +1605,7 @@ function collectVerdictPrIdentities(verdictBody, defaultRepo) {
     })
   }
 
-  return identities
+  return { identities, malformedCandidates }
 }
 
 /**
@@ -1621,7 +1667,23 @@ function resolveCanonicalVerdictPrIdentity(verdictBody, defaultRepo) {
     }
   }
 
-  const allIdentities = collectVerdictPrIdentities(verdictBody, defaultRepo)
+  const { identities: allIdentities, malformedCandidates } = collectVerdictPrIdentities(
+    verdictBody,
+    defaultRepo,
+  )
+  if (malformedCandidates.length > 0) {
+    const samples = malformedCandidates
+      .slice(0, 3)
+      .map((entry) => entry.candidate)
+      .join(', ')
+    return {
+      ok: false,
+      errors: [
+        `REVIEW_VERDICT contains malformed PR identity evidence (${samples})`,
+      ],
+    }
+  }
+
   const distinctKeys = [...new Set(allIdentities.map((identity) => identity.key))]
   if (allIdentities.length !== 1) {
     if (distinctKeys.length > 1) {
