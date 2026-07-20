@@ -5,7 +5,7 @@ predecessor_issue: 136
 predecessor_pr: 137
 policy_guide_version: 1.2.0
 approved_base: main
-workflow_status: CORRECTION_DELIVERED
+workflow_status: DOGFOOD_PASSED
 ---
 
 # Immutable correction dogfood evidence — v1
@@ -28,10 +28,10 @@ Canonical references:
 | Draft PR | https://github.com/boat1994/bemoat-web-starter/pull/139 |
 | Initial reviewed head | `256babc139bf4d3e7e36ffa7e0a35ff734dde967` |
 | Correction base | `256babc139bf4d3e7e36ffa7e0a35ff734dde967` |
-| Corrected head | _pending push of this correction commit_ |
+| Corrected head | `42656e98c620d80316fa398f0b440b0e1681e270` |
 | Immutable finding ID | `MC-R1-001` |
 | Source thread | https://github.com/boat1994/bemoat-web-starter/pull/139#discussion_r3614601858 |
-| Final reviewer verdict | _pending Delta Review_ |
+| Final reviewer verdict | `ELIGIBLE FOR FOUNDER REVIEW` (first eligibility) — https://github.com/boat1994/bemoat-web-starter/issues/138#issuecomment-5023156566 |
 
 ## Controlled seeded defect
 
@@ -52,7 +52,7 @@ test. It must not be pre-corrected during initial delivery.
 | Head | CI run | Conclusion |
 | --- | --- | --- |
 | Initial reviewed head `256babc` | https://github.com/boat1994/bemoat-web-starter/actions/runs/29744641358 (`CI`); https://github.com/boat1994/bemoat-web-starter/actions/runs/29744641473 (`CI starter strict`) | SUCCESS |
-| Corrected head | _pending exact-head CI after correction push_ | _pending_ |
+| Corrected head `42656e9` | https://github.com/boat1994/bemoat-web-starter/actions/runs/29747171144 (`CI`); https://github.com/boat1994/bemoat-web-starter/actions/runs/29747171074 (`CI starter strict`) | SUCCESS |
 
 ## Positive path (P-01 through P-07)
 
@@ -63,8 +63,8 @@ test. It must not be pre-corrected during initial delivery.
 | P-03 | PASS | `source_thread` `#discussion_r3614601858` accepted as thread pointer, not second PR identity |
 | P-04 | PASS | Authorized scope limited to this artifact; synthetic RESULT validation accepts only this path |
 | P-05 | PASS | Synthetic `CLAIMED_RESOLVED` with changed file + probe evidence accepted for `MC-R1-001` |
-| P-06 | _pending Delta Review_ | |
-| P-07 | _pending Delta Review_ | |
+| P-06 | PASS | Independent Phase 4 Delta Review; owning thread resolved — https://github.com/boat1994/bemoat-web-starter/pull/139#discussion_r3614876893 |
+| P-07 | PASS | First `ELIGIBLE FOR FOUNDER REVIEW` on `42656e98` — https://github.com/boat1994/bemoat-web-starter/issues/138#issuecomment-5023156566 |
 
 ## Negative immutable-finding cases (N-01 through N-06)
 
@@ -109,7 +109,8 @@ test. It must not be pre-corrected during initial delivery.
 | Immutable correction verdict (`MC-R1-001`) | https://github.com/boat1994/bemoat-web-starter/issues/138#issuecomment-5022773780 |
 | Source thread (`MC-R1-001`) | https://github.com/boat1994/bemoat-web-starter/pull/139#discussion_r3614601858 |
 | Fresh-session correction preflight output | Local: `Playback verified: 1/1 canonical findings`; edit authorization for artifact only |
-| Correction `## RESULT` | _pending post after exact-head CI_ |
-| Delta Review verdict | _pending Delta Review_ |
-| Resolved thread evidence | _pending Delta Review_ |
+| Correction `## RESULT` | https://github.com/boat1994/bemoat-web-starter/issues/138#issuecomment-5022984222 |
+| Delta Review verdict | https://github.com/boat1994/bemoat-web-starter/issues/138#issuecomment-5023156566 |
+| Resolved thread evidence | https://github.com/boat1994/bemoat-web-starter/pull/139#discussion_r3614876893 |
+| Evidence-finalization authorization (bounded reconciliation; not merge approval) | https://github.com/boat1994/bemoat-web-starter/issues/138#issuecomment-5023061750 |
 | Founder merge authorization | _pending Founder gate_ |
