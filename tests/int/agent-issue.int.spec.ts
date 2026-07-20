@@ -1819,6 +1819,59 @@ esac
       })
       expectMatrixOutcome(result, 'ACCEPT', 'discussion source_thread excluded')
     })
+
+    describe('MC-R1-002 structural #discussion source-thread classification', () => {
+      const discussionAdversarialCases: Array<{
+        name: string
+        expected: 'ACCEPT' | 'REJECT'
+        verdictFindingsExtra: string
+      }> = [
+        {
+          name: 'conflicting pull number with #discussion fragment must fail closed',
+          expected: 'REJECT',
+          verdictFindingsExtra: `\n**Also:** https://github.com/${MATRIX_OWNER}/${MATRIX_REPO}/pull/999#discussion_r1`,
+        },
+        {
+          name: 'foreign repository pull URL with #discussion fragment must fail closed',
+          expected: 'REJECT',
+          verdictFindingsExtra: `\n**Also:** https://github.com/other/repository/pull/${MATRIX_PR}#discussion_r1`,
+        },
+        {
+          name: 'malformed junk-suffix pull path with #discussion fragment must fail closed',
+          expected: 'REJECT',
+          verdictFindingsExtra: `\n**Also:** https://github.com/${MATRIX_OWNER}/${MATRIX_REPO}/pull/${MATRIX_PR}junk#discussion_r1`,
+        },
+        {
+          name: 'canonical same-PR #discussion_r source-thread pointer remains excluded',
+          expected: 'ACCEPT',
+          verdictFindingsExtra: `\n**Threads:** https://github.com/${MATRIX_OWNER}/${MATRIX_REPO}/pull/${MATRIX_PR}#discussion_r3612092679`,
+        },
+        {
+          name: 'arbitrary fragment containing discussion substring must not qualify as source-thread',
+          expected: 'REJECT',
+          verdictFindingsExtra: `\n**Also:** https://github.com/${MATRIX_OWNER}/${MATRIX_REPO}/pull/${MATRIX_PR}#discussion_extra`,
+        },
+      ]
+
+      it.each(discussionAdversarialCases)(
+        '$expected for $name (MC-R1-002)',
+        ({ name, expected, verdictFindingsExtra }) => {
+          const result = runLiveUrlMatrixCase({
+            id: 0,
+            name,
+            expected,
+            verdictFindingsExtra,
+            verdictOnly: true,
+          })
+          expectMatrixOutcome(result, expected, name)
+          if (expected === 'REJECT') {
+            expect(result.stdout, name).toMatch(
+              /malformed PR identity|malformed.*identity|identity-like|conflicting.*identity|multiple distinct PR|PR identity/i,
+            )
+          }
+        },
+      )
+    })
   })
 
   it('fails closed when successful live PR evidence omits the identity URL (MC-R1-002)', () => {

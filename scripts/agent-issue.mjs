@@ -1518,11 +1518,45 @@ export function parseCompleteGitHubPullUrl(raw) {
 }
 
 /**
- * Canonical review-thread pointers (`.../pull/N#discussion...`) are not PR
- * identity evidence and must not poison identity reconciliation.
+ * Structurally valid GitHub pull-review discussion fragment (`#discussion_rN`).
+ * Broader `#discussion` substrings are intentionally not accepted.
  */
-function isSourceThreadDiscussionPointer(candidate) {
-  return /#discussion/i.test(candidate)
+function isGitHubReviewDiscussionFragment(fragment) {
+  return typeof fragment === 'string' && /^#discussion_r[0-9]+$/i.test(fragment)
+}
+
+/**
+ * Benign same-PR review-thread pointer — not PR identity evidence.
+ * Requires a valid review-discussion fragment, a fragment-stripped complete
+ * canonical pull URL, and an exact match to the established canonical identity.
+ */
+function isSourceThreadDiscussionPointer(candidate, canonicalIdentity) {
+  if (typeof candidate !== 'string' || candidate.length === 0 || !canonicalIdentity) {
+    return false
+  }
+
+  const hashIdx = candidate.indexOf('#')
+  if (hashIdx < 0) return false
+
+  const fragment = candidate.slice(hashIdx)
+  if (!isGitHubReviewDiscussionFragment(fragment)) return false
+
+  const stripped = candidate.slice(0, hashIdx)
+  const parsed = parseCompleteGitHubPullUrl(stripped)
+  if (!parsed.ok) return false
+
+  return (
+    foldedPrIdentityKey(
+      parsed.identity.owner,
+      parsed.identity.repo,
+      parsed.identity.number,
+    ) ===
+    foldedPrIdentityKey(
+      canonicalIdentity.owner,
+      canonicalIdentity.repo,
+      canonicalIdentity.number,
+    )
+  )
 }
 
 /**
@@ -1531,7 +1565,6 @@ function isSourceThreadDiscussionPointer(candidate) {
  */
 function isPlausiblePullIdentityCandidate(candidate) {
   if (typeof candidate !== 'string' || candidate.length === 0) return false
-  if (isSourceThreadDiscussionPointer(candidate)) return false
   if (/^https:\/\//i.test(candidate)) {
     return /\/pull\//i.test(candidate)
   }
@@ -1544,8 +1577,10 @@ function isPlausiblePullIdentityCandidate(candidate) {
  * identity-like pull URL/path candidates are preserved as conflicting
  * evidence instead of being silently discarded. `PR #N` shorthand is
  * qualified against the current repository when available.
+ * Same-PR `#discussion_rN` source-thread pointers matching `canonicalIdentity`
+ * are excluded; other `#discussion*` candidates remain identity evidence.
  */
-function collectVerdictPrIdentities(verdictBody, defaultRepo) {
+function collectVerdictPrIdentities(verdictBody, defaultRepo, canonicalIdentity = null) {
   const identities = []
   const malformedCandidates = []
   const seenMalformed = new Set()
@@ -1557,7 +1592,22 @@ function collectVerdictPrIdentities(verdictBody, defaultRepo) {
   }
 
   const considerUrlOrPathCandidate = (rawCandidate) => {
-    const candidate = rawCandidate.replace(/[),.;:]+$/g, '')
+    let candidate = rawCandidate.replace(/[),.;:]+$/g, '')
+
+    const hashIdx = candidate.indexOf('#')
+    if (hashIdx >= 0) {
+      const fragment = candidate.slice(hashIdx)
+      if (isGitHubReviewDiscussionFragment(fragment)) {
+        if (isSourceThreadDiscussionPointer(candidate, canonicalIdentity)) {
+          return
+        }
+        // Valid discussion fragment that is not a matching same-PR pointer:
+        // strip the fragment and route the remainder through normal identity /
+        // malformed rejection so disguised conflicts cannot bypass checks.
+        candidate = candidate.slice(0, hashIdx)
+      }
+    }
+
     if (!isPlausiblePullIdentityCandidate(candidate)) return
     const parsed = parseCompleteGitHubPullUrl(candidate)
     if (!parsed.ok) {
@@ -1670,6 +1720,7 @@ function resolveCanonicalVerdictPrIdentity(verdictBody, defaultRepo) {
   const { identities: allIdentities, malformedCandidates } = collectVerdictPrIdentities(
     verdictBody,
     defaultRepo,
+    canonical,
   )
   if (malformedCandidates.length > 0) {
     const samples = malformedCandidates
