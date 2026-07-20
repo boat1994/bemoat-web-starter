@@ -1420,32 +1420,131 @@ function extractVerdictPrBaseAndHead(verdictBody) {
   return { base: match?.[1]?.trim() ?? null, head: match?.[2] ?? null }
 }
 
+function asciiCaseFold(value) {
+  return String(value).toLowerCase()
+}
+
+function foldedPrIdentityKey(owner, repo, number) {
+  return `${asciiCaseFold(owner)}/${asciiCaseFold(repo)}#${number}`
+}
+
+/**
+ * Parse one complete live/verdict GitHub pull URL value.
+ * Rejects prefixes, suffixes, encoding, authority tricks, and WHATWG-normalized
+ * forms that differ from the raw supported contract.
+ */
+export function parseCompleteGitHubPullUrl(raw) {
+  if (typeof raw !== 'string' || raw.length === 0) {
+    return { ok: false, reason: 'live PR identity URL is missing or empty' }
+  }
+
+  // No silent trim/repair: raw value must already be the complete URL.
+  if (raw !== raw.trim() || /[\s\u00a0\u2000-\u200b\u2028\u2029\u3000]/.test(raw)) {
+    return { ok: false, reason: 'live PR identity URL contains whitespace' }
+  }
+  if (/[\u0000-\u001f\u007f\u0080-\u009f\\%]/.test(raw) || /\p{Cc}|\p{Cf}/u.test(raw)) {
+    return { ok: false, reason: 'live PR identity URL contains forbidden raw characters' }
+  }
+  if (!raw.startsWith('https://')) {
+    return { ok: false, reason: 'live PR identity URL must use literal lowercase https' }
+  }
+
+  const afterScheme = raw.slice('https://'.length)
+  const slashIdx = afterScheme.indexOf('/')
+  if (slashIdx <= 0) {
+    return { ok: false, reason: 'live PR identity URL authority is malformed' }
+  }
+  const rawAuthority = afterScheme.slice(0, slashIdx)
+  if (rawAuthority.includes('@') || rawAuthority.includes(':') || rawAuthority.includes('[')) {
+    return { ok: false, reason: 'live PR identity URL must not include userinfo or port' }
+  }
+  if (asciiCaseFold(rawAuthority) !== 'github.com') {
+    return { ok: false, reason: 'live PR identity URL host must be github.com' }
+  }
+
+  let parsed
+  try {
+    parsed = new URL(raw)
+  } catch {
+    return { ok: false, reason: 'live PR identity URL is present but unparseable' }
+  }
+
+  if (parsed.protocol !== 'https:') {
+    return { ok: false, reason: 'live PR identity URL must use https' }
+  }
+  if (parsed.hostname !== 'github.com') {
+    return { ok: false, reason: 'live PR identity URL host must be github.com' }
+  }
+  if (parsed.username || parsed.password || parsed.port) {
+    return { ok: false, reason: 'live PR identity URL must not include credentials or port' }
+  }
+  if (parsed.search || parsed.hash) {
+    return { ok: false, reason: 'live PR identity URL must not include query or fragment' }
+  }
+
+  const rawPath = afterScheme.slice(slashIdx)
+  if (rawPath !== parsed.pathname) {
+    return { ok: false, reason: 'live PR identity URL path is not a complete canonical value' }
+  }
+
+  const segments = parsed.pathname.split('/')
+  if (segments.length !== 5 || segments[0] !== '') {
+    return { ok: false, reason: 'live PR identity URL path structure is invalid' }
+  }
+
+  const [, owner, repo, pullLiteral, number] = segments
+  if (pullLiteral !== 'pull') {
+    return { ok: false, reason: 'live PR identity URL path must include /pull/' }
+  }
+  if (!owner || !repo || !/^[\w.-]+$/.test(owner) || !/^[\w.-]+$/.test(repo)) {
+    return { ok: false, reason: 'live PR identity URL owner/repository must be ASCII path segments' }
+  }
+  if (!/^[1-9][0-9]*$/.test(number)) {
+    return { ok: false, reason: 'live PR identity URL pull number must be a positive integer' }
+  }
+  if (rawPath !== `/${owner}/${repo}/pull/${number}`) {
+    return { ok: false, reason: 'live PR identity URL path is not a complete canonical value' }
+  }
+
+  return {
+    ok: true,
+    identity: {
+      owner,
+      repo,
+      number,
+      key: foldedPrIdentityKey(owner, repo, number),
+    },
+  }
+}
+
 /**
  * Collect repository-qualified PR identities from a verdict body.
- * Full pull URLs preserve owner/repo/number. `PR #N` shorthand is qualified
+ * Only complete canonical pull URLs count. `PR #N` shorthand is qualified
  * against the current repository when available.
  */
 function collectVerdictPrIdentities(verdictBody, defaultRepo) {
   const identities = []
-  const urlRe = /https:\/\/github\.com\/([\w.-]+)\/([\w.-]+)\/pull\/(\d+)/gi
-  for (const match of verdictBody.matchAll(urlRe)) {
+  const candidateRe = /https:\/\/[^\s"'<>\]]+/gi
+  for (const match of verdictBody.matchAll(candidateRe)) {
+    const candidate = match[0].replace(/[),.;:]+$/g, '')
+    const parsed = parseCompleteGitHubPullUrl(candidate)
+    if (!parsed.ok) continue
     identities.push({
-      owner: match[1],
-      repo: match[2],
-      number: match[3],
-      key: `${match[1]}/${match[2]}#${match[3]}`,
+      ...parsed.identity,
       source: 'url',
     })
   }
 
-  const shorthandRe = /\bPR\s*#(\d+)\b/gi
+  const shorthandRe = /\bPR\s*#([0-9]+)\b/gi
   for (const match of verdictBody.matchAll(shorthandRe)) {
+    const number = match[1]
+    if (!/^[1-9][0-9]*$/.test(number)) continue
     if (!defaultRepo || !defaultRepo.includes('/')) {
       identities.push({
         owner: null,
         repo: null,
-        number: match[1],
-        key: `#${match[1]}`,
+        number,
+        key: `#${number}`,
         source: 'shorthand',
       })
       continue
@@ -1454,8 +1553,8 @@ function collectVerdictPrIdentities(verdictBody, defaultRepo) {
     identities.push({
       owner,
       repo,
-      number: match[1],
-      key: `${owner}/${repo}#${match[1]}`,
+      number,
+      key: foldedPrIdentityKey(owner, repo, number),
       source: 'shorthand',
     })
   }
@@ -1466,7 +1565,7 @@ function collectVerdictPrIdentities(verdictBody, defaultRepo) {
 /**
  * Resolve one canonical repository-qualified PR identity from the visible
  * `PR / base / head` evidence, rejecting foreign repositories and multiple
- * distinct PR references anywhere in the verdict.
+ * distinct or repeated PR references anywhere in the verdict.
  */
 function resolveCanonicalVerdictPrIdentity(verdictBody, defaultRepo) {
   if (!defaultRepo || !defaultRepo.includes('/')) {
@@ -1485,9 +1584,10 @@ function resolveCanonicalVerdictPrIdentity(verdictBody, defaultRepo) {
   }
 
   const line = lineMatch[1]
-  const lineUrl = line.match(/https:\/\/github\.com\/([\w.-]+)\/([\w.-]+)\/pull\/(\d+)/i)
-  const lineShorthand = line.match(/\bPR\s*#(\d+)\b/i)
-  if (!lineUrl && !lineShorthand) {
+  const firstToken = line.trim().split(/\s+/)[0] ?? ''
+  const parsedLineUrl = parseCompleteGitHubPullUrl(firstToken)
+  const lineShorthand = line.match(/\bPR\s*#([1-9][0-9]*)\b/i)
+  if (!parsedLineUrl.ok && !lineShorthand) {
     return {
       ok: false,
       errors: ['REVIEW_VERDICT does not uniquely identify a live PR by number or URL'],
@@ -1496,43 +1596,74 @@ function resolveCanonicalVerdictPrIdentity(verdictBody, defaultRepo) {
 
   const [defaultOwner, defaultRepoName] = defaultRepo.split('/')
   let canonical
-  if (lineUrl) {
-    canonical = {
-      owner: lineUrl[1],
-      repo: lineUrl[2],
-      number: lineUrl[3],
-      key: `${lineUrl[1]}/${lineUrl[2]}#${lineUrl[3]}`,
-    }
+  if (parsedLineUrl.ok) {
+    canonical = parsedLineUrl.identity
   } else {
     canonical = {
       owner: defaultOwner,
       repo: defaultRepoName,
       number: lineShorthand[1],
-      key: `${defaultOwner}/${defaultRepoName}#${lineShorthand[1]}`,
+      key: foldedPrIdentityKey(defaultOwner, defaultRepoName, lineShorthand[1]),
     }
   }
 
-  if (canonical.owner !== defaultOwner || canonical.repo !== defaultRepoName) {
+  const canonicalKey = foldedPrIdentityKey(canonical.owner, canonical.repo, canonical.number)
+  const defaultKey = foldedPrIdentityKey(defaultOwner, defaultRepoName, canonical.number)
+  if (
+    asciiCaseFold(canonical.owner) !== asciiCaseFold(defaultOwner) ||
+    asciiCaseFold(canonical.repo) !== asciiCaseFold(defaultRepoName)
+  ) {
     return {
       ok: false,
       errors: [
-        `REVIEW_VERDICT PR identity ${canonical.key} does not match the current repository ${defaultRepo}`,
+        `REVIEW_VERDICT PR identity ${canonicalKey} does not match the current repository ${defaultRepo}`,
       ],
     }
   }
 
   const allIdentities = collectVerdictPrIdentities(verdictBody, defaultRepo)
   const distinctKeys = [...new Set(allIdentities.map((identity) => identity.key))]
-  if (distinctKeys.length > 1) {
+  if (allIdentities.length !== 1) {
+    if (distinctKeys.length > 1) {
+      return {
+        ok: false,
+        errors: [
+          `REVIEW_VERDICT contains multiple distinct PR identities (${distinctKeys.join(', ')})`,
+        ],
+      }
+    }
+    if (allIdentities.length > 1) {
+      return {
+        ok: false,
+        errors: [
+          `REVIEW_VERDICT repeats the same PR identity more than once (${distinctKeys[0] ?? canonicalKey})`,
+        ],
+      }
+    }
+    return {
+      ok: false,
+      errors: ['REVIEW_VERDICT does not uniquely identify a live PR by number or URL'],
+    }
+  }
+
+  if (allIdentities[0].key !== defaultKey && allIdentities[0].key !== canonicalKey) {
     return {
       ok: false,
       errors: [
-        `REVIEW_VERDICT contains multiple distinct PR identities (${distinctKeys.join(', ')})`,
+        `REVIEW_VERDICT PR identity ${allIdentities[0].key} does not match the current repository ${defaultRepo}`,
       ],
     }
   }
 
-  return { ok: true, identity: canonical }
+  return {
+    ok: true,
+    identity: {
+      owner: defaultOwner,
+      repo: defaultRepoName,
+      number: canonical.number,
+      key: defaultKey,
+    },
+  }
 }
 
 /**
@@ -1582,19 +1713,34 @@ function reconcileCorrectionPrEvidence({ cwd, env, verdictBody, contractReviewed
   // Require authoritative, parseable repository-qualified live identity from the
   // fetched PR response. Do not infer identity solely from the requested PR number,
   // and do not skip reconciliation when url is absent or unparseable.
-  const liveUrl = livePr.url == null ? '' : String(livePr.url).trim()
-  if (!liveUrl) {
+  if (livePr.url == null || String(livePr.url).length === 0) {
     errors.push('live PR evidence is missing required repository-qualified identity URL')
   } else {
-    const liveUrlMatch = liveUrl.match(
-      /https:\/\/github\.com\/([\w.-]+)\/([\w.-]+)\/pull\/(\d+)/i,
-    )
-    if (!liveUrlMatch) {
-      errors.push('live PR identity URL is present but unparseable')
+    const liveUrlRaw = String(livePr.url)
+    const parsedLive = parseCompleteGitHubPullUrl(liveUrlRaw)
+    if (!parsedLive.ok) {
+      errors.push(parsedLive.reason || 'live PR identity URL is present but unparseable')
     } else {
-      const liveKey = `${liveUrlMatch[1]}/${liveUrlMatch[2]}#${liveUrlMatch[3]}`
+      const liveKey = parsedLive.identity.key
       if (liveKey !== prIdentity) {
         errors.push(`live PR identity ${liveKey} does not match REVIEW_VERDICT PR identity ${prIdentity}`)
+      }
+
+      // Alternate identity-like fields are never fallbacks; a conflict is ambiguous.
+      if (Object.prototype.hasOwnProperty.call(livePr, 'number') && livePr.number != null) {
+        const alternateNumber = String(livePr.number)
+        if (alternateNumber !== parsedLive.identity.number) {
+          errors.push(
+            `live PR identity is ambiguous: url pull ${parsedLive.identity.number} conflicts with number field ${alternateNumber}`,
+          )
+        }
+      }
+      if (Object.prototype.hasOwnProperty.call(livePr, 'html_url') && livePr.html_url != null) {
+        const alternateHtml = String(livePr.html_url)
+        const parsedHtml = parseCompleteGitHubPullUrl(alternateHtml)
+        if (!parsedHtml.ok || parsedHtml.identity.key !== liveKey) {
+          errors.push('live PR identity is ambiguous: html_url conflicts with url')
+        }
       }
     }
   }
