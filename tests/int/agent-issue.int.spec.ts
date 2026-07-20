@@ -1444,6 +1444,234 @@ esac
     expect(result.stdout).not.toContain('Edit authorization: granted')
   })
 
+  it('fails closed when the verdict PR URL is in a foreign repository (MC-R1-002)', () => {
+    const root = createRepo('feature/136-immutable-correction-contract')
+    const verdictBody = `## REVIEW_VERDICT
+**PR / base / head:** https://github.com/other/repository/pull/200 · \`main\` · \`abc1234\`
+**Verdict:** CORRECTION REQUIRED
+**Findings:** Important: boundary bug
+**Gates:** exact-head CI https://example.test/ci → pass
+**Next:** Dev posts correction RESULT
+
+\`\`\`json
+{
+  "schema_version": 1,
+  "reviewed_head": "abc1234",
+  "findings": [
+    {
+      "id": "MC-R1-001",
+      "canonical_summary": "supplied-timezone month boundaries are incorrect",
+      "source_thread": "https://github.com/other/repository/pull/200#discussion_r1",
+      "required_evidence": ["Bangkok exact UTC boundary"]
+    }
+  ]
+}
+\`\`\`
+`
+    const commentsPayload = JSON.stringify({
+      comments: [{ body: verdictBody, createdAt: '2026-07-20T10:00:00+07:00' }],
+    }).replace(/'/g, `'\"'\"'`)
+
+    const result = runAgentIssue(root, ['136', '--phase', 'correction'], {
+      PATH: withStubbedGh(
+        root,
+        `#!/usr/bin/env sh
+case "$*" in
+  *"issue view 136"*"title,url,body,labels"*)
+    printf '%s' '{"title":"Immutable correction contract","url":"https://github.com/boat1994/bemoat-web-starter/issues/136","body":"","labels":[]}'
+    ;;
+  *"issue view 136"*"comments"*)
+    printf '%s' '${commentsPayload}'
+    ;;
+  *"pr view 200"*)
+    printf '%s' '{"title":"Wrong repo PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/200","headRefName":"feature/136","baseRefName":"main","headRefOid":"abc1234","state":"OPEN","statusCheckRollup":[],"commits":[]}'
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`,
+      ),
+    })
+
+    expect(result.status).toBe(1)
+    expect(result.stdout).toMatch(/PR identity|repository|foreign|mismatch/i)
+    expect(result.stdout).not.toContain('Edit authorization: granted')
+    expect(result.stdout).not.toContain('Playback verified')
+  })
+
+  it('fails closed when the verdict contains two distinct PR URLs (MC-R1-002)', () => {
+    const root = createRepo('feature/136-immutable-correction-contract')
+    const verdictBody = `## REVIEW_VERDICT
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · \`main\` · \`abc1234\`
+**Verdict:** CORRECTION REQUIRED
+**Findings:** Important: boundary bug
+**Gates:** exact-head CI https://example.test/ci → pass
+**Also:** https://github.com/boat1994/bemoat-web-starter/pull/201
+**Next:** Dev posts correction RESULT
+
+\`\`\`json
+{
+  "schema_version": 1,
+  "reviewed_head": "abc1234",
+  "findings": [
+    {
+      "id": "MC-R1-001",
+      "canonical_summary": "supplied-timezone month boundaries are incorrect",
+      "source_thread": "https://github.com/boat1994/bemoat-web-starter/pull/200#discussion_r1",
+      "required_evidence": ["Bangkok exact UTC boundary"]
+    }
+  ]
+}
+\`\`\`
+`
+    const commentsPayload = JSON.stringify({
+      comments: [{ body: verdictBody, createdAt: '2026-07-20T10:00:00+07:00' }],
+    }).replace(/'/g, `'\"'\"'`)
+
+    const result = runAgentIssue(root, ['136', '--phase', 'correction'], {
+      PATH: withStubbedGh(
+        root,
+        `#!/usr/bin/env sh
+case "$*" in
+  *"issue view 136"*"title,url,body,labels"*)
+    printf '%s' '{"title":"Immutable correction contract","url":"https://github.com/boat1994/bemoat-web-starter/issues/136","body":"","labels":[]}'
+    ;;
+  *"issue view 136"*"comments"*)
+    printf '%s' '${commentsPayload}'
+    ;;
+  *"pr view 200"*|*"pr view 201"*)
+    printf '%s' '{"title":"Correction PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/200","headRefName":"feature/136","baseRefName":"main","headRefOid":"abc1234","state":"OPEN","statusCheckRollup":[],"commits":[]}'
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`,
+      ),
+    })
+
+    expect(result.status).toBe(1)
+    expect(result.stdout).toMatch(/distinct PR|multiple PR|conflicting PR identity|PR identity/i)
+    expect(result.stdout).not.toContain('Edit authorization: granted')
+    expect(result.stdout).not.toContain('Playback verified')
+  })
+
+  it('fails closed when a canonical PR URL conflicts with a different PR #N shorthand (MC-R1-002)', () => {
+    const root = createRepo('feature/136-immutable-correction-contract')
+    const verdictBody = `## REVIEW_VERDICT
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · \`main\` · \`abc1234\`
+**Verdict:** CORRECTION REQUIRED
+**Findings:** Important: boundary bug · see PR #201
+**Gates:** exact-head CI https://example.test/ci → pass
+**Next:** Dev posts correction RESULT
+
+\`\`\`json
+{
+  "schema_version": 1,
+  "reviewed_head": "abc1234",
+  "findings": [
+    {
+      "id": "MC-R1-001",
+      "canonical_summary": "supplied-timezone month boundaries are incorrect",
+      "source_thread": "https://github.com/boat1994/bemoat-web-starter/pull/200#discussion_r1",
+      "required_evidence": ["Bangkok exact UTC boundary"]
+    }
+  ]
+}
+\`\`\`
+`
+    const commentsPayload = JSON.stringify({
+      comments: [{ body: verdictBody, createdAt: '2026-07-20T10:00:00+07:00' }],
+    }).replace(/'/g, `'\"'\"'`)
+
+    const result = runAgentIssue(root, ['136', '--phase', 'correction'], {
+      PATH: withStubbedGh(
+        root,
+        `#!/usr/bin/env sh
+case "$*" in
+  *"issue view 136"*"title,url,body,labels"*)
+    printf '%s' '{"title":"Immutable correction contract","url":"https://github.com/boat1994/bemoat-web-starter/issues/136","body":"","labels":[]}'
+    ;;
+  *"issue view 136"*"comments"*)
+    printf '%s' '${commentsPayload}'
+    ;;
+  *"pr view 200"*|*"pr view 201"*)
+    printf '%s' '{"title":"Correction PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/200","headRefName":"feature/136","baseRefName":"main","headRefOid":"abc1234","state":"OPEN","statusCheckRollup":[],"commits":[]}'
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`,
+      ),
+    })
+
+    expect(result.status).toBe(1)
+    expect(result.stdout).toMatch(/distinct PR|multiple PR|conflicting PR identity|PR identity/i)
+    expect(result.stdout).not.toContain('Edit authorization: granted')
+    expect(result.stdout).not.toContain('Playback verified')
+  })
+
+  it('permits repeated references that normalize to the same canonical PR identity (MC-R1-002)', () => {
+    const root = createRepo('feature/136-immutable-correction-contract')
+    const verdictBody = `## REVIEW_VERDICT
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · \`main\` · \`abc1234\`
+**Verdict:** CORRECTION REQUIRED
+**Findings:** Important: boundary bug · PR #200 · https://github.com/boat1994/bemoat-web-starter/pull/200
+**Gates:** exact-head CI https://example.test/ci → pass
+**Next:** Dev posts correction RESULT for PR #200
+
+\`\`\`json
+{
+  "schema_version": 1,
+  "reviewed_head": "abc1234",
+  "findings": [
+    {
+      "id": "MC-R1-001",
+      "canonical_summary": "supplied-timezone month boundaries are incorrect",
+      "source_thread": "https://github.com/boat1994/bemoat-web-starter/pull/200#discussion_r1",
+      "required_evidence": ["Bangkok exact UTC boundary"]
+    }
+  ]
+}
+\`\`\`
+`
+    const commentsPayload = JSON.stringify({
+      comments: [{ body: verdictBody, createdAt: '2026-07-20T10:00:00+07:00' }],
+    }).replace(/'/g, `'\"'\"'`)
+
+    const result = runAgentIssue(root, ['136', '--phase', 'correction'], {
+      PATH: withStubbedGh(
+        root,
+        `#!/usr/bin/env sh
+case "$*" in
+  *"issue view 136"*"title,url,body,labels"*)
+    printf '%s' '{"title":"Immutable correction contract","url":"https://github.com/boat1994/bemoat-web-starter/issues/136","body":"","labels":[]}'
+    ;;
+  *"issue view 136"*"comments"*)
+    printf '%s' '${commentsPayload}'
+    ;;
+  *"pr view 200"*)
+    printf '%s' '{"title":"Correction PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/200","headRefName":"feature/136","baseRefName":"main","headRefOid":"abc1234","state":"OPEN","statusCheckRollup":[],"commits":[]}'
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`,
+      ),
+    })
+
+    expect(result.status, result.stderr || result.stdout).toBe(0)
+    expect(result.stdout).toContain('Playback verified: 1/1 canonical findings')
+    expect(result.stdout).toContain('Edit authorization: granted')
+  })
+
   it('fails closed in correction mode when canonical findings are missing', () => {
     const root = createRepo('feature/136-immutable-correction-contract')
     const commentsPayload = JSON.stringify({

@@ -1421,6 +1421,121 @@ function extractVerdictPrBaseAndHead(verdictBody) {
 }
 
 /**
+ * Collect repository-qualified PR identities from a verdict body.
+ * Full pull URLs preserve owner/repo/number. `PR #N` shorthand is qualified
+ * against the current repository when available.
+ */
+function collectVerdictPrIdentities(verdictBody, defaultRepo) {
+  const identities = []
+  const urlRe = /https:\/\/github\.com\/([\w.-]+)\/([\w.-]+)\/pull\/(\d+)/gi
+  for (const match of verdictBody.matchAll(urlRe)) {
+    identities.push({
+      owner: match[1],
+      repo: match[2],
+      number: match[3],
+      key: `${match[1]}/${match[2]}#${match[3]}`,
+      source: 'url',
+    })
+  }
+
+  const shorthandRe = /\bPR\s*#(\d+)\b/gi
+  for (const match of verdictBody.matchAll(shorthandRe)) {
+    if (!defaultRepo || !defaultRepo.includes('/')) {
+      identities.push({
+        owner: null,
+        repo: null,
+        number: match[1],
+        key: `#${match[1]}`,
+        source: 'shorthand',
+      })
+      continue
+    }
+    const [owner, repo] = defaultRepo.split('/')
+    identities.push({
+      owner,
+      repo,
+      number: match[1],
+      key: `${owner}/${repo}#${match[1]}`,
+      source: 'shorthand',
+    })
+  }
+
+  return identities
+}
+
+/**
+ * Resolve one canonical repository-qualified PR identity from the visible
+ * `PR / base / head` evidence, rejecting foreign repositories and multiple
+ * distinct PR references anywhere in the verdict.
+ */
+function resolveCanonicalVerdictPrIdentity(verdictBody, defaultRepo) {
+  if (!defaultRepo || !defaultRepo.includes('/')) {
+    return {
+      ok: false,
+      errors: ['current repository identity is unavailable for PR reconciliation'],
+    }
+  }
+
+  const lineMatch = verdictBody.match(/\*\*PR\s*\/\s*base\s*\/\s*head:\*\*([^\n]*)/i)
+  if (!lineMatch) {
+    return {
+      ok: false,
+      errors: ['REVIEW_VERDICT is missing a `PR / base / head` line with an exact head SHA'],
+    }
+  }
+
+  const line = lineMatch[1]
+  const lineUrl = line.match(/https:\/\/github\.com\/([\w.-]+)\/([\w.-]+)\/pull\/(\d+)/i)
+  const lineShorthand = line.match(/\bPR\s*#(\d+)\b/i)
+  if (!lineUrl && !lineShorthand) {
+    return {
+      ok: false,
+      errors: ['REVIEW_VERDICT does not uniquely identify a live PR by number or URL'],
+    }
+  }
+
+  const [defaultOwner, defaultRepoName] = defaultRepo.split('/')
+  let canonical
+  if (lineUrl) {
+    canonical = {
+      owner: lineUrl[1],
+      repo: lineUrl[2],
+      number: lineUrl[3],
+      key: `${lineUrl[1]}/${lineUrl[2]}#${lineUrl[3]}`,
+    }
+  } else {
+    canonical = {
+      owner: defaultOwner,
+      repo: defaultRepoName,
+      number: lineShorthand[1],
+      key: `${defaultOwner}/${defaultRepoName}#${lineShorthand[1]}`,
+    }
+  }
+
+  if (canonical.owner !== defaultOwner || canonical.repo !== defaultRepoName) {
+    return {
+      ok: false,
+      errors: [
+        `REVIEW_VERDICT PR identity ${canonical.key} does not match the current repository ${defaultRepo}`,
+      ],
+    }
+  }
+
+  const allIdentities = collectVerdictPrIdentities(verdictBody, defaultRepo)
+  const distinctKeys = [...new Set(allIdentities.map((identity) => identity.key))]
+  if (distinctKeys.length > 1) {
+    return {
+      ok: false,
+      errors: [
+        `REVIEW_VERDICT contains multiple distinct PR identities (${distinctKeys.join(', ')})`,
+      ],
+    }
+  }
+
+  return { ok: true, identity: canonical }
+}
+
+/**
  * Reconcile the immutable contract reviewed_head against the visible verdict
  * head, then against uniquely identified live PR evidence, before granting
  * correction edit authorization. Fails closed for missing or mismatched PR
@@ -1428,13 +1543,13 @@ function extractVerdictPrBaseAndHead(verdictBody) {
  * GitHub orchestration stays here — the correction-contract module remains pure.
  */
 function reconcileCorrectionPrEvidence({ cwd, env, verdictBody, contractReviewedHead }) {
-  const prNumber =
-    verdictBody.match(/https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/(\d+)/)?.[1] ??
-    verdictBody.match(/\bPR\s*#(\d+)\b/i)?.[1] ??
-    null
-  if (!prNumber) {
-    return { ok: false, errors: ['REVIEW_VERDICT does not uniquely identify a live PR by number or URL'] }
+  const defaultRepo = getDefaultRepo(cwd)
+  const identityResult = resolveCanonicalVerdictPrIdentity(verdictBody, defaultRepo)
+  if (!identityResult.ok) {
+    return { ok: false, errors: identityResult.errors }
   }
+
+  const { number: prNumber, key: prIdentity } = identityResult.identity
 
   const { base: verdictBase, head: verdictHead } = extractVerdictPrBaseAndHead(verdictBody)
   if (!verdictHead) {
@@ -1450,7 +1565,7 @@ function reconcileCorrectionPrEvidence({ cwd, env, verdictBody, contractReviewed
     }
   }
 
-  const prResult = fetchPrByReference(cwd, `#${prNumber}`, env)
+  const prResult = fetchPrByReference(cwd, `${defaultRepo}#${prNumber}`, env)
   if (!prResult.ok) {
     return { ok: false, errors: [`live PR evidence is unavailable: ${prResult.reason}`] }
   }
@@ -1464,6 +1579,17 @@ function reconcileCorrectionPrEvidence({ cwd, env, verdictBody, contractReviewed
   }
 
   const errors = []
+  if (livePr.url) {
+    const liveUrlMatch = String(livePr.url).match(
+      /https:\/\/github\.com\/([\w.-]+)\/([\w.-]+)\/pull\/(\d+)/i,
+    )
+    if (liveUrlMatch) {
+      const liveKey = `${liveUrlMatch[1]}/${liveUrlMatch[2]}#${liveUrlMatch[3]}`
+      if (liveKey !== prIdentity) {
+        errors.push(`live PR identity ${liveKey} does not match REVIEW_VERDICT PR identity ${prIdentity}`)
+      }
+    }
+  }
   if (livePr.headRefOid !== contractReviewedHead) {
     errors.push('live PR head does not match the immutable contract reviewed_head')
   }
@@ -1474,7 +1600,7 @@ function reconcileCorrectionPrEvidence({ cwd, env, verdictBody, contractReviewed
     errors.push(`live PR state is ${livePr.state}, not OPEN`)
   }
 
-  return { ok: errors.length === 0, errors, prNumber, livePr }
+  return { ok: errors.length === 0, errors, prNumber, prIdentity, livePr }
 }
 
 function runCorrectionPhasePreflight({
@@ -1545,8 +1671,12 @@ function runCorrectionPhasePreflight({
   }
 
   const prUrl =
-    latestVerdict.comment.body.match(/https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/)?.[0] ??
-    (latestVerdict.parsed?.prNumber ? `PR #${latestVerdict.parsed.prNumber}` : null)
+    reconciliation.livePr?.url ||
+    (reconciliation.prIdentity
+      ? `https://github.com/${reconciliation.prIdentity.replace('#', '/pull/')}`
+      : reconciliation.prNumber
+        ? `PR #${reconciliation.prNumber}`
+        : null)
   const issueRef =
     issueMetadata.available && issueMetadata.url
       ? issueMetadata.url
