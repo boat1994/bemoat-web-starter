@@ -103,6 +103,67 @@ Requirements:
 - Keep durable and file-level findings in **PR review threads**.
 - **Delete** the temp file before posting the correction `## RESULT` or any `ELIGIBLE FOR FOUNDER REVIEW` verdict, and verify it is absent and untracked.
 
+### Immutable correction finding contract
+
+A correction-eligible `## REVIEW_VERDICT` (`CORRECTION REQUIRED`) carries one compact machine-readable finding block. This is comment transport only — not a second durable review-state store. Reviewers own immutable finding identity; correction agents may not rename, reinterpret, regroup, substitute, add, or omit findings.
+
+```json
+{
+  "schema_version": 1,
+  "reviewed_head": "<sha>",
+  "findings": [
+    {
+      "id": "MC-R1-001",
+      "canonical_summary": "<immutable reviewer summary>",
+      "source_thread": "<PR review thread URL or node reference>",
+      "required_evidence": ["<evidence label>"],
+      "expected_areas": ["<optional guidance>"],
+      "prohibited_areas": ["<optional enforceable path or area>"]
+    }
+  ]
+}
+```
+
+Reconstruct the active finding set with correction-mode preflight:
+
+```bash
+pnpm run bemoat:agent:issue -- <issue-number> --phase correction
+```
+
+The capsule mechanically verifies exact finding playback (for example
+`Playback verified: 6/6 canonical findings`). Missing, malformed, conflicting,
+or incomplete canonical evidence fails closed before edit authorization.
+
+### Correction RESULT evidence map
+
+A correction `## RESULT` reports evidence by immutable finding ID without redefining the finding:
+
+```json
+{
+  "schema_version": 1,
+  "correction_base": "<reviewed head>",
+  "finding_results": {
+    "MC-R1-001": {
+      "changed_files": ["<path>"],
+      "tests": ["<focused test or command evidence>"],
+      "status": "CLAIMED_RESOLVED"
+    },
+    "MC-R1-002": {
+      "changed_files": [],
+      "tests": [],
+      "status": "UNPROVEN"
+    }
+  }
+}
+```
+
+Deterministic validation rejects unknown/renamed/substituted/omitted IDs,
+`CLAIMED_RESOLVED` without changed-file and test evidence, referenced files
+absent from the correction diff, explicitly prohibited scope, and free-form
+`Done` claims that conflict with `UNPROVEN` entries. Expected areas are guidance
+only. Semantic correctness and original review-thread resolution remain with the
+bounded Delta Reviewer after corrected exact-head CI.
+
 ## Comment types
 
 Post these markers on the **Active Task Issue** as searchable headings:

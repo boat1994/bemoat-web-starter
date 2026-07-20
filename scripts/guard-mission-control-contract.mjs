@@ -172,6 +172,23 @@ export const REQUIRED_LEAN_FOUNDER_DECISION_PHRASES = [
   'BLOCKED_FOR_FOUNDER_DECISION -> DONE',
 ]
 
+/** Immutable correction finding / capsule invariants (Minimal Hybrid). */
+export const REQUIRED_CORRECTION_GUIDE_PHRASES = [
+  'Reviewers own immutable finding identity',
+  'Correction agents may not rename, reinterpret, regroup, substitute, add, or omit findings',
+  'Correction delivery does not resolve original PR review threads',
+  'File names, test names, and green CI alone never prove semantic completion',
+]
+
+export const REQUIRED_CORRECTION_HANDOFF_PHRASES = [
+  '### Immutable correction finding contract',
+  '### Correction RESULT evidence map',
+  'pnpm run bemoat:agent:issue -- <issue-number> --phase correction',
+  'Playback verified:',
+  '"status": "CLAIMED_RESOLVED"',
+  '"status": "UNPROVEN"',
+]
+
 export const REQUIRED_LEAN_FOUNDER_LOADER_PHRASES = [
   'Lean Founder Decision when state is `BLOCKED_FOR_FOUNDER_DECISION`',
   'Actions: **Approve** | **Decline**',
@@ -357,6 +374,14 @@ export function scanGuideContent(relativePath, content) {
     }
   }
 
+  for (const phrase of REQUIRED_CORRECTION_GUIDE_PHRASES) {
+    if (!content.includes(phrase)) {
+      violations.push(
+        violation('MC012', relativePath, `Guide missing immutable correction invariant: ${phrase}`),
+      )
+    }
+  }
+
   return violations
 }
 
@@ -490,6 +515,17 @@ export function scanRoleHandoffContract(relativePath, content) {
     if (!content.includes(field)) {
       violations.push(
         violation('MC011', relativePath, `Role handoff contract missing Double-Loop field: ${field}`),
+      )
+    }
+  }
+  for (const phrase of REQUIRED_CORRECTION_HANDOFF_PHRASES) {
+    if (!content.includes(phrase)) {
+      violations.push(
+        violation(
+          'MC011',
+          relativePath,
+          `Role handoff contract missing immutable correction transport: ${phrase}`,
+        ),
       )
     }
   }

@@ -3,6 +3,10 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
+import {
+  parseCorrectionContract,
+  validateCorrectionRoleComment,
+} from './correction-contract.mjs'
 
 const ROLE_HEADINGS = ['HANDOFF', 'RESULT', 'REVIEW_VERDICT']
 const CORE_VERDICTS = [
@@ -64,20 +68,39 @@ function usage(message) {
 }
 
 function parseArgs(argv) {
-  const options = { issue: null, repo: null, bodyFile: null, check: false, allowWarning: false }
+  const options = {
+    issue: null,
+    repo: null,
+    bodyFile: null,
+    check: false,
+    allowWarning: false,
+    canonicalContractFile: null,
+    diffFiles: [],
+  }
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index]
     if (argument === '--') continue
-    if (argument === '--repo' || argument === '--body-file') {
+    if (argument === '--repo' || argument === '--body-file' || argument === '--canonical-contract-file') {
       const value = argv[++index]
       if (!value) return { error: `${argument} requires a value` }
       if (argument === '--repo') {
         if (options.repo) return { error: '--repo may be provided only once' }
         options.repo = value
-      } else {
+      } else if (argument === '--body-file') {
         if (options.bodyFile) return { error: '--body-file may be provided only once' }
         options.bodyFile = value
+      } else {
+        if (options.canonicalContractFile) {
+          return { error: '--canonical-contract-file may be provided only once' }
+        }
+        options.canonicalContractFile = value
       }
+      continue
+    }
+    if (argument === '--diff-file') {
+      const value = argv[++index]
+      if (!value) return { error: '--diff-file requires a value' }
+      options.diffFiles.push(value)
       continue
     }
     if (argument === '--check') { options.check = true; continue }
@@ -150,6 +173,23 @@ function validationErrors(body) {
   return { errors, role }
 }
 
+function loadCanonicalContract(canonicalContractFile) {
+  if (!canonicalContractFile) return { ok: true, contract: null }
+  try {
+    const raw = readFileSync(canonicalContractFile, 'utf8')
+    const parsed = parseCorrectionContract(/```/.test(raw) ? raw : `\`\`\`json\n${raw}\n\`\`\``)
+    if (!parsed.ok) return { ok: false, errors: parsed.errors }
+    return { ok: true, contract: parsed.contract }
+  } catch (error) {
+    return {
+      ok: false,
+      errors: [
+        `unable to read --canonical-contract-file: ${error instanceof Error ? error.message : String(error)}`,
+      ],
+    }
+  }
+}
+
 function hasNonEmptyField(body, field) {
   const escapedField = field.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   if (field.startsWith('###')) {
@@ -184,6 +224,25 @@ function main() {
   const { errors, role } = validationErrors(body)
   if (errors.length) {
     for (const error of errors) process.stderr.write(`ERROR: ${error}\n`)
+    process.exitCode = 1
+    return
+  }
+
+  const canonical = loadCanonicalContract(parsed.options.canonicalContractFile)
+  if (!canonical.ok) {
+    for (const error of canonical.errors) process.stderr.write(`ERROR: ${error}\n`)
+    process.exitCode = 1
+    return
+  }
+
+  const correction = validateCorrectionRoleComment({
+    role,
+    body,
+    diffFiles: parsed.options.diffFiles,
+    canonicalContract: canonical.contract,
+  })
+  if (!correction.ok) {
+    for (const error of correction.errors) process.stderr.write(`ERROR: ${error}\n`)
     process.exitCode = 1
     return
   }

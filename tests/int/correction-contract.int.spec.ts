@@ -1,0 +1,305 @@
+import { describe, expect, it } from 'vitest'
+
+/* eslint-disable @typescript-eslint/no-explicit-any -- untyped runtime .mjs boundary */
+import * as correctionContractModule from '../../scripts/correction-contract.mjs'
+
+const {
+  parseCorrectionContract,
+  parseCorrectionEvidenceMap,
+  validateFindingIdentity,
+  buildCorrectionCapsule,
+  validateFindingEvidence,
+  isCorrectionPhaseResult,
+} = correctionContractModule as unknown as Record<string, (...args: any[]) => any>
+
+const reviewedHead = 'abc1234deadbeef'
+
+const findings = [
+  {
+    id: 'MC-R1-001',
+    canonical_summary: 'supplied-timezone month boundaries are incorrect',
+    source_thread: 'https://github.com/acme/repo/pull/12#discussion_r1',
+    required_evidence: ['Bangkok exact UTC boundary', 'negative-offset DST boundary'],
+    expected_areas: ['monthly exception boundary calculation'],
+    prohibited_areas: ['src/unrelated/reversal.ts'],
+  },
+  {
+    id: 'MC-R1-002',
+    canonical_summary: 'missing focused regression for DST edge',
+    source_thread: 'https://github.com/acme/repo/pull/12#discussion_r2',
+    required_evidence: ['focused DST regression test'],
+    expected_areas: ['timezone tests'],
+    prohibited_areas: [],
+  },
+]
+
+function contractJson(overrides: Record<string, unknown> = {}) {
+  return {
+    schema_version: 1,
+    reviewed_head: reviewedHead,
+    findings,
+    ...overrides,
+  }
+}
+
+function verdictBody(contract = contractJson()) {
+  return `## REVIEW_VERDICT
+### Task log
+- Timestamp: 2026-07-20T12:00:00+07:00
+- Task / Issue: #136
+- Phase: Reviewer
+- Executing role: Reviewer
+**PR / base / head:** https://github.com/acme/repo/pull/12 · \`main\` · \`${reviewedHead}\`
+**Verdict:** CORRECTION REQUIRED
+**Findings:** Important: timezone boundaries
+**Gates:** exact-head CI https://example.test/ci → pass
+**Next:** Dev posts correction RESULT
+
+\`\`\`json
+${JSON.stringify(contract, null, 2)}
+\`\`\`
+`
+}
+
+function evidenceMap(overrides: Record<string, unknown> = {}) {
+  return {
+    schema_version: 1,
+    correction_base: reviewedHead,
+    finding_results: {
+      'MC-R1-001': {
+        changed_files: ['src/lib/month-boundary.ts'],
+        tests: ['pnpm exec vitest run tests/int/month-boundary.int.spec.ts'],
+        status: 'CLAIMED_RESOLVED',
+      },
+      'MC-R1-002': {
+        changed_files: ['tests/int/month-boundary.int.spec.ts'],
+        tests: ['pnpm exec vitest run tests/int/month-boundary.int.spec.ts'],
+        status: 'CLAIMED_RESOLVED',
+      },
+    },
+    ...overrides,
+  }
+}
+
+function resultBody(map = evidenceMap(), extras = '') {
+  return `## RESULT
+### Task log
+- Timestamp: 2026-07-20T13:00:00+07:00
+- Task / Issue: #136
+- Phase: Dev (correction)
+- Executing role: Dev / Builder
+**Completed:** Correction
+**Summary:** Addressed immutable findings with explicit evidence.
+**Next:** Delta Reviewer posts REVIEW_VERDICT
+${extras}
+\`\`\`json
+${JSON.stringify(map, null, 2)}
+\`\`\`
+`
+}
+
+describe('correction-contract pure module', () => {
+  it('parses exact canonical identity from a REVIEW_VERDICT block', () => {
+    const parsed = parseCorrectionContract(verdictBody())
+    expect(parsed.ok).toBe(true)
+    expect(parsed.contract.reviewed_head).toBe(reviewedHead)
+    expect(parsed.contract.findings.map((finding: { id: string }) => finding.id)).toEqual([
+      'MC-R1-001',
+      'MC-R1-002',
+    ])
+    expect(parsed.contract.findings[0].canonical_summary).toBe(
+      'supplied-timezone month boundaries are incorrect',
+    )
+  })
+
+  it('rejects changed canonical summaries before editing', () => {
+    const canonical = parseCorrectionContract(verdictBody()).contract
+    const candidate = structuredClone(canonical)
+    candidate.findings[0].canonical_summary = 'timezone handling needs a different approach'
+
+    const identity = validateFindingIdentity(canonical, candidate)
+    expect(identity.ok).toBe(false)
+    expect(identity.errors.join(' ')).toMatch(/canonical_summary|reinterpret|changed summary/i)
+  })
+
+  it('rejects finding rename, addition, omission, and substitution', () => {
+    const canonical = parseCorrectionContract(verdictBody()).contract
+
+    const renamed = structuredClone(canonical)
+    renamed.findings[0].id = 'MC-R1-099'
+    expect(validateFindingIdentity(canonical, renamed).ok).toBe(false)
+
+    const added = structuredClone(canonical)
+    added.findings.push({
+      id: 'MC-R1-003',
+      canonical_summary: 'extra finding',
+      source_thread: 'https://example.test/r3',
+      required_evidence: ['x'],
+    })
+    expect(validateFindingIdentity(canonical, added).ok).toBe(false)
+
+    const omitted = structuredClone(canonical)
+    omitted.findings = omitted.findings.slice(0, 1)
+    expect(validateFindingIdentity(canonical, omitted).ok).toBe(false)
+
+    const substituted = structuredClone(canonical)
+    substituted.findings[1] = {
+      id: 'MC-R1-002',
+      canonical_summary: 'totally different defect',
+      source_thread: 'https://example.test/r2',
+      required_evidence: ['y'],
+    }
+    expect(validateFindingIdentity(canonical, substituted).ok).toBe(false)
+  })
+
+  it('rejects explicitly prohibited scope present in the correction diff', () => {
+    const contract = parseCorrectionContract(verdictBody()).contract
+    const map = evidenceMap()
+    const validation = validateFindingEvidence(contract, map, [
+      'src/lib/month-boundary.ts',
+      'tests/int/month-boundary.int.spec.ts',
+      'src/unrelated/reversal.ts',
+    ])
+
+    expect(validation.ok).toBe(false)
+    expect(validation.errors.join(' ')).toMatch(/prohibited/i)
+  })
+
+  it('keeps partial corrections UNPROVEN instead of Done', () => {
+    const contract = parseCorrectionContract(verdictBody()).contract
+    const map = evidenceMap({
+      finding_results: {
+        'MC-R1-001': {
+          changed_files: ['src/lib/month-boundary.ts'],
+          tests: ['pnpm exec vitest run tests/int/month-boundary.int.spec.ts'],
+          status: 'CLAIMED_RESOLVED',
+        },
+        'MC-R1-002': {
+          changed_files: [],
+          tests: [],
+          status: 'UNPROVEN',
+        },
+      },
+    })
+
+    const validation = validateFindingEvidence(contract, map, [
+      'src/lib/month-boundary.ts',
+    ], { body: resultBody(map, '**AC audit:** Done\n') })
+
+    expect(validation.ok).toBe(false)
+    expect(validation.errors.join(' ')).toMatch(/UNPROVEN|Done/i)
+  })
+
+  it('allows an alternative valid implementation area with explicit evidence', () => {
+    const contract = parseCorrectionContract(verdictBody()).contract
+    const map = evidenceMap({
+      finding_results: {
+        'MC-R1-001': {
+          changed_files: ['src/lib/calendar/boundary-engine.ts'],
+          tests: ['pnpm exec vitest run tests/int/boundary-engine.int.spec.ts'],
+          status: 'CLAIMED_RESOLVED',
+        },
+        'MC-R1-002': {
+          changed_files: ['tests/int/boundary-engine.int.spec.ts'],
+          tests: ['pnpm exec vitest run tests/int/boundary-engine.int.spec.ts'],
+          status: 'CLAIMED_RESOLVED',
+        },
+      },
+    })
+
+    const validation = validateFindingEvidence(contract, map, [
+      'src/lib/calendar/boundary-engine.ts',
+      'tests/int/boundary-engine.int.spec.ts',
+    ])
+
+    expect(validation.ok).toBe(true)
+  })
+
+  it('does not treat green CI or file names as semantic proof for a substituted objective', () => {
+    const contract = parseCorrectionContract(verdictBody()).contract
+    const map = evidenceMap({
+      finding_results: {
+        'MC-R1-001': {
+          changed_files: ['src/lib/unrelated-feature.ts'],
+          tests: ['CI green on substituted objective'],
+          status: 'CLAIMED_RESOLVED',
+        },
+        'MC-R1-099': {
+          changed_files: ['src/lib/unrelated-feature.ts'],
+          tests: ['pnpm run check'],
+          status: 'CLAIMED_RESOLVED',
+        },
+      },
+    })
+
+    const validation = validateFindingEvidence(contract, map, ['src/lib/unrelated-feature.ts'])
+    expect(validation.ok).toBe(false)
+    expect(validation.errors.join(' ')).toMatch(/unknown|omitted|substituted|missing/i)
+  })
+
+  it('reconstructs the same immutable finding set for a fresh session capsule', () => {
+    const first = parseCorrectionContract(verdictBody())
+    const second = parseCorrectionContract(verdictBody())
+    expect(first.ok && second.ok).toBe(true)
+
+    const identity = validateFindingIdentity(first.contract, second.contract)
+    expect(identity.ok).toBe(true)
+
+    const capsule = buildCorrectionCapsule(first.contract, {
+      issueNumber: '136',
+      prUrl: 'https://github.com/acme/repo/pull/12',
+    })
+    expect(capsule.lines.join('\n')).toContain('MC-R1-001')
+    expect(capsule.lines.join('\n')).toContain('supplied-timezone month boundaries are incorrect')
+    expect(capsule.playbackLine).toBe('Playback verified: 2/2 canonical findings')
+    expect(capsule.lines.join('\n')).not.toMatch(/full Issue body|command transcript/i)
+  })
+
+  it('leaves non-correction comments untouched', () => {
+    const normalResult = `## RESULT
+### Task log
+- Timestamp: 2026-07-20T13:00:00+07:00
+- Task / Issue: #136
+- Phase: Dev (implementation)
+- Executing role: Dev / Builder
+**Completed:** Implementation
+**Summary:** Bounded change.
+**Next:** Reviewer posts REVIEW_VERDICT
+`
+    expect(isCorrectionPhaseResult(normalResult)).toBe(false)
+    expect(parseCorrectionContract(normalResult).ok).toBe(false)
+    expect(parseCorrectionEvidenceMap(normalResult).ok).toBe(false)
+  })
+
+  it('rejects CLAIMED_RESOLVED without changed-file or test evidence', () => {
+    const contract = parseCorrectionContract(verdictBody()).contract
+    const map = evidenceMap({
+      finding_results: {
+        'MC-R1-001': {
+          changed_files: [],
+          tests: ['pnpm exec vitest run tests/int/month-boundary.int.spec.ts'],
+          status: 'CLAIMED_RESOLVED',
+        },
+        'MC-R1-002': {
+          changed_files: ['tests/int/month-boundary.int.spec.ts'],
+          tests: [],
+          status: 'CLAIMED_RESOLVED',
+        },
+      },
+    })
+
+    const validation = validateFindingEvidence(contract, map, [
+      'tests/int/month-boundary.int.spec.ts',
+    ])
+    expect(validation.ok).toBe(false)
+    expect(validation.errors.join(' ')).toMatch(/CLAIMED_RESOLVED|evidence/i)
+  })
+
+  it('rejects referenced changed files absent from the correction diff', () => {
+    const contract = parseCorrectionContract(verdictBody()).contract
+    const map = evidenceMap()
+    const validation = validateFindingEvidence(contract, map, ['src/lib/month-boundary.ts'])
+    expect(validation.ok).toBe(false)
+    expect(validation.errors.join(' ')).toMatch(/absent|not in|diff/i)
+  })
+})

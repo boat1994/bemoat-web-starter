@@ -41,6 +41,23 @@ const bodies = {
 **Findings:** Critical: None · Important: missing test
 **Gates:** exact-head CI https://example.test/ci → fail
 **Next:** Mission Control posts HANDOFF
+
+\`\`\`json
+{
+  "schema_version": 1,
+  "reviewed_head": "abc1234",
+  "findings": [
+    {
+      "id": "MC-R1-001",
+      "canonical_summary": "missing focused regression coverage",
+      "source_thread": "https://github.com/acme/repo/pull/12#discussion_r1",
+      "required_evidence": ["focused failing-then-passing test"],
+      "expected_areas": ["tests/int"],
+      "prohibited_areas": ["src/unrelated"]
+    }
+  ]
+}
+\`\`\`
 `,
 }
 
@@ -193,7 +210,7 @@ describe('bemoat:issue:comment', () => {
       '--repo',
       'acme/repo',
       '--body-file',
-      expect.stringMatching(/^\/tmp\//),
+      expect.stringMatching(/(?:^\/tmp\/|\/T\/bemoat-role-comment-)/),
     ])
   })
 
@@ -230,6 +247,99 @@ describe('bemoat:issue:comment', () => {
     })
     expect(result.status).not.toBe(0)
     expect(result.stderr).toContain('Verdict')
+  })
+
+  it('rejects CORRECTION REQUIRED without an immutable finding contract', () => {
+    const result = run(['115', '--check'], {
+      input: bodies.REVIEW_VERDICT.replace(/```json[\s\S]*```/, ''),
+    })
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain('missing correction finding contract')
+  })
+
+  it('rejects correction RESULT evidence maps that omit finding IDs', () => {
+    const body = `## RESULT
+### Task log
+- Timestamp: 2026-07-16T12:00:00+07:00
+- Task / Issue: #115
+- Phase: Dev (correction)
+- Executing role: Dev / Builder
+**Completed:** Correction
+**Summary:** Partial map only.
+**Next:** Delta Reviewer posts REVIEW_VERDICT
+
+\`\`\`json
+{
+  "schema_version": 1,
+  "correction_base": "abc1234",
+  "finding_results": {
+    "MC-R1-001": {
+      "changed_files": ["tests/int/example.int.spec.ts"],
+      "tests": ["pnpm exec vitest run tests/int/example.int.spec.ts"],
+      "status": "CLAIMED_RESOLVED"
+    }
+  }
+}
+\`\`\`
+`
+    const contractFile = tempFile(
+      'canonical.json',
+      JSON.stringify({
+        schema_version: 1,
+        reviewed_head: 'abc1234',
+        findings: [
+          {
+            id: 'MC-R1-001',
+            canonical_summary: 'missing focused regression coverage',
+            source_thread: 'https://github.com/acme/repo/pull/12#discussion_r1',
+            required_evidence: ['focused failing-then-passing test'],
+          },
+          {
+            id: 'MC-R1-002',
+            canonical_summary: 'second immutable finding',
+            source_thread: 'https://github.com/acme/repo/pull/12#discussion_r2',
+            required_evidence: ['second evidence'],
+          },
+        ],
+      }),
+    )
+    const result = run(
+      ['115', '--check', '--canonical-contract-file', contractFile, '--diff-file', 'tests/int/example.int.spec.ts'],
+      { input: body },
+    )
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toMatch(/omitted finding id/i)
+  })
+
+  it('rejects UNPROVEN correction evidence paired with a free-form Done claim', () => {
+    const body = `## RESULT
+### Task log
+- Timestamp: 2026-07-16T12:00:00+07:00
+- Task / Issue: #115
+- Phase: Dev (correction)
+- Executing role: Dev / Builder
+**Completed:** Correction
+**Summary:** Partial correction.
+**AC audit:** Done
+**Next:** Delta Reviewer posts REVIEW_VERDICT
+
+\`\`\`json
+{
+  "schema_version": 1,
+  "correction_base": "abc1234",
+  "finding_results": {
+    "MC-R1-001": {
+      "changed_files": [],
+      "tests": [],
+      "status": "UNPROVEN"
+    }
+  }
+}
+\`\`\`
+`
+    const result = run(['115', '--check'], { input: body })
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toMatch(/UNPROVEN|Done/i)
   })
 
   it('requires acknowledgement only for a length warning', () => {

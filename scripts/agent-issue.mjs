@@ -4,6 +4,10 @@ import { dirname, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { analyzeReconciliation, findLatestRoleComment } from './mission-control-reconcile.mjs'
+import {
+  buildCorrectionCapsule,
+  parseCorrectionContract,
+} from './correction-contract.mjs'
 
 const moduleDir = dirname(fileURLToPath(import.meta.url))
 const branchSafetyScriptPath = resolve(moduleDir, 'check-branch-safety.sh')
@@ -29,14 +33,37 @@ function run(command, args, options = {}) {
   }
 }
 
-function parseIssueNumber(argv = process.argv.slice(2)) {
-  const issueNumber = argv.find((arg) => arg !== '--')?.trim()
+function parseAgentIssueArgs(argv = process.argv.slice(2)) {
+  const tokens = argv.filter((arg) => arg !== '--')
+  let phase = null
+  const positional = []
 
-  if (!issueNumber || !/^[1-9]\d*$/.test(issueNumber)) {
-    return null
+  for (let index = 0; index < tokens.length; index += 1) {
+    const argument = tokens[index]
+    if (argument === '--phase') {
+      const value = tokens[index + 1]
+      if (!value || value.startsWith('-')) {
+        return { error: '--phase requires a value' }
+      }
+      if (phase) return { error: '--phase may be provided only once' }
+      phase = value
+      index += 1
+      continue
+    }
+    if (argument.startsWith('-')) {
+      return { error: `unexpected argument: ${argument}` }
+    }
+    positional.push(argument)
   }
 
-  return issueNumber
+  if (positional.length !== 1 || !/^[1-9]\d*$/.test(positional[0])) {
+    return { error: 'missing or invalid issue number' }
+  }
+  if (phase !== null && phase !== 'correction') {
+    return { error: '--phase supports only correction' }
+  }
+
+  return { issueNumber: positional[0], phase }
 }
 
 function getCurrentBranch(cwd = process.cwd()) {
@@ -1386,23 +1413,111 @@ function formatProgressSection(progressAnalysis) {
   return lines
 }
 
+function runCorrectionPhasePreflight({
+  cwd,
+  env,
+  issueNumber,
+  branchName,
+  statusShort,
+  dirty,
+  branchSafety,
+  issueMetadata,
+  fallbackIssueUrl,
+}) {
+  const output = [
+    'Bemoat correction-mode preflight',
+    `Issue number: ${issueNumber}`,
+    `Current branch: ${branchName}`,
+    `Working tree: ${dirty ? 'not clean' : 'clean'}`,
+  ]
+
+  if (!branchSafety.ok) {
+    output.push('Stop: branch safety failed before correction edit authorization.')
+    output.push(...(branchSafety.lines.length > 0 ? branchSafety.lines : ['<no branch safety output>']))
+    return { ok: false, exitCode: 1, usageError: false, output, issueNumber, branchName, statusShort, issueMetadata }
+  }
+
+  if (dirty) {
+    output.push('Stop: dirty working tree blocks correction edit authorization.')
+    return { ok: false, exitCode: 1, usageError: false, output, issueNumber, branchName, statusShort, issueMetadata }
+  }
+
+  const commentResult = fetchIssueComments(cwd, issueNumber, env)
+  if (!commentResult.ok) {
+    output.push(`Stop: cannot reconstruct canonical findings (${commentResult.reason}).`)
+    return { ok: false, exitCode: 1, usageError: false, output, issueNumber, branchName, statusShort, issueMetadata }
+  }
+
+  const latestVerdict = findLatestRoleComment(commentResult.comments, 'REVIEW_VERDICT')
+  if (!latestVerdict?.comment?.body) {
+    output.push('Stop: missing correction-eligible REVIEW_VERDICT with immutable findings.')
+    return { ok: false, exitCode: 1, usageError: false, output, issueNumber, branchName, statusShort, issueMetadata }
+  }
+
+  if (latestVerdict.parsed?.verdict !== 'CORRECTION REQUIRED') {
+    output.push(
+      `Stop: latest REVIEW_VERDICT is ${latestVerdict.parsed?.verdict ?? 'unknown'}, not CORRECTION REQUIRED.`,
+    )
+    return { ok: false, exitCode: 1, usageError: false, output, issueNumber, branchName, statusShort, issueMetadata }
+  }
+
+  const parsedContract = parseCorrectionContract(latestVerdict.comment.body)
+  if (!parsedContract.ok) {
+    output.push('Stop: canonical finding evidence is missing, malformed, or inconsistent.')
+    for (const error of parsedContract.errors) output.push(`- ${error}`)
+    return { ok: false, exitCode: 1, usageError: false, output, issueNumber, branchName, statusShort, issueMetadata }
+  }
+
+  const prUrl =
+    latestVerdict.comment.body.match(/https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/)?.[0] ??
+    (latestVerdict.parsed?.prNumber ? `PR #${latestVerdict.parsed.prNumber}` : null)
+  const issueRef =
+    issueMetadata.available && issueMetadata.url
+      ? issueMetadata.url
+      : fallbackIssueUrl || `#${issueNumber}`
+
+  const capsule = buildCorrectionCapsule(parsedContract.contract, {
+    issueNumber,
+    prUrl: prUrl || '(not provided)',
+  })
+
+  return {
+    ok: true,
+    exitCode: 0,
+    usageError: false,
+    output: [
+      'Bemoat correction-mode preflight',
+      `Issue: ${issueRef}`,
+      ...capsule.lines,
+      'Edit authorization: granted for the immutable finding set only.',
+    ],
+    issueNumber,
+    branchName,
+    statusShort,
+    issueMetadata,
+    correctionContract: parsedContract.contract,
+  }
+}
+
 export function runAgentIssuePreflight({
   cwd = process.cwd(),
   argv = process.argv.slice(2),
   env = process.env,
 } = {}) {
-  const issueNumber = parseIssueNumber(argv)
-  if (!issueNumber) {
+  const parsedArgs = parseAgentIssueArgs(argv)
+  if (parsedArgs.error) {
     return {
       ok: false,
       exitCode: 1,
       usageError: true,
       output: [
-        'Issue preflight failed: missing or invalid issue number.',
-        'Usage: pnpm run bemoat:agent:issue -- <issue-number>',
+        `Issue preflight failed: ${parsedArgs.error}.`,
+        'Usage: pnpm run bemoat:agent:issue -- <issue-number> [--phase correction]',
       ],
     }
   }
+
+  const { issueNumber, phase } = parsedArgs
 
   const branchName = getCurrentBranch(cwd)
   const statusShort = getStatusShort(cwd)
@@ -1415,6 +1530,20 @@ export function runAgentIssuePreflight({
       : null
   const branchSafety = runBranchSafety(cwd)
   const devBranchAvailable = hasDevBranch(cwd)
+
+  if (phase === 'correction') {
+    return runCorrectionPhasePreflight({
+      cwd,
+      env,
+      issueNumber,
+      branchName,
+      statusShort,
+      dirty,
+      branchSafety,
+      issueMetadata,
+      fallbackIssueUrl,
+    })
+  }
 
   const progressAnalysis =
     issueMetadata.available && issueMetadata.body

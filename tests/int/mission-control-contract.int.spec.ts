@@ -65,6 +65,29 @@ describe('mission-control contract guard', () => {
     expect(violations.some((v: { rule: string; message: string }) => v.rule === 'MC011')).toBe(true)
   })
 
+  it('fails when immutable correction transport invariants are incomplete', async () => {
+    const mod = await import('../../scripts/guard-mission-control-contract.mjs')
+    expect(mod.REQUIRED_CORRECTION_GUIDE_PHRASES).toEqual(
+      expect.arrayContaining([
+        'Reviewers own immutable finding identity',
+        'Correction agents may not rename, reinterpret, regroup, substitute, add, or omit findings',
+      ]),
+    )
+
+    const guide = readFileSync(resolve(process.cwd(), mod.GUIDE_PATH), 'utf8')
+    const missingIdentity = guide.replace(
+      'Reviewers own immutable finding identity',
+      'Findings may be freely rewritten during correction',
+    )
+    const guideViolations = mod.scanGuideContent(mod.GUIDE_PATH, missingIdentity)
+    expect(guideViolations.some((v: { rule: string }) => v.rule === 'MC012')).toBe(true)
+
+    const contract = readFileSync(resolve(process.cwd(), mod.ROLE_HANDOFF_PATH), 'utf8')
+    const missingEvidenceMap = contract.replace('### Correction RESULT evidence map', '### Correction notes')
+    const handoffViolations = mod.scanRoleHandoffContract(mod.ROLE_HANDOFF_PATH, missingEvidenceMap)
+    expect(handoffViolations.some((v: { rule: string }) => v.rule === 'MC011')).toBe(true)
+  })
+
   it('passes on the current repository', async () => {
     const mod = await import('../../scripts/guard-mission-control-contract.mjs')
     const violations = mod.runMissionControlContractGuard()

@@ -1105,4 +1105,101 @@ esac
     expect(analysis.blockers.join(' ')).toContain('STATE_CONFLICT: RESULT PR identifier missing')
     expect(analysis.report.reconciliation?.proposal).toBeNull()
   })
+
+  it('prints a compact correction capsule when --phase correction reconstructs canonical findings', () => {
+    const root = createRepo('feature/136-immutable-correction-contract')
+    const verdictBody = `## REVIEW_VERDICT
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · \`main\` · \`abc1234\`
+**Verdict:** CORRECTION REQUIRED
+**Findings:** Important: boundary bug
+**Gates:** exact-head CI https://example.test/ci → pass
+**Next:** Dev posts correction RESULT
+
+\`\`\`json
+{
+  "schema_version": 1,
+  "reviewed_head": "abc1234",
+  "findings": [
+    {
+      "id": "MC-R1-001",
+      "canonical_summary": "supplied-timezone month boundaries are incorrect",
+      "source_thread": "https://github.com/boat1994/bemoat-web-starter/pull/200#discussion_r1",
+      "required_evidence": ["Bangkok exact UTC boundary"],
+      "expected_areas": ["month boundary calculation"],
+      "prohibited_areas": ["src/unrelated/reversal.ts"]
+    }
+  ]
+}
+\`\`\`
+`
+    const commentsPayload = JSON.stringify({
+      comments: [{ body: verdictBody, createdAt: '2026-07-20T10:00:00+07:00' }],
+    }).replace(/'/g, `'\"'\"'`)
+
+    const result = runAgentIssue(root, ['136', '--phase', 'correction'], {
+      PATH: withStubbedGh(
+        root,
+        `#!/usr/bin/env sh
+case "$*" in
+  *"issue view 136"*"title,url,body,labels"*)
+    printf '%s' '{"title":"Immutable correction contract","url":"https://github.com/boat1994/bemoat-web-starter/issues/136","body":"## Goal\\nImplement Minimal Hybrid.","labels":[]}'
+    ;;
+  *"issue view 136"*"comments"*)
+    printf '%s' '${commentsPayload}'
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`,
+      ),
+    })
+
+    expect(result.status, result.stderr || result.stdout).toBe(0)
+    expect(result.stdout).toContain('Correction capsule')
+    expect(result.stdout).toContain('Playback verified: 1/1 canonical findings')
+    expect(result.stdout).toContain('MC-R1-001: supplied-timezone month boundaries are incorrect')
+    expect(result.stdout).not.toContain('Docs to read before implementation:')
+  })
+
+  it('fails closed in correction mode when canonical findings are missing', () => {
+    const root = createRepo('feature/136-immutable-correction-contract')
+    const commentsPayload = JSON.stringify({
+      comments: [
+        {
+          body: `## REVIEW_VERDICT
+**Verdict:** CORRECTION REQUIRED
+**Findings:** Important: boundary bug
+**Gates:** exact-head CI → pass
+**Next:** Dev
+`,
+          createdAt: '2026-07-20T10:00:00+07:00',
+        },
+      ],
+    }).replace(/'/g, `'\"'\"'`)
+
+    const result = runAgentIssue(root, ['136', '--phase', 'correction'], {
+      PATH: withStubbedGh(
+        root,
+        `#!/usr/bin/env sh
+case "$*" in
+  *"issue view 136"*"title,url,body,labels"*)
+    printf '%s' '{"title":"Immutable correction contract","url":"https://github.com/boat1994/bemoat-web-starter/issues/136","body":"","labels":[]}'
+    ;;
+  *"issue view 136"*"comments"*)
+    printf '%s' '${commentsPayload}'
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`,
+      ),
+    })
+
+    expect(result.status).toBe(1)
+    expect(result.stdout).toContain('canonical finding evidence is missing')
+  })
 })
