@@ -10,6 +10,7 @@ const {
   buildCorrectionCapsule,
   validateFindingEvidence,
   isCorrectionPhaseResult,
+  validateCorrectionRoleComment,
 } = correctionContractModule as unknown as Record<string, (...args: any[]) => any>
 
 const reviewedHead = 'abc1234deadbeef'
@@ -301,5 +302,67 @@ describe('correction-contract pure module', () => {
     const validation = validateFindingEvidence(contract, map, ['src/lib/month-boundary.ts'])
     expect(validation.ok).toBe(false)
     expect(validation.errors.join(' ')).toMatch(/absent|not in|diff/i)
+  })
+
+  it('rejects whitespace-colliding finding IDs instead of silently accepting duplicates (MC-R1-003)', () => {
+    const contract = contractJson({
+      findings: [
+        findings[0],
+        { ...findings[1], id: `${findings[0].id} ` },
+      ],
+    })
+
+    const parsed = parseCorrectionContract(verdictBody(contract))
+    expect(parsed.ok).toBe(false)
+    expect(parsed.errors.join(' ')).toMatch(/duplicate finding id/i)
+  })
+
+  it('rejects a malformed non-string entry in expected_areas instead of silently filtering it (MC-R1-003)', () => {
+    const contract = contractJson({
+      findings: [
+        { ...findings[0], expected_areas: ['valid/area', 42] },
+        findings[1],
+      ],
+    })
+
+    const parsed = parseCorrectionContract(verdictBody(contract))
+    expect(parsed.ok).toBe(false)
+    expect(parsed.errors.join(' ')).toMatch(/expected_areas/i)
+  })
+
+  it('rejects an empty-string entry in prohibited_areas instead of silently filtering it (MC-R1-003)', () => {
+    const contract = contractJson({
+      findings: [
+        findings[0],
+        { ...findings[1], prohibited_areas: ['   '] },
+      ],
+    })
+
+    const parsed = parseCorrectionContract(verdictBody(contract))
+    expect(parsed.ok).toBe(false)
+    expect(parsed.errors.join(' ')).toMatch(/prohibited_areas/i)
+  })
+
+  it('fails closed without a canonical contract instead of bypassing correction RESULT identity, base, and diff validation (MC-R1-001)', () => {
+    const map = evidenceMap({
+      correction_base: 'wrong-base',
+      finding_results: {
+        'MC-R1-099': {
+          changed_files: ['src/unrelated/reversal.ts'],
+          tests: ['pnpm run check'],
+          status: 'CLAIMED_RESOLVED',
+        },
+      },
+    })
+
+    const result = validateCorrectionRoleComment({
+      role: 'RESULT',
+      body: resultBody(map),
+      diffFiles: ['src/unrelated/reversal.ts'],
+      canonicalContract: null,
+    })
+
+    expect(result.ok).toBe(false)
+    expect(result.errors.join(' ')).toMatch(/canonical (correction )?contract/i)
   })
 })

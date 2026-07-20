@@ -1413,6 +1413,70 @@ function formatProgressSection(progressAnalysis) {
   return lines
 }
 
+function extractVerdictPrBaseAndHead(verdictBody) {
+  const match = verdictBody.match(
+    /\*\*PR\s*\/\s*base\s*\/\s*head:\*\*[^\n]*·\s*`([^`]+)`\s*·\s*`([0-9a-f]{7,40})`/i,
+  )
+  return { base: match?.[1]?.trim() ?? null, head: match?.[2] ?? null }
+}
+
+/**
+ * Reconcile the immutable contract reviewed_head against the visible verdict
+ * head, then against uniquely identified live PR evidence, before granting
+ * correction edit authorization. Fails closed for missing or mismatched PR
+ * identity, head, base, state, or unavailable required evidence.
+ * GitHub orchestration stays here — the correction-contract module remains pure.
+ */
+function reconcileCorrectionPrEvidence({ cwd, env, verdictBody, contractReviewedHead }) {
+  const prNumber =
+    verdictBody.match(/https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/(\d+)/)?.[1] ??
+    verdictBody.match(/\bPR\s*#(\d+)\b/i)?.[1] ??
+    null
+  if (!prNumber) {
+    return { ok: false, errors: ['REVIEW_VERDICT does not uniquely identify a live PR by number or URL'] }
+  }
+
+  const { base: verdictBase, head: verdictHead } = extractVerdictPrBaseAndHead(verdictBody)
+  if (!verdictHead) {
+    return {
+      ok: false,
+      errors: ['REVIEW_VERDICT is missing a `PR / base / head` line with an exact head SHA'],
+    }
+  }
+  if (verdictHead !== contractReviewedHead) {
+    return {
+      ok: false,
+      errors: ['REVIEW_VERDICT head contradicts the immutable contract reviewed_head'],
+    }
+  }
+
+  const prResult = fetchPrByReference(cwd, `#${prNumber}`, env)
+  if (!prResult.ok) {
+    return { ok: false, errors: [`live PR evidence is unavailable: ${prResult.reason}`] }
+  }
+
+  const livePr = prResult.pr
+  if (!livePr?.headRefOid || !livePr?.baseRefName || !livePr?.state) {
+    return {
+      ok: false,
+      errors: ['live PR evidence is missing required identity, head, base, or state fields'],
+    }
+  }
+
+  const errors = []
+  if (livePr.headRefOid !== contractReviewedHead) {
+    errors.push('live PR head does not match the immutable contract reviewed_head')
+  }
+  if (verdictBase && livePr.baseRefName !== verdictBase) {
+    errors.push('live PR base does not match the REVIEW_VERDICT approved base')
+  }
+  if (livePr.state !== 'OPEN') {
+    errors.push(`live PR state is ${livePr.state}, not OPEN`)
+  }
+
+  return { ok: errors.length === 0, errors, prNumber, livePr }
+}
+
 function runCorrectionPhasePreflight({
   cwd,
   env,
@@ -1465,6 +1529,18 @@ function runCorrectionPhasePreflight({
   if (!parsedContract.ok) {
     output.push('Stop: canonical finding evidence is missing, malformed, or inconsistent.')
     for (const error of parsedContract.errors) output.push(`- ${error}`)
+    return { ok: false, exitCode: 1, usageError: false, output, issueNumber, branchName, statusShort, issueMetadata }
+  }
+
+  const reconciliation = reconcileCorrectionPrEvidence({
+    cwd,
+    env,
+    verdictBody: latestVerdict.comment.body,
+    contractReviewedHead: parsedContract.contract.reviewed_head,
+  })
+  if (!reconciliation.ok) {
+    output.push('Stop: live PR evidence does not reconcile with the immutable contract head before correction edit authorization.')
+    for (const error of reconciliation.errors) output.push(`- ${error}`)
     return { ok: false, exitCode: 1, usageError: false, output, issueNumber, branchName, statusShort, issueMetadata }
   }
 

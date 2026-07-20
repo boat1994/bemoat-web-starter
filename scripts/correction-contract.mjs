@@ -59,11 +59,11 @@ function findingShapeErrors(finding, index) {
   if (!isStringArray(finding.required_evidence)) {
     errors.push(`${label}.required_evidence must be a non-empty string array`)
   }
-  if (finding.expected_areas !== undefined && !Array.isArray(finding.expected_areas)) {
-    errors.push(`${label}.expected_areas must be an array when present`)
+  if (finding.expected_areas !== undefined && !isStringArray(finding.expected_areas)) {
+    errors.push(`${label}.expected_areas must be an array of non-empty strings when present`)
   }
-  if (finding.prohibited_areas !== undefined && !Array.isArray(finding.prohibited_areas)) {
-    errors.push(`${label}.prohibited_areas must be an array when present`)
+  if (finding.prohibited_areas !== undefined && !isStringArray(finding.prohibited_areas)) {
+    errors.push(`${label}.prohibited_areas must be an array of non-empty strings when present`)
   }
   return errors
 }
@@ -83,12 +83,15 @@ function validateContractShape(candidate) {
   if (!Array.isArray(candidate.findings) || candidate.findings.length === 0) {
     errors.push('findings must be a non-empty array')
   } else {
-    const ids = new Set()
+    const normalizedIds = new Set()
     candidate.findings.forEach((finding, index) => {
       errors.push(...findingShapeErrors(finding, index))
       if (finding && typeof finding === 'object' && typeof finding.id === 'string') {
-        if (ids.has(finding.id)) errors.push(`duplicate finding id: ${finding.id}`)
-        ids.add(finding.id)
+        const normalizedId = finding.id.trim()
+        if (normalizedId && normalizedIds.has(normalizedId)) {
+          errors.push(`duplicate finding id (whitespace-normalized): ${finding.id}`)
+        }
+        normalizedIds.add(normalizedId)
       }
     })
   }
@@ -103,12 +106,8 @@ function validateContractShape(candidate) {
         canonical_summary: String(finding.canonical_summary).trim(),
         source_thread: String(finding.source_thread).trim(),
         required_evidence: [...finding.required_evidence],
-        expected_areas: Array.isArray(finding.expected_areas)
-          ? finding.expected_areas.filter((entry) => typeof entry === 'string')
-          : [],
-        prohibited_areas: Array.isArray(finding.prohibited_areas)
-          ? finding.prohibited_areas.filter((entry) => typeof entry === 'string')
-          : [],
+        expected_areas: Array.isArray(finding.expected_areas) ? [...finding.expected_areas] : [],
+        prohibited_areas: Array.isArray(finding.prohibited_areas) ? [...finding.prohibited_areas] : [],
       })),
     },
   }
@@ -421,31 +420,15 @@ export function validateCorrectionRoleComment({
       return { ok: false, errors }
     }
 
-    let contract = canonicalContract
-    if (!contract) {
-      // Identity against the evidence map keys alone cannot recover summaries.
-      // When only the RESULT is supplied, enforce map shape + CLAIMED_RESOLVED evidence presence.
-      for (const [id, entry] of Object.entries(evidence.evidence.finding_results)) {
-        if (entry.status === FINDING_STATUS.CLAIMED_RESOLVED) {
-          if (!entry.changed_files.length || !entry.tests.length) {
-            errors.push(
-              `CLAIMED_RESOLVED requires non-empty changed_files and tests evidence for ${id}`,
-            )
-          }
-        }
-      }
-      if (/^\*\*AC audit:\*\*\s*Done\s*$/im.test(body)) {
-        const hasUnproven = Object.values(evidence.evidence.finding_results).some(
-          (entry) => entry.status === FINDING_STATUS.UNPROVEN,
-        )
-        if (hasUnproven) {
-          errors.push('unsupported free-form Done claim conflicts with UNPROVEN finding evidence')
-        }
-      }
-      return { ok: errors.length === 0, errors }
+    if (!canonicalContract) {
+      errors.push(
+        'a reconstructed canonical correction contract is required to validate a correction RESULT; ' +
+          'omitting it does not bypass identity, base, diff, or prohibited-scope validation',
+      )
+      return { ok: false, errors }
     }
 
-    const validation = validateFindingEvidence(contract, evidence.evidence, diffFiles, { body })
+    const validation = validateFindingEvidence(canonicalContract, evidence.evidence, diffFiles, { body })
     if (!validation.ok) errors.push(...validation.errors)
   }
 
