@@ -1,15 +1,100 @@
-import { readFileSync } from 'node:fs'
+import { chmodSync, readFileSync } from 'node:fs'
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve, dirname } from 'node:path'
+import { spawnSync } from 'node:child_process'
 
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 
 const fixturesRoot = resolve(process.cwd(), 'tests/fixtures/planning')
+const tempRoots: string[] = []
 
 function readFixture(name: string) {
   return readFileSync(join(fixturesRoot, name), 'utf8')
 }
+
+function createRepo() {
+  const root = mkdtempSync(join(tmpdir(), 'planning-contract-live-'))
+  tempRoots.push(root)
+
+  expect(spawnSync('git', ['init', '-b', 'main'], { cwd: root, encoding: 'utf8' }).status).toBe(0)
+  expect(
+    spawnSync(
+      'git',
+      ['remote', 'add', 'origin', 'https://github.com/boat1994/bemoat-web-starter.git'],
+      { cwd: root, encoding: 'utf8' },
+    ).status,
+  ).toBe(0)
+
+  return root
+}
+
+function writeExecutable(filePath: string, content: string) {
+  writeFileSync(filePath, content)
+  chmodSync(filePath, 0o755)
+}
+
+function withStubbedGh(root: string, content: string) {
+  const binDir = mkdtempSync(join(tmpdir(), 'planning-contract-gh-bin-'))
+  tempRoots.push(binDir)
+  mkdirSync(binDir, { recursive: true })
+  writeExecutable(join(binDir, 'gh'), content)
+  return `${binDir}:${process.env.PATH ?? ''}`
+}
+
+function managedState(overrides: Record<string, string> = {}) {
+  const fields: Record<string, string> = {
+    schema_version: '1',
+    state: 'IN_PROGRESS',
+    review_cycle: '0',
+    full_review_count: '0',
+    approved_base: 'main',
+    active_task_issue: '"#140"',
+    active_pr: 'null',
+    current_head: 'null',
+    last_reviewed_head: 'null',
+    guide_version: '1.0.0',
+    guide_source_ref: 'main',
+    guide_source_sha: 'null',
+    open_blockers: '[]',
+    follow_up_issues: '[]',
+    next_permitted_action: 'Implement',
+    material_change_status: 'none',
+    updated_at: 'null',
+    updated_by: 'null',
+    ...overrides,
+  }
+
+  return `<!-- bemoat-mission-control-state:start -->\n${Object.entries(fields)
+    .map(([key, value]) => `${key}: ${value}`)
+    .join('\n')}\n<!-- bemoat-mission-control-state:end -->`
+}
+
+function baseContract(overrides: Record<string, unknown> = {}) {
+  return {
+    schema_version: 1,
+    main_issue: null,
+    task_key: 'issue-140',
+    task_issue_strategy: 'existing_dedicated_issue',
+    active_task_issue: '#140',
+    branch_template: 'feature/140-valid-existing',
+    transition_target: 'DONE',
+    planning_base_sha: '2489c7bf6d10ad8c2a724a7920bd83350102ee03',
+    execution_base_rule: 'resolve_live_protected_base_at_dispatch',
+    paired_spec: null,
+    paired_plan: null,
+    ...overrides,
+  }
+}
+
+afterEach(() => {
+  while (tempRoots.length > 0) {
+    const root = tempRoots.pop()
+    if (root) {
+      spawnSync('rm', ['-rf', root], { encoding: 'utf8' })
+    }
+  }
+})
 
 function violationRules(
   violations: Array<{ rule: string }>,
@@ -166,5 +251,368 @@ describe('guard-planning-contract static validation', () => {
     expect(formatted[0]).toMatch(
       /^\[PLAN006\] .+: .+\. Found: .+\. Reason: .+\. Corrective action: .+$/,
     )
+  })
+})
+
+describe('guard-planning-contract live verification', () => {
+  it('emits PLAN008 when active task issue #169 is closed', async () => {
+    const mod = await import('../../scripts/guard-planning-contract.mjs')
+    const cwd = createRepo()
+    const pathValue = withStubbedGh(
+      cwd,
+      `#!/usr/bin/env sh
+case "$*" in
+  *"auth status"*) exit 0 ;;
+  *"--version"*) exit 0 ;;
+  *"issue view 169"*)
+    printf '%s' '{"title":"[Task 10] Homepage Foundation","state":"CLOSED","body":"historical task","url":"https://github.com/boat1994/bemoat-web-starter/issues/169"}'
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`,
+    )
+
+    const result = mod.verifyLiveTaskIdentity({
+      cwd,
+      filePath: 'tests/fixtures/planning/closed-issue-169-reuse.md',
+      contract: baseContract({
+        task_key: 'task-11',
+        active_task_issue: '#169',
+      }),
+      env: { ...process.env, PATH: pathValue },
+    })
+
+    expect(result.ok).toBe(false)
+    expect(result.degradedOffline).toBe(false)
+    expect(result.violations).toHaveLength(1)
+    expect(result.violations[0].rule).toBe('PLAN008')
+    expect(mod.formatPlanningContractViolations(result.violations)[0]).toContain("Found: state 'CLOSED'")
+    expect(mod.formatPlanningContractViolations(result.violations)[0]).toContain(
+      'Reason: Active task issue #169 is closed/terminal. Corrective action: Reopen issue #169 or create a new dedicated open task issue',
+    )
+  })
+
+  it('emits PLAN008 when gh issue lookup fails for repository mismatch', async () => {
+    const mod = await import('../../scripts/guard-planning-contract.mjs')
+    const cwd = createRepo()
+    const pathValue = withStubbedGh(
+      cwd,
+      `#!/usr/bin/env sh
+case "$*" in
+  *"auth status"*) exit 0 ;;
+  *"--version"*) exit 0 ;;
+  *"issue view 170"*)
+    echo 'GraphQL: Could not resolve to a Repository' >&2
+    exit 1
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`,
+    )
+
+    const result = mod.verifyLiveTaskIdentity({
+      cwd,
+      filePath: 'tests/fixtures/planning/valid-existing-issue.md',
+      contract: baseContract({ active_task_issue: '#170', task_key: 'task-11' }),
+      env: { ...process.env, PATH: pathValue },
+    })
+
+    expect(result.ok).toBe(false)
+    expect(result.violations[0].rule).toBe('PLAN008')
+  })
+
+  it('emits PLAN008 when gh returns an issue URL from a different repository', async () => {
+    const mod = await import('../../scripts/guard-planning-contract.mjs')
+    const cwd = createRepo()
+    const pathValue = withStubbedGh(
+      cwd,
+      `#!/usr/bin/env sh
+case "$*" in
+  *"auth status"*) exit 0 ;;
+  *"--version"*) exit 0 ;;
+  *"issue view 170"*)
+    printf '%s' '{"title":"[task-11] Billing API","state":"OPEN","body":"task-11","url":"https://github.com/other-org/other-repo/issues/170"}'
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`,
+    )
+
+    const result = mod.verifyLiveTaskIdentity({
+      cwd,
+      filePath: 'tests/fixtures/planning/valid-existing-issue.md',
+      contract: baseContract({ active_task_issue: '#170', task_key: 'task-11' }),
+      env: { ...process.env, PATH: pathValue },
+    })
+
+    expect(result.ok).toBe(false)
+    expect(result.violations[0].rule).toBe('PLAN008')
+  })
+
+  it('emits PLAN009 when open issue title/body does not identify task_key', async () => {
+    const mod = await import('../../scripts/guard-planning-contract.mjs')
+    const cwd = createRepo()
+    const pathValue = withStubbedGh(
+      cwd,
+      `#!/usr/bin/env sh
+case "$*" in
+  *"auth status"*) exit 0 ;;
+  *"--version"*) exit 0 ;;
+  *"issue view 170"*)
+    printf '%s' '{"title":"[Task 12] Billing API","state":"OPEN","body":"Task 12 billing work","url":"https://github.com/boat1994/bemoat-web-starter/issues/170"}'
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`,
+    )
+
+    const result = mod.verifyLiveTaskIdentity({
+      cwd,
+      filePath: 'tests/fixtures/planning/valid-existing-issue.md',
+      contract: baseContract({ active_task_issue: '#170', task_key: 'task-11' }),
+      env: { ...process.env, PATH: pathValue },
+    })
+
+    expect(result.ok).toBe(false)
+    expect(result.violations[0].rule).toBe('PLAN009')
+    expect(mod.formatPlanningContractViolations(result.violations)[0]).toContain('Found: task key mismatch')
+    expect(mod.formatPlanningContractViolations(result.violations)[0]).toContain(
+      'Reason: Issue #170 title/body does not identify task-11. Corrective action: Update active_task_issue to point to the issue for task-11',
+    )
+  })
+
+  it('emits PLAN010 when managed Mission Control state is DONE', async () => {
+    const mod = await import('../../scripts/guard-planning-contract.mjs')
+    const cwd = createRepo()
+    const body = `${managedState({
+      state: 'DONE',
+      review_cycle: '1',
+      full_review_count: '1',
+      current_head: 'deadbeef',
+      last_reviewed_head: 'deadbeef',
+      active_task_issue: '"#170"',
+    })}\nTask issue for task-11`
+    const pathValue = withStubbedGh(
+      cwd,
+      `#!/usr/bin/env sh
+case "$*" in
+  *"auth status"*) exit 0 ;;
+  *"--version"*) exit 0 ;;
+  *"issue view 170"*)
+    printf '%s' '{"title":"[task-11] Billing API","state":"OPEN","body":${JSON.stringify(body)},"url":"https://github.com/boat1994/bemoat-web-starter/issues/170"}'
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`.replace('${JSON.stringify(body)}', JSON.stringify(body)),
+    )
+
+    const result = mod.verifyLiveTaskIdentity({
+      cwd,
+      filePath: 'tests/fixtures/planning/valid-existing-issue.md',
+      contract: baseContract({ active_task_issue: '#170', task_key: 'task-11' }),
+      env: { ...process.env, PATH: pathValue },
+    })
+
+    expect(result.ok).toBe(false)
+    expect(result.violations[0].rule).toBe('PLAN010')
+    expect(mod.formatPlanningContractViolations(result.violations)[0]).toContain(
+      'Found: incompatible Mission Control state',
+    )
+    expect(mod.formatPlanningContractViolations(result.violations)[0]).toContain(
+      'Reason: recorded state is DONE or conflicts with task issue. Corrective action: Reconcile Mission Control state on issue #170',
+    )
+  })
+
+  it('emits PLAN010 when managed active_task_issue conflicts with contract', async () => {
+    const mod = await import('../../scripts/guard-planning-contract.mjs')
+    const cwd = createRepo()
+    const body = `${managedState({ active_task_issue: '"#999"' })}\nDedicated task issue for task-11`
+    const pathValue = withStubbedGh(
+      cwd,
+      `#!/usr/bin/env sh
+case "$*" in
+  *"auth status"*) exit 0 ;;
+  *"--version"*) exit 0 ;;
+  *"issue view 170"*)
+    printf '%s' '${JSON.stringify({
+      title: '[task-11] Billing API',
+      state: 'OPEN',
+      body,
+      url: 'https://github.com/boat1994/bemoat-web-starter/issues/170',
+    })}'
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`,
+    )
+
+    const result = mod.verifyLiveTaskIdentity({
+      cwd,
+      filePath: 'tests/fixtures/planning/valid-existing-issue.md',
+      contract: baseContract({ active_task_issue: '#170', task_key: 'task-11' }),
+      env: { ...process.env, PATH: pathValue },
+    })
+
+    expect(result.ok).toBe(false)
+    expect(result.violations[0].rule).toBe('PLAN010')
+  })
+
+  it('passes live verification for a valid open managed issue #140', async () => {
+    const mod = await import('../../scripts/guard-planning-contract.mjs')
+    const cwd = createRepo()
+    const body = `${managedState()}\nPlanning package for issue-140`
+    const pathValue = withStubbedGh(
+      cwd,
+      `#!/usr/bin/env sh
+case "$*" in
+  *"auth status"*) exit 0 ;;
+  *"--version"*) exit 0 ;;
+  *"issue view 140"*)
+    printf '%s' '${JSON.stringify({
+      title: '[issue-140] Planning Task Identity Guard',
+      state: 'OPEN',
+      body,
+      url: 'https://github.com/boat1994/bemoat-web-starter/issues/140',
+    })}'
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`,
+    )
+
+    const result = mod.verifyLiveTaskIdentity({
+      cwd,
+      filePath: 'tests/fixtures/planning/valid-existing-issue.md',
+      contract: baseContract(),
+      env: { ...process.env, PATH: pathValue },
+    })
+
+    expect(result).toEqual({
+      ok: true,
+      degradedOffline: false,
+      violations: [],
+      issueMetadata: {
+        number: '140',
+        state: 'OPEN',
+        title: '[issue-140] Planning Task Identity Guard',
+        body,
+      },
+    })
+  })
+
+  it('passes create_before_execution without calling gh issue view', async () => {
+    const mod = await import('../../scripts/guard-planning-contract.mjs')
+    const cwd = createRepo()
+    let issueViewCalled = false
+    const pathValue = withStubbedGh(
+      cwd,
+      `#!/usr/bin/env sh
+case "$*" in
+  *"auth status"*) exit 0 ;;
+  *"--version"*) exit 0 ;;
+  *"issue view"*)
+    echo "issue view should not be called" >&2
+    exit 1
+    ;;
+  *)
+    exit 0
+    ;;
+esac
+`,
+    )
+
+    const result = mod.verifyLiveTaskIdentity({
+      cwd,
+      filePath: 'tests/fixtures/planning/valid-create-before-execution.md',
+      contract: baseContract({
+        task_key: 'task-14',
+        task_issue_strategy: 'create_before_execution',
+        active_task_issue: null,
+      }),
+      env: { ...process.env, PATH: pathValue },
+      runGh: (args, options) => {
+        if (args.join(' ').includes('issue view')) {
+          issueViewCalled = true
+        }
+        return mod.defaultRunGh(args, options)
+      },
+    })
+
+    expect(issueViewCalled).toBe(false)
+    expect(result).toEqual({
+      ok: true,
+      degradedOffline: false,
+      violations: [],
+    })
+  })
+
+  it('degrades offline when offline mode is requested', async () => {
+    const mod = await import('../../scripts/guard-planning-contract.mjs')
+    const cwd = createRepo()
+
+    const result = mod.verifyLiveTaskIdentity({
+      cwd,
+      filePath: 'tests/fixtures/planning/valid-existing-issue.md',
+      contract: baseContract(),
+      offline: true,
+    })
+
+    expect(result).toEqual({
+      ok: true,
+      degradedOffline: true,
+      violations: [],
+    })
+  })
+
+  it('degrades offline when gh auth status is unavailable', async () => {
+    const mod = await import('../../scripts/guard-planning-contract.mjs')
+    const cwd = createRepo()
+    const pathValue = withStubbedGh(
+      cwd,
+      `#!/usr/bin/env sh
+case "$*" in
+  *"--version"*) exit 0 ;;
+  *"auth status"*) exit 4 ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`,
+    )
+
+    const result = mod.verifyLiveTaskIdentity({
+      cwd,
+      filePath: 'tests/fixtures/planning/valid-existing-issue.md',
+      contract: baseContract(),
+      env: { ...process.env, PATH: pathValue },
+    })
+
+    expect(result).toEqual({
+      ok: true,
+      degradedOffline: true,
+      violations: [],
+    })
   })
 })
