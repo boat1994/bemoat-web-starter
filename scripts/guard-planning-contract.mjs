@@ -3,7 +3,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { parseMissionControlState } from './agent-issue.mjs'
+import { parseMissionControlState } from './mission-control-state.mjs'
 
 const IDENTITY_START = /<!--\s*bemoat-task-identity:start\s*-->/
 const IDENTITY_END = /<!--\s*bemoat-task-identity:end\s*-->/

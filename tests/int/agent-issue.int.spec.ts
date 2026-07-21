@@ -1,4 +1,4 @@
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -51,7 +51,37 @@ const PRODUCTION_PR103_ROLLUP = [
 
 const repoRoot = process.cwd()
 const scriptPath = resolve(repoRoot, 'scripts/agent-issue.mjs')
+const planningFixturesRoot = resolve(repoRoot, 'tests/fixtures/planning')
 const tempRoots: string[] = []
+
+function readPlanningFixture(name: string) {
+  return readFileSync(join(planningFixturesRoot, name), 'utf8')
+}
+
+function planWithTaskIdentity(sections: string, overrides: Record<string, string> = {}) {
+  const fields: Record<string, string> = {
+    schema_version: '1',
+    main_issue: 'null',
+    task_key: '"slice b"',
+    task_issue_strategy: '"existing_dedicated_issue"',
+    active_task_issue: '"#121"',
+    branch_template: '"feature/121-slice-b"',
+    transition_target: '"DONE"',
+    planning_base_sha: '"2489c7bf6d10ad8c2a724a7920bd83350102ee03"',
+    execution_base_rule: '"resolve_live_protected_base_at_dispatch"',
+    paired_spec: 'null',
+    paired_plan: 'null',
+    ...overrides,
+  }
+
+  const identityBlock = `<!-- bemoat-task-identity:start -->
+${Object.entries(fields)
+  .map(([key, value]) => `${key}: ${value}`)
+  .join('\n')}
+<!-- bemoat-task-identity:end -->`
+
+  return `# Implementation Plan\n\n${identityBlock}\n\n${sections}`
+}
 
 function createRepo(branch: string) {
   const root = mkdtempSync(join(tmpdir(), 'bemoat-agent-issue-'))
@@ -590,14 +620,20 @@ exit 1
   it('reports linked Main Issue milestones and next action', () => {
     const root = createRepo('feature/121-agent-issue')
     const planPath = 'docs/superpowers/plans/sample/implementation-plan.md'
-    seedTrackedFile(root, planPath, '# Implementation Plan\n\n## Slice B — Acquisition Handoff\n')
+    seedTrackedFile(
+      root,
+      planPath,
+      planWithTaskIdentity('## Slice B — Acquisition Handoff\n'),
+    )
 
     const pathValue = withStubbedGh(
       root,
       `#!/usr/bin/env sh
 case "$*" in
+  *"auth status"*) exit 0 ;;
+  *"--version"*) exit 0 ;;
   *"issue view 121"*)
-    printf '%s' '{"title":"Slice B task","url":"https://github.com/boat1994/bemoat-web-starter/issues/121","body":"Main Issue: #106\\nImplementation Plan: \`docs/superpowers/plans/sample/implementation-plan.md\`\\nActive PR: #122\\n\\n## Current Stage\\n- Current Slice: Slice B\\n- Relevant plan section: Slice B — Acquisition Handoff\\n\\n## Next Permitted Action\\nFinish the review gate.","labels":[]}'
+    printf '%s' '{"title":"Slice B task","url":"https://github.com/boat1994/bemoat-web-starter/issues/121","body":"Main Issue: #106\\nImplementation Plan: \`docs/superpowers/plans/sample/implementation-plan.md\`\\nActive PR: #122\\n\\n## Current Stage\\n- Current Slice: Slice B\\n- Relevant plan section: Slice B — Acquisition Handoff\\n\\n## Next Permitted Action\\nFinish the review gate.","labels":[],"state":"OPEN"}'
     ;;
   *"issue view 106"*)
     printf '%s' '{"title":"Growth V1 Main Issue","url":"https://github.com/boat1994/bogus-jewelry/issues/106","body":"## Durable Progress\\n\\n### Slice A — Foundation\\n- [x] Task 1 implementation complete\\n\\n### Slice B — Acquisition Handoff\\n- [ ] Exact-head CI passed","state":"OPEN"}'
@@ -2311,5 +2347,201 @@ esac
 
     expect(result.status).toBe(1)
     expect(result.stdout).toContain('canonical finding evidence is missing')
+  })
+
+  describe('planning contract preflight integration', () => {
+    const planningPlanPath = 'docs/superpowers/plans/test/implementation-plan.md'
+
+    function runPlanningPreflight(
+      root: string,
+      issueNumber: string,
+      issueBody: string,
+      planContent: string,
+      ghStub: string,
+    ) {
+      seedTrackedFile(root, planningPlanPath, planContent)
+      return runAgentIssue(root, [issueNumber], {
+        PATH: withStubbedGh(root, ghStub),
+      })
+    }
+
+    it('blocks preflight with structured PLAN001 when the declared plan lacks a task identity block', () => {
+      const root = createRepo('feature/140-planning-contract')
+      const result = runPlanningPreflight(
+        root,
+        '140',
+        `Implementation Plan path: \`${planningPlanPath}\``,
+        '# Implementation Plan\n\n## Slice A\n',
+        `#!/usr/bin/env sh
+case "$*" in
+  *"--json"*"title,url,body,labels"*)
+    printf '%s' '{"title":"Planning contract task","url":"https://github.com/boat1994/bemoat-web-starter/issues/140","body":"Implementation Plan path: \`${planningPlanPath}\`","labels":[]}'
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`,
+      )
+
+      expect(result.status).toBe(1)
+      expect(result.stdout).toContain('Hard blockers:')
+      expect(result.stdout).toMatch(/\[PLAN001\] docs\/superpowers\/plans\/test\/implementation-plan\.md:/)
+    })
+
+    it('blocks preflight with PLAN005 when create_before_execution has no active_task_issue', () => {
+      const root = createRepo('feature/140-create-before-execution')
+      const result = runPlanningPreflight(
+        root,
+        '140',
+        `Implementation Plan path: \`${planningPlanPath}\``,
+        readPlanningFixture('valid-create-before-execution.md'),
+        `#!/usr/bin/env sh
+case "$*" in
+  *"--json"*"title,url,body,labels"*)
+    printf '%s' '{"title":"Planning contract task","url":"https://github.com/boat1994/bemoat-web-starter/issues/140","body":"Implementation Plan path: \`${planningPlanPath}\`","labels":[]}'
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`,
+      )
+
+      expect(result.status).toBe(1)
+      expect(result.stdout).toContain('Hard blockers:')
+      expect(result.stdout).toContain('Create dedicated task issue before launching implementation.')
+      expect(result.stdout).toContain('switch task_issue_strategy to existing_dedicated_issue')
+    })
+
+    it('passes preflight after switching from create_before_execution to existing_dedicated_issue with an open task issue', () => {
+      const root = createRepo('feature/141-task-14-slug')
+      const blocked = runPlanningPreflight(
+        root,
+        '140',
+        `Implementation Plan path: \`${planningPlanPath}\``,
+        readPlanningFixture('valid-create-before-execution.md'),
+        `#!/usr/bin/env sh
+case "$*" in
+  *"--json"*"title,url,body,labels"*)
+    printf '%s' '{"title":"Planning contract task","url":"https://github.com/boat1994/bemoat-web-starter/issues/140","body":"Implementation Plan path: \`${planningPlanPath}\`","labels":[]}'
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`,
+      )
+
+      expect(blocked.status).toBe(1)
+      expect(blocked.stdout).toContain('Hard blockers:')
+      expect(blocked.stdout).toContain('switch task_issue_strategy to existing_dedicated_issue')
+
+      const dedicatedIssueBody = `${managedState({ active_task_issue: '"#141"' })}\nDedicated task issue for task-14`
+      const dedicatedIssuePayload = JSON.stringify({
+        title: '[task-14] Dedicated implementation task',
+        state: 'OPEN',
+        body: dedicatedIssueBody,
+        url: 'https://github.com/boat1994/bemoat-web-starter/issues/141',
+      }).replace(/'/g, `'\"'\"'`)
+      const passed = runPlanningPreflight(
+        root,
+        '140',
+        `Implementation Plan path: \`${planningPlanPath}\``,
+        planWithTaskIdentity('', {
+          task_key: '"task-14"',
+          task_issue_strategy: '"existing_dedicated_issue"',
+          active_task_issue: '"#141"',
+          branch_template: '"feature/141-task-14-slug"',
+        }),
+        `#!/usr/bin/env sh
+case "$*" in
+  *"auth status"*) exit 0 ;;
+  *"--version"*) exit 0 ;;
+  *"--json"*"title,url,body,labels"*)
+    printf '%s' '{"title":"Planning contract task","url":"https://github.com/boat1994/bemoat-web-starter/issues/140","body":"Implementation Plan path: \`${planningPlanPath}\`","labels":[]}'
+    ;;
+  *"issue view 141"*)
+    printf '%s' '${dedicatedIssuePayload}'
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`,
+      )
+
+      expect(passed.status).toBe(0)
+      expect(passed.stdout).not.toContain('Hard blockers:')
+    })
+
+    it('blocks preflight with PLAN008 when closed issue #169 is reused for live task identity', () => {
+      const root = createRepo('feature/140-closed-169-reuse')
+      const result = runPlanningPreflight(
+        root,
+        '140',
+        `Implementation Plan path: \`${planningPlanPath}\``,
+        readPlanningFixture('closed-issue-169-reuse.md'),
+        `#!/usr/bin/env sh
+case "$*" in
+  *"auth status"*) exit 0 ;;
+  *"--version"*) exit 0 ;;
+  *"--json"*"title,url,body,labels"*)
+    printf '%s' '{"title":"Planning contract task","url":"https://github.com/boat1994/bemoat-web-starter/issues/140","body":"Implementation Plan path: \`${planningPlanPath}\`","labels":[]}'
+    ;;
+  *"issue view 169"*)
+    printf '%s' '{"title":"[Task 10] Homepage Foundation task-11","state":"CLOSED","body":"historical task","url":"https://github.com/boat1994/bemoat-web-starter/issues/169"}'
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`,
+      )
+
+      expect(result.status).toBe(1)
+      expect(result.stdout).toContain('Hard blockers:')
+      expect(result.stdout).toMatch(/\[PLAN008\] docs\/superpowers\/plans\/test\/implementation-plan\.md:/)
+      expect(result.stdout).toContain("Found: state 'CLOSED'")
+    })
+
+    it('warns and passes when live task identity verification is offline', () => {
+      const root = createRepo('feature/140-offline-live-verify')
+      const result = runPlanningPreflight(
+        root,
+        '140',
+        `Implementation Plan path: \`${planningPlanPath}\``,
+        planWithTaskIdentity('', {
+          task_key: '"issue-140"',
+          active_task_issue: '"#140"',
+          branch_template: '"feature/140-offline-live-verify"',
+        }),
+        `#!/usr/bin/env sh
+case "$*" in
+  *"--json"*"title,url,body,labels"*)
+    printf '%s' '{"title":"Planning contract task","url":"https://github.com/boat1994/bemoat-web-starter/issues/140","body":"Implementation Plan path: \`${planningPlanPath}\`","labels":[]}'
+    ;;
+  *"auth status"*|*"--version"*)
+    echo 'offline gh stub' >&2
+    exit 1
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`,
+      )
+
+      expect(result.status).toBe(0)
+      expect(result.stdout).toContain('Warnings:')
+      expect(result.stdout).toMatch(/live task identity verification/i)
+      expect(result.stdout).not.toContain('Hard blockers:')
+    })
   })
 })
