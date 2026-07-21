@@ -215,6 +215,11 @@ describe('planning contract guard pack integration', () => {
     expect(planningViolations.some((item: { rule: string }) => item.rule.startsWith('PLAN'))).toBe(true)
     expect(planningViolations.some((item: { rule: string }) => item.rule === 'PLAN004')).toBe(true)
     expect(mod.getGuardPackExitCode(results)).toBe(1)
+
+    const output = mod.formatGuardPackResults(results).join('\n')
+    expect(output).toContain('Found:')
+    expect(output).toContain('Reason:')
+    expect(output).toContain('Corrective action:')
   })
 })
 

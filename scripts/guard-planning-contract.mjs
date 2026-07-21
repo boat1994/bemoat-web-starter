@@ -5,8 +5,8 @@ import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { parseMissionControlState } from './mission-control-state.mjs'
 
-const IDENTITY_START = /<!--\s*bemoat-task-identity:start\s*-->/
-const IDENTITY_END = /<!--\s*bemoat-task-identity:end\s*-->/
+const LINE_IDENTITY_START = /^\s*<!--\s*bemoat-task-identity:start\s*-->\s*$/
+const LINE_IDENTITY_END = /^\s*<!--\s*bemoat-task-identity:end\s*-->\s*$/
 
 export const TASK_IDENTITY_REQUIRED_KEYS = [
   'schema_version',
@@ -29,7 +29,66 @@ export const VALID_TASK_ISSUE_STRATEGIES = new Set([
 
 export const TERMINAL_TRANSITION_TARGETS = new Set(['DONE', 'MERGED', 'CLOSED'])
 
-export const KNOWN_TERMINAL_ISSUE_NUMBERS = new Set(['169'])
+function stripFencedCodeBlocks(content = '') {
+  return content.replace(/```[\s\S]*?```/g, '')
+}
+
+function stripInlineCode(content = '') {
+  return content.replace(/`[^`]*`/g, '')
+}
+
+function contentForMarkerDetection(content = '') {
+  return stripInlineCode(stripFencedCodeBlocks(content))
+}
+
+function countLineMarkers(content, linePattern) {
+  let count = 0
+  let inFence = false
+
+  for (const line of content.split('\n')) {
+    const trimmed = line.trim()
+    if (trimmed.startsWith('```')) {
+      inFence = !inFence
+      continue
+    }
+    if (inFence) continue
+    if (linePattern.test(line)) count += 1
+  }
+
+  return count
+}
+
+function extractIdentityBlockLines(content) {
+  const lines = content.split('\n')
+  let inFence = false
+  let startLineIdx = -1
+  let endLineIdx = -1
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const trimmed = lines[index].trim()
+    if (trimmed.startsWith('```')) {
+      inFence = !inFence
+      continue
+    }
+    if (inFence) continue
+
+    if (startLineIdx === -1 && LINE_IDENTITY_START.test(lines[index])) {
+      startLineIdx = index
+      continue
+    }
+
+    if (startLineIdx !== -1 && LINE_IDENTITY_END.test(lines[index])) {
+      endLineIdx = index
+      break
+    }
+  }
+
+  if (startLineIdx === -1 || endLineIdx === -1 || endLineIdx <= startLineIdx) {
+    return null
+  }
+
+  return lines.slice(startLineIdx + 1, endLineIdx).join('\n')
+}
 
 const PLANNING_ROOTS = [
   'docs/superpowers/plans',
@@ -109,6 +168,26 @@ function runGit(args, cwd) {
   }
 }
 
+function resolveApprovedBase(root, options = {}) {
+  if (options.approvedBase) {
+    return options.approvedBase
+  }
+
+  const originMain = runGit(['merge-base', 'HEAD', 'origin/main'], root)
+  if (originMain.status === 0) {
+    const sha = originMain.stdout.trim()
+    if (sha) return sha
+  }
+
+  const main = runGit(['merge-base', 'HEAD', 'main'], root)
+  if (main.status === 0) {
+    const sha = main.stdout.trim()
+    if (sha) return sha
+  }
+
+  return null
+}
+
 function discoverPlanningFiles(root, options = {}) {
   if (Array.isArray(options.files) && options.files.length > 0) {
     return [...new Set(options.files.map((filePath) => filePath.replace(/\\/g, '/')))]
@@ -131,6 +210,18 @@ function discoverPlanningFiles(root, options = {}) {
       .map((line) => line.trim())
       .filter(Boolean),
   )
+
+  const approvedBase = resolveApprovedBase(root, options)
+  if (approvedBase) {
+    const branchDiff = runGit(
+      ['diff', '--name-only', '--diff-filter=ACMRTUXB', `${approvedBase}...HEAD`],
+      root,
+    )
+    for (const line of branchDiff.stdout.split('\n')) {
+      const trimmed = line.trim()
+      if (trimmed) candidates.add(trimmed)
+    }
+  }
 
   return [...candidates].filter(isPlanningPath)
 }
@@ -161,10 +252,11 @@ function makeViolation({
 export function parseTaskIdentityBlock(content = '', filePath = '<unknown>') {
   /** @type {import('./guard-planning-contract.mjs').PlanningViolation[]} */
   const violations = []
-  const starts = [...content.matchAll(new RegExp(IDENTITY_START.source, 'g'))]
-  const ends = [...content.matchAll(new RegExp(IDENTITY_END.source, 'g'))]
+  const markerSource = contentForMarkerDetection(content)
+  const startCount = countLineMarkers(markerSource, LINE_IDENTITY_START)
+  const endCount = countLineMarkers(markerSource, LINE_IDENTITY_END)
 
-  if (starts.length === 0 && ends.length === 0) {
+  if (startCount === 0 && endCount === 0) {
     violations.push(makeViolation({
       rule: 'PLAN001',
       file: filePath,
@@ -176,21 +268,32 @@ export function parseTaskIdentityBlock(content = '', filePath = '<unknown>') {
     return { present: false, valid: false, contract: null, violations }
   }
 
-  if (starts.length !== 1 || ends.length !== 1 || starts[0].index > ends[0].index) {
+  if (startCount !== 1 || endCount !== 1) {
     violations.push(makeViolation({
       rule: 'PLAN001',
       file: filePath,
       message: 'Malformed task identity marker block',
-      found: `${starts.length} start marker(s), ${ends.length} end marker(s)`,
+      found: `${startCount} start marker(s), ${endCount} end marker(s)`,
       reason: 'Exactly one balanced marker pair is required',
       correctiveAction: 'Ensure a single <!-- bemoat-task-identity:start --> ... <!-- bemoat-task-identity:end --> pair',
     }))
     return { present: true, valid: false, contract: null, violations }
   }
 
-  const raw = content
-    .slice(starts[0].index + starts[0][0].length, ends[0].index)
-    .replace(/```yaml\s*|```/g, '')
+  const blockBody = extractIdentityBlockLines(content)
+  if (!blockBody) {
+    violations.push(makeViolation({
+      rule: 'PLAN001',
+      file: filePath,
+      message: 'Malformed task identity marker block',
+      found: 'unbalanced line markers',
+      reason: 'Exactly one balanced marker pair is required',
+      correctiveAction: 'Ensure a single <!-- bemoat-task-identity:start --> ... <!-- bemoat-task-identity:end --> pair',
+    }))
+    return { present: true, valid: false, contract: null, violations }
+  }
+
+  const raw = blockBody.replace(/```yaml\s*|```/g, '')
 
   /** @type {Record<string, unknown>} */
   const contract = {}
@@ -350,20 +453,15 @@ function validateBranchTemplate(contract, filePath) {
 
 function validateTransitionTarget(contract, filePath) {
   const activeIssueNumber = parseIssueNumber(contract.active_task_issue)
-  const transitionIssueNumber = parseIssueNumber(contract.transition_target)
   const transitionIsTerminalStatus = TERMINAL_TRANSITION_TARGETS.has(String(contract.transition_target).trim())
 
-  const targetsKnownTerminalIssue =
-    (activeIssueNumber && KNOWN_TERMINAL_ISSUE_NUMBERS.has(activeIssueNumber)) ||
-    (transitionIssueNumber && KNOWN_TERMINAL_ISSUE_NUMBERS.has(transitionIssueNumber))
-
-  if (transitionIsTerminalStatus && targetsKnownTerminalIssue) {
+  if (transitionIsTerminalStatus && activeIssueNumber) {
     return [makeViolation({
       rule: 'PLAN004',
       file: filePath,
       message: 'Terminal transition target conflicts with a closed task issue',
       found: `transition_target=${contract.transition_target}, active_task_issue=${contract.active_task_issue ?? 'null'}`,
-      reason: 'Cannot apply a terminal transition to an already closed or terminal task issue',
+      reason: 'Cannot apply a terminal transition while modifying a dedicated task issue that is already closed or terminal',
       correctiveAction: 'Create a new dedicated open task issue instead of reusing the closed issue',
     })]
   }
@@ -457,7 +555,7 @@ function validatePlanningFile(root, relativePath, readFile, validatedPairs, allV
 }
 
 /**
- * @param {{ root?: string, files?: string[], checkAll?: boolean, readFile?: (filePath: string) => string }} [options]
+ * @param {{ root?: string, files?: string[], checkAll?: boolean, approvedBase?: string, readFile?: (filePath: string) => string }} [options]
  */
 export function runPlanningContractGuard(options = {}) {
   const root = options.root ?? process.cwd()

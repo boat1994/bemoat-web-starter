@@ -73,7 +73,7 @@ function managedState(overrides: Record<string, string> = {}) {
 function baseContract(overrides: Record<string, unknown> = {}) {
   return {
     schema_version: 1,
-    main_issue: null,
+    main_issue: null as null,
     task_key: 'issue-140',
     task_issue_strategy: 'existing_dedicated_issue',
     active_task_issue: '#140',
@@ -81,8 +81,8 @@ function baseContract(overrides: Record<string, unknown> = {}) {
     transition_target: 'DONE',
     planning_base_sha: '2489c7bf6d10ad8c2a724a7920bd83350102ee03',
     execution_base_rule: 'resolve_live_protected_base_at_dispatch',
-    paired_spec: null,
-    paired_plan: null,
+    paired_spec: null as null,
+    paired_plan: null as null,
     ...overrides,
   }
 }
@@ -251,6 +251,103 @@ describe('guard-planning-contract static validation', () => {
     expect(formatted[0]).toMatch(
       /^\[PLAN006\] .+: .+\. Found: .+\. Reason: .+\. Corrective action: .+$/,
     )
+  })
+
+  it('ignores marker mentions in prose and inline code when parsing identity blocks', async () => {
+    const mod = await import('../../scripts/guard-planning-contract.mjs')
+    const tempRoot = mkdtempSync(join(tmpdir(), 'planning-contract-prose-'))
+    const designPath = 'docs/superpowers/specs/test/design.md'
+    const absolutePath = join(tempRoot, designPath)
+
+    mkdirSync(dirname(absolutePath), { recursive: true })
+    writeFileSync(
+      absolutePath,
+      `# Design with prose marker mentions
+
+The block uses \`<!-- bemoat-task-identity:start -->\` and \`<!-- bemoat-task-identity:end -->\` markers.
+
+\`\`\`markdown
+<!-- bemoat-task-identity:start -->
+example only
+<!-- bemoat-task-identity:end -->
+\`\`\`
+
+Also mention <!-- bemoat-task-identity:start --> in plain prose.
+
+<!-- bemoat-task-identity:start -->
+\`\`\`yaml
+schema_version: 1
+main_issue: null
+task_key: "task-prose"
+task_issue_strategy: "create_before_execution"
+active_task_issue: null
+branch_template: "feature/99-task-prose"
+transition_target: "AWAITING_REVIEW_1"
+planning_base_sha: "2489c7bf6d10ad8c2a724a7920bd83350102ee03"
+execution_base_rule: "resolve_live_protected_base_at_dispatch"
+paired_spec: null
+paired_plan: null
+\`\`\`
+<!-- bemoat-task-identity:end -->
+`,
+      'utf8',
+    )
+
+    const violations = mod.runPlanningContractGuard({
+      root: tempRoot,
+      files: [designPath],
+    })
+
+    expect(violationRules(violations)).not.toContain('PLAN001')
+    expect(violations).toEqual([])
+  })
+
+  it('discovers committed branch planning files on a clean working tree', async () => {
+    const mod = await import('../../scripts/guard-planning-contract.mjs')
+    const root = mkdtempSync(join(tmpdir(), 'planning-contract-branch-'))
+    tempRoots.push(root)
+    const planPath = 'docs/superpowers/plans/test/implementation-plan.md'
+    const absolutePlanPath = join(root, planPath)
+
+    expect(spawnSync('git', ['init', '-b', 'main'], { cwd: root, encoding: 'utf8' }).status).toBe(0)
+    mkdirSync(dirname(absolutePlanPath), { recursive: true })
+    writeFileSync(absolutePlanPath, '# placeholder\n', 'utf8')
+    expect(spawnSync('git', ['add', planPath], { cwd: root, encoding: 'utf8' }).status).toBe(0)
+    expect(
+      spawnSync('git', ['commit', '-m', 'seed main'], { cwd: root, encoding: 'utf8' }).status,
+    ).toBe(0)
+    expect(
+      spawnSync('git', ['checkout', '-b', 'feature/140-branch-discovery'], {
+        cwd: root,
+        encoding: 'utf8',
+      }).status,
+    ).toBe(0)
+
+    writeFileSync(
+      absolutePlanPath,
+      readFixture('closed-issue-169-reuse.md').replace(
+        '# Closed issue #169 reuse fixture',
+        '# Committed invalid planning file',
+      ),
+      'utf8',
+    )
+    expect(spawnSync('git', ['add', planPath], { cwd: root, encoding: 'utf8' }).status).toBe(0)
+    expect(
+      spawnSync('git', ['commit', '-m', 'add invalid planning file'], {
+        cwd: root,
+        encoding: 'utf8',
+      }).status,
+    ).toBe(0)
+
+    const cleanStatus = spawnSync('git', ['status', '--porcelain'], { cwd: root, encoding: 'utf8' })
+    expect(cleanStatus.stdout.trim()).toBe('')
+
+    const violations = mod.runPlanningContractGuard({
+      root,
+      approvedBase: 'main',
+    })
+
+    expect(violationRules(violations)).toContain('PLAN004')
   })
 })
 

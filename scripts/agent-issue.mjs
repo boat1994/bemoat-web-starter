@@ -979,14 +979,14 @@ export function analyzeProgressTracking({
           })
 
           if (liveResult.degradedOffline) {
-            warnings.push(
-              'Live task identity verification skipped — GitHub CLI is unavailable or offline.',
+            blockers.push(
+              'Live task identity verification unavailable — authenticate GitHub CLI before launching implementation on an existing dedicated task issue. Run `gh auth login` and retry preflight.',
             )
-          }
-
-          for (const line of formatPlanningContractViolations(liveResult.violations)) {
-            if (line !== 'Planning contract guard passed.') {
-              blockers.push(line)
+          } else {
+            for (const line of formatPlanningContractViolations(liveResult.violations)) {
+              if (line !== 'Planning contract guard passed.') {
+                blockers.push(line)
+              }
             }
           }
         }

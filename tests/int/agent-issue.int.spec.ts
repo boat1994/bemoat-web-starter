@@ -66,7 +66,7 @@ function planWithTaskIdentity(sections: string, overrides: Record<string, string
     task_issue_strategy: '"existing_dedicated_issue"',
     active_task_issue: '"#121"',
     branch_template: '"feature/121-slice-b"',
-    transition_target: '"DONE"',
+    transition_target: '"AWAITING_REVIEW_1"',
     planning_base_sha: '"2489c7bf6d10ad8c2a724a7920bd83350102ee03"',
     execution_base_rule: '"resolve_live_protected_base_at_dispatch"',
     paired_spec: 'null',
@@ -2510,7 +2510,7 @@ esac
       expect(result.stdout).toContain("Found: state 'CLOSED'")
     })
 
-    it('warns and passes when live task identity verification is offline', () => {
+    it('fails closed when live task identity verification is offline', () => {
       const root = createRepo('feature/140-offline-live-verify')
       const result = runPlanningPreflight(
         root,
@@ -2538,10 +2538,10 @@ esac
 `,
       )
 
-      expect(result.status).toBe(0)
-      expect(result.stdout).toContain('Warnings:')
-      expect(result.stdout).toMatch(/live task identity verification/i)
-      expect(result.stdout).not.toContain('Hard blockers:')
+      expect(result.status).toBe(1)
+      expect(result.stdout).toContain('Hard blockers:')
+      expect(result.stdout).toMatch(/gh auth login/i)
+      expect(result.stdout).toMatch(/live task identity verification unavailable/i)
     })
   })
 })
