@@ -310,6 +310,8 @@ paired_plan: null
     const absolutePlanPath = join(root, planPath)
 
     expect(spawnSync('git', ['init', '-b', 'main'], { cwd: root, encoding: 'utf8' }).status).toBe(0)
+    spawnSync('git', ['config', 'user.email', 'planning-contract@test'], { cwd: root, encoding: 'utf8' })
+    spawnSync('git', ['config', 'user.name', 'Planning Contract Test'], { cwd: root, encoding: 'utf8' })
     mkdirSync(dirname(absolutePlanPath), { recursive: true })
     writeFileSync(absolutePlanPath, '# placeholder\n', 'utf8')
     expect(spawnSync('git', ['add', planPath], { cwd: root, encoding: 'utf8' }).status).toBe(0)
