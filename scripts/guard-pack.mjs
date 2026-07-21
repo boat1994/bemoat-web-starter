@@ -27,6 +27,10 @@ import {
   runMissionControlContractGuard,
 } from './guard-mission-control-contract.mjs'
 import {
+  formatPlanningContractViolations,
+  runPlanningContractGuard,
+} from './guard-planning-contract.mjs'
+import {
   formatPackageManagerViolations,
   runPackageManagerGuard,
 } from './guard-package-manager.mjs'
@@ -92,6 +96,12 @@ export const GUARD_PACK = [
     run: runMissionControlContractGuard,
     format: formatMissionControlContractViolations,
   },
+  {
+    id: 'planning-contract',
+    summary: 'Planning task-identity and execution-base contract across paired spec/plan files',
+    run: runPlanningContractGuard,
+    format: formatPlanningContractViolations,
+  },
 ]
 
 export function runGuardPack(options = {}) {
@@ -136,13 +146,22 @@ export function formatGuardPackResults(results) {
   for (const result of results) {
     if (result.violations.length === 0) continue
 
+    const guard = GUARD_PACK.find((entry) => entry.id === result.id)
+
     lines.push(`## ${result.id}`)
     lines.push(result.summary)
     lines.push('')
 
-    for (const violation of result.violations) {
-      const location = violation.file ?? 'unknown'
-      lines.push(`- [${violation.rule}] ${location}: ${violation.message}`)
+    if (guard?.format) {
+      for (const line of guard.format(result.violations)) {
+        if (line.endsWith('passed.')) continue
+        lines.push(`- ${line}`)
+      }
+    } else {
+      for (const violation of result.violations) {
+        const location = violation.file ?? 'unknown'
+        lines.push(`- [${violation.rule}] ${location}: ${violation.message}`)
+      }
     }
 
     lines.push('')

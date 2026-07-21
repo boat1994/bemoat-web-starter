@@ -175,3 +175,29 @@ Stop and report when:
 - Forbidden paths are required, or the change belongs in a child project instead of `bemoat-web-starter`
 
 **Do not stop** solely because migration files are in the diff—use [migration draft PR mode](./migration-draft-pr.md) instead.
+
+## Planning task-identity invariants
+
+Superpowers planning packages under `docs/superpowers/specs/**` and `docs/superpowers/plans/**` can declare machine-readable task identity in a `<!-- bemoat-task-identity:start -->` YAML block. The central guard pack enforces these contracts through `scripts/guard-planning-contract.mjs` (see [guard-pack.md](../guard-pack.md#planning-contract)).
+
+### Planning-time provenance vs live branch base
+
+- `planning_base_sha` records the exact protected head SHA when the spec/plan was authored. It is **provenance metadata** for audit and drift review.
+- `execution_base_rule: resolve_live_protected_base_at_dispatch` means executable branch creation must resolve the **current** protected integration baseline (`dev`, or `main` during bootstrap) at dispatch time—not blindly branch from `planning_base_sha`.
+- A valid plan may keep an older `planning_base_sha` while still requiring live protected-base resolution. The guard rejects only `execution_base_rule: use_planning_base_sha_unconditionally` (`PLAN007`).
+
+### Historical references remain valid
+
+Closed or terminal issues cited only in historical prose or `Durable Progress` checklists (for example `- [x] Task 10 (#169)`) are **not** executable references. They do not need to be reopened and do not fail static validation. Only issue numbers inside task-identity blocks, active Mission Control state blocks, or explicit form declarations are treated as executable.
+
+### Child harness sync impact
+
+`scripts/guard-planning-contract.mjs` and `scripts/mission-control-state.mjs` are managed harness paths. Child projects receive them through:
+
+```bash
+pnpm run bemoat:boilerplate:sync -- --harness-only
+```
+
+The guard evaluates **only new or modified** planning files in the working tree or staged diff. Existing child plans, specs, and Mission Control profiles (`FAST`, `STANDARD`, `MANAGED`) remain compatible without mandatory retroactive marker migration.
+
+External Superpowers plugin maintainers should follow [superpowers-planning-contract-recommendation.md](./superpowers-planning-contract-recommendation.md) to emit compatible marker blocks during `brainstorming` and `writing-plans`.
