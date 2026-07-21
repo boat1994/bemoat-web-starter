@@ -27,6 +27,10 @@ import {
   runMissionControlContractGuard,
 } from './guard-mission-control-contract.mjs'
 import {
+  formatPlanningContractViolations,
+  runPlanningContractGuard,
+} from './guard-planning-contract.mjs'
+import {
   formatPackageManagerViolations,
   runPackageManagerGuard,
 } from './guard-package-manager.mjs'
@@ -91,6 +95,12 @@ export const GUARD_PACK = [
     summary: 'Mission Control guide, loader, templates, sync ownership, and review invariants',
     run: runMissionControlContractGuard,
     format: formatMissionControlContractViolations,
+  },
+  {
+    id: 'planning-contract',
+    summary: 'Planning task-identity and execution-base contract across paired spec/plan files',
+    run: runPlanningContractGuard,
+    format: formatPlanningContractViolations,
   },
 ]
 

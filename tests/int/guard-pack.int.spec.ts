@@ -1,9 +1,18 @@
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { dirname, join, resolve } from 'node:path'
 
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 
 const fixturesRoot = resolve(process.cwd(), 'tests/fixtures/guard')
+const planningFixturesRoot = resolve(process.cwd(), 'tests/fixtures/planning')
+const tempRoots: string[] = []
+
+afterEach(() => {
+  for (const root of tempRoots.splice(0)) {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
 
 describe('central guard pack', () => {
   it('exports all v1 guards in deterministic order', async () => {
@@ -19,7 +28,21 @@ describe('central guard pack', () => {
       'cloudflare-config',
       'frontend-seo',
       'mission-control-contract',
+      'planning-contract',
     ])
+  })
+
+  it('registers planning-contract with summary metadata', async () => {
+    const mod = await import('../../scripts/guard-pack.mjs')
+
+    const planningGuard = mod.GUARD_PACK.find((guard: { id: string }) => guard.id === 'planning-contract')
+
+    expect(planningGuard).toEqual({
+      id: 'planning-contract',
+      summary: 'Planning task-identity and execution-base contract across paired spec/plan files',
+      run: expect.any(Function),
+      format: expect.any(Function),
+    })
   })
 
   it('passes on the current repository', async () => {
@@ -166,6 +189,32 @@ describe('build script contract fixtures', () => {
     const violations = mod.scanBuildScriptContract(pkg.scripts, 'package.json')
 
     expect(violations).toEqual([])
+  })
+})
+
+describe('planning contract guard pack integration', () => {
+  it('surfaces planning-contract violations through runGuardPack', async () => {
+    const mod = await import('../../scripts/guard-pack.mjs')
+    const tempRoot = mkdtempSync(join(tmpdir(), 'guard-pack-planning-'))
+    tempRoots.push(tempRoot)
+
+    const planPath = 'docs/superpowers/plans/bad/plan.md'
+    const absolutePlanPath = join(tempRoot, planPath)
+    mkdirSync(dirname(absolutePlanPath), { recursive: true })
+    writeFileSync(absolutePlanPath, readFileSync(join(planningFixturesRoot, 'closed-issue-169-reuse.md'), 'utf8'))
+
+    const results = mod.runGuardPack({
+      root: tempRoot,
+      files: [planPath],
+    })
+    const planningResult = results.find((result: { id: string }) => result.id === 'planning-contract')
+    const planningViolations = planningResult?.violations ?? []
+
+    expect(planningResult).toBeDefined()
+    expect(planningViolations.length).toBeGreaterThan(0)
+    expect(planningViolations.some((item: { rule: string }) => item.rule.startsWith('PLAN'))).toBe(true)
+    expect(planningViolations.some((item: { rule: string }) => item.rule === 'PLAN004')).toBe(true)
+    expect(mod.getGuardPackExitCode(results)).toBe(1)
   })
 })
 
