@@ -80,6 +80,8 @@
     "tests/int/correction-contract.int.spec.ts",
     "tests/int/guard-pack.int.spec.ts",
     "tests/int/guard-planning-contract.int.spec.ts",
+    "tests/int/guard-planning-contract-child-dev-base.int.spec.ts",
+    "tests/int/guard-planning-contract-starter-main-base.int.spec.ts",
     "tests/int/mission-control-contract.int.spec.ts",
     "tests/int/mission-control-reconcile.int.spec.ts",
     "tests/int/toolchain-contract.int.spec.ts",
@@ -88,6 +90,7 @@
     "tests/int/open-next-config.int.spec.ts",
     "tests/int/payload-build-context.int.spec.ts",
     "tests/fixtures/guard",
+    "tests/fixtures/planning",
     "tests/fixtures/acceptance",
     "tests/fixtures/boilerplate-sync",
     "tests/fixtures/mission-control"

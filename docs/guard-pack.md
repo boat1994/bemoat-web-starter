@@ -100,6 +100,8 @@ Violations use structured output:
 
 Static rules (`PLAN001`–`PLAN007`) run in `pnpm run guard:safety` / `pnpm run bemoat:guard:safety` without network access. Live rules (`PLAN008`–`PLAN010`) run during `pnpm run bemoat:agent:issue -- <issue-number>` when authenticated `gh` access is available.
 
+Branch-scoped discovery uses `resolveApprovedBase()` to diff planning files changed since the protected integration baseline: `origin/dev`, then `dev`, then `origin/main`, then `main`. Child repos with `dev` therefore validate only planning files changed since `dev`; starter repos without `dev` continue to use `main`.
+
 ### Historical vs executable references
 
 Only **executable** references are validated: issue numbers inside `<!-- bemoat-task-identity:start -->`, active `<!-- bemoat-mission-control-state:start -->` blocks, and form declarations such as `Active Task Issue:`. Historical mentions in prose or `Durable Progress` checklists (for example `- [x] Task 10 (#169)`) are allowed even when `#169` is closed.
@@ -119,7 +121,9 @@ High-risk checks have fixtures under `tests/fixtures/guard/`:
 | `package-recursive-build.json` | Recursive OpenNext `build` script (should fail) |
 | `package-correct-build.json` | Universal build wrapper contract (should pass) |
 
-Integration tests: `tests/int/guard-pack.int.spec.ts`, `tests/int/mission-control-contract.int.spec.ts` (plus existing `repo-safety-guard`, `harness-contract-guard`, `cloudflare-env-guard` specs).
+Integration tests: `tests/int/guard-pack.int.spec.ts`, `tests/int/guard-planning-contract.int.spec.ts`, `tests/int/guard-planning-contract-child-dev-base.int.spec.ts`, `tests/int/guard-planning-contract-starter-main-base.int.spec.ts`, `tests/int/mission-control-contract.int.spec.ts` (plus existing `repo-safety-guard`, `harness-contract-guard`, `cloudflare-env-guard` specs).
+
+Planning contract fixtures live under `tests/fixtures/planning/` and are managed harness paths so child sync receives the canonical invalid/valid planning documents.
 
 Mission Control rule IDs: `MC001`–`MC012` (see `scripts/guard-mission-control-contract.mjs` and [mission-control/README.md](./mission-control/README.md)).
 
