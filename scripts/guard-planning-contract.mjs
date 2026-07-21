@@ -173,6 +173,18 @@ function resolveApprovedBase(root, options = {}) {
     return options.approvedBase
   }
 
+  const originDev = runGit(['merge-base', 'HEAD', 'origin/dev'], root)
+  if (originDev.status === 0) {
+    const sha = originDev.stdout.trim()
+    if (sha) return sha
+  }
+
+  const localDev = runGit(['merge-base', 'HEAD', 'dev'], root)
+  if (localDev.status === 0) {
+    const sha = localDev.stdout.trim()
+    if (sha) return sha
+  }
+
   const originMain = runGit(['merge-base', 'HEAD', 'origin/main'], root)
   if (originMain.status === 0) {
     const sha = originMain.stdout.trim()

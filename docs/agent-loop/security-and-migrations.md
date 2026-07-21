@@ -198,6 +198,8 @@ Closed or terminal issues cited only in historical prose or `Durable Progress` c
 pnpm run bemoat:boilerplate:sync -- --harness-only
 ```
 
-The guard evaluates **only new or modified** planning files in the working tree or staged diff. Existing child plans, specs, and Mission Control profiles (`FAST`, `STANDARD`, `MANAGED`) remain compatible without mandatory retroactive marker migration.
+Planning contract fixtures under `tests/fixtures/planning/` and the dev/main approved-base regression int specs are also managed paths so harness-only sync delivers the canonical guard behavior validated in child dogfood (for example bogus-jewelry PR #182).
+
+The guard evaluates **only new or modified** planning files in the working tree or staged diff, scoped to the branch diff against the protected integration baseline. `resolveApprovedBase()` prefers `origin/dev`, then `dev`, then `origin/main`, then `main`, so child repos with a `dev` branch validate against `dev` while starter repos without `dev` continue to use `main`. Existing child plans, specs, and Mission Control profiles (`FAST`, `STANDARD`, `MANAGED`) remain compatible without mandatory retroactive marker migration.
 
 External Superpowers plugin maintainers should follow [superpowers-planning-contract-recommendation.md](./superpowers-planning-contract-recommendation.md) to emit compatible marker blocks during `brainstorming` and `writing-plans`.
