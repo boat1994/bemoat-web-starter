@@ -168,6 +168,23 @@ describe('boilerplate sync managed paths', () => {
     expect(script).toContain("'scripts/check-boilerplate-drift.mjs'")
   })
 
+  it('includes planning contract guard rails in managedPaths', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+
+    const planningContractPaths = [
+      'scripts/guard-planning-contract.mjs',
+      'scripts/mission-control-state.mjs',
+      'tests/int/guard-planning-contract.int.spec.ts',
+    ]
+
+    for (const path of planningContractPaths) {
+      expect(
+        mod.managedPaths,
+        `${path} must be listed in managedPaths so child harness sync receives planning contract validation`,
+      ).toContain(path)
+    }
+  })
+
   it('includes harness workflow rails in managedPaths and managedPackageScripts', async () => {
     const mod = await import('../../scripts/sync-boilerplate.mjs')
 
