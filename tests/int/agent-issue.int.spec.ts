@@ -2624,6 +2624,7 @@ ${managedState({
   current_head: 'null',
   review_cycle: '0',
   full_review_count: '0',
+  next_permitted_action: '"Implement — post exactly one implementation HANDOFF to Dev / Builder"',
   updated_at: '2026-07-22T20:27:04+07:00',
 })}`,
         env: envWithStubbedGh,
@@ -2638,14 +2639,9 @@ ${managedState({
         name: 'MANAGED',
         nextAction: 'Use the managed-state workflow and its required bounded role transition.',
       })
-      expect(readyAnalysis.report.dispatch).toEqual({
-        nextAction: 'Dev implementation dispatch',
-        handoffRequired: 'implementation HANDOFF',
-        handoffCount: 1,
-        planningRunSelected: false,
-        duplicateFounderGateSelected: false,
-        stateOnlyCoordinationRunSelected: false,
-      })
+      expect(readyAnalysis.report.nextPermittedAction).toBe(
+        'Implement — post exactly one implementation HANDOFF to Dev / Builder',
+      )
 
       const inProgressAnalysis = analyzeProgressTracking({
         cwd: root,
@@ -2664,6 +2660,7 @@ ${managedState({
   current_head: 'null',
   review_cycle: '0',
   full_review_count: '0',
+  next_permitted_action: '"Implement — post exactly one implementation HANDOFF to Dev / Builder"',
   updated_at: '2026-07-22T20:27:04+07:00',
 })}`,
         env: envWithStubbedGh,
@@ -2679,14 +2676,9 @@ ${managedState({
         name: 'MANAGED',
         nextAction: 'Use the managed-state workflow and its required bounded role transition.',
       })
-      expect(inProgressAnalysis.report.dispatch).toEqual({
-        nextAction: 'Dev implementation dispatch',
-        handoffRequired: 'implementation HANDOFF',
-        handoffCount: 1,
-        planningRunSelected: false,
-        duplicateFounderGateSelected: false,
-        stateOnlyCoordinationRunSelected: false,
-      })
+      expect(inProgressAnalysis.report.nextPermittedAction).toBe(
+        'Implement — post exactly one implementation HANDOFF to Dev / Builder',
+      )
     })
 
     it('preserves role comments when createdAt or state.updated_at is absent or malformed instead of treating as epoch zero (MC-R1-003)', () => {

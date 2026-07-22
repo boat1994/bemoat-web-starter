@@ -306,106 +306,6 @@ export function deriveWorkflowProfile({
   return null
 }
 
-export function deriveAuthoritativeDispatch({
-  workflowProfile = null,
-  declarations = {},
-  state = null,
-  plan = null,
-  founderGate = { open: false },
-  reconciliation = null,
-} = {}) {
-  if (!workflowProfile || workflowProfile.name !== 'MANAGED') {
-    return null
-  }
-
-  if (founderGate && founderGate.open) {
-    return {
-      nextAction: 'Founder approval gate',
-      handoffRequired: null,
-      handoffCount: 0,
-      planningRunSelected: false,
-      duplicateFounderGateSelected: true,
-      stateOnlyCoordinationRunSelected: false,
-    }
-  }
-
-  if (reconciliation && (reconciliation.proposal || reconciliation.genuineConflict)) {
-    return {
-      nextAction: 'State reconciliation coordination',
-      handoffRequired: null,
-      handoffCount: 0,
-      planningRunSelected: false,
-      duplicateFounderGateSelected: false,
-      stateOnlyCoordinationRunSelected: true,
-    }
-  }
-
-  if (declarations && declarations.declaresImplementationPlan && !plan?.ok) {
-    return {
-      nextAction: 'Planning dispatch',
-      handoffRequired: 'planning HANDOFF',
-      handoffCount: 1,
-      planningRunSelected: true,
-      duplicateFounderGateSelected: false,
-      stateOnlyCoordinationRunSelected: false,
-    }
-  }
-
-  const stateName = state?.state ?? 'READY'
-  if (stateName === 'READY' || stateName === 'IN_PROGRESS') {
-    return {
-      nextAction: 'Dev implementation dispatch',
-      handoffRequired: 'implementation HANDOFF',
-      handoffCount: 1,
-      planningRunSelected: false,
-      duplicateFounderGateSelected: false,
-      stateOnlyCoordinationRunSelected: false,
-    }
-  }
-
-  if (stateName.startsWith('AWAITING_REVIEW_')) {
-    return {
-      nextAction: 'Review dispatch',
-      handoffRequired: 'review HANDOFF',
-      handoffCount: 1,
-      planningRunSelected: false,
-      duplicateFounderGateSelected: false,
-      stateOnlyCoordinationRunSelected: false,
-    }
-  }
-
-  if (stateName.startsWith('CORRECTION_REQUIRED_')) {
-    return {
-      nextAction: 'Dev correction dispatch',
-      handoffRequired: 'implementation HANDOFF',
-      handoffCount: 1,
-      planningRunSelected: false,
-      duplicateFounderGateSelected: false,
-      stateOnlyCoordinationRunSelected: false,
-    }
-  }
-
-  if (stateName === 'BLOCKED_FOR_FOUNDER_DECISION') {
-    return {
-      nextAction: 'Founder decision gate',
-      handoffRequired: null,
-      handoffCount: 0,
-      planningRunSelected: false,
-      duplicateFounderGateSelected: true,
-      stateOnlyCoordinationRunSelected: false,
-    }
-  }
-
-  return {
-    nextAction: 'Terminal state',
-    handoffRequired: null,
-    handoffCount: 0,
-    planningRunSelected: false,
-    duplicateFounderGateSelected: false,
-    stateOnlyCoordinationRunSelected: false,
-  }
-}
-
 export function parseIssueDeclarations(body = '') {
   const source = stripFencedCodeBlocks(body)
   const declarations = {
@@ -1221,6 +1121,7 @@ export function analyzeProgressTracking({
   }
 
   report.nextPermittedAction =
+    (stateAnalysis.valid && state?.next_permitted_action ? String(state.next_permitted_action) : null) ||
     declarations.nextPermittedAction ||
     (report.firstIncompleteMilestone
       ? `Complete durable milestone: ${report.firstIncompleteMilestone.label}`
@@ -1276,15 +1177,6 @@ export function analyzeProgressTracking({
       warnings.push(`Incomplete delivery: ${reconciliation.delivery.reason}.`)
     }
   }
-
-  report.dispatch = deriveAuthoritativeDispatch({
-    workflowProfile: report.workflowProfile,
-    declarations: report.declarations,
-    state: stateAnalysis.valid ? state : null,
-    plan: report.plan,
-    founderGate,
-    reconciliation: report.reconciliation,
-  })
 
   return { blockers, warnings, report }
 }
