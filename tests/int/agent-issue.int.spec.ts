@@ -2349,6 +2349,416 @@ esac
     expect(result.stdout).toContain('canonical finding evidence is missing')
   })
 
+  describe('planning_no_pr correction preflight mode', () => {
+    function planningManagedState(reviewedHead: string, overrides: Record<string, string> = {}) {
+      return managedState({
+        state: 'CORRECTION_REQUIRED_1',
+        review_cycle: '1',
+        full_review_count: '1',
+        approved_base: 'main',
+        active_task_issue: '"#145"',
+        active_pr: 'null',
+        current_head: 'null',
+        last_reviewed_head: `"${reviewedHead}"`,
+        guide_version: '1.2.0',
+        guide_source_ref: 'main',
+        guide_source_sha: '"5b37817101c1e1451b70d25168142f6b03cacca0"',
+        open_blockers: '[]',
+        follow_up_issues: '[]',
+        next_permitted_action: '"bounded planning correction"',
+        material_change_status: 'none',
+        updated_at: '"2026-07-22T22:50:00+07:00"',
+        updated_by: '"Mission Control"',
+        ...overrides,
+      })
+    }
+
+    function setupPlanningCorrectionRepo(
+      headOverride?: { verdictHead?: string; contractHead?: string },
+      verdictBodyExtra: string = '',
+      ghStubExtra: string = '',
+      stateOverrides: Record<string, string> = {},
+    ) {
+      const root = mkdtempSync(join(tmpdir(), 'bemoat-agent-issue-'))
+      tempRoots.push(root)
+      spawnSync('git', ['init', '-b', 'main'], { cwd: root, encoding: 'utf8' })
+      spawnSync('git', ['remote', 'add', 'origin', 'https://github.com/boat1994/bemoat-web-starter.git'], {
+        cwd: root,
+        encoding: 'utf8',
+      })
+      spawnSync('git', ['config', 'user.email', 'agent-issue@test'], { cwd: root, encoding: 'utf8' })
+      spawnSync('git', ['config', 'user.name', 'Agent Issue Test'], { cwd: root, encoding: 'utf8' })
+      seedTrackedFile(root, 'README.md', 'initial seed')
+      spawnSync('git', ['checkout', '-b', 'feature/145-planning-no-pr-correction'], { cwd: root, encoding: 'utf8' })
+      const actualHead = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim()
+      const verdictHead = headOverride?.verdictHead ?? actualHead
+      const contractHead = headOverride?.contractHead ?? actualHead
+      const issueBody = planningManagedState(contractHead, {
+        approved_base: 'main',
+        ...stateOverrides,
+      })
+
+      const commentsPayload = JSON.stringify({
+        comments: [
+          {
+            body: `## REVIEW_VERDICT
+**Verdict:** CORRECTION REQUIRED
+**PR / base / head:** none · base main · head ${verdictHead}
+**Next:** Dev posts correction RESULT
+${verdictBodyExtra}
+
+\`\`\`json
+{
+  "schema_version": 1,
+  "mode": "planning_no_pr",
+  "reviewed_head": "${contractHead}",
+  "findings": [
+    {
+      "id": "MC-R1-001",
+      "canonical_summary": "design spec missing exact error boundary",
+      "source_thread": "https://github.com/boat1994/bemoat-web-starter/pull/12#discussion_r1",
+      "required_evidence": ["updated design.md"],
+      "expected_areas": ["docs/superpowers/specs/bogus/catalog/minimal-luxury-detail/design.md"],
+      "prohibited_areas": []
+    }
+  ]
+}
+\`\`\``,
+            createdAt: '2026-07-20T10:00:00+07:00',
+          },
+        ],
+      }).replace(/'/g, `'\"'\"'`)
+
+      const issueViewPayload = JSON.stringify({
+        title: 'Immutable correction contract',
+        url: 'https://github.com/boat1994/bemoat-web-starter/issues/145',
+        body: issueBody,
+        labels: [],
+      }).replace(/'/g, `'\"'\"'`)
+
+      const ghStub = `#!/usr/bin/env sh
+case "$*" in
+  *"issue view 145"*"title,url,body,labels"*)
+    printf '%s' '${issueViewPayload}'
+    ;;
+  *"issue view 145"*"comments"*)
+    printf '%s' '${commentsPayload}'
+    ;;
+${ghStubExtra}
+  *"pr list --state open"*)
+    printf '%s' '[]'
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`
+      return { root, ghStub, actualHead, contractHead, issueBody, mainHead: actualHead }
+    }
+
+    it('TEST-PLAN-01: accepts valid planning-only no-PR correction preflight', () => {
+      const { root, ghStub } = setupPlanningCorrectionRepo()
+      const result = runAgentIssue(root, ['145', '--phase', 'correction'], {
+        PATH: withStubbedGh(root, ghStub),
+      })
+
+      expect(result.status).toBe(0)
+      expect(result.stdout).toContain('Mode: planning_no_pr')
+      expect(result.stdout).toContain('Edit authorization: granted for the immutable finding set only across canonical planning artifacts (docs/superpowers/specs/bogus/catalog/minimal-luxury-detail/design.md).')
+    })
+
+    it('TEST-PLAN-02: fails closed when ambiguous PR token exists inside planning verdict', () => {
+      const { root, ghStub } = setupPlanningCorrectionRepo(
+        undefined,
+        'Check PR https://github.com/boat1994/bemoat-web-starter/pull/99 for details.',
+      )
+      const result = runAgentIssue(root, ['145', '--phase', 'correction'], {
+        PATH: withStubbedGh(root, ghStub),
+      })
+
+      expect(result.status).toBe(1)
+      expect(result.stdout).toContain('STATE CONFLICT: PR identity references found inside verdict under no-PR planning mode')
+    })
+
+    it('TEST-PLAN-03: fails closed when ghost open PR exists on GitHub during planning', () => {
+      const { root, ghStub } = setupPlanningCorrectionRepo(
+        undefined,
+        '',
+        `  *"--head feature/145-planning-no-pr-correction"*)
+    printf '%s' '[{"number":145,"title":"Ghost PR","headRefName":"feature/145-planning-no-pr-correction","url":"https://github.com/boat1994/bemoat-web-starter/pull/145","closingIssuesReferences":[{"number":145}]}]'
+    ;;`,
+      )
+      const result = runAgentIssue(root, ['145', '--phase', 'correction'], {
+        PATH: withStubbedGh(root, ghStub),
+      })
+
+      expect(result.status).toBe(1)
+      expect(result.stdout).toContain('STATE CONFLICT: open PR #145 exists on GitHub for this planning issue under no-PR contract')
+    })
+
+    it('TEST-PLAN-04: fails closed when prohibited scope touched during planning correction diff', () => {
+      const { root, ghStub } = setupPlanningCorrectionRepo()
+      seedTrackedFile(root, 'src/app/page.tsx', 'export default () => <div>illegal change</div>')
+      const result = runAgentIssue(root, ['145', '--phase', 'correction'], {
+        PATH: withStubbedGh(root, ghStub),
+      })
+
+      expect(result.status).toBe(1)
+      expect(result.stdout).toContain('prohibited scope present in correction diff: src/app/page.tsx (outside canonical planning-artifact allowlist)')
+    })
+
+    it('TEST-HEAD-01: fails closed when verdict head contradicts reviewed_head', () => {
+      const { root, ghStub } = setupPlanningCorrectionRepo({
+        verdictHead: 'e9f8d7ce9f8d7ce9f8d7ce9f8d7ce9f8d7ce9f8d',
+      })
+      const result = runAgentIssue(root, ['145', '--phase', 'correction'], {
+        PATH: withStubbedGh(root, ghStub),
+      })
+
+      expect(result.status).toBe(1)
+      expect(result.stdout).toContain('REVIEW_VERDICT head contradicts the immutable contract reviewed_head')
+    })
+
+    it('TEST-DIRTY-01: fails closed when working tree is dirty during planning correction preflight', () => {
+      const { root, ghStub } = setupPlanningCorrectionRepo()
+      writeFileSync(join(root, 'README.md'), 'dirty content', 'utf8')
+      const result = runAgentIssue(root, ['145', '--phase', 'correction'], {
+        PATH: withStubbedGh(root, ghStub),
+      })
+
+      expect(result.status).toBe(1)
+      expect(result.stdout).toContain('Stop: dirty working tree blocks correction edit authorization.')
+    })
+
+    it('MC-R1-001: fails closed when managed state active_pr conflicts with planning_no_pr', () => {
+      const { root, ghStub } = setupPlanningCorrectionRepo(undefined, '', '', {
+        active_pr: '"#148"',
+      })
+      const result = runAgentIssue(root, ['145', '--phase', 'correction'], {
+        PATH: withStubbedGh(root, ghStub),
+      })
+
+      expect(result.status).toBe(1)
+      expect(result.stdout).toContain('planning_no_pr durable authorization proofs failed')
+      expect(result.stdout).toContain('active_pr: null')
+    })
+
+    it('MC-R1-001: fails closed when managed state last_reviewed_head is stale', () => {
+      const { root, ghStub, contractHead } = setupPlanningCorrectionRepo(undefined, '', '', {
+        last_reviewed_head: '"deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"',
+      })
+      expect(contractHead).not.toBe('deadbeefdeadbeefdeadbeefdeadbeefdeadbeef')
+      const result = runAgentIssue(root, ['145', '--phase', 'correction'], {
+        PATH: withStubbedGh(root, ghStub),
+      })
+
+      expect(result.status).toBe(1)
+      expect(result.stdout).toContain('last_reviewed_head does not match the immutable contract reviewed_head')
+    })
+
+    it('MC-R1-003: fails closed when malformed GitHub PR list evidence is returned', () => {
+      const { root, ghStub } = setupPlanningCorrectionRepo(
+        undefined,
+        '',
+        `  *"pr list --state open"*)
+    printf '%s' 'not-json'
+    ;;`,
+      )
+      const result = runAgentIssue(root, ['145', '--phase', 'correction'], {
+        PATH: withStubbedGh(root, ghStub),
+      })
+
+      expect(result.status).toBe(1)
+      expect(result.stdout).toContain('malformed GitHub PR list JSON')
+    })
+
+    it('MC-R1-003: allows unrelated open PRs while blocking issue-linked ghost PRs', () => {
+      const { root, actualHead, issueBody } = setupPlanningCorrectionRepo()
+      const issueViewPayload = JSON.stringify({
+        title: 'Immutable correction contract',
+        url: 'https://github.com/boat1994/bemoat-web-starter/issues/145',
+        body: issueBody,
+        labels: [],
+      }).replace(/'/g, `'\"'\"'`)
+      const commentsPayload = JSON.stringify({
+        comments: [
+          {
+            body: `## REVIEW_VERDICT
+**Verdict:** CORRECTION REQUIRED
+**PR / base / head:** none · base main · head ${actualHead}
+**Next:** Dev posts correction RESULT
+
+\`\`\`json
+{
+  "schema_version": 1,
+  "mode": "planning_no_pr",
+  "reviewed_head": "${actualHead}",
+  "findings": [
+    {
+      "id": "MC-R1-001",
+      "canonical_summary": "design spec missing exact error boundary",
+      "source_thread": "https://github.com/boat1994/bemoat-web-starter/pull/12#discussion_r1",
+      "required_evidence": ["updated design.md"],
+      "expected_areas": ["docs/superpowers/specs/bogus/catalog/minimal-luxury-detail/design.md"],
+      "prohibited_areas": []
+    }
+  ]
+}
+\`\`\``,
+            createdAt: '2026-07-20T10:00:00+07:00',
+          },
+        ],
+      }).replace(/'/g, `'\"'\"'`)
+
+      const ghostPrStub = `#!/usr/bin/env sh
+case "$*" in
+  *"issue view 145"*"title,url,body,labels"*)
+    printf '%s' '${issueViewPayload}'
+    ;;
+  *"issue view 145"*"comments"*)
+    printf '%s' '${commentsPayload}'
+    ;;
+  *"--head feature/145-planning-no-pr-correction"*)
+    printf '%s' '[{"number":145,"title":"Ghost PR","headRefName":"feature/145-planning-no-pr-correction","url":"https://github.com/boat1994/bemoat-web-starter/pull/145","closingIssuesReferences":[{"number":145}]}]'
+    ;;
+  *"closes #145"*)
+    printf '%s' '[]'
+    ;;
+  *"pr list --state open"*)
+    printf '%s' '[]'
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`
+      const blocked = runAgentIssue(root, ['145', '--phase', 'correction'], {
+        PATH: withStubbedGh(root, ghostPrStub),
+      })
+      expect(blocked.status).toBe(1)
+      expect(blocked.stdout).toContain('STATE CONFLICT: open PR #145 exists on GitHub for this planning issue under no-PR contract')
+
+      const unrelatedOnlyStub = `#!/usr/bin/env sh
+case "$*" in
+  *"issue view 145"*"title,url,body,labels"*)
+    printf '%s' '${issueViewPayload}'
+    ;;
+  *"issue view 145"*"comments"*)
+    printf '%s' '${commentsPayload}'
+    ;;
+  *"--head feature/145-planning-no-pr-correction"*)
+    printf '%s' '[{"number":999,"title":"Unrelated PR","headRefName":"feature/unrelated","url":"https://github.com/boat1994/bemoat-web-starter/pull/999","closingIssuesReferences":[]}]'
+    ;;
+  *"closes #145"*)
+    printf '%s' '[]'
+    ;;
+  *"pr list --state open"*)
+    printf '%s' '[]'
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`
+      const allowed = runAgentIssue(root, ['145', '--phase', 'correction'], {
+        PATH: withStubbedGh(root, unrelatedOnlyStub),
+      })
+      expect(allowed.status).toBe(0)
+      expect(allowed.stdout).toContain('Edit authorization: granted')
+    })
+
+    it('MC-R1-004: rejects unrelated same-repository discussion URLs under planning_no_pr', () => {
+      const { root, ghStub } = setupPlanningCorrectionRepo(
+        undefined,
+        'See https://github.com/boat1994/bemoat-web-starter/pull/99#discussion_r1 for context.',
+      )
+      const result = runAgentIssue(root, ['145', '--phase', 'correction'], {
+        PATH: withStubbedGh(root, ghStub),
+      })
+
+      expect(result.status).toBe(1)
+      expect(result.stdout).toContain('PR identity references found inside verdict under no-PR planning mode')
+    })
+
+    it('MC-R1-004: accepts only declared finding source_thread discussion pointers under planning_no_pr', () => {
+      const { root, ghStub } = setupPlanningCorrectionRepo(
+        undefined,
+        'Thread pointer: https://github.com/boat1994/bemoat-web-starter/pull/12#discussion_r1',
+      )
+      const result = runAgentIssue(root, ['145', '--phase', 'correction'], {
+        PATH: withStubbedGh(root, ghStub),
+      })
+
+      expect(result.status).toBe(0)
+      expect(result.stdout).toContain('Edit authorization: granted')
+    })
+
+    it('TEST-PR-01: preserves exact existing behavioral divergence for implementation_pr mode', () => {
+      const root = createRepo('feature/136-immutable-correction-contract')
+      const commentsPayload = JSON.stringify({
+        comments: [
+          {
+            body: `## REVIEW_VERDICT
+**Verdict:** CORRECTION REQUIRED
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · main · abc1234
+**Findings:** Important: boundary bug
+**Gates:** exact-head CI → pass
+**Next:** Dev posts correction RESULT
+
+\`\`\`json
+{
+  "schema_version": 1,
+  "reviewed_head": "abc1234",
+  "findings": [
+    {
+      "id": "MC-R1-001",
+      "canonical_summary": "supplied-timezone month boundaries are incorrect",
+      "source_thread": "https://github.com/boat1994/bemoat-web-starter/pull/200#discussion_r1",
+      "required_evidence": ["pnpm run test:int"],
+      "expected_areas": ["src/lib/date.ts"],
+      "prohibited_areas": ["src/unrelated/reversal.ts"]
+    }
+  ]
+}
+\`\`\``,
+            createdAt: '2026-07-20T10:00:00+07:00',
+          },
+        ],
+      }).replace(/'/g, `'\"'\"'`)
+
+      const result = runAgentIssue(root, ['136', '--phase', 'correction'], {
+        PATH: withStubbedGh(
+          root,
+          `#!/usr/bin/env sh
+case "$*" in
+  *"issue view 136"*"title,url,body,labels"*)
+    printf '%s' '{"title":"Immutable correction contract","url":"https://github.com/boat1994/bemoat-web-starter/issues/136","body":"","labels":[]}'
+    ;;
+  *"issue view 136"*"comments"*)
+    printf '%s' '${commentsPayload}'
+    ;;
+  *"pr view 200"*)
+    printf '%s' '{"title":"Correction PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/200","headRefName":"feature/136","baseRefName":"main","headRefOid":"abc1234","state":"OPEN","statusCheckRollup":[],"commits":[]}'
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`,
+        ),
+      })
+
+      expect(result.status).toBe(0)
+      expect(result.stdout).toContain('Correction capsule')
+      expect(result.stdout).not.toContain('Mode: planning_no_pr')
+      expect(result.stdout).toContain('Edit authorization: granted for the immutable finding set only.')
+    })
+  })
+
   describe('planning contract preflight integration', () => {
     const planningPlanPath = 'docs/superpowers/plans/test/implementation-plan.md'
 

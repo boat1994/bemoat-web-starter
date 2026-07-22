@@ -9,6 +9,7 @@ const {
   validateFindingIdentity,
   buildCorrectionCapsule,
   validateFindingEvidence,
+  validateCorrectionScope,
   isCorrectionPhaseResult,
   validateCorrectionRoleComment,
 } = correctionContractModule as unknown as Record<string, (...args: any[]) => any>
@@ -364,5 +365,127 @@ describe('correction-contract pure module', () => {
 
     expect(result.ok).toBe(false)
     expect(result.errors.join(' ')).toMatch(/canonical (correction )?contract/i)
+  })
+
+  it('builds a planning_no_pr correction capsule with planning scope authorization and default prohibition', () => {
+    const contract = {
+      schema_version: 1,
+      mode: 'planning_no_pr' as const,
+      reviewed_head: '3d0e83e',
+      findings: [
+        {
+          id: 'MC-R1-001',
+          canonical_summary: 'design spec missing exact error boundary',
+          source_thread: 'https://github.com/boat1994/bemoat-web-starter/pull/12#discussion_r1',
+          required_evidence: ['updated design.md'],
+          expected_areas: ['docs/superpowers/specs/bogus/catalog/minimal-luxury-detail/design.md'],
+          prohibited_areas: [] as string[],
+        },
+      ],
+    }
+
+    const capsule = buildCorrectionCapsule(contract, {
+      issueNumber: '145',
+      prUrl: 'none',
+      mode: 'planning_no_pr',
+    })
+
+    const text = capsule.lines.join('\n')
+    expect(text).toContain('Mode: planning_no_pr')
+    expect(text).toContain('PR: none')
+    expect(text).toContain('prohibited_areas: planning canonical-artifact allowlist only (docs/superpowers/specs/bogus/catalog/minimal-luxury-detail/design.md)')
+    expect(text).toContain('Authorized scope: only the immutable finding set above within canonical planning artifacts (docs/superpowers/specs/bogus/catalog/minimal-luxury-detail/design.md)')
+  })
+
+  it('parses mode from correction contract JSON and validates shape', () => {
+    const verdictWithMode = `## REVIEW_VERDICT
+**Verdict:** CORRECTION REQUIRED
+**PR / base / head:** none · base main · head 3d0e83e
+**Next:** Dev posts correction RESULT
+
+\`\`\`json
+{
+  "schema_version": 1,
+  "mode": "planning_no_pr",
+  "reviewed_head": "3d0e83e",
+  "findings": [
+    {
+      "id": "MC-R1-001",
+      "canonical_summary": "design spec missing exact error boundary",
+      "source_thread": "https://github.com/boat1994/bemoat-web-starter/pull/12#discussion_r1",
+      "required_evidence": ["updated design.md"]
+    }
+  ]
+}
+\`\`\``
+
+    const parsed = parseCorrectionContract(verdictWithMode)
+    expect(parsed.ok).toBe(true)
+    if (parsed.ok) {
+      expect((parsed.contract as any).mode).toBe('planning_no_pr')
+    }
+  })
+
+  it('rejects unrelated docs paths outside the canonical planning-artifact allowlist (MC-R1-002)', () => {
+    const contract = {
+      schema_version: 1,
+      mode: 'planning_no_pr' as const,
+      reviewed_head: '3d0e83e',
+      findings: [
+        {
+          id: 'MC-R1-001',
+          canonical_summary: 'design spec missing exact error boundary',
+          source_thread: 'https://github.com/boat1994/bemoat-web-starter/pull/12#discussion_r1',
+          required_evidence: ['updated design.md'],
+          expected_areas: ['docs/superpowers/specs/bogus/catalog/minimal-luxury-detail/design.md'],
+          prohibited_areas: [] as string[],
+        },
+      ],
+    }
+
+    const result = validateCorrectionScope(
+      contract,
+      ['docs/agent-loop/README.md'],
+      { mode: 'planning_no_pr' },
+    )
+
+    expect(result.ok).toBe(false)
+    expect(result.errors.join(' ')).toContain('outside canonical planning-artifact allowlist')
+  })
+
+  it('enforces planning default prohibition in validateFindingEvidence when mode is planning_no_pr', () => {
+    const contract = {
+      schema_version: 1,
+      mode: 'planning_no_pr' as const,
+      reviewed_head: '3d0e83e',
+      findings: [
+        {
+          id: 'MC-R1-001',
+          canonical_summary: 'design spec missing exact error boundary',
+          source_thread: 'https://github.com/boat1994/bemoat-web-starter/pull/12#discussion_r1',
+          required_evidence: ['updated design.md'],
+          expected_areas: ['docs/superpowers/specs/bogus/catalog/minimal-luxury-detail/design.md'],
+          prohibited_areas: [] as string[],
+        },
+      ],
+    }
+
+    const result = validateFindingEvidence(
+      contract,
+      {
+        finding_results: {
+          'MC-R1-001': {
+            changed_files: ['src/app/page.tsx', 'docs/superpowers/specs/bogus/catalog/minimal-luxury-detail/design.md'],
+            tests: ['pnpm run check'],
+            status: 'CLAIMED_RESOLVED',
+          },
+        },
+      },
+      ['src/app/page.tsx', 'docs/superpowers/specs/bogus/catalog/minimal-luxury-detail/design.md'],
+      { mode: 'planning_no_pr' },
+    )
+
+    expect(result.ok).toBe(false)
+    expect(result.errors.join(' ')).toContain('prohibited scope present in correction diff: src/app/page.tsx (outside canonical planning-artifact allowlist)')
   })
 })

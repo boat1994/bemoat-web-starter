@@ -6,7 +6,9 @@ import { fileURLToPath } from 'node:url'
 import { analyzeReconciliation, findLatestRoleComment } from './mission-control-reconcile.mjs'
 import {
   buildCorrectionCapsule,
+  derivePlanningArtifactAllowlist,
   parseCorrectionContract,
+  validateCorrectionScope,
 } from './correction-contract.mjs'
 import {
   formatPlanningContractViolations,
@@ -1347,9 +1349,14 @@ function formatProgressSection(progressAnalysis) {
 }
 
 function extractVerdictPrBaseAndHead(verdictBody) {
-  const match = verdictBody.match(
+  let match = verdictBody.match(
     /\*\*PR\s*\/\s*base\s*\/\s*head:\*\*[^\n]*·\s*`([^`]+)`\s*·\s*`([0-9a-f]{7,40})`/i,
   )
+  if (!match) {
+    match = verdictBody.match(
+      /\*\*PR\s*\/\s*base\s*\/\s*head:\*\*[^\n]*·\s*(?:base\s+)?`?([^`\s·]+)`?\s*·\s*(?:head\s+)?`?([0-9a-f]{7,40})`?/i,
+    )
+  }
   return { base: match?.[1]?.trim() ?? null, head: match?.[2] ?? null }
 }
 
@@ -1461,9 +1468,10 @@ function isGitHubReviewDiscussionFragment(fragment) {
 /**
  * Benign same-PR review-thread pointer — not PR identity evidence.
  * Requires a valid review-discussion fragment, a fragment-stripped complete
- * canonical pull URL, and an exact match to the established canonical identity.
+ * canonical pull URL, and an exact match to the established canonical identity
+ * or a declared finding source_thread when operating under planning_no_pr.
  */
-function isSourceThreadDiscussionPointer(candidate, canonicalIdentity) {
+function isSourceThreadDiscussionPointer(candidate, canonicalIdentity, knownSourceThreads = null) {
   if (typeof candidate !== 'string' || candidate.length === 0 || !canonicalIdentity) {
     return false
   }
@@ -1477,6 +1485,11 @@ function isSourceThreadDiscussionPointer(candidate, canonicalIdentity) {
   const stripped = candidate.slice(0, hashIdx)
   const parsed = parseCompleteGitHubPullUrl(stripped)
   if (!parsed.ok) return false
+
+  if (canonicalIdentity.none === true) {
+    if (!knownSourceThreads || knownSourceThreads.size === 0) return false
+    return knownSourceThreads.has(candidate)
+  }
 
   return (
     foldedPrIdentityKey(
@@ -1513,7 +1526,7 @@ function isPlausiblePullIdentityCandidate(candidate) {
  * Same-PR `#discussion_rN` source-thread pointers matching `canonicalIdentity`
  * are excluded; other `#discussion*` candidates remain identity evidence.
  */
-function collectVerdictPrIdentities(verdictBody, defaultRepo, canonicalIdentity = null) {
+function collectVerdictPrIdentities(verdictBody, defaultRepo, canonicalIdentity = null, knownSourceThreads = null) {
   const identities = []
   const malformedCandidates = []
   const seenMalformed = new Set()
@@ -1531,7 +1544,7 @@ function collectVerdictPrIdentities(verdictBody, defaultRepo, canonicalIdentity 
     if (hashIdx >= 0) {
       const fragment = candidate.slice(hashIdx)
       if (isGitHubReviewDiscussionFragment(fragment)) {
-        if (isSourceThreadDiscussionPointer(candidate, canonicalIdentity)) {
+        if (isSourceThreadDiscussionPointer(candidate, canonicalIdentity, knownSourceThreads)) {
           return
         }
         // Valid discussion fragment that is not a matching same-PR pointer:
@@ -1596,7 +1609,7 @@ function collectVerdictPrIdentities(verdictBody, defaultRepo, canonicalIdentity 
  * `PR / base / head` evidence, rejecting foreign repositories and multiple
  * distinct or repeated PR references anywhere in the verdict.
  */
-function resolveCanonicalVerdictPrIdentity(verdictBody, defaultRepo) {
+function resolveCanonicalVerdictPrIdentity(verdictBody, defaultRepo, mode = 'implementation_pr', knownSourceThreads = null) {
   if (!defaultRepo || !defaultRepo.includes('/')) {
     return {
       ok: false,
@@ -1616,6 +1629,34 @@ function resolveCanonicalVerdictPrIdentity(verdictBody, defaultRepo) {
   const firstToken = line.trim().split(/\s+/)[0] ?? ''
   const parsedLineUrl = parseCompleteGitHubPullUrl(firstToken)
   const lineShorthand = line.match(/\bPR\s*#([1-9][0-9]*)\b/i)
+
+  if (mode === 'planning_no_pr') {
+    const { identities: allIdentities, malformedCandidates } = collectVerdictPrIdentities(
+      verdictBody,
+      defaultRepo,
+      { none: true },
+      knownSourceThreads,
+    )
+    if (allIdentities.length > 0 || malformedCandidates.length > 0) {
+      return {
+        ok: false,
+        errors: ['STATE CONFLICT: PR identity references found inside verdict under no-PR planning mode'],
+      }
+    }
+    if (!line.trim().startsWith('none')) {
+      return {
+        ok: false,
+        errors: ['REVIEW_VERDICT does not uniquely identify a live PR by number or URL'],
+      }
+    }
+    return {
+      ok: true,
+      identity: {
+        none: true,
+      },
+    }
+  }
+
   if (!parsedLineUrl.ok && !lineShorthand) {
     return {
       ok: false,
@@ -1654,6 +1695,7 @@ function resolveCanonicalVerdictPrIdentity(verdictBody, defaultRepo) {
     verdictBody,
     defaultRepo,
     canonical,
+    knownSourceThreads,
   )
   if (malformedCandidates.length > 0) {
     const samples = malformedCandidates
@@ -1712,6 +1754,188 @@ function resolveCanonicalVerdictPrIdentity(verdictBody, defaultRepo) {
   }
 }
 
+function collectKnownSourceThreads(contract) {
+  const threads = new Set()
+  for (const finding of contract?.findings ?? []) {
+    if (typeof finding.source_thread === 'string' && finding.source_thread.trim()) {
+      threads.add(finding.source_thread.trim())
+    }
+  }
+  return threads
+}
+
+function parseGhPrListPayload(stdout) {
+  let parsed
+  try {
+    parsed = JSON.parse(stdout)
+  } catch {
+    return { ok: false, reason: 'malformed GitHub PR list JSON' }
+  }
+  if (!Array.isArray(parsed)) {
+    return { ok: false, reason: 'GitHub PR list evidence is not an array' }
+  }
+  return { ok: true, openPrs: parsed }
+}
+
+function fetchOpenPrsByGhArgs(cwd, env, args) {
+  const result = run('gh', args, { cwd, env })
+  if (result.status !== 0) {
+    return {
+      ok: false,
+      reason: result.stderr.trim() || result.stdout.trim() || 'gh pr list check failed',
+    }
+  }
+  const parsed = parseGhPrListPayload(result.stdout)
+  if (!parsed.ok) return parsed
+  return parsed
+}
+
+function prClosesIssue(pr, issueNumber) {
+  const refs = pr?.closingIssuesReferences
+  if (!Array.isArray(refs)) return false
+  const target = String(issueNumber)
+  return refs.some((ref) => {
+    if (!ref || typeof ref !== 'object') return false
+    const number = ref.number != null ? String(ref.number) : null
+    return number === target
+  })
+}
+
+function checkOpenPrsForIssueOrBranch(cwd, env, branchName, issueNumber) {
+  const ghJsonFields = ['number', 'title', 'headRefName', 'url', 'closingIssuesReferences']
+  const seen = new Map()
+  const queries = []
+
+  if (branchName) {
+    queries.push([
+      'pr',
+      'list',
+      '--state',
+      'open',
+      '--head',
+      branchName,
+      '--json',
+      ghJsonFields.join(','),
+      '--limit',
+      '100',
+    ])
+  }
+
+  if (issueNumber) {
+    queries.push([
+      'pr',
+      'list',
+      '--state',
+      'open',
+      '--search',
+      `closes #${issueNumber} repo:${getDefaultRepo(cwd) ?? ''}`.trim(),
+      '--json',
+      ghJsonFields.join(','),
+      '--limit',
+      '100',
+    ])
+  }
+
+  if (queries.length === 0) {
+    return { ok: false, reason: 'branch or issue number is required for conflicting-PR evidence' }
+  }
+
+  for (const args of queries) {
+    const result = fetchOpenPrsByGhArgs(cwd, env, args)
+    if (!result.ok) return result
+    for (const pr of result.openPrs) {
+      if (!pr || pr.number == null) continue
+      seen.set(String(pr.number), pr)
+    }
+  }
+
+  const conflicting = []
+  for (const pr of seen.values()) {
+    const matchesBranch = branchName && pr.headRefName === branchName
+    const matchesIssue = issueNumber && (String(pr.number) === String(issueNumber) || prClosesIssue(pr, issueNumber))
+    if (matchesBranch || matchesIssue) conflicting.push(pr)
+  }
+
+  return { ok: true, openPrs: conflicting }
+}
+
+function verifyPlanningNoPrDurableProofs({
+  cwd,
+  env,
+  issueBody,
+  issueNumber,
+  contractReviewedHead,
+  branchName,
+  verdictBase,
+}) {
+  const errors = []
+  const stateAnalysis = parseMissionControlState(issueBody ?? '')
+  if (!stateAnalysis.present || !stateAnalysis.valid || !stateAnalysis.state) {
+    errors.push('STATE CONFLICT: managed Mission Control state block is missing or invalid for planning_no_pr authorization')
+    return { ok: false, errors }
+  }
+
+  const state = stateAnalysis.state
+  if (state.active_pr !== null) {
+    errors.push(
+      `STATE CONFLICT: state block active_pr is ${JSON.stringify(state.active_pr)}, but planning_no_pr requires active_pr: null`,
+    )
+  }
+
+  if (state.last_reviewed_head && state.last_reviewed_head !== contractReviewedHead) {
+    errors.push('STATE CONFLICT: state last_reviewed_head does not match the immutable contract reviewed_head')
+  }
+
+  if (
+    state.active_task_issue &&
+    state.active_task_issue !== `#${issueNumber}` &&
+    state.active_task_issue !== String(issueNumber)
+  ) {
+    errors.push('STATE CONFLICT: state active_task_issue does not match the correction issue number')
+  }
+
+  const localHead = run('git', ['rev-parse', 'HEAD'], { cwd, env }).stdout.trim()
+  if (!localHead) {
+    errors.push('STATE CONFLICT: local HEAD is unavailable for planning_no_pr authorization')
+  } else if (localHead !== contractReviewedHead) {
+    const ancestorCheck = run('git', ['merge-base', '--is-ancestor', contractReviewedHead, 'HEAD'], { cwd, env })
+    if (ancestorCheck.status !== 0) {
+      errors.push('STATE CONFLICT: local HEAD does not match reviewed_head and reviewed_head is not an ancestor of HEAD')
+    }
+  }
+
+  const approvedBase = state.approved_base || verdictBase
+  if (!approvedBase) {
+    errors.push('STATE CONFLICT: approved_base is required for planning_no_pr ancestry proof')
+  } else {
+    const baseRef = run('git', ['rev-parse', '--verify', approvedBase], { cwd, env })
+    if (baseRef.status !== 0) {
+      errors.push(`STATE CONFLICT: approved_base ${approvedBase} is not a valid git ref`)
+    } else {
+      const baseSha = baseRef.stdout.trim()
+      const onBaseCheck = run('git', ['merge-base', '--is-ancestor', baseSha, contractReviewedHead], { cwd, env })
+      if (onBaseCheck.status !== 0) {
+        errors.push('STATE CONFLICT: reviewed_head is not safely descended from approved_base')
+      }
+    }
+  }
+
+  if (branchName && !branchName.includes(String(issueNumber))) {
+    errors.push('STATE CONFLICT: current branch does not match the active planning task identity')
+  }
+
+  return { ok: errors.length === 0, errors }
+}
+
+function getCorrectionDiffFiles(cwd, reviewedHead, env = process.env) {
+  const result = run('git', ['diff', '--name-only', reviewedHead, 'HEAD'], { cwd, env })
+  if (result.status !== 0) {
+    return { ok: false, errors: [result.stderr.trim() || result.stdout.trim() || 'git diff failed'] }
+  }
+  const files = result.stdout.split('\n').map((line) => line.trim()).filter(Boolean)
+  return { ok: true, files }
+}
+
 /**
  * Reconcile the immutable contract reviewed_head against the visible verdict
  * head, then against uniquely identified live PR evidence, before granting
@@ -1719,14 +1943,27 @@ function resolveCanonicalVerdictPrIdentity(verdictBody, defaultRepo) {
  * identity, head, base, state, or unavailable required evidence.
  * GitHub orchestration stays here — the correction-contract module remains pure.
  */
-function reconcileCorrectionPrEvidence({ cwd, env, verdictBody, contractReviewedHead }) {
+function reconcileCorrectionPrEvidence({
+  cwd,
+  env,
+  verdictBody,
+  contractReviewedHead,
+  mode = 'implementation_pr',
+  branchName = null,
+  issueNumber = null,
+  contract = null,
+}) {
   const defaultRepo = getDefaultRepo(cwd)
-  const identityResult = resolveCanonicalVerdictPrIdentity(verdictBody, defaultRepo)
+  const knownSourceThreads = mode === 'planning_no_pr' ? collectKnownSourceThreads(contract) : null
+  const identityResult = resolveCanonicalVerdictPrIdentity(
+    verdictBody,
+    defaultRepo,
+    mode,
+    knownSourceThreads,
+  )
   if (!identityResult.ok) {
     return { ok: false, errors: identityResult.errors }
   }
-
-  const { number: prNumber, key: prIdentity } = identityResult.identity
 
   const { base: verdictBase, head: verdictHead } = extractVerdictPrBaseAndHead(verdictBody)
   if (!verdictHead) {
@@ -1741,6 +1978,25 @@ function reconcileCorrectionPrEvidence({ cwd, env, verdictBody, contractReviewed
       errors: ['REVIEW_VERDICT head contradicts the immutable contract reviewed_head'],
     }
   }
+
+  if (mode === 'planning_no_pr') {
+    const checkResult = checkOpenPrsForIssueOrBranch(cwd, env, branchName, issueNumber)
+    if (!checkResult.ok) {
+      return { ok: false, errors: [`live PR evidence is unavailable: ${checkResult.reason}`] }
+    }
+    if (checkResult.openPrs?.length > 0) {
+      const pr = checkResult.openPrs[0]
+      return {
+        ok: false,
+        errors: [
+          `STATE CONFLICT: open PR #${pr.number} exists on GitHub for this planning issue under no-PR contract`,
+        ],
+      }
+    }
+    return { ok: true, errors: [], prNumber: null, prIdentity: null, livePr: null }
+  }
+
+  const { number: prNumber, key: prIdentity } = identityResult.identity
 
   const prResult = fetchPrByReference(cwd, `${defaultRepo}#${prNumber}`, env)
   if (!prResult.ok) {
@@ -1858,16 +2114,48 @@ function runCorrectionPhasePreflight({
     return { ok: false, exitCode: 1, usageError: false, output, issueNumber, branchName, statusShort, issueMetadata }
   }
 
+  if (parsedContract.contract.mode === 'planning_no_pr') {
+    const { base: verdictBase } = extractVerdictPrBaseAndHead(latestVerdict.comment.body)
+    const durableProofs = verifyPlanningNoPrDurableProofs({
+      cwd,
+      env,
+      issueBody: issueMetadata.body ?? '',
+      issueNumber,
+      contractReviewedHead: parsedContract.contract.reviewed_head,
+      branchName,
+      verdictBase,
+    })
+    if (!durableProofs.ok) {
+      output.push('Stop: planning_no_pr durable authorization proofs failed before correction edit authorization.')
+      for (const error of durableProofs.errors) output.push(`- ${error}`)
+      return { ok: false, exitCode: 1, usageError: false, output, issueNumber, branchName, statusShort, issueMetadata }
+    }
+  }
+
   const reconciliation = reconcileCorrectionPrEvidence({
     cwd,
     env,
     verdictBody: latestVerdict.comment.body,
     contractReviewedHead: parsedContract.contract.reviewed_head,
+    mode: parsedContract.contract.mode,
+    branchName,
+    issueNumber,
+    contract: parsedContract.contract,
   })
   if (!reconciliation.ok) {
     output.push('Stop: live PR evidence does not reconcile with the immutable contract head before correction edit authorization.')
     for (const error of reconciliation.errors) output.push(`- ${error}`)
     return { ok: false, exitCode: 1, usageError: false, output, issueNumber, branchName, statusShort, issueMetadata }
+  }
+
+  const diffResult = getCorrectionDiffFiles(cwd, parsedContract.contract.reviewed_head, env)
+  if (diffResult.ok && diffResult.files.length > 0) {
+    const scopeCheck = validateCorrectionScope(parsedContract.contract, diffResult.files, { mode: parsedContract.contract.mode })
+    if (!scopeCheck.ok) {
+      output.push('Stop: correction diff touches prohibited scope.')
+      for (const error of scopeCheck.errors) output.push(`- ${error}`)
+      return { ok: false, exitCode: 1, usageError: false, output, issueNumber, branchName, statusShort, issueMetadata }
+    }
   }
 
   const prUrl =
@@ -1884,7 +2172,8 @@ function runCorrectionPhasePreflight({
 
   const capsule = buildCorrectionCapsule(parsedContract.contract, {
     issueNumber,
-    prUrl: prUrl || '(not provided)',
+    prUrl: prUrl || (parsedContract.contract.mode === 'planning_no_pr' ? 'none' : '(not provided)'),
+    mode: parsedContract.contract.mode,
   })
 
   return {
@@ -1895,7 +2184,9 @@ function runCorrectionPhasePreflight({
       'Bemoat correction-mode preflight',
       `Issue: ${issueRef}`,
       ...capsule.lines,
-      'Edit authorization: granted for the immutable finding set only.',
+      parsedContract.contract.mode === 'planning_no_pr'
+        ? `Edit authorization: granted for the immutable finding set only across canonical planning artifacts (${derivePlanningArtifactAllowlist(parsedContract.contract).join('; ') || 'expected_areas required'}).`
+        : 'Edit authorization: granted for the immutable finding set only.',
     ],
     issueNumber,
     branchName,
