@@ -2638,6 +2638,14 @@ ${managedState({
         name: 'MANAGED',
         nextAction: 'Use the managed-state workflow and its required bounded role transition.',
       })
+      expect(readyAnalysis.report.dispatch).toEqual({
+        nextAction: 'Dev implementation dispatch',
+        handoffRequired: 'implementation HANDOFF',
+        handoffCount: 1,
+        planningRunSelected: false,
+        duplicateFounderGateSelected: false,
+        stateOnlyCoordinationRunSelected: false,
+      })
 
       const inProgressAnalysis = analyzeProgressTracking({
         cwd: root,
@@ -2670,6 +2678,14 @@ ${managedState({
       expect(inProgressAnalysis.report.workflowProfile).toMatchObject({
         name: 'MANAGED',
         nextAction: 'Use the managed-state workflow and its required bounded role transition.',
+      })
+      expect(inProgressAnalysis.report.dispatch).toEqual({
+        nextAction: 'Dev implementation dispatch',
+        handoffRequired: 'implementation HANDOFF',
+        handoffCount: 1,
+        planningRunSelected: false,
+        duplicateFounderGateSelected: false,
+        stateOnlyCoordinationRunSelected: false,
       })
     })
 
