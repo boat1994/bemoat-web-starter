@@ -2544,4 +2544,184 @@ esac
       expect(result.stdout).toMatch(/live task identity verification unavailable/i)
     })
   })
+
+  describe('bounded harness workflow simplification (#146)', () => {
+    it('routes missing (null/undefined) or ambiguous Mission Control mode to STANDARD until authority is resolved (MC-R1-001)', () => {
+      expect(
+        deriveWorkflowProfile({
+          taskSize: 'small',
+          missionControlMode: null,
+        }),
+      ).toMatchObject({
+        name: 'STANDARD',
+        nextAction: 'Use STANDARD safeguards and resolve the Mission Control mode before treating work as FAST.',
+      })
+
+      expect(
+        deriveWorkflowProfile({
+          taskSize: 'small',
+          missionControlMode: undefined,
+        }),
+      ).toMatchObject({
+        name: 'STANDARD',
+        nextAction: 'Use STANDARD safeguards and resolve the Mission Control mode before treating work as FAST.',
+      })
+
+      expect(
+        deriveWorkflowProfile({
+          taskSize: 'small',
+          missionControlMode: 'ambiguous-mode',
+        }),
+      ).toMatchObject({
+        name: 'STANDARD',
+        nextAction: 'Use STANDARD safeguards and resolve the Mission Control mode before treating work as FAST.',
+      })
+
+      expect(
+        deriveWorkflowProfile({
+          taskSize: 'small',
+          missionControlMode: 'optional',
+        }),
+      ).toMatchObject({ name: 'FAST' })
+
+      expect(deriveWorkflowProfile({})).toBeNull()
+    })
+
+    it('replays #145-style bounded defect deterministically proving direct dispatch without planning/HANDOFF, duplicate Founder gates, or intermediate state-only runs (MC-R1-002)', () => {
+      const root = createRepo('feature/145-correction-preflight-defect')
+      const envWithStubbedGh = {
+        ...process.env,
+        PATH: withStubbedGh(
+          root,
+          `#!/usr/bin/env sh
+case "$*" in
+  *"api --paginate graphql"*|*"issue view 145 --json comments"*)
+    printf '%s' '{"comments":[{"body":"## RESULT\\n\\n**PR:** https://github.com/boat1994/bemoat-web-starter/pull/123\\n**Summary:** Planning result from earlier phase","createdAt":"2026-07-22T13:21:34Z"}]}'
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`,
+        ),
+      }
+
+      const readyAnalysis = analyzeProgressTracking({
+        cwd: root,
+        activeIssueNumber: '145',
+        activeIssueBody: `### Task size
+medium
+
+### Mission Control mode
+required
+
+${managedState({
+  state: 'READY',
+  active_task_issue: '"145"',
+  approved_base: 'dev',
+  active_pr: 'null',
+  current_head: 'null',
+  review_cycle: '0',
+  full_review_count: '0',
+  next_permitted_action: '"Implement — post exactly one implementation HANDOFF to Dev / Builder"',
+  updated_at: '2026-07-22T20:27:04+07:00',
+})}`,
+        env: envWithStubbedGh,
+      })
+
+      expect(readyAnalysis.blockers).toEqual([])
+      expect(readyAnalysis.report.declarations.declaresImplementationPlan).toBe(false)
+      expect(readyAnalysis.report.plan).toBeNull()
+      expect(readyAnalysis.report.currentStageSummary.founderGate).toBeNull()
+      expect(readyAnalysis.report.reconciliation?.proposal).toBeNull()
+      expect(readyAnalysis.report.workflowProfile).toMatchObject({
+        name: 'MANAGED',
+        nextAction: 'Use the managed-state workflow and its required bounded role transition.',
+      })
+      expect(readyAnalysis.report.nextPermittedAction).toBe(
+        'Implement — post exactly one implementation HANDOFF to Dev / Builder',
+      )
+
+      const inProgressAnalysis = analyzeProgressTracking({
+        cwd: root,
+        activeIssueNumber: '145',
+        activeIssueBody: `### Task size
+medium
+
+### Mission Control mode
+required
+
+${managedState({
+  state: 'IN_PROGRESS',
+  active_task_issue: '"145"',
+  approved_base: 'dev',
+  active_pr: 'null',
+  current_head: 'null',
+  review_cycle: '0',
+  full_review_count: '0',
+  next_permitted_action: '"Implement — post exactly one implementation HANDOFF to Dev / Builder"',
+  updated_at: '2026-07-22T20:27:04+07:00',
+})}`,
+        env: envWithStubbedGh,
+      })
+
+      expect(inProgressAnalysis.blockers).toEqual([])
+      expect(inProgressAnalysis.report.declarations.declaresImplementationPlan).toBe(false)
+      expect(inProgressAnalysis.report.plan).toBeNull()
+      expect(inProgressAnalysis.report.currentStageSummary.founderGate).toBeNull()
+      expect(inProgressAnalysis.report.currentStageSummary.activePr).toBeNull()
+      expect(inProgressAnalysis.report.reconciliation?.proposal).toBeNull()
+      expect(inProgressAnalysis.report.workflowProfile).toMatchObject({
+        name: 'MANAGED',
+        nextAction: 'Use the managed-state workflow and its required bounded role transition.',
+      })
+      expect(inProgressAnalysis.report.nextPermittedAction).toBe(
+        'Implement — post exactly one implementation HANDOFF to Dev / Builder',
+      )
+    })
+
+    it('preserves role comments when createdAt or state.updated_at is absent or malformed instead of treating as epoch zero (MC-R1-003)', () => {
+      const root = createRepo('feature/146-timestamp-invalid')
+      const analysis = analyzeProgressTracking({
+        cwd: root,
+        activeIssueNumber: '146',
+        activeIssueBody: `### Task size
+medium
+
+### Mission Control mode
+required
+
+${managedState({
+  state: 'IN_PROGRESS',
+  active_task_issue: '"146"',
+  approved_base: 'dev',
+  active_pr: 'null',
+  current_head: 'null',
+  review_cycle: '0',
+  full_review_count: '0',
+  updated_at: '2026-07-22T20:27:04+07:00',
+})}`,
+        env: {
+          ...process.env,
+          PATH: withStubbedGh(
+            root,
+            `#!/usr/bin/env sh
+case "$*" in
+  *"api --paginate graphql"*|*"issue view 146 --json comments"*)
+    printf '%s' '{"comments":[{"body":"## RESULT\\n\\n**PR:** https://github.com/boat1994/bemoat-web-starter/pull/999\\n**Summary:** Comment with malformed timestamp","createdAt":"invalid-timestamp"}]}'
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`,
+          ),
+        },
+      })
+
+      expect(analysis.report.currentStageSummary.activePr).toBe('#999')
+    })
+  })
 })

@@ -273,7 +273,12 @@ export function deriveWorkflowProfile({
     }
   }
 
-  if (missionControlMode === 'unsure') {
+  if (
+    missionControlMode === 'unsure' ||
+    ((taskSize === 'small' || taskSize === 'medium' || taskSize === 'core') &&
+      missionControlMode !== 'optional' &&
+      missionControlMode !== 'required')
+  ) {
     return {
       name: 'STANDARD',
       nextAction: 'Use STANDARD safeguards and resolve the Mission Control mode before treating work as FAST.',
@@ -1018,6 +1023,20 @@ export function analyzeProgressTracking({
     if (commentResult.ok) {
       latestResult = findLatestRoleComment(commentResult.comments, 'RESULT')
       latestVerdict = findLatestRoleComment(commentResult.comments, 'REVIEW_VERDICT')
+      if (latestResult && state?.updated_at) {
+        const commentTime = Date.parse(latestResult.comment.createdAt ?? '')
+        const stateTime = Date.parse(state.updated_at ?? '')
+        if (!Number.isNaN(commentTime) && !Number.isNaN(stateTime) && commentTime < stateTime) {
+          latestResult = null
+        }
+      }
+      if (latestVerdict && state?.updated_at) {
+        const commentTime = Date.parse(latestVerdict.comment.createdAt ?? '')
+        const stateTime = Date.parse(state.updated_at ?? '')
+        if (!Number.isNaN(commentTime) && !Number.isNaN(stateTime) && commentTime < stateTime) {
+          latestVerdict = null
+        }
+      }
       if (!activePrRef && latestResult?.parsed?.prNumber) {
         activePrRef = `#${latestResult.parsed.prNumber}`
       }
@@ -1102,6 +1121,7 @@ export function analyzeProgressTracking({
   }
 
   report.nextPermittedAction =
+    (stateAnalysis.valid && state?.next_permitted_action ? String(state.next_permitted_action) : null) ||
     declarations.nextPermittedAction ||
     (report.firstIncompleteMilestone
       ? `Complete durable milestone: ${report.firstIncompleteMilestone.label}`
