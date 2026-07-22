@@ -280,7 +280,7 @@ export function deriveWorkflowProfile({
     }
   }
 
-  if (missionControlMode !== 'optional') {
+  if (missionControlMode !== 'optional' && missionControlMode !== null && missionControlMode !== undefined) {
     return null
   }
 
@@ -1018,6 +1018,22 @@ export function analyzeProgressTracking({
     if (commentResult.ok) {
       latestResult = findLatestRoleComment(commentResult.comments, 'RESULT')
       latestVerdict = findLatestRoleComment(commentResult.comments, 'REVIEW_VERDICT')
+      if (
+        latestResult &&
+        state?.updated_at &&
+        (Date.parse(latestResult.comment.createdAt ?? '') || 0) <
+          (Date.parse(state.updated_at ?? '') || 0)
+      ) {
+        latestResult = null
+      }
+      if (
+        latestVerdict &&
+        state?.updated_at &&
+        (Date.parse(latestVerdict.comment.createdAt ?? '') || 0) <
+          (Date.parse(state.updated_at ?? '') || 0)
+      ) {
+        latestVerdict = null
+      }
       if (!activePrRef && latestResult?.parsed?.prNumber) {
         activePrRef = `#${latestResult.parsed.prNumber}`
       }

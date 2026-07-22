@@ -128,6 +128,14 @@ same authorized run. Mechanical checks and deterministic reconciliation may be
 performed in that run without routing a separate agent just to rename or advance
 state.
 
+### Bounded defect workflow simplification (KISS)
+
+For bounded defects where root cause, acceptance criteria, and affected files are clear:
+- **No separate planning phase**: Bounded defects proceed directly to implementation (`READY` or `IN_PROGRESS`) without requiring a dedicated planning phase or separate plan document.
+- **No duplicate Founder approval gates**: If Founder authorization was already granted or the defect is pre-authorized correction work, do not insert a duplicate pre-implementation Founder review gate.
+- **Atomic Dev delivery**: Dev completes code changes, validation, Draft PR (`Closes #N`), exact-head CI verification, `## RESULT` comment, and state advancement (`AWAITING_REVIEW_1`) atomically in one delivery run.
+- **Deterministic comment-timestamp filtering**: When evaluating live task progress in `READY` or `IN_PROGRESS`, role comments (`RESULT` or `REVIEW_VERDICT`) from earlier planning or diagnostic phases whose timestamps precede `state.updated_at` are ignored by deterministic preflight guards (`#146`) to prevent stale comments from triggering false `STATE_CONFLICT` blockers or inferring stale PR references.
+
 ## Double-Loop Review Gate
 
 The Double-Loop Review Gate is a **no-code diagnostic checkpoint** between a

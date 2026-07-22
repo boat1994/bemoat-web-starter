@@ -2544,4 +2544,67 @@ esac
       expect(result.stdout).toMatch(/live task identity verification unavailable/i)
     })
   })
+
+  describe('bounded harness workflow simplification (#146)', () => {
+    it('derives FAST and STANDARD profiles when Mission Control mode is omitted (null)', () => {
+      expect(
+        deriveWorkflowProfile({
+          taskSize: 'small',
+          missionControlMode: null,
+        }),
+      ).toMatchObject({ name: 'FAST' })
+
+      expect(
+        deriveWorkflowProfile({
+          taskSize: 'medium',
+          missionControlMode: null,
+        }),
+      ).toMatchObject({ name: 'STANDARD' })
+    })
+
+    it('replays #145-style bounded defect without planning or duplicate Founder-gate blockers when older RESULT comments exist before IN_PROGRESS', () => {
+      const root = createRepo('feature/145-correction-preflight-defect')
+      const analysis = analyzeProgressTracking({
+        cwd: root,
+        activeIssueNumber: '145',
+        activeIssueBody: `### Task size
+medium
+
+### Mission Control mode
+required
+
+${managedState({
+  state: 'IN_PROGRESS',
+  active_task_issue: '"145"',
+  approved_base: 'dev',
+  active_pr: 'null',
+  current_head: 'null',
+  review_cycle: '0',
+  full_review_count: '0',
+  updated_at: '2026-07-22T20:27:04+07:00',
+})}`,
+        env: {
+          ...process.env,
+          PATH: withStubbedGh(
+            root,
+            `#!/usr/bin/env sh
+case "$*" in
+  *"api --paginate graphql"*|*"issue view 145 --json comments"*)
+    printf '%s' '{"comments":[{"body":"## RESULT\\n\\n**PR:** https://github.com/boat1994/bemoat-web-starter/pull/123\\n**Summary:** Planning result from earlier phase","createdAt":"2026-07-22T13:21:34Z"}]}'
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`,
+          ),
+        },
+      })
+
+      expect(analysis.blockers).toEqual([])
+      expect(analysis.report.currentStageSummary.activePr).toBeNull()
+      expect(analysis.report.workflowProfile).toMatchObject({ name: 'MANAGED' })
+    })
+  })
 })
