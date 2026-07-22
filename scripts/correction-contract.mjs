@@ -77,6 +77,14 @@ function validateContractShape(candidate) {
   if (candidate.schema_version !== CORRECTION_CONTRACT_SCHEMA_VERSION) {
     errors.push(`schema_version must be ${CORRECTION_CONTRACT_SCHEMA_VERSION}`)
   }
+  let mode = 'implementation_pr'
+  if (candidate.mode !== undefined) {
+    if (candidate.mode !== 'implementation_pr' && candidate.mode !== 'planning_no_pr') {
+      errors.push('mode must be implementation_pr or planning_no_pr')
+    } else {
+      mode = candidate.mode
+    }
+  }
   if (typeof candidate.reviewed_head !== 'string' || !candidate.reviewed_head.trim()) {
     errors.push('reviewed_head must be a non-empty string')
   }
@@ -100,6 +108,7 @@ function validateContractShape(candidate) {
     ok: true,
     contract: {
       schema_version: CORRECTION_CONTRACT_SCHEMA_VERSION,
+      mode,
       reviewed_head: String(candidate.reviewed_head).trim(),
       findings: candidate.findings.map((finding) => ({
         id: String(finding.id).trim(),
@@ -127,7 +136,13 @@ export function parseCorrectionContract(text = '') {
   if (objects.length > 1) {
     return { ok: false, errors: ['multiple correction finding contract JSON blocks are not allowed'] }
   }
-  return validateContractShape(objects[0])
+  const result = validateContractShape(objects[0])
+  if (result.ok && result.contract.mode === 'implementation_pr') {
+    if (/\*\*PR\s*\/\s*base\s*\/\s*head:\*\*\s*none\b/i.test(text)) {
+      result.contract.mode = 'planning_no_pr'
+    }
+  }
+  return result
 }
 
 /**
@@ -169,6 +184,7 @@ function validateEvidenceShape(candidate) {
     ok: true,
     evidence: {
       schema_version: CORRECTION_CONTRACT_SCHEMA_VERSION,
+      mode: typeof candidate.mode === 'string' && candidate.mode.trim() ? candidate.mode.trim() : undefined,
       correction_base: String(candidate.correction_base).trim(),
       finding_results: Object.fromEntries(
         Object.entries(candidate.finding_results).map(([id, entry]) => [
@@ -244,17 +260,21 @@ export function validateFindingIdentity(canonical, candidate) {
 /**
  * Build a compact correction capsule for a fresh IDE session.
  * @param {object} contract
- * @param {{ issueNumber?: string, prUrl?: string }} [meta]
+ * @param {{ issueNumber?: string, prUrl?: string, mode?: string }} [meta]
  */
 export function buildCorrectionCapsule(contract, meta = {}) {
   const findings = contract?.findings ?? []
+  const mode = meta.mode ?? contract?.mode ?? 'implementation_pr'
   const lines = [
     'Correction capsule',
     meta.issueNumber ? `Issue: #${meta.issueNumber}` : 'Issue: (not provided)',
-    meta.prUrl ? `PR: ${meta.prUrl}` : 'PR: (not provided)',
-    `Reviewed head / correction base: ${contract?.reviewed_head ?? '(missing)'}`,
-    'Canonical findings:',
+    meta.prUrl ? `PR: ${meta.prUrl}` : mode === 'planning_no_pr' ? 'PR: none' : 'PR: (not provided)',
   ]
+  if (mode === 'planning_no_pr') {
+    lines.push('Mode: planning_no_pr')
+  }
+  lines.push(`Reviewed head / correction base: ${contract?.reviewed_head ?? '(missing)'}`)
+  lines.push('Canonical findings:')
 
   for (const finding of findings) {
     lines.push(`- ${finding.id}: ${finding.canonical_summary}`)
@@ -263,12 +283,19 @@ export function buildCorrectionCapsule(contract, meta = {}) {
     if (finding.expected_areas?.length) {
       lines.push(`  expected_areas: ${finding.expected_areas.join('; ')}`)
     }
-    if (finding.prohibited_areas?.length) {
+    if (mode === 'planning_no_pr') {
+      const extra = finding.prohibited_areas?.length ? ` (${finding.prohibited_areas.join('; ')})` : ''
+      lines.push(`  prohibited_areas: planning default prohibition (outside docs/ and .bemoat/)${extra}`)
+    } else if (finding.prohibited_areas?.length) {
       lines.push(`  prohibited_areas: ${finding.prohibited_areas.join('; ')}`)
     }
   }
 
-  lines.push('Authorized scope: only the immutable finding set above')
+  if (mode === 'planning_no_pr') {
+    lines.push('Authorized scope: only the immutable finding set above within planning artifact paths (docs/ and .bemoat/)')
+  } else {
+    lines.push('Authorized scope: only the immutable finding set above')
+  }
   lines.push('Stop conditions: missing/malformed/conflicting findings; identity drift; incomplete evidence map')
   lines.push('Thread ownership: Delta Reviewer resolves original review threads after corrected exact-head CI')
 
@@ -334,14 +361,8 @@ export function validateFindingEvidence(contract, result, diffFiles = [], option
   if (!identity.ok) errors.push(...identity.errors)
 
   const diffSet = new Set(diffFiles)
-  const prohibited = contract.findings.flatMap((finding) => finding.prohibited_areas ?? [])
-  for (const filePath of diffFiles) {
-    for (const area of prohibited) {
-      if (pathMatchesProhibitedArea(area, filePath)) {
-        errors.push(`prohibited scope present in correction diff: ${filePath} (matched ${area})`)
-      }
-    }
-  }
+  const scopeCheck = validateCorrectionScope(contract, diffFiles, options)
+  if (!scopeCheck.ok) errors.push(...scopeCheck.errors)
 
   for (const finding of contract.findings) {
     const entry = result.finding_results[finding.id]
@@ -428,9 +449,35 @@ export function validateCorrectionRoleComment({
       return { ok: false, errors }
     }
 
-    const validation = validateFindingEvidence(canonicalContract, evidence.evidence, diffFiles, { body })
+    const validation = validateFindingEvidence(canonicalContract, evidence.evidence, diffFiles, { body, mode: canonicalContract.mode })
     if (!validation.ok) errors.push(...validation.errors)
   }
 
+  return { ok: errors.length === 0, errors }
+}
+
+/**
+ * @param {object} contract
+ * @param {string[]} diffFiles
+ * @param {{ mode?: string }} [options]
+ */
+export function validateCorrectionScope(contract, diffFiles = [], options = {}) {
+  const errors = []
+  const mode = options.mode ?? contract?.mode ?? 'implementation_pr'
+  const prohibited = contract?.findings?.flatMap((finding) => finding.prohibited_areas ?? []) ?? []
+
+  for (const filePath of diffFiles) {
+    if (mode === 'planning_no_pr') {
+      if (!filePath.startsWith('docs/') && !filePath.startsWith('.bemoat/')) {
+        errors.push(`prohibited scope present in correction diff: ${filePath} (matched planning default prohibition)`)
+        continue
+      }
+    }
+    for (const area of prohibited) {
+      if (pathMatchesProhibitedArea(area, filePath)) {
+        errors.push(`prohibited scope present in correction diff: ${filePath} (matched ${area})`)
+      }
+    }
+  }
   return { ok: errors.length === 0, errors }
 }
