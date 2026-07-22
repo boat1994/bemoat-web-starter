@@ -24,14 +24,32 @@ Canonical references:
 | Field | Value |
 | --- | --- |
 | PR | https://github.com/boat1994/bemoat-web-starter/pull/148 |
-| Baseline reviewed head (Before) | `502999d29afc2142604b9f250bfa0c31c2285aff` |
-| Corrected head (After) | `093703a41e42663d8c205b2f81e71d540169ecdc` |
 | Node runtime | `>=24.15` (`v24.16.0` used locally) |
-| Repository | `boat1994/bemoat-web-starter` only |
+| Repository | `boat1994/bemoat-web-starter` only (upstream-only; no child sync) |
+
+### SHA evidence model (MC-R1-005)
+
+All SHAs cited below are GitHub-retrievable on branch
+`feature/145-planning-no-pr-correction`. Verify via
+`gh api repos/boat1994/bemoat-web-starter/commits/<sha>`.
+
+| Role | SHA | Notes |
+| --- | --- | --- |
+| Baseline (Before) | `502999d29afc2142604b9f250bfa0c31c2285aff` | Prior reviewed implementation head; all Before-column commands executed here |
+| Reviewed implementation / evidence baseline (After) | `b6496a9a994826088b49e99853d418346c1a9554` | Current PR #148 head at Review 2; all After-column commands executed here |
+| Final evidence-bearing PR exact head | *not embedded in this artifact* | Recorded only in Issue #145 correction `## RESULT` after push of this evidence correction |
+
+This artifact does **not** claim its own commit SHA as a "Corrected head" value.
+The post-push `## RESULT` on Issue #145 is the durable source for the final
+GitHub-retrievable PR exact head after MC-R1-005 evidence correction lands.
 
 ## Reproducible command matrix
 
-| ID | Scenario | Exact command / input | Before (`502999d`) | After (corrected head) |
+Commands in the Before column were executed at
+`502999d29afc2142604b9f250bfa0c31c2285aff`. Commands in the After column were
+executed at `b6496a9a994826088b49e99853d418346c1a9554`.
+
+| ID | Scenario | Exact command / input | Before (`502999d`) | After (`b6496a9`) |
 | --- | --- | --- | --- | --- |
 | D-01 | Valid planning-only no-PR authorization | `pnpm exec vitest run tests/int/agent-issue.int.spec.ts -t "TEST-PLAN-01"` on baseline scripts+tests | **PASS** · exit `0` · `Edit authorization: granted` without durable managed-state proofs | **PASS** · exit `0` · authorization granted only after durable proofs + narrow allowlist |
 | D-02 | Missing/conflicting managed `active_pr` (`MC-R1-001`) | `pnpm exec vitest run tests/int/agent-issue.int.spec.ts -t "MC-R1-001: fails closed when managed state active_pr"` | **N/A** (control absent) | **PASS** · exit `0` test · preflight exit `1` · `active_pr: null` required |
@@ -56,7 +74,7 @@ Canonical references:
 - Declared `source_thread`:
   `https://github.com/boat1994/bemoat-web-starter/pull/12#discussion_r1`.
 
-## Executed After validation (corrected head, local)
+## Executed After validation (`b6496a9`, local)
 
 ```text
 $ node --version
@@ -79,7 +97,7 @@ Tests  101 passed | 61 skipped (162)
 | MC-R1-002 | Generic `docs/**` / `.bemoat/**` bypass | D-04/D-05 |
 | MC-R1-003 | Malformed / incomplete conflicting-PR evidence treated as success | D-06/D-07/D-08 |
 | MC-R1-004 | Foreign / unrelated discussion URLs accepted under `none` mode | D-09/D-10 |
-| MC-R1-005 | No reproducible upstream starter dogfood table | This artifact + D-01–D-12 |
+| MC-R1-005 | No reproducible upstream starter dogfood table; invalid non-retrievable SHA claim | This artifact + D-01–D-12; SHA evidence model above uses only GitHub-retrievable heads; final PR exact head deferred to post-push `## RESULT` |
 
 ## Non-goals confirmed
 
