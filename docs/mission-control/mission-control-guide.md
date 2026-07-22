@@ -65,15 +65,14 @@ require reconciliation, never a silent reset or inferred review count.
 
 ## Workflow profiles
 
-Derive one profile from the declared task tier and Mission Control mode; this
-is routing guidance, not another state machine or durable taxonomy.
+Derive one profile from the declared task tier and Mission Control mode using the canonical routing contract: explicit `required` routes to MANAGED; explicit `optional` / `not required` routes to FAST for Small and STANDARD for Medium/Core; any missing (`null`/`undefined`), malformed, ambiguous, or `unsure` mode routes to STANDARD until authority is resolved (`#146`). This is routing guidance, not another state machine or durable taxonomy.
 
 | Declared task | Profile | Default path |
 | --- | --- | --- |
-| Small + Mission Control not required | FAST | Focused implementation and verification → one commit → PR → compact `RESULT` → Founder review/merge |
-| Medium/Core + Mission Control not required | STANDARD | Existing risk-adjusted implementation, verification, and Founder merge gates |
+| Small + Mission Control optional (not required) | FAST | Focused implementation and verification → one commit → PR → compact `RESULT` → Founder review/merge |
+| Medium/Core + Mission Control optional (not required) | STANDARD | Existing risk-adjusted implementation, verification, and Founder merge gates |
 | Any tier + Mission Control required | MANAGED | Existing bounded role/state/review workflow |
-| Mission Control mode unsure | STANDARD | Resolve the mode before treating the task as FAST |
+| Mission Control mode missing, ambiguous, or unsure | STANDARD | Resolve the mode before treating the task as FAST |
 
 The profile chooses review routing, not additional states or comment types.
 Review routing depends on capability and proven risk; runtime model names remain replaceable configuration.
@@ -134,7 +133,7 @@ For bounded defects where root cause, acceptance criteria, and affected files ar
 - **No separate planning phase**: Bounded defects proceed directly to implementation (`READY` or `IN_PROGRESS`) without requiring a dedicated planning phase or separate plan document.
 - **No duplicate Founder approval gates**: If Founder authorization was already granted or the defect is pre-authorized correction work, do not insert a duplicate pre-implementation Founder review gate.
 - **Atomic Dev delivery**: Dev completes code changes, validation, Draft PR (`Closes #N`), exact-head CI verification, `## RESULT` comment, and state advancement (`AWAITING_REVIEW_1`) atomically in one delivery run.
-- **Deterministic comment-timestamp filtering**: When evaluating live task progress in `READY` or `IN_PROGRESS`, role comments (`RESULT` or `REVIEW_VERDICT`) from earlier planning or diagnostic phases whose timestamps precede `state.updated_at` are ignored by deterministic preflight guards (`#146`) to prevent stale comments from triggering false `STATE_CONFLICT` blockers or inferring stale PR references.
+- **Deterministic comment-timestamp filtering**: When evaluating live task progress in `READY` or `IN_PROGRESS`, role comments (`RESULT` or `REVIEW_VERDICT`) from earlier planning or diagnostic phases whose valid timestamps (`createdAt`) precede a valid `state.updated_at` are ignored by deterministic preflight guards (`#146`) to prevent stale comments from triggering false `STATE_CONFLICT` blockers or inferring stale PR references. If either timestamp is absent or malformed (`NaN`), the role comment is preserved for normal reconciliation or fail-closed rules rather than treating invalid timestamps as epoch zero (`MC-R1-003`).
 
 ## Double-Loop Review Gate
 
