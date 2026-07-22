@@ -9,6 +9,7 @@ const {
   validateFindingIdentity,
   buildCorrectionCapsule,
   validateFindingEvidence,
+  validateCorrectionScope,
   isCorrectionPhaseResult,
   validateCorrectionRoleComment,
 } = correctionContractModule as unknown as Record<string, (...args: any[]) => any>
@@ -392,8 +393,8 @@ describe('correction-contract pure module', () => {
     const text = capsule.lines.join('\n')
     expect(text).toContain('Mode: planning_no_pr')
     expect(text).toContain('PR: none')
-    expect(text).toContain('prohibited_areas: planning default prohibition (outside docs/ and .bemoat/)')
-    expect(text).toContain('Authorized scope: only the immutable finding set above within planning artifact paths (docs/ and .bemoat/)')
+    expect(text).toContain('prohibited_areas: planning canonical-artifact allowlist only (docs/superpowers/specs/bogus/catalog/minimal-luxury-detail/design.md)')
+    expect(text).toContain('Authorized scope: only the immutable finding set above within canonical planning artifacts (docs/superpowers/specs/bogus/catalog/minimal-luxury-detail/design.md)')
   })
 
   it('parses mode from correction contract JSON and validates shape', () => {
@@ -423,6 +424,33 @@ describe('correction-contract pure module', () => {
     if (parsed.ok) {
       expect((parsed.contract as any).mode).toBe('planning_no_pr')
     }
+  })
+
+  it('rejects unrelated docs paths outside the canonical planning-artifact allowlist (MC-R1-002)', () => {
+    const contract = {
+      schema_version: 1,
+      mode: 'planning_no_pr' as const,
+      reviewed_head: '3d0e83e',
+      findings: [
+        {
+          id: 'MC-R1-001',
+          canonical_summary: 'design spec missing exact error boundary',
+          source_thread: 'https://github.com/boat1994/bemoat-web-starter/pull/12#discussion_r1',
+          required_evidence: ['updated design.md'],
+          expected_areas: ['docs/superpowers/specs/bogus/catalog/minimal-luxury-detail/design.md'],
+          prohibited_areas: [] as string[],
+        },
+      ],
+    }
+
+    const result = validateCorrectionScope(
+      contract,
+      ['docs/agent-loop/README.md'],
+      { mode: 'planning_no_pr' },
+    )
+
+    expect(result.ok).toBe(false)
+    expect(result.errors.join(' ')).toContain('outside canonical planning-artifact allowlist')
   })
 
   it('enforces planning default prohibition in validateFindingEvidence when mode is planning_no_pr', () => {
@@ -458,6 +486,6 @@ describe('correction-contract pure module', () => {
     )
 
     expect(result.ok).toBe(false)
-    expect(result.errors.join(' ')).toContain('prohibited scope present in correction diff: src/app/page.tsx (matched planning default prohibition)')
+    expect(result.errors.join(' ')).toContain('prohibited scope present in correction diff: src/app/page.tsx (outside canonical planning-artifact allowlist)')
   })
 })

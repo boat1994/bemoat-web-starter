@@ -285,14 +285,20 @@ export function buildCorrectionCapsule(contract, meta = {}) {
     }
     if (mode === 'planning_no_pr') {
       const extra = finding.prohibited_areas?.length ? ` (${finding.prohibited_areas.join('; ')})` : ''
-      lines.push(`  prohibited_areas: planning default prohibition (outside docs/ and .bemoat/)${extra}`)
+      const allowlist = derivePlanningArtifactAllowlist(contract)
+      lines.push(
+        `  prohibited_areas: planning canonical-artifact allowlist only (${allowlist.length ? allowlist.join('; ') : 'none declared'})${extra}`,
+      )
     } else if (finding.prohibited_areas?.length) {
       lines.push(`  prohibited_areas: ${finding.prohibited_areas.join('; ')}`)
     }
   }
 
   if (mode === 'planning_no_pr') {
-    lines.push('Authorized scope: only the immutable finding set above within planning artifact paths (docs/ and .bemoat/)')
+    const allowlist = derivePlanningArtifactAllowlist(contract)
+    lines.push(
+      `Authorized scope: only the immutable finding set above within canonical planning artifacts (${allowlist.length ? allowlist.join('; ') : 'expected_areas required'})`,
+    )
   } else {
     lines.push('Authorized scope: only the immutable finding set above')
   }
@@ -303,6 +309,34 @@ export function buildCorrectionCapsule(contract, meta = {}) {
   lines.push(playbackLine)
 
   return { lines, playbackLine, findingCount: findings.length }
+}
+
+/**
+ * Derive the narrow planning-artifact allowlist from immutable finding expected_areas.
+ * @param {object} contract
+ * @returns {string[]}
+ */
+export function derivePlanningArtifactAllowlist(contract) {
+  const allowlist = new Set()
+  for (const finding of contract?.findings ?? []) {
+    for (const area of finding.expected_areas ?? []) {
+      const trimmed = typeof area === 'string' ? area.trim() : ''
+      if (trimmed) allowlist.add(trimmed)
+    }
+  }
+  return [...allowlist]
+}
+
+/**
+ * @param {string} allowedPath
+ * @param {string} filePath
+ */
+function pathMatchesPlanningAllowlistEntry(allowedPath, filePath) {
+  if (!allowedPath || !filePath) return false
+  if (allowedPath === filePath) return true
+  if (allowedPath.endsWith('/') && filePath.startsWith(allowedPath)) return true
+  if (filePath === allowedPath || filePath.startsWith(`${allowedPath}/`)) return true
+  return false
 }
 
 /**
@@ -465,11 +499,19 @@ export function validateCorrectionScope(contract, diffFiles = [], options = {}) 
   const errors = []
   const mode = options.mode ?? contract?.mode ?? 'implementation_pr'
   const prohibited = contract?.findings?.flatMap((finding) => finding.prohibited_areas ?? []) ?? []
+  const planningAllowlist = mode === 'planning_no_pr' ? derivePlanningArtifactAllowlist(contract) : []
 
   for (const filePath of diffFiles) {
     if (mode === 'planning_no_pr') {
-      if (!filePath.startsWith('docs/') && !filePath.startsWith('.bemoat/')) {
-        errors.push(`prohibited scope present in correction diff: ${filePath} (matched planning default prohibition)`)
+      if (planningAllowlist.length === 0) {
+        errors.push('planning_no_pr correction requires at least one expected_areas entry in the immutable finding contract')
+        continue
+      }
+      const allowed = planningAllowlist.some((entry) => pathMatchesPlanningAllowlistEntry(entry, filePath))
+      if (!allowed) {
+        errors.push(
+          `prohibited scope present in correction diff: ${filePath} (outside canonical planning-artifact allowlist)`,
+        )
         continue
       }
     }
