@@ -24,6 +24,55 @@ const missionControlRequiredKeys = [
   'updated_by',
 ]
 
+const postBudgetReviewVerdicts = new Set([
+  'CORRECTION REQUIRED',
+  'ELIGIBLE FOR FOUNDER REVIEW',
+  'BLOCKED FOR FOUNDER DECISION',
+  'BLOCKED EXTERNAL',
+  'STATE CONFLICT',
+])
+
+function isFounderAuthorization(value, scope) {
+  return typeof value === 'object' && value !== null && !Array.isArray(value) &&
+    value.status === 'approved' && value.authority === 'Founder' && value.scope === scope &&
+    typeof value.action === 'string' && value.action.length > 0 &&
+    typeof value.authorized_at === 'string' && value.authorized_at.length > 0
+}
+
+function validatePostBudgetReviews(state) {
+  if (!Object.hasOwn(state, 'post_budget_reviews')) {
+    return { valid: true, reviews: [] }
+  }
+  if (!Array.isArray(state.post_budget_reviews)) {
+    return { valid: false, reason: 'post_budget_reviews must be an array' }
+  }
+
+  for (const [index, review] of state.post_budget_reviews.entries()) {
+    if (typeof review !== 'object' || review === null || Array.isArray(review)) {
+      return { valid: false, reason: 'post-budget review entries must be mappings' }
+    }
+    if (review.review_number !== index + 4) {
+      return { valid: false, reason: 'post-budget review numbers must be contiguous from Review 4' }
+    }
+    if (typeof review.reviewed_head !== 'string' || review.reviewed_head.length === 0 ||
+        typeof review.verdict !== 'string' || !postBudgetReviewVerdicts.has(review.verdict)) {
+      return { valid: false, reason: 'post-budget review number, head, or verdict is invalid' }
+    }
+    if (!isFounderAuthorization(review.authorization, 'review')) {
+      return { valid: false, reason: `post-budget review authorization is required for Review ${review.review_number}` }
+    }
+    if (!Array.isArray(review.finding_dispositions) || review.finding_dispositions.some((finding) =>
+      typeof finding !== 'object' || finding === null || Array.isArray(finding) ||
+      typeof finding.finding_id !== 'string' || finding.finding_id.length === 0 ||
+      typeof finding.disposition !== 'string' || finding.disposition.length === 0
+    )) {
+      return { valid: false, reason: `post-budget Review ${review.review_number} requires valid finding dispositions` }
+    }
+  }
+
+  return { valid: true, reviews: state.post_budget_reviews }
+}
+
 /**
  * @typedef {{
  *   schema_version: number,
@@ -35,6 +84,8 @@ const missionControlRequiredKeys = [
  *   active_pr: string | null,
  *   current_head: string | null,
  *   last_reviewed_head: string | null,
+ *   post_budget_reviews?: unknown[],
+ *   founder_decision?: unknown,
  *   guide_version: string,
  *   guide_source_ref: string,
  *   guide_source_sha: string | null,
@@ -100,13 +151,37 @@ export function parseMissionControlState(body = '') {
   if (!Array.isArray(state.open_blockers) || !Array.isArray(state.follow_up_issues)) {
     return { present: true, valid: false, reason: 'open_blockers and follow_up_issues must be arrays' }
   }
+
+  const postBudget = validatePostBudgetReviews(state)
+  if (!postBudget.valid) return { present: true, valid: false, reason: postBudget.reason }
+  const hasPostBudgetReviews = postBudget.reviews.length > 0
+
   if (state.review_cycle > 0 && typeof state.last_reviewed_head !== 'string') {
     return { present: true, valid: false, reason: 'reviewed cycles require last_reviewed_head' }
+  }
+  if (hasPostBudgetReviews) {
+    const latestPostBudgetReview = postBudget.reviews.at(-1)
+    if (state.review_cycle !== 3 || state.full_review_count !== 1) {
+      return { present: true, valid: false, reason: 'post-budget history must preserve the normal review budget counters at 3/1' }
+    }
+    if (state.last_reviewed_head !== latestPostBudgetReview.reviewed_head) {
+      return { present: true, valid: false, reason: 'last_reviewed_head must match the latest completed post-budget review' }
+    }
+    if (state.state === 'IN_PROGRESS') {
+      if (!['CORRECTION REQUIRED', 'BLOCKED FOR FOUNDER DECISION'].includes(latestPostBudgetReview.verdict)) {
+        return { present: true, valid: false, reason: 'post-budget verdict does not authorize a correction transition' }
+      }
+      if (!isFounderAuthorization(state.founder_decision, 'correction')) {
+        return { present: true, valid: false, reason: 'post-budget correction authorization is required for IN_PROGRESS' }
+      }
+      if (typeof state.active_pr !== 'string' || typeof state.current_head !== 'string') {
+        return { present: true, valid: false, reason: 'post-budget correction requires active_pr and current_head' }
+      }
+    }
   }
 
   const expectedCycles = {
     READY: 0,
-    IN_PROGRESS: 0,
     AWAITING_REVIEW_1: 0,
     CORRECTION_REQUIRED_1: 1,
     AWAITING_REVIEW_2: 1,
@@ -116,9 +191,11 @@ export function parseMissionControlState(body = '') {
   if (Object.hasOwn(expectedCycles, state.state) && state.review_cycle !== expectedCycles[state.state]) {
     return { present: true, valid: false, reason: 'state and review_cycle are inconsistent' }
   }
+  if (state.state === 'IN_PROGRESS' && !hasPostBudgetReviews && state.review_cycle !== 0) {
+    return { present: true, valid: false, reason: 'state and review_cycle are inconsistent' }
+  }
   const expectedFullReviewCounts = {
     READY: 0,
-    IN_PROGRESS: 0,
     AWAITING_REVIEW_1: 0,
     CORRECTION_REQUIRED_1: 1,
     AWAITING_REVIEW_2: 1,
@@ -131,6 +208,9 @@ export function parseMissionControlState(body = '') {
   if (Object.hasOwn(expectedFullReviewCounts, state.state) && state.full_review_count !== expectedFullReviewCounts[state.state]) {
     return { present: true, valid: false, reason: 'state and full_review_count are inconsistent' }
   }
+  if (state.state === 'IN_PROGRESS' && !hasPostBudgetReviews && state.full_review_count !== 0) {
+    return { present: true, valid: false, reason: 'state and full_review_count are inconsistent' }
+  }
 
   return { present: true, valid: true, state: /** @type {MissionControlState} */ (state) }
 }
@@ -139,6 +219,7 @@ export function renderMissionControlState(stateObj) {
   const orderedKeys = [
     'schema_version', 'state', 'review_cycle', 'full_review_count', 'approved_base',
     'active_task_issue', 'active_pr', 'current_head', 'last_reviewed_head',
+    'post_budget_reviews', 'founder_decision',
     'guide_version', 'guide_source_ref', 'guide_source_sha', 'open_blockers',
     'follow_up_issues', 'next_permitted_action', 'material_change_status', 'updated_at',
     'updated_by'

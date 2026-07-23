@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
 import { afterEach, describe, it, expect } from 'vitest'
-import { parseMissionControlState } from '../../scripts/mission-control-state.mjs'
+import { parseMissionControlState, renderMissionControlState } from '../../scripts/mission-control-state.mjs'
 import {
   analyzeProgressTracking,
   analyzeExactHeadCi,
@@ -27,6 +27,7 @@ const proposeDeliveryReconciliation = rawProposeDeliveryReconciliation as unknow
 
 const tempRoots: string[] = []
 const dogfoodRoot = resolve(process.cwd(), 'docs/mission-control/dogfood')
+const renderStateBody = (state: Record<string, unknown>) => renderMissionControlState(state)
 
 afterEach(() => {
   for (const root of tempRoots.splice(0)) rmSync(root, { recursive: true, force: true })
@@ -336,6 +337,190 @@ schema_version: 1
       expect(prop.state).toBe('STATE_CONFLICT')
       expect(prop.review_cycle).toBe(2)
       expect(prop.full_review_count).toBe(1)
+    })
+
+    it('accepts completed Founder-authorized Review 4 history during its separately authorized correction', () => {
+      const body = `<!-- bemoat-mission-control-state:start -->
+\`\`\`yaml
+schema_version: 1
+state: IN_PROGRESS
+review_cycle: 3
+full_review_count: 1
+approved_base: main
+active_task_issue: "#155"
+active_pr: "#157"
+current_head: correction-head
+last_reviewed_head: review-4-head
+post_budget_reviews:
+  - review_number: 4
+    reviewed_head: review-4-head
+    verdict: BLOCKED FOR FOUNDER DECISION
+    authorization:
+      status: approved
+      authority: Founder
+      scope: review
+      action: "Authorize bounded Review 4"
+      authorized_at: "2026-07-23T15:00:00Z"
+    finding_dispositions:
+      - finding_id: MC-R1-002
+        disposition: open
+founder_decision:
+  status: approved
+  authority: Founder
+  scope: correction
+  action: "Authorize one bounded correction for MC-R1-002"
+  authorized_at: "2026-07-23T16:00:00Z"
+guide_version: 1.2.0
+guide_source_ref: main
+guide_source_sha: 42b383a8bca33518116763af8094e6a42212bf0b
+open_blockers:
+  - MC-R1-002
+follow_up_issues: []
+next_permitted_action: "Dev executes only the authorized MC-R1-002 correction"
+material_change_status: none
+updated_at: "2026-07-23T16:01:00Z"
+updated_by: Mission Control
+\`\`\`
+<!-- bemoat-mission-control-state:end -->`
+
+      const parsed = parseMissionControlState(body)
+
+      expect(parsed.valid).toBe(true)
+      expect(parsed.state).toMatchObject({
+        state: 'IN_PROGRESS',
+        review_cycle: 3,
+        full_review_count: 1,
+        last_reviewed_head: 'review-4-head',
+        post_budget_reviews: [
+          {
+            review_number: 4,
+            reviewed_head: 'review-4-head',
+            verdict: 'BLOCKED FOR FOUNDER DECISION',
+            authorization: {
+              status: 'approved',
+              authority: 'Founder',
+              scope: 'review',
+              action: 'Authorize bounded Review 4',
+              authorized_at: '2026-07-23T15:00:00Z',
+            },
+            finding_dispositions: [
+              { finding_id: 'MC-R1-002', disposition: 'open' },
+            ],
+          },
+        ],
+      })
+      const roundTrip = parseMissionControlState(renderMissionControlState(parsed.state ?? {}))
+      expect(roundTrip.valid).toBe(true)
+      expect(roundTrip.state?.post_budget_reviews).toEqual(parsed.state?.post_budget_reviews)
+    })
+
+    it('rejects a post-budget review or correction without its explicit Founder authorization', () => {
+      const base = {
+        schema_version: 1,
+        state: 'IN_PROGRESS',
+        review_cycle: 3,
+        full_review_count: 1,
+        approved_base: 'main',
+        active_task_issue: '#155',
+        active_pr: '#157',
+        current_head: 'correction-head',
+        last_reviewed_head: 'review-4-head',
+        post_budget_reviews: [{
+          review_number: 4,
+          reviewed_head: 'review-4-head',
+          verdict: 'BLOCKED FOR FOUNDER DECISION',
+          authorization: {
+            status: 'approved',
+            authority: 'Founder',
+            scope: 'review',
+            action: 'Authorize bounded Review 4',
+            authorized_at: '2026-07-23T15:00:00Z',
+          },
+          finding_dispositions: [{ finding_id: 'MC-R1-002', disposition: 'open' }],
+        }],
+        founder_decision: {
+          status: 'approved',
+          authority: 'Founder',
+          scope: 'correction',
+          action: 'Authorize one bounded correction for MC-R1-002',
+          authorized_at: '2026-07-23T16:00:00Z',
+        },
+        guide_version: '1.2.0',
+        guide_source_ref: 'main',
+        guide_source_sha: '42b383a8bca33518116763af8094e6a42212bf0b',
+        open_blockers: ['MC-R1-002'],
+        follow_up_issues: [] as string[],
+        next_permitted_action: 'Dev executes only the authorized MC-R1-002 correction',
+        material_change_status: 'none',
+        updated_at: '2026-07-23T16:01:00Z',
+        updated_by: 'Mission Control',
+      }
+
+      const missingReviewAuthorization = structuredClone(base)
+      delete (missingReviewAuthorization.post_budget_reviews[0] as Record<string, unknown>).authorization
+      const missingCorrectionAuthorization = structuredClone(base)
+      delete (missingCorrectionAuthorization as Record<string, unknown>).founder_decision
+      const ineligibleCorrectionVerdict = structuredClone(base)
+      ineligibleCorrectionVerdict.post_budget_reviews[0].verdict = 'ELIGIBLE FOR FOUNDER REVIEW'
+
+      expect(parseMissionControlState(renderStateBody(missingReviewAuthorization))).toMatchObject({
+        valid: false,
+        reason: expect.stringContaining('post-budget review authorization'),
+      })
+      expect(parseMissionControlState(renderStateBody(missingCorrectionAuthorization))).toMatchObject({
+        valid: false,
+        reason: expect.stringContaining('post-budget correction authorization'),
+      })
+      expect(parseMissionControlState(renderStateBody(ineligibleCorrectionVerdict))).toMatchObject({
+        valid: false,
+        reason: expect.stringContaining('does not authorize a correction transition'),
+      })
+    })
+
+    it('does not infer authorization for Review 5 from an authorized Review 4', () => {
+      const body = renderStateBody({
+        schema_version: 1,
+        state: 'BLOCKED_FOR_FOUNDER_DECISION',
+        review_cycle: 3,
+        full_review_count: 1,
+        approved_base: 'main',
+        active_task_issue: '#155',
+        active_pr: '#157',
+        current_head: 'review-5-head',
+        last_reviewed_head: 'review-5-head',
+        post_budget_reviews: [
+          {
+            review_number: 4,
+            reviewed_head: 'review-4-head',
+            verdict: 'BLOCKED FOR FOUNDER DECISION',
+            authorization: {
+              status: 'approved', authority: 'Founder', scope: 'review',
+              action: 'Authorize bounded Review 4', authorized_at: '2026-07-23T15:00:00Z',
+            },
+            finding_dispositions: [{ finding_id: 'MC-R1-002', disposition: 'open' }],
+          },
+          {
+            review_number: 5,
+            reviewed_head: 'review-5-head',
+            verdict: 'BLOCKED FOR FOUNDER DECISION',
+            finding_dispositions: [{ finding_id: 'MC-R1-002', disposition: 'open' }],
+          },
+        ],
+        guide_version: '1.2.0',
+        guide_source_ref: 'main',
+        guide_source_sha: '42b383a8bca33518116763af8094e6a42212bf0b',
+        open_blockers: ['MC-R1-002'],
+        follow_up_issues: [],
+        next_permitted_action: 'Founder decision required',
+        material_change_status: 'none',
+        updated_at: '2026-07-23T17:00:00Z',
+        updated_by: 'Reviewer',
+      })
+
+      expect(parseMissionControlState(body)).toMatchObject({
+        valid: false,
+        reason: expect.stringContaining('post-budget review authorization'),
+      })
     })
   })
 

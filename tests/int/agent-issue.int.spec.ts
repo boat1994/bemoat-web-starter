@@ -1096,6 +1096,63 @@ required`,
     })
   })
 
+  it('accepts mandatory preflight for a completed Review 4 followed by a Founder-authorized correction', () => {
+    const root = createRepo('feature/155-github-comment-projection')
+    const analysis = analyzeProgressTracking({
+      cwd: root,
+      activeIssueNumber: '155',
+      activeIssueBody: `Task size: Core
+Mission Control mode: required
+${managedState({
+  state: 'IN_PROGRESS',
+  review_cycle: '3',
+  full_review_count: '1',
+  active_task_issue: '"155"',
+  active_pr: '"157"',
+  current_head: 'correction-head',
+  last_reviewed_head: 'review-4-head',
+  post_budget_reviews: `
+  - review_number: 4
+    reviewed_head: review-4-head
+    verdict: BLOCKED FOR FOUNDER DECISION
+    authorization:
+      status: approved
+      authority: Founder
+      scope: review
+      action: "Authorize bounded Review 4"
+      authorized_at: "2026-07-23T15:00:00Z"
+    finding_dispositions:
+      - finding_id: MC-R1-002
+        disposition: open`,
+  founder_decision: `
+  status: approved
+  authority: Founder
+  scope: correction
+  action: "Authorize one bounded correction for MC-R1-002"
+  authorized_at: "2026-07-23T16:00:00Z"`,
+  open_blockers: '\n  - MC-R1-002',
+  next_permitted_action: '"Dev executes only the authorized MC-R1-002 correction"',
+})}`,
+      env: {
+        ...process.env,
+        PATH: withStubbedGh(root, `#!/usr/bin/env sh
+case "$*" in
+  *"issue view 155"*) printf '%s' '{"comments":[]}' ;;
+  *"pr view 157"*) printf '%s' '{"title":"PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/157","headRefName":"feature/155-github-comment-projection","baseRefName":"main","headRefOid":"correction-head","state":"OPEN","statusCheckRollup":[],"commits":[]}' ;;
+  *) echo "unexpected gh call: $*" >&2; exit 1 ;;
+esac
+`),
+      },
+    })
+
+    expect(analysis.report.missionControlState).toMatchObject({ valid: true })
+    expect(analysis.blockers).toEqual([])
+    expect(analysis.report.pr).toMatchObject({
+      url: 'https://github.com/boat1994/bemoat-web-starter/pull/157',
+      headRefOid: 'correction-head',
+    })
+  })
+
   it('blocks a task, PR, base, and head mismatch against live state', () => {
     const root = createRepo('feature/115-live-conflicts')
     const analysis = analyzeProgressTracking({
