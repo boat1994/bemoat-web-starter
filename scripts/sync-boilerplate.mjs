@@ -73,6 +73,7 @@ export const managedPaths = [
   'scripts/guard-build-script-contract.mjs',
   'scripts/build.mjs',
   'scripts/agent-issue.mjs',
+  'scripts/agent-delivery.mjs',
   'scripts/correction-contract.mjs',
   'scripts/mission-control-reconcile.mjs',
   'scripts/post-role-comment.mjs',
@@ -106,6 +107,7 @@ export const managedPaths = [
   'tests/int/build-wrapper.int.spec.ts',
   'tests/int/branch-safety.int.spec.ts',
   'tests/int/agent-issue.int.spec.ts',
+  'tests/int/agent-delivery.int.spec.ts',
   'tests/int/post-role-comment.int.spec.ts',
   'tests/int/correction-contract.int.spec.ts',
   'tests/int/guard-pack.int.spec.ts',
@@ -146,6 +148,7 @@ export const packageSyncProposalPath = '.bemoat/package-sync-proposal.md'
 /** Namespaced scripts safe to add when missing during sync. Never overwrite existing entries. */
 export const managedPackageScripts = [
   'bemoat:agent:issue',
+  'bemoat:agent:delivery',
   'bemoat:issue:comment',
   'bemoat:branch:check',
   'bemoat:guard:safety',
