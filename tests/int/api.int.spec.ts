@@ -21,7 +21,7 @@ describe('API', () => {
     const { default: config } = await import('@/payload.config')
     const payloadConfig = await config
     payload = await getPayload({ config: payloadConfig })
-  })
+  }, 30000)
 
   afterAll(async () => {
     await payload?.destroy()

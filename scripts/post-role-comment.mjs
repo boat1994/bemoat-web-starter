@@ -9,6 +9,7 @@ import {
   validateCorrectionRoleComment,
 } from './correction-contract.mjs'
 import { findLatestRoleComment } from './mission-control-reconcile.mjs'
+import { projectComments } from './github-comment-projection.mjs'
 
 const ROLE_HEADINGS = ['HANDOFF', 'RESULT', 'REVIEW_VERDICT']
 const CORE_VERDICTS = [
@@ -197,7 +198,7 @@ function reconstructCanonicalContract({ issue, repo }) {
     }
   }
 
-  const comments = Array.isArray(payload.comments) ? payload.comments : []
+  const comments = Array.isArray(payload.comments) ? projectComments(payload.comments) : []
   const latestVerdict = findLatestRoleComment(comments, 'REVIEW_VERDICT')
   if (!latestVerdict?.comment?.body) {
     return { ok: false, errors: ['no REVIEW_VERDICT comment was found on the Issue to reconstruct the canonical contract'] }
