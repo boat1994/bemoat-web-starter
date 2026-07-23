@@ -13,7 +13,6 @@ const VERDICT_TO_STATE = {
   'CORRECTION REQUIRED': {
     1: 'CORRECTION_REQUIRED_1',
     2: 'CORRECTION_REQUIRED_2',
-    3: 'CORRECTION_REQUIRED_3',
   },
   'ELIGIBLE FOR FOUNDER REVIEW': 'ELIGIBLE_FOR_FOUNDER_REVIEW',
   'BLOCKED FOR FOUNDER DECISION': 'BLOCKED_FOR_FOUNDER_DECISION',
@@ -198,23 +197,33 @@ export function proposeDeliveryReconciliation(evidence) {
 export function resolveVerdictState(verdict, currentReviewCycle = 0) {
   if (verdict === 'CORRECTION REQUIRED') {
     const nextCycle = Math.min(currentReviewCycle + 1, 3)
-    return VERDICT_TO_STATE['CORRECTION REQUIRED'][nextCycle] ?? 'CORRECTION_REQUIRED_3'
+    return VERDICT_TO_STATE['CORRECTION REQUIRED'][nextCycle] ?? 'STATE_CONFLICT'
   }
   return VERDICT_TO_STATE[verdict] ?? 'STATE_CONFLICT'
 }
 
 export function proposeReviewReconciliation(input) {
   const reviewCycle = input.reviewCycle ?? 0
+
+  if (input.verdict === 'CORRECTION REQUIRED' && reviewCycle >= 2) {
+    return {
+      state: 'STATE_CONFLICT',
+      review_cycle: reviewCycle,
+      full_review_count: Math.min(input.fullReviewCount ?? 0, 1),
+      last_reviewed_head: input.reviewedHead,
+      next_permitted_action: 'Mission Control must classify contradictory evidence.',
+    }
+  }
+
   const nextCycle = Math.min(reviewCycle + 1, 3)
-  const nextFullReviewCount =
-    input.verdict === 'CORRECTION REQUIRED'
-      ? Math.min((input.fullReviewCount ?? reviewCycle) + 1, 3)
-      : Math.max(input.fullReviewCount ?? reviewCycle, 1)
+  
+  let currentFull = input.fullReviewCount ?? 0
+  const nextFullReviewCount = Math.min(currentFull + (reviewCycle === 0 ? 1 : 0), 1)
 
   return {
     state: resolveVerdictState(input.verdict, reviewCycle),
     review_cycle: nextCycle,
-    full_review_count: input.verdict === 'CORRECTION REQUIRED' ? nextFullReviewCount : Math.max(nextFullReviewCount, 1),
+    full_review_count: nextFullReviewCount,
     last_reviewed_head: input.reviewedHead,
     next_permitted_action: nextActionForVerdict(input.verdict, nextCycle),
   }
