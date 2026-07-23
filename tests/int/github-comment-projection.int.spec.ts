@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { projectComments, benchmarkProjection } from '../../scripts/github-comment-projection.mjs'
 
-type ProjectedComment = { id: string, body: string, path?: string, line?: number, inReplyTo?: string, startLine?: number, side?: string, startSide?: string, pullRequestReviewId?: string, updatedAt?: string }
+type ProjectedComment = { id: string, body: string, path?: string, line?: number, inReplyTo?: string, startLine?: number, side?: string, startSide?: string, pullRequestReviewId?: string, updatedAt?: string, author?: string, createdAt?: string, url?: string }
 
 describe('GitHub Comment Projection', () => {
   it('strips body_html when body is present', () => {
@@ -57,38 +57,56 @@ describe('GitHub Comment Projection', () => {
         body: '## HANDOFF\n\nNew handoff body that is very long. '.repeat(20),
         // Missing timestamps intentionally to prove missing timestamps don't break preservation
         url: 'http://new'
+      },
+      {
+        id: 'older-handoff',
+        body: '## HANDOFF\n\nOlder handoff body that is very long. '.repeat(20),
+        createdAt: '2022-01-01T00:00:00Z',
+        url: 'http://older'
       }
     ]
     const projected = projectComments(raw) as ProjectedComment[]
     
-    // Both should be intact because projection defers authoritative selection to Mission Control
+    // new-handoff has a missing timestamp so it must be preserved
     expect(projected[1].body).toBe(raw[1].body)
+    
+    // old-handoff is the latest one with a valid timestamp, so it is preserved
     expect(projected[0].body).toBe(raw[0].body)
+
+    // older-handoff is superseded by old-handoff, so it should be compacted
+    expect(projected[2].body).toContain('[Superseded HANDOFF comment')
   })
 
   it('preserves required review/thread metadata for every comment class (MC-R1-003)', () => {
-    const raw = [{
-      id: '3',
-      body: 'Fix this',
-      path: 'src/main.ts',
-      line: 42,
-      start_line: 40,
-      side: 'RIGHT',
-      start_side: 'RIGHT',
-      pull_request_review_id: 'pr-rev-123',
-      updated_at: '2023-01-02T00:00:00Z',
-      inReplyTo: '0',
-      url: 'http://a'
-    }]
+    const raw = [
+      // Issue comment / PR conversation comment
+      { id: '1', body: 'Issue comment', author: { login: 'u1' }, createdAt: '2023-01-01T00:00:00Z', url: 'http://1' },
+      // Top-level inline review comment
+      { id: '2', body: 'Top inline', path: 'src/main.ts', line: 42, side: 'RIGHT', pull_request_review_id: 'pr-rev-1', url: 'http://2' },
+      // Inline reply
+      { id: '3', body: 'Reply', in_reply_to_id: '2', url: 'http://3' },
+      // Multiline review range
+      { id: '4', body: 'Multiline', path: 'src/main.ts', start_line: 40, start_side: 'RIGHT', line: 42, side: 'RIGHT', url: 'http://4' },
+      // Missing-Markdown fallback
+      { id: '5', body_html: '<p>HTML only</p>', url: 'http://5' }
+    ]
     const projected = projectComments(raw) as ProjectedComment[]
-    expect(projected[0].path).toBe('src/main.ts')
-    expect(projected[0].line).toBe(42)
-    expect(projected[0].startLine).toBe(40)
-    expect(projected[0].side).toBe('RIGHT')
-    expect(projected[0].startSide).toBe('RIGHT')
-    expect(projected[0].pullRequestReviewId).toBe('pr-rev-123')
-    expect(projected[0].updatedAt).toBe('2023-01-02T00:00:00Z')
-    expect(projected[0].inReplyTo).toBe('0')
+    
+    expect(projected[0].id).toBe('1')
+    expect(projected[0].author).toBe('u1')
+    
+    expect(projected[1].path).toBe('src/main.ts')
+    expect(projected[1].line).toBe(42)
+    expect(projected[1].side).toBe('RIGHT')
+    expect(projected[1].pullRequestReviewId).toBe('pr-rev-1')
+    
+    expect(projected[2].inReplyTo).toBe('2')
+    
+    expect(projected[3].startLine).toBe(40)
+    expect(projected[3].startSide).toBe('RIGHT')
+    expect(projected[3].line).toBe(42)
+    
+    expect(projected[4].body).toBe('<p>HTML only</p>')
   })
 
   it('truncates long non-authoritative comments', () => {
@@ -116,35 +134,45 @@ describe('GitHub Comment Projection', () => {
     const raw = [
       {
         id: 'old-role',
-        body: '## RESULT\n\n' + 'A'.repeat(5000), // Should be kept completely because of MC-R1-002
+        body: '## RESULT\n\n' + 'A'.repeat(5000), // Superseded, will be compacted
         body_html: '<h2>RESULT</h2>' + '<p>A</p>'.repeat(5000),
-        url: 'http://old'
+        url: 'http://old',
+        createdAt: '2023-01-01T00:00:00Z'
       },
       {
         id: 'large-non-role',
-        body: 'B'.repeat(10000), // Should be truncated
+        body: 'B'.repeat(10000), // Will be truncated
         body_html: '<p>B</p>'.repeat(10000),
         url: 'http://large'
       },
       {
         id: 'new-role',
-        body: '## REVIEW_VERDICT\n\n' + 'C'.repeat(5000),
-        body_html: '<h2>REVIEW_VERDICT</h2>' + '<p>C</p>'.repeat(5000),
-        url: 'http://new'
+        body: '## RESULT\n\n' + 'C'.repeat(5000), // Authoritative, will be preserved
+        body_html: '<h2>RESULT</h2>' + '<p>C</p>'.repeat(5000),
+        url: 'http://new',
+        createdAt: '2023-02-01T00:00:00Z'
       }
     ]
     const projected = projectComments(raw) as ProjectedComment[]
     const benchmark = benchmarkProjection(raw, projected)
     
+    // Log deterministic benchmark output
+    console.log('Benchmark output:', benchmark)
+    
     expect(benchmark.projectedBytes).toBeLessThan(benchmark.rawBytes)
     expect(benchmark.projectedTokens).toBeLessThan(benchmark.rawTokens)
     
-    // Truncation behavior
+    // Assert truncation behavior
     expect(projected[1].body.length).toBeLessThan(1000)
     expect(projected[1].body).toContain('[Comment truncated for context size')
     
-    // Selection accuracy (preserves role comments completely)
-    expect(projected[0].body).toBe(raw[0].body)
+    // Assert that canonical authoritative selected IDs remain identical before and after projection
+    expect(projected[2].id).toBe(raw[2].id)
+
+    // Selection accuracy (preserves authoritative role comments completely)
     expect(projected[2].body).toBe(raw[2].body)
+
+    // Supersession behavior (compacts superseded role comments)
+    expect(projected[0].body).toContain('[Superseded RESULT comment')
   })
 })

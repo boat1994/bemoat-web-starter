@@ -1,19 +1,33 @@
 import { Buffer } from 'buffer'
-import { parseRoleCommentBody } from './mission-control-reconcile.mjs'
+import { parseRoleCommentBody, findLatestRoleComment } from './mission-control-reconcile.mjs'
 
 export function projectComments(comments = []) {
   if (!Array.isArray(comments)) return comments
 
   const authoritativeComments = new Set()
-  for (const comment of comments) {
-    const body = comment.body || comment.body_html || ''
-    const parsed = parseRoleCommentBody(body)
-    
-    if (parsed && parsed.role) {
-      authoritativeComments.add(comment)
+  
+  // Phase 1: Apply existing canonical phase, approval and supersession semantics
+  const roles = ['HANDOFF', 'RESULT', 'REVIEW_VERDICT']
+  for (const role of roles) {
+    const latest = findLatestRoleComment(comments, role)
+    if (latest) {
+      authoritativeComments.add(latest.comment)
     }
   }
 
+  // Preserve missing/malformed timestamp candidates
+  for (const comment of comments) {
+    const body = comment.body || comment.body_html || ''
+    const parsed = parseRoleCommentBody(body)
+    if (parsed && parsed.role) {
+      const ts = Date.parse(comment.createdAt || comment.created_at || '')
+      if (isNaN(ts)) {
+        authoritativeComments.add(comment)
+      }
+    }
+  }
+
+  // Phase 2: Projection
   return comments.map(rawComment => {
     let body = rawComment.body
     if (!body && rawComment.body_html) {
@@ -33,6 +47,7 @@ export function projectComments(comments = []) {
     if (!isAuthoritative && !isFounderDecision) {
       const parsed = parseRoleCommentBody(body)
       if (parsed && parsed.role) {
+        // Compact superseded or non-selected role comments while preserving ID and URL
         projectedBody = `[Superseded ${parsed.role} comment. View original at ${rawComment.url || 'GitHub'}]`
       } else if (body.length > 500) {
         projectedBody = body.substring(0, 500) + `...\n\n[Comment truncated for context size. View full comment at ${rawComment.url || 'GitHub'}]`
@@ -43,28 +58,30 @@ export function projectComments(comments = []) {
       id: rawComment.id || rawComment.node_id,
       url: rawComment.url,
       author: rawComment.author?.login || rawComment.user?.login || 'unknown',
-      createdAt: rawComment.createdAt || rawComment.created_at,
       body: projectedBody
     }
     
-    if (rawComment.path) projected.path = rawComment.path
-    if (rawComment.line) projected.line = rawComment.line
+    // Missing or malformed timestamps must remain candidates and must not become epoch zero.
+    const createdAt = rawComment.createdAt || rawComment.created_at
+    if (createdAt !== undefined) projected.createdAt = createdAt
+
+    if (rawComment.path !== undefined) projected.path = rawComment.path
+    if (rawComment.line !== undefined) projected.line = rawComment.line
     if (rawComment.inReplyTo || rawComment.in_reply_to_id) {
       projected.inReplyTo = rawComment.inReplyTo || rawComment.in_reply_to_id
     }
-    if (rawComment.updatedAt || rawComment.updated_at) {
-      projected.updatedAt = rawComment.updatedAt || rawComment.updated_at
-    }
-    if (rawComment.pullRequestReviewId || rawComment.pull_request_review_id) {
-      projected.pullRequestReviewId = rawComment.pullRequestReviewId || rawComment.pull_request_review_id
-    }
+    const updatedAt = rawComment.updatedAt || rawComment.updated_at
+    if (updatedAt !== undefined) projected.updatedAt = updatedAt
+    
+    const prReviewId = rawComment.pullRequestReviewId || rawComment.pull_request_review_id
+    if (prReviewId !== undefined) projected.pullRequestReviewId = prReviewId
+    
     if (rawComment.side !== undefined) projected.side = rawComment.side
-    if (rawComment.startLine || rawComment.start_line) {
-      projected.startLine = rawComment.startLine || rawComment.start_line
-    }
-    if (rawComment.startSide || rawComment.start_side) {
-      projected.startSide = rawComment.startSide || rawComment.start_side
-    }
+    const startLine = rawComment.startLine || rawComment.start_line
+    if (startLine !== undefined) projected.startLine = startLine
+    
+    const startSide = rawComment.startSide || rawComment.start_side
+    if (startSide !== undefined) projected.startSide = startSide
     
     return projected
   })
