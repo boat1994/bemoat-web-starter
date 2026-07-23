@@ -121,7 +121,7 @@ schema_version: 1
 <!-- bemoat-mission-control-state:start -->
 <!-- bemoat-mission-control-state:end -->
 `
-      const report = analyzeProgressTracking({ activeIssueBody: duplicateBody, activeIssueNumber: 1 })
+      const report = analyzeProgressTracking({ activeIssueBody: duplicateBody })
       expect(report.blockers.some(b => b.includes('STATE_MIGRATION_REQUIRED: exactly one balanced marker pair is required'))).toBe(true)
 
       const unbalancedBody = `
@@ -130,7 +130,7 @@ schema_version: 1
 schema_version: 1
 \`\`\`
 `
-      const unbalancedReport = analyzeProgressTracking({ activeIssueBody: unbalancedBody, activeIssueNumber: 1 })
+      const unbalancedReport = analyzeProgressTracking({ activeIssueBody: unbalancedBody })
       expect(unbalancedReport.blockers.some(b => b.includes('STATE_MIGRATION_REQUIRED: exactly one balanced marker pair is required'))).toBe(true)
     })
 
@@ -214,7 +214,8 @@ updated_by: "Mission Control"
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const managedState: any = { state: 'READY', review_cycle: 0, full_review_count: 0, active_pr: null, current_head: null }
       const livePr = { number: 151, headRefOid: 'abcdef1' }
-      const latestResult = { comment: {}, parsed: { role: 'RESULT' as const, body: '', prNumber: '151', headSha: 'abcdef1', verdict: null as string | null, managedStateLine: null as string | null } }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const latestResult: any = { comment: {}, parsed: { role: 'RESULT', body: '', prNumber: '151', headSha: 'abcdef1', verdict: null, managedStateLine: null } }
       const exactHeadCi = { exactHeadVerified: false }
       
       const delivery = classifyDeliveryLag(managedState, livePr, exactHeadCi, latestResult)
@@ -227,7 +228,8 @@ updated_by: "Mission Control"
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const managedState: any = { state: 'READY', review_cycle: 0, full_review_count: 0, active_pr: null, current_head: null }
       const livePr = { number: 151, headRefOid: 'abcdef1' }
-      const latestResult = { comment: {}, parsed: { role: 'RESULT' as const, body: '', prNumber: '151', headSha: 'abcdef1', verdict: null as string | null, managedStateLine: null as string | null } }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const latestResult: any = { comment: {}, parsed: { role: 'RESULT', body: '', prNumber: '151', headSha: 'abcdef1', verdict: null, managedStateLine: null } }
       const exactHeadCi = { exactHeadVerified: true }
       
       const delivery = classifyDeliveryLag(managedState, livePr, exactHeadCi, latestResult)
