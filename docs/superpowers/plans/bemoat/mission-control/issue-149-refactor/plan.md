@@ -41,13 +41,13 @@ If stale or contradictory cursor/evidence combinations are detected, they fail c
 | Current State | Condition | Next State | Gate / Guard |
 |---|---|---|---|
 | READY | Delivery PR opened & verified | REVIEW | Agent CI preflight |
-| REVIEW | Exact-head CI pass + Review pass | FOUNDER_DECISION (or DONE) | Review completion |
+| REVIEW | Exact-head CI pass + Review pass | FOUNDER_DECISION | Review completion |
 | REVIEW | Exact-head CI fail / Review fail | CORRECTION_REQUIRED | Correction tracking guard |
 | CORRECTION_REQUIRED | Delivery PR updated & verified | REVIEW | Correction CI preflight |
-| FOUNDER_DECISION | Founder overrides/approves | DONE | Founder Merge Gate |
+| FOUNDER_DECISION | Founder overrides/approves & merges | DONE | Founder Merge Gate |
 
 These transitions preserve the simplified `REVIEW -> FIX -> REVIEW` flow, fail-closed outcomes, and review budget limitations (derived solely from approved non-superseded `## REVIEW_VERDICT` history).
-The exact Founder gate prevents review success from implying unauthorized merge or completion. Completion to `DONE` requires verified Founder-authorized merge evidence when merge is Founder-gated.
+The exact Founder gate prevents review success from implying unauthorized merge or completion. Completion to `DONE` requires verified Founder-authorized merge evidence when merge is Founder-gated; `REVIEW` never reaches `DONE` directly.
 
 ## Compatibility and Migration Sequencing (MC-R1-002)
 
@@ -102,16 +102,16 @@ Complete invariant/contradiction coverage matrix mapping each stable invariant I
 
 | Invariant / Trace ID | Canonical Normative Owner | Runtime Enforcement Boundary | Actual Guard / Validator | Characterization Test / Fixture | Applicable Role/Workflow | Manifest / Generated-Projection Ownership |
 |---|---|---|---|---|---|---|
-| **MC-INV-01 (no-autonomous-review-4)** | `docs/mission-control/mission-control-guide.md` | Review Reconciliation | `scripts/mission-control-reconcile.mjs` | `tests/int/mission-control-reconcile.int.spec.ts` | Mission Control | Manifest / Generated Role Bundle |
-| **MC-INV-02 (no-silent-reset)** | `docs/mission-control/mission-control-guide.md` | Review Reconciliation | `scripts/mission-control-reconcile.mjs` | `tests/int/mission-control-reconcile.int.spec.ts` | All Roles | Manifest / Generated Role Bundle |
-| **MC-INV-03 (minor-nit-non-blocking)** | `docs/mission-control/mission-control-guide.md` | Policy-only | `(proposed)` | `(proposed)` | Reviewer | Manifest / Generated Role Bundle (implementation gap: no current executable enforcement exists) |
+| **MC-INV-01 (no-autonomous-review-4)** | `docs/mission-control/mission-control-guide.md` | Policy-only / Reviewer-enforced | `scripts/guard-mission-control-contract.mjs` (rule `MC004`) | `tests/int/mission-control-contract.int.spec.ts` | Mission Control / Reviewer | Manifest / Generated Role Bundle |
+| **MC-INV-02 (no-silent-reset)** | `docs/mission-control/mission-control-guide.md` | Policy-only / Reviewer-enforced | `scripts/guard-mission-control-contract.mjs` (rule `MC005`) | `tests/int/mission-control-contract.int.spec.ts` | All Roles | Manifest / Generated Role Bundle |
+| **MC-INV-03 (minor-nit-non-blocking)** | `docs/mission-control/mission-control-guide.md` | Policy-only | `(Proposed / implementation gap)` | `(Proposed / implementation gap)` | Reviewer | Manifest / Generated Role Bundle (implementation gap: no current executable enforcement exists) |
 | **MC-INV-04 (delivery-owns-awaiting-review-1)** | `docs/mission-control/mission-control-guide.md` | Delivery Reconciliation | `scripts/mission-control-reconcile.mjs` | `tests/int/mission-control-reconcile.int.spec.ts` | Mission Control | Manifest / Generated Role Bundle |
 | **MC-INV-05 (reviewer-owns-counters)** | `docs/mission-control/mission-control-guide.md` | Review Reconciliation | `scripts/mission-control-reconcile.mjs` | `tests/int/mission-control-reconcile.int.spec.ts` | Mission Control | Manifest / Generated Role Bundle |
 | **MC-INV-06 (deterministic-reconciliation-not-conflict)** | `docs/mission-control/mission-control-guide.md` | State Reconciliation | `scripts/mission-control-reconcile.mjs` | `tests/int/mission-control-reconcile.int.spec.ts` | All Roles | Manifest / Generated Role Bundle |
-| **MC-INV-07 (double-loop-no-similar-edit-without-decision)** | `docs/mission-control/mission-control-guide.md` | Policy-only | `(proposed)` | `(proposed)` | Mission Control | Manifest / Generated Role Bundle (implementation gap: no current executable enforcement exists) |
+| **MC-INV-07 (double-loop-no-similar-edit-without-decision)** | `docs/mission-control/mission-control-guide.md` | Policy-only | `(Proposed / implementation gap)` | `(Proposed / implementation gap)` | Mission Control | Manifest / Generated Role Bundle (implementation gap: no current executable enforcement exists) |
 | **MC-INV-08 (durable-state-is-not-an-agent-stage)** | `docs/mission-control/mission-control-guide.md` | State Validation | `scripts/mission-control-state.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | Mission Control | Manifest / Generated Role Bundle |
-| **MC-INV-09 (changed-head-is-not-full-review-escalation)** | `docs/mission-control/mission-control-guide.md` | Policy-only | `(proposed)` | `(proposed)` | Mission Control | Manifest / Generated Role Bundle (implementation gap: no current executable enforcement exists) |
-| **MC-SCENARIO-001 (protected-base loading and inventory)** | `docs/mission-control/dogfood/issue-150-expected-behavior-matrix.md` | Protected-base loader + recursive inventory | `(proposed loader guard)` | `tests/int/mission-control-characterization.int.spec.ts` | Mission Control | Manifest / Generated Role Bundle (implementation gap: no current executable enforcement guard exists) |
+| **MC-INV-09 (changed-head-is-not-full-review-escalation)** | `docs/mission-control/mission-control-guide.md` | Policy-only | `(Proposed / implementation gap)` | `(Proposed / implementation gap)` | Mission Control | Manifest / Generated Role Bundle (implementation gap: no current executable enforcement exists) |
+| **MC-SCENARIO-001 (protected-base loading and inventory)** | `docs/mission-control/dogfood/issue-150-expected-behavior-matrix.md` | Protected-base loader + recursive inventory | `(Proposed / implementation gap)` | `tests/int/mission-control-characterization.int.spec.ts` | Mission Control | Manifest / Generated Role Bundle (implementation gap: no current executable enforcement guard exists) |
 | **MC-SCENARIO-002 (durable reconstruction)** | `docs/mission-control/dogfood/issue-150-expected-behavior-matrix.md` | State parser | `scripts/mission-control-state.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | Mission Control | Manifest / Generated Role Bundle |
 | **MC-SCENARIO-003 (migration routing)** | `docs/mission-control/dogfood/issue-150-expected-behavior-matrix.md` | Preflight | `scripts/agent-issue.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | Mission Control | Manifest / Generated Role Bundle |
 | **MC-SCENARIO-004 (fail-closed outcomes)** | `docs/mission-control/dogfood/issue-150-expected-behavior-matrix.md` | Preflight + reconciler | `scripts/mission-control-reconcile.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | Mission Control | Manifest / Generated Role Bundle |
@@ -119,7 +119,7 @@ Complete invariant/contradiction coverage matrix mapping each stable invariant I
 | **MC-SCENARIO-006 (Review 3 budget)** | `docs/mission-control/dogfood/issue-150-expected-behavior-matrix.md` | Review 3 | `scripts/mission-control-reconcile.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | Mission Control | Manifest / Generated Role Bundle |
 | **MC-SCENARIO-007 (role transport)** | `docs/mission-control/dogfood/issue-150-expected-behavior-matrix.md` | Role transport | `scripts/mission-control-state.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | Mission Control | Manifest / Generated Role Bundle |
 | **MC-SCENARIO-008 (semantic reconciliation guard)** | `docs/mission-control/dogfood/issue-150-expected-behavior-matrix.md` | Drift guard | `scripts/guard-mission-control-drift.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | Mission Control | Manifest / Generated Role Bundle |
-| **MC-SCENARIO-009 (vocabulary and projection drift)** | `docs/mission-control/dogfood/issue-150-expected-behavior-matrix.md` | Approved-base prose facts | `(proposed)` | `tests/int/mission-control-characterization.int.spec.ts` | Mission Control | Manifest / Generated Role Bundle (implementation gap: no current executable enforcement exists) |
+| **MC-SCENARIO-009 (vocabulary and projection drift)** | `docs/mission-control/dogfood/issue-150-expected-behavior-matrix.md` | Approved-base prose facts | `(Proposed / implementation gap)` | `tests/int/mission-control-characterization.int.spec.ts` | Mission Control | Manifest / Generated Role Bundle (implementation gap: no current executable enforcement exists) |
 | **MC-SCENARIO-010 (exact-head evidence)** | `docs/mission-control/dogfood/issue-150-expected-behavior-matrix.md` | Exact-head evidence | `scripts/mission-control-reconcile.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | Reviewer | Manifest / Generated Role Bundle |
 
 *(This matrix maps each stable invariant to its canonical normative owner, actual runtime enforcement boundary, actual guard/validator, characterization test, applicable role, and generated-role-bundle ownership.)*
