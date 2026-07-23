@@ -38,7 +38,7 @@ updated_by: "Mission Control"
 <!-- bemoat-mission-control-state:end -->`
       const parsed = parseMissionControlState(state)
       expect(parsed.valid).toBe(true)
-      expect(parsed.state.approved_base).toBe('dev-branch')
+      expect(parsed.state?.approved_base).toBe('dev-branch')
     })
   })
 
@@ -121,7 +121,7 @@ schema_version: 1
 <!-- bemoat-mission-control-state:start -->
 <!-- bemoat-mission-control-state:end -->
 `
-      const report = analyzeProgressTracking({ activeIssueBody: duplicateBody, activeIssueNumber: "1" })
+      const report = analyzeProgressTracking({ activeIssueBody: duplicateBody, activeIssueNumber: 1 })
       expect(report.blockers.some(b => b.includes('STATE_MIGRATION_REQUIRED: exactly one balanced marker pair is required'))).toBe(true)
 
       const unbalancedBody = `
@@ -130,7 +130,7 @@ schema_version: 1
 schema_version: 1
 \`\`\`
 `
-      const unbalancedReport = analyzeProgressTracking({ activeIssueBody: unbalancedBody, activeIssueNumber: "1" })
+      const unbalancedReport = analyzeProgressTracking({ activeIssueBody: unbalancedBody, activeIssueNumber: 1 })
       expect(unbalancedReport.blockers.some(b => b.includes('STATE_MIGRATION_REQUIRED: exactly one balanced marker pair is required'))).toBe(true)
     })
 
@@ -169,10 +169,10 @@ schema_version: 1
         { body: '## REVIEW_VERDICT\nold review', createdAt: '2026-07-23T01:30:00Z' },
       ]
       const latestResult = findLatestRoleComment(comments, 'RESULT')
-      expect(latestResult.comment.createdAt).toBe('2026-07-23T02:00:00Z')
+      expect(latestResult?.comment.createdAt).toBe('2026-07-23T02:00:00Z')
 
       const latestReview = findLatestRoleComment(comments, 'REVIEW_VERDICT')
-      expect(latestReview.comment.createdAt).toBe('2026-07-23T01:30:00Z')
+      expect(latestReview?.comment.createdAt).toBe('2026-07-23T01:30:00Z')
     })
   })
 
@@ -214,7 +214,7 @@ updated_by: "Mission Control"
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const managedState: any = { state: 'READY', review_cycle: 0, full_review_count: 0, active_pr: null, current_head: null }
       const livePr = { number: 151, headRefOid: 'abcdef1' }
-      const latestResult = { parsed: { prNumber: 151, headSha: 'abcdef1' } }
+      const latestResult = { comment: {}, parsed: { role: 'RESULT' as const, body: '', prNumber: '151', headSha: 'abcdef1', verdict: null as string | null, managedStateLine: null as string | null } }
       const exactHeadCi = { exactHeadVerified: false }
       
       const delivery = classifyDeliveryLag(managedState, livePr, exactHeadCi, latestResult)
@@ -227,7 +227,7 @@ updated_by: "Mission Control"
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const managedState: any = { state: 'READY', review_cycle: 0, full_review_count: 0, active_pr: null, current_head: null }
       const livePr = { number: 151, headRefOid: 'abcdef1' }
-      const latestResult = { parsed: { prNumber: 151, headSha: 'abcdef1' } }
+      const latestResult = { comment: {}, parsed: { role: 'RESULT' as const, body: '', prNumber: '151', headSha: 'abcdef1', verdict: null as string | null, managedStateLine: null as string | null } }
       const exactHeadCi = { exactHeadVerified: true }
       
       const delivery = classifyDeliveryLag(managedState, livePr, exactHeadCi, latestResult)
