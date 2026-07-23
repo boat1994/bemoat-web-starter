@@ -60,7 +60,15 @@ const missionControlArrayKeys = new Set(['open_blockers', 'follow_up_issues'])
 export function parseMissionControlState(body = '') {
   const starts = [...body.matchAll(/<!--\s*bemoat-mission-control-state:start\s*-->/g)]
   const ends = [...body.matchAll(/<!--\s*bemoat-mission-control-state:end\s*-->/g)]
-  if (starts.length === 0 && ends.length === 0) return { present: false, valid: false, state: null }
+  const hasLegacyHeader = body.includes('## MISSION_CONTROL_STATE')
+
+  if (starts.length === 0 && ends.length === 0) {
+    if (hasLegacyHeader) {
+      return { present: true, valid: false, reason: 'unmarked YAML is not a durable managed-state block' }
+    }
+    return { present: false, valid: false, state: null }
+  }
+
   if (starts.length !== 1 || ends.length !== 1 || starts[0].index > ends[0].index) {
     return { present: true, valid: false, reason: 'exactly one balanced marker pair is required' }
   }

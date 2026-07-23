@@ -1,0 +1,14 @@
+- exact approved-base SHA: c2637d6540f9200b01e8e0af1938e257975ada27
+- measurement schema version: 1
+- exact commands/method: scripts/capture-baseline.mjs (git show/ls-tree)
+- mandatory startup bundle: docs/mission-control/mission-control-guide.md
+- role-specific on-demand bundle: (To be extracted in later phases)
+- transitive reference-only files: (To be cataloged in later phases)
+- lines, bytes, and deterministic token approximation of startup bundle: 819 lines, 38099 bytes
+- estimated tokens: 9525 tokens (approx: bytes / 4)
+- total harness documentation files, lines, and bytes: 84 files, 11396 lines, 532455 bytes
+- sync-managed documentation footprint: 26 files, 3249 lines, 153641 bytes
+- startup policy dependency/link graph: Founder -> Issue -> protected guide + overrides -> agent-issue.mjs -> mission-control-state.mjs
+- invariant marker count: 9 markers
+- only exactly measurable duplication counts: Defaults repeated at lines 102–115 (1 duplicate block known)
+- unavailable metric limitations: actual model token usage, reasoning tokens consumed

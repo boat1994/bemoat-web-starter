@@ -29,6 +29,7 @@ describe('central guard pack', () => {
       'frontend-seo',
       'mission-control-contract',
       'planning-contract',
+      'mission-control-drift',
     ])
   })
 

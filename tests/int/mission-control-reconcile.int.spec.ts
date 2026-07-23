@@ -249,11 +249,25 @@ describe('mission-control reconcile classifiers', () => {
       verdict: 'CORRECTION REQUIRED',
       reviewedHead: 'abc1234',
       reviewCycle: 0,
-      fullReviewCount: 1,
+      fullReviewCount: 0,
     })
 
     expect(fields.state).toBe('CORRECTION_REQUIRED_1')
     expect(fields.review_cycle).toBe(1)
-    expect(fields.full_review_count).toBe(2)
+    expect(fields.full_review_count).toBe(1)
+  })
+
+  it('rejects CORRECTION REQUIRED on Review 3 (reviewCycle: 2) because Review 4 does not exist', () => {
+    const fields = proposeReviewReconciliation({
+      verdict: 'CORRECTION REQUIRED',
+      reviewedHead: 'abc1234',
+      reviewCycle: 2,
+      fullReviewCount: 1,
+    })
+
+    expect(fields.state).toBe('STATE_CONFLICT')
+    expect(fields.review_cycle).toBe(2)
+    expect(fields.full_review_count).toBe(1)
+    expect(fields.next_permitted_action).toMatch(/contradictory evidence/)
   })
 })
