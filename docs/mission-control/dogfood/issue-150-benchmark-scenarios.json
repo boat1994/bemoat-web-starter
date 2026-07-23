@@ -1,0 +1,144 @@
+{
+  "schema_version": 1,
+  "approved_base_sha": "c2637d6540f9200b01e8e0af1938e257975ada27",
+  "source_issue": "https://github.com/boat1994/bemoat-web-starter/issues/150",
+  "discovery_result": "https://github.com/boat1994/bemoat-web-starter/issues/149#issuecomment-5054013101",
+  "discovery_contradictions": [
+    { "id": "MC149-D01", "summary": "Reconciler, parser, and tests disagreed on CORRECTION_REQUIRED_3 and full-review counts.", "scenario_ids": ["MC-SCENARIO-005", "MC-SCENARIO-006", "MC-SCENARIO-008"], "evidence_boundary": "Executable review-transition and parser state/counter matrices at the approved runtime surface." },
+    { "id": "MC149-D02", "summary": "Live unmarked abbreviated state blocks were incompatible with the canonical parser.", "scenario_ids": ["MC-SCENARIO-002", "MC-SCENARIO-003"], "evidence_boundary": "Marked, unmarked, duplicate, and unbalanced Issue-body fixtures through parser and preflight boundaries." },
+    { "id": "MC149-D03", "summary": "Guard coverage used partial marker and phrase checks instead of a shared semantic matrix.", "scenario_ids": ["MC-SCENARIO-008"], "evidence_boundary": "Semantic guard execution with 104 state/counter cases, 15 review transitions, and injected tampering." },
+    { "id": "MC149-D04", "summary": "Policy and transport responsibilities were duplicated across the guide and transport artifacts.", "scenario_ids": ["MC-SCENARIO-007", "MC-SCENARIO-009"], "evidence_boundary": "Approved-base discovery inventory plus executable characterization of the three canonical transport headings." },
+    { "id": "MC149-D05", "summary": "Branch, PR, sync, and validation procedures were duplicated across handwritten projections.", "scenario_ids": ["MC-SCENARIO-009"], "evidence_boundary": "Approved-base Issue #149 inventory records the duplicated projections as a future modularization input." },
+    { "id": "MC149-D06", "summary": "Capability-based model routing conflicted with fixed-model text in frequently read legacy docs.", "scenario_ids": ["MC-SCENARIO-009"], "evidence_boundary": "Approved-base Issue #149 content classification records capability policy versus fixed-model legacy text." },
+    { "id": "MC149-D07", "summary": "Five approved-base relative links were unreachable.", "scenario_ids": ["MC-SCENARIO-009"], "evidence_boundary": "Approved-base Issue #149 relative-link scan records 374 checked links and five unreachable targets." },
+    { "id": "MC149-D08", "summary": "No end-to-end dogfood fixture covered a live managed state, all review bounds, transport, and sync.", "scenario_ids": ["MC-SCENARIO-007", "MC-SCENARIO-008", "MC-SCENARIO-010"], "evidence_boundary": "Integrated upstream fixture parses every lifecycle state, replays all three review bounds and transport, analyzes exact-head CI, and proves sync manifest/runtime parity plus recursive inventory without performing child sync." },
+    { "id": "MC149-D09", "summary": "Overlapping normative prose made the recurring context bundle larger than its routed authority slice.", "scenario_ids": ["MC-SCENARIO-001", "MC-SCENARIO-009"], "evidence_boundary": "Byte-preserving approved-SHA bundle metrics plus the Issue #149 recurring-context hotspot inventory." },
+    { "id": "MC149-D10", "summary": "The recursive sync-managed footprint makes later file-boundary changes migration events.", "scenario_ids": ["MC-SCENARIO-001"], "evidence_boundary": "Recursive approved-SHA manifest expansion records all 49 sync-managed documentation paths and exact footprint." }
+  ],
+  "issue_criteria": [
+    { "id": "ISSUE150-01", "summary": "Canonical protected-base policy loading order", "scenarios": ["MC-SCENARIO-001"] },
+    { "id": "ISSUE150-02", "summary": "Approved protected-base policy resolution", "scenarios": ["MC-SCENARIO-001"] },
+    { "id": "ISSUE150-03", "summary": "Durable Mission Control state reconstruction", "scenarios": ["MC-SCENARIO-002"] },
+    { "id": "ISSUE150-04", "summary": "State and reconciliation semantics", "scenarios": ["MC-SCENARIO-003", "MC-SCENARIO-008"] },
+    { "id": "ISSUE150-05", "summary": "STATE_CONFLICT, BLOCKED_EXTERNAL, and migration outcomes", "scenarios": ["MC-SCENARIO-004"] },
+    { "id": "ISSUE150-06", "summary": "Exact PR-head and exact-head CI", "scenarios": ["MC-SCENARIO-010"] },
+    { "id": "ISSUE150-07", "summary": "Review-cycle and review-budget preservation", "scenarios": ["MC-SCENARIO-005"] },
+    { "id": "ISSUE150-08", "summary": "No silent reset and no autonomous Review 4", "scenarios": ["MC-SCENARIO-006"] },
+    { "id": "ISSUE150-09", "summary": "Unchanged state, verdict, and transport vocabulary", "scenarios": ["MC-SCENARIO-009"] },
+    { "id": "ISSUE150-10", "summary": "HANDOFF, RESULT, and REVIEW_VERDICT selection/supersession", "scenarios": ["MC-SCENARIO-007"] },
+    { "id": "ISSUE150-11", "summary": "Deterministic reconciliation versus genuine conflict", "scenarios": ["MC-SCENARIO-008"] },
+    { "id": "ISSUE150-12", "summary": "Every proven Issue #149 contradiction is traceable", "scenarios": ["MC-SCENARIO-001", "MC-SCENARIO-002", "MC-SCENARIO-003", "MC-SCENARIO-004", "MC-SCENARIO-005", "MC-SCENARIO-006", "MC-SCENARIO-007", "MC-SCENARIO-008", "MC-SCENARIO-009", "MC-SCENARIO-010"] }
+  ],
+  "scenarios": [
+    {
+      "id": "MC-SCENARIO-001",
+      "category": "protected-base loading and inventory",
+      "policy_intent": "Load the Project instruction, then the guide and optional narrowing override from the approved protected SHA before durable task and live PR evidence.",
+      "before_observation": "The initial artifact hard-coded bundle paths, trimmed source bytes, omitted the HTML artifact, and did not recursively expand managed directories.",
+      "current_observation": "The approved loader contains five ordered evidence stages; the guide exists, the optional override is absent, and the manifest resolves to 49 managed documentation files.",
+      "approved_behavior": "Derive bundle membership and order from the approved-SHA loader and recursively enumerate all sync-managed documentation without trimming bytes.",
+      "fixture": { "input": "approved_base_sha + prompts/mission-control/chatgpt-project-loader.md", "evidence_boundary": "git show and git ls-tree -z", "expected": "85 docs and 49 recursive sync-managed docs with loader-derived bundles" },
+      "test_references": ["derives protected-base loading order and bundle classifications from loader content", "records the approved-SHA loader as the derivation source for every loading bundle"],
+      "discovery_trace": ["MC149-D09", "MC149-D10"]
+    },
+    {
+      "id": "MC-SCENARIO-002",
+      "category": "durable reconstruction",
+      "policy_intent": "Only one balanced, complete marked state block is durable authority.",
+      "before_observation": "Live predecessor Issues used abbreviated unmarked YAML that the canonical parser could not reconstruct.",
+      "current_observation": "The parser accepts one complete marked block and rejects unmarked legacy YAML.",
+      "approved_behavior": "Preserve the full marked schema and fail closed for legacy shapes without silently initializing counters.",
+      "fixture": { "input": "marked CORRECTION_REQUIRED_2 state", "evidence_boundary": "parseMissionControlState", "expected": "cycle 2, full review count 1, exact stored heads" },
+      "test_references": ["successfully parses and preserves valid marked state blocks"],
+      "discovery_trace": ["MC149-D02"]
+    },
+    {
+      "id": "MC-SCENARIO-003",
+      "category": "migration routing",
+      "policy_intent": "Malformed or legacy managed state requires explicit migration.",
+      "before_observation": "The original dogfood assertion stopped at parser invalidity and mislabeled a balanced duplicate pair as unbalanced.",
+      "current_observation": "Unmarked, duplicate, and genuinely unbalanced fixtures execute the preflight boundary.",
+      "approved_behavior": "The preflight boundary emits STATE_MIGRATION_REQUIRED for each invalid marker shape.",
+      "fixture": { "input": "unmarked, duplicate, and unbalanced state bodies", "evidence_boundary": "analyzeProgressTracking", "expected": "STATE_MIGRATION_REQUIRED blocker" },
+      "test_references": ["strictly rejects unmarked MISSION_CONTROL_STATE YAML blocks and routes to STATE_MIGRATION_REQUIRED via analyzeProgressTracking", "fails closed when markers are duplicate or unbalanced"],
+      "discovery_trace": ["MC149-D02"]
+    },
+    {
+      "id": "MC-SCENARIO-004",
+      "category": "fail-closed outcomes",
+      "policy_intent": "Conflicting durable evidence and unavailable required evidence are distinct stop states.",
+      "before_observation": "The initial characterization covered generic conflict booleans but omitted explicit BLOCKED_EXTERNAL preflight routing.",
+      "current_observation": "Head/stale-CI evidence classifies genuine conflict; an explicit BLOCKED_EXTERNAL state stops preflight.",
+      "approved_behavior": "Preserve STATE_CONFLICT and BLOCKED_EXTERNAL without converting either to ordinary lag.",
+      "fixture": { "input": "head mismatch, stale CI, and blocked-external state fixture", "evidence_boundary": "reconciliation + preflight", "expected": "STATE_CONFLICT or BLOCKED_EXTERNAL respectively" },
+      "test_references": ["emits STATE_CONFLICT when genuine state conflict is detected", "preserves the explicit BLOCKED_EXTERNAL fail-closed outcome"],
+      "discovery_trace": []
+    },
+    {
+      "id": "MC-SCENARIO-005",
+      "category": "review history",
+      "policy_intent": "One Full Semantic Review maximum and monotonic review-cycle history.",
+      "before_observation": "The discovered reconciler could increment full_review_count to 2 while the parser rejected values above 1.",
+      "current_observation": "Review 1 sets full_review_count to 1; Review 2 and Review 3 keep it at 1.",
+      "approved_behavior": "Every semantic review proposal is checked against the review verdict/cycle/full-count matrix.",
+      "fixture": { "input": "all five verdicts at cycles 0, 1, and 2", "evidence_boundary": "proposeReviewReconciliation", "expected": "15 canonical transitions with full_review_count <= 1" },
+      "test_references": ["preserves review cycle and full review count without resetting on valid transitions", "enforces the complete Mission Control state/counter and Review 3 matrices"],
+      "discovery_trace": ["MC149-D01"]
+    },
+    {
+      "id": "MC-SCENARIO-006",
+      "category": "Review 3 budget",
+      "policy_intent": "Review 3 is final and never creates CORRECTION_REQUIRED_3 or Review 4.",
+      "before_observation": "The discovered runtime and green test encoded CORRECTION_REQUIRED_3 after Review 3.",
+      "current_observation": "CORRECTION REQUIRED at cycle 2 returns STATE_CONFLICT without incrementing counters.",
+      "approved_behavior": "Review 3 exhaustively permits eligibility, Founder decision, or external blocking; contradiction remains fail-closed.",
+      "fixture": { "input": "Review 3 verdict matrix", "evidence_boundary": "drift guard", "expected": "no correction state or cycle above 3" },
+      "test_references": ["routes unauthorized Review 4 (CORRECTION REQUIRED at cycle 2) to STATE_CONFLICT", "enforces the complete Mission Control state/counter and Review 3 matrices"],
+      "discovery_trace": ["MC149-D01"]
+    },
+    {
+      "id": "MC-SCENARIO-007",
+      "category": "role transport",
+      "policy_intent": "HANDOFF, RESULT, and REVIEW_VERDICT are the only role headings and latest non-superseded evidence wins.",
+      "before_observation": "The initial characterization selected only RESULT and REVIEW_VERDICT and did not exercise HANDOFF supersession.",
+      "current_observation": "The parser recognizes all three headings and timestamp ordering selects the latest matching role.",
+      "approved_behavior": "Characterization explicitly exercises selection and supersession for every role-comment type.",
+      "fixture": { "input": "timestamped comments containing each role heading", "evidence_boundary": "parseRoleCommentBody + findLatestRoleComment", "expected": "latest comment per role" },
+      "test_references": ["parses and supersedes all three canonical role-comment types"],
+      "discovery_trace": ["MC149-D04", "MC149-D08"]
+    },
+    {
+      "id": "MC-SCENARIO-008",
+      "category": "semantic reconciliation guard",
+      "policy_intent": "Reconciler proposals and state parser must share state/verdict/counter semantics.",
+      "before_observation": "The original guard checked source text and only a partial transition sample, so dynamic or relocated drift passed.",
+      "current_observation": "The canonical reconciler, parser, exact-head analyzer, role transport, and sync manifest/runtime boundary agree across the integrated upstream lifecycle.",
+      "approved_behavior": "Execute the 104-case state/counter cross-product, 15 review transitions, marked lifecycle parsing/preflight, exact-head analysis, manifest parity, and dynamic tamper negatives.",
+      "fixture": { "input": "13 states x 4 cycles x 2 full-review counts, tampered reconciler/parser, and marked lifecycle states", "evidence_boundary": "guard + parser/preflight + exact-head analyzer + sync manifest/runtime exports", "expected": "canonical zero violations; integrated lifecycle valid; tampering rejected; no child sync performed" },
+      "test_references": ["ensures reconciler outputs are parsable state objects", "detects semantic reconciler tampering assembled dynamically", "replays delivery, three review bounds, role transport, exact-head CI, and sync inventory"],
+      "discovery_trace": ["MC149-D01", "MC149-D03", "MC149-D08"]
+    },
+    {
+      "id": "MC-SCENARIO-009",
+      "category": "vocabulary and projection drift",
+      "policy_intent": "State/verdict vocabulary and capability-based routing remain canonical while legacy prose is recorded, not silently normalized.",
+      "before_observation": "Issue #149 found duplicated policy/transport/procedure projections, fixed-model legacy text, five broken links, and a recurring context hotspot.",
+      "current_observation": "Those approved-base observations remain deliberately unchanged because Issue #150 authorizes characterization only.",
+      "approved_behavior": "Record each fact with an exact discovery ID and evidence boundary without modularizing, repairing links, or changing vocabulary.",
+      "fixture": { "input": "Issue #149 discovery contradiction inventory", "evidence_boundary": "machine-readable traceability artifact", "expected": "D04, D05, D06, D07, and D09 remain explicit characterized facts" },
+      "test_references": ["defines complete machine-readable before/current/approved benchmark scenarios"],
+      "discovery_trace": ["MC149-D04", "MC149-D05", "MC149-D06", "MC149-D07", "MC149-D09"]
+    },
+    {
+      "id": "MC-SCENARIO-010",
+      "category": "exact-head evidence",
+      "policy_intent": "Only the active PR exact head and checks scoped to that head satisfy delivery/review gates.",
+      "before_observation": "The initial suite checked missing CI but not older-SHA success or role-comment head disagreement with the live PR.",
+      "current_observation": "Production rollup is head-scoped; legacy-shaped evidence and role comments must reference the current SHA.",
+      "approved_behavior": "Missing CI, older-SHA success, and RESULT/REVIEW_VERDICT head mismatch remain fail-closed.",
+      "fixture": { "input": "current head abcdef1 with success evidence naming 1111111", "evidence_boundary": "analyzeExactHeadCi + classifyDeliveryLag", "expected": "exactHeadVerified false and olderShaSuccess true" },
+      "test_references": ["rejects successful CI evidence that names a different head", "routes RESULT and REVIEW_VERDICT head disagreement with the live PR to STATE_CONFLICT", "blocks delivery lag resolution when exact-head CI is missing"],
+      "discovery_trace": ["MC149-D08"]
+    }
+  ]
+}

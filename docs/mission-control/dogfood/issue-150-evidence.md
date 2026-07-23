@@ -1,20 +1,20 @@
 # Issue 150: Upstream Dogfood Evidence
 
-## 1. Characterization Coverage
-The tests in `tests/int/mission-control-characterization.int.spec.ts` successfully map all canonical constraints to traceable scenario IDs:
-- **MC-SCENARIO-001**: Policy/base resolution (`resolves approved base from state block when present`)
-- **MC-SCENARIO-002, MC-SCENARIO-009**: Durable reconstruction and vocabulary preservation (`successfully parses and preserves valid marked state blocks`)
-- **MC-SCENARIO-003, MC-SCENARIO-004**: Migration, conflict, external boundaries (`strictly rejects unmarked MISSION_CONTROL_STATE YAML blocks and routes to STATE_MIGRATION_REQUIRED via analyzeProgressTracking`, `fails closed when markers are duplicate or unbalanced`, `emits STATE_CONFLICT when genuine state conflict is detected`)
-- **MC-SCENARIO-005, MC-SCENARIO-006**: Review-history preservation, no reset, no Review 4 (`preserves review cycle and full review count without resetting on valid transitions`, `routes unauthorized Review 4 (CORRECTION REQUIRED at cycle 2) to STATE_CONFLICT`)
-- **MC-SCENARIO-007**: Role-comment selection and supersession (`findLatestRoleComment selects the most recent comment matching the role`)
-- **MC-SCENARIO-008**: Reconciler / parser compatibility (`ensures reconciler outputs are parsable state objects`)
-- **MC-SCENARIO-010**: Exact-head CI requirements (`blocks delivery lag resolution when exact-head CI is missing`, `allows delivery lag resolution when exact-head CI is verified`)
+## Claim-matched executable coverage
 
-## 2. Review Budget Constraints (Transition Matrix)
-The executable drift guard in `scripts/guard-mission-control-drift.mjs` was converted to a runtime transition matrix. It verifies:
-- `full_review_count` never exceeds `1`.
-- `CORRECTION REQUIRED` at cycle 2 results in `STATE_CONFLICT` (not Review 4).
-- Reconciler and parser compatibility guarantees exact parsing of proposals.
+- Protected-base loading and bundles are derived from the approved-SHA Project loader; a tampered loader fixture proves the classifier follows content rather than a path list.
+- Unmarked, duplicate, and genuinely unbalanced state fixtures execute the preflight boundary and assert `STATE_MIGRATION_REQUIRED`.
+- `BLOCKED_EXTERNAL`, genuine `STATE_CONFLICT`, exact-head mismatch, and older-SHA CI success have separate executable cases.
+- `HANDOFF`, `RESULT`, and `REVIEW_VERDICT` parsing and timestamp supersession are all exercised.
+- The drift guard executes 15 verdict/cycle transitions and the complete 104-case state/cycle/full-review cross-product; dynamic reconciler and parser tampering prove semantic drift is rejected without source-text matching.
+- An integrated upstream fixture parses each managed lifecycle state, runs READY through preflight, replays delivery and all three review bounds, analyzes two exact-head checks, exercises all role headings, and proves sync manifest/runtime parity plus recursive inventory without performing child sync.
 
-## 3. Exact-SHA Baseline Capture
-The script `scripts/capture-baseline.mjs` generates an immutable `docs/mission-control/dogfood/issue-150-baseline.json` utilizing native `execFileSync` to yield un-trimmed Buffers and NUL-delimited `git ls-tree` to exactly enumerate and classify paths into the required bundles. Derived metrics assert perfectly against expectations. `docs/mission-control/dogfood/issue-150-baseline.md` provides a human-readable projection of the data.
+## Reproducible approved-base baseline
+
+`node scripts/capture-baseline.mjs c2637d6540f9200b01e8e0af1938e257975ada27` uses byte-preserving `git show`, recursive NUL-delimited `git ls-tree -z`, and loader-content classification. The JSON output records the exact derivation ref and all 49 recursive sync-managed documentation paths.
+
+## Complete benchmark and traceability
+
+[`issue-150-benchmark-scenarios.json`](./issue-150-benchmark-scenarios.json) is the canonical machine-readable fixture. Each scenario contains policy intent, approved-base behavior, approved canonical behavior, concrete input/evidence/expected fields, executable test references, Issue #150 criterion mappings, and immutable trace IDs for all ten contradictions in the Issue #149 discovery RESULT.
+
+No child repository, policy module, state vocabulary, schema, production resource, migration, or deployment is changed by this characterization pass.

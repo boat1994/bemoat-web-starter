@@ -1,15 +1,15 @@
 # Mission Control Baseline
 - exact approved-base SHA: c2637d6540f9200b01e8e0af1938e257975ada27
 - measurement schema version: 1
-- exact commands/method: scripts/capture-baseline.mjs (git show/ls-tree -z)
-- mandatory startup bundle: docs/mission-control/mission-control-guide.md
-- role-specific on-demand bundle: prompts/mission-control/chatgpt-project-loader.md, docs/agent-loop/role-handoff-contract.md, docs/mission-control/handoff-template.md, docs/mission-control/result-template.md
-- transitive reference-only files: AGENTS.md, docs/mission-control/README.md, docs/mission-control/project-overrides.example.md
-- lines, bytes, and deterministic token approximation of startup bundle: 819 lines, 38100 bytes
-- estimated tokens: 9525 tokens (approx: bytes / 4)
-- total harness documentation files, lines, and bytes: 85 files, 12236 lines, 557938 bytes
-- sync-managed documentation footprint: 49 files, 7173 lines, 333061 bytes
-- startup policy dependency/link graph: Founder -> Issue -> protected guide + overrides -> agent-issue.mjs -> mission-control-state.mjs
-- invariant marker count: 9 markers
-- only exactly measurable duplication counts: Defaults repeated at lines 102–115 (1 duplicate block known)
+- exact commands/method: scripts/capture-baseline.mjs (byte-preserving git show + recursive git ls-tree -z)
+- loading contract source: prompts/mission-control/chatgpt-project-loader.md at c2637d6540f9200b01e8e0af1938e257975ada27
+- project-instruction bundle: prompts/mission-control/chatgpt-project-loader.md (65 lines, 4256 bytes)
+- mandatory repository-policy bundle: docs/mission-control/mission-control-guide.md (819 lines, 38100 bytes)
+- optional policy paths absent at approved SHA: .bemoat/mission-control-overrides.md
+- durable artifact stage: Approved Implementation Plan → Main Issue → Active Task Issue (incl. MC state)
+- role transport stage: Latest approved non-superseded `## HANDOFF` / `## RESULT` / `## REVIEW_VERDICT`
+- live GitHub evidence stage: Active PR exact head, review threads, exact-head CI/checks
+- total harness documentation: 85 files, 12236 lines, 557938 bytes
+- recursive sync-managed documentation: 49 files, 7173 lines, 333061 bytes
+- invariant marker count: 9
 - unavailable metric limitations: actual model token usage, reasoning tokens consumed

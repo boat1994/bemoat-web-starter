@@ -1,8 +1,9 @@
-import { execFileSync } from 'node:child_process'
-import { writeFileSync } from 'node:fs'
-import { join, dirname } from 'node:path'
-import { fileURLToPath } from 'node:url'
+#!/usr/bin/env node
 import { strict as assert } from 'node:assert'
+import { execFileSync } from 'node:child_process'
+import { readFileSync, writeFileSync } from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = join(__dirname, '..')
@@ -10,225 +11,212 @@ const root = join(__dirname, '..')
 const EXPECTED_DOCS_FILES = 85
 const EXPECTED_DOCS_LINES = 12236
 const EXPECTED_DOCS_BYTES = 557938
-
 const EXPECTED_MANAGED_FILES = 49
 const EXPECTED_MANAGED_LINES = 7173
 const EXPECTED_MANAGED_BYTES = 333061
+const LOADER_PATH = 'prompts/mission-control/chatgpt-project-loader.md'
 
 function runBuffer(args) {
   try {
     return execFileSync('git', args, { cwd: root, encoding: 'buffer', stdio: ['pipe', 'pipe', 'ignore'] })
-  } catch (_err) {
+  } catch {
     return null
   }
 }
 
 function runString(args) {
   try {
-    return execFileSync('git', args, { cwd: root, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'ignore'] }).trim()
-  } catch (_err) {
+    return execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] }).trim()
+  } catch {
     return null
   }
-}
-
-const inputRef = process.argv[2] || 'HEAD'
-const sha = runString(['rev-parse', inputRef])
-
-if (!sha) {
-  console.error(`Could not resolve git ref: ${inputRef}`)
-  process.exit(1)
-}
-
-function getFileContentBuffer(filePath) {
-  return runBuffer(['show', `${sha}:${filePath}`])
 }
 
 function countLines(buffer) {
   if (!buffer) return 0
   let lines = 0
-  for (let i = 0; i < buffer.length; i++) {
-    if (buffer[i] === 0x0a) lines++
-  }
+  for (const byte of buffer) if (byte === 0x0a) lines += 1
   return lines
 }
 
-function getTreePaths(treeSha = sha, prefix = '') {
-  const buf = runBuffer(['ls-tree', '-z', '-r', treeSha])
-  if (!buf) return []
-  const paths = []
-  let start = 0
-  for (let i = 0; i < buf.length; i++) {
-    if (buf[i] === 0) {
-      const entry = buf.subarray(start, i).toString('utf-8')
-      const tabIdx = entry.indexOf('\t')
-      if (tabIdx !== -1) {
-        paths.push(prefix + entry.slice(tabIdx + 1))
-      }
-      start = i + 1
+/** Derive the executable loading contract from the canonical Project loader. */
+export function classifyPolicyLoaderContent(content) {
+  const startupSection = content.match(/## Startup\s+([\s\S]*?)(?=\n## |\n1\. Merged canonical guide)/)?.[1] ?? ''
+  const mandatoryRepositoryPolicy = [...startupSection.matchAll(/`([^`]+\.md)`/g)].map((match) => match[1])
+  const orderStart = content.search(/^1\. Merged canonical guide on approved base\s*$/m)
+  const loadingOrder = orderStart < 0
+    ? []
+    : content
+        .slice(orderStart)
+        .split('\n')
+        .map((line) => line.match(/^(\d+)\.\s+(.+)$/))
+        .filter(Boolean)
+        .slice(0, 5)
+        .map((match) => ({ position: Number(match[1]), source_text: match[2] }))
+  const roleTransportText = loadingOrder.find((item) => item.position === 4)?.source_text ?? ''
+  const commentTypes = [...roleTransportText.matchAll(/## (HANDOFF|RESULT|REVIEW_VERDICT)/g)].map((match) => match[1])
+  const liveGithubEvidence = loadingOrder.find((item) => item.position === 5)?.source_text ?? ''
+  const durableArtifacts = loadingOrder.find((item) => item.position === 3)?.source_text ?? ''
+
+  if (mandatoryRepositoryPolicy.length < 2 || loadingOrder.length !== 5 || commentTypes.length !== 3) {
+    throw new Error('Canonical loader is missing a complete startup, loading-order, or role-transport contract.')
+  }
+
+  return {
+    mandatory_repository_policy: mandatoryRepositoryPolicy,
+    loading_order: loadingOrder,
+    durable_artifacts: durableArtifacts,
+    role_transport: { source_text: roleTransportText, comment_types: commentTypes },
+    live_github_evidence: liveGithubEvidence,
+  }
+}
+
+export function captureBaseline(inputRef = 'HEAD') {
+  const sha = runString(['rev-parse', inputRef])
+  if (!sha) throw new Error(`Could not resolve git ref: ${inputRef}`)
+
+  const getFileContentBuffer = (filePath) => runBuffer(['show', `${sha}:${filePath}`])
+  const treeBuffer = runBuffer(['ls-tree', '-z', '-r', sha])
+  const allPaths = []
+  if (treeBuffer) {
+    let start = 0
+    for (let index = 0; index < treeBuffer.length; index += 1) {
+      if (treeBuffer[index] !== 0) continue
+      const entry = treeBuffer.subarray(start, index).toString('utf8')
+      const tabIndex = entry.indexOf('\t')
+      if (tabIndex !== -1) allPaths.push(entry.slice(tabIndex + 1))
+      start = index + 1
     }
   }
-  return paths
-}
 
-const allPaths = getTreePaths()
+  const loaderBuffer = getFileContentBuffer(LOADER_PATH)
+  assert(loaderBuffer, `Missing canonical loader at ${sha}:${LOADER_PATH}`)
+  const loaderClassification = classifyPolicyLoaderContent(loaderBuffer.toString('utf8'))
+  const mandatoryPaths = loaderClassification.mandatory_repository_policy.filter(
+    (filePath) => getFileContentBuffer(filePath) !== null,
+  )
 
-// 1. Mandatory startup bundle
-const guidePath = 'docs/mission-control/mission-control-guide.md'
-const overridesPath = '.bemoat/mission-control-overrides.md'
-const mandatoryPaths = [guidePath]
-if (getFileContentBuffer(overridesPath)) {
-  mandatoryPaths.push(overridesPath)
-}
+  const measurePaths = (paths) => paths.reduce(
+    (totals, filePath) => {
+      const buffer = getFileContentBuffer(filePath)
+      if (!buffer) return totals
+      totals.files += 1
+      totals.lines += countLines(buffer)
+      totals.bytes += buffer.length
+      return totals
+    },
+    { files: 0, lines: 0, bytes: 0 },
+  )
 
-let mandatoryLines = 0
-let mandatoryBytes = 0
-for (const p of mandatoryPaths) {
-  const buf = getFileContentBuffer(p)
-  if (buf) {
-    mandatoryLines += countLines(buf)
-    mandatoryBytes += buf.length
-  }
-}
+  const startupMetrics = measurePaths(mandatoryPaths)
+  const loaderMetrics = measurePaths([LOADER_PATH])
+  const docsPaths = allPaths.filter((filePath) => filePath.startsWith('docs/'))
+  const docsMetrics = measurePaths(docsPaths)
 
-const tokens = Math.round(mandatoryBytes / 4)
-
-// Role-specific on-demand bundle (e.g. chatgpt-project-loader, agent-issue scripts, etc)
-const roleSpecificPaths = [
-  'prompts/mission-control/chatgpt-project-loader.md',
-  'docs/agent-loop/role-handoff-contract.md',
-  'docs/mission-control/handoff-template.md',
-  'docs/mission-control/result-template.md',
-]
-const existingRoleSpecificPaths = roleSpecificPaths.filter(p => getFileContentBuffer(p) !== null)
-
-// Transitive reference-only files (e.g. READMEs linking back)
-const transitiveReferencePaths = [
-  'AGENTS.md',
-  'docs/mission-control/README.md',
-  'docs/mission-control/project-overrides.example.md'
-]
-const existingTransitivePaths = transitiveReferencePaths.filter(p => getFileContentBuffer(p) !== null)
-
-// All harness docs (docs/ directory, not just .md)
-const docsPaths = allPaths.filter(p => p.startsWith('docs/'))
-let totalDocsLines = 0
-let totalDocsBytes = 0
-for (const p of docsPaths) {
-  const buf = getFileContentBuffer(p)
-  if (buf) {
-    totalDocsLines += countLines(buf)
-    totalDocsBytes += buf.length
-  }
-}
-
-// Sync-managed documentation
-const manifestBuf = getFileContentBuffer('.bemoat/boilerplate-sync-manifest.json')
-let managedPathsResolved = []
-if (manifestBuf) {
-  try {
-    const manifest = JSON.parse(manifestBuf.toString('utf-8'))
-    const declaredPaths = manifest.managedPaths || []
+  const manifestBuffer = getFileContentBuffer('.bemoat/boilerplate-sync-manifest.json')
+  const managedPathsResolved = []
+  if (manifestBuffer) {
+    const manifest = JSON.parse(manifestBuffer.toString('utf8'))
     const expanded = new Set()
-    for (const declared of declaredPaths) {
-      if (allPaths.includes(declared)) {
-        expanded.add(declared)
-      } else {
-        // Could be a directory
-        const prefix = declared.endsWith('/') ? declared : declared + '/'
-        for (const p of allPaths) {
-          if (p.startsWith(prefix)) expanded.add(p)
-        }
+    for (const declaredPath of manifest.managedPaths ?? []) {
+      if (allPaths.includes(declaredPath)) {
+        expanded.add(declaredPath)
+        continue
       }
+      const prefix = declaredPath.endsWith('/') ? declaredPath : `${declaredPath}/`
+      for (const filePath of allPaths) if (filePath.startsWith(prefix)) expanded.add(filePath)
     }
-    // Filter to only documentation files for this specific count (starts with docs/)
-    managedPathsResolved = Array.from(expanded).filter(p => p.startsWith('docs/')).sort()
-  } catch (_e) {
-    // Ignore parse error
+    managedPathsResolved.push(...[...expanded].filter((filePath) => filePath.startsWith('docs/')).sort())
+  }
+  const managedMetrics = measurePaths(managedPathsResolved)
+
+  const guideBuffer = getFileContentBuffer('docs/mission-control/mission-control-guide.md')
+  const invariants = guideBuffer
+    ? (guideBuffer.toString('utf8').match(/<!-- bemoat-mc:invariant:[a-z0-9-]+ -->/g) ?? []).length
+    : 0
+
+  return {
+    sha,
+    schema_version: 1,
+    measurement_method: 'scripts/capture-baseline.mjs (byte-preserving git show + recursive git ls-tree -z)',
+    loading_contract: {
+      derived_from: { path: LOADER_PATH, ref: sha },
+      ...loaderClassification,
+    },
+    bundles: {
+      project_instructions: { paths: [LOADER_PATH], ...loaderMetrics },
+      mandatory_repository_policy: {
+        paths: mandatoryPaths,
+        optional_paths_absent: loaderClassification.mandatory_repository_policy.filter(
+          (filePath) => !mandatoryPaths.includes(filePath),
+        ),
+        ...startupMetrics,
+        estimated_tokens: Math.round(startupMetrics.bytes / 4),
+      },
+      durable_task_context: { source_text: loaderClassification.durable_artifacts },
+      role_transport: loaderClassification.role_transport,
+      live_github_evidence: { source_text: loaderClassification.live_github_evidence },
+    },
+    totals: {
+      docs_files: docsMetrics.files,
+      docs_lines: docsMetrics.lines,
+      docs_bytes: docsMetrics.bytes,
+      sync_managed_docs_files: managedMetrics.files,
+      sync_managed_docs_lines: managedMetrics.lines,
+      sync_managed_docs_bytes: managedMetrics.bytes,
+    },
+    invariants,
+    duplicates_measurable: 'Defaults repeated at approved-base guide lines 102–115 (1 duplicate block known)',
+    limitations: 'actual model token usage, reasoning tokens consumed',
+    sync_managed_resolved_paths: managedPathsResolved,
   }
 }
 
-let managedFilesCount = 0
-let managedLinesCount = 0
-let managedBytesCount = 0
-for (const p of managedPathsResolved) {
-  const buf = getFileContentBuffer(p)
-  if (buf) {
-    managedFilesCount++
-    managedLinesCount += countLines(buf)
-    managedBytesCount += buf.length
+function writeBaselineArtifacts(baseline) {
+  const outputRoot = join(root, 'docs/mission-control/dogfood')
+  writeFileSync(join(outputRoot, 'issue-150-baseline.json'), `${JSON.stringify(baseline, null, 2)}\n`)
+  const policy = baseline.bundles.mandatory_repository_policy
+  const markdown = [
+    '# Mission Control Baseline',
+    `- exact approved-base SHA: ${baseline.sha}`,
+    `- measurement schema version: ${baseline.schema_version}`,
+    `- exact commands/method: ${baseline.measurement_method}`,
+    `- loading contract source: ${baseline.loading_contract.derived_from.path} at ${baseline.loading_contract.derived_from.ref}`,
+    `- project-instruction bundle: ${baseline.bundles.project_instructions.paths.join(', ')} (${baseline.bundles.project_instructions.lines} lines, ${baseline.bundles.project_instructions.bytes} bytes)`,
+    `- mandatory repository-policy bundle: ${policy.paths.join(', ')} (${policy.lines} lines, ${policy.bytes} bytes)`,
+    `- optional policy paths absent at approved SHA: ${policy.optional_paths_absent.join(', ') || 'none'}`,
+    `- durable artifact stage: ${baseline.bundles.durable_task_context.source_text}`,
+    `- role transport stage: ${baseline.bundles.role_transport.source_text}`,
+    `- live GitHub evidence stage: ${baseline.bundles.live_github_evidence.source_text}`,
+    `- total harness documentation: ${baseline.totals.docs_files} files, ${baseline.totals.docs_lines} lines, ${baseline.totals.docs_bytes} bytes`,
+    `- recursive sync-managed documentation: ${baseline.totals.sync_managed_docs_files} files, ${baseline.totals.sync_managed_docs_lines} lines, ${baseline.totals.sync_managed_docs_bytes} bytes`,
+    `- invariant marker count: ${baseline.invariants}`,
+    `- unavailable metric limitations: ${baseline.limitations}`,
+  ]
+  writeFileSync(join(outputRoot, 'issue-150-baseline.md'), `${markdown.join('\n')}\n`)
+}
+
+export function isDirectExecution() {
+  return Boolean(process.argv[1]) && import.meta.url === pathToFileURL(resolve(process.argv[1])).href
+}
+
+function main() {
+  if (process.argv[2] === '--classify-loader') {
+    const loaderPath = process.argv[3]
+    if (!loaderPath) throw new Error('--classify-loader requires a file path')
+    console.log(JSON.stringify(classifyPolicyLoaderContent(readFileSync(loaderPath, 'utf8'))))
+    return
   }
+
+  const baseline = captureBaseline(process.argv[2] || 'HEAD')
+  writeBaselineArtifacts(baseline)
+  assert.equal(baseline.totals.docs_files, EXPECTED_DOCS_FILES)
+  assert.equal(baseline.totals.docs_lines, EXPECTED_DOCS_LINES)
+  assert.equal(baseline.totals.docs_bytes, EXPECTED_DOCS_BYTES)
+  assert.equal(baseline.totals.sync_managed_docs_files, EXPECTED_MANAGED_FILES)
+  assert.equal(baseline.totals.sync_managed_docs_lines, EXPECTED_MANAGED_LINES)
+  assert.equal(baseline.totals.sync_managed_docs_bytes, EXPECTED_MANAGED_BYTES)
+  console.log('Baseline measurements and derived loading contract match the immutable approved-base fixture.')
 }
 
-// Invariants in guide
-const guideBuf = getFileContentBuffer(guidePath)
-let invariantsCount = 0
-if (guideBuf) {
-  const guideStr = guideBuf.toString('utf-8')
-  invariantsCount = (guideStr.match(/<!-- bemoat-mc:invariant:[a-z0-9-]+ -->/g) || []).length
-}
-
-const baselineJson = {
-  sha,
-  schema_version: 1,
-  measurement_method: "scripts/capture-baseline.mjs (git show/ls-tree -z)",
-  bundles: {
-    mandatory_startup: {
-      paths: mandatoryPaths,
-      lines: mandatoryLines,
-      bytes: mandatoryBytes,
-      estimated_tokens: tokens,
-    },
-    role_specific: {
-      paths: existingRoleSpecificPaths
-    },
-    transitive_reference: {
-      paths: existingTransitivePaths
-    }
-  },
-  totals: {
-    docs_files: docsPaths.length,
-    docs_lines: totalDocsLines,
-    docs_bytes: totalDocsBytes,
-    sync_managed_docs_files: managedFilesCount,
-    sync_managed_docs_lines: managedLinesCount,
-    sync_managed_docs_bytes: managedBytesCount,
-  },
-  dependency_graph: "Founder -> Issue -> protected guide + overrides -> agent-issue.mjs -> mission-control-state.mjs",
-  invariants: invariantsCount,
-  duplicates_measurable: "Defaults repeated at lines 102–115 (1 duplicate block known)",
-  limitations: "actual model token usage, reasoning tokens consumed",
-  sync_managed_resolved_paths: managedPathsResolved,
-}
-
-writeFileSync(join(root, 'docs/mission-control/dogfood/issue-150-baseline.json'), JSON.stringify(baselineJson, null, 2) + '\n')
-
-const md = [
-  `# Mission Control Baseline`,
-  `- exact approved-base SHA: ${baselineJson.sha}`,
-  `- measurement schema version: ${baselineJson.schema_version}`,
-  `- exact commands/method: ${baselineJson.measurement_method}`,
-  `- mandatory startup bundle: ${baselineJson.bundles.mandatory_startup.paths.join(', ')}`,
-  `- role-specific on-demand bundle: ${baselineJson.bundles.role_specific.paths.join(', ')}`,
-  `- transitive reference-only files: ${baselineJson.bundles.transitive_reference.paths.join(', ')}`,
-  `- lines, bytes, and deterministic token approximation of startup bundle: ${baselineJson.bundles.mandatory_startup.lines} lines, ${baselineJson.bundles.mandatory_startup.bytes} bytes`,
-  `- estimated tokens: ${baselineJson.bundles.mandatory_startup.estimated_tokens} tokens (approx: bytes / 4)`,
-  `- total harness documentation files, lines, and bytes: ${baselineJson.totals.docs_files} files, ${baselineJson.totals.docs_lines} lines, ${baselineJson.totals.docs_bytes} bytes`,
-  `- sync-managed documentation footprint: ${baselineJson.totals.sync_managed_docs_files} files, ${baselineJson.totals.sync_managed_docs_lines} lines, ${baselineJson.totals.sync_managed_docs_bytes} bytes`,
-  `- startup policy dependency/link graph: ${baselineJson.dependency_graph}`,
-  `- invariant marker count: ${baselineJson.invariants} markers`,
-  `- only exactly measurable duplication counts: ${baselineJson.duplicates_measurable}`,
-  `- unavailable metric limitations: ${baselineJson.limitations}`,
-]
-
-writeFileSync(join(root, 'docs/mission-control/dogfood/issue-150-baseline.md'), md.join('\n') + '\n')
-console.log('Baseline saved to JSON and MD')
-
-// Assert against expected totals
-assert.equal(baselineJson.totals.docs_files, EXPECTED_DOCS_FILES, `Expected ${EXPECTED_DOCS_FILES} docs files, got ${baselineJson.totals.docs_files}`)
-assert.equal(baselineJson.totals.docs_lines, EXPECTED_DOCS_LINES, `Expected ${EXPECTED_DOCS_LINES} docs lines, got ${baselineJson.totals.docs_lines}`)
-assert.equal(baselineJson.totals.docs_bytes, EXPECTED_DOCS_BYTES, `Expected ${EXPECTED_DOCS_BYTES} docs bytes, got ${baselineJson.totals.docs_bytes}`)
-assert.equal(baselineJson.totals.sync_managed_docs_files, EXPECTED_MANAGED_FILES, `Expected ${EXPECTED_MANAGED_FILES} managed docs files, got ${baselineJson.totals.sync_managed_docs_files}`)
-assert.equal(baselineJson.totals.sync_managed_docs_lines, EXPECTED_MANAGED_LINES, `Expected ${EXPECTED_MANAGED_LINES} managed docs lines, got ${baselineJson.totals.sync_managed_docs_lines}`)
-assert.equal(baselineJson.totals.sync_managed_docs_bytes, EXPECTED_MANAGED_BYTES, `Expected ${EXPECTED_MANAGED_BYTES} managed docs bytes, got ${baselineJson.totals.sync_managed_docs_bytes}`)
-
-console.log('Baseline measurements exactly match expected immutable totals.')
+if (isDirectExecution()) main()

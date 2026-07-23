@@ -1,23 +1,24 @@
 # Issue 150: Expected Behavior Matrix
 
-This artifact acts as a reusable benchmark fixture to prove the corrections made to Mission Control contract logic in Issue 150.
+The machine-readable source is [`issue-150-benchmark-scenarios.json`](./issue-150-benchmark-scenarios.json). It records policy intent, approved-base behavior, approved canonical behavior, fixture boundaries, executable test references, all twelve Issue #150 criteria, and all ten Issue #149 discovery contradictions.
 
-## Scenarios
+| Scenario | Boundary | Approved canonical behavior |
+|---|---|---|
+| MC-SCENARIO-001 | Protected-base loader + recursive inventory | Loader-derived bundles and byte-preserving approved-SHA metrics |
+| MC-SCENARIO-002 | State parser | Complete marked durable reconstruction |
+| MC-SCENARIO-003 | Preflight | Explicit migration routing for legacy/malformed state |
+| MC-SCENARIO-004 | Preflight + reconciler | Distinct STATE_CONFLICT and BLOCKED_EXTERNAL stops |
+| MC-SCENARIO-005 | Review reconciler | Monotonic cycles and one Full Review maximum |
+| MC-SCENARIO-006 | Review 3 | No CORRECTION_REQUIRED_3 or autonomous Review 4 |
+| MC-SCENARIO-007 | Role transport | All three headings selected and superseded deterministically |
+| MC-SCENARIO-008 | Drift guard | 104 state/counter cases, 15 review cases, parser compatibility, tamper rejection |
+| MC-SCENARIO-009 | Approved-base prose facts | Vocabulary/model/link drift characterized without policy changes |
+| MC-SCENARIO-010 | Exact-head evidence | Older-SHA success never satisfies current-head CI |
 
-| Scenario ID | Category | Validated Behavior | Test Reference |
-|---|---|---|---|
-| **MC-SCENARIO-001** | Policy/base resolution | `approved_base` is resolved accurately from durable state when present. | `Policy/base resolution (MC-SCENARIO-001)` |
-| **MC-SCENARIO-002** | Durable reconstruction | Well-formed state strings correctly map back to canonical memory structures. | `Durable reconstruction and vocabulary preservation (MC-SCENARIO-002, MC-SCENARIO-009)` |
-| **MC-SCENARIO-003** | Migration/conflict bounds | Invalid state schemas properly emit `STATE_MIGRATION_REQUIRED` blocking implementation. | `Migration/conflict/external boundaries (MC-SCENARIO-003, MC-SCENARIO-004)` |
-| **MC-SCENARIO-004** | Conflict bounds | Unbalanced markers and missing state blocks are identified and guarded. | `Migration/conflict/external boundaries (MC-SCENARIO-003, MC-SCENARIO-004)` |
-| **MC-SCENARIO-005** | Review-history preservation | Valid transitions increment cycles while locking `full_review_count` to exactly 1. | `Review-history preservation, no reset, no Review 4 (MC-SCENARIO-005, MC-SCENARIO-006)` |
-| **MC-SCENARIO-006** | No Review 4 | Attempted Review 4 yields `STATE_CONFLICT` rather than an invalid state or reset. | `Review-history preservation, no reset, no Review 4 (MC-SCENARIO-005, MC-SCENARIO-006)` |
-| **MC-SCENARIO-007** | Role-comment selection | Supersession accurately identifies the newest relevant role verdict/handoff comment. | `Role-comment selection and supersession (MC-SCENARIO-007)` |
-| **MC-SCENARIO-008** | Reconciler / parser compatibility | Output proposals directly pass parser schema validation (no drift). | `Reconciler / parser compatibility (MC-SCENARIO-008)` |
-| **MC-SCENARIO-009** | Vocabulary preservation | Legacy terms are correctly mapped or flagged for standard reconciliation. | `Durable reconstruction and vocabulary preservation (MC-SCENARIO-002, MC-SCENARIO-009)` |
-| **MC-SCENARIO-010** | Exact-head CI requirements | Delivery and merge states are guarded against missing or stale exact-head verifications. | `Exact-head CI requirements (MC-SCENARIO-010)` |
+Verification:
 
-## Verification Command
-These bounds are verified mechanically via:
-`pnpm exec vitest run tests/int/mission-control-characterization.int.spec.ts`
-`pnpm run guard:safety`
+```text
+pnpm exec vitest run --config ./vitest.config.mts tests/int/mission-control-characterization.int.spec.ts tests/int/guard-pack.int.spec.ts
+pnpm exec tsc --noEmit
+pnpm run check
+```
