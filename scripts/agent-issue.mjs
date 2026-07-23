@@ -844,6 +844,7 @@ export function analyzeProgressTracking({
   cwd = process.cwd(),
   activeIssueBody = '',
   activeIssueNumber = null,
+  activeIssueState = null,
   env = process.env,
 } = {}) {
   const blockers = []
@@ -875,6 +876,7 @@ export function analyzeProgressTracking({
     declarations.missionControlMode === 'required' ||
     (taskSize === 'core' && declarations.declaresMainIssue && declarations.declaresImplementationPlan)
   const state = stateAnalysis.state
+  let resolvedActiveIssueState = activeIssueState
   const stateNeedsPrEvidence = stateAnalysis.valid && stateRequiresPrEvidence(state.state)
 
   report.missionControlState = stateAnalysis
@@ -1080,10 +1082,22 @@ export function analyzeProgressTracking({
         if (state.approved_base !== prResult.pr.baseRefName) {
           blockers.push('STATE_CONFLICT: state approved_base does not match the live PR base.')
         }
-        if (state.current_head && state.current_head !== prResult.pr.headRefOid) {
+        const terminalHeadIsPreserved =
+          prResult.pr.state === 'MERGED' &&
+          state.state === 'DONE' &&
+          state.last_reviewed_head === prResult.pr.headRefOid
+        if (state.current_head && state.current_head !== prResult.pr.headRefOid && !terminalHeadIsPreserved) {
           blockers.push('STATE_CONFLICT: state current_head does not match the live PR head.')
         }
-        if (prResult.pr.state === 'MERGED' && state.state !== 'DONE') {
+        if (prResult.pr.state === 'MERGED' && !resolvedActiveIssueState && activeIssueNumber) {
+          const liveIssue = fetchIssueByReference(cwd, `#${activeIssueNumber}`, env)
+          if (liveIssue.ok) resolvedActiveIssueState = liveIssue.issue.state
+        }
+        const terminalRepairCandidate =
+          prResult.pr.state === 'MERGED' &&
+          String(resolvedActiveIssueState ?? '').toLowerCase() === 'closed' &&
+          state.last_reviewed_head === prResult.pr.headRefOid
+        if (prResult.pr.state === 'MERGED' && state.state !== 'DONE' && !terminalRepairCandidate) {
           blockers.push('STATE_CONFLICT: merged PR completion must reconcile to DONE.')
         }
         if (prResult.pr.state === 'CLOSED' && state.state !== 'DONE') {
@@ -1161,6 +1175,14 @@ export function analyzeProgressTracking({
       latestVerdict,
       activeTaskIssue: activeIssueNumber,
       stateConflictBlockers: blockers.filter((blocker) => blocker.includes('STATE_CONFLICT')),
+      terminal: report.pr?.state === 'MERGED'
+        ? {
+            issueClosed: String(resolvedActiveIssueState ?? '').toLowerCase() === 'closed',
+            prMerged: true,
+            reviewedHeadMatches: state.last_reviewed_head === report.pr.headRefOid,
+            mergeCommit: report.pr.mergeCommit?.oid ?? report.pr.mergeCommitOid ?? null,
+          }
+        : null,
     })
     report.reconciliation = reconciliation
 
@@ -2249,6 +2271,7 @@ export function runAgentIssuePreflight({
           cwd,
           activeIssueBody: issueMetadata.body,
           activeIssueNumber: issueNumber,
+          activeIssueState: issueMetadata.state,
           env,
         })
       : {

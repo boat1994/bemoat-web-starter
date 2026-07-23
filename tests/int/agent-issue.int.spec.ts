@@ -1199,6 +1199,70 @@ printf '%s' '{"title":"PR","url":"https://github.com/boat1994/bemoat-web-starter
     expect(analysis.blockers.join(' ')).toContain('STATE_CONFLICT')
   })
 
+  it('classifies closed Issue plus merged exact reviewed PR as terminal repair instead of STATE_CONFLICT', () => {
+    const root = createRepo('feature/155-terminal-repair')
+    const analysis = analyzeProgressTracking({
+      cwd: root,
+      activeIssueNumber: '155',
+      activeIssueState: 'closed',
+      activeIssueBody: `Mission Control mode: required
+${managedState({
+  state: 'ELIGIBLE_FOR_FOUNDER_REVIEW',
+  review_cycle: '3',
+  full_review_count: '1',
+  active_task_issue: '"#155"',
+  active_pr: '"#157"',
+  current_head: 'reviewed-head',
+  last_reviewed_head: 'reviewed-head',
+  open_blockers: '[]',
+})}`,
+      env: {
+        ...process.env,
+        PATH: withStubbedGh(root, `#!/usr/bin/env sh
+printf '%s' '{"title":"PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/157","headRefName":"feature/155-terminal-repair","baseRefName":"main","headRefOid":"reviewed-head","state":"MERGED","statusCheckRollup":[{"name":"ci","conclusion":"SUCCESS"}],"commits":[]}'
+`),
+      },
+    })
+
+    expect(analysis.blockers).not.toContain(expect.stringContaining('merged PR completion'))
+    expect(analysis.report.reconciliation).toMatchObject({
+      classification: { outcome: 'TERMINAL_REPAIR' },
+      proposal: { type: 'terminal', fields: { state: 'DONE' } },
+    })
+  })
+
+  it('keeps an already-DONE task terminal when current_head stores the merge commit', () => {
+    const root = createRepo('feature/155-terminal-noop')
+    const analysis = analyzeProgressTracking({
+      cwd: root,
+      activeIssueNumber: '155',
+      activeIssueState: 'closed',
+      activeIssueBody: `Mission Control mode: required
+${managedState({
+  state: 'DONE',
+  review_cycle: '3',
+  full_review_count: '1',
+  active_task_issue: '"#155"',
+  active_pr: '"#157"',
+  current_head: 'merge-commit',
+  last_reviewed_head: 'reviewed-head',
+  open_blockers: '[]',
+})}`,
+      env: {
+        ...process.env,
+        PATH: withStubbedGh(root, `#!/usr/bin/env sh
+printf '%s' '{"title":"PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/157","headRefName":"feature/155-terminal-noop","baseRefName":"main","headRefOid":"reviewed-head","state":"MERGED","statusCheckRollup":[{"name":"ci","conclusion":"SUCCESS"}],"commits":[]}'
+`),
+      },
+    })
+
+    expect(analysis.blockers).not.toContain(expect.stringContaining('STATE_CONFLICT'))
+    expect(analysis.report.reconciliation).toMatchObject({
+      classification: { outcome: 'NO_OP' },
+      proposal: null,
+    })
+  })
+
   it('surfaces recorded terminal classifications and unavailable required PR evidence as blockers', () => {
     const root = createRepo('feature/115-external-state')
     const conflict = analyzeProgressTracking({

@@ -20,6 +20,192 @@ const VERDICT_TO_STATE = {
   'STATE CONFLICT': 'STATE_CONFLICT',
 }
 
+const REPAIR_OUTCOMES = new Set([
+  'DETERMINISTIC_MIGRATION',
+  'BOOKKEEPING_REPAIR',
+  'TERMINAL_REPAIR',
+])
+
+function sameValue(left, right) {
+  return JSON.stringify(left) === JSON.stringify(right)
+}
+
+function hasLegacyManagedState(state = {}) {
+  return (
+    Object.hasOwn(state, 'post_budget_review_history') ||
+    Object.hasOwn(state, 'founder_authorization') ||
+    Object.hasOwn(state, 'founder_correction_authorization')
+  )
+}
+
+/**
+ * Exhaustive, ordered reconciliation classification. Only contradictory live
+ * authority is a conflict; schema and bookkeeping lag remain repairable.
+ */
+export function classifyReconciliation(evidence = {}) {
+  if (evidence.requiredEvidenceUnavailable) {
+    return { outcome: 'BLOCKED_EXTERNAL', reason: 'required live evidence is unavailable' }
+  }
+  if (
+    evidence.authoritativeContradiction ||
+    evidence.competingPrs ||
+    evidence.headMismatch ||
+    evidence.staleCi
+  ) {
+    return { outcome: 'STATE_CONFLICT', reason: 'authoritative live evidence contradicts' }
+  }
+
+  const terminal = evidence.terminal ?? {}
+  if (terminal.issueClosed && terminal.prMerged && terminal.reviewedHeadMatches) {
+    if (evidence.managedState?.state === 'DONE') {
+      return { outcome: 'NO_OP', reason: 'terminal evidence already recorded' }
+    }
+    return { outcome: 'TERMINAL_REPAIR', reason: 'terminal bookkeeping lags live merge evidence' }
+  }
+
+  if (hasLegacyManagedState(evidence.managedState)) {
+    return { outcome: 'DETERMINISTIC_MIGRATION', reason: 'legacy managed-state representation is unambiguous' }
+  }
+  if (evidence.bookkeepingProposal) {
+    const proposed = { ...(evidence.managedState ?? {}), ...evidence.bookkeepingProposal }
+    if (sameValue(proposed, evidence.managedState ?? {})) {
+      return { outcome: 'NO_OP', reason: 'bookkeeping evidence is already recorded' }
+    }
+    return { outcome: 'BOOKKEEPING_REPAIR', reason: 'unambiguous live evidence is ahead of bookkeeping' }
+  }
+  return { outcome: 'NO_OP', reason: 'no authoritative evidence changed' }
+}
+
+/**
+ * Convert the Issue #155 legacy post-budget fields to their canonical shape.
+ * Superseded keys are removed only from the proposed replacement state; the
+ * caller owns the single durable write and verification.
+ */
+export function migrateLegacyManagedState(managedState = {}) {
+  if (!hasLegacyManagedState(managedState)) {
+    return { changed: false, state: managedState }
+  }
+
+  const state = structuredClone(managedState)
+  const history = Array.isArray(state.post_budget_review_history)
+    ? state.post_budget_review_history
+    : []
+  const legacyReviewAuthorization = state.founder_authorization
+
+  if (!Array.isArray(state.post_budget_reviews)) {
+    state.post_budget_reviews = history.map((entry) => ({
+      ...entry,
+      authorization:
+        entry.authorization ??
+        (legacyReviewAuthorization?.review_number === entry.review_number &&
+        legacyReviewAuthorization?.reviewed_head === entry.reviewed_head
+          ? structuredClone(legacyReviewAuthorization)
+          : null),
+    }))
+  }
+
+  if (!state.founder_decision && state.founder_correction_authorization) {
+    state.founder_decision = structuredClone(state.founder_correction_authorization)
+  }
+
+  delete state.post_budget_review_history
+  delete state.founder_authorization
+  delete state.founder_correction_authorization
+
+  if (state.state === 'STATE_CONFLICT') {
+    state.state = state.founder_decision ? 'IN_PROGRESS' : 'BLOCKED_FOR_FOUNDER_DECISION'
+  }
+
+  return { changed: true, state }
+}
+
+function proposedRepair(evidence, classification) {
+  const migrated = migrateLegacyManagedState(evidence.managedState ?? {}).state
+  if (classification.outcome === 'TERMINAL_REPAIR') {
+    return {
+      ...migrated,
+      state: 'DONE',
+      merged_commit_sha: evidence.terminal?.mergeCommit ?? migrated.merged_commit_sha ?? null,
+      open_blockers: [],
+      next_permitted_action: 'none on this task',
+    }
+  }
+  if (classification.outcome === 'BOOKKEEPING_REPAIR') {
+    return { ...migrated, ...evidence.bookkeepingProposal }
+  }
+  return migrated
+}
+
+/**
+ * Run at most one deterministic repair and one live verification. A second
+ * repair is never attempted in the same run.
+ */
+export async function runBoundedReconciliation({ readEvidence, writeState }) {
+  const measurements = {
+    coordination_runs: 1,
+    state_writes: 0,
+    role_comments: 0,
+    model_required_stages: 0,
+    reconciliation_attempts: 0,
+    false_state_conflicts: 0,
+  }
+
+  const initialEvidence = await readEvidence()
+  measurements.reconciliation_attempts += 1
+  const initial = classifyReconciliation(initialEvidence)
+  if (!REPAIR_OUTCOMES.has(initial.outcome)) {
+    return { ...initial, finalOutcome: initial.outcome, measurements }
+  }
+
+  await writeState(proposedRepair(initialEvidence, initial))
+  measurements.state_writes += 1
+
+  const verifiedEvidence = await readEvidence()
+  measurements.reconciliation_attempts += 1
+  const verified = classifyReconciliation(verifiedEvidence)
+  return {
+    ...initial,
+    finalOutcome: verified.outcome,
+    finalReason: verified.reason,
+    measurements,
+  }
+}
+
+/**
+ * Transactional READY -> IN_PROGRESS dispatch with compensating rollback.
+ * The caller supplies durable Issue and role-comment operations so this logic
+ * remains testable and transport-agnostic.
+ */
+export async function dispatchManagedTask({ readState, writeState, postHandoff, handoffBody, transitionState }) {
+  const original = await readState()
+  if (original?.state !== 'READY') {
+    throw new Error(`dispatch requires READY, received ${original?.state ?? 'missing state'}`)
+  }
+  if (!/^## HANDOFF\s*$/m.test(handoffBody ?? '')) {
+    throw new Error('dispatch requires one HANDOFF role comment')
+  }
+
+  const defaultTransition = (state) => ({ ...structuredClone(state), state: 'IN_PROGRESS' })
+  const dispatched = (transitionState ?? defaultTransition)(original)
+  await writeState(dispatched)
+  try {
+    await postHandoff(handoffBody)
+  } catch (error) {
+    const live = await readState()
+    if (!sameValue(live, dispatched)) {
+      throw new Error('dispatch failed and concurrent state change prevented rollback', { cause: error })
+    }
+    await writeState(original)
+    throw new Error('dispatch rolled back after HANDOFF failure', { cause: error })
+  }
+
+  const verified = await readState()
+  if (!sameValue(verified, dispatched)) {
+    throw new Error('dispatch verification found a concurrent state change')
+  }
+  return { outcome: 'DISPATCHED', state: verified }
+}
+
 /**
  * @param {string} body
  */
@@ -255,9 +441,11 @@ export function founderMergeTransitionAuthorized({ mergeAuthorized = false, migr
 }
 
 export function analyzeReconciliation(context) {
+  const terminalEvidence = context.terminal ?? null
   const genuineConflict = isGenuineStateConflict({
     stateConflictBlockers: context.stateConflictBlockers,
     headMismatch: Boolean(
+      !terminalEvidence?.prMerged &&
       context.managedState?.current_head &&
         context.livePr?.headRefOid &&
         context.managedState.current_head !== context.livePr.headRefOid,
@@ -273,36 +461,60 @@ export function analyzeReconciliation(context) {
   )
   const reviewLag = classifyReviewLag(context.managedState, context.livePr, context.latestVerdict)
 
+  let bookkeepingProposal = null
+  let bookkeepingType = null
+  if (deliveryLag.kind === 'DETERMINISTIC_RECONCILIATION' && context.livePr) {
+    bookkeepingType = 'delivery'
+    bookkeepingProposal = proposeDeliveryReconciliation({
+      livePr: context.livePr,
+      activeTaskIssue: context.activeTaskIssue,
+      approvedBase: context.managedState?.approved_base,
+      latestResult: context.latestResult,
+    })
+  } else if (reviewLag.kind === 'DETERMINISTIC_RECONCILIATION' && context.latestVerdict?.parsed?.verdict) {
+    bookkeepingType = 'review'
+    bookkeepingProposal = proposeReviewReconciliation({
+      verdict: context.latestVerdict.parsed.verdict,
+      reviewedHead: context.latestVerdict.parsed.headSha || context.livePr?.headRefOid,
+      reviewCycle: context.managedState?.review_cycle ?? 0,
+      fullReviewCount: context.managedState?.full_review_count ?? 0,
+    })
+  }
+
+  const classification = classifyReconciliation({
+    authoritativeContradiction: genuineConflict,
+    requiredEvidenceUnavailable: context.requiredEvidenceUnavailable,
+    managedState: context.managedState,
+    terminal: terminalEvidence,
+    bookkeepingProposal,
+  })
+
   const result = {
     genuineConflict,
+    classification,
     delivery: deliveryLag,
     review: reviewLag,
     proposal: null,
   }
 
-  if (genuineConflict) {
+  if (classification.outcome === 'STATE_CONFLICT' || classification.outcome === 'BLOCKED_EXTERNAL') {
     return result
   }
 
-  if (deliveryLag.kind === 'DETERMINISTIC_RECONCILIATION' && context.livePr) {
+  if (classification.outcome === 'TERMINAL_REPAIR') {
     result.proposal = {
-      type: 'delivery',
-      fields: proposeDeliveryReconciliation({
-        livePr: context.livePr,
-        activeTaskIssue: context.activeTaskIssue,
-        approvedBase: context.managedState?.approved_base,
-        latestResult: context.latestResult,
-      }),
+      type: 'terminal',
+      fields: proposedRepair(context, classification),
     }
-  } else if (reviewLag.kind === 'DETERMINISTIC_RECONCILIATION' && context.latestVerdict?.parsed?.verdict) {
+  } else if (classification.outcome === 'DETERMINISTIC_MIGRATION') {
     result.proposal = {
-      type: 'review',
-      fields: proposeReviewReconciliation({
-        verdict: context.latestVerdict.parsed.verdict,
-        reviewedHead: context.latestVerdict.parsed.headSha || context.livePr?.headRefOid,
-        reviewCycle: context.managedState?.review_cycle ?? 0,
-        fullReviewCount: context.managedState?.full_review_count ?? 0,
-      }),
+      type: 'migration',
+      fields: migrateLegacyManagedState(context.managedState).state,
+    }
+  } else if (classification.outcome === 'BOOKKEEPING_REPAIR' && bookkeepingType) {
+    result.proposal = {
+      type: bookkeepingType,
+      fields: bookkeepingProposal,
     }
   }
 

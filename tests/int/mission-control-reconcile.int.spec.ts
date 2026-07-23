@@ -7,14 +7,18 @@ import * as reconcileModule from '../../scripts/mission-control-reconcile.mjs'
 // the strict-project boundary explicit without changing the production API.
 const {
   analyzeReconciliation,
+  classifyReconciliation,
   classifyDeliveryLag,
   classifyMergeDrift,
   classifyReviewLag,
   founderMergeTransitionAuthorized,
+  dispatchManagedTask,
   isGenuineStateConflict,
+  migrateLegacyManagedState,
   parseRoleCommentBody,
   proposeDeliveryReconciliation,
   proposeReviewReconciliation,
+  runBoundedReconciliation,
 } = reconcileModule as unknown as Record<string, (...args: any[]) => any>
 
 const sampleResult = `## RESULT
@@ -50,6 +54,208 @@ const sampleVerdict = `## REVIEW_VERDICT
 `
 
 describe('mission-control reconcile classifiers', () => {
+  it.each([
+    ['contradictory authority', { authoritativeContradiction: true }, 'STATE_CONFLICT'],
+    ['unavailable evidence', { requiredEvidenceUnavailable: true }, 'BLOCKED_EXTERNAL'],
+    ['legacy representation', { managedState: { post_budget_review_history: [] } }, 'DETERMINISTIC_MIGRATION'],
+    ['bookkeeping lag', { bookkeepingProposal: { state: 'AWAITING_REVIEW_1' } }, 'BOOKKEEPING_REPAIR'],
+    ['terminal lag', { terminal: { issueClosed: true, prMerged: true, reviewedHeadMatches: true }, managedState: { state: 'ELIGIBLE_FOR_FOUNDER_REVIEW' } }, 'TERMINAL_REPAIR'],
+    ['identical evidence', { managedState: { state: 'DONE' }, terminal: { issueClosed: true, prMerged: true, reviewedHeadMatches: true } }, 'NO_OP'],
+  ])('strictly classifies %s', (_name, evidence, expected) => {
+    expect(classifyReconciliation(evidence).outcome).toBe(expected)
+  })
+
+  it('migrates the #155 legacy post-budget representation without resetting counters or lineage', () => {
+    const migrated = migrateLegacyManagedState({
+      state: 'STATE_CONFLICT',
+      review_cycle: 3,
+      full_review_count: 1,
+      last_reviewed_head: 'review-4-head',
+      finding_lineage: [
+        { finding_id: 'MC-R1-002', disposition: 'open' },
+        { finding_id: 'MC-STATE-155-002', disposition: 'resolved' },
+      ],
+      post_budget_review_history: [{
+        review_number: 4,
+        reviewed_head: 'review-4-head',
+        verdict: 'BLOCKED FOR FOUNDER DECISION',
+        finding_dispositions: [{ finding_id: 'MC-R1-002', disposition: 'open' }],
+      }],
+      founder_authorization: {
+        status: 'approved',
+        authority: 'Founder',
+        scope: 'review',
+        review_number: 4,
+        reviewed_head: 'review-4-head',
+        action: 'Authorize bounded Review 4',
+        authorized_at: '2026-07-23T16:30:00Z',
+      },
+      founder_correction_authorization: {
+        status: 'approved',
+        authority: 'Founder',
+        scope: 'correction',
+        for_review_number: 4,
+        reviewed_head: 'review-4-head',
+        finding_ids: ['MC-R1-002'],
+        action: 'Authorize one bounded correction',
+        authorized_at: '2026-07-23T16:40:00Z',
+      },
+    })
+
+    expect(migrated.changed).toBe(true)
+    expect(migrated.state).toMatchObject({
+      review_cycle: 3,
+      full_review_count: 1,
+      last_reviewed_head: 'review-4-head',
+      founder_decision: { for_review_number: 4, finding_ids: ['MC-R1-002'] },
+      post_budget_reviews: [{
+        review_number: 4,
+        reviewed_head: 'review-4-head',
+        authorization: { review_number: 4, reviewed_head: 'review-4-head' },
+      }],
+      finding_lineage: [
+        { finding_id: 'MC-R1-002', disposition: 'open' },
+        { finding_id: 'MC-STATE-155-002', disposition: 'resolved' },
+      ],
+    })
+    expect(migrated.state).not.toHaveProperty('post_budget_review_history')
+    expect(migrated.state).not.toHaveProperty('founder_authorization')
+    expect(migrated.state).not.toHaveProperty('founder_correction_authorization')
+  })
+
+  it('reproduces the #154-#155 loop and converges within one repair plus one verification', async () => {
+    const before = {
+      coordination_runs: 4,
+      state_writes: 4,
+      role_comments: 4,
+      model_required_stages: 4,
+      reconciliation_attempts: 4,
+      false_state_conflicts: 1,
+    }
+    const legacyState = {
+      state: 'STATE_CONFLICT', review_cycle: 3, full_review_count: 1,
+      last_reviewed_head: 'review-4-head',
+      finding_lineage: [
+        { finding_id: 'MC-R1-002', disposition: 'open' },
+        { finding_id: 'MC-STATE-155-002', disposition: 'resolved' },
+      ],
+      post_budget_review_history: [{
+        review_number: 4, reviewed_head: 'review-4-head',
+        verdict: 'BLOCKED FOR FOUNDER DECISION',
+        finding_dispositions: [{ finding_id: 'MC-R1-002', disposition: 'open' }],
+      }],
+      founder_authorization: {
+        status: 'approved', authority: 'Founder', scope: 'review', review_number: 4,
+        reviewed_head: 'review-4-head', action: 'Authorize bounded Review 4',
+        authorized_at: '2026-07-23T16:30:00Z',
+      },
+    }
+    let liveState: any = legacyState
+    let writes = 0
+    const result = await runBoundedReconciliation({
+      readEvidence: async () => ({ managedState: liveState }),
+      writeState: async (nextState: any) => { writes += 1; liveState = nextState },
+    })
+    const repeated = await runBoundedReconciliation({
+      readEvidence: async () => ({ managedState: liveState }),
+      writeState: async () => { writes += 1 },
+    })
+
+    expect(result).toMatchObject({
+      outcome: 'DETERMINISTIC_MIGRATION',
+      finalOutcome: 'NO_OP',
+      measurements: {
+        coordination_runs: 1,
+        state_writes: 1,
+        role_comments: 0,
+        model_required_stages: 0,
+        reconciliation_attempts: 2,
+        false_state_conflicts: 0,
+      },
+    })
+    expect(repeated).toMatchObject({
+      outcome: 'NO_OP',
+      finalOutcome: 'NO_OP',
+      measurements: { state_writes: 0, reconciliation_attempts: 1, false_state_conflicts: 0 },
+    })
+    expect(writes).toBe(1)
+    const after = result.measurements
+    expect({ before, after }).toEqual({
+      before: {
+        coordination_runs: 4,
+        state_writes: 4,
+        role_comments: 4,
+        model_required_stages: 4,
+        reconciliation_attempts: 4,
+        false_state_conflicts: 1,
+      },
+      after: {
+        coordination_runs: 1,
+        state_writes: 1,
+        role_comments: 0,
+        model_required_stages: 0,
+        reconciliation_attempts: 2,
+        false_state_conflicts: 0,
+      },
+    })
+  })
+
+  it('repairs terminal bookkeeping once and never reopens completed work', async () => {
+    let evidence: any = {
+      managedState: {
+        state: 'ELIGIBLE_FOR_FOUNDER_REVIEW', review_cycle: 3, full_review_count: 1,
+        current_head: 'reviewed-head', last_reviewed_head: 'reviewed-head',
+        finding_lineage: [{ finding_id: 'MC-R1-002', disposition: 'resolved' }],
+      },
+      terminal: { issueClosed: true, prMerged: true, reviewedHeadMatches: true, mergeCommit: 'merge-sha' },
+    }
+    const writes: any[] = []
+    const first = await runBoundedReconciliation({
+      readEvidence: async () => evidence,
+      writeState: async (nextState: any) => {
+        writes.push(nextState)
+        evidence = { ...evidence, managedState: nextState }
+      },
+    })
+    const second = await runBoundedReconciliation({
+      readEvidence: async () => evidence,
+      writeState: async () => { throw new Error('must not rewrite identical terminal evidence') },
+    })
+
+    expect(first.finalOutcome).toBe('NO_OP')
+    expect(writes).toHaveLength(1)
+    expect(writes[0]).toMatchObject({ state: 'DONE', review_cycle: 3, full_review_count: 1 })
+    expect(writes[0].finding_lineage).toEqual([{ finding_id: 'MC-R1-002', disposition: 'resolved' }])
+    expect(second.outcome).toBe('NO_OP')
+  })
+
+  it('dispatches READY to IN_PROGRESS with one HANDOFF or rolls the state back', async () => {
+    let state: any = { state: 'READY', review_cycle: 0, full_review_count: 0, finding_lineage: [] }
+    const writes: string[] = []
+    const comments: string[] = []
+    const success = await dispatchManagedTask({
+      readState: async () => state,
+      writeState: async (next: any) => { state = next; writes.push(next.state) },
+      postHandoff: async (body: string) => { comments.push(body) },
+      handoffBody: '## HANDOFF\n\nBounded Dev work',
+    })
+
+    expect(success.outcome).toBe('DISPATCHED')
+    expect(writes).toEqual(['IN_PROGRESS'])
+    expect(comments).toEqual(['## HANDOFF\n\nBounded Dev work'])
+
+    state = { state: 'READY', review_cycle: 0, full_review_count: 0, finding_lineage: [] }
+    writes.length = 0
+    await expect(dispatchManagedTask({
+      readState: async () => state,
+      writeState: async (next: any) => { state = next; writes.push(next.state) },
+      postHandoff: async () => { throw new Error('offline') },
+      handoffBody: '## HANDOFF\n\nBounded Dev work',
+    })).rejects.toThrow('dispatch rolled back')
+    expect(writes).toEqual(['IN_PROGRESS', 'READY'])
+    expect(state.state).toBe('READY')
+  })
+
   it('parses RESULT and REVIEW_VERDICT role comments', () => {
     const result = parseRoleCommentBody(sampleResult)
     const verdict = parseRoleCommentBody(sampleVerdict)
