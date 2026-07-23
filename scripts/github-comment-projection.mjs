@@ -4,23 +4,15 @@ import { parseRoleCommentBody } from './mission-control-reconcile.mjs'
 export function projectComments(comments = []) {
   if (!Array.isArray(comments)) return comments
 
-  const latestByRole = new Map()
+  const authoritativeComments = new Set()
   for (const comment of comments) {
     const body = comment.body || comment.body_html || ''
     const parsed = parseRoleCommentBody(body)
     
     if (parsed && parsed.role) {
-      const existing = latestByRole.get(parsed.role)
-      const currentTime = Date.parse(comment.createdAt || comment.created_at || '') || 0
-      const existingTime = existing ? (Date.parse(existing.createdAt || existing.created_at || '') || 0) : -1
-      
-      if (currentTime >= existingTime) {
-        latestByRole.set(parsed.role, comment)
-      }
+      authoritativeComments.add(comment)
     }
   }
-
-  const authoritativeComments = new Set(latestByRole.values())
 
   return comments.map(rawComment => {
     let body = rawComment.body
@@ -59,6 +51,19 @@ export function projectComments(comments = []) {
     if (rawComment.line) projected.line = rawComment.line
     if (rawComment.inReplyTo || rawComment.in_reply_to_id) {
       projected.inReplyTo = rawComment.inReplyTo || rawComment.in_reply_to_id
+    }
+    if (rawComment.updatedAt || rawComment.updated_at) {
+      projected.updatedAt = rawComment.updatedAt || rawComment.updated_at
+    }
+    if (rawComment.pullRequestReviewId || rawComment.pull_request_review_id) {
+      projected.pullRequestReviewId = rawComment.pullRequestReviewId || rawComment.pull_request_review_id
+    }
+    if (rawComment.side !== undefined) projected.side = rawComment.side
+    if (rawComment.startLine || rawComment.start_line) {
+      projected.startLine = rawComment.startLine || rawComment.start_line
+    }
+    if (rawComment.startSide || rawComment.start_side) {
+      projected.startSide = rawComment.startSide || rawComment.start_side
     }
     
     return projected

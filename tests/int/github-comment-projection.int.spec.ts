@@ -44,7 +44,7 @@ describe('GitHub Comment Projection', () => {
     expect(projected[0].inReplyTo).toBe('0')
   })
 
-  it('preserves the latest authoritative role comments completely', () => {
+  it('preserves all viable role candidates until canonical phase evaluation completes (MC-R1-002)', () => {
     const raw = [
       {
         id: 'old-handoff',
@@ -55,18 +55,40 @@ describe('GitHub Comment Projection', () => {
       {
         id: 'new-handoff',
         body: '## HANDOFF\n\nNew handoff body that is very long. '.repeat(20),
-        createdAt: '2023-01-02T00:00:00Z',
+        // Missing timestamps intentionally to prove missing timestamps don't break preservation
         url: 'http://new'
       }
     ]
     const projected = projectComments(raw) as ProjectedComment[]
     
-    // The new one should be intact
+    // Both should be intact because projection defers authoritative selection to Mission Control
     expect(projected[1].body).toBe(raw[1].body)
-    
-    // The old one should be truncated because it's superseded
-    expect(projected[0].body).toContain('[Superseded HANDOFF comment. View original at http://old]')
-    expect(projected[0].body.length).toBeLessThan(raw[0].body.length)
+    expect(projected[0].body).toBe(raw[0].body)
+  })
+
+  it('preserves required review/thread metadata for every comment class (MC-R1-003)', () => {
+    const raw = [{
+      id: '3',
+      body: 'Fix this',
+      path: 'src/main.ts',
+      line: 42,
+      start_line: 40,
+      side: 'RIGHT',
+      start_side: 'RIGHT',
+      pull_request_review_id: 'pr-rev-123',
+      updated_at: '2023-01-02T00:00:00Z',
+      inReplyTo: '0',
+      url: 'http://a'
+    }]
+    const projected = projectComments(raw) as any[]
+    expect(projected[0].path).toBe('src/main.ts')
+    expect(projected[0].line).toBe(42)
+    expect(projected[0].startLine).toBe(40)
+    expect(projected[0].side).toBe('RIGHT')
+    expect(projected[0].startSide).toBe('RIGHT')
+    expect(projected[0].pullRequestReviewId).toBe('pr-rev-123')
+    expect(projected[0].updatedAt).toBe('2023-01-02T00:00:00Z')
+    expect(projected[0].inReplyTo).toBe('0')
   })
 
   it('truncates long non-authoritative comments', () => {
@@ -90,17 +112,39 @@ describe('GitHub Comment Projection', () => {
     expect(projected[0].body).toBe(raw[0].body)
   })
 
-  it('produces benchmarks showing size reduction', () => {
-    const raw = [{
-      id: '6',
-      body: 'A'.repeat(600),
-      body_html: '<p>' + 'A'.repeat(600) + '</p>',
-      url: 'http://a'
-    }]
-    const projected = projectComments(raw)
+  it('produces benchmarks showing truncation behavior and selection accuracy on representative large Issue fixtures (MC-R1-004)', () => {
+    const raw = [
+      {
+        id: 'old-role',
+        body: '## RESULT\n\n' + 'A'.repeat(5000), // Should be kept completely because of MC-R1-002
+        body_html: '<h2>RESULT</h2>' + '<p>A</p>'.repeat(5000),
+        url: 'http://old'
+      },
+      {
+        id: 'large-non-role',
+        body: 'B'.repeat(10000), // Should be truncated
+        body_html: '<p>B</p>'.repeat(10000),
+        url: 'http://large'
+      },
+      {
+        id: 'new-role',
+        body: '## REVIEW_VERDICT\n\n' + 'C'.repeat(5000),
+        body_html: '<h2>REVIEW_VERDICT</h2>' + '<p>C</p>'.repeat(5000),
+        url: 'http://new'
+      }
+    ]
+    const projected = projectComments(raw) as ProjectedComment[]
     const benchmark = benchmarkProjection(raw, projected)
     
     expect(benchmark.projectedBytes).toBeLessThan(benchmark.rawBytes)
     expect(benchmark.projectedTokens).toBeLessThan(benchmark.rawTokens)
+    
+    // Truncation behavior
+    expect(projected[1].body.length).toBeLessThan(1000)
+    expect(projected[1].body).toContain('[Comment truncated for context size')
+    
+    // Selection accuracy (preserves role comments completely)
+    expect(projected[0].body).toBe(raw[0].body)
+    expect(projected[2].body).toBe(raw[2].body)
   })
 })
