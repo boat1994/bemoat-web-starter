@@ -24,12 +24,17 @@ The Mission Control workflow operates through deterministic state transitions tr
 
 ### Target Workflow Cursor
 - `schema_version`: `2`
-- `state`: The active state (e.g., READY, REVIEW, CORRECTION_REQUIRED, FOUNDER_DECISION, DONE)
+- `status/state`: The active state (e.g., READY, REVIEW, CORRECTION_REQUIRED, FOUNDER_DECISION, DONE)
+- `active_pr`: URL or number of the delivery PR.
+- `current_head`: SHA of the active remote branch head.
+- `reviewed_head`: SHA of the last evaluated branch head.
+- `blockers`: List of current halting conditions.
+- `next_action`: Immediate required agent or human action.
 
 ### Natural-Source Ownership Table
 Review history, base/policy source, and task identity are derived from their natural sources, replacing the v1 bookkeeping ledger:
 - **Task Identity (`active_task_issue`)**: Derived directly from the GitHub issue/PR context (active Issue URL, branch name).
-- **Review Counters / Budget (`counters`)**: Derived from PR review history and CI run execution count on the active head.
+- **Review Counters / Budget (`counters`)**: Derived strictly from approved `## REVIEW_VERDICT` history, not CI-run count.
 - **Approved Base / Policy Source (`approved_base`, `guide_source`)**: Derived dynamically from the exact live protected base (`main`) at dispatch time.
 
 ### Correct Simplified Transitions
@@ -41,26 +46,32 @@ Review history, base/policy source, and task identity are derived from their nat
 | CORRECTION_REQUIRED | Delivery PR updated & verified | REVIEW | Correction CI preflight |
 | FOUNDER_DECISION | Founder overrides/approves | DONE | Founder Merge Gate |
 
-These transitions preserve fail-closed outcomes, review budget limitations (by checking the PR/CI history), and all Founder gates.
+These transitions preserve the simplified `REVIEW -> FIX -> REVIEW` flow, fail-closed outcomes, review budget limitations (by checking the PR/CI history), and all Founder gates. Completion to `DONE` requires Founder-authorized merge evidence when merge is Founder-gated.
 
 ## Compatibility and Migration Sequencing (MC-R1-002)
 
-To safely transition from v1 to v2:
+To safely transition from v1 to v2, follow this ordered executable migration sequence:
 
 1. **v1→v2 Adapter/Migration & Canonical Writer**: 
-   - A runtime schema-v2 adapter script (`scripts/mission-control-state.mjs`) will serve as the sole canonical writer for state blocks.
+   - A proposed new writer boundary will serve as the canonical writer for state blocks, independent of the existing v1 parser (`scripts/mission-control-state.mjs`).
 2. **Dual-Read Compatibility Window**:
    - The system will allow reading both v1 and v2 blocks during active migrations to prevent stranding active Issues.
+   - *Bounded Test/Exit Criteria:* A dual-read fixture successfully parses both v1 and v2 blocks without error.
 3. **Scope-Preserving State-Block Guard**:
    - `scripts/guard-mission-control-drift.mjs` will enforce scope preservation and structural integrity during state migrations.
+   - *Bounded Test/Exit Criteria:* Attempting to delete required immutable fields fails the guard.
 4. **Fail-Closed Version Mismatch Behavior**:
    - If a script detects an incompatible version or malformed cursor, it halts execution immediately (fail-closed).
+   - *Bounded Test/Exit Criteria:* A malformed `schema_version: 3` block triggers an immediate preflight halt.
 5. **Tested Rollback**:
    - Explicit tested rollback paths ensuring manual or script-driven downgrades can recover stranded states.
+   - *Bounded Test/Exit Criteria:* Reverting a v2 issue state to v1 passes the dual-read parser.
 6. **Upstream Representative-Workflow Gate**:
    - A full representative workflow (Issue #150 baseline test) will serve as a gate before any child sync is permitted.
+   - *Bounded Test/Exit Criteria:* The upstream dogfood loop completes successfully.
 7. **Explicit Child Compatibility & Rollback**:
    - Child projects will have a documented and explicit rollback path, ensuring child syncs do not break active child states.
+   - *Bounded Test/Exit Criteria:* A synced child project can safely resume a v1 state.
 
 ## Baseline and Success Metrics (MC-R1-003)
 
@@ -69,18 +80,18 @@ To safely transition from v1 to v2:
 - Before/after captures must use the same pinned method established in Issue #150 (`scripts/capture-baseline.mjs`).
 
 ### Operational Success Metrics & Thresholds
-- **Task Completion Rate**: Percentage of issues reaching `DONE` without unrecoverable halts.
-- **Agent Runs per Completed Issue**: Target reduction in cycles for standard issues.
-- **Reconciliation Frequency**: How often manual checklist reconciliation is required.
-- **Founder Interventions**: Rate of escalations to `FOUNDER_DECISION`.
-- **Elapsed Time**: Total duration from `READY` to `DONE`.
-- **Context Cost**: Token count required for the agent to load the active policy.
-- **Correctness**: Accuracy across representative implementation, correction, and blocked workflows.
+- **Task Completion Rate**: Percentage of issues reaching `DONE` without unrecoverable halts. Target: >95%.
+- **Agent Runs per Completed Issue**: Target reduction in cycles for standard issues. Target: <4 runs on average.
+- **Reconciliation Frequency**: How often manual checklist reconciliation is required. Target: <10% of issues.
+- **Founder Interventions**: Rate of escalations to `FOUNDER_DECISION`. Target: <5% outside required gates.
+- **Elapsed Time**: Total duration from `READY` to `DONE`. Target: <24 hours average.
+- **Context Cost**: Token count required for the agent to load the active policy. Target: <5,000 tokens for kernel.
+- **Correctness**: Accuracy across representative implementation, correction, and blocked workflows. Target: 100% adherence to invariant traces.
 
 ### Evaluation Lifecycle
-- **Representative Fixtures**: We will use predefined fixtures representing standard implementation/correction workflows.
-- **Upstream Dogfood**: The refactored architecture must first pass our own internal upstream usage.
-- **Later Bogus Pilot**: Deployment to the Bogus Jewelry repository for a real-world pilot.
+- **Representative Fixtures**: We will use predefined fixtures explicitly representing standard implementation, correction, and blocked workflows.
+- **Upstream Dogfood**: The refactored architecture must first pass our own internal upstream usage before the later Bogus/child pilot.
+- **Later Bogus Pilot**: Deployment to the Bogus Jewelry repository and other child projects for a real-world pilot after upstream dogfood success.
 - **Attribution Limits**: Any regressions outside the defined metrics must not be incorrectly attributed to the architecture refactor.
 
 ## Invariant Proof Traceability (MC-R1-004)
@@ -90,11 +101,24 @@ Complete invariant/contradiction coverage matrix mapping each stable invariant I
 | Invariant / Trace ID | Canonical Normative Definition | Runtime Enforcement Boundary / Guard | Characterization Test / Fixture | Applicable Role/Workflow | Manifest / Generated-Bundle Ownership |
 |---|---|---|---|---|---|
 | **MC-INV-01 (Founder Auth)** | `docs/mission-control/mission-control-guide.md` | `scripts/guard-mission-control-drift.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | Mission Control | Manifest / Generated Role Bundle |
-| **MC-INV-02 (Fail-Closed)** | `docs/mission-control/mission-control-guide.md` | `scripts/agent-issue.mjs` (Preflight halts) | `tests/int/mission-control-characterization.int.spec.ts` | All Roles | Manifest / Generated Role Bundle |
+| **MC-INV-02 (Fail-Closed)** | `docs/mission-control/mission-control-guide.md` | `scripts/agent-issue.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | All Roles | Manifest / Generated Role Bundle |
 | **MC-INV-03 (Exact-Head)** | `docs/mission-control/mission-control-guide.md` | `scripts/agent-issue.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | Reviewer / Corrector | Manifest / Generated Role Bundle |
 | **MC-INV-04 (Review Budget)** | `docs/mission-control/mission-control-guide.md` | `scripts/mission-control-reconcile.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | Reviewer | Manifest / Generated Role Bundle |
 | **MC-INV-05 (Child-Sync)** | `docs/mission-control/mission-control-guide.md` | `scripts/sync-boilerplate.mjs` | `tests/int/guard-pack.int.spec.ts` | Mission Control | Manifest / Generated Role Bundle |
-| **MC-SCENARIO-001 to 010 (Issue 150 Contradiction Traces)** | `docs/mission-control/dogfood/issue-150-expected-behavior-matrix.md` | `scripts/guard-mission-control-drift.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | Mission Control | Manifest / Generated Role Bundle |
+| **MC-INV-06 (Immutable Fields)** | `docs/mission-control/mission-control-guide.md` | `scripts/guard-mission-control-drift.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | All Roles | Manifest / Generated Role Bundle |
+| **MC-INV-07 (Review Verification)** | `docs/mission-control/mission-control-guide.md` | `scripts/mission-control-reconcile.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | Reviewer | Manifest / Generated Role Bundle |
+| **MC-INV-08 (Dual-Read/Migration)** | `docs/mission-control/mission-control-guide.md` | `scripts/guard-mission-control-drift.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | Corrector | Manifest / Generated Role Bundle |
+| **MC-INV-09 (Scope Preservation)** | `docs/mission-control/mission-control-guide.md` | `scripts/guard-mission-control-drift.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | Mission Control | Manifest / Generated Role Bundle |
+| **MC-SCENARIO-001 (Conflict)** | `docs/mission-control/dogfood/issue-150-expected-behavior-matrix.md` | `scripts/guard-mission-control-drift.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | Mission Control | Manifest / Generated Role Bundle |
+| **MC-SCENARIO-002 (Missing Guide)** | `docs/mission-control/dogfood/issue-150-expected-behavior-matrix.md` | `scripts/agent-issue.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | Mission Control | Manifest / Generated Role Bundle |
+| **MC-SCENARIO-003 (Bad Cursor)** | `docs/mission-control/dogfood/issue-150-expected-behavior-matrix.md` | `scripts/agent-issue.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | Mission Control | Manifest / Generated Role Bundle |
+| **MC-SCENARIO-004 (OOM Check)** | `docs/mission-control/dogfood/issue-150-expected-behavior-matrix.md` | `scripts/mission-control-reconcile.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | Reviewer | Manifest / Generated Role Bundle |
+| **MC-SCENARIO-005 (Unauthorized)** | `docs/mission-control/dogfood/issue-150-expected-behavior-matrix.md` | `scripts/guard-mission-control-drift.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | All Roles | Manifest / Generated Role Bundle |
+| **MC-SCENARIO-006 (State Desync)** | `docs/mission-control/dogfood/issue-150-expected-behavior-matrix.md` | `scripts/guard-mission-control-drift.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | Mission Control | Manifest / Generated Role Bundle |
+| **MC-SCENARIO-007 (Broken Sync)** | `docs/mission-control/dogfood/issue-150-expected-behavior-matrix.md` | `scripts/sync-boilerplate.mjs` | `tests/int/guard-pack.int.spec.ts` | Mission Control | Manifest / Generated Role Bundle |
+| **MC-SCENARIO-008 (Rollback Fail)** | `docs/mission-control/dogfood/issue-150-expected-behavior-matrix.md` | `scripts/guard-mission-control-drift.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | All Roles | Manifest / Generated Role Bundle |
+| **MC-SCENARIO-009 (Unapproved PR)** | `docs/mission-control/dogfood/issue-150-expected-behavior-matrix.md` | `scripts/mission-control-reconcile.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | Reviewer | Manifest / Generated Role Bundle |
+| **MC-SCENARIO-010 (Orphan State)** | `docs/mission-control/dogfood/issue-150-expected-behavior-matrix.md` | `scripts/guard-mission-control-drift.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | Mission Control | Manifest / Generated Role Bundle |
 
 *(This matrix maps each stable invariant to one canonical definition, runtime enforcement boundary, guard, test, and role/workflow, and includes manifest/generated-role-bundle ownership to prevent a second policy truth.)*
 
