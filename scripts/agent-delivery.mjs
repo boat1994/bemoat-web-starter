@@ -69,8 +69,8 @@ function renderStateBlock(stateObj) {
     `guide_version: ${stateObj.guide_version}`,
     `guide_source_ref: ${stateObj.guide_source_ref}`,
     `guide_source_sha: ${stateObj.guide_source_sha ?? 'null'}`,
-    `open_blockers: []`,
-    `follow_up_issues: []`,
+    `open_blockers: ${JSON.stringify(stateObj.open_blockers || [])}`,
+    `follow_up_issues: ${JSON.stringify(stateObj.follow_up_issues || [])}`,
     `next_permitted_action: "${stateObj.next_permitted_action}"`,
     `material_change_status: ${stateObj.material_change_status}`,
     `updated_at: "${new Date().toISOString()}"`,
@@ -124,7 +124,7 @@ function main() {
   }
 
   // 3. & 4. verifies the live Pulls API head equals the same commit, and expected transport target
-  const ghArgs = ['pr', 'view', resultPr, '--json', 'headRefOid,statusCheckRollup,headRepository,baseRepository,headRefName']
+  const ghArgs = ['pr', 'view', resultPr, '--json', 'headRefOid,statusCheckRollup,headRepository,baseRepository,headRefName,baseRefName']
   if (parsed.options.repo) ghArgs.push('--repo', parsed.options.repo)
   const prResult = tryRun('gh', ghArgs)
   if (prResult.status !== 0) {
@@ -147,9 +147,16 @@ function main() {
     process.exitCode = 1
     return
   }
-  
-  if (prData.headRepository?.nameWithOwner && prData.baseRepository?.nameWithOwner && prData.headRepository.nameWithOwner !== prData.baseRepository.nameWithOwner) {
-    process.stderr.write(`ERROR: STATE_CONFLICT: Unexpected PR head repository (must not modify child repositories)\n`)
+
+  if (prData.headRefName !== currentBranch) {
+    process.stderr.write(`ERROR: STATE_CONFLICT: PR headRefName ${prData.headRefName} does not match local branch ${currentBranch}\n`)
+    process.exitCode = 1
+    return
+  }
+
+  const expectedRepo = parsed.options.repo || prData.baseRepository?.nameWithOwner
+  if (prData.headRepository?.nameWithOwner && expectedRepo && prData.headRepository.nameWithOwner !== expectedRepo) {
+    process.stderr.write(`ERROR: STATE_CONFLICT: PR head repository ${prData.headRepository.nameWithOwner} does not match expected repository ${expectedRepo}\n`)
     process.exitCode = 1
     return
   }
@@ -182,9 +189,9 @@ function main() {
 
   // We write the new state
   const newStateProposal = proposeDeliveryReconciliation({
-    livePr: { number: resultPr, headRefOid: localCommit, baseRefName: 'main' },
+    livePr: { number: resultPr, headRefOid: localCommit, baseRefName: prData.baseRefName || 'main' },
     activeTaskIssue: parsed.options.issue,
-    approvedBase: currentState.state?.approved_base ?? 'main',
+    approvedBase: currentState.state?.approved_base ?? prData.baseRefName ?? 'main',
     latestResult: { parsed: parsedBody }
   })
 
@@ -221,20 +228,27 @@ function main() {
   // 7. posts ## RESULT only after the durable state write succeeds
   const tmpComment = join(tmpDir, 'comment.md')
   writeFileSync(tmpComment, body)
-  const commentArgs = ['issue', 'comment', parsed.options.issue, '--body-file', tmpComment]
-  if (parsed.options.repo) commentArgs.push('--repo', parsed.options.repo)
   
-  // We use post-role-comment.mjs underneath? No, post-role-comment.mjs does its own validation and posts.
-  // Wait, the prompt says "posts ## RESULT only after the durable state write succeeds".
-  // Let's call post-role-comment.mjs to actually post it so its checks run too.
-  const postCommentResult = tryRun('node', ['scripts/post-role-comment.mjs', parsed.options.issue, '--body-file', tmpComment])
-  rmSync(tmpDir, { recursive: true, force: true })
+  const postCommentArgs = ['scripts/post-role-comment.mjs', parsed.options.issue, '--body-file', tmpComment]
+  if (parsed.options.repo) postCommentArgs.push('--repo', parsed.options.repo)
+  const postCommentResult = tryRun('node', postCommentArgs)
 
   if (postCommentResult.status !== 0) {
-    process.stderr.write(`ERROR: STATE_CONFLICT: Failed to post RESULT comment\n${postCommentResult.stderr || postCommentResult.stdout}`)
+    writeFileSync(tmpBody, issueData.body)
+    const rollbackArgs = ['issue', 'edit', parsed.options.issue, '--body-file', tmpBody]
+    if (parsed.options.repo) rollbackArgs.push('--repo', parsed.options.repo)
+    const rollbackResult = tryRun('gh', rollbackArgs)
+    
+    rmSync(tmpDir, { recursive: true, force: true })
+    if (rollbackResult.status !== 0) {
+      process.stderr.write(`ERROR: STATE_CONFLICT: Rollback failed after comment failure\n${postCommentResult.stderr || postCommentResult.stdout}`)
+    } else {
+      process.stderr.write(`ERROR: STATE_CONFLICT: Failed to post RESULT comment\n${postCommentResult.stderr || postCommentResult.stdout}`)
+    }
     process.exitCode = 1
     return
   }
+  rmSync(tmpDir, { recursive: true, force: true })
 
   process.stdout.write(`Delivery reconciliation successful. State updated and RESULT posted.\n`)
 }
