@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { projectComments, benchmarkProjection } from '../../scripts/github-comment-projection.mjs'
 
-type ProjectedComment = { id: string, body: string, path?: string, line?: number, inReplyTo?: string }
+type ProjectedComment = { id: string, body: string, path?: string, line?: number, inReplyTo?: string, startLine?: number, side?: string, startSide?: string, pullRequestReviewId?: string, updatedAt?: string }
 
 describe('GitHub Comment Projection', () => {
   it('strips body_html when body is present', () => {
@@ -80,7 +80,7 @@ describe('GitHub Comment Projection', () => {
       inReplyTo: '0',
       url: 'http://a'
     }]
-    const projected = projectComments(raw) as any[]
+    const projected = projectComments(raw) as ProjectedComment[]
     expect(projected[0].path).toBe('src/main.ts')
     expect(projected[0].line).toBe(42)
     expect(projected[0].startLine).toBe(40)
