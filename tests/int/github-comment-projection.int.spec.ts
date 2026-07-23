@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { projectComments, benchmarkProjection } from '../../scripts/github-comment-projection.mjs'
+import {
+  projectComments,
+  benchmarkProjection,
+  selectAuthoritativeRoleComments,
+} from '../../scripts/github-comment-projection.mjs'
+import { findLatestRoleComment } from '../../scripts/mission-control-reconcile.mjs'
 
 type ProjectedComment = { id: string, body: string, path?: string, line?: number, inReplyTo?: string, startLine?: number, side?: string, startSide?: string, pullRequestReviewId?: string, updatedAt?: string, author?: string, createdAt?: string, url?: string }
 
@@ -176,11 +181,85 @@ describe('GitHub Comment Projection', () => {
     expect(projected[0].body).toContain('[Superseded RESULT comment')
   })
 
-  it('preserves the approved comment as authoritative despite a newer diagnostic or superseded role comment (MC-R1-002)', () => {
+  it('canonical role-comment selection remains correct before compaction (MC-R1-002)', () => {
+    const raw = [
+      {
+        id: 'older-result',
+        body: '## RESULT\n\n' + 'A'.repeat(200),
+        createdAt: '2023-01-01T00:00:00Z',
+        url: 'http://older',
+      },
+      {
+        id: 'newer-result',
+        body: '## RESULT\n\n' + 'B'.repeat(200),
+        createdAt: '2023-02-01T00:00:00Z',
+        url: 'http://newer',
+      },
+    ]
+
+    const canonicalLatest = findLatestRoleComment(raw, 'RESULT')
+    const selected = selectAuthoritativeRoleComments(raw, 'RESULT')
+    expect((canonicalLatest?.comment as { id: string }).id).toBe('newer-result')
+    expect([...selected].map((comment) => comment.id)).toEqual(['newer-result'])
+
+    const projected = projectComments(raw) as ProjectedComment[]
+    expect(projected.find((comment) => comment.id === 'newer-result')?.body).toBe(raw[1].body)
+    expect(projected.find((comment) => comment.id === 'older-result')?.body).toContain('[Superseded RESULT comment')
+  })
+
+  it('preserves approved delivery evidence over newer untagged diagnostic reconciliation RESULT (MC-R1-002)', () => {
+    const raw = [
+      {
+        id: 'older-approved-delivery',
+        body: [
+          '## RESULT',
+          '',
+          '### Task log',
+          '- Phase: Dev Correction',
+          '',
+          '**PR:** #157',
+          '**Branch / Head:** `feature/155-github-comment-projection` / `abc1234`',
+          '',
+          '### Commands reported',
+          '- `pnpm run check` → pass',
+        ].join('\n'),
+        createdAt: '2023-01-01T00:00:00Z',
+        url: 'http://older-approved',
+      },
+      {
+        id: 'newer-untagged-diagnostic',
+        body: [
+          '## RESULT',
+          '',
+          '### Mission Control state-conflict reconciliation',
+          '',
+          '- Verified live protected base `main` at `deadbeef`.',
+          '- No repository code, PR head, merge, deployment, postmortem, or dependent work was changed.',
+          '',
+          '### Local-only evidence',
+          '',
+          'Scratch artifacts remain local. Mission Control did not rely on them.',
+        ].join('\n'),
+        createdAt: '2023-03-01T00:00:00Z',
+        url: 'http://newer-diagnostic',
+      },
+    ]
+
+    const selected = selectAuthoritativeRoleComments(raw, 'RESULT')
+    expect([...selected].map((comment) => comment.id)).toEqual(['older-approved-delivery'])
+
+    const projected = projectComments(raw) as ProjectedComment[]
+    expect(projected.find((comment) => comment.id === 'older-approved-delivery')?.body).toBe(raw[0].body)
+    expect(projected.find((comment) => comment.id === 'newer-untagged-diagnostic')?.body).toContain('[Superseded RESULT comment')
+    expect(projected.find((comment) => comment.id === 'newer-untagged-diagnostic')?.url).toBe('http://newer-diagnostic')
+    expect(projected.find((comment) => comment.id === 'newer-untagged-diagnostic')?.createdAt).toBe('2023-03-01T00:00:00Z')
+  })
+
+  it('preserves the approved comment as authoritative despite bracket-tagged diagnostic or superseded role comments (MC-R1-002)', () => {
     const raw = [
       {
         id: 'older-approved',
-        body: '## REVIEW_VERDICT\n\nApproved verdict body. founder_decision: approved',
+        body: '## REVIEW_VERDICT\n\n**Verdict:** ELIGIBLE FOR FOUNDER REVIEW\n\nfounder_decision: approved',
         createdAt: '2023-01-01T00:00:00Z',
         url: 'http://older'
       },
@@ -198,12 +277,9 @@ describe('GitHub Comment Projection', () => {
       }
     ]
     const projected = projectComments(raw) as ProjectedComment[]
-    
-    // The older approved one must retain full body
-    expect(projected[0].body).toBe(raw[0].body)
-    
-    // The newer ones must be compacted
-    expect(projected[1].body).toContain('[Superseded REVIEW_VERDICT comment')
-    expect(projected[2].body).toContain('[Superseded REVIEW_VERDICT comment')
+
+    expect(projected.find((comment) => comment.id === 'older-approved')?.body).toBe(raw[0].body)
+    expect(projected.find((comment) => comment.id === 'newer-diagnostic')?.body).toContain('[Superseded REVIEW_VERDICT comment')
+    expect(projected.find((comment) => comment.id === 'newer-superseded')?.body).toContain('[Superseded REVIEW_VERDICT comment')
   })
 })
