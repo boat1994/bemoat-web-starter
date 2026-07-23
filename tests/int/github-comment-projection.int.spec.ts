@@ -175,4 +175,35 @@ describe('GitHub Comment Projection', () => {
     // Supersession behavior (compacts superseded role comments)
     expect(projected[0].body).toContain('[Superseded RESULT comment')
   })
+
+  it('preserves the approved comment as authoritative despite a newer diagnostic or superseded role comment (MC-R1-002)', () => {
+    const raw = [
+      {
+        id: 'older-approved',
+        body: '## REVIEW_VERDICT\n\nApproved verdict body. founder_decision: approved',
+        createdAt: '2023-01-01T00:00:00Z',
+        url: 'http://older'
+      },
+      {
+        id: 'newer-diagnostic',
+        body: '## REVIEW_VERDICT\n\n[Diagnostic] Just testing things out.',
+        createdAt: '2023-02-01T00:00:00Z',
+        url: 'http://newer-diag'
+      },
+      {
+        id: 'newer-superseded',
+        body: '## REVIEW_VERDICT\n\n[Superseded] explicitly marked as such.',
+        createdAt: '2023-03-01T00:00:00Z',
+        url: 'http://newer-super'
+      }
+    ]
+    const projected = projectComments(raw) as ProjectedComment[]
+    
+    // The older approved one must retain full body
+    expect(projected[0].body).toBe(raw[0].body)
+    
+    // The newer ones must be compacted
+    expect(projected[1].body).toContain('[Superseded REVIEW_VERDICT comment')
+    expect(projected[2].body).toContain('[Superseded REVIEW_VERDICT comment')
+  })
 })

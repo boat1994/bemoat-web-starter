@@ -9,7 +9,13 @@ export function projectComments(comments = []) {
   // Phase 1: Apply existing canonical phase, approval and supersession semantics
   const roles = ['HANDOFF', 'RESULT', 'REVIEW_VERDICT']
   for (const role of roles) {
-    const latest = findLatestRoleComment(comments, role)
+    // Distinguish approved authoritative role comments from diagnostic, stale, or explicitly superseded role comments
+    const viableCandidates = comments.filter(c => {
+      const body = c.body || c.body_html || ''
+      return !/\[(?:diagnostic|stale|superseded)\]/i.test(body)
+    })
+    
+    const latest = findLatestRoleComment(viableCandidates, role)
     if (latest) {
       authoritativeComments.add(latest.comment)
     }
