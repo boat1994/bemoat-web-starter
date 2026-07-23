@@ -25,11 +25,7 @@ The Mission Control workflow operates through deterministic state transitions tr
 ### Target Workflow Cursor
 - `schema_version`: `2`
 - `status/state`: The active state (e.g., READY, REVIEW, CORRECTION_REQUIRED, FOUNDER_DECISION, DONE)
-- `active_pr`: URL or number of the delivery PR.
-- `current_head`: SHA of the active remote branch head.
-- `reviewed_head`: SHA of the last evaluated branch head.
-- `blockers`: List of current halting conditions.
-- `next_action`: Immediate required agent or human action.
+*(Note: Additional fields such as `active_pr`, `current_head`, `reviewed_head`, `blockers`, and `next_action` are illustrative examples and non-binding implementation options, unless independently justified by the architecture.)*
 
 ### Natural-Source Ownership Table
 Review history, base/policy source, and task identity are derived from their natural sources, replacing the v1 bookkeeping ledger:
@@ -52,8 +48,8 @@ These transitions preserve the simplified `REVIEW -> FIX -> REVIEW` flow, fail-c
 
 To safely transition from v1 to v2, follow this ordered executable migration sequence:
 
-1. **v1→v2 Adapter/Migration & Canonical Writer**: 
-   - A proposed new writer boundary will serve as the canonical writer for state blocks, independent of the existing v1 parser (`scripts/mission-control-state.mjs`).
+1. **v1→v2 Adapter/Migration & Canonical Writer Responsibility**: 
+   - A proposed implementation surface will serve as the canonical writer for state blocks, independent of the existing v1 parser (`scripts/mission-control-state.mjs`). The exact script path is not strictly mandated here.
 2. **Dual-Read Compatibility Window**:
    - The system will allow reading both v1 and v2 blocks during active migrations to prevent stranding active Issues.
    - *Bounded Test/Exit Criteria:* A dual-read fixture successfully parses both v1 and v2 blocks without error.
@@ -79,14 +75,15 @@ To safely transition from v1 to v2, follow this ordered executable migration seq
 - The mandatory guide (`docs/mission-control/mission-control-guide.md`) is pinned at exactly **819 lines / 38,100 bytes** based on Issue #150.
 - Before/after captures must use the same pinned method established in Issue #150 (`scripts/capture-baseline.mjs`).
 
-### Operational Success Metrics & Thresholds
-- **Task Completion Rate**: Percentage of issues reaching `DONE` without unrecoverable halts. Target: >95%.
-- **Agent Runs per Completed Issue**: Target reduction in cycles for standard issues. Target: <4 runs on average.
-- **Reconciliation Frequency**: How often manual checklist reconciliation is required. Target: <10% of issues.
-- **Founder Interventions**: Rate of escalations to `FOUNDER_DECISION`. Target: <5% outside required gates.
-- **Elapsed Time**: Total duration from `READY` to `DONE`. Target: <24 hours average.
-- **Context Cost**: Token count required for the agent to load the active policy. Target: <5,000 tokens for kernel.
-- **Correctness**: Accuracy across representative implementation, correction, and blocked workflows. Target: 100% adherence to invariant traces.
+### Operational Success Metrics & Measurement Basis
+- **Task Completion Rate**: Percentage of issues reaching `DONE` without unrecoverable halts (measured via successful state transitions over total runs).
+- **Agent Runs per Completed Issue**: Reduction in cycles for standard issues (measured via CI and commit history compared to v1 baseline).
+- **Reconciliation Frequency**: How often manual checklist reconciliation is required (measured via frequency of `mission-control-reconcile` intervention).
+- **Founder Interventions**: Rate of escalations to `FOUNDER_DECISION` (measured via state history).
+- **Elapsed Time**: Total duration from `READY` to `DONE` (measured via issue timestamps).
+- **Context Cost**: Token count required for the agent to load the active policy (measured via standard token estimators).
+- **Correctness**: Accuracy across representative implementation, correction, and blocked workflows (measured against invariant traces).
+*(Note: Numeric thresholds are left to the implementation phase and are not strictly mandated by this plan.)*
 
 ### Evaluation Lifecycle
 - **Representative Fixtures**: We will use predefined fixtures explicitly representing standard implementation, correction, and blocked workflows.
@@ -98,29 +95,29 @@ To safely transition from v1 to v2, follow this ordered executable migration seq
 
 Complete invariant/contradiction coverage matrix mapping each stable invariant ID to its true normative owners and runtime boundaries.
 
-| Invariant / Trace ID | Canonical Normative Definition | Runtime Enforcement Boundary / Guard | Characterization Test / Fixture | Applicable Role/Workflow | Manifest / Generated-Bundle Ownership |
-|---|---|---|---|---|---|
-| **MC-INV-01 (Founder Auth)** | `docs/mission-control/mission-control-guide.md` | `scripts/guard-mission-control-drift.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | Mission Control | Manifest / Generated Role Bundle |
-| **MC-INV-02 (Fail-Closed)** | `docs/mission-control/mission-control-guide.md` | `scripts/agent-issue.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | All Roles | Manifest / Generated Role Bundle |
-| **MC-INV-03 (Exact-Head)** | `docs/mission-control/mission-control-guide.md` | `scripts/agent-issue.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | Reviewer / Corrector | Manifest / Generated Role Bundle |
-| **MC-INV-04 (Review Budget)** | `docs/mission-control/mission-control-guide.md` | `scripts/mission-control-reconcile.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | Reviewer | Manifest / Generated Role Bundle |
-| **MC-INV-05 (Child-Sync)** | `docs/mission-control/mission-control-guide.md` | `scripts/sync-boilerplate.mjs` | `tests/int/guard-pack.int.spec.ts` | Mission Control | Manifest / Generated Role Bundle |
-| **MC-INV-06 (Immutable Fields)** | `docs/mission-control/mission-control-guide.md` | `scripts/guard-mission-control-drift.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | All Roles | Manifest / Generated Role Bundle |
-| **MC-INV-07 (Review Verification)** | `docs/mission-control/mission-control-guide.md` | `scripts/mission-control-reconcile.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | Reviewer | Manifest / Generated Role Bundle |
-| **MC-INV-08 (Dual-Read/Migration)** | `docs/mission-control/mission-control-guide.md` | `scripts/guard-mission-control-drift.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | Corrector | Manifest / Generated Role Bundle |
-| **MC-INV-09 (Scope Preservation)** | `docs/mission-control/mission-control-guide.md` | `scripts/guard-mission-control-drift.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | Mission Control | Manifest / Generated Role Bundle |
-| **MC-SCENARIO-001 (Conflict)** | `docs/mission-control/dogfood/issue-150-expected-behavior-matrix.md` | `scripts/guard-mission-control-drift.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | Mission Control | Manifest / Generated Role Bundle |
-| **MC-SCENARIO-002 (Missing Guide)** | `docs/mission-control/dogfood/issue-150-expected-behavior-matrix.md` | `scripts/agent-issue.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | Mission Control | Manifest / Generated Role Bundle |
-| **MC-SCENARIO-003 (Bad Cursor)** | `docs/mission-control/dogfood/issue-150-expected-behavior-matrix.md` | `scripts/agent-issue.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | Mission Control | Manifest / Generated Role Bundle |
-| **MC-SCENARIO-004 (OOM Check)** | `docs/mission-control/dogfood/issue-150-expected-behavior-matrix.md` | `scripts/mission-control-reconcile.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | Reviewer | Manifest / Generated Role Bundle |
-| **MC-SCENARIO-005 (Unauthorized)** | `docs/mission-control/dogfood/issue-150-expected-behavior-matrix.md` | `scripts/guard-mission-control-drift.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | All Roles | Manifest / Generated Role Bundle |
-| **MC-SCENARIO-006 (State Desync)** | `docs/mission-control/dogfood/issue-150-expected-behavior-matrix.md` | `scripts/guard-mission-control-drift.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | Mission Control | Manifest / Generated Role Bundle |
-| **MC-SCENARIO-007 (Broken Sync)** | `docs/mission-control/dogfood/issue-150-expected-behavior-matrix.md` | `scripts/sync-boilerplate.mjs` | `tests/int/guard-pack.int.spec.ts` | Mission Control | Manifest / Generated Role Bundle |
-| **MC-SCENARIO-008 (Rollback Fail)** | `docs/mission-control/dogfood/issue-150-expected-behavior-matrix.md` | `scripts/guard-mission-control-drift.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | All Roles | Manifest / Generated Role Bundle |
-| **MC-SCENARIO-009 (Unapproved PR)** | `docs/mission-control/dogfood/issue-150-expected-behavior-matrix.md` | `scripts/mission-control-reconcile.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | Reviewer | Manifest / Generated Role Bundle |
-| **MC-SCENARIO-010 (Orphan State)** | `docs/mission-control/dogfood/issue-150-expected-behavior-matrix.md` | `scripts/guard-mission-control-drift.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | Mission Control | Manifest / Generated Role Bundle |
+| Invariant / Trace ID | Canonical Normative Owner | Runtime Enforcement Boundary | Actual Guard / Validator | Characterization Test / Fixture | Applicable Role/Workflow | Manifest / Generated-Projection Ownership |
+|---|---|---|---|---|---|---|
+| **MC-INV-01 (Founder Auth)** | `docs/mission-control/mission-control-guide.md` | PR / Review Surface | `scripts/guard-mission-control-drift.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | Mission Control | Manifest / Generated Role Bundle |
+| **MC-INV-02 (Fail-Closed)** | `docs/mission-control/mission-control-guide.md` | Preflight execution | `(proposed strict guard)` | `tests/int/mission-control-characterization.int.spec.ts` | All Roles | Manifest / Generated Role Bundle |
+| **MC-INV-03 (Exact-Head)** | `docs/mission-control/mission-control-guide.md` | Agent initialization | `(proposed exact-head guard)` | `tests/int/mission-control-characterization.int.spec.ts` | Reviewer / Corrector | Manifest / Generated Role Bundle |
+| **MC-INV-04 (Review Budget)** | `docs/mission-control/mission-control-guide.md` | Reconciliation | `scripts/mission-control-reconcile.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | Reviewer | Manifest / Generated Role Bundle |
+| **MC-INV-05 (Child-Sync)** | `docs/mission-control/mission-control-guide.md` | Sync operations | `scripts/guard-pack.mjs` | `tests/int/guard-pack.int.spec.ts` | Mission Control | Manifest / Generated Role Bundle |
+| **MC-INV-06 (Immutable Fields)** | `docs/mission-control/mission-control-guide.md` | State mutation | `scripts/guard-mission-control-drift.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | All Roles | Manifest / Generated Role Bundle |
+| **MC-INV-07 (Review Verification)** | `docs/mission-control/mission-control-guide.md` | Post-review | `scripts/mission-control-reconcile.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | Reviewer | Manifest / Generated Role Bundle |
+| **MC-INV-08 (Dual-Read/Migration)** | `docs/mission-control/mission-control-guide.md` | Parse / Read operations | `(proposed adapter guard)` | `tests/int/mission-control-characterization.int.spec.ts` | Corrector | Manifest / Generated Role Bundle |
+| **MC-INV-09 (Scope Preservation)** | `docs/mission-control/mission-control-guide.md` | State writes | `scripts/guard-mission-control-drift.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | Mission Control | Manifest / Generated Role Bundle |
+| **MC-SCENARIO-001 (Conflict)** | `docs/mission-control/dogfood/issue-150-expected-behavior-matrix.md` | Planning/Execution | `scripts/guard-mission-control-drift.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | Mission Control | Manifest / Generated Role Bundle |
+| **MC-SCENARIO-002 (Missing Guide)** | `docs/mission-control/dogfood/issue-150-expected-behavior-matrix.md` | Agent preflight | `(proposed preflight guard)` | `tests/int/mission-control-characterization.int.spec.ts` | Mission Control | Manifest / Generated Role Bundle |
+| **MC-SCENARIO-003 (Bad Cursor)** | `docs/mission-control/dogfood/issue-150-expected-behavior-matrix.md` | Parse boundary | `(proposed state validation guard)` | `tests/int/mission-control-characterization.int.spec.ts` | Mission Control | Manifest / Generated Role Bundle |
+| **MC-SCENARIO-004 (OOM Check)** | `docs/mission-control/dogfood/issue-150-expected-behavior-matrix.md` | Verification | `scripts/mission-control-reconcile.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | Reviewer | Manifest / Generated Role Bundle |
+| **MC-SCENARIO-005 (Unauthorized)** | `docs/mission-control/dogfood/issue-150-expected-behavior-matrix.md` | Authorization | `scripts/guard-mission-control-drift.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | All Roles | Manifest / Generated Role Bundle |
+| **MC-SCENARIO-006 (State Desync)** | `docs/mission-control/dogfood/issue-150-expected-behavior-matrix.md` | State reconciliation | `scripts/guard-mission-control-drift.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | Mission Control | Manifest / Generated Role Bundle |
+| **MC-SCENARIO-007 (Broken Sync)** | `docs/mission-control/dogfood/issue-150-expected-behavior-matrix.md` | Harness sync | `scripts/guard-pack.mjs` | `tests/int/guard-pack.int.spec.ts` | Mission Control | Manifest / Generated Role Bundle |
+| **MC-SCENARIO-008 (Rollback Fail)** | `docs/mission-control/dogfood/issue-150-expected-behavior-matrix.md` | Version transitions | `(proposed rollback guard)` | `tests/int/mission-control-characterization.int.spec.ts` | All Roles | Manifest / Generated Role Bundle |
+| **MC-SCENARIO-009 (Unapproved PR)** | `docs/mission-control/dogfood/issue-150-expected-behavior-matrix.md` | Review | `scripts/mission-control-reconcile.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | Reviewer | Manifest / Generated Role Bundle |
+| **MC-SCENARIO-010 (Orphan State)** | `docs/mission-control/dogfood/issue-150-expected-behavior-matrix.md` | Bootstrapping | `scripts/guard-mission-control-drift.mjs` | `tests/int/mission-control-characterization.int.spec.ts` | Mission Control | Manifest / Generated Role Bundle |
 
-*(This matrix maps each stable invariant to one canonical definition, runtime enforcement boundary, guard, test, and role/workflow, and includes manifest/generated-role-bundle ownership to prevent a second policy truth.)*
+*(This matrix maps each stable invariant to its canonical normative owner, actual runtime enforcement boundary, actual guard/validator, characterization test, applicable role, and generated-role-bundle ownership.)*
 
 ## Policy/Module Responsibility Boundaries
 
