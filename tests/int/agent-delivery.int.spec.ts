@@ -197,8 +197,137 @@ describe('bemoat:agent:delivery', () => {
     }
     const env: Record<string, string> = stubGhAndGit(prData, { body: validIssueBody }, 'abc1234 refs/heads/main', 'main', 'abc1234')
     env.NODE_FAIL_POST_ROLE_COMMENT = '1'
+
+    const ghExec = join(env.PATH.split(':')[0], 'gh')
+    const prJson = JSON.stringify(prData).replace(/'/g, `'"'"'`)
+    
+    // Mock gh to return the edited body on refetch so rollback proceeds
+    writeFileSync(ghExec, `#!/bin/sh
+if [ "$1" = "pr" ] && [ "$2" = "view" ]; then printf '%s' '${prJson}'; exit 0; fi
+if [ "$1" = "issue" ] && [ "$2" = "view" ]; then
+  if [ -f "\${0}.edited" ]; then
+    "${process.execPath}" -e "process.stdout.write(JSON.stringify({body: require('fs').readFileSync('\${0}.edited', 'utf8')}))"
+  else
+    printf '%s' '${JSON.stringify({ body: validIssueBody }).replace(/'/g, `'"'"'`)}'
+  fi
+  exit 0
+fi
+if [ "$1" = "issue" ] && [ "$2" = "edit" ]; then
+  if [ ! -f "\${0}.edited" ]; then
+    cp "$5" "\${0}.edited"
+  fi
+  exit 0
+fi
+exit 0
+`)
+
     const result = run(['154'], { input: validResultBody, env })
     expect(result.status).toBe(1)
-    expect(result.stderr).toContain('Failed to post RESULT comment')
+    expect(result.stderr).toContain('rollback successful with no concurrent edit')
+  }, 10000)
+
+  it('preserves arbitrary custom YAML fields', async () => {
+    const { readFileSync } = await import('node:fs')
+    const prData = {
+      headRefOid: 'abc1234',
+      headRefName: 'main',
+      baseRefName: 'main',
+      statusCheckRollup: [{ conclusion: 'SUCCESS', targetUrl: 'https://ci/abc1234' }]
+    }
+    const issueBodyWithCustom = validIssueBody.replace('```\n<!-- bemoat-mission-control-state:end -->', 'custom_field: "preserved"\ncustom_list:\n  - "a"\n  - "b"\n```\n<!-- bemoat-mission-control-state:end -->')
+    const env = stubGhAndGit(prData, { body: issueBodyWithCustom }, 'abc1234 refs/heads/main', 'main', 'abc1234')
+    const tmpFile = join(tmpdir(), 'bemoat_mock_issue_edit.md')
+    try { rmSync(tmpFile, { force: true }) } catch (ignore) {}
+    
+    const ghExec = join(env.PATH.split(':')[0], 'gh')
+    const prJson = JSON.stringify(prData).replace(/'/g, `'"'"'`)
+    const issueJson = JSON.stringify({ body: issueBodyWithCustom }).replace(/'/g, `'"'"'`)
+    writeFileSync(ghExec, `#!/bin/sh
+if [ "$1" = "pr" ] && [ "$2" = "view" ]; then printf '%s' '${prJson}'; exit 0; fi
+if [ "$1" = "issue" ] && [ "$2" = "view" ]; then printf '%s' '${issueJson}'; exit 0; fi
+if [ "$1" = "issue" ] && [ "$2" = "edit" ]; then cp "$5" "${tmpFile}"; exit 0; fi
+exit 0
+`)
+    
+    const result = run(['154'], { input: validResultBody, env })
+    expect(result.status).toBe(0)
+    
+    const editedBody = readFileSync(tmpFile, 'utf8')
+    expect(editedBody).toContain('custom_field: preserved')
+    expect(editedBody).toContain('custom_list:\n  - a\n  - b')
+  }, 10000)
+
+  it('RESULT failure followed by concurrent Issue edit prevents rollback overwrite', () => {
+    const prData = {
+      headRefOid: 'abc1234',
+      headRefName: 'main',
+      baseRefName: 'main',
+      statusCheckRollup: [{ conclusion: 'SUCCESS', targetUrl: 'https://ci/abc1234' }]
+    }
+    const env: Record<string, string> = stubGhAndGit(prData, { body: validIssueBody }, 'abc1234 refs/heads/main', 'main', 'abc1234')
+    env.NODE_FAIL_POST_ROLE_COMMENT = '1'
+
+    const ghExec = join(env.PATH.split(':')[0], 'gh')
+    const prJson = JSON.stringify(prData).replace(/'/g, `'"'"'`)
+    const issueJson1 = JSON.stringify({ body: validIssueBody }).replace(/'/g, `'"'"'`)
+    const issueJson2 = JSON.stringify({ body: validIssueBody + '\\nconcurrent' }).replace(/'/g, `'"'"'`)
+    writeFileSync(ghExec, `#!/bin/sh
+if [ "$1" = "pr" ] && [ "$2" = "view" ]; then printf '%s' '${prJson}'; exit 0; fi
+if [ "$1" = "issue" ] && [ "$2" = "view" ]; then
+  if [ -f "\${0}.viewed" ]; then
+    printf '%s' '${issueJson2}'
+  else
+    touch "\${0}.viewed"
+    printf '%s' '${issueJson1}'
+  fi
+  exit 0
+fi
+if [ "$1" = "issue" ] && [ "$2" = "edit" ]; then exit 0; fi
+exit 0
+`)
+
+    const result = run(['154'], { input: validResultBody, env })
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain('concurrent-change evidence found, rollback aborted')
+  }, 10000)
+
+  it('rollback write failure logs correctly', () => {
+    const prData = {
+      headRefOid: 'abc1234',
+      headRefName: 'main',
+      baseRefName: 'main',
+      statusCheckRollup: [{ conclusion: 'SUCCESS', targetUrl: 'https://ci/abc1234' }]
+    }
+    const env: Record<string, string> = stubGhAndGit(prData, { body: validIssueBody }, 'abc1234 refs/heads/main', 'main', 'abc1234')
+    env.NODE_FAIL_POST_ROLE_COMMENT = '1'
+
+    const ghExec = join(env.PATH.split(':')[0], 'gh')
+    const prJson = JSON.stringify(prData).replace(/'/g, `'"'"'`)
+    
+    writeFileSync(ghExec, `#!/bin/sh
+if [ "$1" = "pr" ] && [ "$2" = "view" ]; then printf '%s' '${prJson}'; exit 0; fi
+if [ "$1" = "issue" ] && [ "$2" = "view" ]; then
+  if [ -f "\${0}.edited" ]; then
+    "${process.execPath}" -e "process.stdout.write(JSON.stringify({body: require('fs').readFileSync('\${0}.edited', 'utf8')}))"
+  else
+    printf '%s' '${JSON.stringify({ body: validIssueBody }).replace(/'/g, `'"'"'`)}'
+  fi
+  exit 0
+fi
+if [ "$1" = "issue" ] && [ "$2" = "edit" ]; then
+  if [ -f "\${0}.edited" ]; then
+    echo "Simulated GitHub API error" >&2
+    exit 1
+  else
+    cp "$5" "\${0}.edited"
+    exit 0
+  fi
+fi
+exit 0
+`)
+
+    const result = run(['154'], { input: validResultBody, env })
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain('Rollback write failure: Simulated GitHub API error')
   }, 10000)
 })

@@ -31,7 +31,7 @@ export function parseMissionControlScalar(value) {
   return quoted ? quoted[2] : trimmed
 }
 
-const missionControlArrayKeys = new Set(['open_blockers', 'follow_up_issues'])
+
 
 /**
  * @typedef {{
@@ -89,7 +89,7 @@ export function parseMissionControlState(body = '') {
     const match = line.match(/^\s*([a-z_]+)\s*:\s*(.*?)\s*$/)
     if (!match) return { present: true, valid: false, reason: `unreadable state line: ${line.trim()}` }
     if (Object.hasOwn(state, match[1])) return { present: true, valid: false, reason: `duplicate state key: ${match[1]}` }
-    if (match[2] === '' && missionControlArrayKeys.has(match[1])) {
+    if (match[2] === '') {
       state[match[1]] = []
       listKey = match[1]
     } else {

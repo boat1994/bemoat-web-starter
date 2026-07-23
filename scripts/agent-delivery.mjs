@@ -56,28 +56,43 @@ function readBody(bodyFile) {
 function renderStateBlock(stateObj) {
   const lines = [
     '<!-- bemoat-mission-control-state:start -->',
-    '```yaml',
-    `schema_version: ${stateObj.schema_version}`,
-    `state: ${stateObj.state}`,
-    `review_cycle: ${stateObj.review_cycle}`,
-    `full_review_count: ${stateObj.full_review_count}`,
-    `approved_base: ${stateObj.approved_base}`,
-    `active_task_issue: ${stateObj.active_task_issue ?? 'null'}`,
-    `active_pr: ${stateObj.active_pr ?? 'null'}`,
-    `current_head: ${stateObj.current_head ?? 'null'}`,
-    `last_reviewed_head: ${stateObj.last_reviewed_head ?? 'null'}`,
-    `guide_version: ${stateObj.guide_version}`,
-    `guide_source_ref: ${stateObj.guide_source_ref}`,
-    `guide_source_sha: ${stateObj.guide_source_sha ?? 'null'}`,
-    `open_blockers: ${JSON.stringify(stateObj.open_blockers || [])}`,
-    `follow_up_issues: ${JSON.stringify(stateObj.follow_up_issues || [])}`,
-    `next_permitted_action: "${stateObj.next_permitted_action}"`,
-    `material_change_status: ${stateObj.material_change_status}`,
-    `updated_at: "${new Date().toISOString()}"`,
-    `updated_by: "Mission Control"`,
-    '```',
-    '<!-- bemoat-mission-control-state:end -->'
+    '```yaml'
   ]
+  
+  const orderedKeys = [
+    'schema_version', 'state', 'review_cycle', 'full_review_count', 'approved_base',
+    'active_task_issue', 'active_pr', 'current_head', 'last_reviewed_head',
+    'guide_version', 'guide_source_ref', 'guide_source_sha', 'open_blockers',
+    'follow_up_issues', 'next_permitted_action', 'material_change_status', 'updated_at',
+    'updated_by'
+  ]
+  const keys = new Set([...orderedKeys, ...Object.keys(stateObj)])
+  
+  for (const key of keys) {
+    if (!Object.hasOwn(stateObj, key)) continue
+    const value = stateObj[key]
+    
+    if (value === null) {
+      lines.push(`${key}: null`)
+    } else if (Array.isArray(value)) {
+      if (value.length === 0) {
+        lines.push(`${key}: []`)
+      } else {
+        lines.push(`${key}:`)
+        for (const item of value) {
+          lines.push(`  - ${typeof item === 'string' && (item === '' || item.includes(' ') || item.includes('"') || item.includes("'") || item === 'null' || !Number.isNaN(Number(item))) ? JSON.stringify(item) : item}`)
+        }
+      }
+    } else if (typeof value === 'string') {
+      const needsQuotes = value === '' || value === 'null' || value === '[]' || !Number.isNaN(Number(value)) || /[\s"']/.test(value)
+      lines.push(`${key}: ${needsQuotes ? JSON.stringify(value) : value}`)
+    } else {
+      lines.push(`${key}: ${value}`)
+    }
+  }
+  
+  lines.push('```')
+  lines.push('<!-- bemoat-mission-control-state:end -->')
   return lines.join('\n')
 }
 
@@ -234,6 +249,28 @@ function main() {
   const postCommentResult = tryRun('node', postCommentArgs)
 
   if (postCommentResult.status !== 0) {
+    const errorMsg = postCommentResult.stderr || postCommentResult.stdout || ''
+    
+    // Re-fetch the live Issue body to check for concurrent edits
+    const refetchArgs = ['issue', 'view', parsed.options.issue, '--json', 'body']
+    if (parsed.options.repo) refetchArgs.push('--repo', parsed.options.repo)
+    const refetchResult = tryRun('gh', refetchArgs)
+    
+    if (refetchResult.status !== 0) {
+      rmSync(tmpDir, { recursive: true, force: true })
+      process.stderr.write(`ERROR: STATE_CONFLICT: Failed to post RESULT comment and failed to re-fetch issue for rollback\n${errorMsg}`)
+      process.exitCode = 1
+      return
+    }
+    
+    const liveBody = JSON.parse(refetchResult.stdout).body
+    if (liveBody !== newBody) {
+      rmSync(tmpDir, { recursive: true, force: true })
+      process.stderr.write(`ERROR: STATE_CONFLICT: concurrent-change evidence found, rollback aborted\n`)
+      process.exitCode = 1
+      return
+    }
+
     writeFileSync(tmpBody, issueData.body)
     const rollbackArgs = ['issue', 'edit', parsed.options.issue, '--body-file', tmpBody]
     if (parsed.options.repo) rollbackArgs.push('--repo', parsed.options.repo)
@@ -241,9 +278,9 @@ function main() {
     
     rmSync(tmpDir, { recursive: true, force: true })
     if (rollbackResult.status !== 0) {
-      process.stderr.write(`ERROR: STATE_CONFLICT: Rollback failed after comment failure\n${postCommentResult.stderr || postCommentResult.stdout}`)
+      process.stderr.write(`ERROR: STATE_CONFLICT: Rollback write failure: ${rollbackResult.stderr || rollbackResult.stdout}\n`)
     } else {
-      process.stderr.write(`ERROR: STATE_CONFLICT: Failed to post RESULT comment\n${postCommentResult.stderr || postCommentResult.stdout}`)
+      process.stderr.write(`ERROR: STATE_CONFLICT: Failed to post RESULT comment, rollback successful with no concurrent edit\n${errorMsg}`)
     }
     process.exitCode = 1
     return
