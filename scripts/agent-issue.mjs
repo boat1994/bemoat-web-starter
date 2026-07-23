@@ -17,6 +17,7 @@ import {
   verifyLiveTaskIdentity,
 } from './guard-planning-contract.mjs'
 import { parseMissionControlState } from './mission-control-state.mjs'
+import { projectComments } from './github-comment-projection.mjs'
 
 export { parseMissionControlState }
 
@@ -601,7 +602,7 @@ function fetchIssueComments(cwd, issueNumber, env = process.env) {
     const payload = JSON.parse(result.stdout)
     return {
       ok: true,
-      comments: Array.isArray(payload.comments) ? payload.comments : [],
+      comments: Array.isArray(payload.comments) ? projectComments(payload.comments) : [],
     }
   } catch (error) {
     return {
