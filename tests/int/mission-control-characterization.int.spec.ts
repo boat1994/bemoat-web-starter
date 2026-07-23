@@ -359,6 +359,8 @@ post_budget_reviews:
       status: approved
       authority: Founder
       scope: review
+      review_number: 4
+      reviewed_head: review-4-head
       action: "Authorize bounded Review 4"
       authorized_at: "2026-07-23T15:00:00Z"
     finding_dispositions:
@@ -368,6 +370,10 @@ founder_decision:
   status: approved
   authority: Founder
   scope: correction
+  for_review_number: 4
+  reviewed_head: review-4-head
+  finding_ids:
+    - MC-R1-002
   action: "Authorize one bounded correction for MC-R1-002"
   authorized_at: "2026-07-23T16:00:00Z"
 guide_version: 1.2.0
@@ -400,6 +406,8 @@ updated_by: Mission Control
               status: 'approved',
               authority: 'Founder',
               scope: 'review',
+              review_number: 4,
+              reviewed_head: 'review-4-head',
               action: 'Authorize bounded Review 4',
               authorized_at: '2026-07-23T15:00:00Z',
             },
@@ -433,6 +441,8 @@ updated_by: Mission Control
             status: 'approved',
             authority: 'Founder',
             scope: 'review',
+            review_number: 4,
+            reviewed_head: 'review-4-head',
             action: 'Authorize bounded Review 4',
             authorized_at: '2026-07-23T15:00:00Z',
           },
@@ -442,6 +452,9 @@ updated_by: Mission Control
           status: 'approved',
           authority: 'Founder',
           scope: 'correction',
+          for_review_number: 4,
+          reviewed_head: 'review-4-head',
+          finding_ids: ['MC-R1-002'],
           action: 'Authorize one bounded correction for MC-R1-002',
           authorized_at: '2026-07-23T16:00:00Z',
         },
@@ -495,6 +508,7 @@ updated_by: Mission Control
             verdict: 'BLOCKED FOR FOUNDER DECISION',
             authorization: {
               status: 'approved', authority: 'Founder', scope: 'review',
+              review_number: 4, reviewed_head: 'review-4-head',
               action: 'Authorize bounded Review 4', authorized_at: '2026-07-23T15:00:00Z',
             },
             finding_dispositions: [{ finding_id: 'MC-R1-002', disposition: 'open' }],
@@ -521,6 +535,180 @@ updated_by: Mission Control
         valid: false,
         reason: expect.stringContaining('post-budget review authorization'),
       })
+    })
+
+    it('rejects replayed post-budget review authorization across later review entries', () => {
+      const sharedAuthorization = {
+        status: 'approved',
+        authority: 'Founder',
+        scope: 'review',
+        review_number: 4,
+        reviewed_head: 'review-4-head',
+        action: 'Authorize bounded Review 4',
+        authorized_at: '2026-07-23T15:00:00Z',
+      }
+      const body = renderStateBody({
+        schema_version: 1,
+        state: 'BLOCKED_FOR_FOUNDER_DECISION',
+        review_cycle: 3,
+        full_review_count: 1,
+        approved_base: 'main',
+        active_task_issue: '#155',
+        active_pr: '#157',
+        current_head: 'review-5-head',
+        last_reviewed_head: 'review-5-head',
+        post_budget_reviews: [
+          {
+            review_number: 4,
+            reviewed_head: 'review-4-head',
+            verdict: 'BLOCKED FOR FOUNDER DECISION',
+            authorization: sharedAuthorization,
+            finding_dispositions: [{ finding_id: 'MC-R1-002', disposition: 'open' }],
+          },
+          {
+            review_number: 5,
+            reviewed_head: 'review-5-head',
+            verdict: 'BLOCKED FOR FOUNDER DECISION',
+            authorization: sharedAuthorization,
+            finding_dispositions: [{ finding_id: 'MC-R1-002', disposition: 'open' }],
+          },
+        ],
+        guide_version: '1.2.0',
+        guide_source_ref: 'main',
+        guide_source_sha: '42b383a8bca33518116763af8094e6a42212bf0b',
+        open_blockers: ['MC-R1-002'],
+        follow_up_issues: [],
+        next_permitted_action: 'Founder decision required',
+        material_change_status: 'none',
+        updated_at: '2026-07-23T17:00:00Z',
+        updated_by: 'Reviewer',
+      })
+
+      expect(parseMissionControlState(body)).toMatchObject({
+        valid: false,
+        reason: expect.stringContaining('must bind to Review 5'),
+      })
+    })
+
+    it('rejects stale post-budget correction authorization after a later completed review', () => {
+      const body = renderStateBody({
+        schema_version: 1,
+        state: 'IN_PROGRESS',
+        review_cycle: 3,
+        full_review_count: 1,
+        approved_base: 'main',
+        active_task_issue: '#155',
+        active_pr: '#157',
+        current_head: 'correction-head',
+        last_reviewed_head: 'review-5-head',
+        post_budget_reviews: [
+          {
+            review_number: 4,
+            reviewed_head: 'review-4-head',
+            verdict: 'CORRECTION REQUIRED',
+            authorization: {
+              status: 'approved', authority: 'Founder', scope: 'review',
+              review_number: 4, reviewed_head: 'review-4-head',
+              action: 'Authorize bounded Review 4', authorized_at: '2026-07-23T15:00:00Z',
+            },
+            finding_dispositions: [{ finding_id: 'MC-R1-002', disposition: 'open' }],
+          },
+          {
+            review_number: 5,
+            reviewed_head: 'review-5-head',
+            verdict: 'CORRECTION REQUIRED',
+            authorization: {
+              status: 'approved', authority: 'Founder', scope: 'review',
+              review_number: 5, reviewed_head: 'review-5-head',
+              action: 'Authorize bounded Review 5', authorized_at: '2026-07-23T16:30:00Z',
+            },
+            finding_dispositions: [{ finding_id: 'MC-R1-002', disposition: 'open' }],
+          },
+        ],
+        founder_decision: {
+          status: 'approved',
+          authority: 'Founder',
+          scope: 'correction',
+          for_review_number: 4,
+          reviewed_head: 'review-4-head',
+          finding_ids: ['MC-R1-002'],
+          action: 'Authorize one bounded correction for MC-R1-002',
+          authorized_at: '2026-07-23T16:00:00Z',
+        },
+        guide_version: '1.2.0',
+        guide_source_ref: 'main',
+        guide_source_sha: '42b383a8bca33518116763af8094e6a42212bf0b',
+        open_blockers: ['MC-R1-002'],
+        follow_up_issues: [],
+        next_permitted_action: 'Dev executes only the authorized MC-R1-002 correction',
+        material_change_status: 'none',
+        updated_at: '2026-07-23T17:00:00Z',
+        updated_by: 'Mission Control',
+      })
+
+      expect(parseMissionControlState(body)).toMatchObject({
+        valid: false,
+        reason: expect.stringContaining('latest completed post-budget review number'),
+      })
+    })
+
+    it('accepts distinct bound post-budget review and correction authorizations', () => {
+      const body = renderStateBody({
+        schema_version: 1,
+        state: 'IN_PROGRESS',
+        review_cycle: 3,
+        full_review_count: 1,
+        approved_base: 'main',
+        active_task_issue: '#155',
+        active_pr: '#157',
+        current_head: 'correction-head',
+        last_reviewed_head: 'review-5-head',
+        post_budget_reviews: [
+          {
+            review_number: 4,
+            reviewed_head: 'review-4-head',
+            verdict: 'CORRECTION REQUIRED',
+            authorization: {
+              status: 'approved', authority: 'Founder', scope: 'review',
+              review_number: 4, reviewed_head: 'review-4-head',
+              action: 'Authorize bounded Review 4', authorized_at: '2026-07-23T15:00:00Z',
+            },
+            finding_dispositions: [{ finding_id: 'MC-R1-002', disposition: 'open' }],
+          },
+          {
+            review_number: 5,
+            reviewed_head: 'review-5-head',
+            verdict: 'CORRECTION REQUIRED',
+            authorization: {
+              status: 'approved', authority: 'Founder', scope: 'review',
+              review_number: 5, reviewed_head: 'review-5-head',
+              action: 'Authorize bounded Review 5', authorized_at: '2026-07-23T16:30:00Z',
+            },
+            finding_dispositions: [{ finding_id: 'MC-R1-002', disposition: 'open' }],
+          },
+        ],
+        founder_decision: {
+          status: 'approved',
+          authority: 'Founder',
+          scope: 'correction',
+          for_review_number: 5,
+          reviewed_head: 'review-5-head',
+          finding_ids: ['MC-R1-002'],
+          action: 'Authorize one bounded correction for MC-R1-002',
+          authorized_at: '2026-07-23T17:00:00Z',
+        },
+        guide_version: '1.2.0',
+        guide_source_ref: 'main',
+        guide_source_sha: '42b383a8bca33518116763af8094e6a42212bf0b',
+        open_blockers: ['MC-R1-002'],
+        follow_up_issues: [],
+        next_permitted_action: 'Dev executes only the authorized MC-R1-002 correction',
+        material_change_status: 'none',
+        updated_at: '2026-07-23T17:01:00Z',
+        updated_by: 'Mission Control',
+      })
+
+      expect(parseMissionControlState(body)).toMatchObject({ valid: true })
     })
   })
 

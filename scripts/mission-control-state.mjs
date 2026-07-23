@@ -39,6 +39,59 @@ function isFounderAuthorization(value, scope) {
     typeof value.authorized_at === 'string' && value.authorized_at.length > 0
 }
 
+function authorizationFingerprint(authorization) {
+  return JSON.stringify({
+    status: authorization.status,
+    authority: authorization.authority,
+    scope: authorization.scope,
+    action: authorization.action,
+    authorized_at: authorization.authorized_at,
+    review_number: authorization.review_number ?? authorization.for_review_number ?? null,
+    reviewed_head: authorization.reviewed_head ?? null,
+    finding_ids: authorization.finding_ids ?? null,
+  })
+}
+
+function validateBoundReviewAuthorization(authorization, review) {
+  if (!isFounderAuthorization(authorization, 'review')) {
+    return { valid: false, reason: `post-budget review authorization is required for Review ${review.review_number}` }
+  }
+  if (!Number.isInteger(authorization.review_number) || authorization.review_number !== review.review_number) {
+    return { valid: false, reason: `post-budget review authorization must bind to Review ${review.review_number}` }
+  }
+  if (typeof authorization.reviewed_head !== 'string' || authorization.reviewed_head.length === 0 ||
+      authorization.reviewed_head !== review.reviewed_head) {
+    return { valid: false, reason: `post-budget review authorization must bind to reviewed head for Review ${review.review_number}` }
+  }
+  return { valid: true, fingerprint: authorizationFingerprint(authorization) }
+}
+
+function validateBoundCorrectionAuthorization(authorization, latestReview) {
+  if (!isFounderAuthorization(authorization, 'correction')) {
+    return { valid: false, reason: 'post-budget correction authorization is required for IN_PROGRESS' }
+  }
+  if (!Number.isInteger(authorization.for_review_number) ||
+      authorization.for_review_number !== latestReview.review_number) {
+    return { valid: false, reason: 'post-budget correction authorization must bind to the latest completed post-budget review number' }
+  }
+  if (typeof authorization.reviewed_head !== 'string' || authorization.reviewed_head.length === 0 ||
+      authorization.reviewed_head !== latestReview.reviewed_head) {
+    return { valid: false, reason: 'post-budget correction authorization must bind to the latest completed post-budget reviewed head' }
+  }
+  if (!Array.isArray(authorization.finding_ids) || authorization.finding_ids.length === 0 ||
+      authorization.finding_ids.some((findingId) => typeof findingId !== 'string' || findingId.length === 0)) {
+    return { valid: false, reason: 'post-budget correction authorization must name at least one finding_id' }
+  }
+  const authorizedFindingIds = new Set(authorization.finding_ids)
+  const reviewFindingIds = new Set(
+    latestReview.finding_dispositions.map((finding) => finding.finding_id),
+  )
+  if ([...authorizedFindingIds].some((findingId) => !reviewFindingIds.has(findingId))) {
+    return { valid: false, reason: 'post-budget correction authorization finding_ids must stay within the latest completed review scope' }
+  }
+  return { valid: true }
+}
+
 function validatePostBudgetReviews(state) {
   if (!Object.hasOwn(state, 'post_budget_reviews')) {
     return { valid: true, reviews: [] }
@@ -46,6 +99,8 @@ function validatePostBudgetReviews(state) {
   if (!Array.isArray(state.post_budget_reviews)) {
     return { valid: false, reason: 'post_budget_reviews must be an array' }
   }
+
+  const reviewAuthorizationFingerprints = new Set()
 
   for (const [index, review] of state.post_budget_reviews.entries()) {
     if (typeof review !== 'object' || review === null || Array.isArray(review)) {
@@ -58,9 +113,14 @@ function validatePostBudgetReviews(state) {
         typeof review.verdict !== 'string' || !postBudgetReviewVerdicts.has(review.verdict)) {
       return { valid: false, reason: 'post-budget review number, head, or verdict is invalid' }
     }
-    if (!isFounderAuthorization(review.authorization, 'review')) {
-      return { valid: false, reason: `post-budget review authorization is required for Review ${review.review_number}` }
+    const reviewAuthorization = validateBoundReviewAuthorization(review.authorization, review)
+    if (!reviewAuthorization.valid) {
+      return { valid: false, reason: reviewAuthorization.reason }
     }
+    if (reviewAuthorizationFingerprints.has(reviewAuthorization.fingerprint)) {
+      return { valid: false, reason: `post-budget review authorization for Review ${review.review_number} cannot replay a prior review authorization` }
+    }
+    reviewAuthorizationFingerprints.add(reviewAuthorization.fingerprint)
     if (!Array.isArray(review.finding_dispositions) || review.finding_dispositions.some((finding) =>
       typeof finding !== 'object' || finding === null || Array.isArray(finding) ||
       typeof finding.finding_id !== 'string' || finding.finding_id.length === 0 ||
@@ -171,8 +231,9 @@ export function parseMissionControlState(body = '') {
       if (!['CORRECTION REQUIRED', 'BLOCKED FOR FOUNDER DECISION'].includes(latestPostBudgetReview.verdict)) {
         return { present: true, valid: false, reason: 'post-budget verdict does not authorize a correction transition' }
       }
-      if (!isFounderAuthorization(state.founder_decision, 'correction')) {
-        return { present: true, valid: false, reason: 'post-budget correction authorization is required for IN_PROGRESS' }
+      const correctionAuthorization = validateBoundCorrectionAuthorization(state.founder_decision, latestPostBudgetReview)
+      if (!correctionAuthorization.valid) {
+        return { present: true, valid: false, reason: correctionAuthorization.reason }
       }
       if (typeof state.active_pr !== 'string' || typeof state.current_head !== 'string') {
         return { present: true, valid: false, reason: 'post-budget correction requires active_pr and current_head' }

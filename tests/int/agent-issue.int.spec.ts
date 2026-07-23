@@ -1119,6 +1119,8 @@ ${managedState({
       status: approved
       authority: Founder
       scope: review
+      review_number: 4
+      reviewed_head: review-4-head
       action: "Authorize bounded Review 4"
       authorized_at: "2026-07-23T15:00:00Z"
     finding_dispositions:
@@ -1128,6 +1130,10 @@ ${managedState({
   status: approved
   authority: Founder
   scope: correction
+  for_review_number: 4
+  reviewed_head: review-4-head
+  finding_ids:
+    - MC-R1-002
   action: "Authorize one bounded correction for MC-R1-002"
   authorized_at: "2026-07-23T16:00:00Z"`,
   open_blockers: '\n  - MC-R1-002',

@@ -453,6 +453,8 @@ post_budget_reviews:
       status: approved
       authority: Founder
       scope: review
+      review_number: 4
+      reviewed_head: <review-4-head>
       action: "Authorize bounded Review 4"
       authorized_at: "<timestamp>"
     finding_dispositions:
@@ -461,8 +463,10 @@ post_budget_reviews:
 ```
 
 Authorization for one post-budget review does not authorize the next review.
-Review 5 therefore requires its own durable `scope: review` Founder
-authorization entry before it can be recorded.
+Each `scope: review` authorization must bind to its exact `review_number` and
+`reviewed_head`, and the same authorization object cannot be replayed for a later
+review entry. Review 5 therefore requires its own durable `scope: review`
+Founder authorization entry before it can be recorded.
 
 When the completed post-budget verdict requires another correction, transition
 to `IN_PROGRESS` only after recording a separate, bounded correction decision:
@@ -473,12 +477,19 @@ founder_decision:
   status: approved
   authority: Founder
   scope: correction
+  for_review_number: 4
+  reviewed_head: <review-4-head>
+  finding_ids:
+    - MC-R1-002
   action: "Authorize one bounded correction for MC-R1-002"
   authorized_at: "<timestamp>"
 ```
 
 This transition preserves `review_cycle: 3`, `full_review_count: 1`,
-`last_reviewed_head`, and every `post_budget_reviews` entry. It authorizes only
+`last_reviewed_head`, and every `post_budget_reviews` entry. The correction
+authorization must bind to the latest completed post-budget review number,
+reviewed head, and the specific `finding_ids` being corrected; stale correction
+authorization after a later post-budget review is rejected. It authorizes only
 the named correction; it does not authorize another review, merge, migration,
 or deploy.
 
