@@ -162,6 +162,47 @@ updated_by: "Mission Control"
       expect(parsed.state?.review_cycle).toBe(2)
       expect(parsed.state?.full_review_count).toBe(1)
     })
+
+    it('does not treat a state-only active PR as conflicting when no separate Active PR is declared', () => {
+      const managedBody = `
+## MISSION_CONTROL_STATE
+
+- **Task size**: Core
+- **Mission Control mode**: required
+
+<!-- bemoat-mission-control-state:start -->
+\`\`\`yaml
+schema_version: 1
+state: BLOCKED_FOR_FOUNDER_DECISION
+review_cycle: 3
+full_review_count: 1
+approved_base: main
+active_task_issue: "#150"
+active_pr: "#151"
+current_head: dcbbfd8d5dcb862725a71535207da7f173756d40
+last_reviewed_head: dcbbfd8d5dcb862725a71535207da7f173756d40
+guide_version: 1.2.0
+guide_source_ref: main
+guide_source_sha: c2637d6540f9200b01e8e0af1938e257975ada27
+open_blockers:
+  - MC-R1-002
+follow_up_issues: []
+next_permitted_action: "Founder decides whether to authorize one bounded post-budget correction for MC-R1-002 on existing PR #151."
+material_change_status: none
+updated_at: "2026-07-23T06:35:37.744Z"
+updated_by: "Delta Reviewer"
+\`\`\`
+<!-- bemoat-mission-control-state:end -->
+`
+
+      const analysis = analyzeProgressTracking({ activeIssueBody: managedBody })
+
+      expect(analysis.report.declarations.activePrRef).toBeNull()
+      expect(parseMissionControlState(managedBody).state?.active_pr).toBe('#151')
+      expect(analysis.blockers).not.toContain(
+        'STATE_CONFLICT: state active_pr does not match the declared Active PR.',
+      )
+    })
   })
 
   describe('Migration/conflict/external boundaries (MC-SCENARIO-003, MC-SCENARIO-004)', () => {

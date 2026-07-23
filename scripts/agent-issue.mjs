@@ -1045,7 +1045,7 @@ export function analyzeProgressTracking({
     }
   }
 
-  if (stateAnalysis.valid && (declaredActivePrRef || stateActivePrRef)) {
+  if (stateAnalysis.valid && declaredActivePrRef && stateActivePrRef) {
     const declaredPr = parsePrReference(declaredActivePrRef)
     const recordedPr = parsePrReference(stateActivePrRef)
     if (
