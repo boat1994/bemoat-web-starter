@@ -203,6 +203,47 @@ updated_by: "Delta Reviewer"
         'STATE_CONFLICT: state active_pr does not match the declared Active PR.',
       )
     })
+
+    it('deterministically round-trips nested objects and arrays of objects including future keys', async () => {
+      const { renderMissionControlState } = await import('../../scripts/mission-control-state.mjs')
+      const complexState = {
+        schema_version: 1,
+        state: 'IN_PROGRESS',
+        review_cycle: 0,
+        full_review_count: 0,
+        approved_base: 'main',
+        active_task_issue: '#154',
+        active_pr: null as string | null,
+        current_head: 'abcd',
+        last_reviewed_head: null as string | null,
+        guide_version: '1.0.0',
+        guide_source_ref: 'main',
+        guide_source_sha: '1234',
+        open_blockers: [] as string[],
+        next_permitted_action: 'continue',
+        material_change_status: 'none',
+        updated_at: '2026-07-23T03:45:00Z',
+        updated_by: 'Agent',
+        follow_up_issues: [
+          { title: 'future action', estimated_size: 'core', tags: ['one', 'two'] }
+        ],
+        founder_decision: {
+          decision: 'APPROVED',
+          rationale: 'Looks good',
+          overrides: { allow_bypass: true }
+        },
+        finding_lineage: {
+          origin: 'MC-R2-001',
+          fixes: ['c3f2']
+        },
+        unknown_future_key: [null, 42, 'string']
+      }
+      
+      const rendered = renderMissionControlState(complexState)
+      const parsed = parseMissionControlState(rendered)
+      expect(parsed.valid).toBe(true)
+      expect(parsed.state).toEqual(complexState)
+    })
   })
 
   describe('Migration/conflict/external boundaries (MC-SCENARIO-003, MC-SCENARIO-004)', () => {

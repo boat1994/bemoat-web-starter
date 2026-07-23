@@ -38,6 +38,7 @@
     "typecheck": "pnpm exec tsc --noEmit",
     "boilerplate:sync": "node scripts/sync-boilerplate.mjs",
     "boilerplate:check": "node scripts/check-boilerplate-drift.mjs",
+    "bemoat:agent:delivery": "node scripts/agent-delivery.mjs",
     "bemoat:agent:issue": "node scripts/agent-issue.mjs",
     "bemoat:issue:comment": "node scripts/post-role-comment.mjs",
     "bemoat:branch:check": "bash scripts/check-branch-safety.sh",
@@ -84,7 +85,8 @@
     "typescript": "6.0.3",
     "vite-tsconfig-paths": "6.0.5",
     "vitest": "4.1.6",
-    "wrangler": "~4.61.1"
+    "wrangler": "~4.61.1",
+    "yaml": "^2.9.0"
   },
   "engines": {
     "node": ">=24.15.0",

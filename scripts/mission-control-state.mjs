@@ -1,3 +1,5 @@
+import yaml from 'yaml'
+
 const missionControlStates = new Set([
   'READY',
   'IN_PROGRESS',
@@ -22,17 +24,6 @@ const missionControlRequiredKeys = [
   'updated_by',
 ]
 
-export function parseMissionControlScalar(value) {
-  const trimmed = value.trim()
-  if (trimmed === 'null') return null
-  if (trimmed === '[]') return []
-  if (/^\d+$/.test(trimmed)) return Number(trimmed)
-  const quoted = trimmed.match(/^(["'])(.*)\1$/)
-  return quoted ? quoted[2] : trimmed
-}
-
-const missionControlArrayKeys = new Set(['open_blockers', 'follow_up_issues'])
-
 /**
  * @typedef {{
  *   schema_version: number,
@@ -53,6 +44,7 @@ const missionControlArrayKeys = new Set(['open_blockers', 'follow_up_issues'])
  *   material_change_status: string,
  *   updated_at: string | null,
  *   updated_by: string | null,
+ *   [key: string]: unknown,
  * }} MissionControlState
  */
 
@@ -75,27 +67,19 @@ export function parseMissionControlState(body = '') {
 
   const raw = body.slice(starts[0].index + starts[0][0].length, ends[0].index)
     .replace(/```yaml\s*|```/g, '')
-  /** @type {Record<string, unknown>} */
-  const state = {}
-  let listKey = null
-  for (const line of raw.split('\n')) {
-    if (!line.trim() || /^\s*#/.test(line)) continue
-    const listItem = line.match(/^\s*-\s+(.+?)\s*$/)
-    if (listItem) {
-      if (!listKey) return { present: true, valid: false, reason: `unreadable state line: ${line.trim()}` }
-      state[listKey].push(parseMissionControlScalar(listItem[1]))
-      continue
+
+  let state
+  try {
+    state = yaml.parse(raw, { uniqueKeys: true })
+  } catch (error) {
+    if (error.message.includes('Map keys must be unique')) {
+      return { present: true, valid: false, reason: `duplicate state key: ${error.message}` }
     }
-    const match = line.match(/^\s*([a-z_]+)\s*:\s*(.*?)\s*$/)
-    if (!match) return { present: true, valid: false, reason: `unreadable state line: ${line.trim()}` }
-    if (Object.hasOwn(state, match[1])) return { present: true, valid: false, reason: `duplicate state key: ${match[1]}` }
-    if (match[2] === '' && missionControlArrayKeys.has(match[1])) {
-      state[match[1]] = []
-      listKey = match[1]
-    } else {
-      state[match[1]] = parseMissionControlScalar(match[2])
-      listKey = null
-    }
+    return { present: true, valid: false, reason: `unreadable state line: ${error.message}` }
+  }
+
+  if (typeof state !== 'object' || state === null || Array.isArray(state)) {
+    return { present: true, valid: false, reason: 'unreadable state line: root must be a mapping' }
   }
 
   const missing = missionControlRequiredKeys.filter((key) => !Object.hasOwn(state, key))
@@ -149,4 +133,32 @@ export function parseMissionControlState(body = '') {
   }
 
   return { present: true, valid: true, state: /** @type {MissionControlState} */ (state) }
+}
+
+export function renderMissionControlState(stateObj) {
+  const orderedKeys = [
+    'schema_version', 'state', 'review_cycle', 'full_review_count', 'approved_base',
+    'active_task_issue', 'active_pr', 'current_head', 'last_reviewed_head',
+    'guide_version', 'guide_source_ref', 'guide_source_sha', 'open_blockers',
+    'follow_up_issues', 'next_permitted_action', 'material_change_status', 'updated_at',
+    'updated_by'
+  ]
+  const keys = new Set([...orderedKeys, ...Object.keys(stateObj)])
+  
+  const orderedState = {}
+  for (const key of keys) {
+    if (Object.hasOwn(stateObj, key)) {
+      orderedState[key] = stateObj[key]
+    }
+  }
+
+  const yamlStr = yaml.stringify(orderedState, { lineWidth: 0 })
+
+  return [
+    '<!-- bemoat-mission-control-state:start -->',
+    '```yaml',
+    yamlStr.trim(),
+    '```',
+    '<!-- bemoat-mission-control-state:end -->'
+  ].join('\n')
 }

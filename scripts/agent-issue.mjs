@@ -622,7 +622,7 @@ function fetchPrByReference(cwd, reference, env = process.env) {
     'view',
     parsed.number,
     '--json',
-    'title,url,headRefName,baseRefName,headRefOid,state,statusCheckRollup,commits',
+    'title,url,headRefName,baseRefName,headRefOid,state,statusCheckRollup,commits,headRepository',
   ]
   if (parsed.repo) {
     args.push('--repo', parsed.repo)
