@@ -402,6 +402,7 @@ active_task_issue: "#<this active task issue>"
 active_pr: null
 current_head: null
 last_reviewed_head: null
+post_budget_reviews: []
 guide_version: 1.2.0
 guide_source_ref: main
 guide_source_sha: null
@@ -430,6 +431,67 @@ updated_by: null
 - `last_reviewed_head` records the exact head SHA covered by the most recent completed review.
 - If PR head changes after review, the previous verdict remains historical evidence but does not cover the new head.
 - If a managed task has a malformed or absent block, return `STATE_MIGRATION_REQUIRED`; do not silently initialize as Review 1.
+
+### Founder-authorized post-budget history
+
+Keep `review_cycle` capped at `3` and `full_review_count` capped at `1`. A
+Founder-authorized review after the normal budget is recorded separately in
+`post_budget_reviews`; it never increments or resets the normal counters. Every
+entry is contiguous from Review 4 and records the reviewed head, verdict,
+Founder authorization for that exact review, and the disposition of its
+findings:
+
+```yaml
+review_cycle: 3
+full_review_count: 1
+last_reviewed_head: <review-4-head>
+post_budget_reviews:
+  - review_number: 4
+    reviewed_head: <review-4-head>
+    verdict: BLOCKED FOR FOUNDER DECISION
+    authorization:
+      status: approved
+      authority: Founder
+      scope: review
+      review_number: 4
+      reviewed_head: <review-4-head>
+      action: "Authorize bounded Review 4"
+      authorized_at: "<timestamp>"
+    finding_dispositions:
+      - finding_id: MC-R1-002
+        disposition: open
+```
+
+Authorization for one post-budget review does not authorize the next review.
+Each `scope: review` authorization must bind to its exact `review_number` and
+`reviewed_head`, and the same authorization object cannot be replayed for a later
+review entry. Review 5 therefore requires its own durable `scope: review`
+Founder authorization entry before it can be recorded.
+
+When the completed post-budget verdict requires another correction, transition
+to `IN_PROGRESS` only after recording a separate, bounded correction decision:
+
+```yaml
+state: IN_PROGRESS
+founder_decision:
+  status: approved
+  authority: Founder
+  scope: correction
+  for_review_number: 4
+  reviewed_head: <review-4-head>
+  finding_ids:
+    - MC-R1-002
+  action: "Authorize one bounded correction for MC-R1-002"
+  authorized_at: "<timestamp>"
+```
+
+This transition preserves `review_cycle: 3`, `full_review_count: 1`,
+`last_reviewed_head`, and every `post_budget_reviews` entry. The correction
+authorization must bind to the latest completed post-budget review number,
+reviewed head, and the specific `finding_ids` being corrected; stale correction
+authorization after a later post-budget review is rejected. It authorizes only
+the named correction; it does not authorize another review, merge, migration,
+or deploy.
 
 ## State machine and allowed transitions
 
@@ -475,6 +537,11 @@ authorization for that named step only. `BLOCKED_FOR_FOUNDER_DECISION -> DONE`
 requires an explicit Founder **Decline** (stop/closure). Neither transition
 authorizes Review 4, merge, migration, or deploy unless the named Founder
 decision explicitly includes that gate.
+
+After a completed Founder-authorized post-budget review, the same
+`BLOCKED_FOR_FOUNDER_DECISION -> IN_PROGRESS` transition retains the normal
+counter at `3` and the completed review in `post_budget_reviews`; it also
+requires the separate `scope: correction` Founder decision shown above.
 
 Any normal state may transition to `BLOCKED_EXTERNAL`, `STATE_CONFLICT`, or
 `STATE_MIGRATION_REQUIRED` when proven. No backward transition without exact
