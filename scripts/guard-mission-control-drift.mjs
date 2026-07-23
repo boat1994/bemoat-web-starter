@@ -2,7 +2,7 @@
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { proposeReviewReconciliation as canonicalReconcile } from './mission-control-reconcile.mjs'
-import { parseMissionControlState as canonicalParse } from './mission-control-state.mjs'
+import { parseMissionControlState as canonicalParse, renderMissionControlState as canonicalRender } from './mission-control-state.mjs'
 
 export const RECONCILE_SCRIPT_PATH = 'scripts/mission-control-reconcile.mjs'
 
@@ -71,36 +71,35 @@ export const MISSION_CONTROL_REVIEW_MATRIX = Object.entries(REVIEW_EXPECTATIONS)
   })),
 )
 
-function renderStateBlock({ state, cycle, full, lastReviewedHead = cycle > 0 ? 'deadbeef' : null }) {
-  return `<!-- bemoat-mission-control-state:start -->
-\`\`\`yaml
-schema_version: 1
-state: ${state}
-review_cycle: ${cycle}
-full_review_count: ${full}
-approved_base: main
-active_task_issue: "#150"
-active_pr: "#151"
-current_head: abcdef1
-last_reviewed_head: ${lastReviewedHead ?? 'null'}
-guide_version: 1.2.0
-guide_source_ref: main
-guide_source_sha: deadbeef
-open_blockers: []
-follow_up_issues: []
-next_permitted_action: "bounded action"
-material_change_status: none
-updated_at: "2026-07-23T03:45:00Z"
-updated_by: "Mission Control"
-\`\`\`
-<!-- bemoat-mission-control-state:end -->`
-}
-
 export function runMissionControlDriftGuard({
   proposeReviewReconciliation = canonicalReconcile,
   parseMissionControlState = canonicalParse,
+  renderMissionControlState = canonicalRender,
 } = {}) {
   const violations = []
+  
+  function renderStateBlock({ state, cycle, full, lastReviewedHead = cycle > 0 ? 'deadbeef' : null }) {
+    return renderMissionControlState({
+      schema_version: 1,
+      state,
+      review_cycle: cycle,
+      full_review_count: full,
+      approved_base: 'main',
+      active_task_issue: '#150',
+      active_pr: '#151',
+      current_head: 'abcdef1',
+      last_reviewed_head: lastReviewedHead,
+      guide_version: '1.2.0',
+      guide_source_ref: 'main',
+      guide_source_sha: 'deadbeef',
+      open_blockers: [],
+      follow_up_issues: [],
+      next_permitted_action: 'bounded action',
+      material_change_status: 'none',
+      updated_at: '2026-07-23T03:45:00Z',
+      updated_by: 'Mission Control',
+    })
+  }
 
   for (const entry of MISSION_CONTROL_REVIEW_MATRIX) {
     const proposal = proposeReviewReconciliation({

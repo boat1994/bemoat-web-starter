@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
 import { analyzeExactHeadCi } from './agent-issue.mjs'
-import { parseMissionControlState } from './mission-control-state.mjs'
+import { parseMissionControlState, renderMissionControlState as renderStateBlock } from './mission-control-state.mjs'
 import { proposeDeliveryReconciliation, parseRoleCommentBody } from './mission-control-reconcile.mjs'
 
 function run(command, args, options = {}) {
@@ -51,49 +51,6 @@ function readBody(bodyFile) {
   if (bodyFile) return readFileSync(bodyFile, 'utf8')
   if (!stdin) throw new Error('provide a comment body through --body-file or stdin')
   return stdin
-}
-
-function renderStateBlock(stateObj) {
-  const lines = [
-    '<!-- bemoat-mission-control-state:start -->',
-    '```yaml'
-  ]
-  
-  const orderedKeys = [
-    'schema_version', 'state', 'review_cycle', 'full_review_count', 'approved_base',
-    'active_task_issue', 'active_pr', 'current_head', 'last_reviewed_head',
-    'guide_version', 'guide_source_ref', 'guide_source_sha', 'open_blockers',
-    'follow_up_issues', 'next_permitted_action', 'material_change_status', 'updated_at',
-    'updated_by'
-  ]
-  const keys = new Set([...orderedKeys, ...Object.keys(stateObj)])
-  
-  for (const key of keys) {
-    if (!Object.hasOwn(stateObj, key)) continue
-    const value = stateObj[key]
-    
-    if (value === null) {
-      lines.push(`${key}: null`)
-    } else if (Array.isArray(value)) {
-      if (value.length === 0) {
-        lines.push(`${key}: []`)
-      } else {
-        lines.push(`${key}:`)
-        for (const item of value) {
-          lines.push(`  - ${typeof item === 'string' && (item === '' || item.includes(' ') || item.includes('"') || item.includes("'") || item === 'null' || !Number.isNaN(Number(item))) ? JSON.stringify(item) : item}`)
-        }
-      }
-    } else if (typeof value === 'string') {
-      const needsQuotes = value === '' || value === 'null' || value === '[]' || !Number.isNaN(Number(value)) || /[\s"']/.test(value)
-      lines.push(`${key}: ${needsQuotes ? JSON.stringify(value) : value}`)
-    } else {
-      lines.push(`${key}: ${value}`)
-    }
-  }
-  
-  lines.push('```')
-  lines.push('<!-- bemoat-mission-control-state:end -->')
-  return lines.join('\n')
 }
 
 function main() {
