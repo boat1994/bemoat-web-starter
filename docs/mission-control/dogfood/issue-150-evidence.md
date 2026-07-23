@@ -1,17 +1,20 @@
 # Issue 150: Upstream Dogfood Evidence
 
 ## 1. Characterization Coverage
-The tests in `tests/int/mission-control-characterization.int.spec.ts` successfully assert the failure logic for unmarked legacy blocks, which route correctly to `STATE_MIGRATION_REQUIRED`.
-The test for duplicate and unbalanced markers also successfully routes to `STATE_MIGRATION_REQUIRED` by returning `valid: false`.
+The tests in `tests/int/mission-control-characterization.int.spec.ts` successfully map all canonical constraints to traceable scenario IDs:
+- **MC-SCENARIO-001**: Policy/base resolution (`resolves approved base from state block when present`)
+- **MC-SCENARIO-002, MC-SCENARIO-009**: Durable reconstruction and vocabulary preservation (`successfully parses and preserves valid marked state blocks`)
+- **MC-SCENARIO-003, MC-SCENARIO-004**: Migration, conflict, external boundaries (`strictly rejects unmarked MISSION_CONTROL_STATE YAML blocks and routes to STATE_MIGRATION_REQUIRED via analyzeProgressTracking`, `fails closed when markers are duplicate or unbalanced`, `emits STATE_CONFLICT when genuine state conflict is detected`)
+- **MC-SCENARIO-005, MC-SCENARIO-006**: Review-history preservation, no reset, no Review 4 (`preserves review cycle and full review count without resetting on valid transitions`, `routes unauthorized Review 4 (CORRECTION REQUIRED at cycle 2) to STATE_CONFLICT`)
+- **MC-SCENARIO-007**: Role-comment selection and supersession (`findLatestRoleComment selects the most recent comment matching the role`)
+- **MC-SCENARIO-008**: Reconciler / parser compatibility (`ensures reconciler outputs are parsable state objects`)
+- **MC-SCENARIO-010**: Exact-head CI requirements (`blocks delivery lag resolution when exact-head CI is missing`, `allows delivery lag resolution when exact-head CI is verified`)
 
-## 2. Review Budget Constraints
-The test suite in `tests/int/mission-control-reconcile.int.spec.ts` was expanded and corrected.
-- It asserts `full_review_count` never exceeds `1`.
-- It asserts `CORRECTION REQUIRED` at Review 3 explicitly triggers `STATE_CONFLICT` (fails closed) because `CORRECTION_REQUIRED_3` is prohibited.
-- `BLOCKED FOR FOUNDER DECISION` correctly increments to `review_cycle: 3` without emitting unauthorized Review 4 bounds.
+## 2. Review Budget Constraints (Transition Matrix)
+The executable drift guard in `scripts/guard-mission-control-drift.mjs` was converted to a runtime transition matrix. It verifies:
+- `full_review_count` never exceeds `1`.
+- `CORRECTION REQUIRED` at cycle 2 results in `STATE_CONFLICT` (not Review 4).
+- Reconciler and parser compatibility guarantees exact parsing of proposals.
 
-## 3. Drift Guard Verification
-A static contract-drift guard (`scripts/guard-mission-control-drift.mjs`) was introduced to ensure the reconciliation logic does not emit `CORRECTION_REQUIRED_3`. This guard is now wired into the `GUARD_PACK` which runs natively under `pnpm run check` and in CI.
-
-## 4. Exact-SHA Baseline Capture
-The script `scripts/capture-baseline.mjs` was modified to take an explicit reference/SHA (`c2637d6540f9200b01e8e0af1938e257975ada27`) and retrieve immutable data using `git show` and `git ls-tree`. The generated artifact (`docs/mission-control/dogfood/issue-150-baseline.md`) serves as the strict, machine-readable baseline.
+## 3. Exact-SHA Baseline Capture
+The script `scripts/capture-baseline.mjs` generates an immutable `docs/mission-control/dogfood/issue-150-baseline.json` utilizing native `execFileSync` to yield un-trimmed Buffers and NUL-delimited `git ls-tree` to exactly enumerate and classify paths into the required bundles. Derived metrics assert perfectly against expectations. `docs/mission-control/dogfood/issue-150-baseline.md` provides a human-readable projection of the data.

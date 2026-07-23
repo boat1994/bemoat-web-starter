@@ -1,0 +1,93 @@
+{
+  "sha": "c2637d6540f9200b01e8e0af1938e257975ada27",
+  "schema_version": 1,
+  "measurement_method": "scripts/capture-baseline.mjs (git show/ls-tree -z)",
+  "bundles": {
+    "mandatory_startup": {
+      "paths": [
+        "docs/mission-control/mission-control-guide.md"
+      ],
+      "lines": 819,
+      "bytes": 38100,
+      "estimated_tokens": 9525
+    },
+    "role_specific": {
+      "paths": [
+        "prompts/mission-control/chatgpt-project-loader.md",
+        "docs/agent-loop/role-handoff-contract.md",
+        "docs/mission-control/handoff-template.md",
+        "docs/mission-control/result-template.md"
+      ]
+    },
+    "transitive_reference": {
+      "paths": [
+        "AGENTS.md",
+        "docs/mission-control/README.md",
+        "docs/mission-control/project-overrides.example.md"
+      ]
+    }
+  },
+  "totals": {
+    "docs_files": 85,
+    "docs_lines": 12236,
+    "docs_bytes": 557938,
+    "sync_managed_docs_files": 49,
+    "sync_managed_docs_lines": 7173,
+    "sync_managed_docs_bytes": 333061
+  },
+  "dependency_graph": "Founder -> Issue -> protected guide + overrides -> agent-issue.mjs -> mission-control-state.mjs",
+  "invariants": 9,
+  "duplicates_measurable": "Defaults repeated at lines 102–115 (1 duplicate block known)",
+  "limitations": "actual model token usage, reasoning tokens consumed",
+  "sync_managed_resolved_paths": [
+    "docs/agent-loop/README.md",
+    "docs/agent-loop/checklist.md",
+    "docs/agent-loop/composer-issue-workflow-prompt.md",
+    "docs/agent-loop/harness-sync-workflow.md",
+    "docs/agent-loop/issue-driven-branch-workflow.md",
+    "docs/agent-loop/issue-intake-contract.md",
+    "docs/agent-loop/migration-draft-pr.md",
+    "docs/agent-loop/operating-manual.md",
+    "docs/agent-loop/project-progress-tracking.md",
+    "docs/agent-loop/role-handoff-contract.md",
+    "docs/agent-loop/roles.md",
+    "docs/agent-loop/security-and-migrations.md",
+    "docs/agent-loop/self-red-team-scope-gate-prompt.md",
+    "docs/agent-loop/self-red-team-scope-gate.md",
+    "docs/agent-loop/source-of-truth.md",
+    "docs/agent-loop/starter-reading-order.md",
+    "docs/agent-loop/state-template.md",
+    "docs/agent-loop/superpowers-planning-contract-recommendation.md",
+    "docs/ai/accessibility-baseline.md",
+    "docs/ai/ui-execution-workflow.md",
+    "docs/ai/ui-skills.md",
+    "docs/ai/visual-qa-checklist.md",
+    "docs/boilerplate-sync-command.md",
+    "docs/cloudflare-environments.md",
+    "docs/deploy-smoke-test.md",
+    "docs/dev-boilerplate.md",
+    "docs/guard-pack.md",
+    "docs/hardening.md",
+    "docs/harness-sync-contract.md",
+    "docs/mission-control/README.md",
+    "docs/mission-control/handoff-template.md",
+    "docs/mission-control/mission-control-guide.md",
+    "docs/mission-control/project-overrides.example.md",
+    "docs/mission-control/result-template.md",
+    "docs/releases.md",
+    "docs/schema-evolution.md",
+    "docs/starter-acceptance-tests.md",
+    "docs/superpowers/README.md",
+    "docs/superpowers/plans/README.md",
+    "docs/superpowers/plans/_templates/implementation-plan.md",
+    "docs/superpowers/plans/_templates/verification-plan.md",
+    "docs/superpowers/specs/README.md",
+    "docs/superpowers/specs/_templates/composer-handoff.md",
+    "docs/superpowers/specs/_templates/feature-readme.md",
+    "docs/superpowers/specs/_templates/product-spec.md",
+    "docs/superpowers/specs/_templates/reference-pattern-handoff.md",
+    "docs/superpowers/specs/_templates/ux-ui-spec.md",
+    "docs/superpowers/specs/_templates/visual-direction-spec.md",
+    "docs/workflow/git-flow.md"
+  ]
+}

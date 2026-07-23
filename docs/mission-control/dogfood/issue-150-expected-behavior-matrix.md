@@ -2,24 +2,22 @@
 
 This artifact acts as a reusable benchmark fixture to prove the corrections made to Mission Control contract logic in Issue 150.
 
-## Review Budget and Constraints
+## Scenarios
 
-| Scenario | Prior Behavior | Corrected Canonical Behavior |
-|----------|----------------|------------------------------|
-| `CORRECTION REQUIRED` at Review 1 (`review_cycle: 0`) | `CORRECTION_REQUIRED_1`, `review_cycle: 1` | `CORRECTION_REQUIRED_1`, `review_cycle: 1`, `full_review_count: 1` |
-| `CORRECTION REQUIRED` at Review 2 (`review_cycle: 1`) | `CORRECTION_REQUIRED_2`, `review_cycle: 2` | `CORRECTION_REQUIRED_2`, `review_cycle: 2`, `full_review_count: 1` |
-| `CORRECTION REQUIRED` at Review 3 (`review_cycle: 2`) | `CORRECTION_REQUIRED_3`, `review_cycle: 3` | `STATE_CONFLICT`, `review_cycle: 2`, `full_review_count: 1` (Invalid evidence, fails closed) |
-| `BLOCKED FOR FOUNDER DECISION` at Review 3 (`review_cycle: 2`) | `BLOCKED_FOR_FOUNDER_DECISION`, `review_cycle: 3` | `BLOCKED_FOR_FOUNDER_DECISION`, `review_cycle: 3`, `full_review_count: 1` |
-
-## Marker and Legacy Parser Contract
-
-| Scenario | Prior Behavior | Corrected Canonical Behavior |
-|----------|----------------|------------------------------|
-| Unmarked `MISSION_CONTROL_STATE` block | Attempted to parse, sometimes failing or succeeding unreliably | Evaluates to `present: true`, `valid: false` and routes to `STATE_MIGRATION_REQUIRED` |
-| Duplicate / unbalanced markers | Undefined / erratic | Evaluates to `present: true`, `valid: false`, pushing `STATE_MIGRATION_REQUIRED` block |
-| Valid markers | Parses correctly | Parses correctly |
+| Scenario ID | Category | Validated Behavior | Test Reference |
+|---|---|---|---|
+| **MC-SCENARIO-001** | Policy/base resolution | `approved_base` is resolved accurately from durable state when present. | `Policy/base resolution (MC-SCENARIO-001)` |
+| **MC-SCENARIO-002** | Durable reconstruction | Well-formed state strings correctly map back to canonical memory structures. | `Durable reconstruction and vocabulary preservation (MC-SCENARIO-002, MC-SCENARIO-009)` |
+| **MC-SCENARIO-003** | Migration/conflict bounds | Invalid state schemas properly emit `STATE_MIGRATION_REQUIRED` blocking implementation. | `Migration/conflict/external boundaries (MC-SCENARIO-003, MC-SCENARIO-004)` |
+| **MC-SCENARIO-004** | Conflict bounds | Unbalanced markers and missing state blocks are identified and guarded. | `Migration/conflict/external boundaries (MC-SCENARIO-003, MC-SCENARIO-004)` |
+| **MC-SCENARIO-005** | Review-history preservation | Valid transitions increment cycles while locking `full_review_count` to exactly 1. | `Review-history preservation, no reset, no Review 4 (MC-SCENARIO-005, MC-SCENARIO-006)` |
+| **MC-SCENARIO-006** | No Review 4 | Attempted Review 4 yields `STATE_CONFLICT` rather than an invalid state or reset. | `Review-history preservation, no reset, no Review 4 (MC-SCENARIO-005, MC-SCENARIO-006)` |
+| **MC-SCENARIO-007** | Role-comment selection | Supersession accurately identifies the newest relevant role verdict/handoff comment. | `Role-comment selection and supersession (MC-SCENARIO-007)` |
+| **MC-SCENARIO-008** | Reconciler / parser compatibility | Output proposals directly pass parser schema validation (no drift). | `Reconciler / parser compatibility (MC-SCENARIO-008)` |
+| **MC-SCENARIO-009** | Vocabulary preservation | Legacy terms are correctly mapped or flagged for standard reconciliation. | `Durable reconstruction and vocabulary preservation (MC-SCENARIO-002, MC-SCENARIO-009)` |
+| **MC-SCENARIO-010** | Exact-head CI requirements | Delivery and merge states are guarded against missing or stale exact-head verifications. | `Exact-head CI requirements (MC-SCENARIO-010)` |
 
 ## Verification Command
 These bounds are verified mechanically via:
-\`pnpm exec vitest run tests/int/mission-control-reconcile.int.spec.ts\`
-\`pnpm exec vitest run tests/int/mission-control-characterization.int.spec.ts\`
+`pnpm exec vitest run tests/int/mission-control-characterization.int.spec.ts`
+`pnpm run guard:safety`
