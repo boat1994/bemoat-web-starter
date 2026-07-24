@@ -7,6 +7,41 @@ const fixturesRoot = resolve(process.cwd(), 'tests/fixtures/mission-control')
 const tmpRoot = resolve(process.cwd(), '.tmp-mission-control-contract-test')
 
 describe('mission-control contract guard', () => {
+  it('enforces deterministic ordering of required modules', async () => {
+    const mod = await import('../../scripts/guard-mission-control-contract.mjs')
+    
+    expect(mod.MC_MANAGED_MODULES).toEqual([
+      mod.MODULE_PROCEDURES_PATH,
+      mod.MODULE_CHECKLISTS_PATH,
+      mod.MODULE_TEMPLATES_PATH,
+      mod.MODULE_TROUBLESHOOTING_PATH,
+      mod.MODULE_MIGRATION_PATH,
+      mod.MODULE_CHILD_SYNC_PATH,
+    ])
+  })
+
+  it('fails closed when a required module is missing', async () => {
+    const mod = await import('../../scripts/guard-mission-control-contract.mjs')
+    
+    const violations = mod.runMissionControlContractGuard({
+      root: process.cwd(),
+      readFile: (path) => {
+        if (path.endsWith('troubleshooting.md')) return null
+        return readFileSync(path, 'utf8')
+      },
+    })
+    
+    expect(violations.some(v => v.rule === 'MC013')).toBe(true)
+  })
+
+  it('fails if a required section is moved into an unrelated module', async () => {
+    const mod = await import('../../scripts/guard-mission-control-contract.mjs')
+    
+    const violations = mod.scanModuleContent(mod.MODULE_PROCEDURES_PATH, '## Some section\n')
+    
+    expect(violations.some(v => v.rule === 'MC005' && v.message.includes('## Double-Loop Review Gate'))).toBe(true)
+  })
+
   it('fails when cost-aware routing invariants are incomplete', async () => {
     const mod = await import('../../scripts/guard-mission-control-contract.mjs')
     expect(mod.REQUIRED_COST_AWARE_GUIDE_PHRASES).toEqual(
@@ -50,7 +85,7 @@ describe('mission-control contract guard', () => {
       '`UNKNOWN` may continue implementation.',
     )
 
-    const violations = mod.scanGuideContent(mod.GUIDE_PATH, missingUnknownSafeguard)
+    const violations = mod.scanModuleContent(mod.MODULE_PROCEDURES_PATH, missingUnknownSafeguard)
 
     expect(violations.some((v: { rule: string; message: string }) => v.rule === 'MC012')).toBe(true)
   })
@@ -156,7 +191,7 @@ max_review_cycles: 4
   it('fails when a required guide section is missing', async () => {
     const mod = await import('../../scripts/guard-mission-control-contract.mjs')
     const guide = readFileSync(resolve(process.cwd(), mod.GUIDE_PATH), 'utf8')
-    const truncated = guide.replace('## Worked examples', '## Examples only')
+    const truncated = guide.replace('## Purpose', '## Porpoise')
 
     const violations = mod.scanGuideContent(mod.GUIDE_PATH, truncated)
     expect(violations.some((v: { rule: string }) => v.rule === 'MC005')).toBe(true)
@@ -202,7 +237,7 @@ max_review_cycles: 4
     const guide = readFileSync(resolve(process.cwd(), mod.GUIDE_PATH), 'utf8')
     const loader = readFileSync(resolve(process.cwd(), mod.LOADER_PATH), 'utf8')
 
-    expect(mod.REQUIRED_GUIDE_SECTIONS).toContain('## Lean Founder Decision')
+    expect(mod.MODULE_SECTION_MAP[mod.GUIDE_PATH]).toContain('## Lean Founder Decision')
     expect(mod.REQUIRED_LEAN_FOUNDER_DECISION_PHRASES.length).toBeGreaterThan(0)
     expect(mod.REQUIRED_LEAN_FOUNDER_LOADER_PHRASES.length).toBeGreaterThan(0)
 

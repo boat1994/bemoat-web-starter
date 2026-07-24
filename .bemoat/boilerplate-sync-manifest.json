@@ -119,9 +119,7 @@
     "src/lib",
     "src/payload.config.ts"
   ],
-  "mergeKeepPaths": [
-    ".gitignore"
-  ],
+  "mergeKeepPaths": [".gitignore"],
   "managedPackageScripts": [
     "bemoat:agent:issue",
     "bemoat:mission-control:dispatch",
@@ -171,11 +169,6 @@
     "deploy:dev",
     "preview"
   ],
-  "buildContractFilePaths": [
-    "open-next.config.ts"
-  ],
-  "suggestedPackageSections": [
-    "dependencies",
-    "devDependencies"
-  ]
+  "buildContractFilePaths": ["open-next.config.ts"],
+  "suggestedPackageSections": ["dependencies", "devDependencies"]
 }
