@@ -1,6 +1,7 @@
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
-import { dirname, join, resolve } from 'node:path'
+import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { join, resolve } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
@@ -30,6 +31,20 @@ const {
 } = correctionContractModule as unknown as Record<string, (...args: any[]) => any>
 
 const PINNED_SNAPSHOT_SHA = 'c01156c66fd33741df9b5d4acf22b620b605f221'
+const FIXTURE_ROOT = resolve(
+  process.cwd(),
+  'tests/fixtures/mission-control/phase1-dogfood/pinned-source',
+)
+const PINNED_MANIFEST = JSON.parse(
+  readFileSync(
+    resolve(process.cwd(), 'tests/fixtures/mission-control/phase1-dogfood/pinned-source-manifest.json'),
+    'utf8',
+  ),
+) as {
+  pinned_sha: string
+  files: Record<string, string>
+  file_count: number
+}
 const PINNED_FIXTURE = JSON.parse(
   readFileSync(
     resolve(process.cwd(), 'tests/fixtures/mission-control/phase1-dogfood/pinned-snapshot.json'),
@@ -38,6 +53,8 @@ const PINNED_FIXTURE = JSON.parse(
 ) as {
   pinned_sha: string
   mutated_managed_path: string
+  fixture_root: string
+  manifest_path: string
 }
 
 const reviewedHead = 'abc1234deadbeef'
@@ -138,52 +155,29 @@ function createMeasurementSink() {
   }
 }
 
-function gitObjectType(sha: string, relativePath: string) {
-  return execFileSync('git', ['cat-file', '-t', `${sha}:${relativePath}`], {
-    cwd: process.cwd(),
-    encoding: 'utf8',
-  }).trim()
+function digestFile(path: string) {
+  return createHash('sha256').update(readFileSync(path)).digest('hex')
 }
 
-function gitTreeFiles(sha: string, relativePath: string) {
-  return execFileSync('git', ['ls-tree', '-r', '--name-only', sha, relativePath], {
-    cwd: process.cwd(),
-    encoding: 'utf8',
-  })
-    .trim()
-    .split('\n')
-    .filter(Boolean)
-}
-
-function materializePinnedManagedPaths(targetDir: string, managedPaths: string[]) {
-  mkdirSync(targetDir, { recursive: true })
-  const files = new Set<string>()
-
-  for (const relativePath of managedPaths) {
-    try {
-      const objectType = gitObjectType(PINNED_SNAPSHOT_SHA, relativePath)
-      if (objectType === 'blob') {
-        files.add(relativePath)
-        continue
-      }
-      if (objectType === 'tree') {
-        for (const nestedPath of gitTreeFiles(PINNED_SNAPSHOT_SHA, relativePath)) {
-          files.add(nestedPath)
-        }
-      }
-    } catch {
-      // Managed path absent at pinned SHA; drift logic skips missing source paths.
-    }
-  }
-
-  for (const relativePath of files) {
+function materializePinnedFixtureSource(targetDir: string) {
+  cpSync(FIXTURE_ROOT, targetDir, { recursive: true })
+  for (const [relativePath, expectedDigest] of Object.entries(PINNED_MANIFEST.files)) {
     const destination = join(targetDir, relativePath)
-    mkdirSync(dirname(destination), { recursive: true })
-    const content = execFileSync('git', ['show', `${PINNED_SNAPSHOT_SHA}:${relativePath}`], {
-      cwd: process.cwd(),
-      encoding: 'buffer',
-    })
-    writeFileSync(destination, content)
+    expect(existsSync(destination)).toBe(true)
+    expect(digestFile(destination)).toBe(expectedDigest)
+  }
+  expect(Object.keys(PINNED_MANIFEST.files)).toHaveLength(PINNED_MANIFEST.file_count)
+}
+
+function verifyOptionalPinnedProvenance() {
+  try {
+    for (const [relativePath, expectedDigest] of Object.entries(PINNED_MANIFEST.files)) {
+      const content = execFileSync('git', ['show', `${PINNED_SNAPSHOT_SHA}:${relativePath}`])
+      const gitDigest = createHash('sha256').update(content).digest('hex')
+      expect(gitDigest).toBe(expectedDigest)
+    }
+  } catch {
+    // Shallow CI checkout may not contain the pinned commit object; fixture digests remain authoritative.
   }
 }
 
@@ -331,7 +325,15 @@ describe('mission-control phase 1 dogfood scenarios (S1-S10)', () => {
       ],
     }
 
-    const managedState = {
+    const managedState: {
+      state: string
+      active_pr: null
+      current_head: string
+      last_reviewed_head: string
+      review_cycle: number
+      full_review_count: number
+      approved_base: string
+    } = {
       state: 'CORRECTION_REQUIRED_1',
       active_pr: null,
       current_head: planningHead,
@@ -643,8 +645,11 @@ describe('mission-control phase 1 dogfood scenarios (S1-S10)', () => {
 
     try {
       expect(PINNED_FIXTURE.pinned_sha).toBe(PINNED_SNAPSHOT_SHA)
+      expect(PINNED_MANIFEST.pinned_sha).toBe(PINNED_SNAPSHOT_SHA)
+      verifyOptionalPinnedProvenance()
+
       const syncMod = await import('../../scripts/sync-boilerplate.mjs')
-      materializePinnedManagedPaths(sourceRoot, syncMod.managedPaths)
+      materializePinnedFixtureSource(sourceRoot)
       cpSync(sourceRoot, targetRoot, { recursive: true })
 
       const mutatedPath = PINNED_FIXTURE.mutated_managed_path

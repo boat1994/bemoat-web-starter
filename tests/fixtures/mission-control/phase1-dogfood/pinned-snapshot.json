@@ -1,7 +1,9 @@
 {
   "pinned_sha": "c01156c66fd33741df9b5d4acf22b620b605f221",
   "authorized_base_sha": "700e1ca1823e3680fd20d4b8c1640d998629be94",
-  "materialization": "git show per managed path at pinned SHA (managed-path subset; avoids full git archive)",
+  "materialization": "committed fixture tree + digest manifest (no git object required)",
+  "fixture_root": "tests/fixtures/mission-control/phase1-dogfood/pinned-source",
+  "manifest_path": "tests/fixtures/mission-control/phase1-dogfood/pinned-source-manifest.json",
   "mutated_managed_path": "AGENTS.md",
-  "mechanism": "Scratch source is materialized from the pinned commit via git archive inside the test process. A disposable child directory is seeded from that archive, then exactly one managed path is mutated. compareBoilerplateDriftByMode and getDriftExitCode bind to production drift logic. No writes occur in the real starter or Bogus working trees."
+  "mechanism": "S10 copies the committed pinned-source fixture into disposable scratch directories, verifies each file digest against pinned-source-manifest.json, mutates exactly one managed path, and runs compareBoilerplateDriftByMode/getDriftExitCode. When the pinned commit object exists locally, an optional provenance check compares fixture digests to git show output."
 }
