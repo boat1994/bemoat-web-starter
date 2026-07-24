@@ -88,6 +88,25 @@ describe('mission-control contract guard', () => {
     expect(handoffViolations.some((v: { rule: string }) => v.rule === 'MC011')).toBe(true)
   })
 
+  it('fails when brainstorming response profile invariants are incomplete', async () => {
+    const mod = await import('../../scripts/guard-mission-control-contract.mjs')
+    expect(mod.REQUIRED_BRAINSTORMING_GUIDE_PHRASES).toEqual(
+      expect.arrayContaining([
+        'formatting and routing guidance only',
+        'Use exactly one profile marker heading: `## BRAINSTORMING` or `## DESIGN RESULT`',
+      ]),
+    )
+
+    const guide = readFileSync(resolve(process.cwd(), mod.GUIDE_PATH), 'utf8')
+    const missingAuthorization = guide.replace(
+      'It **does not** authorize implementation, branch creation, commits, PR',
+      'Brief approval authorizes implementation immediately',
+    )
+
+    const violations = mod.scanGuideContent(mod.GUIDE_PATH, missingAuthorization)
+    expect(violations.some((v: { rule: string }) => v.rule === 'MC012')).toBe(true)
+  })
+
   it('passes on the current repository', async () => {
     const mod = await import('../../scripts/guard-mission-control-contract.mjs')
     const violations = mod.runMissionControlContractGuard()
