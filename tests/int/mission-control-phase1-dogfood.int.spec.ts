@@ -228,6 +228,14 @@ function defaultGitRunner(
   }) as string
 }
 
+function isGenuinelyAbsentPinnedObject(exitStatus: number, stderr: string): boolean {
+  if (exitStatus === 1) {
+    return true
+  }
+
+  return exitStatus === 128 && /not a valid object name/i.test(stderr)
+}
+
 function classifyPinnedCommitObjectAvailability(
   runner: GitCommandRunner = defaultGitRunner,
   sha: string = PINNED_SNAPSHOT_SHA,
@@ -266,7 +274,7 @@ function classifyPinnedCommitObjectAvailability(
       return { status: 'UNEXPECTED_FAILURE', reason: 'invalid git repository' }
     }
 
-    if (exitStatus === 1) {
+    if (isGenuinelyAbsentPinnedObject(exitStatus, stderr)) {
       return { status: 'OBJECT_UNAVAILABLE' }
     }
 
@@ -339,19 +347,19 @@ function gitStatusShort() {
 
 describe('pinned commit object probe classification (MC-DOG-R1-006)', () => {
   it('classifies AVAILABLE when pinned commit object exists and runs strict provenance', () => {
-    const probe = classifyPinnedCommitObjectAvailability()
-    expect(probe.status).toBe('AVAILABLE')
-
     const gitShowCalls: string[] = []
     const runner: GitCommandRunner = (command, args, options) => {
       if (command === 'git' && args[0] === 'cat-file') {
-        return defaultGitRunner(command, args, options) as string
+        return ''
       }
       if (command === 'git' && args[0] === 'show') {
         gitShowCalls.push(args[1])
       }
       return defaultGitRunner(command, args, options) as string
     }
+
+    const probe = classifyPinnedCommitObjectAvailability(runner)
+    expect(probe.status).toBe('AVAILABLE')
 
     expect(() => verifyStrictPinnedProvenance(runner)).not.toThrow()
     expect(gitShowCalls.length).toBeGreaterThan(0)
@@ -366,8 +374,8 @@ describe('pinned commit object probe classification (MC-DOG-R1-006)', () => {
           status?: number
           stderr?: Buffer
         }
-        err.status = 1
-        err.stderr = Buffer.from(`fatal: Not a valid object name ${absentSha}`)
+        err.status = 128
+        err.stderr = Buffer.from(`fatal: Not a valid object name ${absentSha}^{commit}`)
         throw err
       }
       throw new Error('git-object comparison must be skipped when object is unavailable')
@@ -380,20 +388,42 @@ describe('pinned commit object probe classification (MC-DOG-R1-006)', () => {
     expect(() => verifyStrictPinnedProvenance(runner)).not.toThrow()
   })
 
+  it('default runner maps exit 128 peel failure to OBJECT_UNAVAILABLE in a valid repo', () => {
+    const absentSha = 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef'
+    const probe = classifyPinnedCommitObjectAvailability(defaultGitRunner, absentSha)
+    expect(probe.status).toBe('OBJECT_UNAVAILABLE')
+  })
+
   it('classifies UNEXPECTED_FAILURE and fails closed for unexpected Git failures', () => {
-    const runner: GitCommandRunner = () => {
+    const permissionRunner: GitCommandRunner = () => {
       const err = new Error('permission denied') as NodeJS.ErrnoException & { code?: string }
       err.code = 'EACCES'
       throw err
     }
 
-    const probe = classifyPinnedCommitObjectAvailability(runner)
-    expect(probe.status).toBe('UNEXPECTED_FAILURE')
-    if (probe.status === 'UNEXPECTED_FAILURE') {
-      expect(probe.reason).toContain('permission failure')
+    const permissionProbe = classifyPinnedCommitObjectAvailability(permissionRunner)
+    expect(permissionProbe.status).toBe('UNEXPECTED_FAILURE')
+    if (permissionProbe.status === 'UNEXPECTED_FAILURE') {
+      expect(permissionProbe.reason).toContain('permission failure')
     }
 
-    expect(() => verifyStrictPinnedProvenance(runner)).toThrow(/failed closed/)
+    expect(() => verifyStrictPinnedProvenance(permissionRunner)).toThrow(/failed closed/)
+
+    const ambiguousRunner: GitCommandRunner = () => {
+      const err = new Error('git corruption') as NodeJS.ErrnoException & {
+        status?: number
+        stderr?: Buffer
+      }
+      err.status = 128
+      err.stderr = Buffer.from('fatal: git show failed: corrupt object')
+      throw err
+    }
+
+    const ambiguousProbe = classifyPinnedCommitObjectAvailability(ambiguousRunner)
+    expect(ambiguousProbe.status).toBe('UNEXPECTED_FAILURE')
+    if (ambiguousProbe.status === 'UNEXPECTED_FAILURE') {
+      expect(ambiguousProbe.reason).toContain('corrupt object')
+    }
   })
 })
 
