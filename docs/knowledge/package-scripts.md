@@ -29,7 +29,7 @@ Used in **this repo** and optional child tooling — **not** wired into synced C
 | `guard:safety` | Starter alias to guard pack (used by `check` and ci-starter) |
 | `check` | `guard:safety` + lint + typecheck + `test:int` — **required before starter code PRs** |
 | `check:full` | lint + typecheck + full test + build — human pre-merge |
-| `lint`, `typecheck`, `test:int`, `test`, `test:e2e` | Starter strict validation |
+| `lint`, `typecheck`, `test:int`, `test`, `test:e2e` | Starter strict validation (see [Playwright E2E diagnostics](#playwright-e2e-diagnostics) for `test:e2e`) |
 | `build`, `deploy`, `preview`, `deploy:*` | Cloudflare deploy pipeline |
 | `generate:types`, `generate:importmap` | After Payload schema or admin component changes |
 | `boilerplate:sync` / `boilerplate:check` | Non-namespaced aliases (same scripts as `bemoat:*` counterparts) |
@@ -44,6 +44,61 @@ Used in **this repo** and optional child tooling — **not** wired into synced C
 | Admin components | `pnpm run check` + `pnpm run generate:importmap` |
 
 In child repos: prefer `bemoat:guard:safety` and `bemoat:check` when defined.
+
+## Playwright E2E diagnostics
+
+`pnpm run test:e2e` runs Playwright with the starter `webServer` config in
+[`playwright.config.ts`](../../playwright.config.ts): `command: 'pnpm dev'`,
+`url: 'http://localhost:3000'`, `reuseExistingServer: true`. **Playwright
+`webServer` remains the default starter pattern** — do not add a custom E2E
+lifecycle wrapper, dynamic port allocator, or process-tree manager unless
+repeated failures are reproduced across capable environments (not restricted
+sandboxes alone).
+
+### Restricted sandbox vs real defects
+
+`listen EPERM`, netlink-denied, or similar errors when Playwright starts the
+dev server often mean **local network binding is prohibited** in a restricted
+sandbox (for example `--unshare-net` or netlink denied). Treat that as an
+**environment restriction**, not automatically as a port conflict or application
+defect. Reproduce in a capable local environment (for example WSL2 or a normal
+host shell) before changing Playwright config or adding wrappers.
+
+### Trace Playwright-managed server lifecycle
+
+```bash
+DEBUG=pw:webserver pnpm run test:e2e
+```
+
+Use this when diagnosing how Playwright starts, waits on, and tears down the
+configured `webServer`.
+
+### Surface masked application stdout/stderr
+
+When Playwright reports the web server process exited early, run the configured
+command separately to see raw server output:
+
+```bash
+pnpm dev
+```
+
+(`playwright.config.ts` sets `webServer.command` to `pnpm dev`.) Fix startup
+errors shown there before attributing failure to Playwright or port ownership.
+
+### Process-leak attribution checklist
+
+Before claiming a leaked dev server or port conflict, collect:
+
+1. **PID** and **PPID** of the suspected process
+2. **Complete command line** (not just the process name)
+3. **Listener / port-owner evidence** (for example `lsof -i :3000` or OS
+   equivalent showing which PID owns the port)
+4. **Cleanup action taken** (how the process was stopped)
+5. **Post-cleanup verification** (port free, no matching listener, rerun
+   succeeds)
+
+Without this evidence, do not classify sandbox `EPERM` or ambiguous early-exit
+messages as process leaks or starter defects.
 
 ## Engines
 
