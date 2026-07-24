@@ -394,6 +394,98 @@ retaining full evidence in GitHub.
   scope change, and starting dependent work remain separately gated unless
   explicitly authorized.
 
+## Brainstorming Response Profile
+
+Use the **Brainstorming Response Profile** when Mission Control is exploring or
+refining a design and no implementation, review, merge, deployment, migration,
+or other durable workflow transition is authorized in the current run.
+
+This profile is **formatting and routing guidance only**. It is not a durable Mission Control state, GitHub comment type, review counter, or authorization channel. Chat history never overrides GitHub evidence.
+
+### Trigger conditions
+
+Apply the profile when all are true:
+
+1. the task is requirements discovery, architecture exploration, policy
+   selection, or design refinement;
+2. no implementation, commit, PR, review, merge, deployment, or migration
+   transition is being executed in the current run;
+3. the immediate next step is a design question, comparison, or Founder approval
+   of the presented design decision;
+4. durable GitHub state remains unchanged unless the run explicitly performs one
+   authorized planning write.
+
+The profile may also apply when the Founder or Mission Control explicitly
+requests brainstorming or design exploration before implementation authorization.
+
+### Required response shape
+
+Use exactly one profile marker heading: `## BRAINSTORMING` or `## DESIGN RESULT`.
+
+Then use the compact structured sections below. Omit empty sections only when
+nothing material belongs in that section:
+
+```markdown
+## Brainstorming objective
+
+## Confirmed context
+
+## Current design decisions
+
+## Options and trade-offs
+
+## Recommendation
+
+## Open question
+(Exactly one question when a decision is still required. Omit when no question remains.)
+
+## Durable GitHub impact
+(`None` or the single authorized planning artifact written in that run.)
+
+## Do not do yet
+```
+
+Profile behavior:
+
+- ask one clarifying question at a time;
+- omit `Current state` unless a real durable Mission Control state is relevant;
+- omit `Suggested model` until execution/review routing is actually needed;
+- omit `Ready-to-paste prompt` until there is an approved handoff or
+  implementation plan;
+- distinguish conversational design decisions from durable GitHub decisions;
+- preserve repository/base/policy verification internally and report it only
+  when changed, disputed, or decision-relevant.
+
+Strictly **omit** from brainstorming responses:
+
+- `## HANDOFF`, `## RESULT`, and `## REVIEW_VERDICT` headings;
+- any `<!-- bemoat-mission-control-state -->` block;
+- execution/review checklists, review counters, and PR/head SHA metadata unless
+  a real durable state is decision-relevant.
+
+### Authorization semantics
+
+- A brief approval such as `approve`, `looks good`, or `use option A` approves
+  **only** the immediately presented design decision or recommendation.
+- It **does not** authorize implementation, branch creation, commits, PR
+  creation, review, merge, deployment, or migration.
+- Implementation mode resumes only when:
+  a. the Founder explicitly names the implementation action, such as
+     `implement this`, `start dev`, or `create the implementation HANDOFF`; or
+  b. Mission Control asks a narrowly scoped Founder decision that explicitly
+     states approval will authorize implementation, and the Founder approves that
+     exact decision.
+- When the object of approval is ambiguous, remain in brainstorming/design mode and ask exactly one clarification question.
+
+### Exit conditions
+
+Exit the brainstorming profile when valid explicit implementation authorization
+occurs. The normal Mission Control response contract resumes on the next agent invocation after that authorization, using standard `## HANDOFF` or `## RESULT`
+transport as appropriate.
+
+Until that transition, brainstorming output must not mutate managed state,
+review counters, or durable role-comment semantics.
+
 ## Integration boundaries
 
 - **#107** remains the canonical Mission Control foundation. v1.1 is additive.
@@ -923,3 +1015,54 @@ implementation prompt.
 
 Fresh chat reads GitHub state block and continues at the recorded cycle. Chat
 history is never authoritative.
+
+### Multi-step technical design brainstorm (remote E2E cleanup)
+
+Mission Control is choosing fixture and cleanup policy for remote automated E2E
+in a child repository. No implementation is authorized yet.
+
+```markdown
+## BRAINSTORMING
+
+## Brainstorming objective
+
+Select a deterministic fixture cleanup policy before authorizing implementation.
+
+## Confirmed context
+
+- Child repo runs Playwright against staging.
+- Issue scope is orchestration policy only; no code changes are authorized yet.
+- Guide version `1.2.0` on approved base `main`; child override: none.
+
+## Current design decisions
+
+- Prefer per-test isolation over shared mutable fixtures until flake data exists.
+
+## Options and trade-offs
+
+- **Option A — truncate after each spec:** slower runs, simplest mental model.
+- **Option B — seeded baseline snapshot:** faster reruns, higher setup and drift risk.
+
+## Recommendation
+
+Start with Option A and measure flake rate before optimizing for speed.
+
+## Open question
+
+Should cleanup run in `afterEach` or a dedicated teardown worker?
+
+## Durable GitHub impact
+
+None
+
+## Do not do yet
+
+- create a branch, commit, or PR;
+- post `## HANDOFF`, `## RESULT`, or `## REVIEW_VERDICT`;
+- update managed state or review counters;
+- treat `approve` on the recommendation as implementation authorization.
+```
+
+Founder reply `approve` approves only the Option A recommendation. Mission
+Control remains in brainstorming until the Founder later says `start dev` or
+another explicit implementation authorization phrase.

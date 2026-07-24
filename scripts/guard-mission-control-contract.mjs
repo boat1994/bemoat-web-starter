@@ -42,6 +42,7 @@ export const REQUIRED_GUIDE_SECTIONS = [
   '## Role-owned durable state updates',
   '## Deterministic reconciliation',
   '## Protocol compression',
+  '## Brainstorming Response Profile',
   '## Integration boundaries',
   '## Bootstrap and state reconstruction',
   '## Durable Mission Control state schema',
@@ -178,6 +179,17 @@ export const REQUIRED_CORRECTION_GUIDE_PHRASES = [
   'Correction agents may not rename, reinterpret, regroup, substitute, add, or omit findings',
   'Correction delivery does not resolve original PR review threads',
   'File names, test names, and green CI alone never prove semantic completion',
+]
+
+/** Brainstorming Response Profile invariants (#144). */
+export const REQUIRED_BRAINSTORMING_GUIDE_PHRASES = [
+  'formatting and routing guidance only',
+  'not a durable Mission Control state, GitHub comment type, review counter, or authorization channel',
+  'Use exactly one profile marker heading: `## BRAINSTORMING` or `## DESIGN RESULT`',
+  'It **does not** authorize implementation, branch creation, commits, PR',
+  'remain in brainstorming/design mode and ask exactly one clarification question',
+  'brainstorming output must not mutate managed state',
+  'normal Mission Control response contract resumes on the next agent invocation',
 ]
 
 export const REQUIRED_CORRECTION_HANDOFF_PHRASES = [
@@ -378,6 +390,14 @@ export function scanGuideContent(relativePath, content) {
     if (!content.includes(phrase)) {
       violations.push(
         violation('MC012', relativePath, `Guide missing immutable correction invariant: ${phrase}`),
+      )
+    }
+  }
+
+  for (const phrase of REQUIRED_BRAINSTORMING_GUIDE_PHRASES) {
+    if (!content.includes(phrase)) {
+      violations.push(
+        violation('MC012', relativePath, `Guide missing brainstorming profile invariant: ${phrase}`),
       )
     }
   }
