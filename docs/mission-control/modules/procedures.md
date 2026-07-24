@@ -93,7 +93,7 @@ authorization.
 | --- | --- |
 | `active_pr`, `current_head` after delivery | Delivery Coordinator (same run as `## RESULT`) |
 | `state: AWAITING_REVIEW_1` after delivery | Delivery Coordinator |
-| `review_cycle`, | Reviewer only (with `## REVIEW_VERDICT`) |
+| `review_cycle`, `full_review_count` | Reviewer only (with `## REVIEW_VERDICT`) |
 | `last_reviewed_head` | Reviewer only |
 | Resulting correction/eligibility state | Reviewer or State Reconciler from verdict evidence |
 | `DONE` / terminal closure | Founder-authorized merge transition or State Reconciler from merge evidence |
@@ -136,7 +136,7 @@ Apply this ordered classification before writing managed state:
 Missing canonical representation is not contradictory authority. Migrate
 `post_budget_review_history` into `post_budget_reviews`, bind Founder review and
 correction authorization to the exact review number, reviewed head, and finding
-IDs, and preserve `review_cycle`,  `last_reviewed_head`, and
+IDs, and preserve `review_cycle`, `full_review_count`, `last_reviewed_head`, and
 immutable finding lineage. Remove superseded legacy keys only in the same
 successful canonical write.
 
