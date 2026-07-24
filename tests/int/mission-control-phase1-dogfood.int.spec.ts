@@ -348,14 +348,42 @@ function gitStatusShort() {
 describe('pinned commit object probe classification (MC-DOG-R1-006)', () => {
   it('classifies AVAILABLE when pinned commit object exists and runs strict provenance', () => {
     const gitShowCalls: string[] = []
+    const gitLsTreeCalls: string[] = []
+    // Full DI for show/ls-tree from fixture/manifest so AVAILABLE proves strict provenance
+    // without requiring the pinned object in shallow CI history.
     const runner: GitCommandRunner = (command, args, options) => {
-      if (command === 'git' && args[0] === 'cat-file') {
+      if (command !== 'git') {
+        throw new Error(`unexpected command in AVAILABLE DI runner: ${command}`)
+      }
+
+      if (args[0] === 'cat-file') {
         return ''
       }
-      if (command === 'git' && args[0] === 'show') {
-        gitShowCalls.push(args[1])
+
+      if (args[0] === 'show') {
+        const target = args[1] ?? ''
+        gitShowCalls.push(target)
+        const prefix = `${PINNED_SNAPSHOT_SHA}:`
+        if (!target.startsWith(prefix)) {
+          throw new Error(`unexpected git show target: ${target}`)
+        }
+        const relativePath = target.slice(prefix.length)
+        const fixturePath = join(FIXTURE_ROOT, relativePath)
+        if (!existsSync(fixturePath)) {
+          throw new Error(`fixture missing for DI show: ${relativePath}`)
+        }
+        if (options?.encoding === 'buffer') {
+          return readFileSync(fixturePath)
+        }
+        return readFileSync(fixturePath, 'utf8')
       }
-      return defaultGitRunner(command, args, options) as string
+
+      if (args[0] === 'ls-tree') {
+        gitLsTreeCalls.push(args.join(' '))
+        return `${Object.keys(PINNED_MANIFEST.files).sort().join('\n')}\n`
+      }
+
+      throw new Error(`unexpected git invocation in AVAILABLE DI runner: ${args.join(' ')}`)
     }
 
     const probe = classifyPinnedCommitObjectAvailability(runner)
@@ -364,6 +392,7 @@ describe('pinned commit object probe classification (MC-DOG-R1-006)', () => {
     expect(() => verifyStrictPinnedProvenance(runner)).not.toThrow()
     expect(gitShowCalls.length).toBeGreaterThan(0)
     expect(gitShowCalls.some((target) => target.startsWith(`${PINNED_SNAPSHOT_SHA}:`))).toBe(true)
+    expect(gitLsTreeCalls.length).toBeGreaterThan(0)
   })
 
   it('classifies OBJECT_UNAVAILABLE when pinned object is genuinely absent and skips only git-object comparison', () => {
