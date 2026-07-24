@@ -1,7 +1,16 @@
 import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
-import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import {
+  cpSync,
+  existsSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs'
+import { join, relative, resolve } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
@@ -31,25 +40,17 @@ const {
 } = correctionContractModule as unknown as Record<string, (...args: any[]) => any>
 
 const PINNED_SNAPSHOT_SHA = 'c01156c66fd33741df9b5d4acf22b620b605f221'
-const FIXTURE_ROOT = resolve(
-  process.cwd(),
-  'tests/fixtures/mission-control/phase1-dogfood/pinned-source',
-)
+const STARTER_ONLY_FIXTURE_BASE = 'tests/fixtures/starter-only/mission-control/phase1-dogfood'
+const FIXTURE_ROOT = resolve(process.cwd(), STARTER_ONLY_FIXTURE_BASE, 'pinned-source')
 const PINNED_MANIFEST = JSON.parse(
-  readFileSync(
-    resolve(process.cwd(), 'tests/fixtures/mission-control/phase1-dogfood/pinned-source-manifest.json'),
-    'utf8',
-  ),
+  readFileSync(resolve(process.cwd(), STARTER_ONLY_FIXTURE_BASE, 'pinned-source-manifest.json'), 'utf8'),
 ) as {
   pinned_sha: string
   files: Record<string, string>
   file_count: number
 }
 const PINNED_FIXTURE = JSON.parse(
-  readFileSync(
-    resolve(process.cwd(), 'tests/fixtures/mission-control/phase1-dogfood/pinned-snapshot.json'),
-    'utf8',
-  ),
+  readFileSync(resolve(process.cwd(), STARTER_ONLY_FIXTURE_BASE, 'pinned-snapshot.json'), 'utf8'),
 ) as {
   pinned_sha: string
   mutated_managed_path: string
@@ -159,25 +160,107 @@ function digestFile(path: string) {
   return createHash('sha256').update(readFileSync(path)).digest('hex')
 }
 
+function enumerateRegularFiles(rootDir: string, baseDir = rootDir): string[] {
+  const entries = readdirSync(rootDir)
+  const files: string[] = []
+
+  for (const entry of entries) {
+    const absolutePath = join(rootDir, entry)
+    const relativePath = relative(baseDir, absolutePath)
+
+    if (statSync(absolutePath).isDirectory()) {
+      files.push(...enumerateRegularFiles(absolutePath, baseDir))
+      continue
+    }
+
+    files.push(relativePath)
+  }
+
+  return files.sort()
+}
+
+function assertExactSetEquality(actual: string[], expected: string[], label: string) {
+  const actualSet = new Set(actual)
+  const expectedSet = new Set(expected)
+  const missingFromActual = expected.filter((entry) => !actualSet.has(entry))
+  const extraInActual = actual.filter((entry) => !expectedSet.has(entry))
+
+  expect(
+    { missingFromActual, extraInActual },
+    `${label}: expected exact set equality`,
+  ).toEqual({ missingFromActual: [], extraInActual: [] })
+}
+
+function verifyFixtureManifestEquality() {
+  const fixtureRelativePaths = enumerateRegularFiles(FIXTURE_ROOT)
+  const manifestKeys = Object.keys(PINNED_MANIFEST.files).sort()
+
+  assertExactSetEquality(fixtureRelativePaths, manifestKeys, 'fixture files vs manifest keys')
+  expect(manifestKeys).toHaveLength(PINNED_MANIFEST.file_count)
+
+  for (const [relativePath, expectedDigest] of Object.entries(PINNED_MANIFEST.files)) {
+    const fixturePath = join(FIXTURE_ROOT, relativePath)
+    expect(existsSync(fixturePath)).toBe(true)
+    expect(digestFile(fixturePath)).toBe(expectedDigest)
+  }
+}
+
+function isPinnedCommitObjectAvailable() {
+  try {
+    execFileSync('git', ['cat-file', '-e', `${PINNED_SNAPSHOT_SHA}^{commit}`], { stdio: 'pipe' })
+    return true
+  } catch {
+    return false
+  }
+}
+
+function deriveManagedPathFilesFromCommit(sha: string) {
+  const manifestContent = execFileSync('git', ['show', `${sha}:.bemoat/boilerplate-sync-manifest.json`], {
+    encoding: 'utf8',
+  })
+  const managedPaths = (JSON.parse(manifestContent) as { managedPaths: string[] }).managedPaths
+  const commitFiles = execFileSync('git', ['ls-tree', '-r', '--name-only', sha], { encoding: 'utf8' })
+    .trim()
+    .split('\n')
+    .filter(Boolean)
+
+  return commitFiles
+    .filter((filePath) =>
+      managedPaths.some(
+        (managedPath) => filePath === managedPath || filePath.startsWith(`${managedPath}/`),
+      ),
+    )
+    .sort()
+}
+
+function verifyStrictPinnedProvenance() {
+  if (!isPinnedCommitObjectAvailable()) {
+    return
+  }
+
+  const commitManagedFiles = deriveManagedPathFilesFromCommit(PINNED_SNAPSHOT_SHA)
+  const manifestKeys = Object.keys(PINNED_MANIFEST.files).sort()
+  const fixtureRelativePaths = enumerateRegularFiles(FIXTURE_ROOT)
+
+  assertExactSetEquality(commitManagedFiles, manifestKeys, 'pinned commit managed files vs manifest keys')
+  assertExactSetEquality(fixtureRelativePaths, manifestKeys, 'fixture files vs manifest keys')
+
+  for (const [relativePath, expectedDigest] of Object.entries(PINNED_MANIFEST.files)) {
+    const content = execFileSync('git', ['show', `${PINNED_SNAPSHOT_SHA}:${relativePath}`])
+    const gitDigest = createHash('sha256').update(content).digest('hex')
+    expect(gitDigest).toBe(expectedDigest)
+  }
+}
+
 function materializePinnedFixtureSource(targetDir: string) {
+  verifyFixtureManifestEquality()
+  verifyStrictPinnedProvenance()
+
   cpSync(FIXTURE_ROOT, targetDir, { recursive: true })
   for (const [relativePath, expectedDigest] of Object.entries(PINNED_MANIFEST.files)) {
     const destination = join(targetDir, relativePath)
     expect(existsSync(destination)).toBe(true)
     expect(digestFile(destination)).toBe(expectedDigest)
-  }
-  expect(Object.keys(PINNED_MANIFEST.files)).toHaveLength(PINNED_MANIFEST.file_count)
-}
-
-function verifyOptionalPinnedProvenance() {
-  try {
-    for (const [relativePath, expectedDigest] of Object.entries(PINNED_MANIFEST.files)) {
-      const content = execFileSync('git', ['show', `${PINNED_SNAPSHOT_SHA}:${relativePath}`])
-      const gitDigest = createHash('sha256').update(content).digest('hex')
-      expect(gitDigest).toBe(expectedDigest)
-    }
-  } catch {
-    // Shallow CI checkout may not contain the pinned commit object; fixture digests remain authoritative.
   }
 }
 
@@ -646,7 +729,10 @@ describe('mission-control phase 1 dogfood scenarios (S1-S10)', () => {
     try {
       expect(PINNED_FIXTURE.pinned_sha).toBe(PINNED_SNAPSHOT_SHA)
       expect(PINNED_MANIFEST.pinned_sha).toBe(PINNED_SNAPSHOT_SHA)
-      verifyOptionalPinnedProvenance()
+      expect(PINNED_FIXTURE.fixture_root).toBe(`${STARTER_ONLY_FIXTURE_BASE}/pinned-source`)
+      expect(PINNED_FIXTURE.manifest_path).toBe(`${STARTER_ONLY_FIXTURE_BASE}/pinned-source-manifest.json`)
+      verifyFixtureManifestEquality()
+      verifyStrictPinnedProvenance()
 
       const syncMod = await import('../../scripts/sync-boilerplate.mjs')
       materializePinnedFixtureSource(sourceRoot)
