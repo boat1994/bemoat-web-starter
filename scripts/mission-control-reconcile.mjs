@@ -1,4 +1,8 @@
 #!/usr/bin/env node
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
+import { spawnSync } from 'node:child_process'
 
 const PRE_DELIVERY_STATES = new Set(['READY', 'IN_PROGRESS'])
 const CORE_VERDICTS = new Set([
@@ -43,6 +47,7 @@ function hasLegacyManagedState(state = {}) {
  * authority is a conflict; schema and bookkeeping lag remain repairable.
  */
 export function classifyReconciliation(evidence = {}) {
+  if (evidence.classification) return evidence.classification
   if (evidence.requiredEvidenceUnavailable) {
     return { outcome: 'BLOCKED_EXTERNAL', reason: 'required live evidence is unavailable' }
   }
@@ -56,7 +61,16 @@ export function classifyReconciliation(evidence = {}) {
   }
 
   const terminal = evidence.terminal ?? {}
-  if (terminal.issueClosed && terminal.prMerged && terminal.reviewedHeadMatches) {
+  if (terminal.prMerged && (
+    !terminal.issueClosed ||
+    !terminal.reviewedHeadMatches ||
+    !terminal.currentHeadMatches ||
+    typeof terminal.mergeCommit !== 'string' || terminal.mergeCommit.length === 0 ||
+    terminal.exactHeadCi !== true
+  )) {
+    return { outcome: 'STATE_CONFLICT', reason: 'terminal evidence is incomplete or does not bind the reviewed head' }
+  }
+  if (terminal.issueClosed && terminal.prMerged && terminal.reviewedHeadMatches && terminal.currentHeadMatches && terminal.mergeCommit && terminal.exactHeadCi) {
     if (evidence.managedState?.state === 'DONE') {
       return { outcome: 'NO_OP', reason: 'terminal evidence already recorded' }
     }
@@ -87,39 +101,82 @@ export function migrateLegacyManagedState(managedState = {}) {
   }
 
   const state = structuredClone(managedState)
-  const history = Array.isArray(state.post_budget_review_history)
-    ? state.post_budget_review_history
-    : []
+  if (Object.hasOwn(state, 'post_budget_review_history') && !Array.isArray(state.post_budget_review_history)) {
+    throw new Error('legacy post_budget_review_history must be an array')
+  }
+  const history = state.post_budget_review_history ?? []
   const legacyReviewAuthorization = state.founder_authorization
 
-  if (!Array.isArray(state.post_budget_reviews)) {
-    state.post_budget_reviews = history.map((entry) => ({
-      ...entry,
+  if (Object.hasOwn(state, 'post_budget_reviews') && !Array.isArray(state.post_budget_reviews)) {
+    throw new Error('canonical post_budget_reviews must be an array')
+  }
+  const normalizeReview = (entry) => {
+    if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) {
+      throw new Error('post-budget review entries must be mappings')
+    }
+    return {
+      ...structuredClone(entry),
       authorization:
         entry.authorization ??
         (legacyReviewAuthorization?.review_number === entry.review_number &&
         legacyReviewAuthorization?.reviewed_head === entry.reviewed_head
           ? structuredClone(legacyReviewAuthorization)
           : null),
-    }))
+    }
+  }
+  const reviewsByNumber = new Map()
+  for (const entry of [...(state.post_budget_reviews ?? []), ...history]) {
+    const normalized = normalizeReview(entry)
+    const existing = reviewsByNumber.get(normalized.review_number)
+    if (existing && !sameValue(existing, normalized)) {
+      throw new Error(`contradictory post-budget review ${normalized.review_number}`)
+    }
+    reviewsByNumber.set(normalized.review_number, normalized)
+  }
+  if (reviewsByNumber.size > 0) {
+    state.post_budget_reviews = [...reviewsByNumber.values()].sort((left, right) => left.review_number - right.review_number)
   }
 
   if (!state.founder_decision && state.founder_correction_authorization) {
     state.founder_decision = structuredClone(state.founder_correction_authorization)
   }
 
+  if (state.state === 'STATE_CONFLICT') {
+    const latestReview = state.post_budget_reviews?.at(-1) ?? null
+    const decision = state.founder_decision
+    const validCorrection =
+      latestReview &&
+      decision?.status === 'approved' &&
+      decision?.authority === 'Founder' &&
+      decision?.scope === 'correction' &&
+      decision?.for_review_number === latestReview.review_number &&
+      decision?.reviewed_head === latestReview.reviewed_head &&
+      Array.isArray(decision?.finding_ids) && decision.finding_ids.length > 0 &&
+      decision.finding_ids.every((id) => latestReview.finding_dispositions?.some((finding) => finding.finding_id === id))
+    if (decision && !validCorrection) {
+      throw new Error('invalid Founder correction authorization cannot grant IN_PROGRESS')
+    }
+    state.state = validCorrection ? 'IN_PROGRESS' : 'BLOCKED_FOR_FOUNDER_DECISION'
+  }
+
+  for (const review of state.post_budget_reviews ?? []) {
+    if (review.authorization?.status !== 'approved' || review.authorization?.authority !== 'Founder' ||
+      review.authorization?.scope !== 'review' || review.authorization?.review_number !== review.review_number ||
+      review.authorization?.reviewed_head !== review.reviewed_head) {
+      throw new Error(`invalid Founder review authorization for Review ${review.review_number}`)
+    }
+  }
+
+  // The complete canonical representation is proven before any legacy key is removed.
   delete state.post_budget_review_history
   delete state.founder_authorization
   delete state.founder_correction_authorization
-
-  if (state.state === 'STATE_CONFLICT') {
-    state.state = state.founder_decision ? 'IN_PROGRESS' : 'BLOCKED_FOR_FOUNDER_DECISION'
-  }
 
   return { changed: true, state }
 }
 
 function proposedRepair(evidence, classification) {
+  if (evidence.proposedState) return structuredClone(evidence.proposedState)
   const migrated = migrateLegacyManagedState(evidence.managedState ?? {}).state
   if (classification.outcome === 'TERMINAL_REPAIR') {
     return {
@@ -157,16 +214,33 @@ export async function runBoundedReconciliation({ readEvidence, writeState }) {
     return { ...initial, finalOutcome: initial.outcome, measurements }
   }
 
-  await writeState(proposedRepair(initialEvidence, initial))
+  let proposed
+  try {
+    proposed = proposedRepair(initialEvidence, initial)
+  } catch (error) {
+    return {
+      ...initial,
+      finalOutcome: 'STATE_CONFLICT',
+      finalReason: error instanceof Error ? error.message : String(error),
+      measurements,
+    }
+  }
+  const written = await writeState(proposed, initialEvidence.managedState)
+  if (!sameValue(written, proposed)) {
+    throw new Error('durable reconciliation write was not confirmed')
+  }
   measurements.state_writes += 1
 
   const verifiedEvidence = await readEvidence()
   measurements.reconciliation_attempts += 1
   const verified = classifyReconciliation(verifiedEvidence)
+  const verificationStillRequestsRepair = REPAIR_OUTCOMES.has(verified.outcome)
   return {
     ...initial,
-    finalOutcome: verified.outcome,
-    finalReason: verified.reason,
+    finalOutcome: verificationStillRequestsRepair ? 'STATE_CONFLICT' : verified.outcome,
+    finalReason: verificationStillRequestsRepair
+      ? 'bounded repair was not confirmed by the single verification'
+      : verified.reason,
     measurements,
   }
 }
@@ -176,7 +250,7 @@ export async function runBoundedReconciliation({ readEvidence, writeState }) {
  * The caller supplies durable Issue and role-comment operations so this logic
  * remains testable and transport-agnostic.
  */
-export async function dispatchManagedTask({ readState, writeState, postHandoff, handoffBody, transitionState }) {
+export async function dispatchManagedTask({ readState, writeState, postHandoff, retractHandoff, handoffBody, transitionState }) {
   const original = await readState()
   if (original?.state !== 'READY') {
     throw new Error(`dispatch requires READY, received ${original?.state ?? 'missing state'}`)
@@ -188,8 +262,12 @@ export async function dispatchManagedTask({ readState, writeState, postHandoff, 
   const defaultTransition = (state) => ({ ...structuredClone(state), state: 'IN_PROGRESS' })
   const dispatched = (transitionState ?? defaultTransition)(original)
   await writeState(dispatched)
+  if (!sameValue(await readState(), dispatched)) {
+    throw new Error('dispatch verification found a concurrent state change before HANDOFF')
+  }
+  let handoff = null
   try {
-    await postHandoff(handoffBody)
+    handoff = await postHandoff(handoffBody)
   } catch (error) {
     const live = await readState()
     if (!sameValue(live, dispatched)) {
@@ -201,6 +279,10 @@ export async function dispatchManagedTask({ readState, writeState, postHandoff, 
 
   const verified = await readState()
   if (!sameValue(verified, dispatched)) {
+    if (!retractHandoff || !handoff) {
+      throw new Error('dispatch verification found a concurrent state change and cannot retract HANDOFF')
+    }
+    await retractHandoff(handoff)
     throw new Error('dispatch verification found a concurrent state change')
   }
   return { outcome: 'DISPATCHED', state: verified }
@@ -507,9 +589,17 @@ export function analyzeReconciliation(context) {
       fields: proposedRepair(context, classification),
     }
   } else if (classification.outcome === 'DETERMINISTIC_MIGRATION') {
-    result.proposal = {
-      type: 'migration',
-      fields: migrateLegacyManagedState(context.managedState).state,
+    try {
+      result.proposal = {
+        type: 'migration',
+        fields: migrateLegacyManagedState(context.managedState).state,
+      }
+    } catch (error) {
+      result.classification = {
+        outcome: 'STATE_CONFLICT',
+        reason: error instanceof Error ? error.message : String(error),
+      }
+      result.proposal = null
     }
   } else if (classification.outcome === 'BOOKKEEPING_REPAIR' && bookkeepingType) {
     result.proposal = {
@@ -519,4 +609,103 @@ export function analyzeReconciliation(context) {
   }
 
   return result
+}
+
+function run(command, args) {
+  const result = spawnSync(command, args, { encoding: 'utf8' })
+  if (result.error || result.status !== 0) {
+    throw new Error(result.stderr || result.stdout || result.error?.message || `${command} failed`)
+  }
+  return result.stdout.trim()
+}
+
+function parseReconcileArgs(argv) {
+  const options = { issue: null, repo: null }
+  for (let index = 0; index < argv.length; index += 1) {
+    const argument = argv[index]
+    if (argument === '--') continue
+    if (argument === '--repo') {
+      const repo = argv[++index]
+      if (!repo) throw new Error('--repo requires a value')
+      options.repo = repo
+      continue
+    }
+    if (argument.startsWith('-') || options.issue) throw new Error(`unexpected argument: ${argument}`)
+    options.issue = argument
+  }
+  if (!options.issue || !/^[1-9]\d*$/.test(options.issue)) {
+    throw new Error('Usage: pnpm run bemoat:mission-control:reconcile -- <issue-number> [--repo owner/repo]')
+  }
+  return options
+}
+
+function stateBlockReplacement(body, state, renderMissionControlState) {
+  const rendered = renderMissionControlState(state)
+  const pattern = /<!--\s*bemoat-mission-control-state:start\s*-->[\s\S]*?<!--\s*bemoat-mission-control-state:end\s*-->/
+  if (!pattern.test(body)) throw new Error('managed state block is missing')
+  return body.replace(pattern, rendered)
+}
+
+async function runProductionBoundedReconciliation() {
+  const options = parseReconcileArgs(process.argv.slice(2))
+  const repoArgs = options.repo ? ['--repo', options.repo] : []
+  const { analyzeProgressTracking } = await import('./agent-issue.mjs')
+  const { parseMissionControlState, renderMissionControlState } = await import('./mission-control-state.mjs')
+  let expectedBody = null
+
+  const readEvidence = async () => {
+    const issue = JSON.parse(run('gh', ['issue', 'view', options.issue, '--json', 'body,state', ...repoArgs]))
+    const state = parseMissionControlState(issue.body)
+    if (!state.present || !state.valid) throw new Error(`invalid managed state: ${state.reason ?? 'missing state block'}`)
+    expectedBody = issue.body
+    const analysis = analyzeProgressTracking({
+      activeIssueBody: issue.body,
+      activeIssueNumber: options.issue,
+      activeIssueState: issue.state,
+    })
+    const reconciliation = analysis.report.reconciliation
+    if (!reconciliation) throw new Error('production preflight did not produce reconciliation evidence')
+    return {
+      managedState: state.state,
+      classification: reconciliation.classification,
+      proposedState: reconciliation.proposal?.fields ?? null,
+    }
+  }
+
+  const writeState = async (nextState, expectedState) => {
+    const live = JSON.parse(run('gh', ['issue', 'view', options.issue, '--json', 'body', ...repoArgs]))
+    const liveState = parseMissionControlState(live.body)
+    if (!liveState.valid || !sameValue(liveState.state, expectedState) || live.body !== expectedBody) {
+      throw new Error('concurrent Issue write detected before reconciliation repair')
+    }
+    const nextBody = stateBlockReplacement(live.body, nextState, renderMissionControlState)
+    const temp = mkdtempSync(join(tmpdir(), 'bemoat-reconcile-'))
+    const bodyFile = join(temp, 'issue.md')
+    try {
+      writeFileSync(bodyFile, nextBody)
+      run('gh', ['issue', 'edit', options.issue, '--body-file', bodyFile, ...repoArgs])
+      const verified = JSON.parse(run('gh', ['issue', 'view', options.issue, '--json', 'body', ...repoArgs]))
+      const verifiedState = parseMissionControlState(verified.body)
+      if (!verifiedState.valid || !sameValue(verifiedState.state, nextState)) {
+        throw new Error('concurrent Issue write detected after reconciliation repair')
+      }
+      expectedBody = verified.body
+      return verifiedState.state
+    } finally {
+      rmSync(temp, { recursive: true, force: true })
+    }
+  }
+
+  const result = await runBoundedReconciliation({ readEvidence, writeState })
+  if (result.finalOutcome === 'STATE_CONFLICT') {
+    throw new Error(result.finalReason)
+  }
+  process.stdout.write(`Mission Control reconciliation ${result.finalOutcome}: ${result.measurements.reconciliation_attempts} attempt(s), ${result.measurements.state_writes} durable write(s)\n`)
+}
+
+if (process.argv[1]?.endsWith('/mission-control-reconcile.mjs')) {
+  runProductionBoundedReconciliation().catch((error) => {
+    process.stderr.write(`ERROR: ${error instanceof Error ? error.message : String(error)}\n`)
+    process.exitCode = 1
+  })
 }

@@ -49,6 +49,7 @@ function replaceStateBlock(body, state) {
 
 async function main() {
   const options = parseArgs(process.argv.slice(2))
+  const repo = options.repo || run('gh', ['repo', 'view', '--json', 'nameWithOwner', '--jq', '.nameWithOwner'])
   const handoffBody = options.bodyFile
     ? readFileSync(options.bodyFile, 'utf8')
     : (!process.stdin.isTTY ? readFileSync(0, 'utf8') : '')
@@ -85,14 +86,23 @@ async function main() {
   const postHandoff = async (body) => {
     const temp = mkdtempSync(join(tmpdir(), 'bemoat-dispatch-comment-'))
     const bodyFile = join(temp, 'handoff.md')
+    const payloadFile = join(temp, 'payload.json')
     try {
       writeFileSync(bodyFile, body)
-      const args = ['scripts/post-role-comment.mjs', options.issue, '--body-file', bodyFile]
+      const args = ['scripts/post-role-comment.mjs', options.issue, '--body-file', bodyFile, '--check']
       if (options.repo) args.push('--repo', options.repo)
       run(process.execPath, args)
+      writeFileSync(payloadFile, JSON.stringify({ body }))
+      return JSON.parse(run('gh', [
+        'api', '--method', 'POST', `repos/${repo}/issues/${options.issue}/comments`, '--input', payloadFile,
+      ]))
     } finally {
       rmSync(temp, { recursive: true, force: true })
     }
+  }
+  const retractHandoff = async (comment) => {
+    if (!comment?.id) throw new Error('posted HANDOFF did not return a comment identifier for compensation')
+    run('gh', ['api', '--method', 'DELETE', `repos/${repo}/issues/comments/${comment.id}`])
   }
 
   const timestamp = new Date().toISOString()
@@ -100,6 +110,7 @@ async function main() {
     readState: async () => readIssue(),
     writeState,
     postHandoff,
+    retractHandoff,
     handoffBody,
     transitionState: (state) => ({
       ...structuredClone(state),

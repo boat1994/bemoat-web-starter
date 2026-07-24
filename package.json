@@ -41,6 +41,7 @@
     "bemoat:agent:delivery": "node scripts/agent-delivery.mjs",
     "bemoat:agent:issue": "node scripts/agent-issue.mjs",
     "bemoat:mission-control:dispatch": "node scripts/mission-control-dispatch.mjs",
+    "bemoat:mission-control:reconcile": "node scripts/mission-control-reconcile.mjs",
     "bemoat:issue:comment": "node scripts/post-role-comment.mjs",
     "bemoat:branch:check": "bash scripts/check-branch-safety.sh",
     "bemoat:boilerplate:sync": "node scripts/sync-boilerplate.mjs",

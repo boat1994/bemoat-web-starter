@@ -623,7 +623,7 @@ function fetchPrByReference(cwd, reference, env = process.env) {
     'view',
     parsed.number,
     '--json',
-    'title,url,headRefName,baseRefName,headRefOid,state,statusCheckRollup,commits,headRepository',
+    'title,url,headRefName,baseRefName,headRefOid,state,statusCheckRollup,commits,headRepository,mergeCommit',
   ]
   if (parsed.repo) {
     args.push('--repo', parsed.repo)
@@ -899,7 +899,12 @@ export function analyzeProgressTracking({
       blockers.push('STATE_CONFLICT: state active_task_issue does not match the live task Issue.')
     }
   }
-  if (stateAnalysis.valid && ['STATE_CONFLICT', 'STATE_MIGRATION_REQUIRED', 'BLOCKED_EXTERNAL'].includes(state.state)) {
+  const repairableRecordedLegacyState =
+    stateAnalysis.valid &&
+    state.state === 'STATE_CONFLICT' &&
+    ['post_budget_review_history', 'founder_authorization', 'founder_correction_authorization']
+      .some((key) => Object.hasOwn(state, key))
+  if (stateAnalysis.valid && ['STATE_CONFLICT', 'STATE_MIGRATION_REQUIRED', 'BLOCKED_EXTERNAL'].includes(state.state) && !repairableRecordedLegacyState) {
     blockers.push(`${state.state}: recorded Mission Control state requires reconciliation before continuing.`)
   }
 
@@ -1175,12 +1180,17 @@ export function analyzeProgressTracking({
       latestVerdict,
       activeTaskIssue: activeIssueNumber,
       stateConflictBlockers: blockers.filter((blocker) => blocker.includes('STATE_CONFLICT')),
+      requiredEvidenceUnavailable: blockers.some((blocker) => blocker.includes('BLOCKED_EXTERNAL')),
       terminal: report.pr?.state === 'MERGED'
         ? {
             issueClosed: String(resolvedActiveIssueState ?? '').toLowerCase() === 'closed',
             prMerged: true,
             reviewedHeadMatches: state.last_reviewed_head === report.pr.headRefOid,
             mergeCommit: report.pr.mergeCommit?.oid ?? report.pr.mergeCommitOid ?? null,
+            exactHeadCi: report.exactHeadCi?.exactHeadVerified === true,
+            currentHeadMatches:
+              state.current_head === report.pr.headRefOid ||
+              (state.state === 'DONE' && state.current_head === (report.pr.mergeCommit?.oid ?? report.pr.mergeCommitOid ?? null)),
           }
         : null,
     })
