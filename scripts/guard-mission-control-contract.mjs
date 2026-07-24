@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { existsSync, readFileSync } from 'node:fs'
+import fs, { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
@@ -20,6 +20,14 @@ export const GUARD_SCRIPT_PATH = 'scripts/guard-mission-control-contract.mjs'
 export const INT_TEST_PATH = 'tests/int/mission-control-contract.int.spec.ts'
 export const FIXTURES_PATH = 'tests/fixtures/mission-control'
 
+export const MODULE_PROCEDURES_PATH = 'docs/mission-control/modules/procedures.md'
+export const MODULE_CHECKLISTS_PATH = 'docs/mission-control/modules/checklists.md'
+export const MODULE_TEMPLATES_PATH = 'docs/mission-control/modules/templates-examples.md'
+export const MODULE_TROUBLESHOOTING_PATH = 'docs/mission-control/modules/troubleshooting.md'
+export const MODULE_MIGRATION_PATH = 'docs/mission-control/modules/migration-guidance.md'
+export const MODULE_CHILD_SYNC_PATH = 'docs/mission-control/modules/child-sync-operations.md'
+
+
 export const MC_MANAGED_PATHS = [
   README_PATH,
   GUIDE_PATH,
@@ -31,7 +39,13 @@ export const MC_MANAGED_PATHS = [
   RECONCILE_SCRIPT_PATH,
   INT_TEST_PATH,
   RECONCILE_TEST_PATH,
-  FIXTURES_PATH,
+    FIXTURES_PATH,
+  MODULE_PROCEDURES_PATH,
+  MODULE_CHECKLISTS_PATH,
+  MODULE_TEMPLATES_PATH,
+  MODULE_TROUBLESHOOTING_PATH,
+  MODULE_MIGRATION_PATH,
+  MODULE_CHILD_SYNC_PATH,
 ]
 
 export const REQUIRED_GUIDE_SECTIONS = [
@@ -584,7 +598,18 @@ export function runMissionControlContractGuard({
 } = {}) {
   const violations = []
 
-  const guide = readOptional(root, GUIDE_PATH, readFile)
+  
+  let guide = readOptional(root, GUIDE_PATH, readFile) || '';
+  const modulesDir = resolve(root, 'docs/mission-control/modules');
+  if (existsSync(modulesDir)) {
+    const files = fs.readdirSync(modulesDir);
+    for (const f of files) {
+      if (f.endsWith('.md')) {
+        guide += '\n\n' + readOptional(root, 'docs/mission-control/modules/' + f, readFile);
+      }
+    }
+  }
+
   violations.push(...scanGuideContent(GUIDE_PATH, guide))
 
   const loader = readOptional(root, LOADER_PATH, readFile)

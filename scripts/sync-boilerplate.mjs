@@ -131,6 +131,13 @@ export const managedPaths = [
   'tests/fixtures/acceptance',
   'tests/fixtures/boilerplate-sync',
   'tests/fixtures/mission-control',
+  'docs/mission-control/modules/procedures.md',
+  'docs/mission-control/modules/checklists.md',
+  'docs/mission-control/modules/templates-examples.md',
+  'docs/mission-control/modules/troubleshooting.md',
+  'docs/mission-control/modules/migration-guidance.md',
+  'docs/mission-control/modules/child-sync-operations.md',
+
 ]
 
 export const seedOnlyPaths = [
