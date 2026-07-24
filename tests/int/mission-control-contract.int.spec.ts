@@ -22,16 +22,30 @@ describe('mission-control contract guard', () => {
 
   it('fails closed when a required module is missing', async () => {
     const mod = await import('../../scripts/guard-mission-control-contract.mjs')
-    
-    const violations = mod.runMissionControlContractGuard({
-      root: process.cwd(),
-      readFile: (path) => {
-        if (path.endsWith('troubleshooting.md')) return null
-        return readFileSync(path, 'utf8')
-      },
-    })
-    
-    expect(violations.some(v => v.rule === 'MC013')).toBe(true)
+
+    // Simulate a missing required module by using a temp root that physically
+    // lacks troubleshooting.md. This exercises the existsSync path in
+    // readOptional — the same mechanism production uses to detect missing files.
+    const missingModRoot = join(tmpRoot, 'missing-module')
+    const presentModules = [
+      mod.MODULE_PROCEDURES_PATH,
+      mod.MODULE_CHECKLISTS_PATH,
+      mod.MODULE_TEMPLATES_PATH,
+      // MODULE_TROUBLESHOOTING_PATH intentionally absent
+      mod.MODULE_MIGRATION_PATH,
+      mod.MODULE_CHILD_SYNC_PATH,
+    ]
+    try {
+      for (const relPath of presentModules) {
+        mkdirSync(join(missingModRoot, relPath, '..'), { recursive: true })
+        writeFileSync(join(missingModRoot, relPath), `# placeholder\n`)
+      }
+
+      const violations = mod.runMissionControlContractGuard({ root: missingModRoot })
+      expect(violations.some((v: { rule: string }) => v.rule === 'MC013')).toBe(true)
+    } finally {
+      rmSync(missingModRoot, { recursive: true, force: true })
+    }
   })
 
   it('fails if a required section is moved into an unrelated module', async () => {
