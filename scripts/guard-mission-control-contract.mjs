@@ -20,6 +20,23 @@ export const GUARD_SCRIPT_PATH = 'scripts/guard-mission-control-contract.mjs'
 export const INT_TEST_PATH = 'tests/int/mission-control-contract.int.spec.ts'
 export const FIXTURES_PATH = 'tests/fixtures/mission-control'
 
+export const MODULE_PROCEDURES_PATH = 'docs/mission-control/modules/procedures.md'
+export const MODULE_CHECKLISTS_PATH = 'docs/mission-control/modules/checklists.md'
+export const MODULE_TEMPLATES_PATH = 'docs/mission-control/modules/templates-examples.md'
+export const MODULE_TROUBLESHOOTING_PATH = 'docs/mission-control/modules/troubleshooting.md'
+export const MODULE_MIGRATION_PATH = 'docs/mission-control/modules/migration-guidance.md'
+export const MODULE_CHILD_SYNC_PATH = 'docs/mission-control/modules/child-sync-operations.md'
+
+export const MC_MANAGED_MODULES = [
+  MODULE_PROCEDURES_PATH,
+  MODULE_CHECKLISTS_PATH,
+  MODULE_TEMPLATES_PATH,
+  MODULE_TROUBLESHOOTING_PATH,
+  MODULE_MIGRATION_PATH,
+  MODULE_CHILD_SYNC_PATH,
+]
+
+
 export const MC_MANAGED_PATHS = [
   README_PATH,
   GUIDE_PATH,
@@ -31,41 +48,67 @@ export const MC_MANAGED_PATHS = [
   RECONCILE_SCRIPT_PATH,
   INT_TEST_PATH,
   RECONCILE_TEST_PATH,
-  FIXTURES_PATH,
+    FIXTURES_PATH,
+  MODULE_PROCEDURES_PATH,
+  MODULE_CHECKLISTS_PATH,
+  MODULE_TEMPLATES_PATH,
+  MODULE_TROUBLESHOOTING_PATH,
+  MODULE_MIGRATION_PATH,
+  MODULE_CHILD_SYNC_PATH,
 ]
 
-export const REQUIRED_GUIDE_SECTIONS = [
-  '## Purpose',
-  '## Roles and authority boundaries',
-  '## Responsibility/source-of-truth model',
-  '## Execution roles and atomic completions',
-  '## Role-owned durable state updates',
-  '## Deterministic reconciliation',
-  '## Protocol compression',
-  '## Brainstorming Response Profile',
-  '## Integration boundaries',
-  '## Bootstrap and state reconstruction',
-  '## Durable Mission Control state schema',
-  '## State machine and allowed transitions',
-  '## Review-cycle budget',
-  '## Full-review rules',
-  '## Delta-review rules',
-  '## Blocker-verification rules',
-  '## Finding severity and evidence requirements',
-  '## Material-change rules',
-  '## Lean Founder Decision',
-  '## Completion gate',
-  '## Reopening rules',
-  '## Handoff contract',
-  '## RESULT contract',
-  '## Follow-up issue policy',
-  '## Scope-control rules',
-  '## Stop conditions',
-  '## Existing-task migration behavior',
-  '## Repository-specific override behavior',
-  '## Compact transition examples',
-  '## Worked examples',
-]
+export const MODULE_SECTION_MAP = {
+  [GUIDE_PATH]: [
+    '## Purpose',
+    '## Applicability and preflight outcomes',
+    '## Workflow profiles',
+    '## Operational-stage minimization and state necessity',
+    '## Roles and authority boundaries',
+    '## Responsibility/source-of-truth model',
+    '## Protocol compression',
+    '## Brainstorming Response Profile',
+    '## Integration boundaries',
+    '## Durable Mission Control state schema',
+    '## State machine and allowed transitions',
+    '## Review-cycle budget',
+    '## Cost-aware review routing',
+    '## Full-review rules',
+    '## Delta-review rules',
+    '## Blocker-verification rules',
+    '## Finding severity and evidence requirements',
+    '## Material-change rules',
+    '## Lean Founder Decision',
+    '## Reopening rules',
+    '## Handoff contract',
+    '## RESULT contract',
+    '## Follow-up issue policy',
+    '## Scope-control rules',
+    '## Stop conditions',
+  ],
+  [MODULE_PROCEDURES_PATH]: [
+    '## Double-Loop Review Gate',
+    '## Execution roles and atomic completions',
+    '## Role-owned durable state updates',
+    '## Deterministic reconciliation',
+    '## Bootstrap and state reconstruction',
+  ],
+  [MODULE_CHECKLISTS_PATH]: [
+    '## Completion gate',
+  ],
+  [MODULE_TEMPLATES_PATH]: [
+    '## Compact transition examples',
+    '## Worked examples',
+  ],
+  [MODULE_TROUBLESHOOTING_PATH]: [
+    '## Conflict behavior',
+  ],
+  [MODULE_MIGRATION_PATH]: [
+    '## Existing-task migration behavior',
+  ],
+  [MODULE_CHILD_SYNC_PATH]: [
+    '## Repository-specific override behavior',
+  ],
+}
 
 export const REQUIRED_HANDOFF_FIELDS = [
   'Repository:',
@@ -259,6 +302,61 @@ function violation(rule, file, message) {
 /**
  * Scan a guide file body (already loaded). Exported for fixtures/tests.
  */
+export function scanModuleContent(relativePath, content) {
+  const violations = []
+  if (content == null) {
+    violations.push(violation('MC013', relativePath, 'Required module is missing'))
+    return violations
+  }
+  const sectionMap = MODULE_SECTION_MAP[relativePath]
+  if (sectionMap) {
+    for (const heading of sectionMap) {
+      if (!content.includes(heading)) {
+        violations.push(violation('MC005', relativePath, `Required module section missing: ${heading}`))
+      }
+    }
+  }
+  
+  if (relativePath === MODULE_PROCEDURES_PATH) {
+    if (!content.includes('AWAITING_REVIEW_1 state block')) {
+      violations.push(
+        violation('MC012', relativePath, 'Module must require atomic delivery to AWAITING_REVIEW_1'),
+      )
+    }
+    if (!content.includes('must never increment `review_cycle` or `full_review_count`')) {
+      violations.push(
+        violation('MC012', relativePath, 'Module must forbid Dev from incrementing review counters'),
+      )
+    }
+    for (const failureClass of DOUBLE_LOOP_FAILURE_CLASSES) {
+      if (!content.includes(failureClass)) {
+        violations.push(
+          violation('MC012', relativePath, `Module missing Double-Loop failure class: ${failureClass}`),
+        )
+      }
+    }
+    for (const decision of DOUBLE_LOOP_ALLOWED_DECISIONS) {
+      if (!content.includes(decision)) {
+        violations.push(
+          violation('MC012', relativePath, `Module missing Double-Loop decision: ${decision}`),
+        )
+      }
+    }
+    if (!content.includes('`UNKNOWN` must not authorize another materially similar edit.')) {
+      violations.push(
+        violation('MC012', relativePath, 'Module must prohibit UNKNOWN from authorizing a similar edit'),
+      )
+    }
+    if (!content.includes('no-code diagnostic checkpoint')) {
+      violations.push(
+        violation('MC012', relativePath, 'Module must define the Double-Loop gate as a no-code checkpoint'),
+      )
+    }
+  }
+  
+  return violations
+}
+
 export function scanGuideContent(relativePath, content) {
   const violations = []
 
@@ -293,9 +391,12 @@ export function scanGuideContent(relativePath, content) {
     )
   }
 
-  for (const heading of REQUIRED_GUIDE_SECTIONS) {
-    if (!content.includes(heading)) {
-      violations.push(violation('MC005', relativePath, `Required guide section missing: ${heading}`))
+  const sectionMap = MODULE_SECTION_MAP[relativePath]
+  if (sectionMap) {
+    for (const heading of sectionMap) {
+      if (!content.includes(heading)) {
+        violations.push(violation('MC005', relativePath, `Required guide section missing: ${heading}`))
+      }
     }
   }
 
@@ -331,46 +432,14 @@ export function scanGuideContent(relativePath, content) {
       ),
     )
   }
-  if (!content.includes('AWAITING_REVIEW_1 state block')) {
-    violations.push(
-      violation('MC012', relativePath, 'Guide must require atomic delivery to AWAITING_REVIEW_1'),
-    )
-  }
-  if (!content.includes('must never increment `review_cycle` or `full_review_count`')) {
-    violations.push(
-      violation('MC012', relativePath, 'Guide must forbid Dev from incrementing review counters'),
-    )
-  }
+
   if (!content.includes('must not autonomously start Review 4')) {
     violations.push(violation('MC012', relativePath, 'Guide must forbid autonomous Review 4'))
   }
   if (!content.includes('Minor/Nit findings must not block')) {
     violations.push(violation('MC012', relativePath, 'Guide must state Minor/Nit findings must not block'))
   }
-  for (const failureClass of DOUBLE_LOOP_FAILURE_CLASSES) {
-    if (!content.includes(failureClass)) {
-      violations.push(
-        violation('MC012', relativePath, `Guide missing Double-Loop failure class: ${failureClass}`),
-      )
-    }
-  }
-  for (const decision of DOUBLE_LOOP_ALLOWED_DECISIONS) {
-    if (!content.includes(decision)) {
-      violations.push(
-        violation('MC012', relativePath, `Guide missing Double-Loop decision: ${decision}`),
-      )
-    }
-  }
-  if (!content.includes('`UNKNOWN` must not authorize another materially similar edit.')) {
-    violations.push(
-      violation('MC012', relativePath, 'Guide must prohibit UNKNOWN from authorizing a similar edit'),
-    )
-  }
-  if (!content.includes('no-code diagnostic checkpoint')) {
-    violations.push(
-      violation('MC012', relativePath, 'Guide must define the Double-Loop gate as a no-code checkpoint'),
-    )
-  }
+
   for (const phrase of REQUIRED_COST_AWARE_GUIDE_PHRASES) {
     if (!content.includes(phrase)) {
       violations.push(
@@ -584,7 +653,18 @@ export function runMissionControlContractGuard({
 } = {}) {
   const violations = []
 
-  const guide = readOptional(root, GUIDE_PATH, readFile)
+  
+  let guide = readOptional(root, GUIDE_PATH, readFile) || '';
+  
+  for (const modPath of MC_MANAGED_MODULES) {
+    const modContent = readOptional(root, modPath, readFile);
+    if (!modContent) {
+      violations.push(violation('MC013', modPath, 'Required module is missing'));
+    } else {
+      violations.push(...scanModuleContent(modPath, modContent));
+    }
+  }
+
   violations.push(...scanGuideContent(GUIDE_PATH, guide))
 
   const loader = readOptional(root, LOADER_PATH, readFile)

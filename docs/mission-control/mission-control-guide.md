@@ -137,62 +137,7 @@ For bounded defects where root cause, acceptance criteria, and affected files ar
 
 ## Double-Loop Review Gate
 
-The Double-Loop Review Gate is a **no-code diagnostic checkpoint** between a
-proven non-converging or structurally suspicious failure and another materially
-similar edit. It complements, rather than replaces, normal implementation
-diagnosis, TDD, CI, manual QA, bounded review cycles, or Founder decisions.
-
-Single-loop correction is: identify a clear implementation defect, make one
-materially different correction, then verify it. Double-Loop Review is: stop
-code edits; test whether the objective, assumptions, specification, validation,
-decomposition, tool/model, or environment is the actual cause; record one
-bounded decision and the smallest differentiating experiment; then stop or
-authorize only that experiment.
-
-| Profile | Trigger for the no-code checkpoint |
-| --- | --- |
-| FAST | Focused verification fails without explanation, or the task does not converge within one correction loop. Exit FAST; do not create a FAST state machine. |
-| STANDARD | Two materially similar attempts fail without new evidence; the diff/workarounds grow without Acceptance-Criteria progress; tests pass while required behavior fails; scope/objective drifts; repeated local masking changes hide the cause; or the next attempt cannot state a material difference. |
-| MANAGED / high-risk | The first failure involving security, authorization, payment/Finance, destructive data risk, schema/migration, or production operations; before a material scope, AC, architecture, API, or validation-contract change; otherwise after two materially similar normal-risk attempts. |
-
-Classify each triggered gate as exactly one primary class, supported by evidence:
-
-```text
-IMPLEMENTATION
-SPECIFICATION
-VALIDATION
-DECOMPOSITION
-TOOL_OR_MODEL
-ENVIRONMENT
-UNKNOWN
-```
-
-Use exactly one resulting decision:
-
-```text
-CONTINUE_IMPLEMENTATION
-REVISE_SPECIFICATION
-REVISE_VALIDATION
-SPLIT_OR_REDECOMPOSE_TASK
-CHANGE_TOOL_OR_MODEL
-REPAIR_ENVIRONMENT
-BLOCKED_EXTERNAL
-BLOCKED_FOR_FOUNDER_DECISION
-CREATE_FOLLOW_UP_ISSUE
-```
-
-`CONTINUE_IMPLEMENTATION` requires concrete evidence and a smallest next
-experiment that materially differs from prior attempts. `UNKNOWN` must not authorize another materially similar edit. It must produce a smaller diagnostic
-experiment or a blocker. Material changes, exhausted review budget, production,
-migration, destructive actions, and merge authority remain Founder gates.
-
-Record the gate using existing `## HANDOFF` or `## RESULT` transport only; do
-not create a new state, comment type, attempt counter, telemetry store, or
-recursive review. A triggered `## HANDOFF` explicitly prohibits code edits
-until the decision is recorded. Managed tasks reuse existing
-`next_permitted_action`, `material_change_status`, blocker, and Founder-gate
-fields; a Double-Loop Review does not reset review counters or authorize Review
-4.
+Extracted to module: [Procedures](./modules/procedures.md)
 
 ## Roles and authority boundaries
 
@@ -258,124 +203,17 @@ reconciliation, or localized corrections that preserve the approved contract.
 | Exact-head CI/checks | Verification evidence for that exact PR head SHA |
 | Chat history | Supporting context only; never authoritative current state |
 
-### Conflict behavior
-
-Distinguish **bookkeeping lag** from **genuine conflict**:
-
-- **Bookkeeping lag:** one unambiguous live PR, exact head, exact-head CI result,
-  and durable role output (`## RESULT` or `## REVIEW_VERDICT`) exist, but the
-  managed state block is stale. Treat as **incomplete role delivery** or apply
-  **deterministic reconciliation** — not `STATE CONFLICT`.
-- **Genuine conflict:** contradictory durable evidence such as wrong or
-  competing PR; head mismatch or unsafe ancestry; stale or non-matching CI;
-  conflicting task pointer; inconsistent review history; scope or authorization
-  mismatch. Return `STATE CONFLICT`, identify the conflicting fields and links,
-  request or apply one bounded reconciliation action, and stop.
-
-Do not guess which state is correct when evidence is contradictory.
-
 ## Execution roles and atomic completions
 
-One role completion must leave one complete durable transition. Reuse existing
-`## HANDOFF`, `## RESULT`, and `## REVIEW_VERDICT` transport — do not create a
-new operational comment type or second durable state store.
-
-```text
-Integration Builder completion
-= verified bounded implementation + durable handoff to delivery
-
-Delivery Coordinator completion
-= final commit + Draft PR + exact-head CI + RESULT + AWAITING_REVIEW_1 state block
-
-Independent/Delta Reviewer completion
-= REVIEW_VERDICT + reviewed exact head + counters/findings + resulting state
-
-Diagnostic Reviewer completion
-= evidence + failure class + invalidated assumptions + one smallest next experiment or blocker
-
-State Reconciler completion
-= deterministic state repair from unambiguous evidence, or explicit STATE_CONFLICT
-
-Founder-authorized merge transition
-= verify authorization/head/CI + mark ready when needed + merge + verify merge commit + DONE/close
-```
-
-A **State Reconciler** may normalize facts that are already proven. It may not
-choose product behavior, expand scope, waive review, or infer missing
-authorization.
+Extracted to module: [Procedures](./modules/procedures.md)
 
 ## Role-owned durable state updates
 
-| Field / artifact | Authoritative owner |
-| --- | --- |
-| `active_pr`, `current_head` after delivery | Delivery Coordinator (same run as `## RESULT`) |
-| `state: AWAITING_REVIEW_1` after delivery | Delivery Coordinator |
-| `review_cycle`, `full_review_count` | Reviewer only (with `## REVIEW_VERDICT`) |
-| `last_reviewed_head` | Reviewer only |
-| Resulting correction/eligibility state | Reviewer or State Reconciler from verdict evidence |
-| `DONE` / terminal closure | Founder-authorized merge transition or State Reconciler from merge evidence |
-| Issue acceptance criteria checklist | Mission Control pre-merge reconciliation only |
-
-Delivery and Reviewer roles may update **only** content between the
-`bemoat-mission-control-state` markers. They must preserve human-authored Issue
-content outside the markers. Dev must never increment `review_cycle` or
-`full_review_count`.
+Extracted to module: [Procedures](./modules/procedures.md)
 
 ## Deterministic reconciliation
 
-When bookkeeping lag is unambiguous, Mission Control or a State Reconciler
-should repair the managed state block without requiring a separate coordination
-run before Review 1 or the next permitted action.
-
-Reconciliation inputs (all must agree):
-
-- exactly one active PR for the task;
-- live PR head matches the durable role output head;
-- exact-head CI passes for that head;
-- latest non-superseded `## RESULT` or `## REVIEW_VERDICT` supports the transition.
-
-If any input is missing or contradictory, stop with `STATE CONFLICT` or
-`INCOMPLETE_DELIVERY` (when the producing role has not finished its atomic
-transition) — never infer authorization or review outcomes.
-
-### Strict reconciliation classification and budget
-
-Apply this ordered classification before writing managed state:
-
-| Live condition | Outcome |
-| --- | --- |
-| Required live evidence cannot be fetched or verified | `BLOCKED_EXTERNAL` |
-| Two authoritative live sources contradict each other | `STATE_CONFLICT` |
-| A managed task uses unambiguous legacy post-budget or Founder-authorization fields | deterministic migration |
-| One exact PR/head/CI/role-output chain is unambiguous and only bookkeeping lags | bookkeeping repair |
-| The Issue is closed/completed, its PR is merged, and the reviewed head matches | terminal repair to `DONE` |
-| The same live evidence is already represented canonically | no-op |
-
-Missing canonical representation is not contradictory authority. Migrate
-`post_budget_review_history` into `post_budget_reviews`, bind Founder review and
-correction authorization to the exact review number, reviewed head, and finding
-IDs, and preserve `review_cycle`, `full_review_count`, `last_reviewed_head`, and
-immutable finding lineage. Remove superseded legacy keys only in the same
-successful canonical write.
-
-One reconciliation run may perform at most one deterministic state repair and
-one fresh live verification. It must not recurse or attempt a second repair.
-Identical evidence after a completed reconciliation performs no state write,
-posts no role comment, and requires no model stage. After terminal repair,
-stale non-authoritative bookkeeping must never reopen the task.
-
-### Atomic implementation dispatch
-
-Use the managed dispatch action for a bounded implementation handoff:
-
-```bash
-pnpm run bemoat:mission-control:dispatch -- <issue-number> --body-file <handoff.md>
-```
-
-The action validates `READY`, writes `IN_PROGRESS`, posts exactly one existing
-`## HANDOFF`, and verifies the resulting state. If HANDOFF publication fails,
-it rolls the state back only when a fresh read proves no concurrent Issue edit;
-otherwise it fails closed without overwriting the concurrent writer.
+Extracted to module: [Procedures](./modules/procedures.md)
 
 ## Protocol compression
 
@@ -497,21 +335,7 @@ review counters, or durable role-comment semantics.
 
 ## Bootstrap and state reconstruction
 
-At the start of every Mission Control run:
-
-1. Resolve the repository and its approved protected base branch.
-2. Read this guide from that merged base/default branch (not an unmerged task branch).
-3. Read `.bemoat/mission-control-overrides.md` when it exists.
-4. Report repository, policy ref, policy commit SHA, and guide version.
-5. Read the approved Implementation Plan, Main Issue, Active Task Issue, active PR exact head, and exact-head CI/check status.
-6. Read the existing Mission Control state block before choosing an action.
-7. If durable sources genuinely conflict, return `STATE_CONFLICT` and stop. If
-   only bookkeeping lag is proven, reconcile deterministically or classify as
-   incomplete delivery.
-8. Perform exactly one bounded action or state transition.
-9. Write the durable result to GitHub, identify one next permitted action, and stop.
-
-Never reset or infer the review count from chat history.
+Extracted to module: [Procedures](./modules/procedures.md)
 
 ## Durable Mission Control state schema
 
@@ -856,21 +680,7 @@ compressed Founder merge instruction path and is not this lean card.
 
 ## Completion gate
 
-A task becomes `ELIGIBLE FOR FOUNDER REVIEW` only when all are true:
-
-- every required Acceptance Criterion is `Done` or explicitly `Not applicable` with reason;
-- required tests/checks pass for the exact current head;
-- required manual QA evidence exists;
-- no verified Blocker/Critical finding remains open;
-- implementation remains inside approved scope;
-- task Issue state records the current head and review cycle;
-- PR targets the approved base;
-- PR description links/closes the source Issue as required;
-- no unresolved state conflict exists.
-
-Once eligible: stop searching for additional improvements; do not reopen for
-Important, Minor, or Nit; create bounded follow-up Issues where worthwhile;
-return one Founder action (review/merge/decline); do not merge automatically.
+Extracted to module: [Checklists](./modules/checklists.md)
 
 ## Reopening rules
 
@@ -927,142 +737,17 @@ budget without autonomous Review 4, or when evidence cannot be proven
 
 ## Existing-task migration behavior
 
-For a managed existing task already under review without a valid state block:
-
-1. Reconstruct prior completed review rounds from Issue/PR comments where evidence is clear.
-2. Record the reconstructed count and reviewed SHAs.
-3. If the count cannot be proven, ask the Founder to set the starting cycle once.
-4. Do not grant a fresh three-cycle budget by default.
-5. Return `STATE_MIGRATION_REQUIRED` until migration is complete.
+Extracted to module: [Migration Guidance](./modules/migration-guidance.md)
 
 ## Repository-specific override behavior
 
-Child overrides live at `.bemoat/mission-control-overrides.md` (never
-sync-managed). See [project-overrides.example.md](./project-overrides.example.md).
-
-Overrides may add/narrow project requirements. They must not relax shared
-invariants (review budget, completion gate, severity rules, exact-head
-requirements, auto-merge bans, silent reset bans). Conflicting overrides yield
-`STATE_CONFLICT`.
+Extracted to module: [Child-Sync Operations](./modules/child-sync-operations.md)
 
 ## Compact transition examples
 
-### Delivery success (Delivery Coordinator)
-
-```markdown
-## RESULT
-**Completed:** Dev (implementation)
-**PR:** <PR_URL> · head `<sha>`
-**Managed state:** AWAITING_REVIEW_1 · PR #N · `<sha>` · counters unchanged (0/0)
-**Next:** Reviewer `## REVIEW_VERDICT` on exact head
-```
-
-### Review eligibility after verdict
-
-```markdown
-## REVIEW_VERDICT
-**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
-**Managed state:** ELIGIBLE_FOR_FOUNDER_REVIEW · cycle 3 · last_reviewed_head `<sha>`
-**Next:** Founder merge authorization
-```
-
-### Founder merge success
-
-```markdown
-Merged PR #N at verified head `<sha>` → merge commit `<merge_sha>`.
-Managed state: DONE. Migration/deploy not authorized in this transition.
-```
-
-### Terminal closure
-
-Task #N closed DONE. Active PR merged; exact-head CI and review gates satisfied.
-Next permitted action: none on this task.
+Extracted to module: [Templates / Examples](./modules/templates-examples.md)
 
 ## Worked examples
 
-### Small correction after Review 1
+Extracted to module: [Templates / Examples](./modules/templates-examples.md)
 
-Review 1 completed on head A with enumerated blockers. Dev pushes head B fixing
-those findings. Mission Control increments to Review 2 (delta), not a new full
-review. Reviewer inspects enumerated findings, B-minus-A delta, and exact-head
-checks only.
-
-### Third-cycle nit
-
-Review 3 with checks green and no Blocker/Critical. A naming nit becomes a
-follow-up Issue. Task becomes `ELIGIBLE FOR FOUNDER REVIEW`.
-
-### Verified blocker remains after Review 3
-
-One proven Blocker/Critical remains → `BLOCKED FOR FOUNDER DECISION`. No Review
-4. Mission Control returns the lean Approve/Decline card only — no Suggested
-model or Ready-to-paste prompt yet.
-
-### Founder Approves a blocked exception
-
-Founder replies **Approve** to the named exception. Mission Control writes
-durable GitHub authorization, emits a compact `## HANDOFF` for that named step
-only, and moves managed state to `IN_PROGRESS`. Review 4, merge, migration, and
-deploy remain unauthorized unless the named decision explicitly includes them.
-
-### Founder Declines a blocked exception
-
-Founder replies **Decline**. Mission Control records stop/closure
-(`BLOCKED_FOR_FOUNDER_DECISION` → `DONE` or a follow-up Issue only) with no
-implementation prompt.
-
-### New session mid-task
-
-Fresh chat reads GitHub state block and continues at the recorded cycle. Chat
-history is never authoritative.
-
-### Multi-step technical design brainstorm (remote E2E cleanup)
-
-Mission Control is choosing fixture and cleanup policy for remote automated E2E
-in a child repository. No implementation is authorized yet.
-
-```markdown
-## BRAINSTORMING
-
-## Brainstorming objective
-
-Select a deterministic fixture cleanup policy before authorizing implementation.
-
-## Confirmed context
-
-- Child repo runs Playwright against staging.
-- Issue scope is orchestration policy only; no code changes are authorized yet.
-- Guide version `1.2.0` on approved base `main`; child override: none.
-
-## Current design decisions
-
-- Prefer per-test isolation over shared mutable fixtures until flake data exists.
-
-## Options and trade-offs
-
-- **Option A — truncate after each spec:** slower runs, simplest mental model.
-- **Option B — seeded baseline snapshot:** faster reruns, higher setup and drift risk.
-
-## Recommendation
-
-Start with Option A and measure flake rate before optimizing for speed.
-
-## Open question
-
-Should cleanup run in `afterEach` or a dedicated teardown worker?
-
-## Durable GitHub impact
-
-None
-
-## Do not do yet
-
-- create a branch, commit, or PR;
-- post `## HANDOFF`, `## RESULT`, or `## REVIEW_VERDICT`;
-- update managed state or review counters;
-- treat `approve` on the recommendation as implementation authorization.
-```
-
-Founder reply `approve` approves only the Option A recommendation. Mission
-Control remains in brainstorming until the Founder later says `start dev` or
-another explicit implementation authorization phrase.
