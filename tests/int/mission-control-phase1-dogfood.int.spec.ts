@@ -205,21 +205,84 @@ function verifyFixtureManifestEquality() {
   }
 }
 
-function isPinnedCommitObjectAvailable() {
+type GitCommandRunner = (
+  command: string,
+  args: string[],
+  options?: { cwd?: string; encoding?: BufferEncoding | 'buffer'; stdio?: 'pipe' },
+) => string | Buffer
+
+type PinnedObjectProbeResult =
+  | { status: 'AVAILABLE' }
+  | { status: 'OBJECT_UNAVAILABLE' }
+  | { status: 'UNEXPECTED_FAILURE'; reason: string }
+
+function defaultGitRunner(
+  command: string,
+  args: string[],
+  options?: { cwd?: string; encoding?: BufferEncoding | 'buffer'; stdio?: 'pipe' },
+): string {
+  return execFileSync(command, args, {
+    cwd: options?.cwd ?? process.cwd(),
+    encoding: (options?.encoding ?? 'utf8') as BufferEncoding,
+    stdio: options?.stdio ?? 'pipe',
+  }) as string
+}
+
+function classifyPinnedCommitObjectAvailability(
+  runner: GitCommandRunner = defaultGitRunner,
+  sha: string = PINNED_SNAPSHOT_SHA,
+): PinnedObjectProbeResult {
   try {
-    execFileSync('git', ['cat-file', '-e', `${PINNED_SNAPSHOT_SHA}^{commit}`], { stdio: 'pipe' })
-    return true
-  } catch {
-    return false
+    runner('git', ['cat-file', '-e', `${sha}^{commit}`], { stdio: 'pipe' })
+    return { status: 'AVAILABLE' }
+  } catch (error) {
+    const err = error as NodeJS.ErrnoException & {
+      status?: number
+      stderr?: Buffer | string
+    }
+
+    if (err.code === 'ENOENT') {
+      return { status: 'UNEXPECTED_FAILURE', reason: 'git executable not available' }
+    }
+
+    if (err.code === 'EACCES' || err.code === 'EPERM') {
+      return {
+        status: 'UNEXPECTED_FAILURE',
+        reason: `git invocation permission failure: ${err.code}`,
+      }
+    }
+
+    const exitStatus = err.status
+    const stderr = Buffer.isBuffer(err.stderr) ? err.stderr.toString('utf8') : String(err.stderr ?? '')
+
+    if (exitStatus === undefined) {
+      return {
+        status: 'UNEXPECTED_FAILURE',
+        reason: err.message || 'unrecognized subprocess failure',
+      }
+    }
+
+    if (stderr.includes('not a git repository')) {
+      return { status: 'UNEXPECTED_FAILURE', reason: 'invalid git repository' }
+    }
+
+    if (exitStatus === 1) {
+      return { status: 'OBJECT_UNAVAILABLE' }
+    }
+
+    return {
+      status: 'UNEXPECTED_FAILURE',
+      reason: stderr.trim() || `unexpected git exit code ${exitStatus}`,
+    }
   }
 }
 
-function deriveManagedPathFilesFromCommit(sha: string) {
-  const manifestContent = execFileSync('git', ['show', `${sha}:.bemoat/boilerplate-sync-manifest.json`], {
+function deriveManagedPathFilesFromCommit(sha: string, runner: GitCommandRunner = defaultGitRunner) {
+  const manifestContent = runner('git', ['show', `${sha}:.bemoat/boilerplate-sync-manifest.json`], {
     encoding: 'utf8',
-  })
+  }) as string
   const managedPaths = (JSON.parse(manifestContent) as { managedPaths: string[] }).managedPaths
-  const commitFiles = execFileSync('git', ['ls-tree', '-r', '--name-only', sha], { encoding: 'utf8' })
+  const commitFiles = (runner('git', ['ls-tree', '-r', '--name-only', sha], { encoding: 'utf8' }) as string)
     .trim()
     .split('\n')
     .filter(Boolean)
@@ -233,12 +296,16 @@ function deriveManagedPathFilesFromCommit(sha: string) {
     .sort()
 }
 
-function verifyStrictPinnedProvenance() {
-  if (!isPinnedCommitObjectAvailable()) {
+function verifyStrictPinnedProvenance(runner: GitCommandRunner = defaultGitRunner) {
+  const probe = classifyPinnedCommitObjectAvailability(runner)
+  if (probe.status === 'OBJECT_UNAVAILABLE') {
     return
   }
+  if (probe.status === 'UNEXPECTED_FAILURE') {
+    throw new Error(`pinned commit object probe failed closed: ${probe.reason}`)
+  }
 
-  const commitManagedFiles = deriveManagedPathFilesFromCommit(PINNED_SNAPSHOT_SHA)
+  const commitManagedFiles = deriveManagedPathFilesFromCommit(PINNED_SNAPSHOT_SHA, runner)
   const manifestKeys = Object.keys(PINNED_MANIFEST.files).sort()
   const fixtureRelativePaths = enumerateRegularFiles(FIXTURE_ROOT)
 
@@ -246,15 +313,17 @@ function verifyStrictPinnedProvenance() {
   assertExactSetEquality(fixtureRelativePaths, manifestKeys, 'fixture files vs manifest keys')
 
   for (const [relativePath, expectedDigest] of Object.entries(PINNED_MANIFEST.files)) {
-    const content = execFileSync('git', ['show', `${PINNED_SNAPSHOT_SHA}:${relativePath}`])
+    const content = runner('git', ['show', `${PINNED_SNAPSHOT_SHA}:${relativePath}`], {
+      encoding: 'buffer',
+    })
     const gitDigest = createHash('sha256').update(content).digest('hex')
     expect(gitDigest).toBe(expectedDigest)
   }
 }
 
-function materializePinnedFixtureSource(targetDir: string) {
+function materializePinnedFixtureSource(targetDir: string, runner: GitCommandRunner = defaultGitRunner) {
   verifyFixtureManifestEquality()
-  verifyStrictPinnedProvenance()
+  verifyStrictPinnedProvenance(runner)
 
   cpSync(FIXTURE_ROOT, targetDir, { recursive: true })
   for (const [relativePath, expectedDigest] of Object.entries(PINNED_MANIFEST.files)) {
@@ -267,6 +336,66 @@ function materializePinnedFixtureSource(targetDir: string) {
 function gitStatusShort() {
   return execFileSync('git', ['status', '--short'], { cwd: process.cwd(), encoding: 'utf8' })
 }
+
+describe('pinned commit object probe classification (MC-DOG-R1-006)', () => {
+  it('classifies AVAILABLE when pinned commit object exists and runs strict provenance', () => {
+    const probe = classifyPinnedCommitObjectAvailability()
+    expect(probe.status).toBe('AVAILABLE')
+
+    const gitShowCalls: string[] = []
+    const runner: GitCommandRunner = (command, args, options) => {
+      if (command === 'git' && args[0] === 'cat-file') {
+        return defaultGitRunner(command, args, options) as string
+      }
+      if (command === 'git' && args[0] === 'show') {
+        gitShowCalls.push(args[1])
+      }
+      return defaultGitRunner(command, args, options) as string
+    }
+
+    expect(() => verifyStrictPinnedProvenance(runner)).not.toThrow()
+    expect(gitShowCalls.length).toBeGreaterThan(0)
+    expect(gitShowCalls.some((target) => target.startsWith(`${PINNED_SNAPSHOT_SHA}:`))).toBe(true)
+  })
+
+  it('classifies OBJECT_UNAVAILABLE when pinned object is genuinely absent and skips only git-object comparison', () => {
+    const absentSha = 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef'
+    const runner: GitCommandRunner = (command, args) => {
+      if (command === 'git' && args[0] === 'cat-file') {
+        const err = new Error('object missing') as NodeJS.ErrnoException & {
+          status?: number
+          stderr?: Buffer
+        }
+        err.status = 1
+        err.stderr = Buffer.from(`fatal: Not a valid object name ${absentSha}`)
+        throw err
+      }
+      throw new Error('git-object comparison must be skipped when object is unavailable')
+    }
+
+    const probe = classifyPinnedCommitObjectAvailability(runner, absentSha)
+    expect(probe.status).toBe('OBJECT_UNAVAILABLE')
+
+    expect(() => verifyFixtureManifestEquality()).not.toThrow()
+    expect(() => verifyStrictPinnedProvenance(runner)).not.toThrow()
+  })
+
+  it('classifies UNEXPECTED_FAILURE and fails closed for unexpected Git failures', () => {
+    const runner: GitCommandRunner = () => {
+      const err = new Error('permission denied') as NodeJS.ErrnoException & { code?: string }
+      err.code = 'EACCES'
+      throw err
+    }
+
+    const probe = classifyPinnedCommitObjectAvailability(runner)
+    expect(probe.status).toBe('UNEXPECTED_FAILURE')
+    if (probe.status === 'UNEXPECTED_FAILURE') {
+      expect(probe.reason).toContain('permission failure')
+    }
+
+    expect(() => verifyStrictPinnedProvenance(runner)).toThrow(/failed closed/)
+  })
+})
 
 describe('mission-control phase 1 dogfood scenarios (S1-S10)', () => {
   it('S1: complete delivery chain READY -> IN_PROGRESS -> HANDOFF -> RESULT -> AWAITING_REVIEW_1', async () => {
