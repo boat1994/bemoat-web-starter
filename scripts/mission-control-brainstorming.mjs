@@ -18,6 +18,20 @@ const BARE_DESIGN_APPROVAL_RE =
   /^\s*(?:approve|approved|looks?\s+good|use\s+option\s+[A-Za-z0-9]+)\s*\.?\s*$/i
 
 /**
+ * Negation, prohibition, delay, conditionals, or conflicting intent that must
+ * never be treated as affirmative implementation authorization.
+ */
+const NON_AFFIRMATIVE_INTENT_RE =
+  /\b(?:do\s+not|don'?t|does\s+not|doesn'?t|never|not\s+(?:authorized|ready|now)|later|unless)\b/i
+
+/**
+ * @param {string} reply
+ */
+function hasNonAffirmativeIntent(reply = '') {
+  return NON_AFFIRMATIVE_INTENT_RE.test(reply)
+}
+
+/**
  * @param {string} body
  */
 export function isBrainstormingProfileResponse(body = '') {
@@ -61,7 +75,18 @@ export function classifyFounderAuthorizationReply(reply = '', options = {}) {
     }
   }
 
+  const nonAffirmative = hasNonAffirmativeIntent(normalized)
+
   if (EXPLICIT_IMPLEMENTATION_AUTH_RE.test(normalized)) {
+    if (nonAffirmative) {
+      return {
+        kind: 'ambiguous',
+        authorizesImplementation: false,
+        remainInBrainstorming: true,
+        failClosed: true,
+      }
+    }
+
     return {
       kind: 'implementation',
       authorizesImplementation: true,
@@ -70,7 +95,11 @@ export function classifyFounderAuthorizationReply(reply = '', options = {}) {
     }
   }
 
-  if (options.scopedImplementationDecision === true && BARE_DESIGN_APPROVAL_RE.test(normalized)) {
+  if (
+    options.scopedImplementationDecision === true &&
+    BARE_DESIGN_APPROVAL_RE.test(normalized) &&
+    !nonAffirmative
+  ) {
     return {
       kind: 'scoped_implementation',
       authorizesImplementation: true,

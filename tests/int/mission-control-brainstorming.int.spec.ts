@@ -149,6 +149,38 @@ describe('Mission Control brainstorming profile contract (#144)', () => {
     }
   })
 
+  it('rejects negated, prohibited, delayed, or ambiguous implementation phrases (MC-R1-001)', () => {
+    const deniedReplies = [
+      'do not implement this',
+      "don't implement this",
+      'do not start dev',
+      "don't start dev",
+      'do not create the implementation HANDOFF',
+      'not authorized to implement this',
+      'implement this later, not now',
+      'looks good, but do not implement this',
+      'approve the design only; do not start dev',
+      'do not implement this unless I explicitly approve later',
+    ]
+
+    for (const reply of deniedReplies) {
+      const result = classifyFounderAuthorizationReply(reply)
+      expect(result.authorizesImplementation, reply).toBe(false)
+      expect(result.remainInBrainstorming, reply).toBe(true)
+      expect(result.failClosed, reply).toBe(true)
+
+      const transition = evaluateBrainstormingTransition({
+        inBrainstorming: true,
+        responseBody: SAMPLE_BRAINSTORMING,
+        founderReply: reply,
+      })
+      expect(transition.authorizesImplementation, reply).toBe(false)
+      expect(transition.remainInBrainstorming, reply).toBe(true)
+      expect(transition.failClosed, reply).toBe(true)
+      expect(transition.useNormalMissionControlTemplate, reply).toBe(false)
+    }
+  })
+
   it('allows scoped Founder approval to authorize implementation when explicitly framed', () => {
     const result = classifyFounderAuthorizationReply('approve', {
       scopedImplementationDecision: true,
@@ -156,6 +188,15 @@ describe('Mission Control brainstorming profile contract (#144)', () => {
     expect(result.kind).toBe('scoped_implementation')
     expect(result.authorizesImplementation).toBe(true)
     expect(result.remainInBrainstorming).toBe(false)
+  })
+
+  it('keeps scoped bare approval fail-closed when negation or delay is present', () => {
+    const result = classifyFounderAuthorizationReply('approve later, not now', {
+      scopedImplementationDecision: true,
+    })
+    expect(result.authorizesImplementation).toBe(false)
+    expect(result.remainInBrainstorming).toBe(true)
+    expect(result.failClosed).toBe(true)
   })
 
   it('remains fail-closed on ambiguous approval', () => {
