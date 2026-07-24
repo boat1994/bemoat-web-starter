@@ -24,7 +24,10 @@ function buildSyncMetadataInput(input: BuildSyncMetadataInput): BuildSyncMetadat
 
 /** Integration tests under tests/int that are starter-only and intentionally not synced. */
 const STARTER_ONLY_INT_TESTS: { path: string; reason: string }[] = [
-  // All current tests/int/**/*.int.spec.ts files are shared harness tests for child projects.
+  {
+    path: 'tests/int/mission-control-phase1-dogfood.int.spec.ts',
+    reason: 'Phase 1 Mission Control dogfood proof scenarios (Issue #169) are starter harness validation only',
+  },
 ]
 
 /** Documentation paths that are starter-only and intentionally not synced. */
