@@ -623,7 +623,7 @@ function fetchPrByReference(cwd, reference, env = process.env) {
     'view',
     parsed.number,
     '--json',
-    'title,url,headRefName,baseRefName,headRefOid,state,statusCheckRollup,commits,headRepository',
+    'title,url,headRefName,baseRefName,headRefOid,state,statusCheckRollup,commits,headRepository,mergeCommit',
   ]
   if (parsed.repo) {
     args.push('--repo', parsed.repo)
@@ -844,6 +844,7 @@ export function analyzeProgressTracking({
   cwd = process.cwd(),
   activeIssueBody = '',
   activeIssueNumber = null,
+  activeIssueState = null,
   env = process.env,
 } = {}) {
   const blockers = []
@@ -875,6 +876,7 @@ export function analyzeProgressTracking({
     declarations.missionControlMode === 'required' ||
     (taskSize === 'core' && declarations.declaresMainIssue && declarations.declaresImplementationPlan)
   const state = stateAnalysis.state
+  let resolvedActiveIssueState = activeIssueState
   const stateNeedsPrEvidence = stateAnalysis.valid && stateRequiresPrEvidence(state.state)
 
   report.missionControlState = stateAnalysis
@@ -897,7 +899,12 @@ export function analyzeProgressTracking({
       blockers.push('STATE_CONFLICT: state active_task_issue does not match the live task Issue.')
     }
   }
-  if (stateAnalysis.valid && ['STATE_CONFLICT', 'STATE_MIGRATION_REQUIRED', 'BLOCKED_EXTERNAL'].includes(state.state)) {
+  const repairableRecordedLegacyState =
+    stateAnalysis.valid &&
+    state.state === 'STATE_CONFLICT' &&
+    ['post_budget_review_history', 'founder_authorization', 'founder_correction_authorization']
+      .some((key) => Object.hasOwn(state, key))
+  if (stateAnalysis.valid && ['STATE_CONFLICT', 'STATE_MIGRATION_REQUIRED', 'BLOCKED_EXTERNAL'].includes(state.state) && !repairableRecordedLegacyState) {
     blockers.push(`${state.state}: recorded Mission Control state requires reconciliation before continuing.`)
   }
 
@@ -1080,10 +1087,22 @@ export function analyzeProgressTracking({
         if (state.approved_base !== prResult.pr.baseRefName) {
           blockers.push('STATE_CONFLICT: state approved_base does not match the live PR base.')
         }
-        if (state.current_head && state.current_head !== prResult.pr.headRefOid) {
+        const terminalHeadIsPreserved =
+          prResult.pr.state === 'MERGED' &&
+          state.state === 'DONE' &&
+          state.last_reviewed_head === prResult.pr.headRefOid
+        if (state.current_head && state.current_head !== prResult.pr.headRefOid && !terminalHeadIsPreserved) {
           blockers.push('STATE_CONFLICT: state current_head does not match the live PR head.')
         }
-        if (prResult.pr.state === 'MERGED' && state.state !== 'DONE') {
+        if (prResult.pr.state === 'MERGED' && !resolvedActiveIssueState && activeIssueNumber) {
+          const liveIssue = fetchIssueByReference(cwd, `#${activeIssueNumber}`, env)
+          if (liveIssue.ok) resolvedActiveIssueState = liveIssue.issue.state
+        }
+        const terminalRepairCandidate =
+          prResult.pr.state === 'MERGED' &&
+          String(resolvedActiveIssueState ?? '').toLowerCase() === 'closed' &&
+          state.last_reviewed_head === prResult.pr.headRefOid
+        if (prResult.pr.state === 'MERGED' && state.state !== 'DONE' && !terminalRepairCandidate) {
           blockers.push('STATE_CONFLICT: merged PR completion must reconcile to DONE.')
         }
         if (prResult.pr.state === 'CLOSED' && state.state !== 'DONE') {
@@ -1161,6 +1180,19 @@ export function analyzeProgressTracking({
       latestVerdict,
       activeTaskIssue: activeIssueNumber,
       stateConflictBlockers: blockers.filter((blocker) => blocker.includes('STATE_CONFLICT')),
+      requiredEvidenceUnavailable: blockers.some((blocker) => blocker.includes('BLOCKED_EXTERNAL')),
+      terminal: report.pr?.state === 'MERGED'
+        ? {
+            issueClosed: String(resolvedActiveIssueState ?? '').toLowerCase() === 'closed',
+            prMerged: true,
+            reviewedHeadMatches: state.last_reviewed_head === report.pr.headRefOid,
+            mergeCommit: report.pr.mergeCommit?.oid ?? report.pr.mergeCommitOid ?? null,
+            exactHeadCi: report.exactHeadCi?.exactHeadVerified === true,
+            currentHeadMatches:
+              state.current_head === report.pr.headRefOid ||
+              (state.state === 'DONE' && state.current_head === (report.pr.mergeCommit?.oid ?? report.pr.mergeCommitOid ?? null)),
+          }
+        : null,
     })
     report.reconciliation = reconciliation
 
@@ -2249,6 +2281,7 @@ export function runAgentIssuePreflight({
           cwd,
           activeIssueBody: issueMetadata.body,
           activeIssueNumber: issueNumber,
+          activeIssueState: issueMetadata.state,
           env,
         })
       : {

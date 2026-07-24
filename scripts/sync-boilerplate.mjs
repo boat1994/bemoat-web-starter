@@ -76,6 +76,7 @@ export const managedPaths = [
   'scripts/agent-delivery.mjs',
   'scripts/correction-contract.mjs',
   'scripts/mission-control-reconcile.mjs',
+  'scripts/mission-control-dispatch.mjs',
   'scripts/post-role-comment.mjs',
   'scripts/guard-cloudflare-env.mjs',
   'scripts/guard-pack.mjs',
@@ -149,6 +150,7 @@ export const packageSyncProposalPath = '.bemoat/package-sync-proposal.md'
 /** Namespaced scripts safe to add when missing during sync. Never overwrite existing entries. */
 export const managedPackageScripts = [
   'bemoat:agent:issue',
+  'bemoat:mission-control:dispatch',
   'bemoat:agent:delivery',
   'bemoat:issue:comment',
   'bemoat:branch:check',

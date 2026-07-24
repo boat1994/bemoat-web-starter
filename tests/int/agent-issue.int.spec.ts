@@ -1199,6 +1199,70 @@ printf '%s' '{"title":"PR","url":"https://github.com/boat1994/bemoat-web-starter
     expect(analysis.blockers.join(' ')).toContain('STATE_CONFLICT')
   })
 
+  it('classifies closed Issue plus merged exact reviewed PR as terminal repair instead of STATE_CONFLICT', () => {
+    const root = createRepo('feature/155-terminal-repair')
+    const analysis = analyzeProgressTracking({
+      cwd: root,
+      activeIssueNumber: '155',
+      activeIssueState: 'closed',
+      activeIssueBody: `Mission Control mode: required
+${managedState({
+  state: 'ELIGIBLE_FOR_FOUNDER_REVIEW',
+  review_cycle: '3',
+  full_review_count: '1',
+  active_task_issue: '"#155"',
+  active_pr: '"#157"',
+  current_head: 'reviewed-head',
+  last_reviewed_head: 'reviewed-head',
+  open_blockers: '[]',
+})}`,
+      env: {
+        ...process.env,
+        PATH: withStubbedGh(root, `#!/usr/bin/env sh
+printf '%s' '{"title":"PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/157","headRefName":"feature/155-terminal-repair","baseRefName":"main","headRefOid":"reviewed-head","state":"MERGED","mergeCommit":{"oid":"merge-commit"},"statusCheckRollup":[{"name":"ci","conclusion":"SUCCESS"}],"commits":[]}'
+`),
+      },
+    })
+
+    expect(analysis.blockers).not.toContain(expect.stringContaining('merged PR completion'))
+    expect(analysis.report.reconciliation).toMatchObject({
+      classification: { outcome: 'TERMINAL_REPAIR' },
+      proposal: { type: 'terminal', fields: { state: 'DONE' } },
+    })
+  })
+
+  it('keeps an already-DONE task terminal when current_head stores the merge commit', () => {
+    const root = createRepo('feature/155-terminal-noop')
+    const analysis = analyzeProgressTracking({
+      cwd: root,
+      activeIssueNumber: '155',
+      activeIssueState: 'closed',
+      activeIssueBody: `Mission Control mode: required
+${managedState({
+  state: 'DONE',
+  review_cycle: '3',
+  full_review_count: '1',
+  active_task_issue: '"#155"',
+  active_pr: '"#157"',
+  current_head: 'merge-commit',
+  last_reviewed_head: 'reviewed-head',
+  open_blockers: '[]',
+})}`,
+      env: {
+        ...process.env,
+        PATH: withStubbedGh(root, `#!/usr/bin/env sh
+printf '%s' '{"title":"PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/157","headRefName":"feature/155-terminal-noop","baseRefName":"main","headRefOid":"reviewed-head","state":"MERGED","mergeCommit":{"oid":"merge-commit"},"statusCheckRollup":[{"name":"ci","conclusion":"SUCCESS"}],"commits":[]}'
+`),
+      },
+    })
+
+    expect(analysis.blockers).not.toContain(expect.stringContaining('STATE_CONFLICT'))
+    expect(analysis.report.reconciliation).toMatchObject({
+      classification: { outcome: 'NO_OP' },
+      proposal: null,
+    })
+  })
+
   it('surfaces recorded terminal classifications and unavailable required PR evidence as blockers', () => {
     const root = createRepo('feature/115-external-state')
     const conflict = analyzeProgressTracking({
@@ -1215,6 +1279,55 @@ ${managedState({ state: 'AWAITING_REVIEW_1' })}`,
 
     expect(conflict.blockers.join(' ')).toContain('STATE_CONFLICT')
     expect(unavailable.blockers.join(' ')).toContain('BLOCKED_EXTERNAL')
+  })
+
+  it('routes repairable recorded legacy state through production reconciliation without treating it as contradictory authority', () => {
+    const root = createRepo('feature/155-legacy-reconcile')
+    const analysis = analyzeProgressTracking({
+      cwd: root,
+      activeIssueNumber: '155',
+      activeIssueBody: `Mission Control mode: required
+${managedState({
+  state: 'STATE_CONFLICT', review_cycle: '1', full_review_count: '1', last_reviewed_head: 'reviewed-head',
+  active_task_issue: '"155"', active_pr: '"157"', current_head: 'reviewed-head',
+  post_budget_review_history: '[]',
+})}`,
+      env: {
+        ...process.env,
+        PATH: withStubbedGh(root, `#!/usr/bin/env sh
+case "$*" in
+  *"pr view 157"*) printf '%s' '{"title":"PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/157","headRefName":"feature/155","baseRefName":"main","headRefOid":"reviewed-head","state":"OPEN","statusCheckRollup":[{"name":"ci","conclusion":"SUCCESS"}],"commits":[]}' ;;
+  *) echo "unexpected gh call: $*" >&2; exit 1 ;;
+esac
+`),
+      },
+    })
+
+    expect(analysis.blockers.join(' ')).not.toContain('recorded Mission Control state requires reconciliation')
+    expect(analysis.report.reconciliation).toMatchObject({ classification: { outcome: 'DETERMINISTIC_MIGRATION' } })
+  })
+
+  it('propagates unavailable required production evidence into reconciliation as BLOCKED_EXTERNAL', () => {
+    const root = createRepo('feature/160-blocked-external')
+    const analysis = analyzeProgressTracking({
+      cwd: root,
+      activeIssueNumber: '160',
+      activeIssueBody: `Mission Control mode: required
+${managedState({ state: 'AWAITING_REVIEW_2', review_cycle: '1', full_review_count: '1', last_reviewed_head: 'reviewed-head' })}`,
+      env: {
+        ...process.env,
+        PATH: withStubbedGh(root, `#!/usr/bin/env sh
+case "$*" in
+  *"issue view 160"*"comments"*) printf '%s' '{"comments":[]}' ;;
+  *"pr view 116"*) echo offline >&2; exit 1 ;;
+  *) echo "unexpected gh call: $*" >&2; exit 1 ;;
+esac
+`),
+      },
+    })
+
+    expect(analysis.blockers.join(' ')).toContain('BLOCKED_EXTERNAL')
+    expect(analysis.report.reconciliation).toMatchObject({ classification: { outcome: 'BLOCKED_EXTERNAL' } })
   })
 
   it('blocks when the declared current stage is a Founder gate', () => {

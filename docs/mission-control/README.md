@@ -45,6 +45,11 @@ Mission Control HANDOFF
   → Founder-approved merge
 ```
 
+For managed implementation dispatch, use
+`pnpm run bemoat:mission-control:dispatch -- <issue-number> --body-file <handoff.md>`
+to bind `READY -> IN_PROGRESS` to the existing `## HANDOFF` transport with
+rollback and concurrent-write protection.
+
 Rules that change day-to-day behavior:
 
 - GitHub Issues/PR/CI are authoritative; chat is context only.

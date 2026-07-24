@@ -338,6 +338,45 @@ If any input is missing or contradictory, stop with `STATE CONFLICT` or
 `INCOMPLETE_DELIVERY` (when the producing role has not finished its atomic
 transition) — never infer authorization or review outcomes.
 
+### Strict reconciliation classification and budget
+
+Apply this ordered classification before writing managed state:
+
+| Live condition | Outcome |
+| --- | --- |
+| Required live evidence cannot be fetched or verified | `BLOCKED_EXTERNAL` |
+| Two authoritative live sources contradict each other | `STATE_CONFLICT` |
+| A managed task uses unambiguous legacy post-budget or Founder-authorization fields | deterministic migration |
+| One exact PR/head/CI/role-output chain is unambiguous and only bookkeeping lags | bookkeeping repair |
+| The Issue is closed/completed, its PR is merged, and the reviewed head matches | terminal repair to `DONE` |
+| The same live evidence is already represented canonically | no-op |
+
+Missing canonical representation is not contradictory authority. Migrate
+`post_budget_review_history` into `post_budget_reviews`, bind Founder review and
+correction authorization to the exact review number, reviewed head, and finding
+IDs, and preserve `review_cycle`, `full_review_count`, `last_reviewed_head`, and
+immutable finding lineage. Remove superseded legacy keys only in the same
+successful canonical write.
+
+One reconciliation run may perform at most one deterministic state repair and
+one fresh live verification. It must not recurse or attempt a second repair.
+Identical evidence after a completed reconciliation performs no state write,
+posts no role comment, and requires no model stage. After terminal repair,
+stale non-authoritative bookkeeping must never reopen the task.
+
+### Atomic implementation dispatch
+
+Use the managed dispatch action for a bounded implementation handoff:
+
+```bash
+pnpm run bemoat:mission-control:dispatch -- <issue-number> --body-file <handoff.md>
+```
+
+The action validates `READY`, writes `IN_PROGRESS`, posts exactly one existing
+`## HANDOFF`, and verifies the resulting state. If HANDOFF publication fails,
+it rolls the state back only when a fresh read proves no concurrent Issue edit;
+otherwise it fails closed without overwriting the concurrent writer.
+
 ## Protocol compression
 
 Routine successful transitions should return compact user-facing output while
