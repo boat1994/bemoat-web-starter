@@ -1945,9 +1945,13 @@ function verifyPlanningNoPrDurableProofs({
     if (baseRef.status !== 0) {
       errors.push(`STATE CONFLICT: approved_base ${approvedBase} is not a valid git ref`)
     } else {
-      const baseSha = baseRef.stdout.trim()
-      const onBaseCheck = run('git', ['merge-base', '--is-ancestor', baseSha, contractReviewedHead], { cwd, env })
-      if (onBaseCheck.status !== 0) {
+      const baseTipSha = baseRef.stdout.trim()
+      // approved_base is branch identity; the live tip may advance after review. Verify
+      // shared planning lineage via merge-base instead of requiring the moving tip itself
+      // to be an ancestor of the immutable reviewed head.
+      const lineageResult = run('git', ['merge-base', baseTipSha, contractReviewedHead], { cwd, env })
+      const lineagePoint = lineageResult.stdout.trim()
+      if (lineageResult.status !== 0 || !lineagePoint) {
         errors.push('STATE CONFLICT: reviewed_head is not safely descended from approved_base')
       }
     }

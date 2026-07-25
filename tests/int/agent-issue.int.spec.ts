@@ -2872,6 +2872,177 @@ esac
       expect(result.stdout).toContain('Edit authorization: granted')
     })
 
+    it('TEST-PLAN-05: grants authorization when approved_base advances after review (Issue #171)', () => {
+      const root = mkdtempSync(join(tmpdir(), 'bemoat-agent-issue-'))
+      tempRoots.push(root)
+      spawnSync('git', ['init', '-b', 'main'], { cwd: root, encoding: 'utf8' })
+      spawnSync('git', ['remote', 'add', 'origin', 'https://github.com/boat1994/bemoat-web-starter.git'], {
+        cwd: root,
+        encoding: 'utf8',
+      })
+      spawnSync('git', ['config', 'user.email', 'agent-issue@test'], { cwd: root, encoding: 'utf8' })
+      spawnSync('git', ['config', 'user.name', 'Agent Issue Test'], { cwd: root, encoding: 'utf8' })
+      seedTrackedFile(root, 'README.md', 'initial seed')
+      spawnSync('git', ['checkout', '-b', 'feature/145-planning-no-pr-correction'], { cwd: root, encoding: 'utf8' })
+      seedTrackedFile(
+        root,
+        'docs/superpowers/specs/bogus/catalog/minimal-luxury-detail/design.md',
+        '# planning artifact',
+      )
+      const reviewedHead = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim()
+      spawnSync('git', ['checkout', 'main'], { cwd: root, encoding: 'utf8' })
+      seedTrackedFile(root, 'harness-sync-marker.txt', 'unrelated protected-base advance')
+      spawnSync('git', ['checkout', 'feature/145-planning-no-pr-correction'], { cwd: root, encoding: 'utf8' })
+
+      const issueBody = planningManagedState(reviewedHead, { approved_base: 'main' })
+      const commentsPayload = JSON.stringify({
+        comments: [
+          {
+            body: `## REVIEW_VERDICT
+**Verdict:** CORRECTION REQUIRED
+**PR / base / head:** none · base main · head ${reviewedHead}
+**Next:** Dev posts correction RESULT
+
+\`\`\`json
+{
+  "schema_version": 1,
+  "mode": "planning_no_pr",
+  "reviewed_head": "${reviewedHead}",
+  "findings": [
+    {
+      "id": "MC-R1-001",
+      "canonical_summary": "design spec missing exact error boundary",
+      "source_thread": "https://github.com/boat1994/bemoat-web-starter/pull/12#discussion_r1",
+      "required_evidence": ["updated design.md"],
+      "expected_areas": ["docs/superpowers/specs/bogus/catalog/minimal-luxury-detail/design.md"],
+      "prohibited_areas": []
+    }
+  ]
+}
+\`\`\``,
+            createdAt: '2026-07-20T10:00:00+07:00',
+          },
+        ],
+      }).replace(/'/g, `'\"'\"'`)
+
+      const issueViewPayload = JSON.stringify({
+        title: 'Immutable correction contract',
+        url: 'https://github.com/boat1994/bemoat-web-starter/issues/145',
+        body: issueBody,
+        labels: [],
+      }).replace(/'/g, `'\"'\"'`)
+
+      const ghStub = `#!/usr/bin/env sh
+case "$*" in
+  *"issue view 145"*"title,url,body,labels"*)
+    printf '%s' '${issueViewPayload}'
+    ;;
+  *"issue view 145"*"comments"*)
+    printf '%s' '${commentsPayload}'
+    ;;
+  *"pr list --state open"*)
+    printf '%s' '[]'
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`
+
+      const result = runAgentIssue(root, ['145', '--phase', 'correction'], {
+        PATH: withStubbedGh(root, ghStub),
+      })
+
+      expect(result.status).toBe(0)
+      expect(result.stdout).toContain('Edit authorization: granted')
+      expect(result.stdout).not.toContain('reviewed_head is not safely descended from approved_base')
+    })
+
+    it('TEST-PLAN-06: fails closed when reviewed_head has no shared planning lineage with approved_base', () => {
+      const root = mkdtempSync(join(tmpdir(), 'bemoat-agent-issue-'))
+      tempRoots.push(root)
+      spawnSync('git', ['init', '-b', 'main'], { cwd: root, encoding: 'utf8' })
+      spawnSync('git', ['remote', 'add', 'origin', 'https://github.com/boat1994/bemoat-web-starter.git'], {
+        cwd: root,
+        encoding: 'utf8',
+      })
+      spawnSync('git', ['config', 'user.email', 'agent-issue@test'], { cwd: root, encoding: 'utf8' })
+      spawnSync('git', ['config', 'user.name', 'Agent Issue Test'], { cwd: root, encoding: 'utf8' })
+      seedTrackedFile(root, 'README.md', 'initial seed on main')
+      spawnSync('git', ['checkout', '--orphan', 'feature/145-unrelated-planning-head'], { cwd: root, encoding: 'utf8' })
+      seedTrackedFile(
+        root,
+        'docs/superpowers/specs/bogus/catalog/minimal-luxury-detail/design.md',
+        '# unrelated planning artifact',
+      )
+      const unrelatedHead = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim()
+
+      const issueBody = planningManagedState(unrelatedHead, { approved_base: 'main' })
+      const commentsPayload = JSON.stringify({
+        comments: [
+          {
+            body: `## REVIEW_VERDICT
+**Verdict:** CORRECTION REQUIRED
+**PR / base / head:** none · base main · head ${unrelatedHead}
+**Next:** Dev posts correction RESULT
+
+\`\`\`json
+{
+  "schema_version": 1,
+  "mode": "planning_no_pr",
+  "reviewed_head": "${unrelatedHead}",
+  "findings": [
+    {
+      "id": "MC-R1-001",
+      "canonical_summary": "design spec missing exact error boundary",
+      "source_thread": "https://github.com/boat1994/bemoat-web-starter/pull/12#discussion_r1",
+      "required_evidence": ["updated design.md"],
+      "expected_areas": ["docs/superpowers/specs/bogus/catalog/minimal-luxury-detail/design.md"],
+      "prohibited_areas": []
+    }
+  ]
+}
+\`\`\``,
+            createdAt: '2026-07-20T10:00:00+07:00',
+          },
+        ],
+      }).replace(/'/g, `'\"'\"'`)
+
+      const issueViewPayload = JSON.stringify({
+        title: 'Immutable correction contract',
+        url: 'https://github.com/boat1994/bemoat-web-starter/issues/145',
+        body: issueBody,
+        labels: [],
+      }).replace(/'/g, `'\"'\"'`)
+
+      const ghStub = `#!/usr/bin/env sh
+case "$*" in
+  *"issue view 145"*"title,url,body,labels"*)
+    printf '%s' '${issueViewPayload}'
+    ;;
+  *"issue view 145"*"comments"*)
+    printf '%s' '${commentsPayload}'
+    ;;
+  *"pr list --state open"*)
+    printf '%s' '[]'
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`
+
+      const result = runAgentIssue(root, ['145', '--phase', 'correction'], {
+        PATH: withStubbedGh(root, ghStub),
+      })
+
+      expect(result.status).toBe(1)
+      expect(result.stdout).toContain('planning_no_pr durable authorization proofs failed')
+      expect(result.stdout).toContain('reviewed_head is not safely descended from approved_base')
+    })
+
     it('TEST-PR-01: preserves exact existing behavioral divergence for implementation_pr mode', () => {
       const root = createRepo('feature/136-immutable-correction-contract')
       const commentsPayload = JSON.stringify({
