@@ -1948,7 +1948,11 @@ function verifyPlanningNoPrDurableProofs({
       const baseSha = baseRef.stdout.trim()
       const onBaseCheck = run('git', ['merge-base', '--is-ancestor', baseSha, contractReviewedHead], { cwd, env })
       if (onBaseCheck.status !== 0) {
-        errors.push('STATE CONFLICT: reviewed_head is not safely descended from approved_base')
+        if (onBaseCheck.status === 1) {
+          errors.push('STATE CONFLICT: reviewed_head is not safely descended from approved_base')
+        } else {
+          errors.push('BLOCKED_EXTERNAL: git repository is too shallow or missing objects to verify ancestry')
+        }
       }
     }
   }
