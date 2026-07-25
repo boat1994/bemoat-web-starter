@@ -1,0 +1,6 @@
+{
+  "scripts": {
+    "build": "cross-env NODE_OPTIONS=\"--no-deprecation --max-old-space-size=8000\" pnpm exec opennextjs-cloudflare build",
+    "deploy:app": "pnpm exec opennextjs-cloudflare build && pnpm exec opennextjs-cloudflare deploy"
+  }
+}

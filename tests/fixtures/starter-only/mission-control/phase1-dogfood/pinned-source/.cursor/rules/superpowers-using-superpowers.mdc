@@ -1,0 +1,22 @@
+---
+title: Superpowers skill workflow
+description: Require agents to invoke the Superpowers skill router before task work
+tags: [agents, superpowers, workflow, codex]
+priority: high
+---
+
+# Superpowers skill workflow
+
+All agents working in this repository must begin task work by using the Superpowers skill workflow.
+
+## Required starting skill
+
+- `superpowers:using-superpowers`
+- Native source: the installed Superpowers skill named `superpowers:using-superpowers`
+- Portable fallback: `.agents/skills/using-superpowers.md`
+
+## Rule
+
+Before responding, asking clarifying questions, planning, editing files, running implementation commands, or reviewing code, check whether any skill applies. If a skill might apply, read and follow that skill first. Local skill cache paths are environment-specific and must not be treated as the only source of truth.
+
+User instructions remain the highest priority.

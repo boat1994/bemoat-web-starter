@@ -1,0 +1,597 @@
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { dirname, join, resolve } from 'node:path'
+import { spawnSync } from 'node:child_process'
+
+import { afterEach, describe, expect, it } from 'vitest'
+
+const scriptPath = resolve(process.cwd(), 'scripts/post-role-comment.mjs')
+const tempPaths: string[] = []
+
+const bodies = {
+  HANDOFF: `## HANDOFF
+### Task log
+- Timestamp: 2026-07-16T12:00:00+07:00
+- Task / Issue: #115
+- Phase: Dev
+- Executing role: Mission Control
+**Target:** Dev
+**Objective:** Implement the bounded change.
+**Links:** Issue #115
+**Next:** Dev posts RESULT
+`,
+  RESULT: `## RESULT
+### Task log
+- Timestamp: 2026-07-16T12:00:00+07:00
+- Task / Issue: #115
+- Phase: Dev
+- Executing role: Dev / Builder
+**Completed:** Implementation
+**Summary:** Added the bounded change.
+**Next:** Reviewer posts REVIEW_VERDICT
+`,
+  REVIEW_VERDICT: `## REVIEW_VERDICT
+### Task log
+- Timestamp: 2026-07-16T12:00:00+07:00
+- Task / Issue: #115
+- Phase: Reviewer
+- Executing role: Reviewer
+**PR / base / head:** https://github.com/acme/repo/pull/12 · \`main\` · \`abc1234\`
+**Verdict:** CORRECTION REQUIRED
+**Findings:** Critical: None · Important: missing test
+**Gates:** exact-head CI https://example.test/ci → fail
+**Next:** Mission Control posts HANDOFF
+
+\`\`\`json
+{
+  "schema_version": 1,
+  "reviewed_head": "abc1234",
+  "findings": [
+    {
+      "id": "MC-R1-001",
+      "canonical_summary": "missing focused regression coverage",
+      "source_thread": "https://github.com/acme/repo/pull/12#discussion_r1",
+      "required_evidence": ["focused failing-then-passing test"],
+      "expected_areas": ["tests/int"],
+      "prohibited_areas": ["src/unrelated"]
+    }
+  ]
+}
+\`\`\`
+`,
+}
+
+const documentedResult = `## RESULT
+### Task log
+- Timestamp: 2026-07-16T12:00:00+07:00
+- Task / Issue: #115
+- Phase: Dev
+- Executing role: Dev / Builder
+**Role / phase completed:** Dev (implementation)
+### Summary
+- Added validation.
+### Files or artifacts changed
+- scripts/post-role-comment.mjs
+### Commands run
+- pnpm exec vitest → pass
+### Next handoff
+- Reviewer posts REVIEW_VERDICT
+`
+
+const documentedReviewVerdict = `## REVIEW_VERDICT
+### Task log
+- Timestamp: 2026-07-16T12:00:00+07:00
+- Task / Issue: #115
+- Phase: Reviewer
+- Executing role: Reviewer
+**Reviewed PR:** https://github.com/acme/repo/pull/12
+**Approved base:** main
+**Exact head reviewed:** abc1234
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+### Critical / Important findings summary
+- Critical: None
+### Gate status
+- Exact-head CI: pass
+### Next handoff
+- Founder review
+`
+
+const fastResult = `## RESULT
+**Profile:** FAST
+**Task:** #119 · \`feature/119-fast\` → \`main\` · head \`abc1234\`
+**PR:** https://github.com/acme/repo/pull/119
+**Completed:** Added the bounded FAST-path change.
+**Evidence:** Local — focused test → pass; GitHub — exact-head CI → pass
+**AC audit:** Done
+**Risks / escalation:** None
+**Next:** Founder review / merge decision
+`
+
+const doubleLoopHandoff = `${bodies.HANDOFF}
+**Loop gate:** Triggered — no code edits
+**Failure class:** UNKNOWN
+**Invalidated assumptions:** The timeout change would reveal the root cause.
+**Decision:** REVISE_VALIDATION
+**Next experiment:** Capture the user-flow assertion without changing product code.
+**Material difference:** It tests validation evidence instead of changing another timeout.
+**Allowed / prohibited:** Test and documentation only; product code edits prohibited.
+**Verify / stop:** Run the focused assertion; stop if the evidence remains ambiguous.
+`
+
+function tempFile(name: string, content: string) {
+  const directory = mkdtempSync(join(tmpdir(), 'bemoat-role-comment-'))
+  tempPaths.push(directory)
+  const path = join(directory, name)
+  writeFileSync(path, content)
+  return path
+}
+
+function stubGh() {
+  const directory = mkdtempSync(join(tmpdir(), 'bemoat-role-comment-bin-'))
+  tempPaths.push(directory)
+  const capture = join(directory, 'arguments.txt')
+  const executable = join(directory, 'gh')
+  writeFileSync(executable, `#!/bin/sh\nprintf '%s\\n' "$@" > "$BEMOAT_GH_CAPTURE"\n`)
+  chmodSync(executable, 0o755)
+  return { capture, path: `${directory}:${process.env.PATH ?? ''}` }
+}
+
+/**
+ * Stub `gh` so `issue view --json comments` reconstructs a canonical
+ * correction contract from a live REVIEW_VERDICT, without any caller-supplied
+ * contract file. `issue comment` posting calls still capture their argv.
+ */
+function stubGhForCorrection(verdictBody: string) {
+  const directory = mkdtempSync(join(tmpdir(), 'bemoat-role-comment-bin-'))
+  tempPaths.push(directory)
+  const capture = join(directory, 'arguments.txt')
+  const executable = join(directory, 'gh')
+  const payload = JSON.stringify({
+    comments: [{ body: verdictBody, createdAt: '2026-07-16T10:00:00Z' }],
+  }).replace(/'/g, `'"'"'`)
+  writeFileSync(
+    executable,
+    `#!/bin/sh
+if [ "$1" = "issue" ] && [ "$2" = "view" ]; then
+  printf '%s' '${payload}'
+  exit 0
+fi
+printf '%s\\n' "$@" > "$BEMOAT_GH_CAPTURE"
+`,
+  )
+  chmodSync(executable, 0o755)
+  return { capture, path: `${directory}:${process.env.PATH ?? ''}` }
+}
+
+function initGitFixture() {
+  const root = mkdtempSync(join(tmpdir(), 'bemoat-role-comment-repo-'))
+  tempPaths.push(root)
+  spawnSync('git', ['init', '-q'], { cwd: root })
+  spawnSync('git', ['config', 'user.email', 'correction@test'], { cwd: root })
+  spawnSync('git', ['config', 'user.name', 'Correction Test'], { cwd: root })
+  writeFileSync(join(root, 'seed.txt'), 'seed\n')
+  spawnSync('git', ['add', '.'], { cwd: root })
+  spawnSync('git', ['commit', '-q', '-m', 'seed'], { cwd: root })
+  const reviewedHead = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim()
+  return { root, reviewedHead }
+}
+
+function commitChange(root: string, relativePath: string, content: string) {
+  const absolute = join(root, relativePath)
+  mkdirSync(dirname(absolute), { recursive: true })
+  writeFileSync(absolute, content)
+  spawnSync('git', ['add', relativePath], { cwd: root })
+  spawnSync('git', ['commit', '-q', '-m', `change ${relativePath}`], { cwd: root })
+}
+
+function run(args: string[], options: { input?: string; env?: Record<string, string>; cwd?: string } = {}) {
+  return spawnSync(process.execPath, [scriptPath, ...args], {
+    cwd: options.cwd ?? process.cwd(),
+    env: { ...process.env, ...options.env },
+    encoding: 'utf8',
+    input: options.input,
+  })
+}
+
+afterEach(() => {
+  for (const path of tempPaths.splice(0)) rmSync(path, { recursive: true, force: true })
+})
+
+describe('bemoat:issue:comment', () => {
+  it.each(Object.entries(bodies))('accepts valid %s from stdin in check mode', (_role, body) => {
+    const result = run(['115', '--check'], { input: body })
+    expect(result.status, result.stderr).toBe(0)
+    expect(result.stdout).toContain('validated')
+  })
+
+  it.each(Object.entries(bodies))('accepts valid %s from a body file', (_role, body) => {
+    const result = run(['115', '--body-file', tempFile('body.md', body), '--check'])
+    expect(result.status, result.stderr).toBe(0)
+  })
+
+  it('accepts the documented RESULT reference form', () => {
+    expect(run(['115', '--check'], { input: documentedResult }).status).toBe(0)
+  })
+
+  it('accepts the documented REVIEW_VERDICT reference form', () => {
+    expect(run(['115', '--check'], { input: documentedReviewVerdict }).status).toBe(0)
+  })
+
+  it('accepts the documented FAST RESULT form', () => {
+    expect(run(['119', '--check'], { input: fastResult }).status).toBe(0)
+  })
+
+  it('accepts a complete conditional Double-Loop HANDOFF', () => {
+    expect(run(['121', '--check'], { input: doubleLoopHandoff }).status).toBe(0)
+  })
+
+  it('rejects a triggered Double-Loop HANDOFF without a bounded decision', () => {
+    const result = run(['121', '--check'], {
+      input: doubleLoopHandoff.replace('**Decision:** REVISE_VALIDATION\n', ''),
+    })
+
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain('Double-Loop Review is missing required field')
+  })
+
+  it('rejects UNKNOWN when it authorizes another implementation attempt', () => {
+    const result = run(['121', '--check'], {
+      input: doubleLoopHandoff.replace('**Decision:** REVISE_VALIDATION', '**Decision:** CONTINUE_IMPLEMENTATION'),
+    })
+
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain('UNKNOWN cannot authorize CONTINUE_IMPLEMENTATION')
+  })
+
+  it('posts through gh argument vectors and a body file', () => {
+    const gh = stubGh()
+    const result = run(['115', '--repo', 'acme/repo'], {
+      input: bodies.RESULT,
+      env: { PATH: gh.path, BEMOAT_GH_CAPTURE: gh.capture },
+    })
+
+    expect(result.status, result.stderr).toBe(0)
+    expect(readFileSync(gh.capture, 'utf8').split('\n').filter(Boolean)).toEqual([
+      'issue',
+      'comment',
+      '115',
+      '--repo',
+      'acme/repo',
+      '--body-file',
+      expect.stringMatching(/(?:^\/tmp\/|\/T\/bemoat-role-comment-)/),
+    ])
+  })
+
+  it('never invokes gh in check mode', () => {
+    const gh = stubGh()
+    const result = run(['115', '--check'], {
+      input: bodies.RESULT,
+      env: { PATH: gh.path, BEMOAT_GH_CAPTURE: gh.capture },
+    })
+    expect(result.status, result.stderr).toBe(0)
+    expect(() => readFileSync(gh.capture, 'utf8')).toThrow()
+  })
+
+  it.each([
+    ['literal escaped newline', `${bodies.RESULT}literal\\nnewline`],
+    ['shell substitution', `${bodies.RESULT}\n$(whoami)`],
+    ['duplicate heading', `${bodies.RESULT}\n## RESULT`],
+    ['wrong role heading', `${bodies.RESULT}\n## HANDOFF`],
+    ['transcript payload', `${bodies.RESULT}\n$ pnpm run check\nPASS all tests`],
+    ['missing operational field', bodies.RESULT.replace('**Summary:** Added the bounded change.\n', '')],
+    ['empty operational field', bodies.RESULT.replace('**Summary:** Added the bounded change.', '**Summary:**')],
+    ['shell-style transcript', `${bodies.RESULT}\n> pnpm run check`],
+    ['command-labelled transcript', `${bodies.RESULT}\nCommand: pnpm run check`],
+    ['indented log transcript', `${bodies.RESULT}\n    PASS scripts/post-role-comment`],
+  ])('rejects %s', (_name, body) => {
+    const result = run(['115', '--check'], { input: body })
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain('ERROR')
+  })
+
+  it('rejects an invalid Core review verdict', () => {
+    const result = run(['115', '--check'], {
+      input: bodies.REVIEW_VERDICT.replace('CORRECTION REQUIRED', 'APPROVED'),
+    })
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain('Verdict')
+  })
+
+  it('rejects CORRECTION REQUIRED without an immutable finding contract', () => {
+    const result = run(['115', '--check'], {
+      input: bodies.REVIEW_VERDICT.replace(/```json[\s\S]*```/, ''),
+    })
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain('missing correction finding contract')
+  })
+
+  it('fails closed when a correction RESULT is posted with no reconstructable canonical contract', () => {
+    const body = `## RESULT
+### Task log
+- Timestamp: 2026-07-16T12:00:00+07:00
+- Task / Issue: #115
+- Phase: Dev (correction)
+- Executing role: Dev / Builder
+**Completed:** Correction
+**Summary:** Partial map only.
+**Next:** Delta Reviewer posts REVIEW_VERDICT
+
+\`\`\`json
+{
+  "schema_version": 1,
+  "correction_base": "abc1234",
+  "finding_results": {
+    "MC-R1-001": {
+      "changed_files": ["tests/int/example.int.spec.ts"],
+      "tests": ["pnpm exec vitest run tests/int/example.int.spec.ts"],
+      "status": "CLAIMED_RESOLVED"
+    }
+  }
+}
+\`\`\`
+`
+    const directory = mkdtempSync(join(tmpdir(), 'bemoat-role-comment-bin-'))
+    tempPaths.push(directory)
+    const executable = join(directory, 'gh')
+    writeFileSync(executable, '#!/bin/sh\necho "no REVIEW_VERDICT reachable" >&2\nexit 1\n')
+    chmodSync(executable, 0o755)
+
+    const result = run(['115', '--check'], {
+      input: body,
+      env: { PATH: `${directory}:${process.env.PATH ?? ''}` },
+    })
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toMatch(/unable to reconstruct the canonical correction contract/i)
+  })
+
+  it('requires acknowledgement only for a length warning', () => {
+    const long = `${bodies.RESULT}\n${'x'.repeat(6_100)}`
+    const warning = run(['115', '--check'], { input: long })
+    expect(warning.status).not.toBe(0)
+    expect(warning.stderr).toContain('WARNING')
+    const acknowledged = run(['115', '--check', '--allow-warning'], { input: long })
+    expect(acknowledged.status, acknowledged.stderr).toBe(0)
+  })
+
+  it('requires one issue target and exactly one input source', () => {
+    expect(run(['--check'], { input: bodies.RESULT }).status).not.toBe(0)
+    expect(run(['115', '--repo', 'acme/one', '--repo', 'acme/two', '--check'], { input: bodies.RESULT }).status).not.toBe(0)
+    expect(run(['115', '--body-file', tempFile('one.md', bodies.RESULT), '--body-file', tempFile('two.md', bodies.RESULT), '--check']).status).not.toBe(0)
+    expect(run(['115', '--body-file', tempFile('body.md', bodies.RESULT), '--check'], { input: bodies.RESULT }).status).not.toBe(0)
+    expect(run(['115', '--body-file', tempFile('body.md', bodies.RESULT), '--check'], { input: '   ' }).status).not.toBe(0)
+  })
+})
+
+describe('correction RESULT default-path reconstruction (MC-R1-001)', () => {
+  function verdictBodyFor(reviewedHead: string) {
+    return `## REVIEW_VERDICT
+### Task log
+- Timestamp: 2026-07-16T12:00:00+07:00
+- Task / Issue: #115
+- Phase: Reviewer
+- Executing role: Reviewer
+**PR / base / head:** https://github.com/acme/repo/pull/12 · \`main\` · \`${reviewedHead}\`
+**Verdict:** CORRECTION REQUIRED
+**Findings:** Important: two immutable findings
+**Gates:** exact-head CI https://example.test/ci → pass
+**Next:** Dev posts correction RESULT
+
+\`\`\`json
+{
+  "schema_version": 1,
+  "reviewed_head": "${reviewedHead}",
+  "findings": [
+    {
+      "id": "MC-R1-001",
+      "canonical_summary": "missing focused regression coverage",
+      "source_thread": "https://github.com/acme/repo/pull/12#discussion_r1",
+      "required_evidence": ["focused failing-then-passing test"],
+      "expected_areas": ["tests/int"],
+      "prohibited_areas": ["src/unrelated"]
+    },
+    {
+      "id": "MC-R1-002",
+      "canonical_summary": "second immutable finding",
+      "source_thread": "https://github.com/acme/repo/pull/12#discussion_r2",
+      "required_evidence": ["second evidence"]
+    }
+  ]
+}
+\`\`\`
+`
+  }
+
+  function resultBodyFor(correctionBase: string, findingResults: Record<string, unknown>) {
+    return `## RESULT
+### Task log
+- Timestamp: 2026-07-16T13:00:00+07:00
+- Task / Issue: #115
+- Phase: Dev (correction)
+- Executing role: Dev / Builder
+**Completed:** Correction
+**Summary:** Addressed immutable findings with explicit evidence.
+**Next:** Delta Reviewer posts REVIEW_VERDICT
+
+\`\`\`json
+${JSON.stringify({ schema_version: 1, correction_base: correctionBase, finding_results: findingResults }, null, 2)}
+\`\`\`
+`
+  }
+
+  function fullyResolvedFindings() {
+    return {
+      'MC-R1-001': {
+        changed_files: ['tests/int/example.int.spec.ts'],
+        tests: ['pnpm exec vitest run tests/int/example.int.spec.ts'],
+        status: 'CLAIMED_RESOLVED',
+      },
+      'MC-R1-002': {
+        changed_files: ['src/lib/fix.ts'],
+        tests: ['pnpm exec vitest run tests/int/example.int.spec.ts'],
+        status: 'CLAIMED_RESOLVED',
+      },
+    }
+  }
+
+  it('validates successfully by default when the reconstructed contract and actual diff satisfy every finding', () => {
+    const { root, reviewedHead } = initGitFixture()
+    commitChange(root, 'tests/int/example.int.spec.ts', 'test\n')
+    commitChange(root, 'src/lib/fix.ts', 'fix\n')
+    const gh = stubGhForCorrection(verdictBodyFor(reviewedHead))
+
+    const result = run(['115', '--check'], {
+      cwd: root,
+      input: resultBodyFor(reviewedHead, fullyResolvedFindings()),
+      env: { PATH: gh.path },
+    })
+
+    expect(result.status, result.stderr).toBe(0)
+  })
+
+  it('rejects an empty finding_results map without relying on optional caller flags', () => {
+    const { root, reviewedHead } = initGitFixture()
+    const gh = stubGhForCorrection(verdictBodyFor(reviewedHead))
+
+    const result = run(['115', '--check'], {
+      cwd: root,
+      input: resultBodyFor(reviewedHead, {}),
+      env: { PATH: gh.path },
+    })
+
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toMatch(/omitted finding id/i)
+  })
+
+  it('rejects an unknown finding ID without relying on optional caller flags', () => {
+    const { root, reviewedHead } = initGitFixture()
+    commitChange(root, 'src/lib/unrelated-feature.ts', 'unrelated\n')
+    const gh = stubGhForCorrection(verdictBodyFor(reviewedHead))
+
+    const result = run(['115', '--check'], {
+      cwd: root,
+      input: resultBodyFor(reviewedHead, {
+        'MC-R1-099': {
+          changed_files: ['src/lib/unrelated-feature.ts'],
+          tests: ['pnpm run check'],
+          status: 'CLAIMED_RESOLVED',
+        },
+      }),
+      env: { PATH: gh.path },
+    })
+
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toMatch(/unknown|omitted|substituted/i)
+  })
+
+  it('rejects a renamed finding ID without relying on optional caller flags', () => {
+    const { root, reviewedHead } = initGitFixture()
+    commitChange(root, 'tests/int/example.int.spec.ts', 'test\n')
+    commitChange(root, 'src/lib/fix.ts', 'fix\n')
+    const gh = stubGhForCorrection(verdictBodyFor(reviewedHead))
+
+    const findings = fullyResolvedFindings()
+    const renamed = { 'MC-R1-001': findings['MC-R1-001'], 'MC-R1-002-renamed': findings['MC-R1-002'] }
+
+    const result = run(['115', '--check'], {
+      cwd: root,
+      input: resultBodyFor(reviewedHead, renamed),
+      env: { PATH: gh.path },
+    })
+
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toMatch(/unknown|omitted|substituted/i)
+  })
+
+  it('rejects an omitted finding ID without relying on optional caller flags', () => {
+    const { root, reviewedHead } = initGitFixture()
+    commitChange(root, 'tests/int/example.int.spec.ts', 'test\n')
+    const gh = stubGhForCorrection(verdictBodyFor(reviewedHead))
+
+    const result = run(['115', '--check'], {
+      cwd: root,
+      input: resultBodyFor(reviewedHead, {
+        'MC-R1-001': fullyResolvedFindings()['MC-R1-001'],
+      }),
+      env: { PATH: gh.path },
+    })
+
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toMatch(/omitted finding id/i)
+  })
+
+  it('rejects a wrong correction base without relying on optional caller flags', () => {
+    const { root, reviewedHead } = initGitFixture()
+    commitChange(root, 'tests/int/example.int.spec.ts', 'test\n')
+    commitChange(root, 'src/lib/fix.ts', 'fix\n')
+    const gh = stubGhForCorrection(verdictBodyFor(reviewedHead))
+
+    const result = run(['115', '--check'], {
+      cwd: root,
+      input: resultBodyFor('0000000000000000000000000000000000000000', fullyResolvedFindings()),
+      env: { PATH: gh.path },
+    })
+
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toMatch(/correction_base must match reviewed_head/i)
+  })
+
+  it('rejects a changed file absent from the actual correction diff without relying on optional caller flags', () => {
+    const { root, reviewedHead } = initGitFixture()
+    commitChange(root, 'src/lib/fix.ts', 'fix\n')
+    const gh = stubGhForCorrection(verdictBodyFor(reviewedHead))
+
+    const result = run(['115', '--check'], {
+      cwd: root,
+      input: resultBodyFor(reviewedHead, fullyResolvedFindings()),
+      env: { PATH: gh.path },
+    })
+
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toMatch(/absent|not in|diff/i)
+  })
+
+  it('rejects prohibited scope present in the actual correction diff without relying on optional caller flags', () => {
+    const { root, reviewedHead } = initGitFixture()
+    commitChange(root, 'tests/int/example.int.spec.ts', 'test\n')
+    commitChange(root, 'src/lib/fix.ts', 'fix\n')
+    commitChange(root, 'src/unrelated/reversal.ts', 'unrelated\n')
+    const gh = stubGhForCorrection(verdictBodyFor(reviewedHead))
+
+    const result = run(['115', '--check'], {
+      cwd: root,
+      input: resultBodyFor(reviewedHead, fullyResolvedFindings()),
+      env: { PATH: gh.path },
+    })
+
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toMatch(/prohibited/i)
+  })
+
+  it('rejects UNPROVEN correction evidence paired with a free-form Done claim', () => {
+    const { root, reviewedHead } = initGitFixture()
+    const gh = stubGhForCorrection(verdictBodyFor(reviewedHead))
+    const body = resultBodyFor(reviewedHead, {
+      'MC-R1-001': { changed_files: [], tests: [], status: 'UNPROVEN' },
+      'MC-R1-002': { changed_files: [], tests: [], status: 'UNPROVEN' },
+    }).replace('**Next:** Delta Reviewer posts REVIEW_VERDICT', '**AC audit:** Done\n**Next:** Delta Reviewer posts REVIEW_VERDICT')
+
+    const result = run(['115', '--check'], { cwd: root, input: body, env: { PATH: gh.path } })
+
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toMatch(/UNPROVEN|Done/i)
+  })
+
+  it('preserves non-correction posting behavior and never invokes gh for a plain implementation RESULT', () => {
+    const { root } = initGitFixture()
+    const gh = stubGh()
+
+    const result = run(['115', '--check'], {
+      cwd: root,
+      input: bodies.RESULT,
+      env: { PATH: gh.path, BEMOAT_GH_CAPTURE: gh.capture },
+    })
+
+    expect(result.status, result.stderr).toBe(0)
+    expect(() => readFileSync(gh.capture, 'utf8')).toThrow()
+  })
+})

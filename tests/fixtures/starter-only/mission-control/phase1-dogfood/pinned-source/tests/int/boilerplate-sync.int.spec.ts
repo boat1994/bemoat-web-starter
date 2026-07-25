@@ -24,19 +24,7 @@ function buildSyncMetadataInput(input: BuildSyncMetadataInput): BuildSyncMetadat
 
 /** Integration tests under tests/int that are starter-only and intentionally not synced. */
 const STARTER_ONLY_INT_TESTS: { path: string; reason: string }[] = [
-  {
-    path: 'tests/int/mission-control-phase1-dogfood.int.spec.ts',
-    reason: 'Phase 1 Mission Control dogfood proof scenarios (Issue #169) are starter harness validation only',
-  },
-]
-
-/** Fixture trees that are starter-only and intentionally not synced. */
-const STARTER_ONLY_FIXTURE_PATHS: { path: string; reason: string }[] = [
-  {
-    path: 'tests/fixtures/starter-only/mission-control/phase1-dogfood',
-    reason:
-      'Phase 1 Mission Control dogfood pinned fixtures (Issue #169) must not sync to child projects',
-  },
+  // All current tests/int/**/*.int.spec.ts files are shared harness tests for child projects.
 ]
 
 /** Documentation paths that are starter-only and intentionally not synced. */
@@ -275,91 +263,6 @@ describe('boilerplate sync managed paths', () => {
     const mod = await import('../../scripts/sync-boilerplate.mjs')
 
     for (const entry of STARTER_ONLY_DOCS) {
-      expect(
-        mod.managedPaths,
-        `${entry.path} must not be in managedPaths: ${entry.reason}`,
-      ).not.toContain(entry.path)
-    }
-  })
-
-  it('documents starter-only fixture paths outside managedPaths', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
-
-    for (const entry of STARTER_ONLY_FIXTURE_PATHS) {
-      expect(
-        mod.managedPaths,
-        `${entry.path} must not be in managedPaths: ${entry.reason}`,
-      ).not.toContain(entry.path)
-    }
-
-    expect(mod.managedPaths).not.toContain('tests/fixtures/starter-only')
-  })
-
-  it('does not copy starter-only phase1-dogfood fixtures into a scratch child project', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
-    const fixtureRoot = resolve(process.cwd(), '.tmp-boilerplate-sync-starter-only-dogfood')
-    const sourceRoot = join(fixtureRoot, 'source')
-    const targetRoot = join(fixtureRoot, 'target')
-    const starterOnlyFixtureRoot = join(
-      sourceRoot,
-      'tests/fixtures/starter-only/mission-control/phase1-dogfood',
-    )
-
-    rmSync(fixtureRoot, { recursive: true, force: true })
-    mkdirSync(starterOnlyFixtureRoot, { recursive: true })
-    mkdirSync(join(sourceRoot, '.bemoat'), { recursive: true })
-    mkdirSync(targetRoot, { recursive: true })
-
-    writeFileSync(join(sourceRoot, 'AGENTS.md'), 'starter agents\n')
-    writeFileSync(
-      join(starterOnlyFixtureRoot, 'pinned-snapshot.json'),
-      '{"pinned_sha":"c01156c66fd33741df9b5d4acf22b620b605f221"}\n',
-    )
-    writeFileSync(
-      join(sourceRoot, mod.syncManifestPath),
-      `${JSON.stringify(
-        {
-          version: 1,
-          managedPaths: mod.managedPaths,
-          seedOnlyPaths: mod.seedOnlyPaths,
-          mergeKeepPaths: mod.mergeKeepPaths,
-          managedPackageScripts: mod.managedPackageScripts,
-          suggestedPackageScripts: mod.suggestedPackageScripts,
-          buildContractPackageScripts: mod.buildContractPackageScripts,
-          buildContractFilePaths: mod.buildContractFilePaths,
-          suggestedPackageSections: mod.suggestedPackageSections,
-        },
-        null,
-        2,
-      )}\n`,
-    )
-
-    try {
-      const result = mod.syncPathsFromSource({
-        sourceRootPath: sourceRoot,
-        targetRootPath: targetRoot,
-        mode: mod.SYNC_MODES.HARNESS_ONLY,
-        onWarn: () => {},
-        onLog: () => {},
-      })
-
-      expect(result.syncedManaged).toContain('AGENTS.md')
-      expect(result.syncedManaged).not.toContain('tests/fixtures/starter-only/mission-control/phase1-dogfood')
-      expect(
-        existsSync(join(targetRoot, 'tests/fixtures/starter-only/mission-control/phase1-dogfood/pinned-snapshot.json')),
-      ).toBe(false)
-      expect(
-        existsSync(join(targetRoot, 'tests/fixtures/starter-only')),
-      ).toBe(false)
-    } finally {
-      rmSync(fixtureRoot, { recursive: true, force: true })
-    }
-  })
-
-  it('documents starter-only dogfood int spec outside managedPaths', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
-
-    for (const entry of STARTER_ONLY_INT_TESTS) {
       expect(
         mod.managedPaths,
         `${entry.path} must not be in managedPaths: ${entry.reason}`,
