@@ -1899,7 +1899,7 @@ function verifyPlanningNoPrDurableProofs({
   issueNumber,
   contractReviewedHead,
   branchName,
-  verdictBase,
+  contract,
 }) {
   const errors = []
   const stateAnalysis = parseMissionControlState(issueBody ?? '')
@@ -1937,22 +1937,34 @@ function verifyPlanningNoPrDurableProofs({
     }
   }
 
-  const approvedBase = state.approved_base || verdictBase
-  if (!approvedBase) {
-    errors.push('STATE CONFLICT: approved_base is required for planning_no_pr ancestry proof')
+  const planningBase = contract.planning_base
+  const planningBaseRepo = contract.planning_base_repo
+  const planningBaseRef = contract.planning_base_ref
+
+  if (!planningBase || !planningBaseRepo || !planningBaseRef) {
+    errors.push('STATE CONFLICT: planning_base, planning_base_repo, and planning_base_ref are required for planning_no_pr ancestry proof')
   } else {
-    const baseRef = run('git', ['rev-parse', '--verify', approvedBase], { cwd, env })
-    if (baseRef.status !== 0) {
-      errors.push(`STATE CONFLICT: approved_base ${approvedBase} is not a valid git ref`)
+    const repoResult = run('gh', ['api', `repos/${getDefaultRepo(cwd)}`, '-q', '.id'], { cwd, env })
+    if (repoResult.status !== 0) {
+      errors.push('BLOCKED_EXTERNAL: cannot determine GitHub repository identity')
     } else {
-      const baseSha = baseRef.stdout.trim()
-      const onBaseCheck = run('git', ['merge-base', '--is-ancestor', baseSha, contractReviewedHead], { cwd, env })
-      if (onBaseCheck.status !== 0) {
-        if (onBaseCheck.status === 1) {
-          errors.push('STATE CONFLICT: reviewed_head is not safely descended from approved_base')
-        } else {
-          errors.push('BLOCKED_EXTERNAL: git repository is too shallow or missing objects to verify ancestry')
+      const liveRepoId = repoResult.stdout.trim()
+      if (liveRepoId !== String(planningBaseRepo)) {
+        errors.push(`STATE CONFLICT: live repository identity ${liveRepoId} does not match contract ${planningBaseRepo}`)
+      }
+    }
+
+    const compareResult = run('gh', ['api', `/repos/${getDefaultRepo(cwd)}/compare/${planningBase}...${contractReviewedHead}`], { cwd, env })
+    if (compareResult.status !== 0) {
+      errors.push('BLOCKED_EXTERNAL: cannot obtain canonical GitHub compare evidence')
+    } else {
+      try {
+        const data = JSON.parse(compareResult.stdout)
+        if (data.status !== 'ahead' && data.status !== 'identical') {
+          errors.push(`STATE CONFLICT: reviewed_head is not descended from planning_base (status: ${data.status})`)
         }
+      } catch (_e) {
+        errors.push('BLOCKED_EXTERNAL: invalid canonical GitHub compare evidence')
       }
     }
   }
@@ -2152,7 +2164,7 @@ function runCorrectionPhasePreflight({
   }
 
   if (parsedContract.contract.mode === 'planning_no_pr') {
-    const { base: verdictBase } = extractVerdictPrBaseAndHead(latestVerdict.comment.body)
+
     const durableProofs = verifyPlanningNoPrDurableProofs({
       cwd,
       env,
@@ -2160,7 +2172,7 @@ function runCorrectionPhasePreflight({
       issueNumber,
       contractReviewedHead: parsedContract.contract.reviewed_head,
       branchName,
-      verdictBase,
+      contract: parsedContract.contract,
     })
     if (!durableProofs.ok) {
       output.push('Stop: planning_no_pr durable authorization proofs failed before correction edit authorization.')

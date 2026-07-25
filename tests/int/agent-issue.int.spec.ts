@@ -2585,8 +2585,11 @@ ${verdictBodyExtra}
 
 \`\`\`json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "mode": "planning_no_pr",
+  "planning_base": "be17400ce01d95a59e53e3ed6a30b9a6f7673b68",
+  "planning_base_repo": "1267006707",
+  "planning_base_ref": "refs/heads/main",
   "reviewed_head": "${contractHead}",
   "findings": [
     {
@@ -2623,6 +2626,12 @@ case "$*" in
 ${ghStubExtra}
   *"pr list --state open"*)
     printf '%s' '[]'
+    ;;
+  *"api"*"repos/boat1994/bemoat-web-starter"*"id"*)
+    printf '%s' '1267006707'
+    ;;
+  *"api"*"repos/boat1994/bemoat-web-starter/compare/"*)
+    printf '%s' '{"status":"identical"}'
     ;;
   *)
     echo "unexpected gh call: $*" >&2
@@ -2767,8 +2776,11 @@ esac
 
 \`\`\`json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "mode": "planning_no_pr",
+  "planning_base": "be17400ce01d95a59e53e3ed6a30b9a6f7673b68",
+  "planning_base_repo": "1267006707",
+  "planning_base_ref": "refs/heads/main",
   "reviewed_head": "${actualHead}",
   "findings": [
     {
@@ -2804,6 +2816,12 @@ case "$*" in
   *"pr list --state open"*)
     printf '%s' '[]'
     ;;
+  *"api"*"repos/boat1994/bemoat-web-starter"*"id"*)
+    printf '%s' '1267006707'
+    ;;
+  *"api"*"repos/boat1994/bemoat-web-starter/compare/"*)
+    printf '%s' '{"status":"identical"}'
+    ;;
   *)
     echo "unexpected gh call: $*" >&2
     exit 1
@@ -2832,6 +2850,12 @@ case "$*" in
     ;;
   *"pr list --state open"*)
     printf '%s' '[]'
+    ;;
+  *"api"*"repos/boat1994/bemoat-web-starter"*"id"*)
+    printf '%s' '1267006707'
+    ;;
+  *"api"*"repos/boat1994/bemoat-web-starter/compare/"*)
+    printf '%s' '{"status":"identical"}'
     ;;
   *)
     echo "unexpected gh call: $*" >&2

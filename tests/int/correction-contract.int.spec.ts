@@ -369,8 +369,11 @@ describe('correction-contract pure module', () => {
 
   it('builds a planning_no_pr correction capsule with planning scope authorization and default prohibition', () => {
     const contract = {
-      schema_version: 1,
+      schema_version: 2,
       mode: 'planning_no_pr' as const,
+      planning_base: 'be17400ce01d95a59e53e3ed6a30b9a6f7673b68',
+      planning_base_repo: '1267006707',
+      planning_base_ref: 'refs/heads/main',
       reviewed_head: '3d0e83e',
       findings: [
         {
@@ -405,8 +408,11 @@ describe('correction-contract pure module', () => {
 
 \`\`\`json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "mode": "planning_no_pr",
+  "planning_base": "be17400ce01d95a59e53e3ed6a30b9a6f7673b68",
+  "planning_base_repo": "1267006707",
+  "planning_base_ref": "refs/heads/main",
   "reviewed_head": "3d0e83e",
   "findings": [
     {
@@ -428,8 +434,11 @@ describe('correction-contract pure module', () => {
 
   it('rejects unrelated docs paths outside the canonical planning-artifact allowlist (MC-R1-002)', () => {
     const contract = {
-      schema_version: 1,
+      schema_version: 2,
       mode: 'planning_no_pr' as const,
+      planning_base: 'be17400ce01d95a59e53e3ed6a30b9a6f7673b68',
+      planning_base_repo: '1267006707',
+      planning_base_ref: 'refs/heads/main',
       reviewed_head: '3d0e83e',
       findings: [
         {
@@ -455,8 +464,11 @@ describe('correction-contract pure module', () => {
 
   it('enforces planning default prohibition in validateFindingEvidence when mode is planning_no_pr', () => {
     const contract = {
-      schema_version: 1,
+      schema_version: 2,
       mode: 'planning_no_pr' as const,
+      planning_base: 'be17400ce01d95a59e53e3ed6a30b9a6f7673b68',
+      planning_base_repo: '1267006707',
+      planning_base_ref: 'refs/heads/main',
       reviewed_head: '3d0e83e',
       findings: [
         {

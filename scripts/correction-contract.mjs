@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-export const CORRECTION_CONTRACT_SCHEMA_VERSION = 1
+export const CORRECTION_CONTRACT_SCHEMA_VERSION = 2
 export const FINDING_STATUS = Object.freeze({
   CLAIMED_RESOLVED: 'CLAIMED_RESOLVED',
   UNPROVEN: 'UNPROVEN',
@@ -74,9 +74,6 @@ function findingShapeErrors(finding, index) {
  */
 function validateContractShape(candidate) {
   const errors = []
-  if (candidate.schema_version !== CORRECTION_CONTRACT_SCHEMA_VERSION) {
-    errors.push(`schema_version must be ${CORRECTION_CONTRACT_SCHEMA_VERSION}`)
-  }
   let mode = 'implementation_pr'
   if (candidate.mode !== undefined) {
     if (candidate.mode !== 'implementation_pr' && candidate.mode !== 'planning_no_pr') {
@@ -85,6 +82,26 @@ function validateContractShape(candidate) {
       mode = candidate.mode
     }
   }
+
+  if (mode === 'planning_no_pr') {
+    if (candidate.schema_version !== 2) {
+      errors.push('schema_version must be 2 for planning_no_pr')
+    }
+    if (typeof candidate.planning_base !== 'string' || !/^[a-f0-9]{40}$/i.test(candidate.planning_base.trim())) {
+      errors.push('planning_base must be a 40-hex string for planning_no_pr')
+    }
+    if (typeof candidate.planning_base_repo !== 'string' || !candidate.planning_base_repo.trim()) {
+      errors.push('planning_base_repo must be a non-empty string for planning_no_pr')
+    }
+    if (typeof candidate.planning_base_ref !== 'string' || !candidate.planning_base_ref.trim()) {
+      errors.push('planning_base_ref must be a non-empty string for planning_no_pr')
+    }
+  } else {
+    if (candidate.schema_version !== 1 && candidate.schema_version !== 2) {
+      errors.push(`schema_version must be 1 or 2 for implementation_pr`)
+    }
+  }
+
   if (typeof candidate.reviewed_head !== 'string' || !candidate.reviewed_head.trim()) {
     errors.push('reviewed_head must be a non-empty string')
   }
@@ -107,8 +124,11 @@ function validateContractShape(candidate) {
   return {
     ok: true,
     contract: {
-      schema_version: CORRECTION_CONTRACT_SCHEMA_VERSION,
+      schema_version: Number(candidate.schema_version),
       mode,
+      planning_base: mode === 'planning_no_pr' ? String(candidate.planning_base).trim() : undefined,
+      planning_base_repo: mode === 'planning_no_pr' ? String(candidate.planning_base_repo).trim() : undefined,
+      planning_base_ref: mode === 'planning_no_pr' ? String(candidate.planning_base_ref).trim() : undefined,
       reviewed_head: String(candidate.reviewed_head).trim(),
       findings: candidate.findings.map((finding) => ({
         id: String(finding.id).trim(),
@@ -150,8 +170,14 @@ export function parseCorrectionContract(text = '') {
  */
 function validateEvidenceShape(candidate) {
   const errors = []
-  if (candidate.schema_version !== CORRECTION_CONTRACT_SCHEMA_VERSION) {
-    errors.push(`schema_version must be ${CORRECTION_CONTRACT_SCHEMA_VERSION}`)
+  if (candidate.mode === 'planning_no_pr') {
+    if (candidate.schema_version !== 2) {
+      errors.push('schema_version must be 2 for planning_no_pr')
+    }
+  } else {
+    if (candidate.schema_version !== 1 && candidate.schema_version !== 2) {
+      errors.push('schema_version must be 1 or 2')
+    }
   }
   if (typeof candidate.correction_base !== 'string' || !candidate.correction_base.trim()) {
     errors.push('correction_base must be a non-empty string')
@@ -183,7 +209,7 @@ function validateEvidenceShape(candidate) {
   return {
     ok: true,
     evidence: {
-      schema_version: CORRECTION_CONTRACT_SCHEMA_VERSION,
+      schema_version: Number(candidate.schema_version),
       mode: typeof candidate.mode === 'string' && candidate.mode.trim() ? candidate.mode.trim() : undefined,
       correction_base: String(candidate.correction_base).trim(),
       finding_results: Object.fromEntries(
