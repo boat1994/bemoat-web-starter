@@ -7,6 +7,8 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- untyped runtime .mjs boundary */
 import * as agentIssueModule from '../../scripts/agent-issue.mjs'
+import * as reconcileModule from '../../scripts/mission-control-reconcile.mjs'
+import * as missionControlStateModule from '../../scripts/mission-control-state.mjs'
 
 // Shared .mjs scripts expose runtime behavior, not TypeScript declarations. Keep
 // the strict-project boundary explicit without changing the production API.
@@ -23,6 +25,8 @@ const {
   runAgentIssuePreflight,
   validatePlanPath,
 } = agentIssueModule as unknown as Record<string, (...args: any[]) => any>
+const { buildCorrectionHandoffBinding } = reconcileModule as unknown as Record<string, (...args: any[]) => any>
+const { renderMissionControlState } = missionControlStateModule as unknown as Record<string, (...args: any[]) => any>
 
 const PRODUCTION_PR103_ROLLUP = [
   {
@@ -1514,6 +1518,102 @@ esac
     expect(result.stdout).toContain('Playback verified: 1/1 canonical findings')
     expect(result.stdout).toContain('MC-R1-001: supplied-timezone month boundaries are incorrect')
     expect(result.stdout).not.toContain('Docs to read before implementation:')
+  })
+
+  it.each([
+    ['missing', 'Mission Control mode: required\n'],
+    ['malformed', 'Mission Control mode: required\n<!-- bemoat-mission-control-state:start -->\n```yaml\nstate: IN_PROGRESS\n```\n'],
+  ])('fails closed when managed state is %s during correction preflight', (_name, issueBody) => {
+    const root = createRepo('feature/136-immutable-correction-contract')
+    const verdictBody = `## REVIEW_VERDICT
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · \`main\` · \`abc1234\`
+**Verdict:** CORRECTION REQUIRED
+\`\`\`json
+{"schema_version":1,"reviewed_head":"abc1234","findings":[{"id":"MC-R1-001","canonical_summary":"boundary bug","source_thread":"https://github.com/boat1994/bemoat-web-starter/pull/200#discussion_r1","required_evidence":["executable negative"]}]}
+\`\`\``
+    const fixtureDir = mkdtempSync(join(tmpdir(), 'bemoat-agent-issue-state-'))
+    tempRoots.push(fixtureDir)
+    const issuePath = join(fixtureDir, 'issue.json')
+    const commentsPath = join(fixtureDir, 'comments.json')
+    writeFileSync(issuePath, JSON.stringify({ title: 'Managed correction', url: 'https://github.com/boat1994/bemoat-web-starter/issues/136', body: issueBody, labels: [] }))
+    writeFileSync(commentsPath, JSON.stringify({ comments: [{ id: '2', body: verdictBody, createdAt: '2026-07-20T10:00:00Z' }] }))
+    const result = runAgentIssue(root, ['136', '--phase', 'correction'], {
+      PATH: withStubbedGh(root, `#!/usr/bin/env sh
+case "$*" in
+  *"issue view 136"*"title,url,body,labels"*) cat "${issuePath}" ;;
+  *"issue view 136"*"comments"*) cat "${commentsPath}" ;;
+  *) echo "unexpected gh call: $*" >&2; exit 1 ;;
+esac
+`),
+    })
+
+    expect(result.status).toBe(1)
+    expect(result.stdout).toMatch(/managed Mission Control state.*missing or invalid/i)
+    expect(result.stdout).not.toContain('Edit authorization: granted')
+  })
+
+  it.each([
+    ['valid', (_comments: any[]): void => undefined, 0],
+    ['edited', (comments: any[]) => { comments[0].body += '\nsubstituted content' }, 1],
+    ['deleted', (comments: any[]) => { comments.shift() }, 1],
+    ['superseded', (comments: any[]) => { comments.push({ id: '3', body: '## HANDOFF\n\n**Target:** Dev\n**Objective:** superseding correction', createdAt: '2026-07-20T10:30:00Z', updatedAt: '2026-07-20T10:30:00Z' }) }, 1],
+  ])('handles a %s bound HANDOFF through the executable correction preflight', (_name, mutate, expectedStatus) => {
+    const root = createRepo('feature/136-immutable-correction-contract')
+    const authorization: any = {
+      schema_version: 2, authorization_id: 'founder-r3-abc', status: 'consumed', authority: 'Founder',
+      scope: 'correction', for_review_number: 3, reviewed_head: 'abc1234', finding_ids: ['MC-R1-001'],
+      action: 'Authorize one bounded correction', authorized_at: '2026-07-20T09:00:00Z', handoff_comment_id: '1',
+    }
+    const state: any = {
+      schema_version: 1, state: 'IN_PROGRESS', review_cycle: 3, full_review_count: 1,
+      approved_base: 'main', active_task_issue: '#136', active_pr: '#200', current_head: 'abc1234',
+      last_reviewed_head: 'abc1234', post_budget_reviews: [], founder_correction_authorization: authorization,
+      guide_version: '1.2.0', guide_source_ref: 'main', guide_source_sha: null, open_blockers: ['MC-R1-001'],
+      follow_up_issues: [], next_permitted_action: 'Execute bounded correction', material_change_status: 'none',
+      updated_at: '2026-07-20T09:00:00Z', updated_by: 'Mission Control',
+    }
+    const handoff = {
+      id: '1', body: '## HANDOFF\n\n**Target:** Dev / Integration Builder\n**Objective:** bounded correction\n**Founder correction authorization:** `founder-r3-abc`',
+      createdAt: '2026-07-20T10:00:00Z', updatedAt: '2026-07-20T10:00:00Z',
+    }
+    authorization.handoff_binding = buildCorrectionHandoffBinding({ authorization, state, handoffBody: handoff.body, handoff })
+    const verdict = {
+      id: '2', createdAt: '2026-07-20T10:10:00Z', updatedAt: '2026-07-20T10:10:00Z',
+      body: `## REVIEW_VERDICT
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · \`main\` · \`abc1234\`
+**Verdict:** CORRECTION REQUIRED
+\`\`\`json
+{"schema_version":1,"reviewed_head":"abc1234","findings":[{"id":"MC-R1-001","canonical_summary":"boundary bug","source_thread":"https://github.com/boat1994/bemoat-web-starter/pull/200#discussion_r1","required_evidence":["executable negative"]}]}
+\`\`\``,
+    }
+    const comments = [handoff, verdict]
+    mutate(comments)
+    const fixtureDir = mkdtempSync(join(tmpdir(), 'bemoat-agent-issue-binding-'))
+    tempRoots.push(fixtureDir)
+    const issuePath = join(fixtureDir, 'issue.json')
+    const commentsPath = join(fixtureDir, 'comments.json')
+    writeFileSync(issuePath, JSON.stringify({
+      title: 'Managed correction', url: 'https://github.com/boat1994/bemoat-web-starter/issues/136',
+      body: `Mission Control mode: required\n\n${renderMissionControlState(state)}`, labels: [],
+    }))
+    writeFileSync(commentsPath, JSON.stringify({ comments }))
+    const result = runAgentIssue(root, ['136', '--phase', 'correction'], {
+      PATH: withStubbedGh(root, `#!/usr/bin/env sh
+case "$*" in
+  *"issue view 136"*"title,url,body,labels"*) cat "${issuePath}" ;;
+  *"issue view 136"*"comments"*) cat "${commentsPath}" ;;
+  *"pr view 200"*) printf '%s' '{"title":"Correction PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/200","headRefName":"feature/136","baseRefName":"main","headRefOid":"abc1234","state":"OPEN","statusCheckRollup":[{"name":"ci","workflowName":"CI","status":"COMPLETED","conclusion":"SUCCESS","detailsUrl":"https://ci/1"},{"name":"starter-ci","workflowName":"CI (starter strict)","status":"COMPLETED","conclusion":"SUCCESS","detailsUrl":"https://ci/2"}],"commits":[]}' ;;
+  *) echo "unexpected gh call: $*" >&2; exit 1 ;;
+esac
+`),
+    })
+    expect(result.status, result.stderr || result.stdout).toBe(expectedStatus)
+    if (expectedStatus === 0) {
+      expect(result.stdout).toContain('Edit authorization: granted')
+    } else {
+      expect(result.stdout).toMatch(/HANDOFF|binding|edited/i)
+      expect(result.stdout).not.toContain('Edit authorization: granted')
+    }
   })
 
   it('fails closed when the verdict PR/base/head line contradicts the immutable contract reviewed_head (MC-R1-002)', () => {

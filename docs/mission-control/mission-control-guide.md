@@ -396,9 +396,13 @@ after normal Review 3. It is not Review 4 and must retain counters `3/1`, the
 exact `last_reviewed_head`, immutable finding lineage, and
 `post_budget_reviews: []`. Its versioned, single-use authorization is bound to
 Review 3, the exact head, and the complete finding-ID set; dispatch consumes it
-and binds it to one `## HANDOFF`. Correction preflight must verify that exact
-binding before edits. Delivery returns to an explicit Founder decision; Review 4
-needs separately bound Founder authority.
+and binds it to one `## HANDOFF` through a repository-scoped single-winner
+reservation and an immutable SHA-256 binding over the authority, target, PR,
+head/base, review, scope, findings, timestamps, and exact body. Correction
+preflight requires that byte-identical comment to remain the latest approved
+non-superseded HANDOFF. Delivery preserves `3/1`, the prior reviewed head,
+lineage, consumed binding, and empty post-budget history, then returns to an
+explicit Founder decision. Review 4 needs separately bound Founder authority.
 
 Keep `review_cycle` capped at `3` and `full_review_count` capped at `1`. A
 Founder-authorized review after the normal budget is recorded separately in

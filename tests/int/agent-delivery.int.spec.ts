@@ -17,7 +17,12 @@ function stubGhAndGit(prData: Record<string, unknown>, issueData: Record<string,
   
   writeFileSync(ghExec, `#!/bin/sh
 if [ "$1" = "pr" ] && [ "$2" = "view" ]; then
+  case "$*" in *baseRepository*) echo 'Unknown JSON field: baseRepository' >&2; exit 1 ;; esac
   printf '%s' '${prJson}'
+  exit 0
+fi
+if [ "$1" = "repo" ] && [ "$2" = "view" ]; then
+  printf '%s' '${String((prData.baseRepository as { nameWithOwner?: string } | undefined)?.nameWithOwner ?? 'acme/repo')}'
   exit 0
 fi
 if [ "$1" = "issue" ] && [ "$2" = "view" ]; then
@@ -166,6 +171,20 @@ describe('bemoat:agent:delivery', () => {
     expect(result.stderr).toContain('STATE_CONFLICT: PR head repository wrong/repo does not match expected repository acme/repo')
   }, 10000)
 
+  it('fails on a wrong head repository without an explicit --repo flag', () => {
+    const prData = {
+      headRefOid: 'abc1234',
+      headRefName: 'main',
+      headRepository: { nameWithOwner: 'wrong/repo' },
+      baseRepository: { nameWithOwner: 'acme/repo' },
+      statusCheckRollup: [{ conclusion: 'SUCCESS', targetUrl: 'https://ci/abc1234' }],
+    }
+    const env = stubGhAndGit(prData, { body: validIssueBody }, 'abc1234 refs/heads/main', 'main', 'abc1234')
+    const result = run(['154'], { input: validResultBody, env })
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain('STATE_CONFLICT: PR head repository wrong/repo does not match expected repository acme/repo')
+  }, 10000)
+
   it('succeeds when all conditions are met and preserves blockers', () => {
     const prData = {
       headRefOid: 'abc1234',
@@ -203,6 +222,7 @@ describe('bemoat:agent:delivery', () => {
     
     // Mock gh to return the edited body on refetch so rollback proceeds
     writeFileSync(ghExec, `#!/bin/sh
+if [ "$1" = "repo" ] && [ "$2" = "view" ]; then printf '%s' 'acme/repo'; exit 0; fi
 if [ "$1" = "pr" ] && [ "$2" = "view" ]; then printf '%s' '${prJson}'; exit 0; fi
 if [ "$1" = "issue" ] && [ "$2" = "view" ]; then
   if [ -f "\${0}.edited" ]; then
@@ -243,6 +263,7 @@ exit 0
     const prJson = JSON.stringify(prData).replace(/'/g, `'"'"'`)
     const issueJson = JSON.stringify({ body: issueBodyWithCustom }).replace(/'/g, `'"'"'`)
     writeFileSync(ghExec, `#!/bin/sh
+if [ "$1" = "repo" ] && [ "$2" = "view" ]; then printf '%s' 'acme/repo'; exit 0; fi
 if [ "$1" = "pr" ] && [ "$2" = "view" ]; then printf '%s' '${prJson}'; exit 0; fi
 if [ "$1" = "issue" ] && [ "$2" = "view" ]; then printf '%s' '${issueJson}'; exit 0; fi
 if [ "$1" = "issue" ] && [ "$2" = "edit" ]; then cp "$5" "${tmpFile}"; exit 0; fi
@@ -272,6 +293,7 @@ exit 0
     const issueJson1 = JSON.stringify({ body: validIssueBody }).replace(/'/g, `'"'"'`)
     const issueJson2 = JSON.stringify({ body: validIssueBody + '\\nconcurrent' }).replace(/'/g, `'"'"'`)
     writeFileSync(ghExec, `#!/bin/sh
+if [ "$1" = "repo" ] && [ "$2" = "view" ]; then printf '%s' 'acme/repo'; exit 0; fi
 if [ "$1" = "pr" ] && [ "$2" = "view" ]; then printf '%s' '${prJson}'; exit 0; fi
 if [ "$1" = "issue" ] && [ "$2" = "view" ]; then
   if [ -f "\${0}.viewed" ]; then
@@ -305,6 +327,7 @@ exit 0
     const prJson = JSON.stringify(prData).replace(/'/g, `'"'"'`)
     
     writeFileSync(ghExec, `#!/bin/sh
+if [ "$1" = "repo" ] && [ "$2" = "view" ]; then printf '%s' 'acme/repo'; exit 0; fi
 if [ "$1" = "pr" ] && [ "$2" = "view" ]; then printf '%s' '${prJson}'; exit 0; fi
 if [ "$1" = "issue" ] && [ "$2" = "view" ]; then
   if [ -f "\${0}.edited" ]; then

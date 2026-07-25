@@ -174,11 +174,24 @@ Dispatch requires its unconsumed `status: authorized` record:
 pnpm run bemoat:mission-control:dispatch -- <issue-number> --founder-correction --body-file <handoff.md>
 ```
 
-It posts one HANDOFF, records `status: consumed` with that exact comment ID,
-and retracts the HANDOFF if the durable write cannot be verified. Correction
-preflight accepts the consumed authorization only when its live HANDOFF, active
-PR, current/reviewed head, and exact finding IDs all match. A consumed record
-cannot be dispatched again. Delivery never authorizes Review 4.
+Dispatch first acquires a repository-scoped, single-winner reservation for the
+authorization identity. It then posts one HANDOFF and records `status:
+consumed` with that exact comment ID plus a SHA-256 binding over the immutable
+authority, target, PR, exact head/correction base, Review 3, scope, finding
+chain, comment timestamps, and complete HANDOFF content. The reservation is
+released only after the consumed state is freshly verified. Failed or
+indeterminate writes retain the reservation unless a fresh read proves safe
+compensation, so concurrent dispatch cannot publish two successful HANDOFFs.
+
+Correction preflight accepts the consumed authorization only when the bound
+comment still exists, is byte-identical, and remains the latest approved,
+non-superseded HANDOFF, and when its active PR, current/reviewed head, exact
+finding IDs, and binding fingerprint all match. Deletion, edit, substitution,
+supersession, and replay fail closed. Correction delivery preserves counters
+`3/1`, the prior `last_reviewed_head`, lineage, consumed binding, and empty
+`post_budget_reviews`, then returns to `BLOCKED_FOR_FOUNDER_DECISION`. It does
+not authorize Review 4; a separate Founder authorization bound to the delivered
+head is mandatory.
 
 ## Bootstrap and state reconstruction
 
@@ -197,4 +210,3 @@ At the start of every Mission Control run:
 9. Write the durable result to GitHub, identify one next permitted action, and stop.
 
 Never reset or infer the review count from chat history.
-

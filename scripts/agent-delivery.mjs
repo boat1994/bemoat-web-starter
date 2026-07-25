@@ -126,7 +126,16 @@ function main() {
     return
   }
 
-  const expectedRepo = parsed.options.repo || null
+  let expectedRepo = parsed.options.repo
+  if (!expectedRepo) {
+    const repoResult = tryRun('gh', ['repo', 'view', '--json', 'nameWithOwner', '--jq', '.nameWithOwner'])
+    if (repoResult.status === 0) expectedRepo = repoResult.stdout.trim()
+  }
+  if (!expectedRepo) {
+    process.stderr.write('ERROR: BLOCKED_EXTERNAL: Canonical PR repository is unavailable\n')
+    process.exitCode = 1
+    return
+  }
   if (prData.headRepository?.nameWithOwner && expectedRepo && prData.headRepository.nameWithOwner !== expectedRepo) {
     process.stderr.write(`ERROR: STATE_CONFLICT: PR head repository ${prData.headRepository.nameWithOwner} does not match expected repository ${expectedRepo}\n`)
     process.exitCode = 1
@@ -161,6 +170,7 @@ function main() {
 
   // We write the new state
   const newStateProposal = proposeDeliveryReconciliation({
+    managedState: currentState.state,
     livePr: { number: resultPr, headRefOid: localCommit, baseRefName: prData.baseRefName || 'main' },
     activeTaskIssue: parsed.options.issue,
     approvedBase: currentState.state?.approved_base ?? prData.baseRefName ?? 'main',

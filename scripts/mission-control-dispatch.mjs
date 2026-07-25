@@ -97,9 +97,15 @@ async function main() {
       if (options.repo) args.push('--repo', options.repo)
       run(process.execPath, args)
       writeFileSync(payloadFile, JSON.stringify({ body }))
-      return JSON.parse(run('gh', [
+      const posted = JSON.parse(run('gh', [
         'api', '--method', 'POST', `repos/${repo}/issues/${options.issue}/comments`, '--input', payloadFile,
       ]))
+      return {
+        ...posted,
+        url: posted.html_url ?? posted.url ?? null,
+        createdAt: posted.created_at ?? posted.createdAt ?? null,
+        updatedAt: posted.updated_at ?? posted.updatedAt ?? null,
+      }
     } finally {
       rmSync(temp, { recursive: true, force: true })
     }
@@ -107,6 +113,28 @@ async function main() {
   const retractHandoff = async (comment) => {
     if (!comment?.id) throw new Error('posted HANDOFF did not return a comment identifier for compensation')
     run('gh', ['api', '--method', 'DELETE', `repos/${repo}/issues/comments/${comment.id}`])
+  }
+  const reserveAuthorization = async (authorization) => {
+    const safeIdentity = String(authorization.authorization_id).replace(/[^a-zA-Z0-9._-]/g, '-')
+    const refPath = `tags/bemoat-mc-reservation/${options.issue}-${safeIdentity}`
+    const temp = mkdtempSync(join(tmpdir(), 'bemoat-dispatch-reservation-'))
+    const payloadFile = join(temp, 'payload.json')
+    try {
+      writeFileSync(payloadFile, JSON.stringify({
+        ref: `refs/${refPath}`,
+        sha: authorization.reviewed_head,
+      }))
+      run('gh', ['api', '--method', 'POST', `repos/${repo}/git/refs`, '--input', payloadFile])
+      return { refPath }
+    } catch (error) {
+      throw new Error('Founder correction authorization reservation is already held or unavailable', { cause: error })
+    } finally {
+      rmSync(temp, { recursive: true, force: true })
+    }
+  }
+  const releaseAuthorization = async (reservation) => {
+    if (!reservation?.refPath) throw new Error('correction reservation identifier is missing')
+    run('gh', ['api', '--method', 'DELETE', `repos/${repo}/git/refs/${reservation.refPath}`])
   }
 
   const timestamp = new Date().toISOString()
@@ -116,6 +144,8 @@ async function main() {
     writeState,
     postHandoff,
     retractHandoff,
+    reserveAuthorization,
+    releaseAuthorization,
     handoffBody,
     transitionState: (state) => ({
       ...structuredClone(state),
