@@ -1940,27 +1940,105 @@ function verifyPlanningNoPrDurableProofs({
   const planningBase = contract.planning_base
   const planningBaseRepo = contract.planning_base_repo
   const planningBaseRef = contract.planning_base_ref
+  const defaultRepo = getDefaultRepo(cwd)
+  const expectedPlanningBaseRef = state.approved_base ? `refs/heads/${state.approved_base}` : null
 
   if (!planningBase || !planningBaseRepo || !planningBaseRef) {
     errors.push('STATE CONFLICT: planning_base, planning_base_repo, and planning_base_ref are required for planning_no_pr ancestry proof')
+  } else if (!expectedPlanningBaseRef) {
+    errors.push('STATE CONFLICT: approved_base is required for planning_no_pr ancestry proof')
+  } else if (planningBaseRef !== expectedPlanningBaseRef) {
+    errors.push(
+      `STATE CONFLICT: planning_base_ref ${planningBaseRef} does not match approved protected ref ${expectedPlanningBaseRef}`,
+    )
   } else {
-    const repoResult = run('gh', ['api', `repos/${getDefaultRepo(cwd)}`, '-q', '.id'], { cwd, env })
+    const repoResult = run('gh', ['api', `repos/${defaultRepo}`], { cwd, env })
     if (repoResult.status !== 0) {
       errors.push('BLOCKED_EXTERNAL: cannot determine GitHub repository identity')
     } else {
-      const liveRepoId = repoResult.stdout.trim()
-      if (liveRepoId !== String(planningBaseRepo)) {
-        errors.push(`STATE CONFLICT: live repository identity ${liveRepoId} does not match contract ${planningBaseRepo}`)
+      try {
+        const data = JSON.parse(repoResult.stdout)
+        if (
+          !data ||
+          typeof data !== 'object' ||
+          Array.isArray(data) ||
+          !Number.isSafeInteger(data.id) ||
+          typeof data.full_name !== 'string' ||
+          !data.full_name.trim()
+        ) {
+          errors.push('BLOCKED_EXTERNAL: invalid canonical GitHub repository identity evidence')
+        } else {
+          if (String(data.id) !== String(planningBaseRepo)) {
+            errors.push(`STATE CONFLICT: live repository identity ${data.id} does not match contract ${planningBaseRepo}`)
+          }
+          if (asciiCaseFold(data.full_name) !== asciiCaseFold(defaultRepo)) {
+            errors.push(
+              `STATE CONFLICT: canonical repository ${data.full_name} does not match local repository identity ${defaultRepo}`,
+            )
+          }
+        }
+      } catch (_e) {
+        errors.push('BLOCKED_EXTERNAL: invalid canonical GitHub repository identity evidence')
       }
     }
 
-    const compareResult = run('gh', ['api', `/repos/${getDefaultRepo(cwd)}/compare/${planningBase}...${contractReviewedHead}`], { cwd, env })
+    const protectedRefPath = planningBaseRef
+      .slice('refs/'.length)
+      .split('/')
+      .map((segment) => encodeURIComponent(segment))
+      .join('/')
+    const protectedRefResult = run('gh', ['api', `repos/${defaultRepo}/git/ref/${protectedRefPath}`], { cwd, env })
+    if (protectedRefResult.status !== 0) {
+      errors.push('BLOCKED_EXTERNAL: cannot obtain canonical GitHub protected-ref evidence')
+    } else {
+      try {
+        const data = JSON.parse(protectedRefResult.stdout)
+        if (
+          !data ||
+          typeof data !== 'object' ||
+          Array.isArray(data) ||
+          data.ref !== planningBaseRef ||
+          !data.object ||
+          typeof data.object !== 'object' ||
+          Array.isArray(data.object) ||
+          typeof data.object.sha !== 'string' ||
+          !/^[a-f0-9]{40}$/i.test(data.object.sha)
+        ) {
+          errors.push('BLOCKED_EXTERNAL: invalid canonical GitHub protected-ref evidence')
+        }
+      } catch (_e) {
+        errors.push('BLOCKED_EXTERNAL: invalid canonical GitHub protected-ref evidence')
+      }
+    }
+
+    const compareResult = run('gh', ['api', `/repos/${defaultRepo}/compare/${planningBase}...${contractReviewedHead}`], { cwd, env })
     if (compareResult.status !== 0) {
       errors.push('BLOCKED_EXTERNAL: cannot obtain canonical GitHub compare evidence')
     } else {
       try {
         const data = JSON.parse(compareResult.stdout)
-        if (data.status !== 'ahead' && data.status !== 'identical') {
+        const statusIsKnown = ['ahead', 'identical', 'behind', 'diverged'].includes(data?.status)
+        const baseSha = data?.base_commit?.sha
+        const mergeBaseSha = data?.merge_base_commit?.sha
+        const hasCanonicalShape =
+          data &&
+          typeof data === 'object' &&
+          !Array.isArray(data) &&
+          statusIsKnown &&
+          typeof baseSha === 'string' &&
+          /^[a-f0-9]{40}$/i.test(baseSha) &&
+          typeof mergeBaseSha === 'string' &&
+          /^[a-f0-9]{40}$/i.test(mergeBaseSha) &&
+          asciiCaseFold(baseSha) === asciiCaseFold(planningBase)
+
+        if (!hasCanonicalShape) {
+          errors.push('BLOCKED_EXTERNAL: invalid canonical GitHub compare evidence')
+        } else if (
+          (data.status === 'ahead' || data.status === 'identical') &&
+          asciiCaseFold(mergeBaseSha) !== asciiCaseFold(planningBase)
+        ) {
+          errors.push('BLOCKED_EXTERNAL: invalid canonical GitHub compare evidence')
+        } else if (data.status !== 'ahead' && data.status !== 'identical') {
           errors.push(`STATE CONFLICT: reviewed_head is not descended from planning_base (status: ${data.status})`)
         }
       } catch (_e) {

@@ -2554,6 +2554,7 @@ esac
       verdictBodyExtra: string = '',
       ghStubExtra: string = '',
       stateOverrides: Record<string, string> = {},
+      contractOverrides: { planningBase?: string; planningBaseRepo?: string; planningBaseRef?: string } = {},
     ) {
       const root = mkdtempSync(join(tmpdir(), 'bemoat-agent-issue-'))
       tempRoots.push(root)
@@ -2569,6 +2570,9 @@ esac
       const actualHead = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim()
       const verdictHead = headOverride?.verdictHead ?? actualHead
       const contractHead = headOverride?.contractHead ?? actualHead
+      const planningBase = contractOverrides.planningBase ?? 'be17400ce01d95a59e53e3ed6a30b9a6f7673b68'
+      const planningBaseRepo = contractOverrides.planningBaseRepo ?? '1267006707'
+      const planningBaseRef = contractOverrides.planningBaseRef ?? 'refs/heads/main'
       const issueBody = planningManagedState(contractHead, {
         approved_base: 'main',
         ...stateOverrides,
@@ -2587,9 +2591,9 @@ ${verdictBodyExtra}
 {
   "schema_version": 2,
   "mode": "planning_no_pr",
-  "planning_base": "be17400ce01d95a59e53e3ed6a30b9a6f7673b68",
-  "planning_base_repo": "1267006707",
-  "planning_base_ref": "refs/heads/main",
+  "planning_base": "${planningBase}",
+  "planning_base_repo": "${planningBaseRepo}",
+  "planning_base_ref": "${planningBaseRef}",
   "reviewed_head": "${contractHead}",
   "findings": [
     {
@@ -2627,11 +2631,14 @@ ${ghStubExtra}
   *"pr list --state open"*)
     printf '%s' '[]'
     ;;
-  *"api"*"repos/boat1994/bemoat-web-starter"*"id"*)
-    printf '%s' '1267006707'
+  *"api repos/boat1994/bemoat-web-starter/git/ref/heads/main"*)
+    printf '%s' '{"ref":"refs/heads/main","object":{"sha":"ffffffffffffffffffffffffffffffffffffffff"}}'
+    ;;
+  *"api repos/boat1994/bemoat-web-starter"*)
+    printf '%s' '{"id":1267006707,"full_name":"boat1994/bemoat-web-starter"}'
     ;;
   *"api"*"repos/boat1994/bemoat-web-starter/compare/"*)
-    printf '%s' '{"status":"identical"}'
+    printf '%s' '{"status":"ahead","base_commit":{"sha":"${planningBase}"},"merge_base_commit":{"sha":"${planningBase}"}}'
     ;;
   *)
     echo "unexpected gh call: $*" >&2
@@ -2639,7 +2646,7 @@ ${ghStubExtra}
     ;;
 esac
 `
-      return { root, ghStub, actualHead, contractHead, issueBody, mainHead: actualHead }
+      return { root, ghStub, actualHead, contractHead, issueBody, mainHead: actualHead, planningBase }
     }
 
     it('TEST-PLAN-01: accepts valid planning-only no-PR correction preflight', () => {
@@ -2742,6 +2749,103 @@ esac
       expect(result.stdout).toContain('last_reviewed_head does not match the immutable contract reviewed_head')
     })
 
+    it('TEST-PLAN-05: accepts an exact authorized planning base after the canonical protected ref advances', () => {
+      const { root, ghStub, planningBase } = setupPlanningCorrectionRepo()
+      const result = runAgentIssue(root, ['145', '--phase', 'correction'], {
+        PATH: withStubbedGh(root, ghStub),
+      })
+
+      expect(result.status).toBe(0)
+      expect(result.stdout).toContain('Edit authorization: granted')
+      expect(planningBase).not.toBe('ffffffffffffffffffffffffffffffffffffffff')
+    })
+
+    it('TEST-PLAN-06: rejects a planning_base_ref that does not match the managed protected branch', () => {
+      const { root, ghStub } = setupPlanningCorrectionRepo(
+        undefined,
+        '',
+        '',
+        {},
+        { planningBaseRef: 'refs/heads/dev' },
+      )
+      const result = runAgentIssue(root, ['145', '--phase', 'correction'], {
+        PATH: withStubbedGh(root, ghStub),
+      })
+
+      expect(result.status).toBe(1)
+      expect(result.stdout).toContain('planning_base_ref refs/heads/dev does not match approved protected ref refs/heads/main')
+    })
+
+    it('TEST-PLAN-07: rejects shared-history but unauthorized planning lineage', () => {
+      const { root, ghStub } = setupPlanningCorrectionRepo(
+        undefined,
+        '',
+        `  *"api"*"repos/boat1994/bemoat-web-starter/compare/"*)
+    printf '%s' '{"status":"diverged","base_commit":{"sha":"be17400ce01d95a59e53e3ed6a30b9a6f7673b68"},"merge_base_commit":{"sha":"1111111111111111111111111111111111111111"}}'
+    ;;`,
+      )
+      const result = runAgentIssue(root, ['145', '--phase', 'correction'], {
+        PATH: withStubbedGh(root, ghStub),
+      })
+
+      expect(result.status).toBe(1)
+      expect(result.stdout).toContain('reviewed_head is not descended from planning_base (status: diverged)')
+    })
+
+    it.each([
+      {
+        name: 'unavailable repository identity',
+        stub: `  *"api repos/boat1994/bemoat-web-starter"*)
+    exit 1
+    ;;`,
+        expected: 'cannot determine GitHub repository identity',
+      },
+      {
+        name: 'malformed repository identity JSON',
+        stub: `  *"api repos/boat1994/bemoat-web-starter"*)
+    printf '%s' 'not-json'
+    ;;`,
+        expected: 'invalid canonical GitHub repository identity evidence',
+      },
+      {
+        name: 'unavailable protected-ref evidence',
+        stub: `  *"api repos/boat1994/bemoat-web-starter/git/ref/heads/main"*)
+    exit 1
+    ;;`,
+        expected: 'cannot obtain canonical GitHub protected-ref evidence',
+      },
+      {
+        name: 'semantically invalid protected-ref evidence',
+        stub: `  *"api repos/boat1994/bemoat-web-starter/git/ref/heads/main"*)
+    printf '%s' '{"ref":"refs/heads/dev","object":{"sha":"ffffffffffffffffffffffffffffffffffffffff"}}'
+    ;;`,
+        expected: 'invalid canonical GitHub protected-ref evidence',
+      },
+      {
+        name: 'semantically incomplete compare evidence',
+        stub: `  *"api"*"repos/boat1994/bemoat-web-starter/compare/"*)
+    printf '%s' '{"status":"ahead"}'
+    ;;`,
+        expected: 'invalid canonical GitHub compare evidence',
+      },
+      {
+        name: 'missing compare object evidence',
+        stub: `  *"api"*"repos/boat1994/bemoat-web-starter/compare/"*)
+    exit 1
+    ;;`,
+        expected: 'cannot obtain canonical GitHub compare evidence',
+      },
+    ])('TEST-PLAN-08: classifies $name as BLOCKED_EXTERNAL', ({ stub, expected }) => {
+      const { root, ghStub } = setupPlanningCorrectionRepo(undefined, '', stub)
+      const result = runAgentIssue(root, ['145', '--phase', 'correction'], {
+        PATH: withStubbedGh(root, ghStub),
+      })
+
+      expect(result.status).toBe(1)
+      expect(result.stdout).toContain('BLOCKED_EXTERNAL')
+      expect(result.stdout).toContain(expected)
+    })
+
     it('MC-R1-003: fails closed when malformed GitHub PR list evidence is returned', () => {
       const { root, ghStub } = setupPlanningCorrectionRepo(
         undefined,
@@ -2816,11 +2920,14 @@ case "$*" in
   *"pr list --state open"*)
     printf '%s' '[]'
     ;;
-  *"api"*"repos/boat1994/bemoat-web-starter"*"id"*)
-    printf '%s' '1267006707'
+  *"api repos/boat1994/bemoat-web-starter/git/ref/heads/main"*)
+    printf '%s' '{"ref":"refs/heads/main","object":{"sha":"ffffffffffffffffffffffffffffffffffffffff"}}'
+    ;;
+  *"api repos/boat1994/bemoat-web-starter"*)
+    printf '%s' '{"id":1267006707,"full_name":"boat1994/bemoat-web-starter"}'
     ;;
   *"api"*"repos/boat1994/bemoat-web-starter/compare/"*)
-    printf '%s' '{"status":"identical"}'
+    printf '%s' '{"status":"ahead","base_commit":{"sha":"be17400ce01d95a59e53e3ed6a30b9a6f7673b68"},"merge_base_commit":{"sha":"be17400ce01d95a59e53e3ed6a30b9a6f7673b68"}}'
     ;;
   *)
     echo "unexpected gh call: $*" >&2
@@ -2851,11 +2958,14 @@ case "$*" in
   *"pr list --state open"*)
     printf '%s' '[]'
     ;;
-  *"api"*"repos/boat1994/bemoat-web-starter"*"id"*)
-    printf '%s' '1267006707'
+  *"api repos/boat1994/bemoat-web-starter/git/ref/heads/main"*)
+    printf '%s' '{"ref":"refs/heads/main","object":{"sha":"ffffffffffffffffffffffffffffffffffffffff"}}'
+    ;;
+  *"api repos/boat1994/bemoat-web-starter"*)
+    printf '%s' '{"id":1267006707,"full_name":"boat1994/bemoat-web-starter"}'
     ;;
   *"api"*"repos/boat1994/bemoat-web-starter/compare/"*)
-    printf '%s' '{"status":"identical"}'
+    printf '%s' '{"status":"ahead","base_commit":{"sha":"be17400ce01d95a59e53e3ed6a30b9a6f7673b68"},"merge_base_commit":{"sha":"be17400ce01d95a59e53e3ed6a30b9a6f7673b68"}}'
     ;;
   *)
     echo "unexpected gh call: $*" >&2
