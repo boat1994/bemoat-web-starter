@@ -1969,6 +1969,34 @@ function getCorrectionDiffFiles(cwd, reviewedHead, env = process.env) {
   return { ok: true, files }
 }
 
+function verifyReviewThreeCorrectionAuthorization({ issueBody, contract, comments }) {
+  const parsed = parseMissionControlState(issueBody ?? '')
+  // Existing Review 1/2 and planning-no-PR correction paths retain their own
+  // contracts. The new authorization binding applies only to an explicit
+  // normal-Review-3 managed state.
+  if (!parsed.valid || !parsed.state) return { ok: true, errors: [] }
+  const state = parsed.state
+  if (state.review_cycle !== 3 || state.full_review_count !== 1) return { ok: true, errors: [] }
+  const authorization = state.founder_correction_authorization
+  if (state.state !== 'IN_PROGRESS' || !authorization || authorization.status !== 'consumed') {
+    return { ok: false, errors: ['STATE CONFLICT: Review 3 correction requires a consumed Founder correction authorization'] }
+  }
+  if (authorization.for_review_number !== 3 || authorization.reviewed_head !== contract.reviewed_head ||
+      authorization.reviewed_head !== state.last_reviewed_head || authorization.reviewed_head !== state.current_head) {
+    return { ok: false, errors: ['STATE CONFLICT: Founder correction authorization does not bind the Review 3 exact head'] }
+  }
+  const authorizedIds = [...authorization.finding_ids ?? []].sort()
+  const contractIds = contract.findings.map((finding) => finding.id).sort()
+  if (JSON.stringify(authorizedIds) !== JSON.stringify(contractIds)) {
+    return { ok: false, errors: ['STATE CONFLICT: Founder correction authorization finding IDs do not match the immutable contract'] }
+  }
+  const handoff = comments.find((comment) => String(comment.id) === String(authorization.handoff_comment_id))
+  if (!handoff || !/##\s+HANDOFF\s*$/m.test(handoff.body ?? '') || !(handoff.body ?? '').includes(authorization.authorization_id)) {
+    return { ok: false, errors: ['STATE CONFLICT: Founder correction authorization is not bound to its exact active HANDOFF'] }
+  }
+  return { ok: true, errors: [] }
+}
+
 /**
  * Reconcile the immutable contract reviewed_head against the visible verdict
  * head, then against uniquely identified live PR evidence, before granting
@@ -2144,6 +2172,15 @@ function runCorrectionPhasePreflight({
   if (!parsedContract.ok) {
     output.push('Stop: canonical finding evidence is missing, malformed, or inconsistent.')
     for (const error of parsedContract.errors) output.push(`- ${error}`)
+    return { ok: false, exitCode: 1, usageError: false, output, issueNumber, branchName, statusShort, issueMetadata }
+  }
+
+  const reviewThreeAuthorization = verifyReviewThreeCorrectionAuthorization({
+    issueBody: issueMetadata.body ?? '', contract: parsedContract.contract, comments: commentResult.comments,
+  })
+  if (!reviewThreeAuthorization.ok) {
+    output.push('Stop: Review 3 Founder correction authorization failed before correction edit authorization.')
+    for (const error of reviewThreeAuthorization.errors) output.push(`- ${error}`)
     return { ok: false, exitCode: 1, usageError: false, output, issueNumber, branchName, statusShort, issueMetadata }
   }
 

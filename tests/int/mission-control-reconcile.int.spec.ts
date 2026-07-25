@@ -13,6 +13,7 @@ const {
   classifyReviewLag,
   founderMergeTransitionAuthorized,
   dispatchManagedTask,
+  dispatchFounderAuthorizedCorrection,
   isGenuineStateConflict,
   migrateLegacyManagedState,
   parseRoleCommentBody,
@@ -54,6 +55,64 @@ const sampleVerdict = `## REVIEW_VERDICT
 `
 
 describe('mission-control reconcile classifiers', () => {
+  it('migrates the exact Review 3 Founder correction authority without fabricating Review 4', () => {
+    const migrated = migrateLegacyManagedState({
+      state: 'STATE_MIGRATION_REQUIRED',
+      review_cycle: 3,
+      full_review_count: 1,
+      active_pr: '#172',
+      current_head: '1f05427a8fbb893e726dd0e317ff30a90d7b3570',
+      last_reviewed_head: '1f05427a8fbb893e726dd0e317ff30a90d7b3570',
+      post_budget_reviews: [],
+      founder_correction_authorization: {
+        status: 'approved', authority: 'Founder', scope: 'correction', for_review_number: 3,
+        reviewed_head: '1f05427a8fbb893e726dd0e317ff30a90d7b3570', finding_ids: ['MC-R1-171-001'],
+        action: 'Authorize one bounded correction', authorized_at: '2026-07-26T01:30:29+07:00',
+      },
+    })
+
+    expect(migrated.state).toMatchObject({
+      state: 'FOUNDER_AUTHORIZED_CORRECTION', review_cycle: 3, full_review_count: 1,
+      last_reviewed_head: '1f05427a8fbb893e726dd0e317ff30a90d7b3570', post_budget_reviews: [],
+      founder_correction_authorization: {
+        schema_version: 1, authorization_id: expect.any(String), status: 'authorized',
+        for_review_number: 3, finding_ids: ['MC-R1-171-001'],
+      },
+    })
+  })
+
+  it('consumes a Review 3 Founder authorization once and binds correction preflight to its HANDOFF', async () => {
+    let state: any = {
+      state: 'FOUNDER_AUTHORIZED_CORRECTION', review_cycle: 3, full_review_count: 1,
+      active_pr: '#172', current_head: 'reviewed-head', last_reviewed_head: 'reviewed-head', post_budget_reviews: [],
+      founder_correction_authorization: {
+        schema_version: 1, authorization_id: 'founder-171', status: 'authorized', authority: 'Founder',
+        scope: 'correction', for_review_number: 3, reviewed_head: 'reviewed-head', finding_ids: ['MC-R1-171-001'],
+        action: 'Authorize one bounded correction', authorized_at: '2026-07-26T01:30:29+07:00',
+      },
+    }
+    const writes: any[] = []
+    const result = await dispatchFounderAuthorizedCorrection({
+      readState: async () => state,
+      writeState: async (next: any) => { state = next; writes.push(next) },
+      postHandoff: async () => ({ id: '5080099999', url: 'https://github.com/boat1994/bemoat-web-starter/issues/171#issuecomment-5080099999' }),
+      retractHandoff: async (): Promise<void> => undefined,
+      handoffBody: '## HANDOFF\n\nCorrection work\n\n**Founder correction authorization:** `founder-171`',
+    })
+
+    expect(result.outcome).toBe('DISPATCHED_FOUNDER_AUTHORIZED_CORRECTION')
+    expect(writes).toHaveLength(1)
+    expect(state).toMatchObject({
+      state: 'IN_PROGRESS', review_cycle: 3, full_review_count: 1,
+      founder_correction_authorization: {
+        status: 'consumed', authorization_id: 'founder-171', handoff_comment_id: '5080099999',
+      },
+    })
+    await expect(dispatchFounderAuthorizedCorrection({
+      readState: async () => state, writeState: async (): Promise<void> => undefined, postHandoff: async () => ({ id: 'again' }),
+      handoffBody: '## HANDOFF\n\nreplay',
+    })).rejects.toThrow('unconsumed Founder correction authorization')
+  })
   it.each([
     ['contradictory authority', { authoritativeContradiction: true }, 'STATE_CONFLICT'],
     ['unavailable evidence', { requiredEvidenceUnavailable: true }, 'BLOCKED_EXTERNAL'],

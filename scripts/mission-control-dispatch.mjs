@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
-import { dispatchManagedTask } from './mission-control-reconcile.mjs'
+import { dispatchFounderAuthorizedCorrection, dispatchManagedTask } from './mission-control-reconcile.mjs'
 import { parseMissionControlState, renderMissionControlState } from './mission-control-state.mjs'
 
 function run(command, args) {
@@ -15,10 +15,14 @@ function run(command, args) {
 }
 
 function parseArgs(argv) {
-  const options = { issue: null, repo: null, bodyFile: null }
+  const options = { issue: null, repo: null, bodyFile: null, founderCorrection: false }
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index]
     if (argument === '--') continue
+    if (argument === '--founder-correction') {
+      options.founderCorrection = true
+      continue
+    }
     if (argument === '--repo' || argument === '--body-file') {
       const value = argv[++index]
       if (!value) throw new Error(`${argument} requires a value`)
@@ -106,7 +110,8 @@ async function main() {
   }
 
   const timestamp = new Date().toISOString()
-  const result = await dispatchManagedTask({
+  const dispatch = options.founderCorrection ? dispatchFounderAuthorizedCorrection : dispatchManagedTask
+  const result = await dispatch({
     readState: async () => readIssue(),
     writeState,
     postHandoff,
@@ -119,7 +124,7 @@ async function main() {
       updated_by: 'Mission Control',
     }),
   })
-  process.stdout.write(`Mission Control dispatch ${result.outcome}: READY -> IN_PROGRESS + HANDOFF\n`)
+  process.stdout.write(`Mission Control dispatch ${result.outcome}: ${options.founderCorrection ? 'FOUNDER_AUTHORIZED_CORRECTION' : 'READY'} -> IN_PROGRESS + HANDOFF\n`)
 }
 
 main().catch((error) => {

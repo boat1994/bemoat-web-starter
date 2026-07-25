@@ -42,6 +42,24 @@ function hasLegacyManagedState(state = {}) {
   )
 }
 
+function isReviewThreeCorrectionAuthorization(authorization, state) {
+  return authorization &&
+    authorization.status === 'approved' && authorization.authority === 'Founder' &&
+    authorization.scope === 'correction' && authorization.for_review_number === 3 &&
+    typeof authorization.reviewed_head === 'string' && authorization.reviewed_head.length > 0 &&
+    authorization.reviewed_head === state.last_reviewed_head &&
+    authorization.reviewed_head === state.current_head &&
+    Array.isArray(authorization.finding_ids) && authorization.finding_ids.length > 0 &&
+    authorization.finding_ids.every((id) => typeof id === 'string' && id.length > 0) &&
+    typeof authorization.action === 'string' && authorization.action.length > 0 &&
+    typeof authorization.authorized_at === 'string' && authorization.authorized_at.length > 0
+}
+
+function correctionAuthorizationId(authorization) {
+  return `founder-r3-${authorization.reviewed_head.slice(0, 12)}-${authorization.authorized_at}`
+    .replace(/[^a-zA-Z0-9_-]/g, '-')
+}
+
 /**
  * Exhaustive, ordered reconciliation classification. Only contradictory live
  * authority is a conflict; schema and bookkeeping lag remain repairable.
@@ -106,6 +124,7 @@ export function migrateLegacyManagedState(managedState = {}) {
   }
   const history = state.post_budget_review_history ?? []
   const legacyReviewAuthorization = state.founder_authorization
+  const legacyCorrectionAuthorization = state.founder_correction_authorization
 
   if (Object.hasOwn(state, 'post_budget_reviews') && !Array.isArray(state.post_budget_reviews)) {
     throw new Error('canonical post_budget_reviews must be an array')
@@ -137,7 +156,20 @@ export function migrateLegacyManagedState(managedState = {}) {
     state.post_budget_reviews = [...reviewsByNumber.values()].sort((left, right) => left.review_number - right.review_number)
   }
 
-  if (!state.founder_decision && state.founder_correction_authorization) {
+  if (
+    state.state === 'STATE_MIGRATION_REQUIRED' &&
+    state.review_cycle === 3 && state.full_review_count === 1 &&
+    (state.post_budget_reviews ?? []).length === 0 && history.length === 0 &&
+    isReviewThreeCorrectionAuthorization(legacyCorrectionAuthorization, state)
+  ) {
+    state.state = 'FOUNDER_AUTHORIZED_CORRECTION'
+    state.founder_correction_authorization = {
+      ...structuredClone(legacyCorrectionAuthorization),
+      schema_version: 1,
+      authorization_id: correctionAuthorizationId(legacyCorrectionAuthorization),
+      status: 'authorized',
+    }
+  } else if (!state.founder_decision && state.founder_correction_authorization) {
     state.founder_decision = structuredClone(state.founder_correction_authorization)
   }
 
@@ -170,7 +202,7 @@ export function migrateLegacyManagedState(managedState = {}) {
   // The complete canonical representation is proven before any legacy key is removed.
   delete state.post_budget_review_history
   delete state.founder_authorization
-  delete state.founder_correction_authorization
+  if (state.state !== 'FOUNDER_AUTHORIZED_CORRECTION') delete state.founder_correction_authorization
 
   return { changed: true, state }
 }
@@ -286,6 +318,44 @@ export async function dispatchManagedTask({ readState, writeState, postHandoff, 
     throw new Error('dispatch verification found a concurrent state change')
   }
   return { outcome: 'DISPATCHED', state: verified }
+}
+
+/**
+ * Atomically consumes the one Founder authority granted after normal Review 3.
+ * The durable authorization is bound to the concrete HANDOFF comment identifier;
+ * a failed state write retracts that comment instead of allowing replay.
+ */
+export async function dispatchFounderAuthorizedCorrection({ readState, writeState, postHandoff, retractHandoff, handoffBody }) {
+  const original = await readState()
+  const authorization = original?.founder_correction_authorization
+  if (original?.state !== 'FOUNDER_AUTHORIZED_CORRECTION' || authorization?.status !== 'authorized') {
+    throw new Error('dispatch requires an unconsumed Founder correction authorization')
+  }
+  if (!/^## HANDOFF\s*$/m.test(handoffBody ?? '') || !handoffBody.includes(authorization.authorization_id)) {
+    throw new Error('correction HANDOFF must bind the Founder correction authorization identity')
+  }
+
+  const handoff = await postHandoff(handoffBody)
+  if (!handoff?.id) throw new Error('correction HANDOFF did not return a comment identifier')
+  const consumed = {
+    ...structuredClone(original),
+    state: 'IN_PROGRESS',
+    founder_correction_authorization: {
+      ...structuredClone(authorization), status: 'consumed', handoff_comment_id: String(handoff.id),
+      handoff_url: handoff.url ?? null,
+    },
+  }
+  try {
+    await writeState(consumed)
+  } catch (error) {
+    if (retractHandoff) await retractHandoff(handoff)
+    throw new Error('correction dispatch failed before consuming Founder authorization', { cause: error })
+  }
+  if (!sameValue(await readState(), consumed)) {
+    if (retractHandoff) await retractHandoff(handoff)
+    throw new Error('correction dispatch verification found a concurrent state change')
+  }
+  return { outcome: 'DISPATCHED_FOUNDER_AUTHORIZED_CORRECTION', state: consumed }
 }
 
 /**

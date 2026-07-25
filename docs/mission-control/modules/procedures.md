@@ -159,6 +159,27 @@ The action validates `READY`, writes `IN_PROGRESS`, posts exactly one existing
 it rolls the state back only when a fresh read proves no concurrent Issue edit;
 otherwise it fails closed without overwriting the concurrent writer.
 
+### Founder-authorized correction after normal Review 3
+
+`FOUNDER_AUTHORIZED_CORRECTION` is the distinct execution state for the one
+bounded correction a Founder explicitly authorizes after normal Review 3. It is
+not Review 4: it preserves counters `3/1`, the exact `last_reviewed_head`,
+immutable finding IDs, and `post_budget_reviews: []`.
+
+Its versioned `founder_correction_authorization` binds an `authorization_id`,
+Review 3, reviewed head, finding set, Founder authority, scope, and timestamp.
+Dispatch requires its unconsumed `status: authorized` record:
+
+```bash
+pnpm run bemoat:mission-control:dispatch -- <issue-number> --founder-correction --body-file <handoff.md>
+```
+
+It posts one HANDOFF, records `status: consumed` with that exact comment ID,
+and retracts the HANDOFF if the durable write cannot be verified. Correction
+preflight accepts the consumed authorization only when its live HANDOFF, active
+PR, current/reviewed head, and exact finding IDs all match. A consumed record
+cannot be dispatched again. Delivery never authorizes Review 4.
+
 ## Bootstrap and state reconstruction
 
 At the start of every Mission Control run:
@@ -176,5 +197,4 @@ At the start of every Mission Control run:
 9. Write the durable result to GitHub, identify one next permitted action, and stop.
 
 Never reset or infer the review count from chat history.
-
 

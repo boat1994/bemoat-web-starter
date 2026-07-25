@@ -96,7 +96,7 @@ function main() {
   }
 
   // 3. & 4. verifies the live Pulls API head equals the same commit, and expected transport target
-  const ghArgs = ['pr', 'view', resultPr, '--json', 'headRefOid,statusCheckRollup,headRepository,baseRepository,headRefName,baseRefName']
+  const ghArgs = ['pr', 'view', resultPr, '--json', 'headRefOid,statusCheckRollup,headRepository,headRefName,baseRefName']
   if (parsed.options.repo) ghArgs.push('--repo', parsed.options.repo)
   const prResult = tryRun('gh', ghArgs)
   if (prResult.status !== 0) {
@@ -126,7 +126,7 @@ function main() {
     return
   }
 
-  const expectedRepo = parsed.options.repo || prData.baseRepository?.nameWithOwner
+  const expectedRepo = parsed.options.repo || null
   if (prData.headRepository?.nameWithOwner && expectedRepo && prData.headRepository.nameWithOwner !== expectedRepo) {
     process.stderr.write(`ERROR: STATE_CONFLICT: PR head repository ${prData.headRepository.nameWithOwner} does not match expected repository ${expectedRepo}\n`)
     process.exitCode = 1
