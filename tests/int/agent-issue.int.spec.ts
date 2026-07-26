@@ -1553,10 +1553,11 @@ esac
   })
 
   it.each([
-    ['valid', (_comments: any[]): void => undefined, 0],
-    ['edited', (comments: any[]) => { comments[0].body += '\nsubstituted content' }, 1],
-    ['deleted', (comments: any[]) => { comments.shift() }, 1],
-    ['superseded', (comments: any[]) => { comments.push({ id: '3', body: '## HANDOFF\n\n**Target:** Dev\n**Objective:** superseding correction', createdAt: '2026-07-20T10:30:00Z', updatedAt: '2026-07-20T10:30:00Z' }) }, 1],
+    ['valid', (_comments: any[], _authorization: any): void => undefined, 0],
+    ['edited', (comments: any[], _authorization: any) => { comments[0].body += '\nsubstituted content' }, 1],
+    ['deleted', (comments: any[], _authorization: any) => { comments.shift() }, 1],
+    ['superseded', (comments: any[], _authorization: any) => { comments.push({ id: '3', body: '## HANDOFF\n\n**Target:** Dev\n**Objective:** superseding correction', createdAt: '2026-07-20T10:30:00Z', updatedAt: '2026-07-20T10:30:00Z' }) }, 1],
+    ['missing authority snapshot', (_comments: any[], authorization: any) => { delete authorization.handoff_binding.authorization_snapshot }, 1],
   ])('handles a %s bound HANDOFF through the executable correction preflight', (_name, mutate, expectedStatus) => {
     const root = createRepo('feature/136-immutable-correction-contract')
     const authorization: any = {
@@ -1587,7 +1588,7 @@ esac
 \`\`\``,
     }
     const comments = [handoff, verdict]
-    mutate(comments)
+    mutate(comments, authorization)
     const fixtureDir = mkdtempSync(join(tmpdir(), 'bemoat-agent-issue-binding-'))
     tempRoots.push(fixtureDir)
     const issuePath = join(fixtureDir, 'issue.json')

@@ -372,6 +372,17 @@ export function buildCorrectionHandoffBinding({ authorization, state, handoffBod
   if (!target) throw new Error('correction HANDOFF requires an explicit Target binding')
   const payload = {
     schema_version: 1,
+    authorization_snapshot: {
+      authorization_id: authorization.authorization_id,
+      authority: authorization.authority,
+      status: authorization.status,
+      action: authorization.action,
+      authorized_at: authorization.authorized_at,
+      scope: authorization.scope,
+      for_review_number: authorization.for_review_number,
+      reviewed_head: authorization.reviewed_head,
+      finding_ids: [...authorization.finding_ids],
+    },
     authorization_id: authorization.authorization_id,
     target,
     active_pr: state.active_pr,
@@ -396,6 +407,8 @@ export async function dispatchFounderAuthorizedCorrection({
   reserveAuthorization,
   releaseAuthorization,
   handoffBody,
+  updatedAt = new Date().toISOString(),
+  updatedBy = 'Mission Control',
 }) {
   const original = await readState()
   const authorization = original?.founder_correction_authorization
@@ -422,6 +435,8 @@ export async function dispatchFounderAuthorizedCorrection({
     consumed = {
       ...structuredClone(original),
       state: 'IN_PROGRESS',
+      updated_at: updatedAt,
+      updated_by: updatedBy,
       founder_correction_authorization: {
         ...structuredClone(authorization),
         schema_version: 2,
@@ -621,6 +636,8 @@ export function proposeDeliveryReconciliation(evidence) {
   const prNumber = String(evidence.livePr.number)
   const head = evidence.latestResult?.parsed?.headSha || evidence.livePr.headRefOid
   const approvedBase = evidence.approvedBase || evidence.livePr.baseRefName || 'main'
+  const updatedAt = evidence.updatedAt ?? new Date().toISOString()
+  const updatedBy = evidence.updatedBy ?? 'Mission Control'
 
   const managedState = evidence.managedState
   const correctionAuthorization = managedState?.founder_correction_authorization
@@ -648,6 +665,8 @@ export function proposeDeliveryReconciliation(evidence) {
       },
       next_permitted_action: `Founder decides whether to authorize Review 4 on PR #${prNumber} at exact head ${head}; no Review 4 is authorized yet.`,
       material_change_status: 'founder_decision_required_for_review_4',
+      updated_at: updatedAt,
+      updated_by: updatedBy,
     }
   }
 
@@ -670,6 +689,8 @@ export function proposeDeliveryReconciliation(evidence) {
       last_reviewed_head: managedState.last_reviewed_head,
       next_permitted_action: `Reviewer performs bounded Review ${nextReview} on PR #${prNumber} at exact head ${head}.`,
       material_change_status: 'none',
+      updated_at: updatedAt,
+      updated_by: updatedBy,
     }
   }
 
@@ -684,6 +705,8 @@ export function proposeDeliveryReconciliation(evidence) {
     last_reviewed_head: null,
     next_permitted_action: `Reviewer performs bounded Review 1 on PR #${prNumber} at exact head ${head}.`,
     material_change_status: 'none',
+    updated_at: updatedAt,
+    updated_by: updatedBy,
   }
 }
 

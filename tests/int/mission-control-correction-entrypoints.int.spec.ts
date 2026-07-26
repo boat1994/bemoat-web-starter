@@ -148,6 +148,10 @@ describe('Founder-authorized correction executable entrypoints', () => {
       schema_version: 2, status: 'consumed', handoff_comment_id: '501',
       handoff_binding: { content_sha256: expect.stringMatching(/^[0-9a-f]{64}$/), binding_sha256: expect.stringMatching(/^[0-9a-f]{64}$/) },
     })
+    expect(parsed.state).toMatchObject({
+      updated_by: 'Mission Control',
+      updated_at: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
+    })
 
     const replay = spawnSync(process.execPath, args, { cwd: process.cwd(), env: harness.env, encoding: 'utf8' })
     expect(replay.status).toBe(1)

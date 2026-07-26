@@ -184,6 +184,43 @@ describe('mission-control reconcile classifiers', () => {
     })).rejects.toThrow('unconsumed Founder correction authorization')
   })
 
+  it('freezes the complete authorized Founder record in the consumed HANDOFF binding', async () => {
+    let state: any = {
+      state: 'FOUNDER_AUTHORIZED_CORRECTION', review_cycle: 3, full_review_count: 1,
+      active_pr: '#172', current_head: 'reviewed-head', last_reviewed_head: 'reviewed-head', post_budget_reviews: [],
+      founder_correction_authorization: {
+        schema_version: 2, authorization_id: 'founder-171', status: 'authorized', authority: 'Founder',
+        scope: 'correction', for_review_number: 3, reviewed_head: 'reviewed-head', finding_ids: ['MC-R1-171-001'],
+        action: 'Authorize one bounded correction', authorized_at: '2026-07-26T01:30:29+07:00',
+      },
+    }
+    const result = await dispatchFounderAuthorizedCorrection({
+      readState: async () => state,
+      writeState: async (next: any) => { state = next },
+      reserveAuthorization: async () => ({ reservation_id: 'winner' }),
+      releaseAuthorization: async (): Promise<void> => undefined,
+      postHandoff: async () => ({ id: 'handoff-1', created_at: 'now', updated_at: 'now' }),
+      retractHandoff: async (): Promise<void> => undefined,
+      handoffBody: '## HANDOFF\n\n**Target:** Dev / Integration Builder\n**Founder correction authorization:** `founder-171`',
+      updatedAt: '2026-07-26T02:00:00Z',
+      updatedBy: 'Mission Control',
+    })
+
+    expect(result.state).toMatchObject({
+      updated_at: '2026-07-26T02:00:00Z', updated_by: 'Mission Control',
+      founder_correction_authorization: {
+        handoff_binding: {
+          authorization_snapshot: {
+            authorization_id: 'founder-171', authority: 'Founder', status: 'authorized',
+            action: 'Authorize one bounded correction', authorized_at: '2026-07-26T01:30:29+07:00',
+            scope: 'correction', for_review_number: 3, reviewed_head: 'reviewed-head',
+            finding_ids: ['MC-R1-171-001'],
+          },
+        },
+      },
+    })
+  })
+
   it('allows exactly one concurrent Founder-correction dispatcher to publish a HANDOFF', async () => {
     const original: any = {
       state: 'FOUNDER_AUTHORIZED_CORRECTION', review_cycle: 3, full_review_count: 1,

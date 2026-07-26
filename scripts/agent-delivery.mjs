@@ -169,12 +169,15 @@ function main() {
   }
 
   // We write the new state
+  const deliveryTimestamp = new Date().toISOString()
   const newStateProposal = proposeDeliveryReconciliation({
     managedState: currentState.state,
     livePr: { number: resultPr, headRefOid: localCommit, baseRefName: prData.baseRefName || 'main' },
     activeTaskIssue: parsed.options.issue,
     approvedBase: currentState.state?.approved_base ?? prData.baseRefName ?? 'main',
-    latestResult: { parsed: parsedBody }
+    latestResult: { parsed: parsedBody },
+    updatedAt: deliveryTimestamp,
+    updatedBy: 'Mission Control',
   })
 
   let stateObj = currentState.state || {}

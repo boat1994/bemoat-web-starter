@@ -153,6 +153,8 @@ async function main() {
       updated_at: timestamp,
       updated_by: 'Mission Control',
     }),
+    updatedAt: timestamp,
+    updatedBy: 'Mission Control',
   })
   process.stdout.write(`Mission Control dispatch ${result.outcome}: ${options.founderCorrection ? 'FOUNDER_AUTHORIZED_CORRECTION' : 'READY'} -> IN_PROGRESS + HANDOFF\n`)
 }

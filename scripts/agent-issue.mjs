@@ -2010,6 +2010,17 @@ function verifyReviewThreeCorrectionAuthorization({ issueBody, contract, comment
   if (authorization.schema_version === 2) {
     const contentSha256 = createHash('sha256').update(handoff.body ?? '').digest('hex')
     const expectedFields = {
+      authorization_snapshot: {
+        authorization_id: authorization.authorization_id,
+        authority: authorization.authority,
+        status: 'authorized',
+        action: authorization.action,
+        authorized_at: authorization.authorized_at,
+        scope: authorization.scope,
+        for_review_number: authorization.for_review_number,
+        reviewed_head: authorization.reviewed_head,
+        finding_ids: authorization.finding_ids,
+      },
       authorization_id: authorization.authorization_id,
       active_pr: state.active_pr,
       exact_head: state.current_head,
