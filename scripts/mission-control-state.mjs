@@ -260,7 +260,14 @@ export function parseMissionControlState(body = '') {
     return { present: true, valid: false, reason: 'state and review_cycle are inconsistent' }
   }
   if (state.state === 'IN_PROGRESS' && !hasPostBudgetReviews && state.review_cycle !== 0) {
-    return { present: true, valid: false, reason: 'state and review_cycle are inconsistent' }
+    const founderCorrectionAuthorization = state.founder_correction_authorization ?? state.founder_decision
+    const hasActiveFounderCorrection =
+      state.review_cycle === 3 &&
+      state.full_review_count === 1 &&
+      isFounderAuthorization(founderCorrectionAuthorization, 'correction')
+    if (!hasActiveFounderCorrection) {
+      return { present: true, valid: false, reason: 'state and review_cycle are inconsistent' }
+    }
   }
   const expectedFullReviewCounts = {
     READY: 0,
@@ -278,7 +285,14 @@ export function parseMissionControlState(body = '') {
     return { present: true, valid: false, reason: 'state and full_review_count are inconsistent' }
   }
   if (state.state === 'IN_PROGRESS' && !hasPostBudgetReviews && state.full_review_count !== 0) {
-    return { present: true, valid: false, reason: 'state and full_review_count are inconsistent' }
+    const founderCorrectionAuthorization = state.founder_correction_authorization ?? state.founder_decision
+    const hasActiveFounderCorrection =
+      state.review_cycle === 3 &&
+      state.full_review_count === 1 &&
+      isFounderAuthorization(founderCorrectionAuthorization, 'correction')
+    if (!hasActiveFounderCorrection) {
+      return { present: true, valid: false, reason: 'state and full_review_count are inconsistent' }
+    }
   }
 
   return { present: true, valid: true, state: /** @type {MissionControlState} */ (state) }
