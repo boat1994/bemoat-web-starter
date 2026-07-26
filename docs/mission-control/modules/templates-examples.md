@@ -40,6 +40,13 @@ those findings. Mission Control increments to Review 2 (delta), not a new full
 review. Reviewer inspects enumerated findings, B-minus-A delta, and exact-head
 checks only.
 
+### REVIEW_VERDICT canonical PR target (Issue #175)
+
+Put the live review target only on the `PR / base / head` field. Prose may mention
+historical, dependency, prohibited, or downstream pull requests without becoming
+alternate target identity. Finding `source_thread` links must still reference the
+same canonical PR.
+
 ### Third-cycle nit
 
 Review 3 with checks green and no Blocker/Critical. A naming nit becomes a

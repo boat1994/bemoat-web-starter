@@ -3,8 +3,9 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 
-const PRE_DELIVERY_STATES = new Set(['READY', 'IN_PROGRESS'])
+const PRE_DELIVERY_STATES = new Set(['READY', 'IN_PROGRESS', 'CORRECTION_REQUIRED_1', 'CORRECTION_REQUIRED_2'])
 const CORE_VERDICTS = new Set([
   'CORRECTION REQUIRED',
   'ELIGIBLE FOR FOUNDER REVIEW',
@@ -31,15 +32,65 @@ const REPAIR_OUTCOMES = new Set([
 ])
 
 function sameValue(left, right) {
-  return JSON.stringify(left) === JSON.stringify(right)
+  const canonicalize = (value) => {
+    if (Array.isArray(value)) return value.map(canonicalize)
+    if (value && typeof value === 'object') {
+      return Object.fromEntries(
+        Object.keys(value).sort().map((key) => [key, canonicalize(value[key])]),
+      )
+    }
+    return value
+  }
+  return JSON.stringify(canonicalize(left)) === JSON.stringify(canonicalize(right))
 }
 
 function hasLegacyManagedState(state = {}) {
   return (
     Object.hasOwn(state, 'post_budget_review_history') ||
     Object.hasOwn(state, 'founder_authorization') ||
-    Object.hasOwn(state, 'founder_correction_authorization')
+    (state.state === 'STATE_MIGRATION_REQUIRED' && state.review_cycle === 3 &&
+      state.full_review_count === 1 && (Object.hasOwn(state, 'founder_decision') ||
+        Object.hasOwn(state, 'founder_correction_authorization')))
   )
+}
+
+function isReviewThreeCorrectionAuthorization(authorization, state) {
+  return authorization &&
+    authorization.status === 'approved' && authorization.authority === 'Founder' &&
+    authorization.scope === 'correction' && authorization.for_review_number === 3 &&
+    typeof authorization.reviewed_head === 'string' && authorization.reviewed_head.length > 0 &&
+    authorization.reviewed_head === state.last_reviewed_head &&
+    authorization.reviewed_head === state.current_head &&
+    Array.isArray(authorization.finding_ids) && authorization.finding_ids.length > 0 &&
+    authorization.finding_ids.every((id) => typeof id === 'string' && id.length > 0) &&
+    typeof authorization.action === 'string' && authorization.action.length > 0 &&
+    typeof authorization.authorized_at === 'string' && authorization.authorized_at.length > 0
+}
+
+function correctionAuthorizationId(authorization) {
+  return `founder-r3-${authorization.reviewed_head.slice(0, 12)}-${authorization.authorized_at}`
+    .replace(/[^a-zA-Z0-9_-]/g, '-')
+}
+
+function validateReviewThreeLegacyLineage(state, authorization) {
+  if (!Array.isArray(state.finding_lineage) || state.finding_lineage.length === 0) {
+    throw new Error('Review 3 Founder correction migration requires complete finding_lineage')
+  }
+  const authorizedIds = [...authorization.finding_ids].sort()
+  const openLineage = state.finding_lineage.filter((finding) => finding?.disposition === 'open')
+  const lineageIds = openLineage.map((finding) => finding?.finding_id).sort()
+  if (!sameValue(authorizedIds, lineageIds)) {
+    throw new Error('Review 3 Founder correction migration finding lineage does not match Founder authority')
+  }
+  for (const finding of openLineage) {
+    if (typeof finding.finding_id !== 'string' || !finding.finding_id ||
+        typeof finding.source_thread !== 'string' || !finding.source_thread ||
+        typeof finding.evidence !== 'string' || !finding.evidence ||
+        !Array.isArray(finding.required_correction_evidence) || finding.required_correction_evidence.length === 0 ||
+        finding.required_correction_evidence.some((entry) => typeof entry !== 'string' || !entry)) {
+      throw new Error(`Review 3 Founder correction migration has incomplete evidence for ${finding?.finding_id ?? 'unknown finding'}`)
+    }
+  }
 }
 
 /**
@@ -106,6 +157,10 @@ export function migrateLegacyManagedState(managedState = {}) {
   }
   const history = state.post_budget_review_history ?? []
   const legacyReviewAuthorization = state.founder_authorization
+  const legacyCorrectionAuthorization = state.state === 'STATE_MIGRATION_REQUIRED' &&
+    state.review_cycle === 3 && state.full_review_count === 1
+    ? (state.founder_decision ?? state.founder_correction_authorization)
+    : state.founder_correction_authorization
 
   if (Object.hasOwn(state, 'post_budget_reviews') && !Array.isArray(state.post_budget_reviews)) {
     throw new Error('canonical post_budget_reviews must be an array')
@@ -137,7 +192,21 @@ export function migrateLegacyManagedState(managedState = {}) {
     state.post_budget_reviews = [...reviewsByNumber.values()].sort((left, right) => left.review_number - right.review_number)
   }
 
-  if (!state.founder_decision && state.founder_correction_authorization) {
+  if (
+    state.state === 'STATE_MIGRATION_REQUIRED' &&
+    state.review_cycle === 3 && state.full_review_count === 1 &&
+    (state.post_budget_reviews ?? []).length === 0 && history.length === 0 &&
+    isReviewThreeCorrectionAuthorization(legacyCorrectionAuthorization, state)
+  ) {
+    validateReviewThreeLegacyLineage(state, legacyCorrectionAuthorization)
+    state.state = 'FOUNDER_AUTHORIZED_CORRECTION'
+    state.founder_correction_authorization = {
+      ...structuredClone(legacyCorrectionAuthorization),
+      schema_version: 2,
+      authorization_id: correctionAuthorizationId(legacyCorrectionAuthorization),
+      status: 'authorized',
+    }
+  } else if (!state.founder_decision && state.founder_correction_authorization) {
     state.founder_decision = structuredClone(state.founder_correction_authorization)
   }
 
@@ -170,7 +239,8 @@ export function migrateLegacyManagedState(managedState = {}) {
   // The complete canonical representation is proven before any legacy key is removed.
   delete state.post_budget_review_history
   delete state.founder_authorization
-  delete state.founder_correction_authorization
+  if (state.state === 'FOUNDER_AUTHORIZED_CORRECTION') delete state.founder_decision
+  if (state.state !== 'FOUNDER_AUTHORIZED_CORRECTION') delete state.founder_correction_authorization
 
   return { changed: true, state }
 }
@@ -289,6 +359,125 @@ export async function dispatchManagedTask({ readState, writeState, postHandoff, 
 }
 
 /**
+ * Atomically consumes the one Founder authority granted after normal Review 3.
+ * The durable authorization is bound to the concrete HANDOFF comment identifier;
+ * a failed state write retracts that comment instead of allowing replay.
+ */
+function sha256(value) {
+  return createHash('sha256').update(value).digest('hex')
+}
+
+export function buildCorrectionHandoffBinding({ authorization, state, handoffBody, handoff }) {
+  const target = handoffBody.match(/^\*\*Target:\*\*\s*(.+?)\s*$/m)?.[1]?.trim()
+  if (!target) throw new Error('correction HANDOFF requires an explicit Target binding')
+  const payload = {
+    schema_version: 1,
+    authorization_snapshot: {
+      authorization_id: authorization.authorization_id,
+      authority: authorization.authority,
+      status: authorization.status,
+      action: authorization.action,
+      authorized_at: authorization.authorized_at,
+      scope: authorization.scope,
+      for_review_number: authorization.for_review_number,
+      reviewed_head: authorization.reviewed_head,
+      finding_ids: [...authorization.finding_ids],
+    },
+    authorization_id: authorization.authorization_id,
+    target,
+    active_pr: state.active_pr,
+    exact_head: state.current_head,
+    correction_base: authorization.reviewed_head,
+    review_number: authorization.for_review_number,
+    scope: authorization.scope,
+    finding_ids: [...authorization.finding_ids],
+    handoff_comment_id: String(handoff.id),
+    handoff_created_at: handoff.created_at ?? handoff.createdAt ?? null,
+    handoff_updated_at: handoff.updated_at ?? handoff.updatedAt ?? null,
+    content_sha256: sha256(handoffBody),
+  }
+  return { ...payload, binding_sha256: sha256(JSON.stringify(payload)) }
+}
+
+export async function dispatchFounderAuthorizedCorrection({
+  readState,
+  writeState,
+  postHandoff,
+  retractHandoff,
+  reserveAuthorization,
+  releaseAuthorization,
+  handoffBody,
+  updatedAt = new Date().toISOString(),
+  updatedBy = 'Mission Control',
+}) {
+  const original = await readState()
+  const authorization = original?.founder_correction_authorization
+  if (original?.state !== 'FOUNDER_AUTHORIZED_CORRECTION' || authorization?.status !== 'authorized') {
+    throw new Error('dispatch requires an unconsumed Founder correction authorization')
+  }
+  if (!/^## HANDOFF\s*$/m.test(handoffBody ?? '') || !handoffBody.includes(authorization.authorization_id)) {
+    throw new Error('correction HANDOFF must bind the Founder correction authorization identity')
+  }
+  if (typeof reserveAuthorization !== 'function' || typeof releaseAuthorization !== 'function') {
+    throw new Error('correction dispatch requires a race-safe authorization reservation')
+  }
+
+  const reservation = await reserveAuthorization(authorization, original)
+  let handoff = null
+  let consumed = null
+  let writeAttempted = false
+  try {
+    if (!sameValue(await readState(), original)) {
+      throw new Error('correction dispatch reservation found stale or consumed authority')
+    }
+    handoff = await postHandoff(handoffBody)
+    if (!handoff?.id) throw new Error('correction HANDOFF did not return a comment identifier')
+    consumed = {
+      ...structuredClone(original),
+      state: 'IN_PROGRESS',
+      updated_at: updatedAt,
+      updated_by: updatedBy,
+      founder_correction_authorization: {
+        ...structuredClone(authorization),
+        schema_version: 2,
+        status: 'consumed',
+        handoff_comment_id: String(handoff.id),
+        handoff_url: handoff.html_url ?? handoff.url ?? null,
+        handoff_binding: buildCorrectionHandoffBinding({ authorization, state: original, handoffBody, handoff }),
+      },
+    }
+    writeAttempted = true
+    await writeState(consumed)
+    if (!sameValue(await readState(), consumed)) {
+      throw new Error('correction dispatch verification found a concurrent state change')
+    }
+    await releaseAuthorization(reservation)
+    return { outcome: 'DISPATCHED_FOUNDER_AUTHORIZED_CORRECTION', state: consumed }
+  } catch (error) {
+    let live = null
+    try { live = await readState() } catch { /* indeterminate state retains reservation */ }
+    if (consumed && sameValue(live, consumed)) {
+      try { await releaseAuthorization(reservation) } catch { /* consumed state prevents replay */ }
+      return { outcome: 'DISPATCHED_FOUNDER_AUTHORIZED_CORRECTION', state: consumed }
+    }
+    if (handoff && retractHandoff && (!writeAttempted || sameValue(live, original))) {
+      try {
+        await retractHandoff(handoff)
+      } catch (retractError) {
+        throw new Error('correction dispatch failed and HANDOFF rollback failed; reservation retained', { cause: retractError })
+      }
+    }
+    if (!writeAttempted || sameValue(live, original)) {
+      try { await releaseAuthorization(reservation) } catch { /* retained reservation fails closed */ }
+    }
+    throw new Error(
+      `correction dispatch failed before verified Founder authorization consumption: ${error instanceof Error ? error.message : String(error)}`,
+      { cause: error },
+    )
+  }
+}
+
+/**
  * @param {string} body
  */
 export function parseRoleCommentBody(body = '') {
@@ -299,6 +488,12 @@ export function parseRoleCommentBody(body = '') {
 
   const prFromUrl = body.match(/https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/(\d+)/)?.[1] ?? null
   const prFromHash = body.match(/\bPR\s*#(\d+)\b/i)?.[1] ?? null
+  const prFromCanonicalLine =
+    body.match(
+      /\*\*PR\s*\/\s*base\s*\/\s*head:\*\*[^\n]*https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/(\d+)/i,
+    )?.[1] ?? null
+  const prFromCanonicalShorthand =
+    body.match(/\*\*PR\s*\/\s*base\s*\/\s*head:\*\*[^\n]*\bPR\s*#(\d+)\b/i)?.[1] ?? null
   const headFromState = body.match(/\*\*State:\*\*[^\n]*head\s+`([0-9a-f]{7,40})`/i)?.[1] ?? null
   const headFromPrLine = body.match(/\*\*PR\s*\/\s*base\s*\/\s*head:\*\*[^\n]*·\s*`([0-9a-f]{7,40})`/i)?.[1] ?? null
   const headFromExact = body.match(/\*\*Exact head reviewed:\*\*\s*`([0-9a-f]{7,40})`/i)?.[1] ?? null
@@ -313,7 +508,10 @@ export function parseRoleCommentBody(body = '') {
   return {
     role: heading,
     body,
-    prNumber: prFromUrl || prFromHash,
+    prNumber:
+      heading === 'REVIEW_VERDICT'
+        ? prFromCanonicalLine || prFromCanonicalShorthand
+        : prFromUrl || prFromHash,
     headSha,
     verdict,
     managedStateLine,
@@ -447,6 +645,63 @@ export function proposeDeliveryReconciliation(evidence) {
   const prNumber = String(evidence.livePr.number)
   const head = evidence.latestResult?.parsed?.headSha || evidence.livePr.headRefOid
   const approvedBase = evidence.approvedBase || evidence.livePr.baseRefName || 'main'
+  const updatedAt = evidence.updatedAt ?? new Date().toISOString()
+  const updatedBy = evidence.updatedBy ?? 'Mission Control'
+
+  const managedState = evidence.managedState
+  const correctionAuthorization = managedState?.founder_correction_authorization
+  if (managedState?.state === 'IN_PROGRESS' && managedState.review_cycle === 3 &&
+      managedState.full_review_count === 1 && correctionAuthorization?.status === 'consumed' &&
+      correctionAuthorization?.for_review_number === 3) {
+    return {
+      ...structuredClone(managedState),
+      state: 'BLOCKED_FOR_FOUNDER_DECISION',
+      review_cycle: 3,
+      full_review_count: 1,
+      approved_base: approvedBase,
+      active_task_issue: evidence.activeTaskIssue ? `"#${evidence.activeTaskIssue}"` : managedState.active_task_issue,
+      active_pr: `"#${prNumber}"`,
+      current_head: head,
+      last_reviewed_head: managedState.last_reviewed_head,
+      post_budget_reviews: [],
+      founder_decision: {
+        status: 'pending',
+        authority: 'Founder',
+        scope: 'review',
+        review_number: 4,
+        reviewed_head: head,
+        action: 'Founder Approve or Decline a separately bound Review 4 authorization',
+      },
+      next_permitted_action: `Founder decides whether to authorize Review 4 on PR #${prNumber} at exact head ${head}; no Review 4 is authorized yet.`,
+      material_change_status: 'founder_decision_required_for_review_4',
+      updated_at: updatedAt,
+      updated_by: updatedBy,
+    }
+  }
+
+  const normalCorrectionTransitions = {
+    CORRECTION_REQUIRED_1: 'AWAITING_REVIEW_2',
+    CORRECTION_REQUIRED_2: 'AWAITING_REVIEW_3',
+  }
+  if (managedState && Object.hasOwn(normalCorrectionTransitions, managedState.state)) {
+    const nextState = normalCorrectionTransitions[managedState.state]
+    const nextReview = managedState.review_cycle + 1
+    return {
+      ...structuredClone(managedState),
+      state: nextState,
+      approved_base: approvedBase,
+      active_task_issue: evidence.activeTaskIssue ? `"#${evidence.activeTaskIssue}"` : managedState.active_task_issue,
+      active_pr: `"#${prNumber}"`,
+      current_head: head,
+      review_cycle: managedState.review_cycle,
+      full_review_count: managedState.full_review_count,
+      last_reviewed_head: managedState.last_reviewed_head,
+      next_permitted_action: `Reviewer performs bounded Review ${nextReview} on PR #${prNumber} at exact head ${head}.`,
+      material_change_status: 'none',
+      updated_at: updatedAt,
+      updated_by: updatedBy,
+    }
+  }
 
   return {
     state: 'AWAITING_REVIEW_1',
@@ -459,6 +714,8 @@ export function proposeDeliveryReconciliation(evidence) {
     last_reviewed_head: null,
     next_permitted_action: `Reviewer performs bounded Review 1 on PR #${prNumber} at exact head ${head}.`,
     material_change_status: 'none',
+    updated_at: updatedAt,
+    updated_by: updatedBy,
   }
 }
 
@@ -548,6 +805,7 @@ export function analyzeReconciliation(context) {
   if (deliveryLag.kind === 'DETERMINISTIC_RECONCILIATION' && context.livePr) {
     bookkeepingType = 'delivery'
     bookkeepingProposal = proposeDeliveryReconciliation({
+      managedState: context.managedState,
       livePr: context.livePr,
       activeTaskIssue: context.activeTaskIssue,
       approvedBase: context.managedState?.approved_base,

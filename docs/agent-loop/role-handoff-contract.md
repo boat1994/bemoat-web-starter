@@ -140,7 +140,7 @@ A correction `## RESULT` reports evidence by immutable finding ID without redefi
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "correction_base": "<reviewed head>",
   "finding_results": {
     "MC-R1-001": {
@@ -163,6 +163,9 @@ absent from the correction diff, explicitly prohibited scope, and free-form
 `Done` claims that conflict with `UNPROVEN` entries. Expected areas are guidance
 only. Semantic correctness and original review-thread resolution remain with the
 bounded Delta Reviewer after corrected exact-head CI.
+
+Schema v2 is canonical for new correction RESULT evidence. The parser retains
+read compatibility with already-posted schema-v1 RESULT evidence.
 
 ## Comment types
 
@@ -334,6 +337,11 @@ the existing state fields rather than creating a Double-Loop state model.
 - Model / reasoning: <model + tier> | human
 
 **PR / base / head:** <PR_URL> · `<base>` · `<sha>` (verify live)
+
+The `PR / base / head` field is the **only** canonical review-target identity for
+`REVIEW_VERDICT`. Historical, dependency, prohibited, superseded, and downstream
+pull-request references in prose must not be treated as alternate targets.
+Finding `source_thread` URLs must still point at the same canonical PR.
 **Verdict:** CORRECTION REQUIRED | ELIGIBLE FOR FOUNDER REVIEW | BLOCKED FOR FOUNDER DECISION | BLOCKED EXTERNAL | STATE CONFLICT
 **Findings:** Critical: None|<summary + thread> · Important: None|<summary + thread>
 **Threads:** <PR_REVIEW_THREAD_URL> (file-level detail stays on the PR)

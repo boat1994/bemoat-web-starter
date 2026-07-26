@@ -159,6 +159,40 @@ The action validates `READY`, writes `IN_PROGRESS`, posts exactly one existing
 it rolls the state back only when a fresh read proves no concurrent Issue edit;
 otherwise it fails closed without overwriting the concurrent writer.
 
+### Founder-authorized correction after normal Review 3
+
+`FOUNDER_AUTHORIZED_CORRECTION` is the distinct execution state for the one
+bounded correction a Founder explicitly authorizes after normal Review 3. It is
+not Review 4: it preserves counters `3/1`, the exact `last_reviewed_head`,
+immutable finding IDs, and `post_budget_reviews: []`.
+
+Its versioned `founder_correction_authorization` binds an `authorization_id`,
+Review 3, reviewed head, finding set, Founder authority, scope, and timestamp.
+Dispatch requires its unconsumed `status: authorized` record:
+
+```bash
+pnpm run bemoat:mission-control:dispatch -- <issue-number> --founder-correction --body-file <handoff.md>
+```
+
+Dispatch first acquires a repository-scoped, single-winner reservation for the
+authorization identity. It then posts one HANDOFF and records `status:
+consumed` with that exact comment ID plus a SHA-256 binding over the immutable
+authority, target, PR, exact head/correction base, Review 3, scope, finding
+chain, comment timestamps, and complete HANDOFF content. The reservation is
+released only after the consumed state is freshly verified. Failed or
+indeterminate writes retain the reservation unless a fresh read proves safe
+compensation, so concurrent dispatch cannot publish two successful HANDOFFs.
+
+Correction preflight accepts the consumed authorization only when the bound
+comment still exists, is byte-identical, and remains the latest approved,
+non-superseded HANDOFF, and when its active PR, current/reviewed head, exact
+finding IDs, and binding fingerprint all match. Deletion, edit, substitution,
+supersession, and replay fail closed. Correction delivery preserves counters
+`3/1`, the prior `last_reviewed_head`, lineage, consumed binding, and empty
+`post_budget_reviews`, then returns to `BLOCKED_FOR_FOUNDER_DECISION`. It does
+not authorize Review 4; a separate Founder authorization bound to the delivered
+head is mandatory.
+
 ## Bootstrap and state reconstruction
 
 At the start of every Mission Control run:
@@ -176,5 +210,3 @@ At the start of every Mission Control run:
 9. Write the durable result to GitHub, identify one next permitted action, and stop.
 
 Never reset or infer the review count from chat history.
-
-

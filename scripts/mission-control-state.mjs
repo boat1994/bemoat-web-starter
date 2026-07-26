@@ -8,6 +8,7 @@ const missionControlStates = new Set([
   'AWAITING_REVIEW_2',
   'CORRECTION_REQUIRED_2',
   'AWAITING_REVIEW_3',
+  'FOUNDER_AUTHORIZED_CORRECTION',
   'BLOCKED_FOR_FOUNDER_DECISION',
   'FOUNDER_AUTHORIZED_CORRECTION',
   'ELIGIBLE_FOR_FOUNDER_REVIEW',
@@ -95,6 +96,35 @@ function validateBoundCorrectionAuthorization(authorization, latestReview) {
   )
   if ([...authorizedFindingIds].some((findingId) => !reviewFindingIds.has(findingId))) {
     return { valid: false, reason: 'post-budget correction authorization finding_ids must stay within the latest completed review scope' }
+  }
+  return { valid: true }
+}
+
+function validateReviewThreeCorrectionAuthorization(authorization, state, expectedStatus) {
+  if (!authorization || typeof authorization !== 'object' || Array.isArray(authorization) ||
+      authorization.authority !== 'Founder' || authorization.scope !== 'correction' ||
+      authorization.for_review_number !== 3 || typeof authorization.action !== 'string' || !authorization.action ||
+      typeof authorization.authorized_at !== 'string' || !authorization.authorized_at) {
+    return { valid: false, reason: 'Review 3 Founder correction authorization is required' }
+  }
+  if (![1, 2].includes(authorization.schema_version) || typeof authorization.authorization_id !== 'string' || !authorization.authorization_id) {
+    return { valid: false, reason: 'Review 3 Founder correction authorization requires schema_version and authorization_id' }
+  }
+  if (authorization.status !== expectedStatus || authorization.reviewed_head !== state.last_reviewed_head ||
+      authorization.reviewed_head !== state.current_head || !Array.isArray(authorization.finding_ids) ||
+      authorization.finding_ids.length === 0 || authorization.finding_ids.some((id) => typeof id !== 'string' || !id)) {
+    return { valid: false, reason: 'Review 3 Founder correction authorization binding is invalid' }
+  }
+  if (expectedStatus === 'consumed' && (typeof authorization.handoff_comment_id !== 'string' || !authorization.handoff_comment_id)) {
+    return { valid: false, reason: 'consumed Review 3 Founder correction authorization requires handoff_comment_id' }
+  }
+  if (expectedStatus === 'consumed' && authorization.schema_version === 2) {
+    const binding = authorization.handoff_binding
+    if (!binding || binding.schema_version !== 1 ||
+        typeof binding.content_sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(binding.content_sha256) ||
+        typeof binding.binding_sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(binding.binding_sha256)) {
+      return { valid: false, reason: 'consumed Review 3 Founder correction authorization requires an immutable HANDOFF binding' }
+    }
   }
   return { valid: true }
 }
@@ -248,6 +278,20 @@ export function parseMissionControlState(body = '') {
     }
   }
 
+  const reviewThreeCorrection = state.founder_correction_authorization
+  if (state.state === 'FOUNDER_AUTHORIZED_CORRECTION') {
+    if (hasPostBudgetReviews || state.review_cycle !== 3 || state.full_review_count !== 1 ||
+        typeof state.active_pr !== 'string' || typeof state.current_head !== 'string') {
+      return { present: true, valid: false, reason: 'Founder-authorized Review 3 correction requires active PR and normal counters at 3/1' }
+    }
+    const authorization = validateReviewThreeCorrectionAuthorization(reviewThreeCorrection, state, 'authorized')
+    if (!authorization.valid) return { present: true, valid: false, reason: authorization.reason }
+  }
+  if (state.state === 'IN_PROGRESS' && !hasPostBudgetReviews && state.review_cycle === 3) {
+    const authorization = validateReviewThreeCorrectionAuthorization(reviewThreeCorrection, state, 'consumed')
+    if (!authorization.valid) return { present: true, valid: false, reason: authorization.reason }
+  }
+
   const expectedCycles = {
     READY: 0,
     AWAITING_REVIEW_1: 0,
@@ -302,7 +346,7 @@ export function renderMissionControlState(stateObj) {
   const orderedKeys = [
     'schema_version', 'state', 'review_cycle', 'full_review_count', 'approved_base',
     'active_task_issue', 'active_pr', 'current_head', 'last_reviewed_head',
-    'post_budget_reviews', 'founder_decision',
+    'post_budget_reviews', 'founder_decision', 'founder_correction_authorization',
     'guide_version', 'guide_source_ref', 'guide_source_sha', 'open_blockers',
     'follow_up_issues', 'next_permitted_action', 'material_change_status', 'updated_at',
     'updated_by'

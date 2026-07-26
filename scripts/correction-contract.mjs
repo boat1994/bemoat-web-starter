@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
-export const CORRECTION_CONTRACT_SCHEMA_VERSION = 2
+export const CORRECTION_CONTRACT_SCHEMA_VERSION = 1
+export const CORRECTION_EVIDENCE_SCHEMA_VERSION = 2
 export const FINDING_STATUS = Object.freeze({
   CLAIMED_RESOLVED: 'CLAIMED_RESOLVED',
   UNPROVEN: 'UNPROVEN',
@@ -171,13 +172,11 @@ export function parseCorrectionContract(text = '') {
 function validateEvidenceShape(candidate) {
   const errors = []
   if (candidate.mode === 'planning_no_pr') {
-    if (candidate.schema_version !== 2) {
-      errors.push('schema_version must be 2 for planning_no_pr')
+    if (candidate.schema_version !== CORRECTION_EVIDENCE_SCHEMA_VERSION) {
+      errors.push(`schema_version must be ${CORRECTION_EVIDENCE_SCHEMA_VERSION} for planning_no_pr`)
     }
-  } else {
-    if (candidate.schema_version !== 1 && candidate.schema_version !== 2) {
-      errors.push('schema_version must be 1 or 2')
-    }
+  } else if (![1, CORRECTION_EVIDENCE_SCHEMA_VERSION].includes(candidate.schema_version)) {
+    errors.push(`schema_version must be 1 or ${CORRECTION_EVIDENCE_SCHEMA_VERSION}`)
   }
   if (typeof candidate.correction_base !== 'string' || !candidate.correction_base.trim()) {
     errors.push('correction_base must be a non-empty string')

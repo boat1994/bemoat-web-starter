@@ -7,6 +7,8 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- untyped runtime .mjs boundary */
 import * as agentIssueModule from '../../scripts/agent-issue.mjs'
+import * as reconcileModule from '../../scripts/mission-control-reconcile.mjs'
+import * as missionControlStateModule from '../../scripts/mission-control-state.mjs'
 
 // Shared .mjs scripts expose runtime behavior, not TypeScript declarations. Keep
 // the strict-project boundary explicit without changing the production API.
@@ -23,6 +25,8 @@ const {
   runAgentIssuePreflight,
   validatePlanPath,
 } = agentIssueModule as unknown as Record<string, (...args: any[]) => any>
+const { buildCorrectionHandoffBinding } = reconcileModule as unknown as Record<string, (...args: any[]) => any>
+const { renderMissionControlState } = missionControlStateModule as unknown as Record<string, (...args: any[]) => any>
 
 const PRODUCTION_PR103_ROLLUP = [
   {
@@ -1516,6 +1520,104 @@ esac
     expect(result.stdout).not.toContain('Docs to read before implementation:')
   })
 
+  it.each([
+    ['missing', 'Mission Control mode: required\n'],
+    ['malformed', 'Mission Control mode: required\n<!-- bemoat-mission-control-state:start -->\n```yaml\nstate: IN_PROGRESS\n```\n'],
+  ])('fails closed when managed state is %s during correction preflight', (_name, issueBody) => {
+    const root = createRepo('feature/136-immutable-correction-contract')
+    const verdictBody = `## REVIEW_VERDICT
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · \`main\` · \`abc1234\`
+**Verdict:** CORRECTION REQUIRED
+\`\`\`json
+{"schema_version":1,"reviewed_head":"abc1234","findings":[{"id":"MC-R1-001","canonical_summary":"boundary bug","source_thread":"https://github.com/boat1994/bemoat-web-starter/pull/200#discussion_r1","required_evidence":["executable negative"]}]}
+\`\`\``
+    const fixtureDir = mkdtempSync(join(tmpdir(), 'bemoat-agent-issue-state-'))
+    tempRoots.push(fixtureDir)
+    const issuePath = join(fixtureDir, 'issue.json')
+    const commentsPath = join(fixtureDir, 'comments.json')
+    writeFileSync(issuePath, JSON.stringify({ title: 'Managed correction', url: 'https://github.com/boat1994/bemoat-web-starter/issues/136', body: issueBody, labels: [] }))
+    writeFileSync(commentsPath, JSON.stringify({ comments: [{ id: '2', body: verdictBody, createdAt: '2026-07-20T10:00:00Z' }] }))
+    const result = runAgentIssue(root, ['136', '--phase', 'correction'], {
+      PATH: withStubbedGh(root, `#!/usr/bin/env sh
+case "$*" in
+  *"issue view 136"*"title,url,body,labels"*) cat "${issuePath}" ;;
+  *"issue view 136"*"comments"*) cat "${commentsPath}" ;;
+  *) echo "unexpected gh call: $*" >&2; exit 1 ;;
+esac
+`),
+    })
+
+    expect(result.status).toBe(1)
+    expect(result.stdout).toMatch(/managed Mission Control state.*missing or invalid/i)
+    expect(result.stdout).not.toContain('Edit authorization: granted')
+  })
+
+  it.each([
+    ['valid', (_comments: any[], _authorization: any): void => undefined, 0],
+    ['edited', (comments: any[], _authorization: any) => { comments[0].body += '\nsubstituted content' }, 1],
+    ['deleted', (comments: any[], _authorization: any) => { comments.shift() }, 1],
+    ['superseded', (comments: any[], _authorization: any) => { comments.push({ id: '3', body: '## HANDOFF\n\n**Target:** Dev\n**Objective:** superseding correction', createdAt: '2026-07-20T10:30:00Z', updatedAt: '2026-07-20T10:30:00Z' }) }, 1],
+    ['missing authority snapshot', (_comments: any[], authorization: any) => { delete authorization.handoff_binding.authorization_snapshot }, 1],
+  ])('handles a %s bound HANDOFF through the executable correction preflight', (_name, mutate, expectedStatus) => {
+    const root = createRepo('feature/136-immutable-correction-contract')
+    const dispatchAuthorization: any = {
+      schema_version: 2, authorization_id: 'founder-r3-abc', status: 'authorized', authority: 'Founder',
+      scope: 'correction', for_review_number: 3, reviewed_head: 'abc1234', finding_ids: ['MC-R1-001'],
+      action: 'Authorize one bounded correction', authorized_at: '2026-07-20T09:00:00Z',
+    }
+    const authorization: any = { ...dispatchAuthorization, status: 'consumed', handoff_comment_id: '1' }
+    const state: any = {
+      schema_version: 1, state: 'IN_PROGRESS', review_cycle: 3, full_review_count: 1,
+      approved_base: 'main', active_task_issue: '#136', active_pr: '#200', current_head: 'abc1234',
+      last_reviewed_head: 'abc1234', post_budget_reviews: [], founder_correction_authorization: authorization,
+      guide_version: '1.2.0', guide_source_ref: 'main', guide_source_sha: null, open_blockers: ['MC-R1-001'],
+      follow_up_issues: [], next_permitted_action: 'Execute bounded correction', material_change_status: 'none',
+      updated_at: '2026-07-20T09:00:00Z', updated_by: 'Mission Control',
+    }
+    const handoff = {
+      id: '1', body: '## HANDOFF\n\n**Target:** Dev / Integration Builder\n**Objective:** bounded correction\n**Founder correction authorization:** `founder-r3-abc`',
+      createdAt: '2026-07-20T10:00:00Z', updatedAt: '2026-07-20T10:00:00Z',
+    }
+    authorization.handoff_binding = buildCorrectionHandoffBinding({ authorization: dispatchAuthorization, state, handoffBody: handoff.body, handoff })
+    const verdict = {
+      id: '2', createdAt: '2026-07-20T10:10:00Z', updatedAt: '2026-07-20T10:10:00Z',
+      body: `## REVIEW_VERDICT
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · \`main\` · \`abc1234\`
+**Verdict:** CORRECTION REQUIRED
+\`\`\`json
+{"schema_version":1,"reviewed_head":"abc1234","findings":[{"id":"MC-R1-001","canonical_summary":"boundary bug","source_thread":"https://github.com/boat1994/bemoat-web-starter/pull/200#discussion_r1","required_evidence":["executable negative"]}]}
+\`\`\``,
+    }
+    const comments = [handoff, verdict]
+    mutate(comments, authorization)
+    const fixtureDir = mkdtempSync(join(tmpdir(), 'bemoat-agent-issue-binding-'))
+    tempRoots.push(fixtureDir)
+    const issuePath = join(fixtureDir, 'issue.json')
+    const commentsPath = join(fixtureDir, 'comments.json')
+    writeFileSync(issuePath, JSON.stringify({
+      title: 'Managed correction', url: 'https://github.com/boat1994/bemoat-web-starter/issues/136',
+      body: `Mission Control mode: required\n\n${renderMissionControlState(state)}`, labels: [],
+    }))
+    writeFileSync(commentsPath, JSON.stringify({ comments }))
+    const result = runAgentIssue(root, ['136', '--phase', 'correction'], {
+      PATH: withStubbedGh(root, `#!/usr/bin/env sh
+case "$*" in
+  *"issue view 136"*"title,url,body,labels"*) cat "${issuePath}" ;;
+  *"issue view 136"*"comments"*) cat "${commentsPath}" ;;
+  *"pr view 200"*) printf '%s' '{"title":"Correction PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/200","headRefName":"feature/136","baseRefName":"main","headRefOid":"abc1234","state":"OPEN","statusCheckRollup":[{"name":"ci","workflowName":"CI","status":"COMPLETED","conclusion":"SUCCESS","detailsUrl":"https://ci/1"},{"name":"starter-ci","workflowName":"CI (starter strict)","status":"COMPLETED","conclusion":"SUCCESS","detailsUrl":"https://ci/2"}],"commits":[]}' ;;
+  *) echo "unexpected gh call: $*" >&2; exit 1 ;;
+esac
+`),
+    })
+    expect(result.status, result.stderr || result.stdout).toBe(expectedStatus)
+    if (expectedStatus === 0) {
+      expect(result.stdout).toContain('Edit authorization: granted')
+    } else {
+      expect(result.stdout).toMatch(/HANDOFF|binding|edited/i)
+      expect(result.stdout).not.toContain('Edit authorization: granted')
+    }
+  })
+
   it('fails closed when the verdict PR/base/head line contradicts the immutable contract reviewed_head (MC-R1-002)', () => {
     const root = createRepo('feature/136-immutable-correction-contract')
     const verdictBody = `## REVIEW_VERDICT
@@ -1851,7 +1953,7 @@ esac
     expect(result.stdout).not.toContain('Playback verified')
   })
 
-  it('fails closed when the verdict contains two distinct PR URLs (MC-R1-002)', () => {
+  it('ignores a second distinct PR URL in prose when only one canonical PR / base / head field exists (Issue #175)', () => {
     const root = createRepo('feature/136-immutable-correction-contract')
     const verdictBody = `## REVIEW_VERDICT
 **PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · \`main\` · \`abc1234\`
@@ -1903,13 +2005,70 @@ esac
       ),
     })
 
+    expect(result.status).toBe(0)
+    expect(result.stdout).toContain('Edit authorization: granted')
+    expect(result.stdout).toContain('Playback verified')
+  })
+
+  it('fails closed when the verdict contains two canonical PR / base / head fields (Issue #175)', () => {
+    const root = createRepo('feature/136-immutable-correction-contract')
+    const verdictBody = `## REVIEW_VERDICT
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · \`main\` · \`abc1234\`
+**Verdict:** CORRECTION REQUIRED
+**Findings:** Important: boundary bug
+**Gates:** exact-head CI https://example.test/ci → pass
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/201 · \`main\` · \`abc1234\`
+**Next:** Dev posts correction RESULT
+
+\`\`\`json
+{
+  "schema_version": 1,
+  "reviewed_head": "abc1234",
+  "findings": [
+    {
+      "id": "MC-R1-001",
+      "canonical_summary": "supplied-timezone month boundaries are incorrect",
+      "source_thread": "https://github.com/boat1994/bemoat-web-starter/pull/200#discussion_r1",
+      "required_evidence": ["Bangkok exact UTC boundary"]
+    }
+  ]
+}
+\`\`\`
+`
+    const commentsPayload = JSON.stringify({
+      comments: [{ body: verdictBody, createdAt: '2026-07-20T10:00:00+07:00' }],
+    }).replace(/'/g, `'\"'\"'`)
+
+    const result = runAgentIssue(root, ['136', '--phase', 'correction'], {
+      PATH: withStubbedGh(
+        root,
+        `#!/usr/bin/env sh
+case "$*" in
+  *"issue view 136"*"title,url,body,labels"*)
+    printf '%s' '{"title":"Immutable correction contract","url":"https://github.com/boat1994/bemoat-web-starter/issues/136","body":"","labels":[]}'
+    ;;
+  *"issue view 136"*"comments"*)
+    printf '%s' '${commentsPayload}'
+    ;;
+  *"pr view 200"*|*"pr view 201"*)
+    printf '%s' '{"title":"Correction PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/200","headRefName":"feature/136","baseRefName":"main","headRefOid":"abc1234","state":"OPEN","statusCheckRollup":[],"commits":[]}'
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`,
+      ),
+    })
+
     expect(result.status).toBe(1)
-    expect(result.stdout).toMatch(/distinct PR|multiple PR|conflicting PR identity|PR identity/i)
+    expect(result.stdout).toMatch(/multiple canonical `PR \/ base \/ head`/i)
     expect(result.stdout).not.toContain('Edit authorization: granted')
     expect(result.stdout).not.toContain('Playback verified')
   })
 
-  it('fails closed when a canonical PR URL conflicts with a different PR #N shorthand (MC-R1-002)', () => {
+  it('allows prose PR #N shorthand when canonical PR / base / head is unambiguous (Issue #175)', () => {
     const root = createRepo('feature/136-immutable-correction-contract')
     const verdictBody = `## REVIEW_VERDICT
 **PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · \`main\` · \`abc1234\`
@@ -1960,21 +2119,77 @@ esac
       ),
     })
 
+    expect(result.status).toBe(0)
+    expect(result.stdout).toContain('Edit authorization: granted')
+    expect(result.stdout).toContain('Playback verified')
+  })
+
+  it('fails closed when a canonical PR URL conflicts with a different PR #N shorthand on the canonical line (MC-R1-002)', () => {
+    const root = createRepo('feature/136-immutable-correction-contract')
+    const verdictBody = `## REVIEW_VERDICT
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · PR #201 · \`main\` · \`abc1234\`
+**Verdict:** CORRECTION REQUIRED
+**Findings:** Important: boundary bug
+**Gates:** exact-head CI https://example.test/ci → pass
+**Next:** Dev posts correction RESULT
+
+\`\`\`json
+{
+  "schema_version": 1,
+  "reviewed_head": "abc1234",
+  "findings": [
+    {
+      "id": "MC-R1-001",
+      "canonical_summary": "supplied-timezone month boundaries are incorrect",
+      "source_thread": "https://github.com/boat1994/bemoat-web-starter/pull/200#discussion_r1",
+      "required_evidence": ["Bangkok exact UTC boundary"]
+    }
+  ]
+}
+\`\`\`
+`
+    const commentsPayload = JSON.stringify({
+      comments: [{ body: verdictBody, createdAt: '2026-07-20T10:00:00+07:00' }],
+    }).replace(/'/g, `'\"'\"'`)
+
+    const result = runAgentIssue(root, ['136', '--phase', 'correction'], {
+      PATH: withStubbedGh(
+        root,
+        `#!/usr/bin/env sh
+case "$*" in
+  *"issue view 136"*"title,url,body,labels"*)
+    printf '%s' '{"title":"Immutable correction contract","url":"https://github.com/boat1994/bemoat-web-starter/issues/136","body":"","labels":[]}'
+    ;;
+  *"issue view 136"*"comments"*)
+    printf '%s' '${commentsPayload}'
+    ;;
+  *"pr view 200"*|*"pr view 201"*)
+    printf '%s' '{"title":"Correction PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/200","headRefName":"feature/136","baseRefName":"main","headRefOid":"abc1234","state":"OPEN","statusCheckRollup":[],"commits":[]}'
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`,
+      ),
+    })
+
     expect(result.status).toBe(1)
-    expect(result.stdout).toMatch(/distinct PR|multiple PR|conflicting PR identity|PR identity/i)
+    expect(result.stdout).toMatch(/distinct PR|multiple PR|conflicting PR identity|PR identity|canonical/i)
     expect(result.stdout).not.toContain('Edit authorization: granted')
     expect(result.stdout).not.toContain('Playback verified')
   })
 
-  it('fails closed when repeated same PR identity appears as verdict URL and PR #N (MC-R1-002 matrix #51)', () => {
+  it('ignores repeated same PR identity in prose when canonical target is explicit (Issue #175 / MC-R1-002 matrix #51)', () => {
     const result = runLiveUrlMatrixCase({
       id: 51,
       name: 'repeated same verdict URL/PR #N',
-      expected: 'REJECT',
+      expected: 'ACCEPT',
       verdictFindingsExtra: ' · PR #200 · https://github.com/boat1994/bemoat-web-starter/pull/200',
       verdictOnly: true,
     })
-    expectMatrixOutcome(result, 'REJECT', 'matrix #51 repeated same verdict URL/PR #N')
+    expectMatrixOutcome(result, 'ACCEPT', 'matrix #51 repeated same verdict URL/PR #N in prose')
   })
 
   describe('MC-R1-002 malformed secondary identity-like verdict candidates', () => {
@@ -2039,13 +2254,13 @@ esac
         verdictFindingsExtra: string
       }> = [
         {
-          name: 'conflicting pull number with #discussion fragment must fail closed',
-          expected: 'REJECT',
+          name: 'conflicting pull number with #discussion fragment in prose is not target identity (Issue #175)',
+          expected: 'ACCEPT',
           verdictFindingsExtra: `\n**Also:** https://github.com/${MATRIX_OWNER}/${MATRIX_REPO}/pull/999#discussion_r1`,
         },
         {
-          name: 'foreign repository pull URL with #discussion fragment must fail closed',
-          expected: 'REJECT',
+          name: 'foreign repository pull URL with #discussion fragment in prose is not target identity (Issue #175)',
+          expected: 'ACCEPT',
           verdictFindingsExtra: `\n**Also:** https://github.com/other/repository/pull/${MATRIX_PR}#discussion_r1`,
         },
         {
@@ -2434,14 +2649,14 @@ esac
       {
         id: 51,
         name: 'repeated same PR identity in verdict URL/PR #N evidence',
-        expected: 'REJECT',
+        expected: 'ACCEPT',
         verdictFindingsExtra: ' · PR #200',
         verdictOnly: true,
       },
       {
         id: 52,
-        name: 'conflicting distinct verdict PR URLs',
-        expected: 'REJECT',
+        name: 'conflicting distinct verdict PR URLs in prose',
+        expected: 'ACCEPT',
         verdictFindingsExtra: `\n**Also:** https://github.com/${MATRIX_OWNER}/${MATRIX_REPO}/pull/201`,
         verdictOnly: true,
       },
@@ -2523,6 +2738,335 @@ esac
 
     expect(result.status).toBe(1)
     expect(result.stdout).toContain('canonical finding evidence is missing')
+  })
+
+  describe('Issue #175 canonical REVIEW_VERDICT PR-target regressions', () => {
+    const ISSUE_175_OWNER = 'boat1994'
+    const ISSUE_175_REPO = 'bemoat-web-starter'
+    const ISSUE_175_PR = '174'
+    const ISSUE_175_HEAD_R1 = '26911813388b05da365b5a3dc4a12fb53a26bc44'
+    const ISSUE_175_HEAD_R2 = 'ea96e3853396a9a6a9917262028ed25cefa3434d'
+    const ISSUE_175_CANONICAL = `https://github.com/${ISSUE_175_OWNER}/${ISSUE_175_REPO}/pull/${ISSUE_175_PR}`
+
+    function issue175ManagedState(head: string, activePr = `"#${ISSUE_175_PR}"`) {
+      return managedState({
+        state: 'CORRECTION_REQUIRED_1',
+        review_cycle: '1',
+        full_review_count: '1',
+        approved_base: 'main',
+        active_task_issue: '"#173"',
+        active_pr: activePr,
+        current_head: `"${head}"`,
+        last_reviewed_head: `"${head}"`,
+      })
+    }
+
+    function runIssue175Case(options: {
+      issueNumber?: string
+      head: string
+      verdictBody: string
+      issueBody?: string
+      prNumber?: string
+      liveHead?: string
+      expected: 'ACCEPT' | 'REJECT'
+      rejectPattern?: RegExp
+    }) {
+      const issueNumber = options.issueNumber ?? '173'
+      const prNumber = options.prNumber ?? ISSUE_175_PR
+      const root = createRepo('fix/173-founder-authorized-correction')
+      const fixtureDir = mkdtempSync(join(tmpdir(), 'bemoat-agent-issue-175-'))
+      tempRoots.push(fixtureDir)
+
+      const commentsPath = join(fixtureDir, 'comments.json')
+      writeFileSync(
+        commentsPath,
+        JSON.stringify({
+          comments: [{ body: options.verdictBody, createdAt: '2026-07-26T10:00:00+07:00' }],
+        }),
+      )
+
+      const liveHead = options.liveHead ?? options.head
+      const prPath = join(fixtureDir, 'pr.json')
+      writeFileSync(
+        prPath,
+        JSON.stringify({
+          title: 'Issue 173 correction PR',
+          url: ISSUE_175_CANONICAL,
+          headRefName: 'fix/173-founder-authorized-correction',
+          baseRefName: 'main',
+          headRefOid: liveHead,
+          state: 'OPEN',
+          statusCheckRollup: [],
+          commits: [],
+        }),
+      )
+
+      const issuePath = join(fixtureDir, 'issue.json')
+      writeFileSync(
+        issuePath,
+        JSON.stringify({
+          title: 'Founder-authorized correction',
+          url: `https://github.com/${ISSUE_175_OWNER}/${ISSUE_175_REPO}/issues/${issueNumber}`,
+          body: options.issueBody ?? issue175ManagedState(options.head),
+          labels: [],
+        }),
+      )
+
+      const result = runAgentIssue(root, [issueNumber, '--phase', 'correction'], {
+        PATH: withStubbedGh(
+          root,
+          `#!/usr/bin/env sh
+case "$*" in
+  *"issue view ${issueNumber}"*"title,url,body,labels"*)
+    cat "${issuePath}"
+    ;;
+  *"issue view ${issueNumber}"*"comments"*)
+    cat "${commentsPath}"
+    ;;
+  *"pr view ${prNumber}"*)
+    cat "${prPath}"
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`,
+        ),
+      })
+
+      if (options.expected === 'ACCEPT') {
+        expectMatrixOutcome(result, 'ACCEPT', options.verdictBody.slice(0, 80))
+      } else {
+        expect(result.status).not.toBe(0)
+        expect(result.stdout).not.toContain('Edit authorization: granted')
+        if (options.rejectPattern) {
+          expect(result.stdout).toMatch(options.rejectPattern)
+        }
+      }
+      return result
+    }
+
+    function review1ContractJson(head: string) {
+      return `{
+  "schema_version": 1,
+  "mode": "implementation_pr",
+  "reviewed_head": "${head}",
+  "findings": [
+    {
+      "id": "MC-R1-173-001",
+      "canonical_summary": "Exact Issue #171 legacy state is not migrated",
+      "source_thread": "${ISSUE_175_CANONICAL}#discussion_r3650856276",
+      "required_evidence": ["Migrate the exact live Issue #171 founder_decision representation"]
+    }
+  ]
+}`
+    }
+
+    function review2ContractJson(head: string) {
+      return `{
+  "schema_version": 1,
+  "mode": "implementation_pr",
+  "reviewed_head": "${head}",
+  "findings": [
+    {
+      "id": "MC-R1-173-004",
+      "canonical_summary": "Mutable or superseded HANDOFF content can substitute the consumed binding",
+      "source_thread": "${ISSUE_175_CANONICAL}#discussion_r3650856555",
+      "required_evidence": ["Bind and verify the complete Founder authority record"]
+    }
+  ]
+}`
+    }
+
+    it('passes with canonical PR #174 target and dependency PR #172 mentioned in prose', () => {
+      const head = ISSUE_175_HEAD_R1
+      runIssue175Case({
+        head,
+        verdictBody: `## REVIEW_VERDICT
+**PR / base / head:** ${ISSUE_175_CANONICAL} · \`main\` · \`${head}\`
+**Verdict:** CORRECTION REQUIRED
+**Findings:** Important: open blockers remain
+**Stop:** Do not modify PR #172 or blocked dependency work.
+\`\`\`json
+${review1ContractJson(head)}
+\`\`\`
+`,
+        expected: 'ACCEPT',
+      })
+    })
+
+    it('passes with historical PR references in explanatory prose', () => {
+      const head = ISSUE_175_HEAD_R1
+      runIssue175Case({
+        head,
+        verdictBody: `## REVIEW_VERDICT
+**PR / base / head:** ${ISSUE_175_CANONICAL} · \`main\` · \`${head}\`
+**Verdict:** CORRECTION REQUIRED
+**Context:** Supersedes earlier review on PR #170; see also https://github.com/${ISSUE_175_OWNER}/${ISSUE_175_REPO}/pull/172.
+\`\`\`json
+${review1ContractJson(head)}
+\`\`\`
+`,
+        expected: 'ACCEPT',
+      })
+    })
+
+    it('passes with repeated references to the same non-target dependency PR', () => {
+      const head = ISSUE_175_HEAD_R2
+      runIssue175Case({
+        head,
+        verdictBody: `## REVIEW_VERDICT
+**PR / base / head:** ${ISSUE_175_CANONICAL} · \`main\` · \`${head}\`
+**Verdict:** CORRECTION REQUIRED
+**Next:** Do not modify PR #172. PR #172 remains blocked dependency work. Do not modify PR #172 again.
+\`\`\`json
+${review2ContractJson(head)}
+\`\`\`
+`,
+        expected: 'ACCEPT',
+      })
+    })
+
+    it('passes Issue #173 Review 1 verdict shape with dependency PR prose intact', () => {
+      const head = ISSUE_175_HEAD_R1
+      runIssue175Case({
+        head,
+        verdictBody: `## REVIEW_VERDICT
+**PR / base / head:** ${ISSUE_175_CANONICAL} · \`main\` · \`${head}\`
+**Verdict:** CORRECTION REQUIRED
+**Findings:** Critical: MC-R1-173-001 through MC-R1-173-005 remain open.
+**Prohibited next:** No merge, deployment, child sync, PR #172 mutation, Correction 3, or Review 4.
+\`\`\`json
+${review1ContractJson(head)}
+\`\`\`
+`,
+        expected: 'ACCEPT',
+      })
+    })
+
+    it('passes Issue #173 Review 2 verdict shape with blocked dependency prose intact', () => {
+      const head = ISSUE_175_HEAD_R2
+      runIssue175Case({
+        head,
+        verdictBody: `## REVIEW_VERDICT
+**PR / base / head:** ${ISSUE_175_CANONICAL} · \`main\` · \`${head}\`
+**Verdict:** CORRECTION REQUIRED
+**Threads:** ${ISSUE_175_CANONICAL}#discussion_r3650856555
+**Next:** Mission Control may dispatch Correction 2. Do not start Review 3, merge, deploy, sync children, mutate blocked dependency work, modify PR #172, or resume Finance.
+\`\`\`json
+${review2ContractJson(head)}
+\`\`\`
+`,
+        expected: 'ACCEPT',
+      })
+    })
+
+    it('fails closed when a finding source_thread points to another PR', () => {
+      const head = ISSUE_175_HEAD_R1
+      runIssue175Case({
+        head,
+        verdictBody: `## REVIEW_VERDICT
+**PR / base / head:** ${ISSUE_175_CANONICAL} · \`main\` · \`${head}\`
+**Verdict:** CORRECTION REQUIRED
+\`\`\`json
+{
+  "schema_version": 1,
+  "reviewed_head": "${head}",
+  "findings": [
+    {
+      "id": "MC-R1-173-001",
+      "canonical_summary": "foreign source thread",
+      "source_thread": "https://github.com/${ISSUE_175_OWNER}/${ISSUE_175_REPO}/pull/172#discussion_r1",
+      "required_evidence": ["x"]
+    }
+  ]
+}
+\`\`\`
+`,
+        expected: 'REJECT',
+        rejectPattern: /source_thread PR identity|does not match canonical REVIEW_VERDICT target/i,
+      })
+    })
+
+    it('fails closed when canonical target PR differs from managed-state active_pr', () => {
+      const head = ISSUE_175_HEAD_R1
+      runIssue175Case({
+        head,
+        issueBody: issue175ManagedState(head, '"#999"'),
+        verdictBody: `## REVIEW_VERDICT
+**PR / base / head:** ${ISSUE_175_CANONICAL} · \`main\` · \`${head}\`
+**Verdict:** CORRECTION REQUIRED
+\`\`\`json
+${review1ContractJson(head)}
+\`\`\`
+`,
+        expected: 'REJECT',
+        rejectPattern: /managed-state active_pr/i,
+      })
+    })
+
+    it('fails closed when canonical target head differs from contract reviewed_head', () => {
+      const head = ISSUE_175_HEAD_R1
+      const staleHead = 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef'
+      runIssue175Case({
+        head,
+        issueBody: issue175ManagedState(staleHead),
+        verdictBody: `## REVIEW_VERDICT
+**PR / base / head:** ${ISSUE_175_CANONICAL} · \`main\` · \`${head}\`
+**Verdict:** CORRECTION REQUIRED
+\`\`\`json
+${review1ContractJson(head)}
+\`\`\`
+`,
+        expected: 'REJECT',
+        rejectPattern: /last_reviewed_head|reviewed_head/i,
+      })
+    })
+
+    it('fails closed for foreign-repository canonical target', () => {
+      const head = ISSUE_175_HEAD_R1
+      runIssue175Case({
+        head,
+        prNumber: '200',
+        verdictBody: `## REVIEW_VERDICT
+**PR / base / head:** https://github.com/other/repository/pull/200 · \`main\` · \`${head}\`
+**Verdict:** CORRECTION REQUIRED
+\`\`\`json
+{
+  "schema_version": 1,
+  "reviewed_head": "${head}",
+  "findings": [
+    {
+      "id": "MC-R1-173-001",
+      "canonical_summary": "foreign canonical target",
+      "source_thread": "https://github.com/other/repository/pull/200#discussion_r1",
+      "required_evidence": ["x"]
+    }
+  ]
+}
+\`\`\`
+`,
+        expected: 'REJECT',
+        rejectPattern: /repository|PR identity/i,
+      })
+    })
+
+    it('fails closed for malformed canonical pull URL on the PR / base / head field', () => {
+      const head = ISSUE_175_HEAD_R1
+      runIssue175Case({
+        head,
+        verdictBody: `## REVIEW_VERDICT
+**PR / base / head:** https://github.com/${ISSUE_175_OWNER}/${ISSUE_175_REPO}/pull/${ISSUE_175_PR}junk · \`main\` · \`${head}\`
+**Verdict:** CORRECTION REQUIRED
+\`\`\`json
+${review1ContractJson(head)}
+\`\`\`
+`,
+        expected: 'REJECT',
+        rejectPattern: /malformed PR identity|does not uniquely identify/i,
+      })
+    })
   })
 
   describe('planning_no_pr correction preflight mode', () => {
@@ -2660,7 +3204,7 @@ esac
       expect(result.stdout).toContain('Edit authorization: granted for the immutable finding set only across canonical planning artifacts (docs/superpowers/specs/bogus/catalog/minimal-luxury-detail/design.md).')
     })
 
-    it('TEST-PLAN-02: fails closed when ambiguous PR token exists inside planning verdict', () => {
+    it('TEST-PLAN-02: ignores prose PR references when canonical PR / base / head is none (Issue #175)', () => {
       const { root, ghStub } = setupPlanningCorrectionRepo(
         undefined,
         'Check PR https://github.com/boat1994/bemoat-web-starter/pull/99 for details.',
@@ -2669,8 +3213,8 @@ esac
         PATH: withStubbedGh(root, ghStub),
       })
 
-      expect(result.status).toBe(1)
-      expect(result.stdout).toContain('STATE CONFLICT: PR identity references found inside verdict under no-PR planning mode')
+      expect(result.status).toBe(0)
+      expect(result.stdout).toContain('Edit authorization: granted')
     })
 
     it('TEST-PLAN-03: fails closed when ghost open PR exists on GitHub during planning', () => {
@@ -3033,7 +3577,7 @@ esac
       expect(allowed.stdout).toContain('Edit authorization: granted')
     })
 
-    it('MC-R1-004: rejects unrelated same-repository discussion URLs under planning_no_pr', () => {
+    it('MC-R1-004: ignores unrelated same-repository discussion URLs in prose under planning_no_pr (Issue #175)', () => {
       const { root, ghStub } = setupPlanningCorrectionRepo(
         undefined,
         'See https://github.com/boat1994/bemoat-web-starter/pull/99#discussion_r1 for context.',
@@ -3042,8 +3586,8 @@ esac
         PATH: withStubbedGh(root, ghStub),
       })
 
-      expect(result.status).toBe(1)
-      expect(result.stdout).toContain('PR identity references found inside verdict under no-PR planning mode')
+      expect(result.status).toBe(0)
+      expect(result.stdout).toContain('Edit authorization: granted')
     })
 
     it('MC-R1-004: accepts only declared finding source_thread discussion pointers under planning_no_pr', () => {
