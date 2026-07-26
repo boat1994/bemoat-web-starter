@@ -9,6 +9,7 @@ const missionControlStates = new Set([
   'CORRECTION_REQUIRED_2',
   'AWAITING_REVIEW_3',
   'BLOCKED_FOR_FOUNDER_DECISION',
+  'FOUNDER_AUTHORIZED_CORRECTION',
   'ELIGIBLE_FOR_FOUNDER_REVIEW',
   'DONE',
   'BLOCKED_EXTERNAL',
@@ -33,8 +34,14 @@ const postBudgetReviewVerdicts = new Set([
 ])
 
 function isFounderAuthorization(value, scope) {
-  return typeof value === 'object' && value !== null && !Array.isArray(value) &&
-    value.status === 'approved' && value.authority === 'Founder' && value.scope === scope &&
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return false
+  }
+  const status = value.status
+  const isAuthorizedStatus = status === 'approved' || status === 'authorized' ||
+    (scope === 'correction' && status === 'consumed')
+  return isAuthorizedStatus &&
+    value.authority === 'Founder' && value.scope === scope &&
     typeof value.action === 'string' && value.action.length > 0 &&
     typeof value.authorized_at === 'string' && value.authorized_at.length > 0
 }
@@ -263,6 +270,7 @@ export function parseMissionControlState(body = '') {
     CORRECTION_REQUIRED_2: 1,
     AWAITING_REVIEW_3: 1,
     BLOCKED_FOR_FOUNDER_DECISION: 1,
+    FOUNDER_AUTHORIZED_CORRECTION: 1,
     ELIGIBLE_FOR_FOUNDER_REVIEW: 1,
     DONE: 1,
   }

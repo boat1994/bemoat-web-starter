@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { analyzeReconciliation, findLatestRoleComment } from './mission-control-reconcile.mjs'
+import { analyzeReconciliation, findLatestRoleComment, parseRoleCommentBody } from './mission-control-reconcile.mjs'
 import {
   buildCorrectionCapsule,
   derivePlanningArtifactAllowlist,
@@ -2001,6 +2001,8 @@ function verifyPlanningNoPrDurableProofs({
           !data.object ||
           typeof data.object !== 'object' ||
           Array.isArray(data.object) ||
+          typeof data.object.type !== 'string' ||
+          asciiCaseFold(data.object.type) !== 'commit' ||
           typeof data.object.sha !== 'string' ||
           !/^[a-f0-9]{40}$/i.test(data.object.sha)
         ) {
@@ -2031,11 +2033,28 @@ function verifyPlanningNoPrDurableProofs({
           /^[a-f0-9]{40}$/i.test(mergeBaseSha) &&
           asciiCaseFold(baseSha) === asciiCaseFold(planningBase)
 
+        const compareHeadSha = Array.isArray(data.commits) && data.commits.length > 0
+          ? data.commits.at(-1)?.sha
+          : data.status === 'identical'
+            ? baseSha
+            : null
+
         if (!hasCanonicalShape) {
+          errors.push('BLOCKED_EXTERNAL: invalid canonical GitHub compare evidence')
+        } else if (data.status === 'identical' && asciiCaseFold(planningBase) !== asciiCaseFold(contractReviewedHead)) {
           errors.push('BLOCKED_EXTERNAL: invalid canonical GitHub compare evidence')
         } else if (
           (data.status === 'ahead' || data.status === 'identical') &&
           asciiCaseFold(mergeBaseSha) !== asciiCaseFold(planningBase)
+        ) {
+          errors.push('BLOCKED_EXTERNAL: invalid canonical GitHub compare evidence')
+        } else if (
+          data.status === 'ahead' &&
+          (
+            typeof compareHeadSha !== 'string' ||
+            !/^[a-f0-9]{40}$/i.test(compareHeadSha) ||
+            asciiCaseFold(compareHeadSha) !== asciiCaseFold(contractReviewedHead)
+          )
         ) {
           errors.push('BLOCKED_EXTERNAL: invalid canonical GitHub compare evidence')
         } else if (data.status !== 'ahead' && data.status !== 'identical') {
@@ -2186,6 +2205,128 @@ function reconcileCorrectionPrEvidence({
   return { ok: errors.length === 0, errors, prNumber, prIdentity, livePr }
 }
 
+function isFounderCorrectionAuthorization(authorization) {
+  if (!authorization || typeof authorization !== 'object' || Array.isArray(authorization)) {
+    return false
+  }
+  const status = authorization.status
+  if (status !== 'approved' && status !== 'authorized' && status !== 'consumed') {
+    return false
+  }
+  return authorization.authority === 'Founder' &&
+    authorization.scope === 'correction' &&
+    typeof authorization.action === 'string' &&
+    authorization.action.length > 0 &&
+    typeof authorization.authorized_at === 'string' &&
+    authorization.authorized_at.length > 0
+}
+
+function findLatestCorrectionContractVerdict(comments = []) {
+  const matches = comments
+    .map((comment) => ({
+      comment,
+      parsed: parseRoleCommentBody(comment.body ?? ''),
+    }))
+    .filter(
+      (entry) =>
+        entry.parsed.role === 'REVIEW_VERDICT' &&
+        entry.parsed.verdict === 'CORRECTION REQUIRED' &&
+        parseCorrectionContract(entry.comment.body ?? '').ok,
+    )
+
+  if (matches.length === 0) return null
+
+  matches.sort((left, right) => {
+    const leftTime = Date.parse(left.comment.createdAt ?? '') || 0
+    const rightTime = Date.parse(right.comment.createdAt ?? '') || 0
+    return rightTime - leftTime
+  })
+
+  return matches[0]
+}
+
+function resolveFounderAuthorizedCorrection({
+  issueBody,
+  latestVerdict,
+  comments,
+}) {
+  if (latestVerdict.parsed?.verdict !== 'BLOCKED FOR FOUNDER DECISION') {
+    return { ok: false, reason: 'latest REVIEW_VERDICT is not BLOCKED FOR FOUNDER DECISION' }
+  }
+
+  const stateAnalysis = parseMissionControlState(issueBody ?? '')
+  if (!stateAnalysis.present || !stateAnalysis.valid || !stateAnalysis.state) {
+    return { ok: false, reason: 'managed Mission Control state is missing or invalid for Founder correction' }
+  }
+
+  const state = stateAnalysis.state
+  const authorization = state.founder_decision ?? state.founder_correction_authorization
+  if (!isFounderCorrectionAuthorization(authorization)) {
+    return { ok: false, reason: 'missing or invalid Founder correction authorization' }
+  }
+
+  if (
+    !Number.isInteger(authorization.for_review_number) ||
+    authorization.for_review_number !== state.review_cycle
+  ) {
+    return {
+      ok: false,
+      reason: 'Founder correction authorization does not bind to the current review_cycle',
+    }
+  }
+
+  if (
+    typeof authorization.reviewed_head !== 'string' ||
+    authorization.reviewed_head.length === 0 ||
+    authorization.reviewed_head !== state.last_reviewed_head
+  ) {
+    return {
+      ok: false,
+      reason: 'Founder correction authorization reviewed_head does not match last_reviewed_head',
+    }
+  }
+
+  const authorizedFindingIds = new Set(
+    Array.isArray(authorization.finding_ids)
+      ? authorization.finding_ids.filter((findingId) => typeof findingId === 'string' && findingId.length > 0)
+      : [],
+  )
+  if (authorizedFindingIds.size === 0) {
+    return { ok: false, reason: 'Founder correction authorization must name at least one finding_id' }
+  }
+
+  const contractVerdict = findLatestCorrectionContractVerdict(comments)
+  if (!contractVerdict) {
+    return { ok: false, reason: 'missing CORRECTION REQUIRED REVIEW_VERDICT with immutable finding contract' }
+  }
+
+  const parsedContract = parseCorrectionContract(contractVerdict.comment.body)
+  if (!parsedContract.ok) {
+    return { ok: false, reason: 'immutable finding contract is malformed' }
+  }
+
+  const contractFindingIds = new Set(parsedContract.contract.findings.map((finding) => finding.id))
+  for (const findingId of authorizedFindingIds) {
+    if (!contractFindingIds.has(findingId)) {
+      return {
+        ok: false,
+        reason: `Founder correction authorization finding_id ${findingId} is not in the immutable contract`,
+      }
+    }
+  }
+
+  return {
+    ok: true,
+    authorization,
+    contract: {
+      ...parsedContract.contract,
+      reviewed_head: authorization.reviewed_head,
+      findings: parsedContract.contract.findings.filter((finding) => authorizedFindingIds.has(finding.id)),
+    },
+    verdictBody: latestVerdict.comment.body,
+  }
+}
+
 function runCorrectionPhasePreflight({
   cwd,
   env,
@@ -2228,10 +2369,83 @@ function runCorrectionPhasePreflight({
   }
 
   if (latestVerdict.parsed?.verdict !== 'CORRECTION REQUIRED') {
-    output.push(
-      `Stop: latest REVIEW_VERDICT is ${latestVerdict.parsed?.verdict ?? 'unknown'}, not CORRECTION REQUIRED.`,
-    )
-    return { ok: false, exitCode: 1, usageError: false, output, issueNumber, branchName, statusShort, issueMetadata }
+    const founderCorrection = resolveFounderAuthorizedCorrection({
+      issueBody: issueMetadata.body ?? '',
+      latestVerdict,
+      comments: commentResult.comments,
+    })
+    if (!founderCorrection.ok) {
+      output.push(
+        `Stop: latest REVIEW_VERDICT is ${latestVerdict.parsed?.verdict ?? 'unknown'}, not CORRECTION REQUIRED.`,
+      )
+      output.push(`- ${founderCorrection.reason}`)
+      return { ok: false, exitCode: 1, usageError: false, output, issueNumber, branchName, statusShort, issueMetadata }
+    }
+
+    const parsedContract = { ok: true, contract: founderCorrection.contract }
+    const reconciliation = reconcileCorrectionPrEvidence({
+      cwd,
+      env,
+      verdictBody: founderCorrection.verdictBody,
+      contractReviewedHead: parsedContract.contract.reviewed_head,
+      mode: parsedContract.contract.mode,
+      branchName,
+      issueNumber,
+      contract: parsedContract.contract,
+    })
+    if (!reconciliation.ok) {
+      output.push('Stop: live PR evidence does not reconcile with the Founder-authorized correction head before correction edit authorization.')
+      for (const error of reconciliation.errors) output.push(`- ${error}`)
+      return { ok: false, exitCode: 1, usageError: false, output, issueNumber, branchName, statusShort, issueMetadata }
+    }
+
+    const diffResult = getCorrectionDiffFiles(cwd, parsedContract.contract.reviewed_head, env)
+    if (diffResult.ok && diffResult.files.length > 0) {
+      const scopeCheck = validateCorrectionScope(parsedContract.contract, diffResult.files, { mode: parsedContract.contract.mode })
+      if (!scopeCheck.ok) {
+        output.push('Stop: correction diff touches prohibited scope.')
+        for (const error of scopeCheck.errors) output.push(`- ${error}`)
+        return { ok: false, exitCode: 1, usageError: false, output, issueNumber, branchName, statusShort, issueMetadata }
+      }
+    }
+
+    const prUrl =
+      reconciliation.livePr?.url ||
+      (reconciliation.prIdentity
+        ? `https://github.com/${reconciliation.prIdentity.replace('#', '/pull/')}`
+        : reconciliation.prNumber
+          ? `PR #${reconciliation.prNumber}`
+          : null)
+    const issueRef =
+      issueMetadata.available && issueMetadata.url
+        ? issueMetadata.url
+        : fallbackIssueUrl || `#${issueNumber}`
+
+    const capsule = buildCorrectionCapsule(parsedContract.contract, {
+      issueNumber,
+      prUrl: prUrl || (parsedContract.contract.mode === 'planning_no_pr' ? 'none' : '(not provided)'),
+      mode: parsedContract.contract.mode,
+    })
+
+    return {
+      ok: true,
+      exitCode: 0,
+      usageError: false,
+      output: [
+        'Bemoat correction-mode preflight',
+        `Issue: ${issueRef}`,
+        `Founder correction authorization: ${founderCorrection.authorization.authorization_id ?? founderCorrection.authorization.authorized_at}`,
+        ...capsule.lines,
+        parsedContract.contract.mode === 'planning_no_pr'
+          ? `Edit authorization: granted for the immutable finding set only across canonical planning artifacts (${derivePlanningArtifactAllowlist(parsedContract.contract).join('; ') || 'expected_areas required'}).`
+          : 'Edit authorization: granted for the immutable finding set only.',
+      ],
+      issueNumber,
+      branchName,
+      statusShort,
+      issueMetadata,
+      correctionContract: parsedContract.contract,
+    }
   }
 
   const parsedContract = parseCorrectionContract(latestVerdict.comment.body)

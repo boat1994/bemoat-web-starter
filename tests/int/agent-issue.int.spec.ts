@@ -2632,13 +2632,13 @@ ${ghStubExtra}
     printf '%s' '[]'
     ;;
   *"api repos/boat1994/bemoat-web-starter/git/ref/heads/main"*)
-    printf '%s' '{"ref":"refs/heads/main","object":{"sha":"ffffffffffffffffffffffffffffffffffffffff"}}'
+    printf '%s' '{"ref":"refs/heads/main","object":{"type":"commit","sha":"ffffffffffffffffffffffffffffffffffffffff"}}'
     ;;
   *"api repos/boat1994/bemoat-web-starter"*)
     printf '%s' '{"id":1267006707,"full_name":"boat1994/bemoat-web-starter"}'
     ;;
   *"api"*"repos/boat1994/bemoat-web-starter/compare/"*)
-    printf '%s' '{"status":"ahead","base_commit":{"sha":"${planningBase}"},"merge_base_commit":{"sha":"${planningBase}"}}'
+    printf '%s' '{"status":"ahead","base_commit":{"sha":"${planningBase}"},"merge_base_commit":{"sha":"${planningBase}"},"commits":[{"sha":"${contractHead}"}]}'
     ;;
   *)
     echo "unexpected gh call: $*" >&2
@@ -2846,6 +2846,59 @@ esac
       expect(result.stdout).toContain(expected)
     })
 
+    it('TEST-PLAN-09: rejects semantically impossible identical compare topology', () => {
+      const planningBase = 'be17400ce01d95a59e53e3ed6a30b9a6f7673b68'
+      const { root, ghStub, contractHead } = setupPlanningCorrectionRepo(
+        undefined,
+        '',
+        `  *"api"*"repos/boat1994/bemoat-web-starter/compare/"*)
+    printf '%s' '{"status":"identical","base_commit":{"sha":"${planningBase}"},"merge_base_commit":{"sha":"${planningBase}"},"commits":[]}'
+    ;;`,
+      )
+      expect(planningBase).not.toBe(contractHead)
+      const result = runAgentIssue(root, ['145', '--phase', 'correction'], {
+        PATH: withStubbedGh(root, ghStub),
+      })
+
+      expect(result.status).toBe(1)
+      expect(result.stdout).toContain('BLOCKED_EXTERNAL')
+      expect(result.stdout).toContain('invalid canonical GitHub compare evidence')
+    })
+
+    it('TEST-PLAN-10: rejects protected-ref evidence whose object is not a commit', () => {
+      const { root, ghStub } = setupPlanningCorrectionRepo(
+        undefined,
+        '',
+        `  *"api repos/boat1994/bemoat-web-starter/git/ref/heads/main"*)
+    printf '%s' '{"ref":"refs/heads/main","object":{"type":"tag","sha":"ffffffffffffffffffffffffffffffffffffffff"}}'
+    ;;`,
+      )
+      const result = runAgentIssue(root, ['145', '--phase', 'correction'], {
+        PATH: withStubbedGh(root, ghStub),
+      })
+
+      expect(result.status).toBe(1)
+      expect(result.stdout).toContain('BLOCKED_EXTERNAL')
+      expect(result.stdout).toContain('invalid canonical GitHub protected-ref evidence')
+    })
+
+    it('TEST-PLAN-11: rejects ahead compare evidence whose head does not match the reviewed head', () => {
+      const { root, ghStub } = setupPlanningCorrectionRepo(
+        undefined,
+        '',
+        `  *"api"*"repos/boat1994/bemoat-web-starter/compare/"*)
+    printf '%s' '{"status":"ahead","base_commit":{"sha":"be17400ce01d95a59e53e3ed6a30b9a6f7673b68"},"merge_base_commit":{"sha":"be17400ce01d95a59e53e3ed6a30b9a6f7673b68"},"commits":[{"sha":"deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"}]}'
+    ;;`,
+      )
+      const result = runAgentIssue(root, ['145', '--phase', 'correction'], {
+        PATH: withStubbedGh(root, ghStub),
+      })
+
+      expect(result.status).toBe(1)
+      expect(result.stdout).toContain('BLOCKED_EXTERNAL')
+      expect(result.stdout).toContain('invalid canonical GitHub compare evidence')
+    })
+
     it('MC-R1-003: fails closed when malformed GitHub PR list evidence is returned', () => {
       const { root, ghStub } = setupPlanningCorrectionRepo(
         undefined,
@@ -2921,13 +2974,13 @@ case "$*" in
     printf '%s' '[]'
     ;;
   *"api repos/boat1994/bemoat-web-starter/git/ref/heads/main"*)
-    printf '%s' '{"ref":"refs/heads/main","object":{"sha":"ffffffffffffffffffffffffffffffffffffffff"}}'
+    printf '%s' '{"ref":"refs/heads/main","object":{"type":"commit","sha":"ffffffffffffffffffffffffffffffffffffffff"}}'
     ;;
   *"api repos/boat1994/bemoat-web-starter"*)
     printf '%s' '{"id":1267006707,"full_name":"boat1994/bemoat-web-starter"}'
     ;;
   *"api"*"repos/boat1994/bemoat-web-starter/compare/"*)
-    printf '%s' '{"status":"ahead","base_commit":{"sha":"be17400ce01d95a59e53e3ed6a30b9a6f7673b68"},"merge_base_commit":{"sha":"be17400ce01d95a59e53e3ed6a30b9a6f7673b68"}}'
+    printf '%s' '{"status":"ahead","base_commit":{"sha":"be17400ce01d95a59e53e3ed6a30b9a6f7673b68"},"merge_base_commit":{"sha":"be17400ce01d95a59e53e3ed6a30b9a6f7673b68"},"commits":[{"sha":"${actualHead}"}]}'
     ;;
   *)
     echo "unexpected gh call: $*" >&2
@@ -2959,13 +3012,13 @@ case "$*" in
     printf '%s' '[]'
     ;;
   *"api repos/boat1994/bemoat-web-starter/git/ref/heads/main"*)
-    printf '%s' '{"ref":"refs/heads/main","object":{"sha":"ffffffffffffffffffffffffffffffffffffffff"}}'
+    printf '%s' '{"ref":"refs/heads/main","object":{"type":"commit","sha":"ffffffffffffffffffffffffffffffffffffffff"}}'
     ;;
   *"api repos/boat1994/bemoat-web-starter"*)
     printf '%s' '{"id":1267006707,"full_name":"boat1994/bemoat-web-starter"}'
     ;;
   *"api"*"repos/boat1994/bemoat-web-starter/compare/"*)
-    printf '%s' '{"status":"ahead","base_commit":{"sha":"be17400ce01d95a59e53e3ed6a30b9a6f7673b68"},"merge_base_commit":{"sha":"be17400ce01d95a59e53e3ed6a30b9a6f7673b68"}}'
+    printf '%s' '{"status":"ahead","base_commit":{"sha":"be17400ce01d95a59e53e3ed6a30b9a6f7673b68"},"merge_base_commit":{"sha":"be17400ce01d95a59e53e3ed6a30b9a6f7673b68"},"commits":[{"sha":"${actualHead}"}]}'
     ;;
   *)
     echo "unexpected gh call: $*" >&2
