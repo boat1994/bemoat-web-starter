@@ -1983,10 +1983,7 @@ function verifyPlanningNoPrDurableProofs({
   if (!localHead) {
     errors.push('STATE CONFLICT: local HEAD is unavailable for planning_no_pr authorization')
   } else if (localHead !== contractReviewedHead) {
-    const ancestorCheck = run('git', ['merge-base', '--is-ancestor', contractReviewedHead, 'HEAD'], { cwd, env })
-    if (ancestorCheck.status !== 0) {
-      errors.push('STATE CONFLICT: local HEAD does not match reviewed_head and reviewed_head is not an ancestor of HEAD')
-    }
+    errors.push('STATE CONFLICT: local HEAD does not match reviewed_head')
   }
 
   const planningBase = contract.planning_base
@@ -2155,14 +2152,47 @@ function verifyReviewThreeCorrectionAuthorization({ issueBody, contract, comment
   if (state.state !== 'IN_PROGRESS' || !authorization || authorization.status !== 'consumed') {
     return { ok: false, errors: ['STATE CONFLICT: Review 3 correction requires a consumed Founder correction authorization'] }
   }
-  if (authorization.for_review_number !== 3 || authorization.reviewed_head !== contract.reviewed_head ||
-      authorization.reviewed_head !== state.last_reviewed_head || authorization.reviewed_head !== state.current_head) {
-    return { ok: false, errors: ['STATE CONFLICT: Founder correction authorization does not bind the Review 3 exact head'] }
-  }
-  const authorizedIds = [...authorization.finding_ids ?? []].sort()
-  const contractIds = contract.findings.map((finding) => finding.id).sort()
-  if (JSON.stringify(authorizedIds) !== JSON.stringify(contractIds)) {
-    return { ok: false, errors: ['STATE CONFLICT: Founder correction authorization finding IDs do not match the immutable contract'] }
+  const postBudgetReviews = Array.isArray(state.post_budget_reviews) ? state.post_budget_reviews : []
+  const hasPostBudgetReviews = postBudgetReviews.length > 0
+  if (hasPostBudgetReviews) {
+    if (authorization.for_review_number !== 3) {
+      return { ok: false, errors: ['STATE CONFLICT: consumed Review 3 Founder correction authorization is required'] }
+    }
+    const latestReview = postBudgetReviews.at(-1)
+    const correctionAuth = state.founder_decision
+    if (!isFounderCorrectionAuthorization(correctionAuth) || correctionAuth.status !== 'approved') {
+      return { ok: false, errors: ['STATE CONFLICT: post-budget correction requires approved Founder correction authorization'] }
+    }
+    if (!Number.isInteger(correctionAuth.for_review_number) ||
+        correctionAuth.for_review_number !== latestReview?.review_number) {
+      return { ok: false, errors: ['STATE CONFLICT: Founder correction authorization does not bind to the latest completed post-budget review number'] }
+    }
+    if (correctionAuth.reviewed_head !== contract.reviewed_head ||
+        correctionAuth.reviewed_head !== state.last_reviewed_head ||
+        correctionAuth.reviewed_head !== state.current_head) {
+      return { ok: false, errors: ['STATE CONFLICT: Founder correction authorization does not bind the post-budget exact head'] }
+    }
+    const authorizedIds = [...correctionAuth.finding_ids ?? []].sort()
+    const contractIds = contract.findings.map((finding) => finding.id).sort()
+    if (JSON.stringify(authorizedIds) !== JSON.stringify(contractIds)) {
+      return { ok: false, errors: ['STATE CONFLICT: Founder correction authorization finding IDs do not match the immutable contract'] }
+    }
+    const reviewFindingIds = new Set(
+      (latestReview?.finding_dispositions ?? []).map((finding) => finding.finding_id),
+    )
+    if (authorizedIds.some((findingId) => !reviewFindingIds.has(findingId))) {
+      return { ok: false, errors: ['STATE CONFLICT: Founder correction authorization finding_ids exceed latest post-budget review scope'] }
+    }
+  } else {
+    if (authorization.for_review_number !== 3 || authorization.reviewed_head !== contract.reviewed_head ||
+        authorization.reviewed_head !== state.last_reviewed_head || authorization.reviewed_head !== state.current_head) {
+      return { ok: false, errors: ['STATE CONFLICT: Founder correction authorization does not bind the Review 3 exact head'] }
+    }
+    const authorizedIds = [...authorization.finding_ids ?? []].sort()
+    const contractIds = contract.findings.map((finding) => finding.id).sort()
+    if (JSON.stringify(authorizedIds) !== JSON.stringify(contractIds)) {
+      return { ok: false, errors: ['STATE CONFLICT: Founder correction authorization finding IDs do not match the immutable contract'] }
+    }
   }
   const latestHandoff = findLatestRoleComment(comments, 'HANDOFF')
   const handoff = comments.find((comment) => String(comment.id) === String(authorization.handoff_comment_id))
@@ -2173,31 +2203,33 @@ function verifyReviewThreeCorrectionAuthorization({ issueBody, contract, comment
   const binding = authorization.handoff_binding
   if (authorization.schema_version === 2) {
     const contentSha256 = createHash('sha256').update(handoff.body ?? '').digest('hex')
-    const expectedFields = {
-      authorization_snapshot: {
-        authorization_id: authorization.authorization_id,
-        authority: authorization.authority,
-        status: 'authorized',
-        action: authorization.action,
-        authorized_at: authorization.authorized_at,
-        scope: authorization.scope,
-        for_review_number: authorization.for_review_number,
-        reviewed_head: authorization.reviewed_head,
-        finding_ids: authorization.finding_ids,
-      },
-      authorization_id: authorization.authorization_id,
-      active_pr: state.active_pr,
-      exact_head: state.current_head,
-      correction_base: authorization.reviewed_head,
-      review_number: authorization.for_review_number,
-      scope: authorization.scope,
-      finding_ids: authorization.finding_ids,
-      handoff_comment_id: String(authorization.handoff_comment_id),
-    }
     const liveTarget = (handoff.body ?? '').match(/^\*\*Target:\*\*\s*(.+?)\s*$/m)?.[1]?.trim() ?? null
-    if (!binding || binding.content_sha256 !== contentSha256 ||
-        binding.target !== liveTarget ||
-        Object.entries(expectedFields).some(([key, value]) => JSON.stringify(binding[key]) !== JSON.stringify(value))) {
+    const expectedFields = hasPostBudgetReviews
+      ? null
+      : {
+          authorization_snapshot: {
+            authorization_id: authorization.authorization_id,
+            authority: authorization.authority,
+            status: 'authorized',
+            action: authorization.action,
+            authorized_at: authorization.authorized_at,
+            scope: authorization.scope,
+            for_review_number: authorization.for_review_number,
+            reviewed_head: authorization.reviewed_head,
+            finding_ids: authorization.finding_ids,
+          },
+          authorization_id: authorization.authorization_id,
+          active_pr: state.active_pr,
+          exact_head: state.current_head,
+          correction_base: authorization.reviewed_head,
+          review_number: authorization.for_review_number,
+          scope: authorization.scope,
+          finding_ids: authorization.finding_ids,
+          handoff_comment_id: String(authorization.handoff_comment_id),
+        }
+    if (!binding || binding.content_sha256 !== contentSha256 || binding.target !== liveTarget ||
+        (expectedFields &&
+          Object.entries(expectedFields).some(([key, value]) => JSON.stringify(binding[key]) !== JSON.stringify(value)))) {
       return { ok: false, errors: ['STATE CONFLICT: immutable Founder correction HANDOFF binding does not match live content'] }
     }
     const { binding_sha256: recordedFingerprint, ...payload } = binding
@@ -2210,7 +2242,7 @@ function verifyReviewThreeCorrectionAuthorization({ issueBody, contract, comment
       return { ok: false, errors: ['STATE CONFLICT: bound Founder correction HANDOFF was edited after dispatch'] }
     }
   }
-  return { ok: true, errors: [], reviewThree: true }
+  return { ok: true, errors: [], reviewThree: !hasPostBudgetReviews }
 }
 
 /**

@@ -3241,7 +3241,7 @@ esac
       })
 
       expect(result.status).toBe(1)
-      expect(result.stdout).toContain('prohibited scope present in correction diff: src/app/page.tsx (outside canonical planning-artifact allowlist)')
+      expect(result.stdout).toContain('local HEAD does not match reviewed_head')
     })
 
     it('TEST-HEAD-01: fails closed when verdict head contradicts reviewed_head', () => {
@@ -3441,6 +3441,129 @@ esac
       expect(result.status).toBe(1)
       expect(result.stdout).toContain('BLOCKED_EXTERNAL')
       expect(result.stdout).toContain('invalid canonical GitHub compare evidence')
+    })
+
+    it('TEST-PLAN-12: rejects replace/graft-aware ancestry when local HEAD differs from reviewed_head (MC-R1-171-001)', () => {
+      const root = mkdtempSync(join(tmpdir(), 'bemoat-agent-issue-graft-'))
+      tempRoots.push(root)
+      spawnSync('git', ['init', '-b', 'main'], { cwd: root, encoding: 'utf8' })
+      spawnSync('git', ['remote', 'add', 'origin', 'https://github.com/boat1994/bemoat-web-starter.git'], {
+        cwd: root,
+        encoding: 'utf8',
+      })
+      spawnSync('git', ['config', 'user.email', 'agent-issue@test'], { cwd: root, encoding: 'utf8' })
+      spawnSync('git', ['config', 'user.name', 'Agent Issue Test'], { cwd: root, encoding: 'utf8' })
+      seedTrackedFile(root, 'README.md', 'initial seed')
+      const reviewedHead = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim()
+
+      spawnSync('git', ['checkout', '--orphan', 'feature/145-graft-adversarial'], { cwd: root, encoding: 'utf8' })
+      writeFileSync(join(root, 'README.md'), 'unrelated history')
+      spawnSync('git', ['add', 'README.md'], { cwd: root, encoding: 'utf8' })
+      spawnSync('git', ['commit', '-m', 'unrelated head'], { cwd: root, encoding: 'utf8' })
+      const unrelatedHead = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim()
+
+      expect(unrelatedHead).not.toBe(reviewedHead)
+
+      const replaceResult = spawnSync('git', ['replace', '--graft', unrelatedHead, reviewedHead], {
+        cwd: root,
+        encoding: 'utf8',
+      })
+      expect(replaceResult.status).toBe(0)
+
+      const ancestorWithReplace = spawnSync(
+        'git',
+        ['merge-base', '--is-ancestor', reviewedHead, 'HEAD'],
+        { cwd: root, encoding: 'utf8' },
+      )
+      expect(ancestorWithReplace.status).toBe(0)
+
+      const localHead = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim()
+      expect(localHead).toBe(unrelatedHead)
+      expect(localHead).not.toBe(reviewedHead)
+
+      const planningBase = 'be17400ce01d95a59e53e3ed6a30b9a6f7673b68'
+      const issueBody = planningManagedState(reviewedHead, { approved_base: 'main' })
+      const commentsPayload = JSON.stringify({
+        comments: [
+          {
+            body: `## REVIEW_VERDICT
+**Verdict:** CORRECTION REQUIRED
+**PR / base / head:** none · base main · head ${reviewedHead}
+**Next:** Dev posts correction RESULT
+
+\`\`\`json
+{
+  "schema_version": 2,
+  "mode": "planning_no_pr",
+  "planning_base": "${planningBase}",
+  "planning_base_repo": "1267006707",
+  "planning_base_ref": "refs/heads/main",
+  "reviewed_head": "${reviewedHead}",
+  "findings": [
+    {
+      "id": "MC-R1-001",
+      "canonical_summary": "design spec missing exact error boundary",
+      "source_thread": "https://github.com/boat1994/bemoat-web-starter/pull/12#discussion_r1",
+      "required_evidence": ["updated design.md"],
+      "expected_areas": ["docs/superpowers/specs/bogus/catalog/minimal-luxury-detail/design.md"],
+      "prohibited_areas": []
+    }
+  ]
+}
+\`\`\``,
+            createdAt: '2026-07-20T10:00:00+07:00',
+          },
+        ],
+      }).replace(/'/g, `'\"'\"'`)
+
+      const issueViewPayload = JSON.stringify({
+        title: 'Immutable correction contract',
+        url: 'https://github.com/boat1994/bemoat-web-starter/issues/145',
+        body: issueBody,
+        labels: [],
+      }).replace(/'/g, `'\"'\"'`)
+
+      const ghStub = `#!/usr/bin/env sh
+case "$*" in
+  *"issue view 145"*"title,url,body,labels"*)
+    printf '%s' '${issueViewPayload}'
+    ;;
+  *"issue view 145"*"comments"*)
+    printf '%s' '${commentsPayload}'
+    ;;
+  *"pr list --state open"*)
+    printf '%s' '[]'
+    ;;
+  *"api repos/boat1994/bemoat-web-starter/git/ref/heads/main"*)
+    printf '%s' '{"ref":"refs/heads/main","object":{"type":"commit","sha":"ffffffffffffffffffffffffffffffffffffffff"}}'
+    ;;
+  *"api repos/boat1994/bemoat-web-starter"*)
+    printf '%s' '{"id":1267006707,"full_name":"boat1994/bemoat-web-starter"}'
+    ;;
+  *"api"*"repos/boat1994/bemoat-web-starter/compare/"*)
+    printf '%s' '{"status":"ahead","base_commit":{"sha":"${planningBase}"},"merge_base_commit":{"sha":"${planningBase}"},"commits":[{"sha":"${reviewedHead}"}]}'
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 1
+    ;;
+esac
+`
+
+      const rejectWithReplace = runAgentIssue(root, ['145', '--phase', 'correction'], {
+        PATH: withStubbedGh(root, ghStub),
+      })
+      expect(rejectWithReplace.status).toBe(1)
+      expect(rejectWithReplace.stdout).toContain('local HEAD does not match reviewed_head')
+      expect(rejectWithReplace.stdout).not.toContain('Edit authorization: granted')
+
+      const rejectWithoutReplace = runAgentIssue(root, ['145', '--phase', 'correction'], {
+        PATH: withStubbedGh(root, ghStub),
+        GIT_NO_REPLACE_OBJECTS: '1',
+      })
+      expect(rejectWithoutReplace.status).toBe(1)
+      expect(rejectWithoutReplace.stdout).toContain('local HEAD does not match reviewed_head')
+      expect(rejectWithoutReplace.stdout).not.toContain('Edit authorization: granted')
     })
 
     it('MC-R1-003: fails closed when malformed GitHub PR list evidence is returned', () => {
