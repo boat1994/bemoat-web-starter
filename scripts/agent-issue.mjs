@@ -600,9 +600,17 @@ function fetchIssueComments(cwd, issueNumber, env = process.env) {
 
   try {
     const payload = JSON.parse(result.stdout)
+    const raw = Array.isArray(payload.comments) ? payload.comments : []
     return {
       ok: true,
-      comments: Array.isArray(payload.comments) ? projectComments(payload.comments) : [],
+      comments: projectComments(raw),
+      rawComments: raw.map((rawComment) => ({
+        id: rawComment.id || rawComment.node_id,
+        url: rawComment.url,
+        author: rawComment.author?.login || rawComment.user?.login || 'unknown',
+        body: rawComment.body || rawComment.body_html || '',
+        createdAt: rawComment.createdAt || rawComment.created_at,
+      })),
     }
   } catch (error) {
     return {
@@ -2372,7 +2380,7 @@ function runCorrectionPhasePreflight({
     const founderCorrection = resolveFounderAuthorizedCorrection({
       issueBody: issueMetadata.body ?? '',
       latestVerdict,
-      comments: commentResult.comments,
+      comments: commentResult.rawComments ?? commentResult.comments,
     })
     if (!founderCorrection.ok) {
       output.push(
