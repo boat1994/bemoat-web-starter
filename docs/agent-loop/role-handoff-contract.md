@@ -140,7 +140,7 @@ A correction `## RESULT` reports evidence by immutable finding ID without redefi
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "correction_base": "<reviewed head>",
   "finding_results": {
     "MC-R1-001": {
@@ -163,6 +163,9 @@ absent from the correction diff, explicitly prohibited scope, and free-form
 `Done` claims that conflict with `UNPROVEN` entries. Expected areas are guidance
 only. Semantic correctness and original review-thread resolution remain with the
 bounded Delta Reviewer after corrected exact-head CI.
+
+Schema v2 is canonical for new correction RESULT evidence. The parser retains
+read compatibility with already-posted schema-v1 RESULT evidence.
 
 ## Comment types
 

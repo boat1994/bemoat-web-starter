@@ -13,6 +13,7 @@ const {
   classifyReviewLag,
   founderMergeTransitionAuthorized,
   dispatchManagedTask,
+  dispatchFounderAuthorizedCorrection,
   isGenuineStateConflict,
   migrateLegacyManagedState,
   parseRoleCommentBody,
@@ -54,6 +55,316 @@ const sampleVerdict = `## REVIEW_VERDICT
 `
 
 describe('mission-control reconcile classifiers', () => {
+  it('migrates the exact Issue #171 founder_decision representation once without altering its lineage', () => {
+    const legacy: any = {
+      state: 'STATE_MIGRATION_REQUIRED',
+      review_cycle: 3,
+      full_review_count: 1,
+      active_pr: '#172',
+      current_head: '1f05427a8fbb893e726dd0e317ff30a90d7b3570',
+      last_reviewed_head: '1f05427a8fbb893e726dd0e317ff30a90d7b3570',
+      post_budget_reviews: [],
+      founder_decision: {
+        status: 'approved', authority: 'Founder', scope: 'correction', for_review_number: 3,
+        reviewed_head: '1f05427a8fbb893e726dd0e317ff30a90d7b3570', finding_ids: ['MC-R1-171-001'],
+        action: 'Authorize one bounded correction; Review 4 remains unauthorized',
+        authorized_at: '2026-07-26T01:30:29+07:00',
+      },
+      open_blockers: ['MC-R1-171-001', 'Canonical representation required'],
+      finding_lineage: [{
+        finding_id: 'MC-R1-171-001', severity: 'Critical', disposition: 'open',
+        summary: 'Common ancestry does not prove authorized planning lineage',
+        source_thread: 'https://github.com/boat1994/bemoat-web-starter/pull/172#discussion_r3649776607',
+        evidence: 'Founder decision and exact-head evidence remain durable',
+        required_correction_evidence: ['Bind exact authorized planning lineage'],
+      }],
+    }
+
+    const migrated = migrateLegacyManagedState(legacy)
+
+    expect(migrated.changed).toBe(true)
+    expect(migrated.state).toMatchObject({
+      state: 'FOUNDER_AUTHORIZED_CORRECTION', review_cycle: 3, full_review_count: 1,
+      current_head: legacy.current_head, last_reviewed_head: legacy.last_reviewed_head,
+      post_budget_reviews: [],
+      founder_correction_authorization: {
+        schema_version: 2, status: 'authorized', authority: 'Founder',
+        for_review_number: 3, reviewed_head: legacy.last_reviewed_head,
+        finding_ids: ['MC-R1-171-001'], authorization_id: expect.any(String),
+      },
+    })
+    expect(migrated.state.finding_lineage).toEqual(legacy.finding_lineage)
+    expect(classifyReconciliation({ managedState: migrated.state }).outcome).toBe('NO_OP')
+    expect(migrateLegacyManagedState(migrated.state)).toEqual({ changed: false, state: migrated.state })
+  })
+
+  it('migrates the exact Review 3 Founder correction authority without fabricating Review 4', () => {
+    const migrated = migrateLegacyManagedState({
+      state: 'STATE_MIGRATION_REQUIRED',
+      review_cycle: 3,
+      full_review_count: 1,
+      active_pr: '#172',
+      current_head: '1f05427a8fbb893e726dd0e317ff30a90d7b3570',
+      last_reviewed_head: '1f05427a8fbb893e726dd0e317ff30a90d7b3570',
+      post_budget_reviews: [],
+      founder_correction_authorization: {
+        status: 'approved', authority: 'Founder', scope: 'correction', for_review_number: 3,
+        reviewed_head: '1f05427a8fbb893e726dd0e317ff30a90d7b3570', finding_ids: ['MC-R1-171-001'],
+        action: 'Authorize one bounded correction', authorized_at: '2026-07-26T01:30:29+07:00',
+      },
+      finding_lineage: [{
+        finding_id: 'MC-R1-171-001', disposition: 'open',
+        source_thread: 'https://github.com/boat1994/bemoat-web-starter/pull/172#discussion_r1',
+        evidence: 'Exact Founder decision evidence', required_correction_evidence: ['Exact migration'],
+      }],
+    })
+
+    expect(migrated.state).toMatchObject({
+      state: 'FOUNDER_AUTHORIZED_CORRECTION', review_cycle: 3, full_review_count: 1,
+      last_reviewed_head: '1f05427a8fbb893e726dd0e317ff30a90d7b3570', post_budget_reviews: [],
+      founder_correction_authorization: {
+        schema_version: 2, authorization_id: expect.any(String), status: 'authorized',
+        for_review_number: 3, finding_ids: ['MC-R1-171-001'],
+      },
+    })
+  })
+
+  it('consumes a Review 3 Founder authorization once and binds correction preflight to its HANDOFF', async () => {
+    let state: any = {
+      state: 'FOUNDER_AUTHORIZED_CORRECTION', review_cycle: 3, full_review_count: 1,
+      active_pr: '#172', current_head: 'reviewed-head', last_reviewed_head: 'reviewed-head', post_budget_reviews: [],
+      founder_correction_authorization: {
+        schema_version: 1, authorization_id: 'founder-171', status: 'authorized', authority: 'Founder',
+        scope: 'correction', for_review_number: 3, reviewed_head: 'reviewed-head', finding_ids: ['MC-R1-171-001'],
+        action: 'Authorize one bounded correction', authorized_at: '2026-07-26T01:30:29+07:00',
+      },
+    }
+    const writes: any[] = []
+    const reservations: string[] = []
+    const releases: string[] = []
+    const handoffBody = '## HANDOFF\n\n**Target:** Dev / Integration Builder\n\nCorrection work\n\n**Founder correction authorization:** `founder-171`'
+    const result = await dispatchFounderAuthorizedCorrection({
+      readState: async () => state,
+      writeState: async (next: any) => { state = next; writes.push(next) },
+      reserveAuthorization: async (authorization: { authorization_id: string }) => {
+        reservations.push(authorization.authorization_id)
+        return { reservation_id: 'reservation-171' }
+      },
+      releaseAuthorization: async (reservation: { reservation_id: string }) => { releases.push(reservation.reservation_id) },
+      postHandoff: async () => ({
+        id: '5080099999',
+        html_url: 'https://github.com/boat1994/bemoat-web-starter/issues/171#issuecomment-5080099999',
+        created_at: '2026-07-26T01:40:00Z',
+        updated_at: '2026-07-26T01:40:00Z',
+      }),
+      retractHandoff: async (): Promise<void> => undefined,
+      handoffBody,
+    })
+
+    expect(result.outcome).toBe('DISPATCHED_FOUNDER_AUTHORIZED_CORRECTION')
+    expect(writes).toHaveLength(1)
+    expect(state).toMatchObject({
+      state: 'IN_PROGRESS', review_cycle: 3, full_review_count: 1,
+      founder_correction_authorization: {
+        status: 'consumed', authorization_id: 'founder-171', handoff_comment_id: '5080099999',
+        handoff_binding: {
+          schema_version: 1,
+          content_sha256: expect.stringMatching(/^[0-9a-f]{64}$/),
+          binding_sha256: expect.stringMatching(/^[0-9a-f]{64}$/),
+          correction_base: 'reviewed-head',
+          finding_ids: ['MC-R1-171-001'],
+        },
+      },
+    })
+    expect(reservations).toEqual(['founder-171'])
+    expect(releases).toEqual(['reservation-171'])
+    await expect(dispatchFounderAuthorizedCorrection({
+      readState: async () => state, writeState: async (): Promise<void> => undefined, postHandoff: async () => ({ id: 'again' }),
+      handoffBody: '## HANDOFF\n\nreplay',
+    })).rejects.toThrow('unconsumed Founder correction authorization')
+  })
+
+  it('freezes the complete authorized Founder record in the consumed HANDOFF binding', async () => {
+    let state: any = {
+      state: 'FOUNDER_AUTHORIZED_CORRECTION', review_cycle: 3, full_review_count: 1,
+      active_pr: '#172', current_head: 'reviewed-head', last_reviewed_head: 'reviewed-head', post_budget_reviews: [],
+      founder_correction_authorization: {
+        schema_version: 2, authorization_id: 'founder-171', status: 'authorized', authority: 'Founder',
+        scope: 'correction', for_review_number: 3, reviewed_head: 'reviewed-head', finding_ids: ['MC-R1-171-001'],
+        action: 'Authorize one bounded correction', authorized_at: '2026-07-26T01:30:29+07:00',
+      },
+    }
+    const result = await dispatchFounderAuthorizedCorrection({
+      readState: async () => state,
+      writeState: async (next: any) => { state = next },
+      reserveAuthorization: async () => ({ reservation_id: 'winner' }),
+      releaseAuthorization: async (): Promise<void> => undefined,
+      postHandoff: async () => ({ id: 'handoff-1', created_at: 'now', updated_at: 'now' }),
+      retractHandoff: async (): Promise<void> => undefined,
+      handoffBody: '## HANDOFF\n\n**Target:** Dev / Integration Builder\n**Founder correction authorization:** `founder-171`',
+      updatedAt: '2026-07-26T02:00:00Z',
+      updatedBy: 'Mission Control',
+    })
+
+    expect(result.state).toMatchObject({
+      updated_at: '2026-07-26T02:00:00Z', updated_by: 'Mission Control',
+      founder_correction_authorization: {
+        handoff_binding: {
+          authorization_snapshot: {
+            authorization_id: 'founder-171', authority: 'Founder', status: 'authorized',
+            action: 'Authorize one bounded correction', authorized_at: '2026-07-26T01:30:29+07:00',
+            scope: 'correction', for_review_number: 3, reviewed_head: 'reviewed-head',
+            finding_ids: ['MC-R1-171-001'],
+          },
+        },
+      },
+    })
+  })
+
+  it('allows exactly one concurrent Founder-correction dispatcher to publish a HANDOFF', async () => {
+    const original: any = {
+      state: 'FOUNDER_AUTHORIZED_CORRECTION', review_cycle: 3, full_review_count: 1,
+      active_pr: '#172', current_head: 'reviewed-head', last_reviewed_head: 'reviewed-head', post_budget_reviews: [],
+      founder_correction_authorization: {
+        schema_version: 2, authorization_id: 'founder-171', status: 'authorized', authority: 'Founder',
+        scope: 'correction', for_review_number: 3, reviewed_head: 'reviewed-head', finding_ids: ['MC-R1-171-001'],
+        action: 'Authorize one bounded correction', authorized_at: '2026-07-26T01:30:29+07:00',
+      },
+    }
+    let state = structuredClone(original)
+    let reserved = false
+    const comments: string[] = []
+    const dispatch = () => dispatchFounderAuthorizedCorrection({
+      readState: async () => state,
+      writeState: async (next: any) => { state = next },
+      reserveAuthorization: async () => {
+        if (reserved) throw new Error('reservation already exists')
+        reserved = true
+        return { reservation_id: 'winner' }
+      },
+      releaseAuthorization: async () => { reserved = false },
+      postHandoff: async (body: string) => {
+        comments.push(body)
+        return { id: 'winner', created_at: '2026-07-26T01:40:00Z', updated_at: '2026-07-26T01:40:00Z' }
+      },
+      retractHandoff: async (): Promise<void> => undefined,
+      handoffBody: '## HANDOFF\n\n**Target:** Dev / Integration Builder\n**Founder correction authorization:** `founder-171`',
+    })
+
+    const results = await Promise.allSettled([dispatch(), dispatch()])
+    expect(results.filter((entry) => entry.status === 'fulfilled')).toHaveLength(1)
+    expect(results.filter((entry) => entry.status === 'rejected')).toHaveLength(1)
+    expect(comments).toHaveLength(1)
+    expect(state.founder_correction_authorization.status).toBe('consumed')
+  })
+
+  it('treats an acknowledged consumed write as success after a write-side transport error', async () => {
+    let state: any = {
+      state: 'FOUNDER_AUTHORIZED_CORRECTION', review_cycle: 3, full_review_count: 1,
+      active_pr: '#172', current_head: 'reviewed-head', last_reviewed_head: 'reviewed-head', post_budget_reviews: [],
+      founder_correction_authorization: {
+        schema_version: 2, authorization_id: 'founder-171', status: 'authorized', authority: 'Founder',
+        scope: 'correction', for_review_number: 3, reviewed_head: 'reviewed-head', finding_ids: ['MC-R1-171-001'],
+        action: 'Authorize one bounded correction', authorized_at: '2026-07-26T01:30:29+07:00',
+      },
+    }
+    let released = false
+    let retracted = false
+    const result = await dispatchFounderAuthorizedCorrection({
+      readState: async () => state,
+      writeState: async (next: any) => { state = next; throw new Error('response lost after write') },
+      reserveAuthorization: async () => ({ reservation_id: 'winner' }),
+      releaseAuthorization: async () => { released = true },
+      postHandoff: async () => ({ id: 'handoff-1', created_at: 'now', updated_at: 'now' }),
+      retractHandoff: async () => { retracted = true },
+      handoffBody: '## HANDOFF\n\n**Target:** Dev / Integration Builder\n**Founder correction authorization:** `founder-171`',
+    })
+
+    expect(result.outcome).toBe('DISPATCHED_FOUNDER_AUTHORIZED_CORRECTION')
+    expect(released).toBe(true)
+    expect(retracted).toBe(false)
+  })
+
+  it('retains the reservation when post-write verification and HANDOFF rollback are indeterminate', async () => {
+    const original: any = {
+      state: 'FOUNDER_AUTHORIZED_CORRECTION', review_cycle: 3, full_review_count: 1,
+      active_pr: '#172', current_head: 'reviewed-head', last_reviewed_head: 'reviewed-head', post_budget_reviews: [],
+      founder_correction_authorization: {
+        schema_version: 2, authorization_id: 'founder-171', status: 'authorized', authority: 'Founder',
+        scope: 'correction', for_review_number: 3, reviewed_head: 'reviewed-head', finding_ids: ['MC-R1-171-001'],
+        action: 'Authorize one bounded correction', authorized_at: '2026-07-26T01:30:29+07:00',
+      },
+    }
+    let reads = 0
+    let released = false
+    await expect(dispatchFounderAuthorizedCorrection({
+      readState: async () => {
+        reads += 1
+        if (reads >= 3) throw new Error('verification unavailable')
+        return original
+      },
+      writeState: async (): Promise<void> => undefined,
+      reserveAuthorization: async () => ({ reservation_id: 'winner' }),
+      releaseAuthorization: async () => { released = true },
+      postHandoff: async () => ({ id: 'handoff-1', created_at: 'now', updated_at: 'now' }),
+      retractHandoff: async () => { throw new Error('rollback unavailable') },
+      handoffBody: '## HANDOFF\n\n**Target:** Dev / Integration Builder\n**Founder correction authorization:** `founder-171`',
+    })).rejects.toThrow('verified Founder authorization consumption')
+    expect(released).toBe(false)
+  })
+
+  it('preserves Review 3 history and returns correction delivery to a separate Founder decision', () => {
+    const prior: any = {
+      state: 'IN_PROGRESS', review_cycle: 3, full_review_count: 1,
+      active_task_issue: '#171', active_pr: '#172', current_head: 'reviewed-head',
+      last_reviewed_head: 'reviewed-head', post_budget_reviews: [],
+      open_blockers: ['MC-R1-171-001'],
+      finding_lineage: [{ finding_id: 'MC-R1-171-001', disposition: 'open' }],
+      founder_correction_authorization: {
+        schema_version: 2, status: 'consumed', authority: 'Founder', scope: 'correction',
+        authorization_id: 'founder-171', for_review_number: 3, reviewed_head: 'reviewed-head',
+        finding_ids: ['MC-R1-171-001'], handoff_comment_id: '5080099999',
+        handoff_binding: { schema_version: 1, content_sha256: 'a'.repeat(64), binding_sha256: 'b'.repeat(64) },
+      },
+    }
+    const proposal = proposeDeliveryReconciliation({
+      managedState: prior,
+      livePr: { number: '172', headRefOid: 'corrected-head', baseRefName: 'main' },
+      activeTaskIssue: '171',
+      latestResult: { parsed: { headSha: 'corrected-head', prNumber: '172' } },
+    })
+
+    expect(proposal).toMatchObject({
+      state: 'BLOCKED_FOR_FOUNDER_DECISION', review_cycle: 3, full_review_count: 1,
+      current_head: 'corrected-head', last_reviewed_head: 'reviewed-head', post_budget_reviews: [],
+      founder_correction_authorization: prior.founder_correction_authorization,
+      finding_lineage: prior.finding_lineage,
+      founder_decision: { status: 'pending', scope: 'review', review_number: 4 },
+    })
+    expect(proposal.next_permitted_action).toMatch(/Founder.*Review 4/i)
+  })
+
+  it('delivers Correction 1 to Review 2 while preserving Issue #173 counters 1/1', () => {
+    const prior: any = {
+      state: 'CORRECTION_REQUIRED_1', review_cycle: 1, full_review_count: 1,
+      active_task_issue: '#173', active_pr: '#174', current_head: 'reviewed-head',
+      last_reviewed_head: 'reviewed-head', post_budget_reviews: [],
+      open_blockers: ['MC-R1-173-001'], finding_lineage: [{ finding_id: 'MC-R1-173-001', disposition: 'open' }],
+    }
+    const proposal = proposeDeliveryReconciliation({
+      managedState: prior,
+      livePr: { number: '174', headRefOid: 'corrected-head', baseRefName: 'main' },
+      activeTaskIssue: '173',
+      latestResult: { parsed: { headSha: 'corrected-head', prNumber: '174' } },
+    })
+
+    expect(proposal).toMatchObject({
+      state: 'AWAITING_REVIEW_2', review_cycle: 1, full_review_count: 1,
+      current_head: 'corrected-head', last_reviewed_head: 'reviewed-head',
+      open_blockers: prior.open_blockers, finding_lineage: prior.finding_lineage,
+    })
+    expect(proposal.next_permitted_action).toMatch(/Review 2/)
+  })
   it.each([
     ['contradictory authority', { authoritativeContradiction: true }, 'STATE_CONFLICT'],
     ['unavailable evidence', { requiredEvidenceUnavailable: true }, 'BLOCKED_EXTERNAL'],

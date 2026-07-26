@@ -65,7 +65,7 @@ ${JSON.stringify(contract, null, 2)}
 
 function evidenceMap(overrides: Record<string, unknown> = {}) {
   return {
-    schema_version: 1,
+    schema_version: 2,
     correction_base: reviewedHead,
     finding_results: {
       'MC-R1-001': {
@@ -101,6 +101,12 @@ ${JSON.stringify(map, null, 2)}
 }
 
 describe('correction-contract pure module', () => {
+  it('accepts schema-v2 correction RESULT evidence while keeping the immutable verdict contract at v1', () => {
+    expect(parseCorrectionContract(verdictBody()).contract.schema_version).toBe(1)
+    const parsed = parseCorrectionEvidenceMap(resultBody())
+    expect(parsed.ok).toBe(true)
+    expect(parsed.evidence.schema_version).toBe(2)
+  })
   it('parses exact canonical identity from a REVIEW_VERDICT block', () => {
     const parsed = parseCorrectionContract(verdictBody())
     expect(parsed.ok).toBe(true)

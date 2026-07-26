@@ -96,7 +96,7 @@ function main() {
   }
 
   // 3. & 4. verifies the live Pulls API head equals the same commit, and expected transport target
-  const ghArgs = ['pr', 'view', resultPr, '--json', 'headRefOid,statusCheckRollup,headRepository,baseRepository,headRefName,baseRefName']
+  const ghArgs = ['pr', 'view', resultPr, '--json', 'headRefOid,statusCheckRollup,headRepository,headRefName,baseRefName']
   if (parsed.options.repo) ghArgs.push('--repo', parsed.options.repo)
   const prResult = tryRun('gh', ghArgs)
   if (prResult.status !== 0) {
@@ -126,7 +126,16 @@ function main() {
     return
   }
 
-  const expectedRepo = parsed.options.repo || prData.baseRepository?.nameWithOwner
+  let expectedRepo = parsed.options.repo
+  if (!expectedRepo) {
+    const repoResult = tryRun('gh', ['repo', 'view', '--json', 'nameWithOwner', '--jq', '.nameWithOwner'])
+    if (repoResult.status === 0) expectedRepo = repoResult.stdout.trim()
+  }
+  if (!expectedRepo) {
+    process.stderr.write('ERROR: BLOCKED_EXTERNAL: Canonical PR repository is unavailable\n')
+    process.exitCode = 1
+    return
+  }
   if (prData.headRepository?.nameWithOwner && expectedRepo && prData.headRepository.nameWithOwner !== expectedRepo) {
     process.stderr.write(`ERROR: STATE_CONFLICT: PR head repository ${prData.headRepository.nameWithOwner} does not match expected repository ${expectedRepo}\n`)
     process.exitCode = 1
@@ -160,11 +169,15 @@ function main() {
   }
 
   // We write the new state
+  const deliveryTimestamp = new Date().toISOString()
   const newStateProposal = proposeDeliveryReconciliation({
+    managedState: currentState.state,
     livePr: { number: resultPr, headRefOid: localCommit, baseRefName: prData.baseRefName || 'main' },
     activeTaskIssue: parsed.options.issue,
     approvedBase: currentState.state?.approved_base ?? prData.baseRefName ?? 'main',
-    latestResult: { parsed: parsedBody }
+    latestResult: { parsed: parsedBody },
+    updatedAt: deliveryTimestamp,
+    updatedBy: 'Mission Control',
   })
 
   let stateObj = currentState.state || {}

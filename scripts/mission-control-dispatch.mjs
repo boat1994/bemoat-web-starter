@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
-import { dispatchManagedTask } from './mission-control-reconcile.mjs'
+import { dispatchFounderAuthorizedCorrection, dispatchManagedTask } from './mission-control-reconcile.mjs'
 import { parseMissionControlState, renderMissionControlState } from './mission-control-state.mjs'
 
 function run(command, args) {
@@ -15,10 +15,14 @@ function run(command, args) {
 }
 
 function parseArgs(argv) {
-  const options = { issue: null, repo: null, bodyFile: null }
+  const options = { issue: null, repo: null, bodyFile: null, founderCorrection: false }
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index]
     if (argument === '--') continue
+    if (argument === '--founder-correction') {
+      options.founderCorrection = true
+      continue
+    }
     if (argument === '--repo' || argument === '--body-file') {
       const value = argv[++index]
       if (!value) throw new Error(`${argument} requires a value`)
@@ -93,9 +97,15 @@ async function main() {
       if (options.repo) args.push('--repo', options.repo)
       run(process.execPath, args)
       writeFileSync(payloadFile, JSON.stringify({ body }))
-      return JSON.parse(run('gh', [
+      const posted = JSON.parse(run('gh', [
         'api', '--method', 'POST', `repos/${repo}/issues/${options.issue}/comments`, '--input', payloadFile,
       ]))
+      return {
+        ...posted,
+        url: posted.html_url ?? posted.url ?? null,
+        createdAt: posted.created_at ?? posted.createdAt ?? null,
+        updatedAt: posted.updated_at ?? posted.updatedAt ?? null,
+      }
     } finally {
       rmSync(temp, { recursive: true, force: true })
     }
@@ -104,13 +114,38 @@ async function main() {
     if (!comment?.id) throw new Error('posted HANDOFF did not return a comment identifier for compensation')
     run('gh', ['api', '--method', 'DELETE', `repos/${repo}/issues/comments/${comment.id}`])
   }
+  const reserveAuthorization = async (authorization) => {
+    const safeIdentity = String(authorization.authorization_id).replace(/[^a-zA-Z0-9._-]/g, '-')
+    const refPath = `tags/bemoat-mc-reservation/${options.issue}-${safeIdentity}`
+    const temp = mkdtempSync(join(tmpdir(), 'bemoat-dispatch-reservation-'))
+    const payloadFile = join(temp, 'payload.json')
+    try {
+      writeFileSync(payloadFile, JSON.stringify({
+        ref: `refs/${refPath}`,
+        sha: authorization.reviewed_head,
+      }))
+      run('gh', ['api', '--method', 'POST', `repos/${repo}/git/refs`, '--input', payloadFile])
+      return { refPath }
+    } catch (error) {
+      throw new Error('Founder correction authorization reservation is already held or unavailable', { cause: error })
+    } finally {
+      rmSync(temp, { recursive: true, force: true })
+    }
+  }
+  const releaseAuthorization = async (reservation) => {
+    if (!reservation?.refPath) throw new Error('correction reservation identifier is missing')
+    run('gh', ['api', '--method', 'DELETE', `repos/${repo}/git/refs/${reservation.refPath}`])
+  }
 
   const timestamp = new Date().toISOString()
-  const result = await dispatchManagedTask({
+  const dispatch = options.founderCorrection ? dispatchFounderAuthorizedCorrection : dispatchManagedTask
+  const result = await dispatch({
     readState: async () => readIssue(),
     writeState,
     postHandoff,
     retractHandoff,
+    reserveAuthorization,
+    releaseAuthorization,
     handoffBody,
     transitionState: (state) => ({
       ...structuredClone(state),
@@ -118,8 +153,10 @@ async function main() {
       updated_at: timestamp,
       updated_by: 'Mission Control',
     }),
+    updatedAt: timestamp,
+    updatedBy: 'Mission Control',
   })
-  process.stdout.write(`Mission Control dispatch ${result.outcome}: READY -> IN_PROGRESS + HANDOFF\n`)
+  process.stdout.write(`Mission Control dispatch ${result.outcome}: ${options.founderCorrection ? 'FOUNDER_AUTHORIZED_CORRECTION' : 'READY'} -> IN_PROGRESS + HANDOFF\n`)
 }
 
 main().catch((error) => {
