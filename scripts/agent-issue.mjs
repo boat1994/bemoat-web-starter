@@ -2131,6 +2131,109 @@ function getCorrectionDiffFiles(cwd, reviewedHead, env = process.env) {
   return { ok: true, files }
 }
 
+function validateConsumedHistoricalReviewThreeAuthorization(authorization) {
+  const errors = []
+  if (!authorization || typeof authorization !== 'object' || Array.isArray(authorization)) {
+    return ['STATE CONFLICT: Review 3 correction requires a consumed Founder correction authorization']
+  }
+  if (authorization.status !== 'consumed') {
+    errors.push('STATE CONFLICT: Review 3 correction requires a consumed Founder correction authorization')
+  }
+  if (authorization.authority !== 'Founder') {
+    errors.push('STATE CONFLICT: historical Review 3 correction authorization authority must be Founder')
+  }
+  if (authorization.scope !== 'correction') {
+    errors.push('STATE CONFLICT: historical Review 3 correction authorization scope must be correction')
+  }
+  if (authorization.for_review_number !== 3) {
+    errors.push('STATE CONFLICT: consumed Review 3 Founder correction authorization is required')
+  }
+  if (authorization.schema_version !== 2) {
+    errors.push('STATE CONFLICT: historical Review 3 correction authorization requires schema_version 2')
+  }
+  if (typeof authorization.authorization_id !== 'string' || authorization.authorization_id.length === 0) {
+    errors.push('STATE CONFLICT: historical Review 3 correction authorization requires an immutable authorization_id')
+  }
+  if (typeof authorization.reviewed_head !== 'string' || !/^[a-f0-9]{40}$/i.test(authorization.reviewed_head)) {
+    errors.push('STATE CONFLICT: historical Review 3 correction authorization requires an immutable reviewed_head')
+  }
+  if (
+    !Array.isArray(authorization.finding_ids) ||
+    authorization.finding_ids.length === 0 ||
+    authorization.finding_ids.some((findingId) => typeof findingId !== 'string' || findingId.length === 0)
+  ) {
+    errors.push('STATE CONFLICT: historical Review 3 correction authorization requires immutable finding_ids')
+  }
+  if (typeof authorization.action !== 'string' || authorization.action.length === 0) {
+    errors.push('STATE CONFLICT: historical Review 3 correction authorization requires the original action')
+  }
+  if (typeof authorization.authorized_at !== 'string' || authorization.authorized_at.length === 0) {
+    errors.push('STATE CONFLICT: historical Review 3 correction authorization requires the original authorized_at')
+  }
+  if (typeof authorization.handoff_comment_id !== 'string' || authorization.handoff_comment_id.length === 0) {
+    errors.push('STATE CONFLICT: historical Review 3 correction authorization requires an exact HANDOFF comment ID')
+  }
+  return errors
+}
+
+function buildExpectedCorrectionHandoffBindingFields({ authorization, state, historical = false }) {
+  return {
+    authorization_snapshot: {
+      authorization_id: authorization.authorization_id,
+      authority: authorization.authority,
+      status: 'authorized',
+      action: authorization.action,
+      authorized_at: authorization.authorized_at,
+      scope: authorization.scope,
+      for_review_number: authorization.for_review_number,
+      reviewed_head: authorization.reviewed_head,
+      finding_ids: authorization.finding_ids,
+    },
+    authorization_id: authorization.authorization_id,
+    active_pr: state.active_pr,
+    exact_head: historical ? authorization.reviewed_head : state.current_head,
+    correction_base: authorization.reviewed_head,
+    review_number: authorization.for_review_number,
+    scope: authorization.scope,
+    finding_ids: authorization.finding_ids,
+    handoff_comment_id: String(authorization.handoff_comment_id),
+  }
+}
+
+function findCorrectionHandoffBindingMismatch(binding, {
+  contentSha256,
+  liveTarget,
+  expectedFields,
+  recordedFingerprint,
+  liveUpdatedAt,
+}) {
+  const errors = []
+  if (!binding) {
+    errors.push('STATE CONFLICT: historical Review 3 correction HANDOFF binding is missing')
+    return errors
+  }
+  if (binding.content_sha256 !== contentSha256) {
+    errors.push('STATE CONFLICT: historical Review 3 correction HANDOFF content hash does not match live HANDOFF')
+  }
+  if (binding.target !== liveTarget) {
+    errors.push('STATE CONFLICT: historical Review 3 correction HANDOFF target does not match live HANDOFF')
+  }
+  for (const [key, value] of Object.entries(expectedFields)) {
+    if (JSON.stringify(binding[key]) !== JSON.stringify(value)) {
+      errors.push(`STATE CONFLICT: historical Review 3 correction HANDOFF binding field ${key} does not match immutable authorization`)
+    }
+  }
+  const { binding_sha256: _recordedFingerprint, ...payload } = binding
+  const actualFingerprint = createHash('sha256').update(JSON.stringify(payload)).digest('hex')
+  if (recordedFingerprint !== actualFingerprint) {
+    errors.push('STATE CONFLICT: immutable Founder correction HANDOFF fingerprint is invalid')
+  }
+  if (binding.handoff_updated_at !== liveUpdatedAt) {
+    errors.push('STATE CONFLICT: bound Founder correction HANDOFF was edited after dispatch')
+  }
+  return errors
+}
+
 function verifyReviewThreeCorrectionAuthorization({ issueBody, contract, comments }) {
   const parsed = parseMissionControlState(issueBody ?? '')
   const managedRequired = /Mission\s+Control\s+mode:\s*required/i.test(issueBody ?? '')
@@ -2149,15 +2252,16 @@ function verifyReviewThreeCorrectionAuthorization({ issueBody, contract, comment
   if (state.review_cycle !== 3 || state.full_review_count !== 1) {
     return { ok: false, errors: ['STATE CONFLICT: Review 3 correction must preserve counters 3/1'] }
   }
-  if (state.state !== 'IN_PROGRESS' || !authorization || authorization.status !== 'consumed') {
+  if (state.state !== 'IN_PROGRESS' || !authorization) {
     return { ok: false, errors: ['STATE CONFLICT: Review 3 correction requires a consumed Founder correction authorization'] }
+  }
+  const historicalErrors = validateConsumedHistoricalReviewThreeAuthorization(authorization)
+  if (historicalErrors.length > 0) {
+    return { ok: false, errors: historicalErrors, reviewThree: false }
   }
   const postBudgetReviews = Array.isArray(state.post_budget_reviews) ? state.post_budget_reviews : []
   const hasPostBudgetReviews = postBudgetReviews.length > 0
   if (hasPostBudgetReviews) {
-    if (authorization.for_review_number !== 3) {
-      return { ok: false, errors: ['STATE CONFLICT: consumed Review 3 Founder correction authorization is required'] }
-    }
     const latestReview = postBudgetReviews.at(-1)
     const correctionAuth = state.founder_decision
     if (!isFounderCorrectionAuthorization(correctionAuth) || correctionAuth.status !== 'approved') {
@@ -2204,42 +2308,20 @@ function verifyReviewThreeCorrectionAuthorization({ issueBody, contract, comment
   if (authorization.schema_version === 2) {
     const contentSha256 = createHash('sha256').update(handoff.body ?? '').digest('hex')
     const liveTarget = (handoff.body ?? '').match(/^\*\*Target:\*\*\s*(.+?)\s*$/m)?.[1]?.trim() ?? null
-    const expectedFields = hasPostBudgetReviews
-      ? null
-      : {
-          authorization_snapshot: {
-            authorization_id: authorization.authorization_id,
-            authority: authorization.authority,
-            status: 'authorized',
-            action: authorization.action,
-            authorized_at: authorization.authorized_at,
-            scope: authorization.scope,
-            for_review_number: authorization.for_review_number,
-            reviewed_head: authorization.reviewed_head,
-            finding_ids: authorization.finding_ids,
-          },
-          authorization_id: authorization.authorization_id,
-          active_pr: state.active_pr,
-          exact_head: state.current_head,
-          correction_base: authorization.reviewed_head,
-          review_number: authorization.for_review_number,
-          scope: authorization.scope,
-          finding_ids: authorization.finding_ids,
-          handoff_comment_id: String(authorization.handoff_comment_id),
-        }
-    if (!binding || binding.content_sha256 !== contentSha256 || binding.target !== liveTarget ||
-        (expectedFields &&
-          Object.entries(expectedFields).some(([key, value]) => JSON.stringify(binding[key]) !== JSON.stringify(value)))) {
-      return { ok: false, errors: ['STATE CONFLICT: immutable Founder correction HANDOFF binding does not match live content'] }
-    }
-    const { binding_sha256: recordedFingerprint, ...payload } = binding
-    const actualFingerprint = createHash('sha256').update(JSON.stringify(payload)).digest('hex')
-    if (recordedFingerprint !== actualFingerprint) {
-      return { ok: false, errors: ['STATE CONFLICT: immutable Founder correction HANDOFF fingerprint is invalid'] }
-    }
-    const liveUpdatedAt = handoff.updatedAt ?? handoff.updated_at ?? null
-    if (binding.handoff_updated_at !== liveUpdatedAt) {
-      return { ok: false, errors: ['STATE CONFLICT: bound Founder correction HANDOFF was edited after dispatch'] }
+    const expectedFields = buildExpectedCorrectionHandoffBindingFields({
+      authorization,
+      state,
+      historical: hasPostBudgetReviews,
+    })
+    const bindingErrors = findCorrectionHandoffBindingMismatch(binding, {
+      contentSha256,
+      liveTarget,
+      expectedFields,
+      recordedFingerprint: binding?.binding_sha256 ?? null,
+      liveUpdatedAt: handoff.updatedAt ?? handoff.updated_at ?? null,
+    })
+    if (bindingErrors.length > 0) {
+      return { ok: false, errors: bindingErrors, reviewThree: !hasPostBudgetReviews }
     }
   }
   return { ok: true, errors: [], reviewThree: !hasPostBudgetReviews }

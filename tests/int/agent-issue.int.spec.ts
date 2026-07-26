@@ -1,4 +1,5 @@
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -1560,16 +1561,17 @@ esac
     ['missing authority snapshot', (_comments: any[], authorization: any) => { delete authorization.handoff_binding.authorization_snapshot }, 1],
   ])('handles a %s bound HANDOFF through the executable correction preflight', (_name, mutate, expectedStatus) => {
     const root = createRepo('feature/136-immutable-correction-contract')
+    const reviewedHead = `abc12340${'0'.repeat(32)}`
     const dispatchAuthorization: any = {
       schema_version: 2, authorization_id: 'founder-r3-abc', status: 'authorized', authority: 'Founder',
-      scope: 'correction', for_review_number: 3, reviewed_head: 'abc1234', finding_ids: ['MC-R1-001'],
+      scope: 'correction', for_review_number: 3, reviewed_head: reviewedHead, finding_ids: ['MC-R1-001'],
       action: 'Authorize one bounded correction', authorized_at: '2026-07-20T09:00:00Z',
     }
     const authorization: any = { ...dispatchAuthorization, status: 'consumed', handoff_comment_id: '1' }
     const state: any = {
       schema_version: 1, state: 'IN_PROGRESS', review_cycle: 3, full_review_count: 1,
-      approved_base: 'main', active_task_issue: '#136', active_pr: '#200', current_head: 'abc1234',
-      last_reviewed_head: 'abc1234', post_budget_reviews: [], founder_correction_authorization: authorization,
+      approved_base: 'main', active_task_issue: '#136', active_pr: '#200', current_head: reviewedHead,
+      last_reviewed_head: reviewedHead, post_budget_reviews: [], founder_correction_authorization: authorization,
       guide_version: '1.2.0', guide_source_ref: 'main', guide_source_sha: null, open_blockers: ['MC-R1-001'],
       follow_up_issues: [], next_permitted_action: 'Execute bounded correction', material_change_status: 'none',
       updated_at: '2026-07-20T09:00:00Z', updated_by: 'Mission Control',
@@ -1582,10 +1584,10 @@ esac
     const verdict = {
       id: '2', createdAt: '2026-07-20T10:10:00Z', updatedAt: '2026-07-20T10:10:00Z',
       body: `## REVIEW_VERDICT
-**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · \`main\` · \`abc1234\`
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · \`main\` · \`${reviewedHead}\`
 **Verdict:** CORRECTION REQUIRED
 \`\`\`json
-{"schema_version":1,"reviewed_head":"abc1234","findings":[{"id":"MC-R1-001","canonical_summary":"boundary bug","source_thread":"https://github.com/boat1994/bemoat-web-starter/pull/200#discussion_r1","required_evidence":["executable negative"]}]}
+{"schema_version":1,"reviewed_head":"${reviewedHead}","findings":[{"id":"MC-R1-001","canonical_summary":"boundary bug","source_thread":"https://github.com/boat1994/bemoat-web-starter/pull/200#discussion_r1","required_evidence":["executable negative"]}]}
 \`\`\``,
     }
     const comments = [handoff, verdict]
@@ -1604,7 +1606,7 @@ esac
 case "$*" in
   *"issue view 136"*"title,url,body,labels"*) cat "${issuePath}" ;;
   *"issue view 136"*"comments"*) cat "${commentsPath}" ;;
-  *"pr view 200"*) printf '%s' '{"title":"Correction PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/200","headRefName":"feature/136","baseRefName":"main","headRefOid":"abc1234","state":"OPEN","statusCheckRollup":[{"name":"ci","workflowName":"CI","status":"COMPLETED","conclusion":"SUCCESS","detailsUrl":"https://ci/1"},{"name":"starter-ci","workflowName":"CI (starter strict)","status":"COMPLETED","conclusion":"SUCCESS","detailsUrl":"https://ci/2"}],"commits":[]}' ;;
+  *"pr view 200"*) printf '%s' '{"title":"Correction PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/200","headRefName":"feature/136","baseRefName":"main","headRefOid":"${reviewedHead}","state":"OPEN","statusCheckRollup":[{"name":"ci","workflowName":"CI","status":"COMPLETED","conclusion":"SUCCESS","detailsUrl":"https://ci/1"},{"name":"starter-ci","workflowName":"CI (starter strict)","status":"COMPLETED","conclusion":"SUCCESS","detailsUrl":"https://ci/2"}],"commits":[]}' ;;
   *) echo "unexpected gh call: $*" >&2; exit 1 ;;
 esac
 `),
@@ -1616,6 +1618,299 @@ esac
       expect(result.stdout).toMatch(/HANDOFF|binding|edited/i)
       expect(result.stdout).not.toContain('Edit authorization: granted')
     }
+  })
+
+  const POST_BUDGET_HISTORICAL_HEAD = '1f05427a8fbb893e726dd0e317ff30a90d7b3570'
+  const POST_BUDGET_REVIEW_FOUR_HEAD = '6cb948bef65b542f982a2d2184fe7e8f65b5b60a'
+  const POST_BUDGET_AUTHORIZATION_ID = 'founder-r3-1f05427a8fbb-2026-07-26T01-30-29-07-00'
+  const POST_BUDGET_HANDOFF_ID = '5083923508'
+
+  function buildPostBudgetReviewThreeCorrectionFixture(options: {
+    mutateAuthorization?: (authorization: Record<string, unknown>) => void
+    mutateBinding?: (binding: Record<string, unknown>, context: { currentHead: string }) => void
+    mutateHandoff?: (handoff: Record<string, unknown>) => void
+    mutateState?: (state: Record<string, unknown>) => void
+  } = {}) {
+    const root = createRepo('fix/171-planning-no-pr-moving-base')
+    seedTrackedFile(root, 'scripts/agent-issue.mjs', '// post-budget correction fixture\n')
+    const currentHead = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim()
+    const dispatchAuthorization = {
+      schema_version: 2,
+      authorization_id: POST_BUDGET_AUTHORIZATION_ID,
+      status: 'authorized',
+      authority: 'Founder',
+      scope: 'correction',
+      for_review_number: 3,
+      reviewed_head: POST_BUDGET_HISTORICAL_HEAD,
+      finding_ids: ['MC-R1-171-001'],
+      action: 'Authorize one bounded post-budget correction for remaining protected-ref target-type validation',
+      authorized_at: '2026-07-26T01:30:29+07:00',
+    }
+    const handoff: Record<string, unknown> = {
+      id: POST_BUDGET_HANDOFF_ID,
+      body: `## HANDOFF
+
+**Target:** Dev / Correction Builder
+**Objective:** bounded post-budget correction
+**Founder correction authorization:** \`${POST_BUDGET_AUTHORIZATION_ID}\``,
+      createdAt: '2026-07-26T14:34:44Z',
+      updatedAt: '2026-07-26T14:34:44Z',
+    }
+    options.mutateHandoff?.(handoff)
+    const authorization: Record<string, unknown> = {
+      ...dispatchAuthorization,
+      status: 'consumed',
+      handoff_comment_id: String(handoff.id),
+    }
+    const state: Record<string, unknown> = {
+      schema_version: 1,
+      state: 'IN_PROGRESS',
+      review_cycle: 3,
+      full_review_count: 1,
+      approved_base: 'main',
+      active_task_issue: '#171',
+      active_pr: '#172',
+      current_head: currentHead,
+      last_reviewed_head: currentHead,
+      post_budget_reviews: [
+        {
+          review_number: 4,
+          reviewed_head: POST_BUDGET_REVIEW_FOUR_HEAD,
+          verdict: 'CORRECTION REQUIRED',
+          authorization: {
+            status: 'approved',
+            authority: 'Founder',
+            scope: 'review',
+            review_number: 4,
+            reviewed_head: POST_BUDGET_REVIEW_FOUR_HEAD,
+            action: 'Authorize one bounded Delta Review 4 of MC-R1-171-001',
+            authorized_at: '2026-07-26T22:59:41+07:00',
+          },
+          finding_dispositions: [{ finding_id: 'MC-R1-171-001', disposition: 'open' }],
+          verdict_comment_id: '5084367415',
+        },
+        {
+          review_number: 5,
+          reviewed_head: currentHead,
+          verdict: 'CORRECTION REQUIRED',
+          authorization: {
+            status: 'approved',
+            authority: 'Founder',
+            scope: 'review',
+            review_number: 5,
+            reviewed_head: currentHead,
+            action: 'Authorize one bounded Delta Review 5 of MC-R1-171-001',
+            authorized_at: '2026-07-27T00:06:00+07:00',
+          },
+          finding_dispositions: [{ finding_id: 'MC-R1-171-001', disposition: 'open' }],
+          verdict_comment_id: '5084562652',
+        },
+      ],
+      founder_decision: {
+        status: 'approved',
+        authority: 'Founder',
+        scope: 'correction',
+        for_review_number: 5,
+        reviewed_head: currentHead,
+        finding_ids: ['MC-R1-171-001'],
+        action: 'Authorize exactly one bounded post-budget correction',
+        authorized_at: '2026-07-27T00:28:03+07:00',
+      },
+      founder_correction_authorization: authorization,
+      guide_version: '1.2.0',
+      guide_source_ref: 'main',
+      guide_source_sha: null,
+      open_blockers: ['MC-R1-171-001'],
+      follow_up_issues: [],
+      next_permitted_action: 'Dev performs one bounded post-budget correction',
+      material_change_status: 'none',
+      updated_at: '2026-07-27T00:28:03+07:00',
+      updated_by: 'Mission Control',
+    }
+    options.mutateState?.(state)
+    authorization.handoff_binding = buildCorrectionHandoffBinding({
+      authorization: dispatchAuthorization,
+      state: { ...state, current_head: POST_BUDGET_HISTORICAL_HEAD },
+      handoffBody: String(handoff.body),
+      handoff,
+    })
+    options.mutateBinding?.(authorization.handoff_binding as Record<string, unknown>, { currentHead })
+    options.mutateAuthorization?.(authorization)
+    state.founder_correction_authorization = authorization
+    const verdict = {
+      id: '5084562652',
+      createdAt: '2026-07-27T00:06:00+07:00',
+      updatedAt: '2026-07-27T00:06:00+07:00',
+      body: `## REVIEW_VERDICT
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/172 · \`main\` · \`${currentHead}\`
+**Verdict:** CORRECTION REQUIRED
+**Findings:** Critical: MC-R1-171-001
+**Next:** Dev posts correction RESULT
+
+\`\`\`json
+{
+  "schema_version": 1,
+  "mode": "implementation_pr",
+  "reviewed_head": "${currentHead}",
+  "findings": [
+    {
+      "id": "MC-R1-171-001",
+      "canonical_summary": "Common ancestry does not prove authorized planning lineage",
+      "source_thread": "https://github.com/boat1994/bemoat-web-starter/pull/172#discussion_r3649776607",
+      "required_evidence": ["Bind exact lineage"],
+      "expected_areas": ["scripts/agent-issue.mjs", "tests/int/agent-issue.int.spec.ts"],
+      "prohibited_areas": []
+    }
+  ]
+}
+\`\`\``,
+    }
+    const comments = [handoff, verdict]
+    const fixtureDir = mkdtempSync(join(tmpdir(), 'bemoat-agent-issue-post-budget-'))
+    tempRoots.push(fixtureDir)
+    const issuePath = join(fixtureDir, 'issue.json')
+    const commentsPath = join(fixtureDir, 'comments.json')
+    writeFileSync(issuePath, JSON.stringify({
+      title: 'Post-budget correction',
+      url: 'https://github.com/boat1994/bemoat-web-starter/issues/171',
+      body: `Mission Control mode: required\n\n${renderMissionControlState(state)}`,
+      labels: [],
+    }))
+    writeFileSync(commentsPath, JSON.stringify({ comments }))
+    const ghStub = `#!/usr/bin/env sh
+case "$*" in
+  *"issue view 171"*"title,url,body,labels"*) cat "${issuePath}" ;;
+  *"issue view 171"*"comments"*) cat "${commentsPath}" ;;
+  *"pr view 172"*) printf '%s' '{"title":"Correction PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/172","headRefName":"fix/171-planning-no-pr-moving-base","baseRefName":"main","headRefOid":"${currentHead}","state":"OPEN","statusCheckRollup":[{"name":"ci","workflowName":"CI","status":"COMPLETED","conclusion":"SUCCESS","detailsUrl":"https://ci/1"},{"name":"starter-ci","workflowName":"CI (starter strict)","status":"COMPLETED","conclusion":"SUCCESS","detailsUrl":"https://ci/2"}],"commits":[]}' ;;
+  *) echo "unexpected gh call: $*" >&2; exit 1 ;;
+esac
+`
+    return { root, currentHead, ghStub, authorization, handoff }
+  }
+
+  function runPostBudgetReviewThreeCorrection(
+    options: Parameters<typeof buildPostBudgetReviewThreeCorrectionFixture>[0] = {},
+  ) {
+    const fixture = buildPostBudgetReviewThreeCorrectionFixture(options)
+    const result = runAgentIssue(fixture.root, ['171', '--phase', 'correction'], {
+      PATH: withStubbedGh(fixture.root, fixture.ghStub),
+    })
+    return { ...fixture, result }
+  }
+
+  it('TEST-PLAN-13: grants post-budget correction when historical Review 3 binding and Review 5 authorization both validate', () => {
+    const { result } = runPostBudgetReviewThreeCorrection()
+    expect(result.status, result.stderr || result.stdout).toBe(0)
+    expect(result.stdout).toContain('Edit authorization: granted for the immutable finding set only.')
+  })
+
+  it.each([
+    {
+      label: 'historical authority changed from Founder',
+      mutateAuthorization: (authorization: Record<string, unknown>) => { authorization.authority = 'Mission Control' },
+      expected: /historical Review 3 correction authorization authority must be Founder/,
+    },
+    {
+      label: 'historical scope changed from correction',
+      mutateAuthorization: (authorization: Record<string, unknown>) => { authorization.scope = 'review' },
+      expected: /historical Review 3 correction authorization scope must be correction/,
+    },
+    {
+      label: 'historical for_review_number changed from 3',
+      mutateAuthorization: (authorization: Record<string, unknown>) => { authorization.for_review_number = 5 },
+      expected: /consumed Review 3 Founder correction authorization is required/,
+    },
+    {
+      label: 'historical reviewed head changed',
+      mutateAuthorization: (authorization: Record<string, unknown>) => {
+        authorization.reviewed_head = 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef'
+      },
+      expected: /historical Review 3 correction authorization requires an immutable reviewed_head|binding field (reviewed_head|authorization_snapshot|exact_head|correction_base)/,
+    },
+    {
+      label: 'historical finding IDs changed',
+      mutateAuthorization: (authorization: Record<string, unknown>) => { authorization.finding_ids = ['MC-R1-999'] },
+      expected: /Founder correction authorization finding IDs do not match|binding field finding_ids/,
+    },
+    {
+      label: 'historical authorization ID changed',
+      mutateAuthorization: (authorization: Record<string, unknown>) => { authorization.authorization_id = 'founder-r3-substituted' },
+      expected: /binding field authorization_id|not bound to its exact active HANDOFF/,
+    },
+    {
+      label: 'historical schema version removed',
+      mutateAuthorization: (authorization: Record<string, unknown>) => { delete authorization.schema_version },
+      expected: /historical Review 3 correction authorization requires schema_version 2/,
+    },
+    {
+      label: 'historical schema version changed',
+      mutateAuthorization: (authorization: Record<string, unknown>) => { authorization.schema_version = 1 },
+      expected: /historical Review 3 correction authorization requires schema_version 2/,
+    },
+    {
+      label: 'HANDOFF binding authorization_snapshot changed',
+      mutateBinding: (binding: Record<string, unknown>) => {
+        ;(binding.authorization_snapshot as Record<string, unknown>).action = 'substituted action'
+      },
+      expected: /binding field authorization_snapshot/,
+    },
+    {
+      label: 'HANDOFF binding exact_head changed to the later current head',
+      mutateBinding: (binding: Record<string, unknown>, { currentHead }: { currentHead: string }) => {
+        binding.exact_head = currentHead
+      },
+      expected: /binding field exact_head/,
+    },
+    {
+      label: 'HANDOFF binding correction_base changed',
+      mutateBinding: (binding: Record<string, unknown>) => {
+        binding.correction_base = 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef'
+      },
+      expected: /binding field correction_base/,
+    },
+    {
+      label: 'HANDOFF binding review number changed',
+      mutateBinding: (binding: Record<string, unknown>) => { binding.review_number = 5 },
+      expected: /binding field review_number/,
+    },
+    {
+      label: 'HANDOFF binding scope changed',
+      mutateBinding: (binding: Record<string, unknown>) => { binding.scope = 'review' },
+      expected: /binding field scope/,
+    },
+    {
+      label: 'HANDOFF binding finding IDs changed',
+      mutateBinding: (binding: Record<string, unknown>) => { binding.finding_ids = ['MC-R1-999'] },
+      expected: /binding field finding_ids/,
+    },
+    {
+      label: 'HANDOFF binding authorization ID changed',
+      mutateBinding: (binding: Record<string, unknown>) => { binding.authorization_id = 'founder-r3-substituted' },
+      expected: /binding field authorization_id/,
+    },
+    {
+      label: 'HANDOFF binding comment ID changed',
+      mutateBinding: (binding: Record<string, unknown>) => { binding.handoff_comment_id = '9999999999' },
+      expected: /binding field handoff_comment_id|not bound to its exact active HANDOFF/,
+    },
+  ])('TEST-PLAN-14: rejects post-budget correction when $label', ({ mutateAuthorization, mutateBinding, expected }) => {
+    const { result } = runPostBudgetReviewThreeCorrection({ mutateAuthorization, mutateBinding })
+    expect(result.status).toBe(1)
+    expect(result.stdout).toMatch(expected)
+    expect(result.stdout).not.toContain('Edit authorization: granted')
+  })
+
+  it('TEST-PLAN-15: rejects post-budget correction when binding fingerprint is stale after semantic payload mutation', () => {
+    const { result } = runPostBudgetReviewThreeCorrection({
+      mutateBinding: (binding) => {
+        binding.scope = 'review'
+        const { binding_sha256: _stale, ...payload } = binding
+        binding.binding_sha256 = createHash('sha256').update(JSON.stringify(payload)).digest('hex')
+      },
+    })
+    expect(result.status).toBe(1)
+    expect(result.stdout).toMatch(/binding field scope/)
+    expect(result.stdout).not.toContain('Edit authorization: granted')
   })
 
   it('fails closed when the verdict PR/base/head line contradicts the immutable contract reviewed_head (MC-R1-002)', () => {
