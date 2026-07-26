@@ -337,6 +337,11 @@ the existing state fields rather than creating a Double-Loop state model.
 - Model / reasoning: <model + tier> | human
 
 **PR / base / head:** <PR_URL> · `<base>` · `<sha>` (verify live)
+
+The `PR / base / head` field is the **only** canonical review-target identity for
+`REVIEW_VERDICT`. Historical, dependency, prohibited, superseded, and downstream
+pull-request references in prose must not be treated as alternate targets.
+Finding `source_thread` URLs must still point at the same canonical PR.
 **Verdict:** CORRECTION REQUIRED | ELIGIBLE FOR FOUNDER REVIEW | BLOCKED FOR FOUNDER DECISION | BLOCKED EXTERNAL | STATE CONFLICT
 **Findings:** Critical: None|<summary + thread> · Important: None|<summary + thread>
 **Threads:** <PR_REVIEW_THREAD_URL> (file-level detail stays on the PR)

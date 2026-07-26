@@ -488,6 +488,12 @@ export function parseRoleCommentBody(body = '') {
 
   const prFromUrl = body.match(/https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/(\d+)/)?.[1] ?? null
   const prFromHash = body.match(/\bPR\s*#(\d+)\b/i)?.[1] ?? null
+  const prFromCanonicalLine =
+    body.match(
+      /\*\*PR\s*\/\s*base\s*\/\s*head:\*\*[^\n]*https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/(\d+)/i,
+    )?.[1] ?? null
+  const prFromCanonicalShorthand =
+    body.match(/\*\*PR\s*\/\s*base\s*\/\s*head:\*\*[^\n]*\bPR\s*#(\d+)\b/i)?.[1] ?? null
   const headFromState = body.match(/\*\*State:\*\*[^\n]*head\s+`([0-9a-f]{7,40})`/i)?.[1] ?? null
   const headFromPrLine = body.match(/\*\*PR\s*\/\s*base\s*\/\s*head:\*\*[^\n]*·\s*`([0-9a-f]{7,40})`/i)?.[1] ?? null
   const headFromExact = body.match(/\*\*Exact head reviewed:\*\*\s*`([0-9a-f]{7,40})`/i)?.[1] ?? null
@@ -502,7 +508,10 @@ export function parseRoleCommentBody(body = '') {
   return {
     role: heading,
     body,
-    prNumber: prFromUrl || prFromHash,
+    prNumber:
+      heading === 'REVIEW_VERDICT'
+        ? prFromCanonicalLine || prFromCanonicalShorthand
+        : prFromUrl || prFromHash,
     headSha,
     verdict,
     managedStateLine,
