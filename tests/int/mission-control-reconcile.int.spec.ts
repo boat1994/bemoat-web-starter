@@ -690,6 +690,17 @@ describe('mission-control reconcile classifiers', () => {
     expect(verdict.headSha).toBe('abc1234')
   })
 
+  it('scopes REVIEW_VERDICT prNumber to the canonical PR / base / head field (Issue #175)', () => {
+    const verdict = parseRoleCommentBody(`## REVIEW_VERDICT
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/174 · \`main\` · \`abc1234\`
+**Verdict:** CORRECTION REQUIRED
+**Stop:** Do not modify PR #172 or blocked dependency work.
+**Also:** https://github.com/boat1994/bemoat-web-starter/pull/172
+`)
+
+    expect(verdict.prNumber).toBe('174')
+  })
+
   it('scenario 1: valid delivery does not require conflict before Review 1', () => {
     const lag = classifyDeliveryLag(
       { state: 'IN_PROGRESS', active_pr: null, current_head: null },
