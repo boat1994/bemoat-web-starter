@@ -699,6 +699,8 @@ describe('mission-control phase 1 dogfood scenarios (S1-S10)', () => {
           livePr: { number: '170', headRefOid: reviewedHead, baseRefName: 'main' },
           activeTaskIssue: '169',
           latestResult: { parsed: parsedResult },
+          updatedAt: '2026-07-26T09:00:00Z',
+          updatedBy: 'Mission Control',
         }),
       }),
       writeState: async (nextState: any) => {

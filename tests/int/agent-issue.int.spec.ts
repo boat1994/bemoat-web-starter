@@ -1560,11 +1560,12 @@ esac
     ['missing authority snapshot', (_comments: any[], authorization: any) => { delete authorization.handoff_binding.authorization_snapshot }, 1],
   ])('handles a %s bound HANDOFF through the executable correction preflight', (_name, mutate, expectedStatus) => {
     const root = createRepo('feature/136-immutable-correction-contract')
-    const authorization: any = {
-      schema_version: 2, authorization_id: 'founder-r3-abc', status: 'consumed', authority: 'Founder',
+    const dispatchAuthorization: any = {
+      schema_version: 2, authorization_id: 'founder-r3-abc', status: 'authorized', authority: 'Founder',
       scope: 'correction', for_review_number: 3, reviewed_head: 'abc1234', finding_ids: ['MC-R1-001'],
-      action: 'Authorize one bounded correction', authorized_at: '2026-07-20T09:00:00Z', handoff_comment_id: '1',
+      action: 'Authorize one bounded correction', authorized_at: '2026-07-20T09:00:00Z',
     }
+    const authorization: any = { ...dispatchAuthorization, status: 'consumed', handoff_comment_id: '1' }
     const state: any = {
       schema_version: 1, state: 'IN_PROGRESS', review_cycle: 3, full_review_count: 1,
       approved_base: 'main', active_task_issue: '#136', active_pr: '#200', current_head: 'abc1234',
@@ -1577,7 +1578,7 @@ esac
       id: '1', body: '## HANDOFF\n\n**Target:** Dev / Integration Builder\n**Objective:** bounded correction\n**Founder correction authorization:** `founder-r3-abc`',
       createdAt: '2026-07-20T10:00:00Z', updatedAt: '2026-07-20T10:00:00Z',
     }
-    authorization.handoff_binding = buildCorrectionHandoffBinding({ authorization, state, handoffBody: handoff.body, handoff })
+    authorization.handoff_binding = buildCorrectionHandoffBinding({ authorization: dispatchAuthorization, state, handoffBody: handoff.body, handoff })
     const verdict = {
       id: '2', createdAt: '2026-07-20T10:10:00Z', updatedAt: '2026-07-20T10:10:00Z',
       body: `## REVIEW_VERDICT
