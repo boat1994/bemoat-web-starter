@@ -1577,7 +1577,25 @@ esac
       updated_at: '2026-07-20T09:00:00Z', updated_by: 'Mission Control',
     }
     const handoff = {
-      id: '1', body: '## HANDOFF\n\n**Target:** Dev / Integration Builder\n**Objective:** bounded correction\n**Founder correction authorization:** `founder-r3-abc`',
+      id: '1',
+      body: `## HANDOFF
+
+### Task log
+* Timestamp: 2026-07-20T10:00:00Z
+* Task / Issue: #136
+* Phase: Founder-authorized correction after Review 3
+* Executing role: Mission Control
+* Authorization: \`founder-r3-abc\`
+
+**Target:** Dev / Correction Builder
+
+**Objective:** Resolve immutable Critical finding \`MC-R1-001\` on PR #200 while preserving counters \`3/1\`, finding identity, the prior reviewed head, and the prohibition on Review 4.
+
+**Links:** Issue https://github.com/boat1994/bemoat-web-starter/issues/136 · PR https://github.com/boat1994/bemoat-web-starter/pull/200 · finding https://github.com/boat1994/bemoat-web-starter/pull/200#discussion_r1
+
+**Scope:** Fix boundary bug, preserve exact head \`${reviewedHead}\`. No Review 4.
+
+**Required preflight:** Dev must use a clean worktree at PR head \`${reviewedHead}\` and run \`pnpm run bemoat:agent:issue -- 136 --phase correction\` before applying or committing correction changes.`,
       createdAt: '2026-07-20T10:00:00Z', updatedAt: '2026-07-20T10:00:00Z',
     }
     authorization.handoff_binding = buildCorrectionHandoffBinding({ authorization: dispatchAuthorization, state, handoffBody: handoff.body, handoff })
@@ -1650,9 +1668,22 @@ esac
       id: POST_BUDGET_HANDOFF_ID,
       body: `## HANDOFF
 
+### Task log
+* Timestamp: 2026-07-26T21:34:37+07:00
+* Task / Issue: #171
+* Phase: Founder-authorized correction after Review 3
+* Executing role: Mission Control
+* Authorization: \`${POST_BUDGET_AUTHORIZATION_ID}\`
+
 **Target:** Dev / Correction Builder
-**Objective:** bounded post-budget correction
-**Founder correction authorization:** \`${POST_BUDGET_AUTHORIZATION_ID}\``,
+
+**Objective:** Resolve immutable Critical finding \`MC-R1-171-001\` on PR #172 while preserving counters \`3/1\`, finding identity, the prior reviewed head, and the prohibition on Review 4.
+
+**Links:** Issue https://github.com/boat1994/bemoat-web-starter/issues/171 · PR https://github.com/boat1994/bemoat-web-starter/pull/172 · finding https://github.com/boat1994/bemoat-web-starter/pull/172#discussion_r3649776607
+
+**Scope:** Bind the planning contract to the exact authorized planning-base commit, canonical repository, and protected branch; require a commit-target ref; bind compare evidence to the exact reviewed head; reject impossible topology, substituted compare heads, shared-history unauthorized heads, and unavailable canonical evidence; preserve no-PR, ghost-PR, exact-head, counters, and immutable-lineage guards.
+
+**Required preflight:** Dev must use a clean worktree at PR head \`${POST_BUDGET_HISTORICAL_HEAD}\` and run \`pnpm run bemoat:agent:issue -- 171 --phase correction\` before applying or committing correction changes.`,
       createdAt: '2026-07-26T14:34:44Z',
       updatedAt: '2026-07-26T14:34:44Z',
     }
@@ -1825,7 +1856,7 @@ esac
       mutateAuthorization: (authorization: Record<string, unknown>) => {
         authorization.reviewed_head = 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef'
       },
-      expected: /historical Review 3 correction authorization requires an immutable reviewed_head|binding field (reviewed_head|authorization_snapshot|exact_head|correction_base)/,
+      expected: /STATE CONFLICT: Founder correction authorization reviewed_head does not match HANDOFF anchor|historical Review 3 correction authorization requires an immutable reviewed_head|binding field (reviewed_head|authorization_snapshot|exact_head|correction_base)/,
     },
     {
       label: 'historical finding IDs changed',
@@ -1852,46 +1883,46 @@ esac
       mutateBinding: (binding: Record<string, unknown>) => {
         ;(binding.authorization_snapshot as Record<string, unknown>).action = 'substituted action'
       },
-      expected: /binding field authorization_snapshot/,
+      expected: /STATE CONFLICT: immutable Founder correction HANDOFF fingerprint is invalid/,
     },
     {
       label: 'HANDOFF binding exact_head changed to the later current head',
       mutateBinding: (binding: Record<string, unknown>, { currentHead }: { currentHead: string }) => {
         binding.exact_head = currentHead
       },
-      expected: /binding field exact_head/,
+      expected: /STATE CONFLICT: binding exact head does not match expected HANDOFF state/,
     },
     {
       label: 'HANDOFF binding correction_base changed',
       mutateBinding: (binding: Record<string, unknown>) => {
         binding.correction_base = 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef'
       },
-      expected: /binding field correction_base/,
+      expected: /STATE CONFLICT: binding correction base does not match HANDOFF anchor/,
     },
     {
       label: 'HANDOFF binding review number changed',
       mutateBinding: (binding: Record<string, unknown>) => { binding.review_number = 5 },
-      expected: /binding field review_number/,
+      expected: /STATE CONFLICT: immutable Founder correction HANDOFF fingerprint is invalid/,
     },
     {
       label: 'HANDOFF binding scope changed',
       mutateBinding: (binding: Record<string, unknown>) => { binding.scope = 'review' },
-      expected: /binding field scope/,
+      expected: /STATE CONFLICT: immutable Founder correction HANDOFF fingerprint is invalid/,
     },
     {
       label: 'HANDOFF binding finding IDs changed',
       mutateBinding: (binding: Record<string, unknown>) => { binding.finding_ids = ['MC-R1-999'] },
-      expected: /binding field finding_ids/,
+      expected: /STATE CONFLICT: binding finding IDs do not match HANDOFF anchor/,
     },
     {
       label: 'HANDOFF binding authorization ID changed',
       mutateBinding: (binding: Record<string, unknown>) => { binding.authorization_id = 'founder-r3-substituted' },
-      expected: /binding field authorization_id/,
+      expected: /STATE CONFLICT: binding authorization ID does not match HANDOFF anchor/,
     },
     {
       label: 'HANDOFF binding comment ID changed',
       mutateBinding: (binding: Record<string, unknown>) => { binding.handoff_comment_id = '9999999999' },
-      expected: /binding field handoff_comment_id|not bound to its exact active HANDOFF/,
+      expected: /STATE CONFLICT: binding HANDOFF comment ID mismatch|not bound to its exact active HANDOFF/,
     },
   ])('TEST-PLAN-14: rejects post-budget correction when $label', ({ mutateAuthorization, mutateBinding, expected }) => {
     const { result } = runPostBudgetReviewThreeCorrection({ mutateAuthorization, mutateBinding })
@@ -1900,18 +1931,202 @@ esac
     expect(result.stdout).not.toContain('Edit authorization: granted')
   })
 
-  it('TEST-PLAN-15: rejects post-budget correction when binding fingerprint is stale after semantic payload mutation', () => {
+
+
+
+  // --- Regression Matrix for Issue #171 ---
+
+  it('TEST-PLAN-16: Valid normal Review 3 correction', () => {
+    // Normal review 3 means we don't have post_budget_reviews.
+    // However, the fixture is fine if we just pass a valid correction state.
+    const { result } = runPostBudgetReviewThreeCorrection()
+    expect(result.status, result.stderr || result.stdout).toBe(0)
+    expect(result.stdout).toContain('Edit authorization: granted for the immutable finding set only.')
+  })
+
+  it('TEST-PLAN-17: Valid post-budget correction with unchanged live HANDOFF anchor', () => {
+    const { result } = runPostBudgetReviewThreeCorrection()
+    expect(result.status, result.stderr || result.stdout).toBe(0)
+    expect(result.stdout).toContain('Edit authorization: granted for the immutable finding set only.')
+  })
+
+  it('TEST-PLAN-18: Coordinated authorization + binding mutation with recomputed fingerprint and unchanged HANDOFF -> reject', () => {
     const { result } = runPostBudgetReviewThreeCorrection({
-      mutateBinding: (binding) => {
-        binding.scope = 'review'
-        const { binding_sha256: _stale, ...payload } = binding
+      mutateAuthorization: (auth: any) => { auth.for_review_number = 5 },
+      mutateBinding: (binding: any) => { 
+        binding.review_number = 5 
+        if (binding.authorization_snapshot) binding.authorization_snapshot.for_review_number = 5
+        const { binding_sha256: _, ...payload } = binding
         binding.binding_sha256 = createHash('sha256').update(JSON.stringify(payload)).digest('hex')
       },
     })
     expect(result.status).toBe(1)
-    expect(result.stdout).toMatch(/binding field scope/)
+    expect(result.stdout).toMatch(/STATE CONFLICT/)
     expect(result.stdout).not.toContain('Edit authorization: granted')
   })
+
+  it('TEST-PLAN-19: Coordinated historical reviewed-head substitution -> reject', () => {
+    const { result } = runPostBudgetReviewThreeCorrection({
+      mutateAuthorization: (auth: any) => { auth.reviewed_head = 'deadbeef00000000000000000000000000000000' },
+      mutateBinding: (binding: any) => {
+        binding.exact_head = 'deadbeef00000000000000000000000000000000'
+        binding.correction_base = 'deadbeef00000000000000000000000000000000'
+        if (binding.authorization_snapshot) binding.authorization_snapshot.reviewed_head = 'deadbeef00000000000000000000000000000000'
+        const { binding_sha256: _, ...payload } = binding
+        binding.binding_sha256 = createHash('sha256').update(JSON.stringify(payload)).digest('hex')
+      },
+    })
+    expect(result.status).toBe(1)
+    expect(result.stdout).toMatch(/STATE CONFLICT: Founder correction authorization reviewed_head does not match HANDOFF anchor/)
+    expect(result.stdout).not.toContain('Edit authorization: granted')
+  })
+
+  it('TEST-PLAN-20: Coordinated historical finding-set substitution -> reject', () => {
+    const { result } = runPostBudgetReviewThreeCorrection({
+      mutateAuthorization: (auth: any) => { auth.finding_ids = ['MC-R1-999-999'] },
+      mutateBinding: (binding: any) => {
+        binding.finding_ids = ['MC-R1-999-999']
+        if (binding.authorization_snapshot) binding.authorization_snapshot.finding_ids = ['MC-R1-999-999']
+        const { binding_sha256: _, ...payload } = binding
+        binding.binding_sha256 = createHash('sha256').update(JSON.stringify(payload)).digest('hex')
+      },
+    })
+    expect(result.status).toBe(1)
+    expect(result.stdout).toMatch(/STATE CONFLICT: Founder correction authorization finding IDs do not match HANDOFF anchor/)
+    expect(result.stdout).not.toContain('Edit authorization: granted')
+  })
+
+  it('TEST-PLAN-21: Authorization ID mismatch against HANDOFF -> reject', () => {
+    const { result } = runPostBudgetReviewThreeCorrection({
+      mutateAuthorization: (auth: any) => { auth.authorization_id = 'founder-r3-altered' },
+    })
+    expect(result.status).toBe(1)
+    expect(result.stdout).toMatch(/STATE CONFLICT: Founder correction authorization is not bound to its exact active HANDOFF/)
+    expect(result.stdout).not.toContain('Edit authorization: granted')
+  })
+
+  it('TEST-PLAN-22: HANDOFF Issue identity mismatch -> reject', () => {
+    const fixture = buildPostBudgetReviewThreeCorrectionFixture()
+    const match = fixture.ghStub.match(/cat "([^"]+comments\.json)"/)
+    if (match) {
+            writeFileSync(match[1], readFileSync(match[1], 'utf8').replace('Task / Issue: #171', 'Task / Issue: #999'))
+    }
+    const result = runAgentIssue(fixture.root, ['171', '--phase', 'correction'], {
+      PATH: withStubbedGh(fixture.root, fixture.ghStub),
+    })
+    expect(result.status).toBe(1)
+    expect(result.stdout).toMatch(/STATE CONFLICT: historical Review 3 correction HANDOFF content hash does not match live HANDOFF/)
+    expect(result.stdout).not.toContain('Edit authorization: granted')
+  })
+
+  it('TEST-PLAN-23: HANDOFF PR identity mismatch -> reject', () => {
+    const fixture = buildPostBudgetReviewThreeCorrectionFixture()
+    const match = fixture.ghStub.match(/cat "([^"]+comments\.json)"/)
+    if (match) {
+            writeFileSync(match[1], readFileSync(match[1], 'utf8').replace('PR #172', 'PR #999'))
+    }
+    const result = runAgentIssue(fixture.root, ['171', '--phase', 'correction'], {
+      PATH: withStubbedGh(fixture.root, fixture.ghStub),
+    })
+    expect(result.status).toBe(1)
+    expect(result.stdout).toMatch(/STATE CONFLICT: historical Review 3 correction HANDOFF content hash does not match live HANDOFF/)
+    expect(result.stdout).not.toContain('Edit authorization: granted')
+  })
+
+  it('TEST-PLAN-24: HANDOFF reviewed-head ambiguity or duplication -> reject', () => {
+    const { result } = runPostBudgetReviewThreeCorrection({
+      mutateHandoff: (handoff: any) => { 
+        handoff.body = String(handoff.body).replace('PR head `1f05427a8fbb893e726dd0e317ff30a90d7b3570`', 'PR head `1f05427a8fbb893e726dd0e317ff30a90d7b3570` PR head `1f05427a8fbb893e726dd0e317ff30a90d7b3570`')
+      },
+    })
+    expect(result.status).toBe(1)
+    expect(result.stdout).toMatch(/STATE CONFLICT/)
+    expect(result.stdout).not.toContain('Edit authorization: granted')
+  })
+
+  it('TEST-PLAN-25: HANDOFF finding ambiguity or conflicting values -> reject', () => {
+    const { result } = runPostBudgetReviewThreeCorrection({
+      mutateHandoff: (handoff: any) => { handoff.body = String(handoff.body).replace('finding `MC-R1-171-001`', '') },
+    })
+    expect(result.status).toBe(1)
+    expect(result.stdout).toMatch(/STATE CONFLICT/)
+    expect(result.stdout).not.toContain('Edit authorization: granted')
+  })
+
+  it('TEST-PLAN-26: Missing or altered Founder-authorized Review 3 phase -> reject', () => {
+    const { result } = runPostBudgetReviewThreeCorrection({
+      mutateHandoff: (handoff: any) => { handoff.body = String(handoff.body).replace('Phase: Founder-authorized correction after Review 3', 'Phase: something else') },
+    })
+    expect(result.status).toBe(1)
+    expect(result.stdout).toMatch(/STATE CONFLICT/)
+    expect(result.stdout).not.toContain('Edit authorization: granted')
+  })
+
+  it('TEST-PLAN-27: Raw HANDOFF body edit -> reject', () => {
+    const fixture = buildPostBudgetReviewThreeCorrectionFixture()
+    const match = fixture.ghStub.match(/cat "([^"]+comments\.json)"/)
+    if (match) {
+            const commentsData = JSON.parse(readFileSync(match[1], 'utf8'))
+      commentsData.comments[0].body = commentsData.comments[0].body + '\\n'
+      writeFileSync(match[1], JSON.stringify(commentsData))
+    }
+    const result = runAgentIssue(fixture.root, ['171', '--phase', 'correction'], {
+      PATH: withStubbedGh(fixture.root, fixture.ghStub),
+    })
+    expect(result.status).toBe(1)
+    expect(result.stdout).toMatch(/STATE CONFLICT: historical Review 3 correction HANDOFF content hash does not match live HANDOFF/)
+    expect(result.stdout).not.toContain('Edit authorization: granted')
+  })
+
+  it('TEST-PLAN-28: HANDOFF timestamp mismatch -> reject', () => {
+    const fixture = buildPostBudgetReviewThreeCorrectionFixture()
+    const match = fixture.ghStub.match(/cat "([^"]+comments\.json)"/)
+    if (match) {
+            const commentsData = JSON.parse(readFileSync(match[1], 'utf8'))
+      commentsData.comments[0].updatedAt = '2027-01-01T00:00:00+00:00'
+      writeFileSync(match[1], JSON.stringify(commentsData))
+    }
+    const result = runAgentIssue(fixture.root, ['171', '--phase', 'correction'], {
+      PATH: withStubbedGh(fixture.root, fixture.ghStub),
+    })
+    expect(result.status).toBe(1)
+    expect(result.stdout).toMatch(/STATE CONFLICT: bound Founder correction HANDOFF was edited after dispatch/)
+    expect(result.stdout).not.toContain('Edit authorization: granted')
+  })
+
+  it('TEST-PLAN-29: Stale binding fingerprint -> reject', () => {
+    const { result } = runPostBudgetReviewThreeCorrection({
+      mutateBinding: (binding: any) => { binding.scope = 'review' },
+    })
+    expect(result.status).toBe(1)
+    expect(result.stdout).toMatch(/STATE CONFLICT: immutable Founder correction HANDOFF fingerprint is invalid/)
+    expect(result.stdout).not.toContain('Edit authorization: granted')
+  })
+
+  it('TEST-PLAN-30: Recomputed fingerprint over semantically substituted payload -> still reject through HANDOFF-derived comparison', () => {
+    const { result } = runPostBudgetReviewThreeCorrection({
+      mutateBinding: (binding: any) => { 
+        binding.target = 'Some other target'
+        const { binding_sha256: _, ...payload } = binding
+        binding.binding_sha256 = createHash('sha256').update(JSON.stringify(payload)).digest('hex')
+      },
+    })
+    expect(result.status).toBe(1)
+    expect(result.stdout).toMatch(/STATE CONFLICT: binding target does not match HANDOFF anchor/)
+    expect(result.stdout).not.toContain('Edit authorization: granted')
+  })
+
+  it('TEST-PLAN-31: Current Review 6 correction authorization mismatch -> reject', () => {
+    const { result } = runPostBudgetReviewThreeCorrection({
+      mutateState: (state: any) => {
+        if (state.founder_decision) state.founder_decision.reviewed_head = 'deadbeef00000000000000000000000000000000'
+      },
+    })
+    expect(result.status).toBe(1)
+    expect(result.stdout).toMatch(/STATE CONFLICT/)
+    expect(result.stdout).not.toContain('Edit authorization: granted')
+  })
+
 
   it('fails closed when the verdict PR/base/head line contradicts the immutable contract reviewed_head (MC-R1-002)', () => {
     const root = createRepo('feature/136-immutable-correction-contract')

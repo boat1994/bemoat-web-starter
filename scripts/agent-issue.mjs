@@ -2176,63 +2176,69 @@ function validateConsumedHistoricalReviewThreeAuthorization(authorization) {
   return errors
 }
 
-function buildExpectedCorrectionHandoffBindingFields({ authorization, state, historical = false }) {
+
+function parseHandoffCommentSemanticPayload(body) {
+  if (!body) return { ok: false, errors: ['STATE CONFLICT: missing HANDOFF body'] }
+  const errors = []
+  
+  const phaseMatch = body.match(/^\*\s*Phase:\s*(.+)$/m)
+  const phase = phaseMatch ? phaseMatch[1].trim() : null
+  if (phase !== 'Founder-authorized correction after Review 3') {
+    errors.push('STATE CONFLICT: HANDOFF phase is missing or altered')
+  }
+
+  const authMatch = body.match(/^\*\s*Authorization:\s*`([^`]+)`/m)
+  const authorizationId = authMatch ? authMatch[1].trim() : null
+  if (!authorizationId) errors.push('STATE CONFLICT: HANDOFF authorization ID is missing or malformed')
+
+  const targetMatch = body.match(/^\*\*Target:\*\*\s*(.+)$/m)
+  const target = targetMatch ? targetMatch[1].trim() : null
+  if (target !== 'Dev / Correction Builder') errors.push('STATE CONFLICT: HANDOFF target is ambiguous or altered')
+
+  const issueMatch = body.match(/^\*\s*Task \/ Issue:\s*(#\d+)/m)
+  const issueIdentity = issueMatch ? issueMatch[1].trim() : null
+  if (!issueIdentity) errors.push('STATE CONFLICT: HANDOFF Issue identity is missing or altered')
+
+  const prMatch = body.match(/PR\s*(#\d+)/)
+  const prIdentity = prMatch ? prMatch[1].trim() : null
+  if (!prIdentity) errors.push('STATE CONFLICT: HANDOFF PR identity is missing or altered')
+
+  const findingMatches = [...body.matchAll(/finding\s*`([^`]+)`/gi)]
+  const findingIds = findingMatches.map(m => m[1])
+  if (findingIds.length === 0) {
+    errors.push('STATE CONFLICT: HANDOFF finding IDs are missing or ambiguous')
+  }
+
+  const headMatches = [...body.matchAll(/PR head\s*`([a-f0-9]{40})`/gi)]
+  if (headMatches.length !== 1) {
+    errors.push('STATE CONFLICT: HANDOFF reviewed head is missing, malformed, or ambiguous')
+  }
+  const exactHead = headMatches[0] ? headMatches[0][1].toLowerCase() : null
+
+  if (!body.includes('prohibition on Review 4')) {
+    errors.push('STATE CONFLICT: HANDOFF missing explicit prohibition on Review 4')
+  }
+
+  const scopeMatch = body.match(/^\*\*Scope:\*\*\s*(.+)$/m)
+  const scopeText = scopeMatch ? scopeMatch[1].trim() : null
+  if (!scopeText) errors.push('STATE CONFLICT: HANDOFF scope section is missing')
+
   return {
-    authorization_snapshot: {
-      authorization_id: authorization.authorization_id,
-      authority: authorization.authority,
-      status: 'authorized',
-      action: authorization.action,
-      authorized_at: authorization.authorized_at,
-      scope: authorization.scope,
-      for_review_number: authorization.for_review_number,
-      reviewed_head: authorization.reviewed_head,
-      finding_ids: authorization.finding_ids,
-    },
-    authorization_id: authorization.authorization_id,
-    active_pr: state.active_pr,
-    exact_head: historical ? authorization.reviewed_head : state.current_head,
-    correction_base: authorization.reviewed_head,
-    review_number: authorization.for_review_number,
-    scope: authorization.scope,
-    finding_ids: authorization.finding_ids,
-    handoff_comment_id: String(authorization.handoff_comment_id),
+    ok: errors.length === 0,
+    errors,
+    payload: {
+      phase,
+      authorization_id: authorizationId,
+      target,
+      issue_identity: issueIdentity,
+      pr_identity: prIdentity,
+      finding_ids: findingIds,
+      exact_reviewed_head: exactHead,
+      scope: scopeText
+    }
   }
 }
 
-function findCorrectionHandoffBindingMismatch(binding, {
-  contentSha256,
-  liveTarget,
-  expectedFields,
-  recordedFingerprint,
-  liveUpdatedAt,
-}) {
-  const errors = []
-  if (!binding) {
-    errors.push('STATE CONFLICT: historical Review 3 correction HANDOFF binding is missing')
-    return errors
-  }
-  if (binding.content_sha256 !== contentSha256) {
-    errors.push('STATE CONFLICT: historical Review 3 correction HANDOFF content hash does not match live HANDOFF')
-  }
-  if (binding.target !== liveTarget) {
-    errors.push('STATE CONFLICT: historical Review 3 correction HANDOFF target does not match live HANDOFF')
-  }
-  for (const [key, value] of Object.entries(expectedFields)) {
-    if (JSON.stringify(binding[key]) !== JSON.stringify(value)) {
-      errors.push(`STATE CONFLICT: historical Review 3 correction HANDOFF binding field ${key} does not match immutable authorization`)
-    }
-  }
-  const { binding_sha256: _recordedFingerprint, ...payload } = binding
-  const actualFingerprint = createHash('sha256').update(JSON.stringify(payload)).digest('hex')
-  if (recordedFingerprint !== actualFingerprint) {
-    errors.push('STATE CONFLICT: immutable Founder correction HANDOFF fingerprint is invalid')
-  }
-  if (binding.handoff_updated_at !== liveUpdatedAt) {
-    errors.push('STATE CONFLICT: bound Founder correction HANDOFF was edited after dispatch')
-  }
-  return errors
-}
 
 function verifyReviewThreeCorrectionAuthorization({ issueBody, contract, comments }) {
   const parsed = parseMissionControlState(issueBody ?? '')
@@ -2306,22 +2312,49 @@ function verifyReviewThreeCorrectionAuthorization({ issueBody, contract, comment
   }
   const binding = authorization.handoff_binding
   if (authorization.schema_version === 2) {
-    const contentSha256 = createHash('sha256').update(handoff.body ?? '').digest('hex')
-    const liveTarget = (handoff.body ?? '').match(/^\*\*Target:\*\*\s*(.+?)\s*$/m)?.[1]?.trim() ?? null
-    const expectedFields = buildExpectedCorrectionHandoffBindingFields({
-      authorization,
-      state,
-      historical: hasPostBudgetReviews,
-    })
-    const bindingErrors = findCorrectionHandoffBindingMismatch(binding, {
-      contentSha256,
-      liveTarget,
-      expectedFields,
-      recordedFingerprint: binding?.binding_sha256 ?? null,
-      liveUpdatedAt: handoff.updatedAt ?? handoff.updated_at ?? null,
-    })
-    if (bindingErrors.length > 0) {
-      return { ok: false, errors: bindingErrors, reviewThree: !hasPostBudgetReviews }
+    const handoffBody = handoff.body ?? ''
+    const contentSha256 = createHash('sha256').update(handoffBody).digest('hex')
+    const parsedHandoff = parseHandoffCommentSemanticPayload(handoffBody)
+    if (!parsedHandoff.ok) {
+      return { ok: false, errors: parsedHandoff.errors, reviewThree: !hasPostBudgetReviews }
+    }
+    const payload = parsedHandoff.payload
+    const semanticErrors = []
+    
+    // Validate authorization against HANDOFF semantic anchor
+    if (authorization.authorization_id !== payload.authorization_id) semanticErrors.push('STATE CONFLICT: Founder correction authorization ID does not match HANDOFF anchor')
+    if (authorization.reviewed_head !== payload.exact_reviewed_head) semanticErrors.push('STATE CONFLICT: Founder correction authorization reviewed_head does not match HANDOFF anchor')
+    if (JSON.stringify([...(authorization.finding_ids ?? [])].sort()) !== JSON.stringify([...payload.finding_ids].sort())) semanticErrors.push('STATE CONFLICT: Founder correction authorization finding IDs do not match HANDOFF anchor')
+    
+    // Validate binding against HANDOFF semantic anchor
+    if (!binding) {
+      semanticErrors.push('STATE CONFLICT: historical Review 3 correction HANDOFF binding is missing')
+    } else {
+      if (binding.authorization_id !== payload.authorization_id) semanticErrors.push('STATE CONFLICT: binding authorization ID does not match HANDOFF anchor')
+      if (binding.authorization_snapshot?.authorization_id !== payload.authorization_id) semanticErrors.push('STATE CONFLICT: binding snapshot authorization ID does not match HANDOFF anchor')
+      if (binding.target !== payload.target) semanticErrors.push('STATE CONFLICT: binding target does not match HANDOFF anchor')
+      if (binding.active_pr !== payload.pr_identity) semanticErrors.push('STATE CONFLICT: binding PR identity does not match HANDOFF anchor')
+      if (binding.exact_head !== (hasPostBudgetReviews ? payload.exact_reviewed_head : state.current_head)) semanticErrors.push('STATE CONFLICT: binding exact head does not match expected HANDOFF state')
+      if (binding.correction_base !== payload.exact_reviewed_head) semanticErrors.push('STATE CONFLICT: binding correction base does not match HANDOFF anchor')
+      if (JSON.stringify([...(binding.finding_ids ?? [])].sort()) !== JSON.stringify([...payload.finding_ids].sort())) semanticErrors.push('STATE CONFLICT: binding finding IDs do not match HANDOFF anchor')
+      if (JSON.stringify([...(binding.authorization_snapshot?.finding_ids ?? [])].sort()) !== JSON.stringify([...payload.finding_ids].sort())) semanticErrors.push('STATE CONFLICT: binding snapshot finding IDs do not match HANDOFF anchor')
+      if (binding.authorization_snapshot?.reviewed_head !== payload.exact_reviewed_head) semanticErrors.push('STATE CONFLICT: binding snapshot reviewed_head does not match HANDOFF anchor')
+      
+      const liveUpdatedAt = handoff.updatedAt ?? handoff.updated_at ?? null
+      if (binding.handoff_updated_at !== liveUpdatedAt) semanticErrors.push('STATE CONFLICT: bound Founder correction HANDOFF was edited after dispatch')
+      if (binding.content_sha256 !== contentSha256) semanticErrors.push('STATE CONFLICT: historical Review 3 correction HANDOFF content hash does not match live HANDOFF')
+      if (String(binding.handoff_comment_id) !== String(authorization.handoff_comment_id)) semanticErrors.push('STATE CONFLICT: binding HANDOFF comment ID mismatch')
+    }
+    
+    if (semanticErrors.length > 0) {
+      return { ok: false, errors: semanticErrors, reviewThree: !hasPostBudgetReviews }
+    }
+    
+    // Only verify fingerprint after semantic comparison succeeds
+    const { binding_sha256: recordedFingerprint, ...bindingPayload } = binding
+    const actualFingerprint = createHash('sha256').update(JSON.stringify(bindingPayload)).digest('hex')
+    if (recordedFingerprint !== actualFingerprint) {
+      return { ok: false, errors: ['STATE CONFLICT: immutable Founder correction HANDOFF fingerprint is invalid'], reviewThree: !hasPostBudgetReviews }
     }
   }
   return { ok: true, errors: [], reviewThree: !hasPostBudgetReviews }
@@ -2534,9 +2567,13 @@ function resolveFounderAuthorizedCorrection({
     return { ok: false, reason: 'missing or invalid Founder correction authorization' }
   }
 
+  const postBudgetReviews = Array.isArray(state.post_budget_reviews) ? state.post_budget_reviews : []
+  const hasPostBudgetReviews = postBudgetReviews.length > 0
+  const expectedReviewNumber = hasPostBudgetReviews ? postBudgetReviews.at(-1).review_number : state.review_cycle
+
   if (
     !Number.isInteger(authorization.for_review_number) ||
-    authorization.for_review_number !== state.review_cycle
+    authorization.for_review_number !== expectedReviewNumber
   ) {
     return {
       ok: false,
