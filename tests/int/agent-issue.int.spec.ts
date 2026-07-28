@@ -184,9 +184,15 @@ function readAuthorityFixture(name: string) {
 const ISSUE_171_REVIEW_3_HEAD = '1f05427a8fbb893e726dd0e317ff30a90d7b3570'
 const ISSUE_171_CURRENT_HEAD = 'c88a2cc3858be16a32c308b716c22a1121996ea2'
 const ISSUE_171_FINDING = 'MC-R1-171-001'
+const ISSUE_171_FINDING_SUMMARY = 'Common ancestry does not prove authorized planning lineage'
+const ISSUE_171_FINDING_THREAD_ID = '3649776607'
+const ISSUE_171_FINDING_THREAD_URL =
+  `https://github.com/boat1994/bemoat-web-starter/pull/172#discussion_r${ISSUE_171_FINDING_THREAD_ID}`
 const ISSUE_171_AUTHORIZATION_ID = 'founder-r3-1f05427a8fbb-2026-07-26T01-30-29-07-00'
 const ISSUE_171_HANDOFF_ID = '5083923508'
 const ISSUE_171_S8_ID = '5095153693'
+const ISSUE_171_SPEC_RESULT_ID = '5094347733'
+const ISSUE_171_REVIEW_7_ID = '5093899315'
 
 function sha256(value: string) {
   return createHash('sha256').update(value).digest('hex')
@@ -362,11 +368,17 @@ function setupIssue171AuthorityRepo(mode: 'historical' | 'post_budget') {
   const commentsPath = join(fixtureDir, 'comments.json')
   const historicalRestPath = join(fixtureDir, 'historical-handoff-rest.json')
   const s8RestPath = join(fixtureDir, 's8-rest.json')
+  const specRestPath = join(fixtureDir, 'spec-result-rest.json')
+  const review7RestPath = join(fixtureDir, 'review-7-rest.json')
+  const findingThreadRestPath = join(fixtureDir, 'finding-thread-rest.json')
+  const review7Body = readAuthorityFixture('issue-171-review-7-verdict.md')
+  const specBody = readAuthorityFixture('issue-171-specification-result.md')
+  const findingThreadBody = readAuthorityFixture('issue-171-finding-thread.md')
   const historicalContract = `## REVIEW_VERDICT
 **PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/172 · \`main\` · \`${ISSUE_171_REVIEW_3_HEAD}\`
 **Verdict:** CORRECTION REQUIRED
 \`\`\`json
-{"schema_version":1,"mode":"implementation_pr","reviewed_head":"${ISSUE_171_REVIEW_3_HEAD}","findings":[{"id":"${ISSUE_171_FINDING}","canonical_summary":"Common ancestry does not prove authorized planning lineage","source_thread":"https://github.com/boat1994/bemoat-web-starter/pull/172#discussion_r3649776607","required_evidence":["exact historical authority"]}]}
+{"schema_version":1,"mode":"implementation_pr","reviewed_head":"${ISSUE_171_REVIEW_3_HEAD}","findings":[{"id":"${ISSUE_171_FINDING}","canonical_summary":"${ISSUE_171_FINDING_SUMMARY}","source_thread":"${ISSUE_171_FINDING_THREAD_URL}","required_evidence":["exact historical authority"]}]}
 \`\`\``
   const comments: any[] = mode === 'historical'
     ? [
@@ -392,10 +404,18 @@ function setupIssue171AuthorityRepo(mode: 'historical' | 'post_budget') {
         },
         {
           id: 'review-seven-node',
-          url: 'https://github.com/boat1994/bemoat-web-starter/issues/171#issuecomment-5093899315',
+          url: `https://github.com/boat1994/bemoat-web-starter/issues/171#issuecomment-${ISSUE_171_REVIEW_7_ID}`,
           author: { login: 'boat1994' },
-          body: `## REVIEW_VERDICT\n**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/172 · \`main\` · \`${ISSUE_171_CURRENT_HEAD}\`\n**Verdict:** CORRECTION REQUIRED\n**Findings:** Critical: ${ISSUE_171_FINDING} remains open.`,
-          createdAt: '2026-07-27T16:21:42Z',
+          body: review7Body,
+          createdAt: '2026-07-27T16:22:16Z',
+          updatedAt: null,
+        },
+        {
+          id: 'spec-result-node',
+          url: `https://github.com/boat1994/bemoat-web-starter/issues/171#issuecomment-${ISSUE_171_SPEC_RESULT_ID}`,
+          author: { login: 'boat1994' },
+          body: specBody,
+          createdAt: '2026-07-27T17:05:00Z',
           updatedAt: null,
         },
         {
@@ -442,6 +462,35 @@ function setupIssue171AuthorityRepo(mode: 'historical' | 'post_budget') {
     created_at: '2026-07-27T18:23:26Z',
     updated_at: '2026-07-27T18:23:26Z',
   }))
+  writeFileSync(specRestPath, JSON.stringify({
+    id: Number(ISSUE_171_SPEC_RESULT_ID),
+    html_url: `https://github.com/boat1994/bemoat-web-starter/issues/171#issuecomment-${ISSUE_171_SPEC_RESULT_ID}`,
+    user: { login: 'boat1994' },
+    author_association: 'OWNER',
+    body: specBody,
+    created_at: '2026-07-27T17:05:00Z',
+    updated_at: '2026-07-27T17:05:00Z',
+  }))
+  writeFileSync(review7RestPath, JSON.stringify({
+    id: Number(ISSUE_171_REVIEW_7_ID),
+    html_url: `https://github.com/boat1994/bemoat-web-starter/issues/171#issuecomment-${ISSUE_171_REVIEW_7_ID}`,
+    user: { login: 'boat1994' },
+    author_association: 'OWNER',
+    body: review7Body,
+    created_at: '2026-07-27T16:22:16Z',
+    updated_at: '2026-07-27T16:22:16Z',
+  }))
+  writeFileSync(findingThreadRestPath, JSON.stringify({
+    id: Number(ISSUE_171_FINDING_THREAD_ID),
+    html_url: ISSUE_171_FINDING_THREAD_URL,
+    user: { login: 'boat1994' },
+    author_association: 'OWNER',
+    body: findingThreadBody,
+    created_at: '2026-07-25T07:23:12Z',
+    updated_at: '2026-07-25T07:23:13Z',
+    path: 'scripts/agent-issue.mjs',
+    pull_request_url: 'https://api.github.com/repos/boat1994/bemoat-web-starter/pulls/172',
+  }))
 
   const head = mode === 'historical' ? ISSUE_171_REVIEW_3_HEAD : ISSUE_171_CURRENT_HEAD
   const prPayload = JSON.stringify(correctionPrPayload(head)).replace(/'/g, `'"'"'`)
@@ -451,11 +500,25 @@ case "$*" in
   *"issue view 171"*"comments"*) cat "${commentsPath}" ;;
   *"issues/comments/${ISSUE_171_HANDOFF_ID}"*) cat "${historicalRestPath}" ;;
   *"issues/comments/${ISSUE_171_S8_ID}"*) cat "${s8RestPath}" ;;
+  *"issues/comments/${ISSUE_171_SPEC_RESULT_ID}"*) cat "${specRestPath}" ;;
+  *"issues/comments/${ISSUE_171_REVIEW_7_ID}"*) cat "${review7RestPath}" ;;
+  *"pulls/comments/${ISSUE_171_FINDING_THREAD_ID}"*) cat "${findingThreadRestPath}" ;;
   *"pr view 172"*) printf '%s' '${prPayload}' ;;
   *) echo "unexpected gh call: $*" >&2; exit 1 ;;
 esac
 `
-  return { root, state, comments, issuePath, commentsPath, ghStub }
+  return {
+    root,
+    state,
+    comments,
+    issuePath,
+    commentsPath,
+    ghStub,
+    fixtureDir,
+    specRestPath,
+    review7RestPath,
+    findingThreadRestPath,
+  }
 }
 
 const MATRIX_OWNER = 'boat1994'
@@ -3440,6 +3503,68 @@ ${review1ContractJson(head)}
       expect(result.status, result.stderr || result.stdout).toBe(0)
       expect(result.stdout).toContain('Playback verified: 1/1 canonical findings')
       expect(result.stdout).toContain('Edit authorization: granted for the immutable finding set only.')
+    })
+
+    it('compiles the source-bound #171 finding from Spec RESULT, Review 7, and the original thread', () => {
+      const { root, ghStub } = setupIssue171AuthorityRepo('post_budget')
+      const result = runAgentIssue(root, ['171', '--phase', 'correction'], {
+        PATH: withStubbedGh(root, ghStub),
+      })
+
+      expect(result.status, result.stderr || result.stdout).toBe(0)
+      expect(result.stdout).toContain(`- ${ISSUE_171_FINDING}: ${ISSUE_171_FINDING_SUMMARY}`)
+      expect(result.stdout).toContain(`source_thread: ${ISSUE_171_FINDING_THREAD_URL}`)
+      expect(result.stdout).toContain(`Specification RESULT ${ISSUE_171_SPEC_RESULT_ID}`)
+      expect(result.stdout).toContain(`Review 7 ${ISSUE_171_REVIEW_7_ID}`)
+      expect(result.stdout).not.toContain(`Pinned current authority finding ${ISSUE_171_FINDING}`)
+      expect(result.stdout).not.toContain(
+        `source_thread: https://github.com/boat1994/bemoat-web-starter/issues/171#issuecomment-${ISSUE_171_REVIEW_7_ID}`,
+      )
+    })
+
+    it('fails closed when the pinned Specification RESULT content is mutated', () => {
+      const fixture = setupIssue171AuthorityRepo('post_budget')
+      const mutated = JSON.parse(readFileSync(fixture.specRestPath, 'utf8'))
+      mutated.body = String(mutated.body).replaceAll(ISSUE_171_FINDING, 'MC-R1-171-999')
+      writeFileSync(fixture.specRestPath, JSON.stringify(mutated))
+
+      const result = runAgentIssue(fixture.root, ['171', '--phase', 'correction'], {
+        PATH: withStubbedGh(fixture.root, fixture.ghStub),
+      })
+
+      expect(result.status).toBe(1)
+      expect(result.stdout).toMatch(/Specification RESULT|pinned current authority sources failed/i)
+      expect(result.stdout).not.toContain('Edit authorization: granted')
+    })
+
+    it('fails closed when the pinned Review 7 content is mutated', () => {
+      const fixture = setupIssue171AuthorityRepo('post_budget')
+      const mutated = JSON.parse(readFileSync(fixture.review7RestPath, 'utf8'))
+      mutated.body = String(mutated.body).replace(ISSUE_171_CURRENT_HEAD, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
+      writeFileSync(fixture.review7RestPath, JSON.stringify(mutated))
+
+      const result = runAgentIssue(fixture.root, ['171', '--phase', 'correction'], {
+        PATH: withStubbedGh(fixture.root, fixture.ghStub),
+      })
+
+      expect(result.status).toBe(1)
+      expect(result.stdout).toMatch(/Review 7|pinned current authority sources failed/i)
+      expect(result.stdout).not.toContain('Edit authorization: granted')
+    })
+
+    it('fails closed when the original finding thread content is mutated', () => {
+      const fixture = setupIssue171AuthorityRepo('post_budget')
+      const mutated = JSON.parse(readFileSync(fixture.findingThreadRestPath, 'utf8'))
+      mutated.body = String(mutated.body).replaceAll(ISSUE_171_FINDING, 'MC-R1-171-999')
+      writeFileSync(fixture.findingThreadRestPath, JSON.stringify(mutated))
+
+      const result = runAgentIssue(fixture.root, ['171', '--phase', 'correction'], {
+        PATH: withStubbedGh(fixture.root, fixture.ghStub),
+      })
+
+      expect(result.status).toBe(1)
+      expect(result.stdout).toMatch(/finding thread|pinned current authority sources failed/i)
+      expect(result.stdout).not.toContain('Edit authorization: granted')
     })
   })
 
