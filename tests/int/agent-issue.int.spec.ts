@@ -428,21 +428,23 @@ function correctionPrPayload(head: string, number = 172) {
 function createIssue171DeliveredTopologyRepo() {
   const root = mkdtempSync(join(tmpdir(), 'bemoat-agent-issue-171-topology-'))
   tempRoots.push(root)
-  const clone = spawnSync('git', ['clone', '--no-hardlinks', repoRoot, root], { encoding: 'utf8' })
-  expect(clone.status, clone.stderr).toBe(0)
-  spawnSync('git', ['remote', 'set-url', 'origin', 'https://github.com/boat1994/bemoat-web-starter.git'], { cwd: root, encoding: 'utf8' })
+  spawnSync('git', ['init', '-b', 'main'], { cwd: root, encoding: 'utf8' })
   spawnSync('git', ['config', 'user.email', 'agent-issue@test'], { cwd: root, encoding: 'utf8' })
   spawnSync('git', ['config', 'user.name', 'Agent Issue Test'], { cwd: root, encoding: 'utf8' })
-  const checkout = spawnSync('git', ['checkout', '-B', 'fix/171-authority-contract-correction-v2', ISSUE_171_REPLACEMENT_HEAD], {
-    cwd: root,
-    encoding: 'utf8',
-  })
-  expect(checkout.status, checkout.stderr).toBe(0)
+  writeFileSync(join(root, '.gitkeep'), '')
+  spawnSync('git', ['add', '.gitkeep'], { cwd: root, encoding: 'utf8' })
+  const replacementCommit = spawnSync('git', ['commit', '-m', 'replacement base'], { cwd: root, encoding: 'utf8' })
+  expect(replacementCommit.status, replacementCommit.stderr).toBe(0)
+  const replacementBase = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim()
+  const branch = spawnSync('git', ['checkout', '-b', 'fix/171-authority-contract-correction-v2'], { cwd: root, encoding: 'utf8' })
+  expect(branch.status, branch.stderr).toBe(0)
   writeFileSync(join(root, '.issue-171-delivered-topology'), 'one bounded correction\n')
   spawnSync('git', ['add', '.issue-171-delivered-topology'], { cwd: root, encoding: 'utf8' })
-  const commit = spawnSync('git', ['commit', '-m', 'test: delivered correction topology'], { cwd: root, encoding: 'utf8' })
-  expect(commit.status, commit.stderr).toBe(0)
-  return { root, implementationHead: spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim() }
+  const implementationCommit = spawnSync('git', ['commit', '-m', 'test: delivered correction topology'], { cwd: root, encoding: 'utf8' })
+  expect(implementationCommit.status, implementationCommit.stderr).toBe(0)
+  const implementationHead = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim()
+  spawnSync('git', ['remote', 'add', 'origin', 'https://github.com/boat1994/bemoat-web-starter.git'], { cwd: root, encoding: 'utf8' })
+  return { root, replacementBase, implementationHead }
 }
 
 function review8CorrectionHandoffBody() {
@@ -3817,6 +3819,8 @@ ${review1ContractJson(head)}
       const fixture = setupIssue171AuthorityRepo('post_budget', '#181', topology.root, topology.implementationHead)
       fixture.state.current_head = topology.implementationHead
       fixture.state.last_reviewed_head = ISSUE_171_IMPLEMENTATION_START_HEAD
+      fixture.state.founder_base_change_decision.new_correction_base = topology.replacementBase
+      fixture.state.replacement_dispatch.correction_base = topology.replacementBase
       fixture.state.replacement_dispatch.exact_head = ISSUE_171_IMPLEMENTATION_START_HEAD
       fixture.state.post_budget_reviews.push({
         review_number: 8,
@@ -3846,7 +3850,7 @@ ${review1ContractJson(head)}
         active_pr: '#181',
         branch: 'fix/171-authority-contract-correction-v2',
         historical_correction_base: ISSUE_171_CURRENT_HEAD,
-        authorized_replacement_base: ISSUE_171_REPLACEMENT_HEAD,
+        authorized_replacement_base: topology.replacementBase,
         implementation_head: ISSUE_171_IMPLEMENTATION_START_HEAD,
         finding_ids: [ISSUE_171_FINDING],
         action: 'Authorize exactly one bounded correction for MC-R1-171-001 after Review 8; distinguish and independently validate the historical correction base, authorized replacement base, and current implementation PR head; no Review 9 or other prohibited action.',
@@ -3865,11 +3869,27 @@ ${review1ContractJson(head)}
         active_pr: '#181',
         branch: 'fix/171-authority-contract-correction-v2',
         historical_correction_base: ISSUE_171_CURRENT_HEAD,
-        authorized_replacement_base: ISSUE_171_REPLACEMENT_HEAD,
+        authorized_replacement_base: topology.replacementBase,
         implementation_head: topology.implementationHead,
         review_number: 8,
         finding_ids: [ISSUE_171_FINDING],
       }
+      writeFileSync(fixture.review8HandoffRestPath, JSON.stringify({
+        id: Number(ISSUE_171_REVIEW_8_HANDOFF_ID),
+        html_url: 'https://github.com/boat1994/bemoat-web-starter/issues/171#issuecomment-' + ISSUE_171_REVIEW_8_HANDOFF_ID,
+        user: { login: 'boat1994' },
+        author_association: 'OWNER',
+        body: [
+          '## HANDOFF',
+          '**Target:** Dev / Correction Builder',
+          '**Objective:** Correct exactly ' + ISSUE_171_FINDING + ' on Draft PR #181.',
+          '**Founder authorization:** Exactly one bounded correction for ' + ISSUE_171_FINDING + ' at reviewed head ' + ISSUE_171_IMPLEMENTATION_START_HEAD + '.',
+          '**Three identities:** historical Review 7 correction base ' + ISSUE_171_CURRENT_HEAD + '; Founder-authorized replacement base ' + topology.replacementBase + '; current implementation PR head ' + ISSUE_171_IMPLEMENTATION_START_HEAD + '.',
+          '**Prohibited:** No Review 9.',
+        ].join('\n'),
+        created_at: '2026-07-29T00:36:43Z',
+        updated_at: '2026-07-29T00:36:43Z',
+      }))
       writeIssue171FixtureState(fixture)
 
       const result = runAgentIssue(topology.root, ['171', '--phase', 'correction'], {
