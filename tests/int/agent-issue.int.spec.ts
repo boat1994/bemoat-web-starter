@@ -370,6 +370,7 @@ function setupIssue171AuthorityRepo(mode: 'historical' | 'post_budget') {
   const historicalReviewRestPath = join(fixtureDir, 'historical-review-rest.json')
   const reviewSevenRestPath = join(fixtureDir, 'review-seven-rest.json')
   const s8RestPath = join(fixtureDir, 's8-rest.json')
+  const transportRestPath = join(fixtureDir, 'transport-rest.json')
   const repositoryRestPath = join(fixtureDir, 'repository-rest.json')
   const historicalContract = `## REVIEW_VERDICT
 **PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/172 · \`main\` · \`${ISSUE_171_REVIEW_3_HEAD}\`
@@ -469,6 +470,15 @@ function setupIssue171AuthorityRepo(mode: 'historical' | 'post_budget') {
     created_at: '2026-07-27T18:23:26Z',
     updated_at: '2026-07-27T18:23:26Z',
   }))
+  writeFileSync(transportRestPath, JSON.stringify({
+    id: 5099652203,
+    html_url: 'https://github.com/boat1994/bemoat-web-starter/issues/171#issuecomment-5099652203',
+    user: { login: 'boat1994' },
+    author_association: 'OWNER',
+    body: readAuthorityFixture('issue-171-supplemental-verdict.md'),
+    created_at: '2026-07-28T03:38:18Z',
+    updated_at: '2026-07-28T03:38:18Z',
+  }))
   writeFileSync(repositoryRestPath, JSON.stringify({
     id: 1267006707,
     full_name: 'boat1994/bemoat-web-starter',
@@ -484,6 +494,7 @@ case "$*" in
   *"issues/comments/5079830585"*) cat "${historicalReviewRestPath}" ;;
   *"issues/comments/5093899315"*) cat "${reviewSevenRestPath}" ;;
   *"issues/comments/${ISSUE_171_S8_ID}"*) cat "${s8RestPath}" ;;
+  *"issues/comments/5099652203"*) cat "${transportRestPath}" ;;
   *"api repos/boat1994/bemoat-web-starter"*) cat "${repositoryRestPath}" ;;
   *"pr view 172"*) printf '%s' '${prPayload}' ;;
   *) echo "unexpected gh call: $*" >&2; exit 1 ;;
@@ -499,6 +510,7 @@ esac
     historicalReviewRestPath,
     reviewSevenRestPath,
     s8RestPath,
+    transportRestPath,
     repositoryRestPath,
     ghStub,
   }
@@ -3479,6 +3491,66 @@ ${review1ContractJson(head)}
         priorIndex = index
       }
       expect(result.stdout).not.toContain('exact active HANDOFF')
+    })
+
+    it.each([
+      ['canonical summary', (comment: any) => {
+        comment.body = comment.body.replace('Common ancestry does not prove authorized planning lineage', 'weakened summary')
+      }],
+      ['source thread', (comment: any) => {
+        comment.body = comment.body.replace('discussion_r3649776607', 'discussion_r9999999999')
+      }],
+      ['required evidence', (comment: any) => {
+        comment.body = comment.body.replace('independent semantic comparisons', 'token checks only')
+      }],
+      ['expected area', (comment: any) => {
+        comment.body = comment.body.replace('scripts/agent-issue.mjs', 'docs/harmless.md')
+      }],
+      ['prohibited area', (comment: any) => {
+        comment.body = comment.body.replace('Finance #92, child-repository sync, deployment, migration, merge, or Review 8', 'nothing prohibited')
+      }],
+      ['transport numeric identity', (comment: any) => {
+        comment.url = 'https://github.com/boat1994/bemoat-web-starter/issues/171#issuecomment-5099652204'
+      }],
+      ['transport author metadata', (comment: any) => {
+        comment.author = { login: 'substituted-author' }
+      }],
+      ['transport timestamp metadata', (comment: any) => {
+        comment.createdAt = '2026-07-28T03:38:19Z'
+      }],
+    ])('rejects a substituted schema-v2 transport %s against the selected S8 authority proof', (_name, mutate) => {
+      const fixture = setupIssue171AuthorityRepo('post_budget')
+      const transport = fixture.comments.find((comment: any) => comment.id === 'supplemental-node')
+      mutate(transport)
+      writeFileSync(fixture.commentsPath, JSON.stringify({ comments: fixture.comments }))
+
+      const result = runAgentIssue(fixture.root, ['171', '--phase', 'correction'], {
+        PATH: withStubbedGh(fixture.root, fixture.ghStub),
+      })
+
+      expect(result.status).toBe(1)
+      expect(result.stdout).toContain('current post-budget/S8 Founder correction authorization failed')
+      expect(result.stdout).not.toContain('Edit authorization: granted')
+    })
+
+    it('rejects a second same-head schema-v2 transport instead of selecting a newer mutable scope', () => {
+      const fixture = setupIssue171AuthorityRepo('post_budget')
+      const transport = fixture.comments.find((comment: any) => comment.id === 'supplemental-node')
+      fixture.comments.push({
+        ...transport,
+        id: 'supplemental-node-duplicate',
+        url: 'https://github.com/boat1994/bemoat-web-starter/issues/171#issuecomment-5099652204',
+        createdAt: '2026-07-28T03:38:19Z',
+      })
+      writeFileSync(fixture.commentsPath, JSON.stringify({ comments: fixture.comments }))
+
+      const result = runAgentIssue(fixture.root, ['171', '--phase', 'correction'], {
+        PATH: withStubbedGh(fixture.root, fixture.ghStub),
+      })
+
+      expect(result.status).toBe(1)
+      expect(result.stdout).toContain('current post-budget/S8 Founder correction authorization failed')
+      expect(result.stdout).not.toContain('Edit authorization: granted')
     })
 
     it.each([

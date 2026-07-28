@@ -30,6 +30,16 @@ function uniqueMarkdownField(body, label, errors) {
   return normalizedMarkdownValue(matches[0][1])
 }
 
+function uniqueInlineMarkdownField(body, label, errors) {
+  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const matches = [...body.matchAll(new RegExp(`^\\*\\*${escaped}:\\*\\*\\s*(.+?)\\s*$`, 'gmi'))]
+  if (matches.length !== 1) {
+    errors.push(`STATE CONFLICT: schema-v2 correction transport field ${label} must appear exactly once`)
+    return null
+  }
+  return normalizedMarkdownValue(matches[0][1])
+}
+
 function requireEqual(errors, actual, expected, message) {
   if (actual !== expected) errors.push(`STATE CONFLICT: ${message}`)
 }
@@ -107,7 +117,33 @@ export function verifyCurrentPostBudgetS8Authority({
   if (!sameSet(state?.open_blockers, findingIds)) {
     errors.push('STATE CONFLICT: current correction finding set does not match open blockers')
   }
+  const migration = state?.founder_migration_authority
   const currentVerdictBody = currentVerdict?.body ?? ''
+  const currentTransportId = databaseId(currentVerdict)
+  if (!currentTransportId || !currentVerdict?.author || currentVerdict.authorAssociation !== 'OWNER' ||
+      !currentVerdict.createdAt || currentVerdict.updatedAt !== currentVerdict.createdAt) {
+    errors.push('STATE CONFLICT: schema-v2 correction transport canonical metadata is inconsistent')
+  }
+  const expectedTransportUrl = repository?.nameWithOwner && issueNumber && currentTransportId
+    ? `https://github.com/${repository.nameWithOwner}/issues/${issueNumber}#issuecomment-${currentTransportId}`
+    : null
+  requireEqual(errors, currentVerdict?.url, expectedTransportUrl, 'schema-v2 correction transport identity is inconsistent')
+  const transportFields = {
+    semanticAuthority: uniqueInlineMarkdownField(currentVerdictBody, 'Semantic authority', errors),
+    contractSource: uniqueInlineMarkdownField(currentVerdictBody, 'Contract source', errors),
+  }
+  requireEqual(
+    errors,
+    transportFields.semanticAuthority,
+    `Review 7 verdict comment ${migration?.review_7_verdict_comment_id}; this comment supplements transport only and does not conduct Review 8 or a new semantic review.`,
+    'schema-v2 correction transport semantic authority is inconsistent',
+  )
+  requireEqual(
+    errors,
+    transportFields.contractSource,
+    `Review 7 ${migration?.review_7_verdict_comment_id} · Specification RESULT ${migration?.specification_result_comment_id} · S8 authority ${migration?.comment_id}.`,
+    'schema-v2 correction transport sources are inconsistent',
+  )
   for (const token of [contract?.reviewed_head, ...findingIds]) {
     if (!token || !currentVerdictBody.includes(String(token))) {
       errors.push(`STATE CONFLICT: current correction contract transport is missing ${token ?? 'required identity'}`)
@@ -142,7 +178,6 @@ export function verifyCurrentPostBudgetS8Authority({
     errors.push('STATE CONFLICT: current Founder correction decision is missing or inconsistent')
   }
 
-  const migration = state?.founder_migration_authority
   if (!migration || migration.schema_version !== 3 || migration.status !== 'approved' ||
       migration.authority !== 'Founder' || migration.scope !== 'correction') {
     errors.push('STATE CONFLICT: S8 migration authority is missing or malformed')
@@ -155,6 +190,11 @@ export function verifyCurrentPostBudgetS8Authority({
   ]) {
     if (!token || !currentVerdictBody.includes(String(token))) {
       errors.push(`STATE CONFLICT: current correction contract transport is missing authority source ${token ?? 'identity'}`)
+    }
+  }
+  for (const token of [migration.specification_result_comment_id]) {
+    if (!decision?.action?.includes(String(token))) {
+      errors.push(`STATE CONFLICT: current Founder correction action is missing ${token}`)
     }
   }
 
@@ -249,6 +289,8 @@ export function verifyCurrentPostBudgetS8Authority({
           reviewNumber: 7,
           findingIds: Object.freeze([...findingIds]),
           s8CommentDatabaseId: databaseId(s8Comment),
+          transportDatabaseId: currentTransportId,
+          transportContentSha256: createHash('sha256').update(currentVerdictBody).digest('hex'),
           historicalProof,
         }),
       }

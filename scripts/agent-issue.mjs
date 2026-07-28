@@ -2005,13 +2005,31 @@ function resolveExactAuthorityComment({ adapter, comments, databaseId, role = nu
   return { ok: true, errors: [], comment: hydrated.comment }
 }
 
-function collectCurrentAuthorityEvidence({ commentResult, state }) {
+function collectCurrentAuthorityEvidence({ commentResult, state, currentTransport }) {
   const migration = state.founder_migration_authority
+  const transportCandidates = commentResult.canonicalComments.filter((comment) => {
+    const parsed = parseCorrectionContract(comment?.body ?? '')
+    return parsed.ok && parsed.contract.schema_version === 2 && parsed.contract.mode === 'implementation_pr'
+  })
+  const selectedTransportId = currentTransport?.databaseId ?? currentTransport?.id ??
+    String(currentTransport?.url ?? '').match(/#issuecomment-(\d+)$/)?.[1] ?? null
+  const canonicalTransport = transportCandidates[0]
+  const currentTransportId = canonicalTransport?.databaseId ?? canonicalTransport?.id ??
+    String(canonicalTransport?.url ?? '').match(/#issuecomment-(\d+)$/)?.[1] ?? null
+  if (transportCandidates.length !== 1 ||
+      String(currentTransportId ?? '') !== String(selectedTransportId ?? '')) {
+    return {
+      ok: false,
+      errors: ['STATE CONFLICT: current schema-v2 correction transport must have one exact canonical identity'],
+      evidence: {},
+    }
+  }
   const requests = [
     ['historicalHandoff', migration?.historical_handoff_comment_id, 'HANDOFF'],
     ['historicalReview', migration?.historical_review_3_source_comment_id, 'REVIEW_VERDICT'],
     ['reviewSeven', migration?.review_7_verdict_comment_id, 'REVIEW_VERDICT'],
     ['s8', migration?.comment_id, null],
+    ['transport', currentTransportId, 'REVIEW_VERDICT'],
   ]
   const evidence = {}
   const errors = []
@@ -2027,7 +2045,13 @@ function collectCurrentAuthorityEvidence({ commentResult, state }) {
       role,
     })
     if (!resolved.ok) errors.push(...resolved.errors)
-    else evidence[key] = resolved.comment
+    else {
+      if (key === 'transport' && canonicalTransport?.author &&
+          canonicalTransport.author !== resolved.comment.author) {
+        errors.push('STATE CONFLICT: schema-v2 correction transport author is inconsistent')
+      }
+      evidence[key] = resolved.comment
+    }
   }
 
   const repositoryResult = commentResult.adapter.fetchRepositoryIdentity()
@@ -2300,7 +2324,7 @@ function runCorrectionPhasePreflight({
   let authorityVerification
   if (authorityContext.kind === 'current_post_budget_s8') {
     const state = stateAnalysis.state
-    const collected = collectCurrentAuthorityEvidence({ commentResult, state })
+    const collected = collectCurrentAuthorityEvidence({ commentResult, state, currentTransport: latestVerdict.comment })
     if (!collected.ok) {
       output.push('Stop: current post-budget/S8 Founder correction authorization failed before correction edit authorization.')
       for (const error of collected.errors) output.push(`- ${error}`)
@@ -2335,7 +2359,7 @@ function runCorrectionPhasePreflight({
       s8Comment: collected.evidence.s8,
       reviewSevenComment: collected.evidence.reviewSeven,
       historicalProof: historicalVerification.proof,
-      currentVerdict: latestVerdict.comment,
+      currentVerdict: collected.evidence.transport,
     })
     if (!currentVerification.ok) {
       output.push('Stop: current post-budget/S8 Founder correction authorization failed before correction edit authorization.')
