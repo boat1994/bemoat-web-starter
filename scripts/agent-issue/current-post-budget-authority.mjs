@@ -190,7 +190,7 @@ function parseFindingFromThread(body, findingId) {
   }
 }
 
-function validatePinnedFindingThread({ authority, source, threadUrl, defaultRepo }) {
+function validatePinnedFindingThread({ authority, source, threadUrl }) {
   const errors = []
   const comment = source.comment
   const findingId = authority.finding_ids[0]
@@ -322,7 +322,6 @@ export function recoverCurrentAuthority({
     authority,
     source: threadSource,
     threadUrl: reviewSevenCheck.threadUrl,
-    defaultRepo,
   })
   if (!threadCheck.ok || !threadCheck.finding) {
     return { ok: false, errors: threadCheck.errors }
