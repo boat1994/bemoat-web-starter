@@ -3526,6 +3526,83 @@ ${review1ContractJson(head)}
         'BLOCKED_EXTERNAL: GitHub evidence unavailable',
       ])
     })
+
+    it('keeps historical exact-ID lookup separate from current HANDOFF selection', async () => {
+      const modulePath = pathToFileURL(resolve(repoRoot, 'scripts/agent-issue/role-comments.mjs')).href
+      const { findHistoricalCommentByDatabaseId, selectCurrentRoleComment } = await import(/* @vite-ignore */ modulePath)
+      const historical = issue171HistoricalAuthorityFixture().handoff
+      const current = {
+        id: '5099999999',
+        url: 'https://github.com/boat1994/bemoat-web-starter/issues/171#issuecomment-5099999999',
+        body: '## HANDOFF\n\n**Target:** Dev\n**Objective:** current phase transport',
+        createdAt: '2026-07-28T03:00:00Z',
+        updatedAt: '2026-07-28T03:00:00Z',
+      }
+
+      expect(selectCurrentRoleComment([historical, current], 'HANDOFF')?.comment.id).toBe(current.id)
+      expect(findHistoricalCommentByDatabaseId([historical, current], ISSUE_171_HANDOFF_ID)).toEqual({
+        ok: true,
+        errors: [],
+        comment: historical,
+      })
+    })
+
+    it('fails historical exact-ID lookup when canonical evidence is duplicated', async () => {
+      const modulePath = pathToFileURL(resolve(repoRoot, 'scripts/agent-issue/role-comments.mjs')).href
+      const { findHistoricalCommentByDatabaseId } = await import(/* @vite-ignore */ modulePath)
+      const historical = issue171HistoricalAuthorityFixture().handoff
+      const duplicate = { ...historical, id: 'graphql-node-id' }
+
+      const result = findHistoricalCommentByDatabaseId([historical, duplicate], ISSUE_171_HANDOFF_ID)
+
+      expect(result.ok).toBe(false)
+      expect(result.errors).toContain('STATE CONFLICT: historical comment evidence is duplicated')
+    })
+
+    it('verifies historical Review 3 proof without consulting current role precedence', async () => {
+      const modulePath = pathToFileURL(resolve(repoRoot, 'scripts/agent-issue/historical-review3-authority.mjs')).href
+      const { verifyHistoricalReview3Authority } = await import(/* @vite-ignore */ modulePath)
+      const { state, handoff } = issue171HistoricalAuthorityFixture()
+      const result = verifyHistoricalReview3Authority({
+        authorization: state.founder_correction_authorization,
+        activePr: state.active_pr,
+        handoff,
+        contract: {
+          reviewed_head: ISSUE_171_REVIEW_3_HEAD,
+          findings: [{ id: ISSUE_171_FINDING }],
+        },
+      })
+
+      expect(result).toEqual({
+        ok: true,
+        errors: [],
+        proof: expect.objectContaining({
+          kind: 'historical_review_3',
+          authorizationId: ISSUE_171_AUTHORIZATION_ID,
+          handoffDatabaseId: ISSUE_171_HANDOFF_ID,
+          reviewedHead: ISSUE_171_REVIEW_3_HEAD,
+          findingIds: [ISSUE_171_FINDING],
+        }),
+      })
+    })
+
+    it('rejects a stale historical Review 3 HANDOFF binding', async () => {
+      const modulePath = pathToFileURL(resolve(repoRoot, 'scripts/agent-issue/historical-review3-authority.mjs')).href
+      const { verifyHistoricalReview3Authority } = await import(/* @vite-ignore */ modulePath)
+      const { state, handoff } = issue171HistoricalAuthorityFixture()
+      const result = verifyHistoricalReview3Authority({
+        authorization: state.founder_correction_authorization,
+        activePr: state.active_pr,
+        handoff: { ...handoff, updatedAt: '2026-07-26T14:35:00Z' },
+        contract: {
+          reviewed_head: ISSUE_171_REVIEW_3_HEAD,
+          findings: [{ id: ISSUE_171_FINDING }],
+        },
+      })
+
+      expect(result.ok).toBe(false)
+      expect(result.errors).toContain('STATE CONFLICT: bound Founder correction HANDOFF was edited after dispatch')
+    })
   })
 
   describe('planning_no_pr correction preflight mode', () => {
