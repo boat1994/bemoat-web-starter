@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 export const CORRECTION_CONTRACT_SCHEMA_VERSION = 1
+export const CURRENT_CORRECTION_CONTRACT_SCHEMA_VERSION = 2
 export const CORRECTION_EVIDENCE_SCHEMA_VERSION = 2
 export const FINDING_STATUS = Object.freeze({
   CLAIMED_RESOLVED: 'CLAIMED_RESOLVED',
@@ -75,8 +76,8 @@ function findingShapeErrors(finding, index) {
  */
 function validateContractShape(candidate) {
   const errors = []
-  if (candidate.schema_version !== CORRECTION_CONTRACT_SCHEMA_VERSION) {
-    errors.push(`schema_version must be ${CORRECTION_CONTRACT_SCHEMA_VERSION}`)
+  if (![CORRECTION_CONTRACT_SCHEMA_VERSION, CURRENT_CORRECTION_CONTRACT_SCHEMA_VERSION].includes(candidate.schema_version)) {
+    errors.push(`schema_version must be ${CORRECTION_CONTRACT_SCHEMA_VERSION} or ${CURRENT_CORRECTION_CONTRACT_SCHEMA_VERSION}`)
   }
   let mode = 'implementation_pr'
   if (candidate.mode !== undefined) {
@@ -108,7 +109,7 @@ function validateContractShape(candidate) {
   return {
     ok: true,
     contract: {
-      schema_version: CORRECTION_CONTRACT_SCHEMA_VERSION,
+      schema_version: candidate.schema_version,
       mode,
       reviewed_head: String(candidate.reviewed_head).trim(),
       findings: candidate.findings.map((finding) => ({

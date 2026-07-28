@@ -265,6 +265,7 @@ function issue171PostBudgetState() {
     'BLOCKED FOR FOUNDER DECISION',
     'CORRECTION REQUIRED',
   ]
+  const verdictCommentIds = ['5084367415', '5084562652', '5084829945', '5093899315']
   const postBudgetReviews = reviewHeads.map((reviewedHead, index) => {
     const reviewNumber = index + 4
     return {
@@ -277,17 +278,20 @@ function issue171PostBudgetState() {
         scope: 'review',
         review_number: reviewNumber,
         reviewed_head: reviewedHead,
-        action: `Authorize one bounded Delta Review ${reviewNumber} of ${ISSUE_171_FINDING}`,
+        action: `Authorize one bounded Delta Review ${reviewNumber} of ${ISSUE_171_FINDING} on PR #172 at exact head ${reviewedHead}`,
         authorized_at: `2026-07-${22 + reviewNumber}T00:00:00+07:00`,
       },
       finding_dispositions: [{ finding_id: ISSUE_171_FINDING, disposition: 'open' }],
-      verdict_comment_id: reviewNumber === 7 ? '5093899315' : `review-${reviewNumber}`,
+      verdict_comment_id: verdictCommentIds[index],
+      verdict_url: `https://github.com/boat1994/bemoat-web-starter/issues/171#issuecomment-${verdictCommentIds[index]}`,
     }
   })
 
   return {
     ...historicalState,
     state: 'BLOCKED_FOR_FOUNDER_DECISION',
+    active_task_issue: '"#171"',
+    active_pr: '"#172"',
     current_head: ISSUE_171_CURRENT_HEAD,
     last_reviewed_head: ISSUE_171_CURRENT_HEAD,
     post_budget_reviews: postBudgetReviews,
@@ -327,7 +331,7 @@ function issue171PostBudgetState() {
       historical_finding_ids: [ISSUE_171_FINDING],
       historical_action: historicalState.founder_correction_authorization.action,
       historical_authorized_at: historicalState.founder_correction_authorization.authorized_at,
-      approved_action: 'Authorize exactly one bounded versioned authority migration plus contract correction for MC-R1-171-001, following Specification RESULT 5094347733, bound to Review 7 and the correction base.',
+      approved_action: `Authorize exactly one bounded versioned authority migration plus contract correction for MC-R1-171-001, following Specification RESULT 5094347733, bound to Review 7 and correction base ${ISSUE_171_CURRENT_HEAD}.`,
     },
     next_permitted_action: 'Execute the approved Issue #177 architecture correction',
     material_change_status: 'blocked_by_architecture',
@@ -335,7 +339,7 @@ function issue171PostBudgetState() {
   }
 }
 
-function correctionPrPayload(head: string) {
+function correctionPrPayload(head: string): Record<string, unknown> {
   return {
     number: 172,
     title: 'Frozen Issue #171 correction PR',
@@ -345,6 +349,7 @@ function correctionPrPayload(head: string) {
     headRefOid: head,
     state: 'OPEN',
     isDraft: true,
+    mergeCommit: null,
     statusCheckRollup: [
       { __typename: 'CheckRun', name: 'ci', status: 'COMPLETED', conclusion: 'SUCCESS', commit: { oid: head } },
       { __typename: 'CheckRun', name: 'starter-ci', status: 'COMPLETED', conclusion: 'SUCCESS', commit: { oid: head } },
@@ -362,7 +367,10 @@ function setupIssue171AuthorityRepo(mode: 'historical' | 'post_budget') {
   const issuePath = join(fixtureDir, 'issue.json')
   const commentsPath = join(fixtureDir, 'comments.json')
   const historicalRestPath = join(fixtureDir, 'historical-handoff-rest.json')
+  const historicalReviewRestPath = join(fixtureDir, 'historical-review-rest.json')
+  const reviewSevenRestPath = join(fixtureDir, 'review-seven-rest.json')
   const s8RestPath = join(fixtureDir, 's8-rest.json')
+  const repositoryRestPath = join(fixtureDir, 'repository-rest.json')
   const historicalContract = `## REVIEW_VERDICT
 **PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/172 · \`main\` · \`${ISSUE_171_REVIEW_3_HEAD}\`
 **Verdict:** CORRECTION REQUIRED
@@ -434,6 +442,24 @@ function setupIssue171AuthorityRepo(mode: 'historical' | 'post_budget') {
     created_at: historical.handoff.createdAt,
     updated_at: historical.handoff.updatedAt,
   }))
+  writeFileSync(historicalReviewRestPath, JSON.stringify({
+    id: 5079830585,
+    html_url: 'https://github.com/boat1994/bemoat-web-starter/issues/171#issuecomment-5079830585',
+    user: { login: 'boat1994' },
+    author_association: 'OWNER',
+    body: readAuthorityFixture('issue-171-review-3-verdict.md'),
+    created_at: '2026-07-25T18:20:23Z',
+    updated_at: '2026-07-25T18:20:23Z',
+  }))
+  writeFileSync(reviewSevenRestPath, JSON.stringify({
+    id: 5093899315,
+    html_url: 'https://github.com/boat1994/bemoat-web-starter/issues/171#issuecomment-5093899315',
+    user: { login: 'boat1994' },
+    author_association: 'OWNER',
+    body: `## REVIEW_VERDICT\n**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/172 · \`main\` · \`${ISSUE_171_CURRENT_HEAD}\`\n**Verdict:** CORRECTION REQUIRED\n**Findings:** Critical: ${ISSUE_171_FINDING} remains open.`,
+    created_at: '2026-07-27T16:21:42Z',
+    updated_at: '2026-07-27T16:21:42Z',
+  }))
   writeFileSync(s8RestPath, JSON.stringify({
     id: Number(ISSUE_171_S8_ID),
     html_url: `https://github.com/boat1994/bemoat-web-starter/issues/171#issuecomment-${ISSUE_171_S8_ID}`,
@@ -443,6 +469,10 @@ function setupIssue171AuthorityRepo(mode: 'historical' | 'post_budget') {
     created_at: '2026-07-27T18:23:26Z',
     updated_at: '2026-07-27T18:23:26Z',
   }))
+  writeFileSync(repositoryRestPath, JSON.stringify({
+    id: 1267006707,
+    full_name: 'boat1994/bemoat-web-starter',
+  }))
 
   const head = mode === 'historical' ? ISSUE_171_REVIEW_3_HEAD : ISSUE_171_CURRENT_HEAD
   const prPayload = JSON.stringify(correctionPrPayload(head)).replace(/'/g, `'"'"'`)
@@ -451,12 +481,27 @@ case "$*" in
   *"issue view 171"*"title,url,body,labels"*) cat "${issuePath}" ;;
   *"issue view 171"*"comments"*) cat "${commentsPath}" ;;
   *"issues/comments/${ISSUE_171_HANDOFF_ID}"*) cat "${historicalRestPath}" ;;
+  *"issues/comments/5079830585"*) cat "${historicalReviewRestPath}" ;;
+  *"issues/comments/5093899315"*) cat "${reviewSevenRestPath}" ;;
   *"issues/comments/${ISSUE_171_S8_ID}"*) cat "${s8RestPath}" ;;
+  *"api repos/boat1994/bemoat-web-starter"*) cat "${repositoryRestPath}" ;;
   *"pr view 172"*) printf '%s' '${prPayload}' ;;
   *) echo "unexpected gh call: $*" >&2; exit 1 ;;
 esac
 `
-  return { root, state, comments, issuePath, commentsPath, ghStub }
+  return {
+    root,
+    state,
+    comments,
+    issuePath,
+    commentsPath,
+    historicalRestPath,
+    historicalReviewRestPath,
+    reviewSevenRestPath,
+    s8RestPath,
+    repositoryRestPath,
+    ghStub,
+  }
 }
 
 const MATRIX_OWNER = 'boat1994'
@@ -3411,20 +3456,21 @@ ${review1ContractJson(head)}
       expect(result.stdout).not.toContain('Edit authorization: granted')
     })
 
-    it('characterizes the exact #171 post-budget/S8 bootstrap as fail-closed before authority routing is separated', () => {
+    it('authorizes the exact #171 post-budget/S8 bootstrap without applying historical active-HANDOFF precedence', () => {
       const { root, ghStub } = setupIssue171AuthorityRepo('post_budget')
       const result = runAgentIssue(root, ['171', '--phase', 'correction'], {
         PATH: withStubbedGh(root, ghStub),
       })
 
-      expect(result.status).toBe(1)
+      expect(result.status, result.stderr || result.stdout).toBe(0)
       const expectedLines = [
         'Bemoat correction-mode preflight',
-        'Issue number: 171',
-        'Current branch: fix/171-authority-characterization',
-        'Working tree: clean',
-        'Stop: canonical finding evidence is missing, malformed, or inconsistent.',
-        '- schema_version must be 1',
+        'Issue: https://github.com/boat1994/bemoat-web-starter/issues/171',
+        'Correction capsule',
+        `Reviewed head / correction base: ${ISSUE_171_CURRENT_HEAD}`,
+        `- ${ISSUE_171_FINDING}: Common ancestry does not prove authorized planning lineage`,
+        'Playback verified: 1/1 canonical findings',
+        'Edit authorization: granted for the immutable finding set only.',
       ]
       let priorIndex = -1
       for (const line of expectedLines) {
@@ -3432,7 +3478,51 @@ ${review1ContractJson(head)}
         expect(index, `missing ordered output line: ${line}`).toBeGreaterThan(priorIndex)
         priorIndex = index
       }
+      expect(result.stdout).not.toContain('exact active HANDOFF')
+    })
+
+    it.each([
+      ['malformed', (fixture: ReturnType<typeof setupIssue171AuthorityRepo>) => {
+        delete fixture.state.founder_migration_authority.review_7_verdict_comment_id
+      }],
+      ['stale', (fixture: ReturnType<typeof setupIssue171AuthorityRepo>) => {
+        fixture.state.founder_migration_authority.updated_at = '2026-07-27T18:24:00Z'
+      }],
+      ['conflicting', (fixture: ReturnType<typeof setupIssue171AuthorityRepo>) => {
+        fixture.state.founder_decision.reviewed_head = ISSUE_171_REVIEW_3_HEAD
+      }],
+      ['duplicate', (fixture: ReturnType<typeof setupIssue171AuthorityRepo>) => {
+        fixture.comments.push({ ...fixture.comments.find((comment: any) => comment.id === 's8-node') })
+        writeFileSync(fixture.commentsPath, JSON.stringify({ comments: fixture.comments }))
+      }],
+    ])('fails closed on %s current S8 authority without falling back to historical Review 3', (_name, mutate) => {
+      const fixture = setupIssue171AuthorityRepo('post_budget')
+      mutate(fixture)
+      writeFileSync(fixture.issuePath, JSON.stringify({
+        title: 'Harness false-conflict defect',
+        url: 'https://github.com/boat1994/bemoat-web-starter/issues/171',
+        body: `Mission Control mode: required\n\n${renderMissionControlState(fixture.state)}`,
+        labels: [],
+      }))
+
+      const result = runAgentIssue(fixture.root, ['171', '--phase', 'correction'], {
+        PATH: withStubbedGh(fixture.root, fixture.ghStub),
+      })
+
+      expect(result.status).toBe(1)
+      expect(result.stdout).toContain('current post-budget/S8 Founder correction authorization failed')
+      expect(result.stdout).toContain('- STATE CONFLICT:')
       expect(result.stdout).not.toContain('Edit authorization: granted')
+      expect(result.stdout).not.toContain('exact active HANDOFF')
+    })
+
+    it('selects a malformed current authority path exhaustively instead of falling back', async () => {
+      const modulePath = pathToFileURL(resolve(repoRoot, 'scripts/agent-issue/current-correction-authority.mjs')).href
+      const { selectCorrectionAuthorityContext } = await import(/* @vite-ignore */ modulePath)
+      const state = issue171PostBudgetState()
+      delete state.founder_migration_authority.comment_id
+
+      expect(selectCorrectionAuthorityContext(state)).toEqual({ kind: 'current_post_budget_s8' })
     })
 
     it('normalizes canonical GitHub comment identity without conflating GraphQL and REST identifiers', async () => {

@@ -34,6 +34,31 @@ export function normalizeCanonicalGitHubComment(graphqlComment = {}, restComment
     }
   }
 
+  if (restComment) {
+    const graphqlAuthor = graphqlComment.author?.login ?? graphqlComment.user?.login ?? null
+    const restAuthor = restComment.user?.login ?? restComment.author?.login ?? null
+    const graphqlAssociation = graphqlComment.authorAssociation ?? graphqlComment.author_association ?? null
+    const restAssociation = restComment.author_association ?? restComment.authorAssociation ?? null
+    const graphqlCreatedAt = graphqlComment.createdAt ?? graphqlComment.created_at ?? null
+    const restCreatedAt = restComment.created_at ?? restComment.createdAt ?? null
+    const graphqlUpdatedAt = graphqlComment.updatedAt ?? graphqlComment.updated_at ?? null
+    const restUpdatedAt = restComment.updated_at ?? restComment.updatedAt ?? null
+    const contradictions = [
+      graphqlComment.body != null && restComment.body != null && graphqlComment.body !== restComment.body,
+      graphqlAuthor != null && restAuthor != null && graphqlAuthor !== restAuthor,
+      graphqlAssociation != null && restAssociation != null && graphqlAssociation !== restAssociation,
+      graphqlCreatedAt != null && restCreatedAt != null && graphqlCreatedAt !== restCreatedAt,
+      graphqlUpdatedAt != null && restUpdatedAt != null && graphqlUpdatedAt !== restUpdatedAt,
+    ]
+    if (contradictions.some(Boolean)) {
+      return {
+        ok: false,
+        errors: ['STATE CONFLICT: GitHub comment evidence is contradictory'],
+        comment: null,
+      }
+    }
+  }
+
   const databaseId = databaseIds[0] ?? null
   const graphqlId = graphqlComment.id ?? graphqlComment.node_id ?? null
   const nodeId = typeof graphqlId === 'string' && !/^\d+$/.test(graphqlId)
@@ -139,6 +164,34 @@ export function createGitHubEvidenceAdapter({
       return normalized.ok
         ? { ok: true, comment: normalized.comment, rawComment: parsed.value }
         : { ok: false, reason: normalized.errors.join('\n') }
+    },
+
+    hydrateComment(comment) {
+      const databaseId = normalizeDatabaseId(comment?.databaseId ?? comment?.database_id) ??
+        normalizeDatabaseId(comment?.id) ?? commentDatabaseIdFromUrl(comment?.url ?? comment?.html_url)
+      const fetched = this.fetchCommentByDatabaseId(databaseId)
+      if (!fetched.ok) return fetched
+      const normalized = normalizeCanonicalGitHubComment(comment, fetched.rawComment)
+      return normalized.ok
+        ? { ok: true, comment: normalized.comment, rawComment: fetched.rawComment }
+        : { ok: false, reason: normalized.errors.join('\n') }
+    },
+
+    fetchRepositoryIdentity() {
+      if (!defaultRepo) {
+        return { ok: false, reason: 'GitHub repository is required for repository lookup.' }
+      }
+      const parsed = parseJsonResult(
+        execute(['api', `repos/${defaultRepo}`]),
+        'Invalid repository JSON',
+      )
+      if (!parsed.ok) return parsed
+      const databaseId = normalizeDatabaseId(parsed.value?.id)
+      const nameWithOwner = parsed.value?.full_name ?? null
+      if (!databaseId || typeof nameWithOwner !== 'string' || !nameWithOwner) {
+        return { ok: false, reason: 'GitHub repository evidence is missing canonical identity.' }
+      }
+      return { ok: true, repository: { databaseId, nameWithOwner } }
     },
   }
 }

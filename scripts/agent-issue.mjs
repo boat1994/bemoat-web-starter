@@ -25,6 +25,10 @@ import {
   selectCurrentRoleComment,
 } from './agent-issue/role-comments.mjs'
 import { verifyHistoricalReview3Authority } from './agent-issue/historical-review3-authority.mjs'
+import {
+  selectCorrectionAuthorityContext,
+  verifyCurrentPostBudgetS8Authority,
+} from './agent-issue/current-correction-authority.mjs'
 
 export { parseMissionControlState }
 
@@ -572,8 +576,8 @@ function fetchIssueByReference(cwd, reference, env = process.env) {
 
 function fetchIssueComments(cwd, issueNumber, env = process.env) {
   const defaultRepo = getDefaultRepo(cwd)
-  const result = createGitHubEvidenceAdapter({ cwd, env, defaultRepo, runCommand: run })
-    .fetchIssueComments(issueNumber)
+  const adapter = createGitHubEvidenceAdapter({ cwd, env, defaultRepo, runCommand: run })
+  const result = adapter.fetchIssueComments(issueNumber)
   if (!result.ok) return result
 
   return {
@@ -581,6 +585,7 @@ function fetchIssueComments(cwd, issueNumber, env = process.env) {
     comments: projectComments(result.comments),
     canonicalComments: result.comments,
     rawComments: result.rawComments,
+    adapter,
   }
 }
 
@@ -595,7 +600,7 @@ function fetchPrByReference(cwd, reference, env = process.env) {
     'view',
     parsed.number,
     '--json',
-    'title,url,headRefName,baseRefName,headRefOid,state,statusCheckRollup,commits,headRepository,mergeCommit',
+    'title,url,headRefName,baseRefName,headRefOid,state,isDraft,statusCheckRollup,commits,headRepository,mergeCommit',
   ]
   if (parsed.repo) {
     args.push('--repo', parsed.repo)
@@ -1984,6 +1989,57 @@ function getCorrectionDiffFiles(cwd, reviewedHead, env = process.env) {
   return { ok: true, files }
 }
 
+function resolveExactAuthorityComment({ adapter, comments, databaseId, role = null }) {
+  const selected = findHistoricalCommentByDatabaseId(comments, databaseId, role)
+  if (!selected.ok) return selected
+
+  const hydrated = adapter.hydrateComment(selected.comment)
+  if (!hydrated.ok) {
+    const reason = hydrated.reason || 'GitHub authority comment evidence is unavailable'
+    return {
+      ok: false,
+      errors: [reason.startsWith('STATE CONFLICT:') ? reason : `BLOCKED_EXTERNAL: ${reason}`],
+      comment: null,
+    }
+  }
+  return { ok: true, errors: [], comment: hydrated.comment }
+}
+
+function collectCurrentAuthorityEvidence({ commentResult, state }) {
+  const migration = state.founder_migration_authority
+  const requests = [
+    ['historicalHandoff', migration?.historical_handoff_comment_id, 'HANDOFF'],
+    ['historicalReview', migration?.historical_review_3_source_comment_id, 'REVIEW_VERDICT'],
+    ['reviewSeven', migration?.review_7_verdict_comment_id, 'REVIEW_VERDICT'],
+    ['s8', migration?.comment_id, null],
+  ]
+  const evidence = {}
+  const errors = []
+  for (const [key, databaseId, role] of requests) {
+    if (databaseId == null) {
+      errors.push(`STATE CONFLICT: current authority ${key} comment identity is missing`)
+      continue
+    }
+    const resolved = resolveExactAuthorityComment({
+      adapter: commentResult.adapter,
+      comments: commentResult.canonicalComments,
+      databaseId,
+      role,
+    })
+    if (!resolved.ok) errors.push(...resolved.errors)
+    else evidence[key] = resolved.comment
+  }
+
+  const repositoryResult = commentResult.adapter.fetchRepositoryIdentity()
+  if (!repositoryResult.ok) {
+    errors.push(`BLOCKED_EXTERNAL: ${repositoryResult.reason}`)
+  } else {
+    evidence.repository = repositoryResult.repository
+  }
+
+  return { ok: errors.length === 0, errors, evidence }
+}
+
 function verifyReviewThreeCorrectionAuthorization({ issueBody, contract, comments }) {
   const parsed = parseMissionControlState(issueBody ?? '')
   const managedRequired = /Mission\s+Control\s+mode:\s*required/i.test(issueBody ?? '')
@@ -2234,13 +2290,68 @@ function runCorrectionPhasePreflight({
     return { ok: false, exitCode: 1, usageError: false, output, issueNumber, branchName, statusShort, issueMetadata }
   }
 
-  const reviewThreeAuthorization = verifyReviewThreeCorrectionAuthorization({
-    issueBody: issueMetadata.body ?? '', contract: parsedContract.contract, comments: commentResult.comments,
-  })
-  if (!reviewThreeAuthorization.ok) {
-    output.push('Stop: Review 3 Founder correction authorization failed before correction edit authorization.')
-    for (const error of reviewThreeAuthorization.errors) output.push(`- ${error}`)
+  const stateAnalysis = parseMissionControlState(issueMetadata.body ?? '')
+  const authorityContext = selectCorrectionAuthorityContext(stateAnalysis.valid ? stateAnalysis.state : null)
+  if (parsedContract.contract.schema_version === 2 && authorityContext.kind !== 'current_post_budget_s8') {
+    output.push('Stop: canonical finding evidence is missing, malformed, or inconsistent.')
+    output.push('- schema_version 2 requires explicit current post-budget/S8 authority')
     return { ok: false, exitCode: 1, usageError: false, output, issueNumber, branchName, statusShort, issueMetadata }
+  }
+  let authorityVerification
+  if (authorityContext.kind === 'current_post_budget_s8') {
+    const state = stateAnalysis.state
+    const collected = collectCurrentAuthorityEvidence({ commentResult, state })
+    if (!collected.ok) {
+      output.push('Stop: current post-budget/S8 Founder correction authorization failed before correction edit authorization.')
+      for (const error of collected.errors) output.push(`- ${error}`)
+      return { ok: false, exitCode: 1, usageError: false, output, issueNumber, branchName, statusShort, issueMetadata }
+    }
+
+    const migration = state.founder_migration_authority
+    const historicalVerification = verifyHistoricalReview3Authority({
+      authorization: state.founder_correction_authorization,
+      activePr: state.founder_correction_authorization?.handoff_binding?.active_pr,
+      handoff: collected.evidence.historicalHandoff,
+      contract: {
+        reviewed_head: migration.historical_reviewed_head,
+        findings: (migration.historical_finding_ids ?? []).map((id) => ({ id })),
+      },
+      reviewVerdict: collected.evidence.historicalReview,
+      reviewVerdictDatabaseId: migration.historical_review_3_source_comment_id,
+      expectedPrNumber: String(migration.pr ?? '').match(/#?(\d+)/)?.[1] ?? null,
+      requireCanonicalMetadata: true,
+    })
+    if (!historicalVerification.ok) {
+      output.push('Stop: current post-budget/S8 Founder correction authorization failed before correction edit authorization.')
+      for (const error of historicalVerification.errors) output.push(`- ${error}`)
+      return { ok: false, exitCode: 1, usageError: false, output, issueNumber, branchName, statusShort, issueMetadata }
+    }
+
+    const currentVerification = verifyCurrentPostBudgetS8Authority({
+      state,
+      contract: parsedContract.contract,
+      repository: collected.evidence.repository,
+      issueNumber,
+      s8Comment: collected.evidence.s8,
+      reviewSevenComment: collected.evidence.reviewSeven,
+      historicalProof: historicalVerification.proof,
+      currentVerdict: latestVerdict.comment,
+    })
+    if (!currentVerification.ok) {
+      output.push('Stop: current post-budget/S8 Founder correction authorization failed before correction edit authorization.')
+      for (const error of currentVerification.errors) output.push(`- ${error}`)
+      return { ok: false, exitCode: 1, usageError: false, output, issueNumber, branchName, statusShort, issueMetadata }
+    }
+    authorityVerification = currentVerification
+  } else {
+    authorityVerification = verifyReviewThreeCorrectionAuthorization({
+      issueBody: issueMetadata.body ?? '', contract: parsedContract.contract, comments: commentResult.comments,
+    })
+    if (!authorityVerification.ok) {
+      output.push('Stop: Review 3 Founder correction authorization failed before correction edit authorization.')
+      for (const error of authorityVerification.errors) output.push(`- ${error}`)
+      return { ok: false, exitCode: 1, usageError: false, output, issueNumber, branchName, statusShort, issueMetadata }
+    }
   }
 
   if (parsedContract.contract.mode === 'planning_no_pr') {
@@ -2277,12 +2388,20 @@ function runCorrectionPhasePreflight({
     for (const error of reconciliation.errors) output.push(`- ${error}`)
     return { ok: false, exitCode: 1, usageError: false, output, issueNumber, branchName, statusShort, issueMetadata }
   }
-  if (reviewThreeAuthorization.reviewThree) {
+  if (authorityVerification.reviewThree || authorityContext.kind === 'current_post_budget_s8') {
     const ci = analyzeExactHeadCi(reconciliation.livePr)
     if (!ci.exactHeadVerified) {
-      output.push(`Stop: Review 3 correction requires successful exact-head CI (${ci.summary}).`)
+      const authorityLabel = authorityContext.kind === 'current_post_budget_s8'
+        ? 'current post-budget/S8 correction'
+        : 'Review 3 correction'
+      output.push(`Stop: ${authorityLabel} requires successful exact-head CI (${ci.summary}).`)
       return { ok: false, exitCode: 1, usageError: false, output, issueNumber, branchName, statusShort, issueMetadata }
     }
+  }
+  if (authorityContext.kind === 'current_post_budget_s8' &&
+      (reconciliation.livePr?.isDraft !== true || reconciliation.livePr?.mergeCommit != null)) {
+    output.push('Stop: current post-budget/S8 correction requires the live PR to remain Draft and unmerged.')
+    return { ok: false, exitCode: 1, usageError: false, output, issueNumber, branchName, statusShort, issueMetadata }
   }
 
   const diffResult = getCorrectionDiffFiles(cwd, parsedContract.contract.reviewed_head, env)

@@ -15,7 +15,16 @@ function handoffDatabaseId(handoff) {
   return String(url).match(/#issuecomment-(\d+)$/)?.[1] ?? null
 }
 
-export function verifyHistoricalReview3Authority({ authorization, activePr, handoff, contract }) {
+export function verifyHistoricalReview3Authority({
+  authorization,
+  activePr,
+  handoff,
+  contract,
+  reviewVerdict = null,
+  reviewVerdictDatabaseId = null,
+  expectedPrNumber = null,
+  requireCanonicalMetadata = false,
+}) {
   if (!authorization || authorization.status !== 'consumed' || authorization.for_review_number !== 3) {
     return {
       ok: false,
@@ -49,6 +58,46 @@ export function verifyHistoricalReview3Authority({ authorization, activePr, hand
       ok: false,
       errors: ['STATE CONFLICT: Founder correction authorization is not bound to its exact active HANDOFF'],
       proof: null,
+    }
+  }
+
+  if (requireCanonicalMetadata && (
+    !handoff.author || handoff.authorAssociation !== 'OWNER' || !handoff.createdAt || !handoff.updatedAt
+  )) {
+    return {
+      ok: false,
+      errors: ['STATE CONFLICT: historical HANDOFF canonical metadata is missing or inconsistent'],
+      proof: null,
+    }
+  }
+
+  let exactReviewVerdictId = null
+  if (reviewVerdict || reviewVerdictDatabaseId) {
+    exactReviewVerdictId = handoffDatabaseId(reviewVerdict)
+    const verdictBody = reviewVerdict?.body ?? ''
+    const prNumber = verdictBody.match(/https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/(\d+)/)?.[1] ?? null
+    const verdictHead = verdictBody.match(/\*\*PR\s*\/\s*base\s*\/\s*head:\*\*[^\n]*·\s*`([0-9a-f]{7,40})`/i)?.[1] ?? null
+    if (exactReviewVerdictId !== String(reviewVerdictDatabaseId) ||
+        !/^##\s+REVIEW_VERDICT\s*$/m.test(verdictBody) ||
+        !/\*\*Verdict:\*\*\s*BLOCKED FOR FOUNDER DECISION/i.test(verdictBody) ||
+        verdictHead !== authorization.reviewed_head ||
+        (expectedPrNumber != null && prNumber !== String(expectedPrNumber)) ||
+        !/cycle\s+`3`[^\n]*full_review_count\s+`1`/i.test(verdictBody)) {
+      return {
+        ok: false,
+        errors: ['STATE CONFLICT: historical Review 3 verdict evidence is missing or inconsistent'],
+        proof: null,
+      }
+    }
+    if (requireCanonicalMetadata && (
+      !reviewVerdict.author || reviewVerdict.authorAssociation !== 'OWNER' ||
+      !reviewVerdict.createdAt || !reviewVerdict.updatedAt
+    )) {
+      return {
+        ok: false,
+        errors: ['STATE CONFLICT: historical Review 3 canonical metadata is missing or inconsistent'],
+        proof: null,
+      }
     }
   }
 
@@ -95,6 +144,14 @@ export function verifyHistoricalReview3Authority({ authorization, activePr, hand
         proof: null,
       }
     }
+    const liveCreatedAt = handoff.createdAt ?? handoff.created_at ?? null
+    if (binding.handoff_created_at !== liveCreatedAt) {
+      return {
+        ok: false,
+        errors: ['STATE CONFLICT: historical Founder correction HANDOFF creation timestamp is inconsistent'],
+        proof: null,
+      }
+    }
     const liveUpdatedAt = handoff.updatedAt ?? handoff.updated_at ?? null
     if (binding.handoff_updated_at !== liveUpdatedAt) {
       return {
@@ -115,6 +172,7 @@ export function verifyHistoricalReview3Authority({ authorization, activePr, hand
       reviewedHead: authorization.reviewed_head,
       findingIds: Object.freeze([...authorization.finding_ids]),
       handoffDatabaseId: exactHandoffId,
+      reviewVerdictDatabaseId: exactReviewVerdictId,
       handoffContentSha256: createHash('sha256').update(handoff.body ?? '').digest('hex'),
     }),
   }

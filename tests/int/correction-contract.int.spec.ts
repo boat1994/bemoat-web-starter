@@ -101,11 +101,21 @@ ${JSON.stringify(map, null, 2)}
 }
 
 describe('correction-contract pure module', () => {
-  it('accepts schema-v2 correction RESULT evidence while keeping the immutable verdict contract at v1', () => {
+  it('accepts schema-v2 correction RESULT evidence while preserving schema-v1 verdict contracts', () => {
     expect(parseCorrectionContract(verdictBody()).contract.schema_version).toBe(1)
     const parsed = parseCorrectionEvidenceMap(resultBody())
     expect(parsed.ok).toBe(true)
     expect(parsed.evidence.schema_version).toBe(2)
+  })
+  it('accepts a schema-v2 implementation_pr verdict contract for versioned authority migration', () => {
+    const parsed = parseCorrectionContract(verdictBody(contractJson({
+      schema_version: 2,
+      mode: 'implementation_pr',
+    })))
+
+    expect(parsed.ok).toBe(true)
+    expect(parsed.contract.schema_version).toBe(2)
+    expect(parsed.contract.mode).toBe('implementation_pr')
   })
   it('parses exact canonical identity from a REVIEW_VERDICT block', () => {
     const parsed = parseCorrectionContract(verdictBody())
