@@ -183,6 +183,7 @@ function readAuthorityFixture(name: string) {
 
 const ISSUE_171_REVIEW_3_HEAD = '1f05427a8fbb893e726dd0e317ff30a90d7b3570'
 const ISSUE_171_CURRENT_HEAD = 'c88a2cc3858be16a32c308b716c22a1121996ea2'
+const ISSUE_171_REPLACEMENT_HEAD = 'f0c7f550b4c6439d311da623a1daf8745ddb6cc9'
 const ISSUE_171_FINDING = 'MC-R1-171-001'
 const ISSUE_171_FINDING_SUMMARY = 'Common ancestry does not prove authorized planning lineage'
 const ISSUE_171_FINDING_THREAD_ID = '3649776607'
@@ -193,6 +194,7 @@ const ISSUE_171_HANDOFF_ID = '5083923508'
 const ISSUE_171_S8_ID = '5095153693'
 const ISSUE_171_SPEC_RESULT_ID = '5094347733'
 const ISSUE_171_REVIEW_7_ID = '5093899315'
+const ISSUE_171_REPLACEMENT_DISPATCH_ID = '5105570187'
 
 function sha256(value: string) {
   return createHash('sha256').update(value).digest('hex')
@@ -270,6 +272,20 @@ function issue171PostBudgetState() {
     'BLOCKED FOR FOUNDER DECISION',
     'CORRECTION REQUIRED',
   ]
+  const reviewActions = [
+    `Authorize one bounded Delta Review 4 of ${ISSUE_171_FINDING} on PR #172 at exact head 6cb948bef65b542f982a2d2184fe7e8f65b5b60a`,
+    `Authorize one bounded Delta Review 5 of ${ISSUE_171_FINDING} on PR #172 at exact head 1b9899f10ae39a34296698c5215e8fc24724d02d`,
+    `Authorize one bounded Delta Review 6 of ${ISSUE_171_FINDING} on PR #172 at exact head e2735059697ea01372327a91c3867f576d33bbe3`,
+    `Authorize exactly one bounded Delta Review 7 of ${ISSUE_171_FINDING} on PR`,
+  ]
+  const reviewAuthorizedAt = [
+    '2026-07-26T22:59:41+07:00',
+    '2026-07-27T00:06:00+07:00',
+    '2026-07-27T01:17:04+07:00',
+    '2026-07-27T13:39:08+07:00',
+  ]
+  const reviewCommentIds = ['5084367415', '5084562652', '5084829945', ISSUE_171_REVIEW_7_ID]
+  const reviewThreadIds = ['3652925897', ISSUE_171_FINDING_THREAD_ID, ISSUE_171_FINDING_THREAD_ID, ISSUE_171_FINDING_THREAD_ID]
   const postBudgetReviews = reviewHeads.map((reviewedHead, index) => {
     const reviewNumber = index + 4
     return {
@@ -282,18 +298,24 @@ function issue171PostBudgetState() {
         scope: 'review',
         review_number: reviewNumber,
         reviewed_head: reviewedHead,
-        action: `Authorize one bounded Delta Review ${reviewNumber} of ${ISSUE_171_FINDING}`,
-        authorized_at: `2026-07-${22 + reviewNumber}T00:00:00+07:00`,
+        action: reviewActions[index],
+        authorized_at: reviewAuthorizedAt[index],
       },
       finding_dispositions: [{ finding_id: ISSUE_171_FINDING, disposition: 'open' }],
-      verdict_comment_id: reviewNumber === 7 ? '5093899315' : `review-${reviewNumber}`,
+      verdict_comment_id: reviewCommentIds[index],
+      verdict_url: `https://github.com/boat1994/bemoat-web-starter/issues/171#issuecomment-${reviewCommentIds[index]}`,
+      finding_thread_url: `https://github.com/boat1994/bemoat-web-starter/pull/172#discussion_r${reviewThreadIds[index]}`,
     }
   })
 
   return {
     ...historicalState,
-    state: 'BLOCKED_FOR_FOUNDER_DECISION',
-    current_head: ISSUE_171_CURRENT_HEAD,
+    state: 'IN_PROGRESS',
+    review_cycle: 3,
+    full_review_count: 1,
+    active_task_issue: '"#171"',
+    active_pr: 'pending',
+    current_head: ISSUE_171_REPLACEMENT_HEAD,
     last_reviewed_head: ISSUE_171_CURRENT_HEAD,
     post_budget_reviews: postBudgetReviews,
     founder_decision: {
@@ -303,12 +325,12 @@ function issue171PostBudgetState() {
       for_review_number: 7,
       reviewed_head: ISSUE_171_CURRENT_HEAD,
       finding_ids: [ISSUE_171_FINDING],
-      action: 'Authorize exactly one bounded versioned authority migration plus contract correction defined by Specification RESULT 5094347733',
+      action: 'Authorize exactly one bounded versioned authority migration plus contract correction defined by Specification RESULT 5094347733; create a new immutable Founder migration authority for historical fields lacking an independent source, bind the new versioned record to the unchanged historical HANDOFF and this migration authorization, implement the exhaustive parser and mutation-isolated test matrix, and preserve all accepted lineage, exact-head, canonical repository, protected-ref, no-PR, ghost-PR, counter, finding and implementation-PR guards',
       authorized_at: '2026-07-28T00:26:21+07:00',
     },
     founder_migration_authority: {
       schema_version: 3,
-      status: 'approved',
+      status: 'consumed',
       authority: 'Founder',
       scope: 'correction',
       comment_id: ISSUE_171_S8_ID,
@@ -332,20 +354,62 @@ function issue171PostBudgetState() {
       historical_finding_ids: [ISSUE_171_FINDING],
       historical_action: historicalState.founder_correction_authorization.action,
       historical_authorized_at: historicalState.founder_correction_authorization.authorized_at,
-      approved_action: 'Authorize exactly one bounded versioned authority migration plus contract correction for MC-R1-171-001, following Specification RESULT 5094347733, bound to Review 7 and the correction base.',
+      approved_action: 'Authorize exactly one bounded versioned authority migration plus contract correction for MC-R1-171-001, following Specification RESULT 5094347733, bound to Review 7 and correction base c88a2cc3858be16a32c308b716c22a1121996ea2.',
     },
-    next_permitted_action: 'Execute the approved Issue #177 architecture correction',
-    material_change_status: 'blocked_by_architecture',
-    updated_at: '2026-07-28T11:03:15+07:00',
+    completed_dependencies: [
+      { issue: '#177', status: 'DONE' },
+      { pr: '#179', status: 'MERGED' },
+      { pr: '#180', status: 'MERGED' },
+      { pr: '#178', status: 'CLOSED_SUPERSEDED' },
+    ],
+    finding_lineage: [{
+      finding_id: ISSUE_171_FINDING,
+      severity: 'Critical',
+      disposition: 'open',
+      summary: ISSUE_171_FINDING_SUMMARY,
+      violated_acceptance_criterion: 'Required scope 1, 3, 5, and 6: bind an exact authorized planning lineage and fail closed for unrelated heads',
+      head_sha: '3dc51cb885c460c9a1c7d609196b9a2d3d6f9462',
+      source_thread: ISSUE_171_FINDING_THREAD_URL,
+      evidence: 'Founder explicitly rejected rollback and accepted current Cloudflare Worker version 82c7935e as the production baseline after incident verification comment 5079262128; correction remains at PR head e197336c17dfb2c2dec3959cd3e5be643befbc7f with exact-head CI green',
+      required_correction_evidence: [
+        'Bind the immutable planning contract to an exact authorized planning-base commit and canonical repository/protected-branch identity',
+        'Accept the real moving-base topology while rejecting shared-history but unauthorized heads and local/stale/ambiguous/replace/graft-influenced lineage',
+        'Classify shallow or missing-object proof gaps as BLOCKED_EXTERNAL instead of contradictory STATE_CONFLICT',
+        'Preserve no-PR identity, ghost-PR checks, counters, immutable IDs, scope guards, and implementation-PR exact-head/base behavior under focused and full exact-head CI',
+      ],
+    }],
+    founder_base_change_decision: {
+      status: 'approved',
+      authority: 'Founder',
+      old_pr: '#172',
+      old_base: ISSUE_171_CURRENT_HEAD,
+      new_correction_base: ISSUE_171_REPLACEMENT_HEAD,
+      replacement_pr: 'pending',
+      finding_scope: ISSUE_171_FINDING,
+      source_comment_id: ISSUE_171_REPLACEMENT_DISPATCH_ID,
+      action: 'Supersede PR #172 and HANDOFF 5105341723; change the correction base to main@f0c7f550b4c6439d311da623a1daf8745ddb6cc9; authorize Dev / Correction Builder to create a replacement branch and Draft PR from that exact base; carry forward only MC-R1-171-001.',
+      authorized_at: '2026-07-28T14:37:54Z',
+    },
+    replacement_dispatch: {
+      status: 'active',
+      target: 'Dev / Correction Builder',
+      handoff_comment_id: ISSUE_171_REPLACEMENT_DISPATCH_ID,
+      active_pr: 'pending',
+      correction_base: ISSUE_171_REPLACEMENT_HEAD,
+      finding_ids: [ISSUE_171_FINDING],
+    },
+    next_permitted_action: 'Dev / Correction Builder creates a replacement branch and Draft PR from the exact new base and implements only MC-R1-171-001.',
+    material_change_status: 'none',
+    updated_at: '2026-07-28T14:45:11.409Z',
   }
 }
 
-function correctionPrPayload(head: string) {
+function correctionPrPayload(head: string, number = 172) {
   return {
-    number: 172,
-    title: 'Frozen Issue #171 correction PR',
-    url: 'https://github.com/boat1994/bemoat-web-starter/pull/172',
-    headRefName: 'fix/171-planning-no-pr-moving-base',
+    number,
+    title: number === 172 ? 'Frozen Issue #171 correction PR' : 'Replacement Issue #171 correction PR',
+    url: `https://github.com/boat1994/bemoat-web-starter/pull/${number}`,
+    headRefName: number === 172 ? 'fix/171-planning-no-pr-moving-base' : 'fix/171-authority-contract-correction-v2',
     baseRefName: 'main',
     headRefOid: head,
     state: 'OPEN',
@@ -358,15 +422,21 @@ function correctionPrPayload(head: string) {
   }
 }
 
-function setupIssue171AuthorityRepo(mode: 'historical' | 'post_budget') {
+function setupIssue171AuthorityRepo(mode: 'historical' | 'post_budget', activePr?: '#181') {
   const root = createRepo('fix/171-authority-characterization')
   const fixtureDir = mkdtempSync(join(tmpdir(), 'bemoat-agent-issue-171-'))
   tempRoots.push(fixtureDir)
   const historical = issue171HistoricalAuthorityFixture()
   const state = mode === 'historical' ? historical.state : issue171PostBudgetState()
+  if (mode === 'post_budget' && activePr) {
+    state.active_pr = activePr
+    state.founder_base_change_decision.replacement_pr = activePr
+    state.replacement_dispatch.active_pr = activePr
+  }
   const issuePath = join(fixtureDir, 'issue.json')
   const commentsPath = join(fixtureDir, 'comments.json')
   const historicalRestPath = join(fixtureDir, 'historical-handoff-rest.json')
+  const reviewThreeRestPath = join(fixtureDir, 'review-three-rest.json')
   const s8RestPath = join(fixtureDir, 's8-rest.json')
   const specRestPath = join(fixtureDir, 'spec-result-rest.json')
   const review7RestPath = join(fixtureDir, 'review-7-rest.json')
@@ -383,6 +453,14 @@ function setupIssue171AuthorityRepo(mode: 'historical' | 'post_budget') {
   const comments: any[] = mode === 'historical'
     ? [
         historical.handoff,
+        {
+          id: 'review-three-node',
+          url: 'https://github.com/boat1994/bemoat-web-starter/issues/171#issuecomment-5079830585',
+          author: { login: 'boat1994' },
+          body: readAuthorityFixture('issue-171-review-3-verdict.md'),
+          createdAt: '2026-07-25T18:20:23Z',
+          updatedAt: null,
+        },
         { id: 'historical-contract', body: historicalContract, createdAt: '2026-07-26T15:00:00Z', updatedAt: '2026-07-26T15:00:00Z' },
       ]
     : [
@@ -435,6 +513,15 @@ function setupIssue171AuthorityRepo(mode: 'historical' | 'post_budget') {
           createdAt: '2026-07-28T03:38:18Z',
           updatedAt: null,
         },
+        {
+          id: 'replacement-dispatch-node',
+          url: `https://github.com/boat1994/bemoat-web-starter/issues/171#issuecomment-${ISSUE_171_REPLACEMENT_DISPATCH_ID}`,
+          author: { login: 'boat1994' },
+          authorAssociation: 'OWNER',
+          body: readAuthorityFixture('issue-171-replacement-dispatch.md'),
+          createdAt: '2026-07-28T14:37:54Z',
+          updatedAt: null,
+        },
       ]
 
   writeFileSync(issuePath, JSON.stringify({
@@ -452,6 +539,15 @@ function setupIssue171AuthorityRepo(mode: 'historical' | 'post_budget') {
     body: historical.handoff.body,
     created_at: historical.handoff.createdAt,
     updated_at: historical.handoff.updatedAt,
+  }))
+  writeFileSync(reviewThreeRestPath, JSON.stringify({
+    id: 5079830585,
+    html_url: 'https://github.com/boat1994/bemoat-web-starter/issues/171#issuecomment-5079830585',
+    user: { login: 'boat1994' },
+    author_association: 'OWNER',
+    body: readAuthorityFixture('issue-171-review-3-verdict.md'),
+    created_at: '2026-07-25T18:20:23Z',
+    updated_at: '2026-07-25T18:20:23Z',
   }))
   writeFileSync(s8RestPath, JSON.stringify({
     id: Number(ISSUE_171_S8_ID),
@@ -494,16 +590,19 @@ function setupIssue171AuthorityRepo(mode: 'historical' | 'post_budget') {
 
   const head = mode === 'historical' ? ISSUE_171_REVIEW_3_HEAD : ISSUE_171_CURRENT_HEAD
   const prPayload = JSON.stringify(correctionPrPayload(head)).replace(/'/g, `'"'"'`)
+  const replacementPrPayload = JSON.stringify(correctionPrPayload(ISSUE_171_REPLACEMENT_HEAD, 181)).replace(/'/g, `'"'"'`)
   const ghStub = `#!/usr/bin/env sh
 case "$*" in
   *"issue view 171"*"title,url,body,labels"*) cat "${issuePath}" ;;
   *"issue view 171"*"comments"*) cat "${commentsPath}" ;;
   *"issues/comments/${ISSUE_171_HANDOFF_ID}"*) cat "${historicalRestPath}" ;;
+  *"issues/comments/5079830585"*) cat "${reviewThreeRestPath}" ;;
   *"issues/comments/${ISSUE_171_S8_ID}"*) cat "${s8RestPath}" ;;
   *"issues/comments/${ISSUE_171_SPEC_RESULT_ID}"*) cat "${specRestPath}" ;;
   *"issues/comments/${ISSUE_171_REVIEW_7_ID}"*) cat "${review7RestPath}" ;;
   *"pulls/comments/${ISSUE_171_FINDING_THREAD_ID}"*) cat "${findingThreadRestPath}" ;;
   *"pr view 172"*) printf '%s' '${prPayload}' ;;
+  *"pr view 181"*) printf '%s' '${replacementPrPayload}' ;;
   *) echo "unexpected gh call: $*" >&2; exit 1 ;;
 esac
 `
@@ -519,6 +618,15 @@ esac
     review7RestPath,
     findingThreadRestPath,
   }
+}
+
+function writeIssue171FixtureState(fixture: ReturnType<typeof setupIssue171AuthorityRepo>) {
+  writeFileSync(fixture.issuePath, JSON.stringify({
+    title: 'Harness false-conflict defect',
+    url: 'https://github.com/boat1994/bemoat-web-starter/issues/171',
+    body: `Mission Control mode: required\n\n${renderMissionControlState(fixture.state)}`,
+    labels: [],
+  }))
 }
 
 const MATRIX_OWNER = 'boat1994'
@@ -1924,45 +2032,143 @@ esac
     expect(result.stdout).toMatch(/managed Mission Control state.*missing or invalid/i)
     expect(result.stdout).not.toContain('Edit authorization: granted')
   })
-
   it.each([
-    ['valid', (_comments: any[], _authorization: any): void => undefined, 0],
-    ['edited', (comments: any[], _authorization: any) => { comments[0].body += '\nsubstituted content' }, 1],
-    ['deleted', (comments: any[], _authorization: any) => { comments.shift() }, 1],
-    ['superseded', (comments: any[], _authorization: any) => { comments.push({ id: '3', body: '## HANDOFF\n\n**Target:** Dev\n**Objective:** superseding correction', createdAt: '2026-07-20T10:30:00Z', updatedAt: '2026-07-20T10:30:00Z' }) }, 1],
+    ['valid migrated', (_comments: any[], _authorization: any): void => undefined, 0],
+    ['reordered valid fields', (comments: any[]) => {
+      const [heading, blank, ...fields] = comments[0].body.split('\n')
+      comments[0].body = [heading, blank, fields.at(-1), ...fields.slice(0, -1)].join('\n')
+      return { rebindHandoff: true }
+    }, 0],
+
+    // Missing fields
+    ['missing phase', (comments: any[]) => { comments[0].body = comments[0].body.replace(/\* Phase:.*\n/, '') }, 1],
+    ['missing authorization id', (comments: any[]) => { comments[0].body = comments[0].body.replace(/\* Authorization:.*\n/, '') }, 1],
+    ['missing task issue', (comments: any[]) => { comments[0].body = comments[0].body.replace(/\* Task \/ Issue:.*\n/, '') }, 1],
+    ['missing target', (comments: any[]) => { comments[0].body = comments[0].body.replace(/\*\*Target:\*\*.*\n/, '') }, 1],
+    ['missing scope', (comments: any[]) => { comments[0].body = comments[0].body.replace(/\*\*Scope:\*\*.*\n/, '') }, 1],
+    ['missing pr head', (comments: any[]) => { comments[0].body = comments[0].body.replace(/PR head.*\n/, '') }, 1],
+    ['missing finding', (comments: any[]) => { comments[0].body = comments[0].body.replace(/finding.*\n/, '') }, 1],
+    ['missing review 4 prohibition', (comments: any[]) => { comments[0].body = comments[0].body.replace(/\nprohibition on Review 4$/, '') }, 1],
+    ['missing pr identity', (comments: any[]) => { comments[0].body = comments[0].body.replace(/PR #200\n/, '') }, 1],
+
+    // Duplicated fields
+    ['duplicated phase', (comments: any[]) => { comments[0].body += '\n* Phase: Founder-authorized correction after Review 3' }, 1],
+    ['duplicated finding', (comments: any[]) => { comments[0].body += '\nfinding `MC-R1-001`' }, 1],
+    ['duplicated review 4 prohibition', (comments: any[]) => { comments[0].body += '\nprohibition on Review 4' }, 1],
+    ['conflicting duplicate PR identity', (comments: any[]) => { comments[0].body += '\ngithub.com/boat1994/bemoat-web-starter/pull/201' }, 1],
+    ['conflicting duplicate phase', (comments: any[]) => { comments[0].body += '\n* Phase: other' }, 1],
+
+    // Wrong values
+    ['wrong repository', (comments: any[]) => { comments[0].body = comments[0].body.replace(/PR #200/, 'github.com/other/repo/pull/200') }, 1],
+    ['wrong issue', (comments: any[]) => { comments[0].body = comments[0].body.replace(/Task \/ Issue: #136/, 'Task / Issue: #999') }, 1],
+    ['wrong PR', (comments: any[]) => { comments[0].body = comments[0].body.replace(/PR #200/, 'PR #999') }, 1],
+    ['wrong head', (comments: any[]) => { comments[0].body = comments[0].body.replace(/abc1234000000000000000000000000000000000/, 'def5678000000000000000000000000000000000') }, 1],
+    ['extra finding', (comments: any[]) => { comments[0].body += '\nfinding `MC-R1-002`' }, 1],
+    ['wrong phase', (comments: any[]) => { comments[0].body = comments[0].body.replace(/Phase:.*\n/, 'Phase: Wrong Phase\n') }, 1],
+    ['wrong target', (comments: any[]) => { comments[0].body = comments[0].body.replace(/\*\*Target:\*\*.*\n/, '**Target:** other\n') }, 1],
+    ['wrong scope', (comments: any[]) => { comments[0].body = comments[0].body.replace(/\*\*Scope:\*\*.*\n/, '**Scope:** other\n') }, 1],
+    ['malformed review 4 prohibition', (comments: any[]) => { comments[0].body = comments[0].body.replace(/prohibition on Review 4$/, 'Review 4 may remain unauthorized') }, 1],
+
+    // Timestamps and edits
+    ['edited content', (comments: any[]) => { comments[0].body += '\nsubstituted content' }, 1],
+    ['deleted handoff', (comments: any[]) => { comments.shift() }, 1],
+    ['superseded handoff', (comments: any[]) => { comments.push({ id: '3', body: '## HANDOFF\n\n* Phase: Founder-authorized correction after Review 3\n* Authorization: `founder-r3-abc`\n* Task / Issue: #136\n**Target:** Dev / Integration Builder\n**Scope:** correction\nPR #200\nPR head `abc1234000000000000000000000000000000000`\nfinding `MC-R1-001`\nprohibition on Review 4', createdAt: '2026-07-20T10:30:00Z', updatedAt: '2026-07-20T10:30:00Z' }) }, 1],
     ['missing authority snapshot', (_comments: any[], authorization: any) => { delete authorization.handoff_binding.authorization_snapshot }, 1],
-  ])('handles a %s bound HANDOFF through the executable correction preflight', (_name, mutate, expectedStatus) => {
+    ['unmigrated', (_comments: any[], authorization: any, state: any) => { delete state.founder_migration_authority; authorization.schema_version = 2 }, 1],
+  ])('handles a %s bound HANDOFF through the executable correction preflight', (name, mutate, expectedStatus) => {
     const root = createRepo('feature/136-immutable-correction-contract')
     const dispatchAuthorization: any = {
       schema_version: 2, authorization_id: 'founder-r3-abc', status: 'authorized', authority: 'Founder',
-      scope: 'correction', for_review_number: 3, reviewed_head: 'abc1234', finding_ids: ['MC-R1-001'],
+      scope: 'correction', for_review_number: 3, reviewed_head: 'abc1234000000000000000000000000000000000', finding_ids: ['MC-R1-001'],
       action: 'Authorize one bounded correction', authorized_at: '2026-07-20T09:00:00Z',
     }
     const authorization: any = { ...dispatchAuthorization, status: 'consumed', handoff_comment_id: '1' }
+    const migrationBody = `## FOUNDER_DECISION
+
+- **Canonical repository:** \`boat1994/bemoat-web-starter\`
+- **Repository ID:** \`800000000\`
+- **Issue:** \`#136\`
+- **PR:** \`#200\`
+- **Specification RESULT comment:** \`100\`
+- **Review 7 verdict comment:** \`101\`
+- **Correction base:** \`abc1234000000000000000000000000000000000\`
+- **Finding IDs:** \`[MC-R1-001]\`
+- **Historical Review 3 authority source comment:** \`98\`
+- **Historical HANDOFF comment:** \`1\`
+- **Historical authorization ID:** \`founder-r3-abc\`
+- **Historical reviewed head:** \`abc1234000000000000000000000000000000000\`
+- **Historical finding IDs:** \`[MC-R1-001]\`
+- **Historical action:** \`Authorize one bounded correction\`
+- **Historical authorization timestamp:** \`2026-07-20T09:00:00Z\`
+- **Approved action:** \`Authorize one bounded correction for MC-R1-001 at abc1234000000000000000000000000000000000\``
+    const reviewThreeBody = `## REVIEW_VERDICT
+
+- Phase: Bounded Delta Review 3
+- PR: https://github.com/boat1994/bemoat-web-starter/pull/200
+- Exact head: abc1234000000000000000000000000000000000
+- Finding: MC-R1-001
+- Verdict: BLOCKED FOR FOUNDER DECISION
+- Next: Do not start Review 4`
+
+    const handoff = {
+      id: '1', body: '## HANDOFF\n\n* Phase: Founder-authorized correction after Review 3\n* Authorization: `founder-r3-abc`\n* Task / Issue: #136\n**Target:** Dev / Integration Builder\n**Scope:** correction\nPR #200\nPR head `abc1234000000000000000000000000000000000`\nfinding `MC-R1-001`\nprohibition on Review 4',
+      createdAt: '2026-07-20T10:00:00Z', updatedAt: '2026-07-20T10:00:00Z',
+    }
+
     const state: any = {
       schema_version: 1, state: 'IN_PROGRESS', review_cycle: 3, full_review_count: 1,
-      approved_base: 'main', active_task_issue: '#136', active_pr: '#200', current_head: 'abc1234',
-      last_reviewed_head: 'abc1234', post_budget_reviews: [], founder_correction_authorization: authorization,
+      approved_base: 'main', active_task_issue: '#136', active_pr: '#200', current_head: 'abc1234000000000000000000000000000000000',
+      last_reviewed_head: 'abc1234000000000000000000000000000000000', post_budget_reviews: [], founder_correction_authorization: authorization,
+      founder_migration_authority: {
+        schema_version: 3,
+        status: 'consumed',
+        authority: 'Founder',
+        scope: 'correction',
+        issue: '#136',
+        pr: '#200',
+        comment_id: '99',
+        content_sha256: sha256(migrationBody),
+        historical_review_3_source_comment_id: '98',
+        historical_handoff_comment_id: '1',
+        historical_authorization_id: 'founder-r3-abc',
+        historical_reviewed_head: 'abc1234000000000000000000000000000000000',
+        historical_action: 'Authorize one bounded correction',
+        historical_authorized_at: '2026-07-20T09:00:00Z',
+        approved_action: 'Authorize one bounded correction',
+        correction_base: 'abc1234000000000000000000000000000000000',
+        author_login: 'boat1994',
+        author_association: 'OWNER',
+        created_at: '2026-07-20T09:30:00Z',
+        updated_at: '2026-07-20T09:30:00Z',
+        specification_result_comment_id: '100',
+        review_7_verdict_comment_id: '101',
+        canonical_repository: 'boat1994/bemoat-web-starter',
+        repository_id: '800000000',
+        historical_finding_ids: ['MC-R1-001'],
+        finding_ids: ['MC-R1-001'],
+      },
       guide_version: '1.2.0', guide_source_ref: 'main', guide_source_sha: null, open_blockers: ['MC-R1-001'],
       follow_up_issues: [], next_permitted_action: 'Execute bounded correction', material_change_status: 'none',
       updated_at: '2026-07-20T09:00:00Z', updated_by: 'Mission Control',
     }
-    const handoff = {
-      id: '1', body: '## HANDOFF\n\n**Target:** Dev / Integration Builder\n**Objective:** bounded correction\n**Founder correction authorization:** `founder-r3-abc`',
-      createdAt: '2026-07-20T10:00:00Z', updatedAt: '2026-07-20T10:00:00Z',
-    }
+
     authorization.handoff_binding = buildCorrectionHandoffBinding({ authorization: dispatchAuthorization, state, handoffBody: handoff.body, handoff })
+
     const verdict = {
       id: '2', createdAt: '2026-07-20T10:10:00Z', updatedAt: '2026-07-20T10:10:00Z',
       body: `## REVIEW_VERDICT
-**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · \`main\` · \`abc1234\`
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · \`main\` · \`abc1234000000000000000000000000000000000\`
 **Verdict:** CORRECTION REQUIRED
 \`\`\`json
-{"schema_version":1,"reviewed_head":"abc1234","findings":[{"id":"MC-R1-001","canonical_summary":"boundary bug","source_thread":"https://github.com/boat1994/bemoat-web-starter/pull/200#discussion_r1","required_evidence":["executable negative"]}]}
+{"schema_version":1,"reviewed_head":"abc1234000000000000000000000000000000000","findings":[{"id":"MC-R1-001","canonical_summary":"boundary bug","source_thread":"https://github.com/boat1994/bemoat-web-starter/pull/200#discussion_r1","required_evidence":["executable negative"]}]}
 \`\`\``,
     }
     const comments = [handoff, verdict]
-    mutate(comments, authorization)
+    const mutationResult = mutate(comments, authorization, state) as unknown as { rebindHandoff?: boolean } | undefined
+    if (mutationResult?.rebindHandoff) {
+      authorization.handoff_binding = buildCorrectionHandoffBinding({ authorization: dispatchAuthorization, state, handoffBody: handoff.body, handoff })
+    }
+
     const fixtureDir = mkdtempSync(join(tmpdir(), 'bemoat-agent-issue-binding-'))
     tempRoots.push(fixtureDir)
     const issuePath = join(fixtureDir, 'issue.json')
@@ -1972,21 +2178,67 @@ esac
       body: `Mission Control mode: required\n\n${renderMissionControlState(state)}`, labels: [],
     }))
     writeFileSync(commentsPath, JSON.stringify({ comments }))
-    const result = runAgentIssue(root, ['136', '--phase', 'correction'], {
-      PATH: withStubbedGh(root, `#!/usr/bin/env sh
+
+    const ghStub = `#!/usr/bin/env sh
 case "$*" in
   *"issue view 136"*"title,url,body,labels"*) cat "${issuePath}" ;;
   *"issue view 136"*"comments"*) cat "${commentsPath}" ;;
-  *"pr view 200"*) printf '%s' '{"title":"Correction PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/200","headRefName":"feature/136","baseRefName":"main","headRefOid":"abc1234","state":"OPEN","statusCheckRollup":[{"name":"ci","workflowName":"CI","status":"COMPLETED","conclusion":"SUCCESS","detailsUrl":"https://ci/1"},{"name":"starter-ci","workflowName":"CI (starter strict)","status":"COMPLETED","conclusion":"SUCCESS","detailsUrl":"https://ci/2"}],"commits":[]}' ;;
+  *"api repos/boat1994/bemoat-web-starter/issues/comments/98"*) printf '%s' '${JSON.stringify({ id: 98, body: reviewThreeBody, created_at: '2026-07-20T07:30:00Z', updated_at: '2026-07-20T07:30:00Z' }).replace(/'/g, `'"'"'`)}' ;;
+  *"api repos/boat1994/bemoat-web-starter/issues/comments/99"*) printf '%s' '${JSON.stringify({ id: 99, html_url: 'https://github.com/boat1994/bemoat-web-starter/issues/136#issuecomment-99', user: { login: 'boat1994' }, author_association: 'OWNER', body: migrationBody, created_at: '2026-07-20T09:30:00Z', updated_at: '2026-07-20T09:30:00Z' }).replace(/'/g, `'"'"'`)}' ;;
+  *"api repos/boat1994/bemoat-web-starter/issues/comments/100"*) printf '%s' '{"id":100,"body":"## RESULT\n\n...","created_at":"2026-07-20T08:00:00Z"}' ;;
+  *"api repos/boat1994/bemoat-web-starter/issues/comments/101"*) printf '%s' '{"id":101,"body":"## REVIEW_VERDICT\n\n...","created_at":"2026-07-20T08:30:00Z"}' ;;
+  *"pr view 200"*) printf '%s' '{"title":"Correction PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/200","headRefName":"feature/136","baseRefName":"main","headRefOid":"abc1234000000000000000000000000000000000","state":"OPEN","statusCheckRollup":[{"name":"ci","workflowName":"CI","status":"COMPLETED","conclusion":"SUCCESS","detailsUrl":"https://ci/1"},{"name":"starter-ci","workflowName":"CI (starter strict)","status":"COMPLETED","conclusion":"SUCCESS","detailsUrl":"https://ci/2"}],"commits":[]}' ;;
   *) echo "unexpected gh call: $*" >&2; exit 1 ;;
 esac
-`),
+`
+
+    const result = runAgentIssue(root, ['136', '--phase', 'correction'], {
+      PATH: withStubbedGh(root, ghStub),
     })
+
     expect(result.status, result.stderr || result.stdout).toBe(expectedStatus)
     if (expectedStatus === 0) {
       expect(result.stdout).toContain('Edit authorization: granted')
     } else {
-      expect(result.stdout).toMatch(/HANDOFF|binding|edited/i)
+      if (name === 'missing review 4 prohibition' || name === 'malformed review 4 prohibition') {
+        expect(result.stdout).toContain('STATE CONFLICT: missing review_4_prohibition in HANDOFF')
+        expect(result.stdout).not.toContain('STATE MIGRATION REQUIRED')
+      } else if (name === 'duplicated review 4 prohibition') {
+        expect(result.stdout).toContain('STATE CONFLICT: duplicate review_4_prohibition in HANDOFF')
+        expect(result.stdout).not.toContain('STATE MIGRATION REQUIRED')
+      } else if (name.includes('missing') && name !== 'missing authority snapshot') {
+        expect(result.stdout).toContain('STATE CONFLICT: missing')
+      } else if (name.includes('duplicate')) {
+        expect(result.stdout).toContain('STATE CONFLICT: duplicate')
+      } else if (name === 'wrong repository') {
+        expect(result.stdout).toContain('canonical repository')
+      } else if (name === 'wrong issue') {
+        expect(result.stdout).toContain('does not match expected #136')
+      } else if (name === 'wrong PR') {
+        expect(result.stdout).toContain('does not match active PR')
+      } else if (name === 'wrong head') {
+        expect(result.stdout).toContain('HANDOFF exact head does not match the historical Review 3 authorization')
+      } else if (name === 'wrong phase') {
+        expect(result.stdout).toContain('HANDOFF Phase does not match Founder-authorized correction after Review 3')
+      } else if (name === 'wrong target') {
+        expect(result.stdout).toContain('HANDOFF Target does not match the immutable dispatch target')
+      } else if (name === 'wrong scope') {
+        expect(result.stdout).toContain('HANDOFF Scope does not describe the authorized correction scope')
+      } else if (name === 'missing authority snapshot') {
+        expect(result.stdout).toContain('authorization snapshot does not match the complete historical Founder authorization')
+      } else if (name === 'edited content') {
+        expect(result.stdout).toContain('HANDOFF content hash does not match live HANDOFF')
+      } else if (name === 'deleted handoff') {
+        expect(result.stdout).toContain('exact active HANDOFF')
+      } else if (name === 'superseded handoff') {
+        expect(result.stdout).toContain('exact active HANDOFF')
+      } else if (name === 'extra finding') {
+        expect(result.stdout).toContain('HANDOFF finding set does not match the exact historical authorization finding set')
+      } else if (name === 'unmigrated') {
+        expect(result.stdout).toContain('STATE MIGRATION REQUIRED')
+      } else {
+        expect(result.stdout).toMatch(/STATE CONFLICT|STATE MIGRATION REQUIRED/i)
+      }
       expect(result.stdout).not.toContain('Edit authorization: granted')
     }
   })
@@ -3449,9 +3701,9 @@ ${review1ContractJson(head)}
         PATH: withStubbedGh(root, ghStub),
       })
 
-      expect(result.status, result.stderr || result.stdout).toBe(0)
-      expect(result.stdout).toContain('Playback verified: 1/1 canonical findings')
-      expect(result.stdout).toContain('Edit authorization: granted for the immutable finding set only.')
+      expect(result.status, result.stderr || result.stdout).toBe(1)
+      expect(result.stdout).toContain('STATE MIGRATION REQUIRED')
+      expect(result.stdout).not.toContain('Edit authorization: granted for the immutable finding set only.')
     })
 
     it('rejects a historical Review 3 correction when its exact HANDOFF identity is substituted', () => {
@@ -3469,33 +3721,25 @@ ${review1ContractJson(head)}
       })
 
       expect(result.status).toBe(1)
-      expect(result.stdout).toContain('Founder correction authorization is not bound to its exact active HANDOFF')
+      expect(result.stdout).toContain('STATE MIGRATION REQUIRED')
       expect(result.stdout).not.toContain('Edit authorization: granted')
     })
 
-    it('characterizes the exact #171 post-budget/S8 bootstrap from pinned sources without a verdict transport', () => {
+    it('routes the consumed live-shaped #171 authority through its current dispatch and stops on pending PR evidence', () => {
       const { root, ghStub } = setupIssue171AuthorityRepo('post_budget')
       const result = runAgentIssue(root, ['171', '--phase', 'correction'], {
         PATH: withStubbedGh(root, ghStub),
       })
 
-      expect(result.status, result.stderr || result.stdout).toBe(0)
-      const expectedLines = [
-        'Bemoat correction-mode preflight',
-        'Playback verified: 1/1 canonical findings',
-        'Edit authorization: granted for the immutable finding set only.',
-      ]
-      let priorIndex = -1
-      for (const line of expectedLines) {
-        const index = result.stdout.indexOf(line)
-        expect(index, `missing ordered output line: ${line}`).toBeGreaterThan(priorIndex)
-        priorIndex = index
-      }
-      expect(result.stdout).toContain('Edit authorization: granted for the immutable finding set only.')
+      expect(result.status).toBe(1)
+      expect(result.stdout).toContain('BLOCKED_EXTERNAL: required Active PR evidence is unavailable: pending')
+      expect(result.stdout).not.toContain('current authority record must be an approved Founder')
+      expect(result.stdout).not.toContain('Founder correction authorization is not bound to its exact active HANDOFF')
+      expect(result.stdout).not.toContain('Edit authorization: granted')
     })
 
-    it('grants the exact #171 post-budget authority from pinned sources without a verdict transport', () => {
-      const { root, ghStub } = setupIssue171AuthorityRepo('post_budget')
+    it('grants a consumed #171 authority only through the bound current replacement dispatch', () => {
+      const { root, ghStub } = setupIssue171AuthorityRepo('post_budget', '#181')
       const result = runAgentIssue(root, ['171', '--phase', 'correction'], {
         PATH: withStubbedGh(root, ghStub),
       })
@@ -3506,7 +3750,7 @@ ${review1ContractJson(head)}
     })
 
     it('compiles the source-bound #171 finding from Spec RESULT, Review 7, and the original thread', () => {
-      const { root, ghStub } = setupIssue171AuthorityRepo('post_budget')
+      const { root, ghStub } = setupIssue171AuthorityRepo('post_budget', '#181')
       const result = runAgentIssue(root, ['171', '--phase', 'correction'], {
         PATH: withStubbedGh(root, ghStub),
       })
@@ -3523,7 +3767,7 @@ ${review1ContractJson(head)}
     })
 
     it('fails closed when the pinned Specification RESULT content is mutated', () => {
-      const fixture = setupIssue171AuthorityRepo('post_budget')
+      const fixture = setupIssue171AuthorityRepo('post_budget', '#181')
       const mutated = JSON.parse(readFileSync(fixture.specRestPath, 'utf8'))
       mutated.body = String(mutated.body).replaceAll(ISSUE_171_FINDING, 'MC-R1-171-999')
       writeFileSync(fixture.specRestPath, JSON.stringify(mutated))
@@ -3538,7 +3782,7 @@ ${review1ContractJson(head)}
     })
 
     it('fails closed when the pinned Review 7 content is mutated', () => {
-      const fixture = setupIssue171AuthorityRepo('post_budget')
+      const fixture = setupIssue171AuthorityRepo('post_budget', '#181')
       const mutated = JSON.parse(readFileSync(fixture.review7RestPath, 'utf8'))
       mutated.body = String(mutated.body).replace(ISSUE_171_CURRENT_HEAD, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
       writeFileSync(fixture.review7RestPath, JSON.stringify(mutated))
@@ -3553,7 +3797,7 @@ ${review1ContractJson(head)}
     })
 
     it('fails closed when the original finding thread content is mutated', () => {
-      const fixture = setupIssue171AuthorityRepo('post_budget')
+      const fixture = setupIssue171AuthorityRepo('post_budget', '#181')
       const mutated = JSON.parse(readFileSync(fixture.findingThreadRestPath, 'utf8'))
       mutated.body = String(mutated.body).replaceAll(ISSUE_171_FINDING, 'MC-R1-171-999')
       writeFileSync(fixture.findingThreadRestPath, JSON.stringify(mutated))
@@ -3564,6 +3808,116 @@ ${review1ContractJson(head)}
 
       expect(result.status).toBe(1)
       expect(result.stdout).toMatch(/finding thread|pinned current authority sources failed/i)
+      expect(result.stdout).not.toContain('Edit authorization: granted')
+    })
+
+    it('accepts consumed S8 as immutable proof for the historical Review 3 route', () => {
+      const fixture = setupIssue171AuthorityRepo('historical')
+      fixture.state.founder_migration_authority = structuredClone(issue171PostBudgetState().founder_migration_authority)
+      writeIssue171FixtureState(fixture)
+
+      const result = runAgentIssue(fixture.root, ['171', '--phase', 'correction'], {
+        PATH: withStubbedGh(fixture.root, fixture.ghStub),
+      })
+
+      expect(result.status, result.stderr || result.stdout).toBe(0)
+      expect(result.stdout).toContain('Edit authorization: granted for the immutable finding set only.')
+    })
+
+    it('classifies valid approved S8 as awaiting HANDOFF instead of a current dispatch', () => {
+      const fixture = setupIssue171AuthorityRepo('post_budget')
+      fixture.state.founder_migration_authority.status = 'approved'
+      fixture.state.state = 'BLOCKED_FOR_FOUNDER_DECISION'
+      fixture.state.active_pr = '#172'
+      fixture.state.current_head = ISSUE_171_CURRENT_HEAD
+      delete fixture.state.founder_base_change_decision
+      delete fixture.state.replacement_dispatch
+      writeIssue171FixtureState(fixture)
+
+      const result = runAgentIssue(fixture.root, ['171', '--phase', 'correction'], {
+        PATH: withStubbedGh(fixture.root, fixture.ghStub),
+      })
+
+      expect(result.status).toBe(1)
+      expect(result.stdout).toContain('BLOCKED_EXTERNAL: approved migration authority awaits its authorized HANDOFF consumption')
+      expect(result.stdout).not.toContain('Edit authorization: granted')
+    })
+
+    it('requires migration instead of falling back to historical Review 3 when post-budget authority is missing', () => {
+      const fixture = setupIssue171AuthorityRepo('post_budget')
+      delete fixture.state.founder_migration_authority
+      writeIssue171FixtureState(fixture)
+
+      const result = runAgentIssue(fixture.root, ['171', '--phase', 'correction'], {
+        PATH: withStubbedGh(fixture.root, fixture.ghStub),
+      })
+
+      expect(result.status).toBe(1)
+      expect(result.stdout).toContain('STATE MIGRATION REQUIRED: post-budget authority evidence is missing')
+      expect(result.stdout).not.toContain('Edit authorization: granted')
+    })
+
+    it('rejects malformed consumed S8 as STATE CONFLICT', () => {
+      const fixture = setupIssue171AuthorityRepo('post_budget')
+      fixture.state.founder_migration_authority.schema_version = 2
+      writeIssue171FixtureState(fixture)
+
+      const result = runAgentIssue(fixture.root, ['171', '--phase', 'correction'], {
+        PATH: withStubbedGh(fixture.root, fixture.ghStub),
+      })
+
+      expect(result.status).toBe(1)
+      expect(result.stdout).toContain('STATE CONFLICT: migration authority must be a valid Founder schema-version 3 correction authority')
+      expect(result.stdout).not.toContain('Edit authorization: granted')
+    })
+
+    it('rejects superseded S8 instead of routing by status fallback', () => {
+      const fixture = setupIssue171AuthorityRepo('post_budget')
+      fixture.state.founder_migration_authority.status = 'superseded'
+      writeIssue171FixtureState(fixture)
+
+      const result = runAgentIssue(fixture.root, ['171', '--phase', 'correction'], {
+        PATH: withStubbedGh(fixture.root, fixture.ghStub),
+      })
+
+      expect(result.status).toBe(1)
+      expect(result.stdout).toContain('STATE CONFLICT: migration authority must be a valid Founder schema-version 3 correction authority')
+      expect(result.stdout).not.toContain('Edit authorization: granted')
+    })
+
+    it.each([
+      ['repository', (state: any) => { state.founder_migration_authority.canonical_repository = 'other/repository' }],
+      ['issue', (state: any) => { state.founder_migration_authority.issue = '#999' }],
+      ['hash', (state: any) => { state.founder_migration_authority.content_sha256 = 'a'.repeat(64) }],
+      ['finding', (state: any) => { state.founder_migration_authority.finding_ids = ['MC-R1-171-999'] }],
+    ])('fails closed when consumed S8 has the wrong %s', (_name, mutate) => {
+      const fixture = setupIssue171AuthorityRepo('post_budget')
+      mutate(fixture.state)
+      writeIssue171FixtureState(fixture)
+
+      const result = runAgentIssue(fixture.root, ['171', '--phase', 'correction'], {
+        PATH: withStubbedGh(fixture.root, fixture.ghStub),
+      })
+
+      expect(result.status).toBe(1)
+      expect(result.stdout).toContain('STATE CONFLICT')
+      expect(result.stdout).not.toContain('Edit authorization: granted')
+    })
+
+    it('does not mistake consumed historical S8 for an approved current dispatch', () => {
+      const fixture = setupIssue171AuthorityRepo('post_budget')
+      delete fixture.state.founder_base_change_decision
+      delete fixture.state.replacement_dispatch
+      fixture.state.current_head = ISSUE_171_CURRENT_HEAD
+      fixture.state.active_pr = '#172'
+      writeIssue171FixtureState(fixture)
+
+      const result = runAgentIssue(fixture.root, ['171', '--phase', 'correction'], {
+        PATH: withStubbedGh(fixture.root, fixture.ghStub),
+      })
+
+      expect(result.status).toBe(1)
+      expect(result.stdout).toContain('BLOCKED_EXTERNAL: consumed historical migration authority has no active current dispatch')
       expect(result.stdout).not.toContain('Edit authorization: granted')
     })
   })
