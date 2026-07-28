@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 
 import { parseCompleteGitHubPullUrl } from '../pr-identity.mjs'
 import { parseMissionControlState } from '../mission-control-state.mjs'
+import { run } from './process-runner.mjs'
 
 function pinnedCommentId(comment) {
   const match = String(comment?.url ?? comment?.html_url ?? '').match(/#issuecomment-(\d+)$/)
@@ -28,6 +29,12 @@ function normalizeQuotedReference(value) {
   return String(value ?? '').trim().replace(/^(["'])(.*)\1$/, '$2')
 }
 
+function sameTimestamp(left, right) {
+  const leftTime = Date.parse(String(left ?? ''))
+  const rightTime = Date.parse(String(right ?? ''))
+  return !Number.isNaN(leftTime) && leftTime === rightTime
+}
+
 function validateCurrentAuthorityState(state, issueNumber, defaultRepo) {
   const authority = state?.founder_migration_authority
   const postBudgetCount = Array.isArray(state.post_budget_reviews) ? state.post_budget_reviews.length : 0
@@ -37,11 +44,13 @@ function validateCurrentAuthorityState(state, issueNumber, defaultRepo) {
   }
   const errors = []
   const postBudgetReviews = state.post_budget_reviews
-  const latestReview = state.post_budget_reviews?.at(-1)
+  const historicalReview = state.post_budget_reviews?.find((review) => review.review_number === 7)
+  const reviewEight = state.post_budget_reviews?.find((review) => review.review_number === 8)
+  const expectedReviewNumbers = state.founder_review_8_correction_authorization ? [4, 5, 6, 7, 8] : [4, 5, 6, 7]
   if (state.review_cycle !== 3 || state.full_review_count !== 1 ||
       normalizeQuotedReference(state.active_task_issue) !== `#${issueNumber}` ||
-      JSON.stringify(postBudgetReviews.map((review) => review.review_number)) !== JSON.stringify([4, 5, 6, 7])) {
-    errors.push('STATE CONFLICT: post-budget authority does not preserve counters, issue identity, and Reviews 4-7')
+      JSON.stringify(postBudgetReviews.map((review) => review.review_number)) !== JSON.stringify(expectedReviewNumbers)) {
+    errors.push('STATE CONFLICT: post-budget authority does not preserve counters, issue identity, and Reviews 4-8')
   }
   if (authority.schema_version !== 3 || !['approved', 'consumed'].includes(authority.status) ||
       authority.authority !== 'Founder' || authority.scope !== 'correction') {
@@ -59,15 +68,15 @@ function validateCurrentAuthorityState(state, issueNumber, defaultRepo) {
       !/^[1-9]\d*$/.test(String(authority.historical_handoff_comment_id ?? ''))) {
     errors.push('STATE CONFLICT: migration authority is missing a pinned source ID or content hash')
   }
-  if (!latestReview || latestReview.review_number !== 7 || latestReview.verdict_comment_id !== authority.review_7_verdict_comment_id ||
-      latestReview.reviewed_head !== authority.correction_base || state.last_reviewed_head !== authority.correction_base) {
+  if (!historicalReview || historicalReview.verdict_comment_id !== authority.review_7_verdict_comment_id ||
+      historicalReview.reviewed_head !== authority.correction_base) {
     errors.push('STATE CONFLICT: migration authority does not bind the latest post-budget Review 7 lineage')
   }
   if (!Array.isArray(authority.finding_ids) || authority.finding_ids.length === 0 ||
       JSON.stringify(authority.finding_ids) !== JSON.stringify(authority.historical_finding_ids) ||
       JSON.stringify(authority.finding_ids) !== JSON.stringify(state.open_blockers) ||
-      JSON.stringify(authority.finding_ids) !== JSON.stringify(latestReview?.finding_dispositions?.map((entry) => entry.finding_id)) ||
-      latestReview?.finding_dispositions?.some((entry) => entry.disposition !== 'open')) {
+      JSON.stringify(authority.finding_ids) !== JSON.stringify(historicalReview?.finding_dispositions?.map((entry) => entry.finding_id)) ||
+      historicalReview?.finding_dispositions?.some((entry) => entry.disposition !== 'open')) {
     errors.push('STATE CONFLICT: migration authority does not preserve the exact open finding set')
   }
   if (postBudgetReviews.some((review) => review.authorization?.status !== 'approved' ||
@@ -113,18 +122,63 @@ function validateCurrentAuthorityState(state, issueNumber, defaultRepo) {
     return { authority, phase: 'consumed_historical', ok: errors.length === 0, errors }
   }
   if (decision.status !== 'approved' || decision.authority !== 'Founder' || decision.old_pr !== authority.pr ||
-      decision.old_base !== authority.correction_base || decision.new_correction_base !== state.current_head ||
+      decision.old_base !== authority.correction_base ||
       decision.replacement_pr !== state.active_pr || decision.finding_scope !== authority.finding_ids[0] ||
       !/^[1-9]\d*$/.test(String(decision.source_comment_id ?? ''))) {
-    errors.push('STATE CONFLICT: Founder base-change decision does not bind the historical authority and current head')
+    errors.push('STATE CONFLICT: Founder base-change decision does not bind the historical authority and replacement PR')
   }
   if (dispatch.status !== 'active' || dispatch.target !== 'Dev / Correction Builder' ||
       String(dispatch.handoff_comment_id) !== String(decision.source_comment_id) ||
-      dispatch.active_pr !== state.active_pr || dispatch.correction_base !== state.current_head ||
+      dispatch.active_pr !== state.active_pr || dispatch.correction_base !== decision.new_correction_base ||
       JSON.stringify(dispatch.finding_ids) !== JSON.stringify(authority.finding_ids)) {
-    errors.push('STATE CONFLICT: replacement dispatch does not bind the current PR, head, target, and exact finding set')
+    errors.push('STATE CONFLICT: replacement dispatch does not bind the authorized replacement base, PR, target, and exact finding set')
   }
-  return { authority, decision, dispatch, phase: 'consumed_current_dispatch', ok: errors.length === 0, errors }
+  const reviewEightAuthorization = state.founder_review_8_correction_authorization
+  const correctionDispatch = state.correction_dispatch
+  if (!reviewEightAuthorization && !correctionDispatch) {
+    return { authority, decision, dispatch, phase: 'consumed_current_dispatch', ok: errors.length === 0, errors }
+  }
+  if (!reviewEightAuthorization || !correctionDispatch || !reviewEight) {
+    errors.push('STATE CONFLICT: Review 8 correction authority, dispatch, and review evidence must be present together')
+    return { authority, decision, dispatch, phase: 'consumed_current_dispatch', ok: false, errors }
+  }
+  if (reviewEightAuthorization.schema_version !== 1 || reviewEightAuthorization.status !== 'consumed' ||
+      reviewEightAuthorization.authority !== 'Founder' || reviewEightAuthorization.scope !== 'correction' ||
+      reviewEightAuthorization.for_review_number !== 8 || reviewEightAuthorization.reviewed_head !== reviewEight.reviewed_head ||
+      reviewEightAuthorization.active_pr !== state.active_pr || reviewEightAuthorization.historical_correction_base !== authority.correction_base ||
+      reviewEightAuthorization.authorized_replacement_base !== decision.new_correction_base ||
+      reviewEightAuthorization.implementation_head !== dispatch.exact_head ||
+      JSON.stringify(reviewEightAuthorization.finding_ids) !== JSON.stringify(authority.finding_ids) ||
+      reviewEightAuthorization.review_8_verdict_comment_id !== reviewEight.verdict_comment_id ||
+      reviewEightAuthorization.review_8_verdict_url !== reviewEight.verdict_url ||
+      reviewEightAuthorization.review_9_authorized !== false ||
+      !/^[1-9]\d*$/.test(String(reviewEightAuthorization.handoff_comment_id ?? '')) ||
+      !String(reviewEightAuthorization.handoff_url ?? '').endsWith('#issuecomment-' + reviewEightAuthorization.handoff_comment_id) ||
+      !reviewEightAuthorization.authorized_at || !reviewEightAuthorization.consumed_at ||
+      !String(reviewEightAuthorization.action ?? '').includes(authority.finding_ids[0])) {
+    errors.push('STATE CONFLICT: Review 8 correction authority does not independently bind the historical base, replacement base, implementation head, and review evidence')
+  }
+  if (correctionDispatch.status !== 'active' || correctionDispatch.target !== 'Dev / Correction Builder' ||
+      String(correctionDispatch.handoff_comment_id) !== String(reviewEightAuthorization.handoff_comment_id) ||
+      correctionDispatch.active_pr !== state.active_pr ||
+      correctionDispatch.branch !== reviewEightAuthorization.branch ||
+      correctionDispatch.historical_correction_base !== authority.correction_base ||
+      correctionDispatch.authorized_replacement_base !== decision.new_correction_base ||
+      correctionDispatch.implementation_head !== state.current_head ||
+      correctionDispatch.review_number !== 8 ||
+      JSON.stringify(correctionDispatch.finding_ids) !== JSON.stringify(authority.finding_ids)) {
+    errors.push('STATE CONFLICT: current correction dispatch does not independently bind the implementation head and all authority identities')
+  }
+  return {
+    authority,
+    decision,
+    dispatch,
+    reviewEightAuthorization,
+    correctionDispatch,
+    phase: 'consumed_review_eight_dispatch',
+    ok: errors.length === 0,
+    errors,
+  }
 }
 
 function validateReplacementDispatchSource({ authority, decision, dispatch, comments, issueNumber, defaultRepo }) {
@@ -157,6 +211,33 @@ function validateReplacementDispatchSource({ authority, decision, dispatch, comm
       !String(decision.action ?? '').includes(dispatch.correction_base) ||
       !String(decision.action ?? '').includes(authority.finding_ids[0])) {
     errors.push('STATE CONFLICT: Founder base-change action does not bind the old PR, current head, and finding')
+  }
+  return { ok: errors.length === 0, errors }
+}
+
+function validateReviewEightCorrectionSource({ authorization, source, issueNumber, defaultRepo }) {
+  const errors = []
+  const comment = source.comment
+  const expectedUrl = 'https://github.com/' + defaultRepo + '/issues/' + issueNumber + '#issuecomment-' + authorization.handoff_comment_id
+  const body = String(comment?.body ?? '')
+  if (String(comment?.id) !== String(authorization.handoff_comment_id) || comment?.html_url !== expectedUrl ||
+      comment?.user?.login !== 'boat1994' || comment?.author_association !== 'OWNER' ||
+      !sameTimestamp(comment?.created_at, authorization.authorized_at) ||
+      !sameTimestamp(comment?.updated_at, authorization.authorized_at)) {
+    errors.push('STATE CONFLICT: Review 8 correction HANDOFF source identity or timestamp is inconsistent')
+  }
+  const requiredValues = [
+    '## HANDOFF',
+    'Dev / Correction Builder',
+    '#'+ String(authorization.active_pr).slice(1),
+    authorization.historical_correction_base,
+    authorization.authorized_replacement_base,
+    authorization.implementation_head,
+    authorization.finding_ids[0],
+    'No Review 9',
+  ]
+  for (const value of requiredValues) {
+    if (!body.includes(value)) errors.push('STATE CONFLICT: Review 8 correction HANDOFF is missing required topology binding ' + value)
   }
   return { ok: errors.length === 0, errors }
 }
@@ -417,8 +498,19 @@ function reconcilePinnedCurrentPr({ dispatch, state, defaultRepo, fetchPrByRefer
   if (!parsedUrl.ok || parsedUrl.identity.key !== `${defaultRepo.toLowerCase()}#${prNumber}`) {
     errors.push('live PR identity does not match current pinned authority')
   }
-  if (pr?.headRefOid !== dispatch.correction_base || pr?.baseRefName !== state.approved_base || pr?.state !== 'OPEN' || pr?.isDraft !== true) {
+  const implementationHead = dispatch.implementation_head ?? dispatch.correction_base
+  if (pr?.headRefOid !== implementationHead || pr?.headRefOid !== state.current_head ||
+      (dispatch.branch && pr?.headRefName !== dispatch.branch) ||
+      pr?.baseRefName !== state.approved_base || pr?.state !== 'OPEN' || pr?.isDraft !== true) {
     errors.push('live PR head, base, open state, or draft state does not match current replacement dispatch')
+  }
+  if (dispatch.authorized_replacement_base) {
+    const ancestry = run('git', ['merge-base', '--is-ancestor', dispatch.authorized_replacement_base, implementationHead], { cwd, env })
+    if (ancestry.status === 1) {
+      errors.push('STATE CONFLICT: implementation head is unrelated to the authorized replacement base')
+    } else if (ancestry.status !== 0) {
+      errors.push('BLOCKED_EXTERNAL: replacement-base ancestry evidence is unavailable')
+    }
   }
   const ci = analyzeExactHeadCi(pr)
   if (!ci.exactHeadVerified) errors.push(`current authority requires successful exact-head CI (${ci.summary})`)
@@ -448,14 +540,18 @@ export function recoverCurrentAuthority({
   const stateCheck = validateCurrentAuthorityState(parsed.state, issueNumber, defaultRepo)
   if (!stateCheck) return null
   if (!stateCheck.ok) return { ok: false, errors: stateCheck.errors }
-  const { authority, decision, dispatch, phase } = stateCheck
+  const { authority, decision, dispatch, reviewEightAuthorization, correctionDispatch, phase } = stateCheck
 
   const founderSource = fetchIssueCommentById(cwd, authority.comment_id, env)
   const handoffSource = fetchIssueCommentById(cwd, authority.historical_handoff_comment_id, env)
   const reviewThreeSource = fetchIssueCommentById(cwd, authority.historical_review_3_source_comment_id, env)
   const specSource = fetchIssueCommentById(cwd, authority.specification_result_comment_id, env)
   const reviewSevenSource = fetchIssueCommentById(cwd, authority.review_7_verdict_comment_id, env)
-  if (!founderSource.ok || !handoffSource.ok || !reviewThreeSource.ok || !specSource.ok || !reviewSevenSource.ok) {
+  const reviewEightHandoffSource = reviewEightAuthorization
+    ? fetchIssueCommentById(cwd, reviewEightAuthorization.handoff_comment_id, env)
+    : null
+  if (!founderSource.ok || !handoffSource.ok || !reviewThreeSource.ok || !specSource.ok || !reviewSevenSource.ok ||
+      (reviewEightHandoffSource && !reviewEightHandoffSource.ok)) {
     return { ok: false, errors: ['pinned authority source metadata is unavailable'] }
   }
 
@@ -474,6 +570,14 @@ export function recoverCurrentAuthority({
   const dispatchCheck = phase === 'consumed_current_dispatch'
     ? validateReplacementDispatchSource({ authority, decision, dispatch, comments, issueNumber, defaultRepo })
     : { ok: true, errors: [] }
+  const reviewEightCheck = phase === 'consumed_review_eight_dispatch'
+    ? validateReviewEightCorrectionSource({
+        authorization: reviewEightAuthorization,
+        source: reviewEightHandoffSource,
+        issueNumber,
+        defaultRepo,
+      })
+    : { ok: true, errors: [] }
 
   const earlyErrors = [
     ...founderCheck.errors,
@@ -481,6 +585,7 @@ export function recoverCurrentAuthority({
     ...specCheck.errors,
     ...reviewSevenCheck.errors,
     ...dispatchCheck.errors,
+    ...reviewEightCheck.errors,
   ]
   if (earlyErrors.length > 0 || !reviewSevenCheck.threadUrl) {
     return { ok: false, errors: earlyErrors.length > 0 ? earlyErrors : ['pinned Review 7 does not pin the original finding thread'] }
@@ -489,14 +594,14 @@ export function recoverCurrentAuthority({
   if (phase === 'approved_unconsumed') {
     return { ok: false, errors: ['BLOCKED_EXTERNAL: approved migration authority awaits its authorized HANDOFF consumption'] }
   }
-  if (phase !== 'consumed_current_dispatch') {
+  if (!['consumed_current_dispatch', 'consumed_review_eight_dispatch'].includes(phase)) {
     return { ok: false, errors: ['BLOCKED_EXTERNAL: consumed historical migration authority is not an active current dispatch'] }
   }
 
   const prCheck = reconcilePinnedCurrentPr({
     cwd,
     env,
-    dispatch,
+    dispatch: correctionDispatch ?? dispatch,
     state: parsed.state,
     defaultRepo,
     fetchPrByReference,
@@ -522,7 +627,7 @@ export function recoverCurrentAuthority({
     ok: true,
     contract: {
       mode: 'implementation_pr',
-      reviewed_head: dispatch.correction_base,
+      reviewed_head: (correctionDispatch ?? dispatch).implementation_head ?? dispatch.correction_base,
       findings: [threadCheck.finding],
     },
     livePr: prCheck.pr,

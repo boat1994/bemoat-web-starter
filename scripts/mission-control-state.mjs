@@ -261,7 +261,19 @@ export function parseMissionControlState(body = '') {
       if (!['CORRECTION REQUIRED', 'BLOCKED FOR FOUNDER DECISION'].includes(latestPostBudgetReview.verdict)) {
         return { present: true, valid: false, reason: 'post-budget verdict does not authorize a correction transition' }
       }
-      const correctionAuthorization = validateBoundCorrectionAuthorization(state.founder_decision, latestPostBudgetReview)
+      const reviewEightCorrection = state.founder_review_8_correction_authorization
+      const correctionAuthorization = latestPostBudgetReview.review_number === 8 && reviewEightCorrection
+        ? {
+            valid: reviewEightCorrection.status === 'consumed' &&
+              reviewEightCorrection.authority === 'Founder' &&
+              reviewEightCorrection.scope === 'correction' &&
+              reviewEightCorrection.for_review_number === 8 &&
+              reviewEightCorrection.reviewed_head === latestPostBudgetReview.reviewed_head &&
+              Array.isArray(reviewEightCorrection.finding_ids) &&
+              reviewEightCorrection.finding_ids.length > 0,
+            reason: 'Review 8 correction authorization must bind the latest completed review',
+          }
+        : validateBoundCorrectionAuthorization(state.founder_decision, latestPostBudgetReview)
       if (!correctionAuthorization.valid) {
         return { present: true, valid: false, reason: correctionAuthorization.reason }
       }

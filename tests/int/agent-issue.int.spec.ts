@@ -195,6 +195,9 @@ const ISSUE_171_S8_ID = '5095153693'
 const ISSUE_171_SPEC_RESULT_ID = '5094347733'
 const ISSUE_171_REVIEW_7_ID = '5093899315'
 const ISSUE_171_REPLACEMENT_DISPATCH_ID = '5105570187'
+const ISSUE_171_REVIEW_8_VERDICT_ID = '5107491736'
+const ISSUE_171_REVIEW_8_HANDOFF_ID = '5107607918'
+const ISSUE_171_IMPLEMENTATION_START_HEAD = '3778a9868add277fd3c25a333822db72bcdd59b6'
 
 function sha256(value: string) {
   return createHash('sha256').update(value).digest('hex')
@@ -422,8 +425,47 @@ function correctionPrPayload(head: string, number = 172) {
   }
 }
 
-function setupIssue171AuthorityRepo(mode: 'historical' | 'post_budget', activePr?: '#181') {
-  const root = createRepo('fix/171-authority-characterization')
+function createIssue171DeliveredTopologyRepo() {
+  const root = mkdtempSync(join(tmpdir(), 'bemoat-agent-issue-171-topology-'))
+  tempRoots.push(root)
+  const clone = spawnSync('git', ['clone', '--no-hardlinks', repoRoot, root], { encoding: 'utf8' })
+  expect(clone.status, clone.stderr).toBe(0)
+  spawnSync('git', ['remote', 'set-url', 'origin', 'https://github.com/boat1994/bemoat-web-starter.git'], { cwd: root, encoding: 'utf8' })
+  spawnSync('git', ['config', 'user.email', 'agent-issue@test'], { cwd: root, encoding: 'utf8' })
+  spawnSync('git', ['config', 'user.name', 'Agent Issue Test'], { cwd: root, encoding: 'utf8' })
+  const checkout = spawnSync('git', ['checkout', '-B', 'fix/171-authority-contract-correction-v2', ISSUE_171_REPLACEMENT_HEAD], {
+    cwd: root,
+    encoding: 'utf8',
+  })
+  expect(checkout.status, checkout.stderr).toBe(0)
+  writeFileSync(join(root, '.issue-171-delivered-topology'), 'one bounded correction\n')
+  spawnSync('git', ['add', '.issue-171-delivered-topology'], { cwd: root, encoding: 'utf8' })
+  const commit = spawnSync('git', ['commit', '-m', 'test: delivered correction topology'], { cwd: root, encoding: 'utf8' })
+  expect(commit.status, commit.stderr).toBe(0)
+  return { root, implementationHead: spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim() }
+}
+
+function review8CorrectionHandoffBody() {
+  return [
+    '## HANDOFF',
+    '**Target:** Dev / Correction Builder',
+    '**Objective:** Correct exactly ' + ISSUE_171_FINDING + ' on Draft PR #181 without conflating historical correction base, authorized replacement base, and the mutable implementation head.',
+    '**Founder authorization:** Exactly one bounded correction for ' + ISSUE_171_FINDING + ' at reviewed head ' + ISSUE_171_IMPLEMENTATION_START_HEAD + '; this HANDOFF consumes only that correction authority.',
+    '**State (verify live):** branch fix/171-authority-contract-correction-v2 · PR #181 open + Draft · base main · exact head ' + ISSUE_171_IMPLEMENTATION_START_HEAD + '.',
+    '**Three identities:** historical Review 7 correction base ' + ISSUE_171_CURRENT_HEAD + '; Founder-authorized replacement base ' + ISSUE_171_REPLACEMENT_HEAD + '; current implementation PR head ' + ISSUE_171_IMPLEMENTATION_START_HEAD + '. They must not be required to equal.',
+    '**Required correction:** validate each against its actual authoritative source; accept a live PR head that is a descendant of the replacement base.',
+    '**Preserve:** source comments, hashes, timestamps, counters 3/1, Reviews 4–8, consumed Review 8 authority.',
+    '**Prohibited:** No Review 9; no PR-ready transition; no PR #172 mutation/closure.',
+  ].join('\n')
+}
+
+function setupIssue171AuthorityRepo(
+  mode: 'historical' | 'post_budget',
+  activePr?: '#181',
+  rootOverride?: string,
+  replacementHead = ISSUE_171_REPLACEMENT_HEAD,
+) {
+  const root = rootOverride ?? createRepo('fix/171-authority-characterization')
   const fixtureDir = mkdtempSync(join(tmpdir(), 'bemoat-agent-issue-171-'))
   tempRoots.push(fixtureDir)
   const historical = issue171HistoricalAuthorityFixture()
@@ -441,6 +483,7 @@ function setupIssue171AuthorityRepo(mode: 'historical' | 'post_budget', activePr
   const specRestPath = join(fixtureDir, 'spec-result-rest.json')
   const review7RestPath = join(fixtureDir, 'review-7-rest.json')
   const findingThreadRestPath = join(fixtureDir, 'finding-thread-rest.json')
+  const review8HandoffRestPath = join(fixtureDir, 'review-8-handoff-rest.json')
   const review7Body = readAuthorityFixture('issue-171-review-7-verdict.md')
   const specBody = readAuthorityFixture('issue-171-specification-result.md')
   const findingThreadBody = readAuthorityFixture('issue-171-finding-thread.md')
@@ -522,6 +565,15 @@ function setupIssue171AuthorityRepo(mode: 'historical' | 'post_budget', activePr
           createdAt: '2026-07-28T14:37:54Z',
           updatedAt: null,
         },
+        {
+          id: 'review-eight-correction-handoff-node',
+          url: 'https://github.com/boat1994/bemoat-web-starter/issues/171#issuecomment-' + ISSUE_171_REVIEW_8_HANDOFF_ID,
+          author: { login: 'boat1994' },
+          authorAssociation: 'OWNER',
+          body: review8CorrectionHandoffBody(),
+          createdAt: '2026-07-29T00:36:43Z',
+          updatedAt: null,
+        },
       ]
 
   writeFileSync(issuePath, JSON.stringify({
@@ -587,10 +639,19 @@ function setupIssue171AuthorityRepo(mode: 'historical' | 'post_budget', activePr
     path: 'scripts/agent-issue.mjs',
     pull_request_url: 'https://api.github.com/repos/boat1994/bemoat-web-starter/pulls/172',
   }))
+  writeFileSync(review8HandoffRestPath, JSON.stringify({
+    id: Number(ISSUE_171_REVIEW_8_HANDOFF_ID),
+    html_url: 'https://github.com/boat1994/bemoat-web-starter/issues/171#issuecomment-' + ISSUE_171_REVIEW_8_HANDOFF_ID,
+    user: { login: 'boat1994' },
+    author_association: 'OWNER',
+    body: review8CorrectionHandoffBody(),
+    created_at: '2026-07-29T00:36:43Z',
+    updated_at: '2026-07-29T00:36:43Z',
+  }))
 
   const head = mode === 'historical' ? ISSUE_171_REVIEW_3_HEAD : ISSUE_171_CURRENT_HEAD
   const prPayload = JSON.stringify(correctionPrPayload(head)).replace(/'/g, `'"'"'`)
-  const replacementPrPayload = JSON.stringify(correctionPrPayload(ISSUE_171_REPLACEMENT_HEAD, 181)).replace(/'/g, `'"'"'`)
+  const replacementPrPayload = JSON.stringify(correctionPrPayload(replacementHead, 181)).replace(/'/g, `'"'"'`)
   const ghStub = `#!/usr/bin/env sh
 case "$*" in
   *"issue view 171"*"title,url,body,labels"*) cat "${issuePath}" ;;
@@ -600,6 +661,7 @@ case "$*" in
   *"issues/comments/${ISSUE_171_S8_ID}"*) cat "${s8RestPath}" ;;
   *"issues/comments/${ISSUE_171_SPEC_RESULT_ID}"*) cat "${specRestPath}" ;;
   *"issues/comments/${ISSUE_171_REVIEW_7_ID}"*) cat "${review7RestPath}" ;;
+  *"issues/comments/${ISSUE_171_REVIEW_8_HANDOFF_ID}"*) cat "${review8HandoffRestPath}" ;;
   *"pulls/comments/${ISSUE_171_FINDING_THREAD_ID}"*) cat "${findingThreadRestPath}" ;;
   *"pr view 172"*) printf '%s' '${prPayload}' ;;
   *"pr view 181"*) printf '%s' '${replacementPrPayload}' ;;
@@ -617,6 +679,7 @@ esac
     specRestPath,
     review7RestPath,
     findingThreadRestPath,
+    review8HandoffRestPath,
   }
 }
 
@@ -3738,7 +3801,7 @@ ${review1ContractJson(head)}
       expect(result.stdout).not.toContain('Edit authorization: granted')
     })
 
-    it('grants a consumed #171 authority only through the bound current replacement dispatch', () => {
+    it('permits implementation head equal to the replacement base only during the live pre-implementation phase', () => {
       const { root, ghStub } = setupIssue171AuthorityRepo('post_budget', '#181')
       const result = runAgentIssue(root, ['171', '--phase', 'correction'], {
         PATH: withStubbedGh(root, ghStub),
@@ -3747,6 +3810,101 @@ ${review1ContractJson(head)}
       expect(result.status, result.stderr || result.stdout).toBe(0)
       expect(result.stdout).toContain('Playback verified: 1/1 canonical findings')
       expect(result.stdout).toContain('Edit authorization: granted for the immutable finding set only.')
+    })
+
+    it('grants the delivered Review 8 topology when its implementation head is a distinct descendant of the replacement base', () => {
+      const topology = createIssue171DeliveredTopologyRepo()
+      const fixture = setupIssue171AuthorityRepo('post_budget', '#181', topology.root, topology.implementationHead)
+      fixture.state.current_head = topology.implementationHead
+      fixture.state.last_reviewed_head = ISSUE_171_IMPLEMENTATION_START_HEAD
+      fixture.state.replacement_dispatch.exact_head = ISSUE_171_IMPLEMENTATION_START_HEAD
+      fixture.state.post_budget_reviews.push({
+        review_number: 8,
+        reviewed_head: ISSUE_171_IMPLEMENTATION_START_HEAD,
+        verdict: 'CORRECTION REQUIRED',
+        authorization: {
+          status: 'approved',
+          authority: 'Founder',
+          scope: 'review',
+          review_number: 8,
+          reviewed_head: ISSUE_171_IMPLEMENTATION_START_HEAD,
+          action: 'Authorize exactly one bounded Delta Review 8 of MC-R1-171-001 on PR #181 at exact head 3778a9868add277fd3c25a333822db72bcdd59b6',
+          authorized_at: '2026-07-28T17:03:43.397Z',
+        },
+        finding_dispositions: [{ finding_id: ISSUE_171_FINDING, disposition: 'open' }],
+        verdict_comment_id: ISSUE_171_REVIEW_8_VERDICT_ID,
+        verdict_url: `https://github.com/boat1994/bemoat-web-starter/issues/171#issuecomment-${ISSUE_171_REVIEW_8_VERDICT_ID}`,
+        finding_thread_url: ISSUE_171_FINDING_THREAD_URL,
+      })
+      fixture.state.founder_review_8_correction_authorization = {
+        schema_version: 1,
+        status: 'consumed',
+        authority: 'Founder',
+        scope: 'correction',
+        for_review_number: 8,
+        reviewed_head: ISSUE_171_IMPLEMENTATION_START_HEAD,
+        active_pr: '#181',
+        branch: 'fix/171-authority-contract-correction-v2',
+        historical_correction_base: ISSUE_171_CURRENT_HEAD,
+        authorized_replacement_base: ISSUE_171_REPLACEMENT_HEAD,
+        implementation_head: ISSUE_171_IMPLEMENTATION_START_HEAD,
+        finding_ids: [ISSUE_171_FINDING],
+        action: 'Authorize exactly one bounded correction for MC-R1-171-001 after Review 8; distinguish and independently validate the historical correction base, authorized replacement base, and current implementation PR head; no Review 9 or other prohibited action.',
+        authorized_at: '2026-07-29T00:36:43Z',
+        handoff_comment_id: ISSUE_171_REVIEW_8_HANDOFF_ID,
+        handoff_url: `https://github.com/boat1994/bemoat-web-starter/issues/171#issuecomment-${ISSUE_171_REVIEW_8_HANDOFF_ID}`,
+        review_8_verdict_comment_id: ISSUE_171_REVIEW_8_VERDICT_ID,
+        review_8_verdict_url: `https://github.com/boat1994/bemoat-web-starter/issues/171#issuecomment-${ISSUE_171_REVIEW_8_VERDICT_ID}`,
+        consumed_at: '2026-07-29T00:36:43Z',
+        review_9_authorized: false,
+      }
+      fixture.state.correction_dispatch = {
+        status: 'active',
+        target: 'Dev / Correction Builder',
+        handoff_comment_id: ISSUE_171_REVIEW_8_HANDOFF_ID,
+        active_pr: '#181',
+        branch: 'fix/171-authority-contract-correction-v2',
+        historical_correction_base: ISSUE_171_CURRENT_HEAD,
+        authorized_replacement_base: ISSUE_171_REPLACEMENT_HEAD,
+        implementation_head: topology.implementationHead,
+        review_number: 8,
+        finding_ids: [ISSUE_171_FINDING],
+      }
+      writeIssue171FixtureState(fixture)
+
+      const result = runAgentIssue(topology.root, ['171', '--phase', 'correction'], {
+        PATH: withStubbedGh(topology.root, fixture.ghStub),
+      })
+
+      expect(result.status, result.stderr || result.stdout).toBe(0)
+      expect(result.stdout).toContain('Edit authorization: granted for the immutable finding set only.')
+
+      const baseline = structuredClone(fixture.state)
+      const failClosedCases: Array<[string, (state: any) => void]> = [
+        ['unrelated implementation head', (state) => { state.correction_dispatch.implementation_head = ISSUE_171_CURRENT_HEAD }],
+        ['stale durable current_head versus live PR head', (state) => { state.current_head = ISSUE_171_IMPLEMENTATION_START_HEAD }],
+        ['mutated authorized replacement base', (state) => {
+          state.founder_review_8_correction_authorization.authorized_replacement_base = ISSUE_171_CURRENT_HEAD
+          state.correction_dispatch.authorized_replacement_base = ISSUE_171_CURRENT_HEAD
+        }],
+        ['historical base rebound to the implementation head', (state) => {
+          state.founder_review_8_correction_authorization.historical_correction_base = topology.implementationHead
+          state.correction_dispatch.historical_correction_base = topology.implementationHead
+        }],
+        ['replacement dispatch binding the implementation head where it must bind the replacement base', (state) => {
+          state.replacement_dispatch.correction_base = topology.implementationHead
+        }],
+      ]
+      for (const [_name, mutate] of failClosedCases) {
+        Object.assign(fixture.state, structuredClone(baseline))
+        mutate(fixture.state)
+        writeIssue171FixtureState(fixture)
+        const rejected = runAgentIssue(topology.root, ['171', '--phase', 'correction'], {
+          PATH: withStubbedGh(topology.root, fixture.ghStub),
+        })
+        expect(rejected.status, _name + ': ' + (rejected.stderr || rejected.stdout)).toBe(1)
+        expect(rejected.stdout).not.toContain('Edit authorization: granted')
+      }
     })
 
     it('compiles the source-bound #171 finding from Spec RESULT, Review 7, and the original thread', () => {
