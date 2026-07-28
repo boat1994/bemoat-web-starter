@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
+import { pathToFileURL } from 'node:url'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
@@ -3432,6 +3433,98 @@ ${review1ContractJson(head)}
         priorIndex = index
       }
       expect(result.stdout).not.toContain('Edit authorization: granted')
+    })
+
+    it('normalizes canonical GitHub comment identity without conflating GraphQL and REST identifiers', async () => {
+      const modulePath = pathToFileURL(resolve(repoRoot, 'scripts/agent-issue/github-evidence.mjs')).href
+      const { normalizeCanonicalGitHubComment } = await import(/* @vite-ignore */ modulePath)
+      const result = normalizeCanonicalGitHubComment(
+        {
+          id: 'IC_kwDOS4T8888AAAABLwaENA',
+          url: `https://github.com/boat1994/bemoat-web-starter/issues/171#issuecomment-${ISSUE_171_HANDOFF_ID}`,
+          author: { login: 'boat1994' },
+          body: readAuthorityFixture('issue-171-historical-handoff.md'),
+          createdAt: '2026-07-26T14:34:44Z',
+          updatedAt: null,
+        },
+        {
+          id: Number(ISSUE_171_HANDOFF_ID),
+          html_url: `https://github.com/boat1994/bemoat-web-starter/issues/171#issuecomment-${ISSUE_171_HANDOFF_ID}`,
+          user: { login: 'boat1994' },
+          author_association: 'OWNER',
+          body: readAuthorityFixture('issue-171-historical-handoff.md'),
+          created_at: '2026-07-26T14:34:44Z',
+          updated_at: '2026-07-26T14:34:44Z',
+        },
+      )
+
+      expect(result).toEqual({
+        ok: true,
+        errors: [],
+        comment: expect.objectContaining({
+          id: ISSUE_171_HANDOFF_ID,
+          databaseId: ISSUE_171_HANDOFF_ID,
+          nodeId: 'IC_kwDOS4T8888AAAABLwaENA',
+          author: 'boat1994',
+          authorAssociation: 'OWNER',
+          createdAt: '2026-07-26T14:34:44Z',
+          updatedAt: '2026-07-26T14:34:44Z',
+        }),
+      })
+    })
+
+    it('fails canonical GitHub comment normalization on conflicting database identity', async () => {
+      const modulePath = pathToFileURL(resolve(repoRoot, 'scripts/agent-issue/github-evidence.mjs')).href
+      const { normalizeCanonicalGitHubComment } = await import(/* @vite-ignore */ modulePath)
+      const result = normalizeCanonicalGitHubComment(
+        {
+          id: 'node-id',
+          url: `https://github.com/boat1994/bemoat-web-starter/issues/171#issuecomment-${ISSUE_171_HANDOFF_ID}`,
+          body: '## HANDOFF',
+          createdAt: '2026-07-26T14:34:44Z',
+        },
+        {
+          id: 5099999999,
+          html_url: 'https://github.com/boat1994/bemoat-web-starter/issues/171#issuecomment-5099999999',
+          body: '## HANDOFF',
+          created_at: '2026-07-26T14:34:44Z',
+          updated_at: '2026-07-26T14:34:44Z',
+        },
+      )
+
+      expect(result.ok).toBe(false)
+      expect(result.errors).toContain('STATE CONFLICT: GitHub comment database identity is contradictory')
+    })
+
+    it('collects local Git/worktree evidence without GitHub or authority state', async () => {
+      const modulePath = pathToFileURL(resolve(repoRoot, 'scripts/agent-issue/local-git-evidence.mjs')).href
+      const { collectLocalGitEvidence } = await import(/* @vite-ignore */ modulePath)
+      const root = createRepo('refactor/177-local-evidence')
+      seedTrackedFile(root, 'README.md', 'local evidence fixture')
+
+      const evidence = collectLocalGitEvidence({ cwd: root })
+
+      expect(evidence).toEqual(expect.objectContaining({
+        branchName: 'refactor/177-local-evidence',
+        statusShort: '',
+        dirty: false,
+        originUrl: 'https://github.com/boat1994/bemoat-web-starter.git',
+        head: expect.stringMatching(/^[a-f0-9]{40}$/),
+      }))
+    })
+
+    it('renders typed preflight faults in stable order', async () => {
+      const modulePath = pathToFileURL(resolve(repoRoot, 'scripts/agent-issue/faults.mjs')).href
+      const { PreflightFault, renderPreflightFaults } = await import(/* @vite-ignore */ modulePath)
+      const faults = [
+        new PreflightFault({ classification: 'BLOCKED_EXTERNAL', code: 'github-unavailable', order: 30, message: 'GitHub evidence unavailable' }),
+        new PreflightFault({ classification: 'STATE_CONFLICT', code: 'authority-mismatch', order: 10, message: 'authority mismatch' }),
+      ]
+
+      expect(renderPreflightFaults(faults)).toEqual([
+        'STATE CONFLICT: authority mismatch',
+        'BLOCKED_EXTERNAL: GitHub evidence unavailable',
+      ])
     })
   })
 

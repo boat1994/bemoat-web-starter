@@ -19,6 +19,8 @@ import {
 } from './guard-planning-contract.mjs'
 import { parseMissionControlState } from './mission-control-state.mjs'
 import { projectComments } from './github-comment-projection.mjs'
+import { collectLocalGitEvidence } from './agent-issue/local-git-evidence.mjs'
+import { createGitHubEvidenceAdapter } from './agent-issue/github-evidence.mjs'
 
 export { parseMissionControlState }
 
@@ -77,22 +79,6 @@ function parseAgentIssueArgs(argv = process.argv.slice(2)) {
   }
 
   return { issueNumber: positional[0], phase }
-}
-
-function getCurrentBranch(cwd = process.cwd()) {
-  return run('git', ['branch', '--show-current'], { cwd }).stdout.trim() || '<detached>'
-}
-
-function getStatusShort(cwd = process.cwd()) {
-  return run('git', ['status', '--short'], { cwd }).stdout.trimEnd()
-}
-
-function hasDevBranch(cwd = process.cwd()) {
-  const local = run('git', ['rev-parse', '--verify', '--quiet', 'dev'], { cwd })
-  if (local.status === 0) return true
-
-  const remote = run('git', ['rev-parse', '--verify', '--quiet', 'origin/dev'], { cwd })
-  return remote.status === 0
 }
 
 function getOriginUrl(cwd = process.cwd()) {
@@ -581,35 +567,15 @@ function fetchIssueByReference(cwd, reference, env = process.env) {
 }
 
 function fetchIssueComments(cwd, issueNumber, env = process.env) {
-  if (!issueNumber) {
-    return { ok: false, reason: 'Issue number is required for comment lookup.' }
-  }
-
-  const args = ['issue', 'view', issueNumber, '--json', 'comments']
   const defaultRepo = getDefaultRepo(cwd)
-  if (defaultRepo) {
-    args.push('--repo', defaultRepo)
-  }
+  const result = createGitHubEvidenceAdapter({ cwd, env, defaultRepo, runCommand: run })
+    .fetchIssueComments(issueNumber)
+  if (!result.ok) return result
 
-  const result = run('gh', args, { cwd, env })
-  if (result.status !== 0) {
-    return {
-      ok: false,
-      reason: result.stderr.trim() || result.stdout.trim() || 'GitHub issue comment lookup failed.',
-    }
-  }
-
-  try {
-    const payload = JSON.parse(result.stdout)
-    return {
-      ok: true,
-      comments: Array.isArray(payload.comments) ? projectComments(payload.comments) : [],
-    }
-  } catch (error) {
-    return {
-      ok: false,
-      reason: `Invalid issue comments JSON: ${error instanceof Error ? error.message : String(error)}`,
-    }
+  return {
+    ok: true,
+    comments: projectComments(result.comments),
+    rawComments: result.rawComments,
   }
 }
 
@@ -2413,9 +2379,10 @@ export function runAgentIssuePreflight({
 
   const { issueNumber, phase } = parsedArgs
 
-  const branchName = getCurrentBranch(cwd)
-  const statusShort = getStatusShort(cwd)
-  const dirty = statusShort.trim().length > 0
+  const localGitEvidence = collectLocalGitEvidence({ cwd, env, runCommand: run })
+  const branchName = localGitEvidence.branchName
+  const statusShort = localGitEvidence.statusShort
+  const dirty = localGitEvidence.dirty
   const issueMetadata = fetchIssueMetadata(cwd, issueNumber, env)
   const fallbackIssueUrl = buildIssueUrl(cwd, issueNumber)
   const suggestedBranchName =
@@ -2423,7 +2390,7 @@ export function runAgentIssuePreflight({
       ? buildSuggestedBranchName(issueNumber, issueMetadata.title)
       : null
   const branchSafety = runBranchSafety(cwd)
-  const devBranchAvailable = hasDevBranch(cwd)
+  const devBranchAvailable = localGitEvidence.hasDevBranch
 
   if (phase === 'correction') {
     return runCorrectionPhasePreflight({
