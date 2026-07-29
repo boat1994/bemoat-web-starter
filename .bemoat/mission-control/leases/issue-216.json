@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "issue": "216",
-  "transition_identity": "{\"taskId\":\"216\",\"phase\":\"Mission Control State Bootstrap\",\"role\":\"STATE_BOOTSTRAP\",\"contentHash\":\"8118dafdda50d798b4ac2c901fc8f70ab36409a3391873a7958db1928079a890\"}",
+  "transition_identity": "{\"taskId\":\"216\",\"phase\":\"Tester — deterministic child-portability red reproduction\",\"role\":\"HANDOFF\",\"contentHash\":\"605019cf6b79bed11cabe535632311d10c2da9ac6b434b137de543d6a6069877\"}",
   "observed_body_sha256": "edc0829f0294e95f8fa206450d87c484c0937f257a5972218c2293231dd18395",
-  "holder": "mission-control-state-bootstrap-216",
-  "status": "released",
-  "updated_at": "2026-07-29T20:05:27.952Z"
+  "holder": "mission-control-dispatch",
+  "status": "held",
+  "updated_at": "2026-07-29T20:16:51.832Z"
 }
