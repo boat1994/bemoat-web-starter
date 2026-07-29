@@ -1,3 +1,19 @@
+<!-- bemoat-task-identity:start -->
+```yaml
+schema_version: 1
+main_issue: null
+task_key: "issue-184"
+task_issue_strategy: "existing_dedicated_issue"
+active_task_issue: "#184"
+branch_template: "docs/184-deterministic-implementation-plan"
+transition_target: "AWAITING_REVIEW_1"
+planning_base_sha: "dfd0f42cc7abf8c0cce287b8198e8cbea4d3ae4c"
+execution_base_rule: "resolve_live_protected_base_at_dispatch"
+paired_spec: null
+paired_plan: "docs/superpowers/plans/2026-07-29-mission-control-transition-idempotency.md"
+```
+<!-- bemoat-task-identity:end -->
+
 # Mission Control Transition Idempotency Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use
