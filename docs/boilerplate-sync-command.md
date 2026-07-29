@@ -18,6 +18,32 @@ pnpm run bemoat:boilerplate:sync -- --full
 
 If you omit flags, sync defaults to **`harness-only`** (safe for existing repos).
 
+### Mission Control transition child-sync gate
+
+Default child-sync invocations (`pnpm run bemoat:boilerplate:sync`,
+`pnpm run boilerplate:sync`, or bare `node scripts/sync-boilerplate.mjs`)
+enforce the Mission Control transition gate. Sync is blocked until Issues
+`#182` and `#184` are merged/green on protected `main`, live child state has
+been reconstructed, and a fresh child-sync HANDOFF exists.
+
+Gate evidence is supplied via environment variables:
+
+```bash
+BEMOAT_CHILD_SYNC_182_MERGED=1 \
+BEMOAT_CHILD_SYNC_184_MERGED=1 \
+BEMOAT_CHILD_SYNC_LIVE_RECONSTRUCTED=1 \
+BEMOAT_CHILD_SYNC_FRESH_HANDOFF=1 \
+pnpm run bemoat:boilerplate:sync -- --harness-only
+```
+
+Explicit bypass (escape hatch only):
+
+```bash
+pnpm run bemoat:boilerplate:sync -- --harness-only --skip-mc-transition-gate
+# or
+BEMOAT_SKIP_MC_TRANSITION_CHILD_SYNC_GATE=1 pnpm run bemoat:boilerplate:sync -- --harness-only
+```
+
 Drift check uses the same modes:
 
 ```bash

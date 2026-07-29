@@ -3,7 +3,14 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
-import { dispatchFounderAuthorizedCorrection, dispatchManagedTask } from './mission-control-reconcile.mjs'
+import {
+  dispatchFounderAuthorizedCorrection,
+  Coordinator,
+  normalizeIssueComments,
+  parsePaginatedGhApiJson,
+  verifyStatePostcondition,
+  resolveProductionCommentTrust,
+} from './mission-control-reconcile.mjs'
 import { parseMissionControlState, renderMissionControlState } from './mission-control-state.mjs'
 
 function run(command, args) {
@@ -51,6 +58,10 @@ function replaceStateBlock(body, state) {
   return body.replace(pattern, rendered)
 }
 
+function sameState(left, right) {
+  return JSON.stringify(left) === JSON.stringify(right)
+}
+
 async function main() {
   const options = parseArgs(process.argv.slice(2))
   const repo = options.repo || run('gh', ['repo', 'view', '--json', 'nameWithOwner', '--jq', '.nameWithOwner'])
@@ -69,8 +80,15 @@ async function main() {
     expectedBody = issue.body
     return parsed.state
   }
-  const writeState = async (state) => {
+  const writeState = async (state, expectedState) => {
     const live = JSON.parse(run('gh', issueArgs(options, 'body')))
+    const liveParsed = parseMissionControlState(live.body)
+    if (!liveParsed.present || !liveParsed.valid) {
+      throw new Error(`invalid managed state during write: ${liveParsed.reason ?? 'missing state block'}`)
+    }
+    if (expectedState && !sameState(liveParsed.state, expectedState)) {
+      throw new Error('concurrent Issue write detected')
+    }
     if (expectedBody !== null && live.body !== expectedBody) {
       throw new Error('concurrent Issue write detected')
     }
@@ -82,10 +100,31 @@ async function main() {
       const args = ['issue', 'edit', options.issue, '--body-file', bodyFile]
       if (options.repo) args.push('--repo', options.repo)
       run('gh', args)
-      expectedBody = nextBody
+      const verified = JSON.parse(run('gh', issueArgs(options, 'body')))
+      const verifiedParsed = parseMissionControlState(verified.body)
+      if (!verifiedParsed.present || !verifiedParsed.valid) {
+        throw new Error('postcondition: Issue state unreadable after write')
+      }
+      try {
+        verifyStatePostcondition(state, verifiedParsed.state, [
+          'state', 'latest_transition_identity', 'latest_handoff_comment_id', 'next_permitted_action',
+        ])
+      } catch (error) {
+        throw new Error(`concurrent Issue write detected after state write: ${error instanceof Error ? error.message : String(error)}`)
+      }
+      expectedBody = verified.body
+      return verifiedParsed.state
     } finally {
       rmSync(temp, { recursive: true, force: true })
     }
+  }
+  const listLiveComments = () => {
+    const stdout = run('gh', [
+      'api',
+      '--paginate',
+      `repos/${repo}/issues/${options.issue}/comments`,
+    ])
+    return normalizeIssueComments(parsePaginatedGhApiJson(stdout))
   }
   const postHandoff = async (body) => {
     const temp = mkdtempSync(join(tmpdir(), 'bemoat-dispatch-comment-'))
@@ -100,11 +139,16 @@ async function main() {
       const posted = JSON.parse(run('gh', [
         'api', '--method', 'POST', `repos/${repo}/issues/${options.issue}/comments`, '--input', payloadFile,
       ]))
+      if (posted?.id == null) throw new Error('posted HANDOFF did not return a comment identifier')
       return {
         ...posted,
+        id: posted.id,
+        body: posted.body ?? body,
         url: posted.html_url ?? posted.url ?? null,
         createdAt: posted.created_at ?? posted.createdAt ?? null,
         updatedAt: posted.updated_at ?? posted.updatedAt ?? null,
+        author: posted.user?.login ?? null,
+        author_association: posted.author_association ?? null,
       }
     } finally {
       rmSync(temp, { recursive: true, force: true })
@@ -138,25 +182,47 @@ async function main() {
   }
 
   const timestamp = new Date().toISOString()
-  const dispatch = options.founderCorrection ? dispatchFounderAuthorizedCorrection : dispatchManagedTask
-  const result = await dispatch({
+  if (options.founderCorrection) {
+    const result = await dispatchFounderAuthorizedCorrection({
+      readState: async () => readIssue(),
+      writeState,
+      postHandoff,
+      retractHandoff,
+      reserveAuthorization,
+      releaseAuthorization,
+      handoffBody,
+      updatedAt: timestamp,
+      updatedBy: 'Mission Control',
+    })
+    process.stdout.write(`Mission Control dispatch ${result.outcome}: FOUNDER_AUTHORIZED_CORRECTION -> IN_PROGRESS + HANDOFF\n`)
+    return
+  }
+
+  const coordinator = new Coordinator({
     readState: async () => readIssue(),
     writeState,
-    postHandoff,
-    retractHandoff,
-    reserveAuthorization,
-    releaseAuthorization,
+    listComments: async () => listLiveComments(),
+    postComment: async (body) => postHandoff(body),
+    ...resolveProductionCommentTrust(),
+  })
+  // Coordinator owns latest_transition_identity, comment binding, and next_permitted_action.
+  const result = await coordinator.integrateHandoff({
     handoffBody,
-    transitionState: (state) => ({
-      ...structuredClone(state),
-      state: 'IN_PROGRESS',
-      updated_at: timestamp,
-      updated_by: 'Mission Control',
-    }),
     updatedAt: timestamp,
     updatedBy: 'Mission Control',
   })
-  process.stdout.write(`Mission Control dispatch ${result.outcome}: ${options.founderCorrection ? 'FOUNDER_AUTHORIZED_CORRECTION' : 'READY'} -> IN_PROGRESS + HANDOFF\n`)
+  const liveComments = listLiveComments()
+  const bound = liveComments.find((comment) => String(comment.id) === String(result.comment?.id))
+  if (!bound) {
+    throw new Error('postcondition: posted HANDOFF comment id was not found on live Issue comments')
+  }
+  if (result.state?.state !== 'IN_PROGRESS') {
+    throw new Error('postcondition: live Issue state is not IN_PROGRESS after HANDOFF')
+  }
+  if (!result.state?.latest_handoff_comment_id || String(result.state.latest_handoff_comment_id) !== String(result.comment.id)) {
+    throw new Error('postcondition: live state is not bound to the posted HANDOFF comment id')
+  }
+  process.stdout.write(`Mission Control dispatch ${result.outcome}: READY -> IN_PROGRESS + HANDOFF comment ${result.comment.id}\n`)
 }
 
 main().catch((error) => {

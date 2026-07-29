@@ -1,17 +1,16 @@
 import { Buffer } from 'buffer'
-import { parseRoleCommentBody, findLatestRoleComment } from './mission-control-reconcile.mjs'
+import {
+  parseRoleCommentBody,
+  findLatestRoleComment,
+  isExplicitlyNonAuthoritativeRoleBody,
+  selectActiveRoleComments,
+} from './mission-control-reconcile.mjs'
 
 function getCommentBody(comment) {
   return comment.body || comment.body_html || ''
 }
 
-function isExplicitlyNonAuthoritativeRoleBody(body) {
-  return (
-    /\[(?:diagnostic|stale|superseded)\]/i.test(body) ||
-    (/\b(?:hereby\s+)?superseded\b/i.test(body) && /\bnot\s+authorized\b/i.test(body)) ||
-    /\bnot\s+authoritative\b/i.test(body)
-  )
-}
+export { isExplicitlyNonAuthoritativeRoleBody, selectActiveRoleComments }
 
 function isDiagnosticOrReconciliationRoleBody(body) {
   return (
@@ -53,7 +52,10 @@ export function selectAuthoritativeRoleComments(comments = [], role) {
     .map((comment) => ({ comment, body: getCommentBody(comment) }))
     .filter(({ body }) => parseRoleCommentBody(body).role === role)
 
-  const viable = roleEntries.filter(({ body }) => !isExplicitlyNonAuthoritativeRoleBody(body))
+  // Active non-superseded comments form the authority pool; superseded history
+  // is never selected as competing live authority.
+  const active = selectActiveRoleComments(comments, role)
+  const viable = active.map((comment) => ({ comment, body: getCommentBody(comment) }))
   const approved = viable.filter(({ body }) => hasApprovedOrDeliveryRoleBody(body, role))
   const diagnostic = viable.filter(({ body }) => isDiagnosticOrReconciliationRoleBody(body))
 
@@ -80,6 +82,7 @@ export function selectAuthoritativeRoleComments(comments = [], role) {
   for (const { comment, body } of roleEntries) {
     const parsed = parseRoleCommentBody(body)
     if (!parsed.role) continue
+    if (isExplicitlyNonAuthoritativeRoleBody(body)) continue
     const ts = Date.parse(comment.createdAt || comment.created_at || '')
     if (Number.isNaN(ts)) {
       authoritative.add(comment)

@@ -11,16 +11,39 @@ const {
   classifyDeliveryLag,
   classifyMergeDrift,
   classifyReviewLag,
+  classifyTransition,
   founderMergeTransitionAuthorized,
   dispatchManagedTask,
   dispatchFounderAuthorizedCorrection,
   isGenuineStateConflict,
   migrateLegacyManagedState,
   parseRoleCommentBody,
+  parseCommentMarker,
+  normalizeTransitionIdentity,
+  recoverAmbiguousPost,
+  verifyStatePostcondition,
+  CHILD_SYNC_GATE_ISSUES,
+  CHILD_SYNC_GATE_REQUIREMENTS,
+  assertChildSyncGateReady,
+  resolveChildSyncCommandGate,
+  selectActiveRoleComments,
+  isExplicitlyNonAuthoritativeRoleBody,
+  parsePaginatedGhApiJson,
+  normalizeIssueComments,
+  findMatchingComments,
   proposeDeliveryReconciliation,
   proposeReviewReconciliation,
   runBoundedReconciliation,
+  resolveProductionCommentTrust,
 } = reconcileModule as unknown as Record<string, (...args: any[]) => any>
+
+const CoordinatorClass = reconcileModule.Coordinator as unknown as new (transports: Record<string, unknown>) => {
+  integrateHandoff: (input: Record<string, unknown>) => Promise<Record<string, unknown>>
+  integrateResult: (input: Record<string, unknown>) => Promise<Record<string, unknown>>
+  reconcileReviewVerdict: (input: Record<string, unknown>) => Promise<Record<string, unknown>>
+  resumeProjection: (input: Record<string, unknown>) => Promise<Record<string, unknown>>
+  assertCompatibleSnapshot: (input: Record<string, unknown>) => Promise<Record<string, unknown>>
+}
 
 const sampleResult = `## RESULT
 
@@ -907,5 +930,483 @@ describe('mission-control reconcile classifiers', () => {
     expect(fields.review_cycle).toBe(2)
     expect(fields.full_review_count).toBe(1)
     expect(fields.next_permitted_action).toMatch(/contradictory evidence/)
+  })
+})
+
+describe('mission-control transition idempotency', () => {
+  const handoffBody = `## HANDOFF
+
+**Target:** Dev / Builder
+**Task / Issue:** #184
+**Phase:** Dev (implementation)
+
+Bounded implementation work.
+`
+
+  const resultBody = `## RESULT
+
+### Task log
+- Timestamp: 2026-07-29T19:00:00+07:00
+- Task / Issue: #184
+- Phase: Dev (implementation)
+
+**Completed:** Dev (implementation)
+**State:** branch \`feature/184\` · base \`main\` · head \`deadbeef\`
+**PR:** https://github.com/boat1994/bemoat-web-starter/pull/186
+**Summary:** Transition idempotency implementation
+`
+
+  it('normalizes transition identity consistently', () => {
+    const first = normalizeTransitionIdentity(handoffBody)
+    const second = normalizeTransitionIdentity(handoffBody)
+    expect(first).toEqual(second)
+    expect(first).toMatchObject({
+      taskId: '184',
+      phase: 'Dev (implementation)',
+      role: 'HANDOFF',
+      contentHash: expect.stringMatching(/^[0-9a-f]{64}$/),
+    })
+  })
+
+  it('parses and matches comment markers exactly', () => {
+    expect(parseCommentMarker('## HANDOFF\n\nWork')).toBe('HANDOFF')
+    expect(parseCommentMarker('## RESULT\n\nDone')).toBe('RESULT')
+    expect(parseCommentMarker('## REVIEW_VERDICT\n\nReview')).toBe('REVIEW_VERDICT')
+    expect(parseCommentMarker('## OTHER\n\nNope')).toBeNull()
+  })
+
+  it('classifies pure transition', () => {
+    expect(classifyTransition(0)).toBe('BLOCKED_EXTERNAL')
+    expect(classifyTransition(1)).toBe('RESUME_PROJECTION')
+    expect(classifyTransition(2)).toBe('STATE_CONFLICT')
+  })
+
+  it('coordinator injects transports', async () => {
+    let state: any = { state: 'READY', review_cycle: 0, full_review_count: 0, next_permitted_action: 'Mission Control posts HANDOFF' }
+    const comments: any[] = []
+    const coordinator = new CoordinatorClass({
+      readState: async () => state,
+      writeState: async (next: any) => { state = structuredClone(next); return state },
+      listComments: async () => comments,
+      postComment: async (body: string) => {
+        const posted = { id: '1', body }
+        comments.push(posted)
+        return posted
+      },
+    })
+    const result = await coordinator.integrateHandoff({ handoffBody })
+    expect(result.outcome).toBe('DISPATCHED')
+    expect(state.state).toBe('IN_PROGRESS')
+    expect(state.latest_handoff_comment_id).toBe('1')
+    expect(state.latest_transition_identity).toBeTruthy()
+    expect(state.next_permitted_action).toMatch(/do not re-post HANDOFF/)
+    expect(comments).toHaveLength(1)
+  })
+
+  it('recovers ambiguous POST with one live match', () => {
+    const identity = normalizeTransitionIdentity(handoffBody, { role: 'HANDOFF' })
+    const recovery = recoverAmbiguousPost({
+      comments: [{ id: '99', body: handoffBody }],
+      identity,
+      ambiguousPost: true,
+    })
+    expect(recovery.classification).toBe('RESUME_PROJECTION')
+    expect(recovery.comment?.id).toBe('99')
+    expect(recovery.recovered).toBe(true)
+  })
+
+  it('recovers from comment-success/state-update-failure plus rerun', async () => {
+    let state: any = { state: 'READY', review_cycle: 0, full_review_count: 0 }
+    const comments = [{ id: 'posted-1', body: handoffBody }]
+    let postCalls = 0
+    const coordinator = new CoordinatorClass({
+      readState: async () => state,
+      writeState: async (next: any, expected?: any) => {
+        if (expected && expected.state !== state.state) {
+          throw new Error('STATE_CONFLICT: concurrent Issue write detected')
+        }
+        state = next
+        return structuredClone(state)
+      },
+      listComments: async () => comments,
+      postComment: async () => {
+        postCalls += 1
+        throw new Error('should not post duplicate')
+      },
+    })
+    // Production path: integrateHandoff rediscovers the live comment instead of posting again.
+    const resumed = await coordinator.integrateHandoff({ handoffBody })
+    expect(resumed.outcome).toBe('DISPATCHED')
+    expect(postCalls).toBe(0)
+    expect(state.state).toBe('IN_PROGRESS')
+    expect(state.latest_handoff_comment_id).toBe('posted-1')
+    expect(state.next_permitted_action).toMatch(/do not re-post HANDOFF/)
+    expect(comments).toHaveLength(1)
+  })
+
+  it('incompatible concurrent state fail-closed', async () => {
+    let state: any = { state: 'READY', review_cycle: 0, full_review_count: 0, active_pr: null }
+    const comments: any[] = []
+    const coordinator = new CoordinatorClass({
+      readState: async () => state,
+      writeState: async () => {
+        // Concurrent writer moved authority incompatibly after comment success.
+        state = { state: 'AWAITING_REVIEW_1', review_cycle: 1, full_review_count: 1, active_pr: '"#999"' }
+        throw new Error('STATE_CONFLICT: Failed to write durable state to Issue')
+      },
+      listComments: async () => comments,
+      postComment: async (body: string) => {
+        const posted = { id: 'result-concurrent', body }
+        comments.push(posted)
+        return posted
+      },
+    })
+    await expect(coordinator.integrateResult({
+      resultBody,
+      projectState: () => ({ ...state, state: 'AWAITING_REVIEW_1', active_pr: '"#186"', current_head: 'deadbeef' }),
+    })).rejects.toThrow('STATE_CONFLICT: incompatible concurrent authority')
+  })
+
+  it('rejects competing HANDOFF', async () => {
+    let state: any = { state: 'READY', review_cycle: 0, full_review_count: 0 }
+    const comments = [
+      { id: '1', body: '## HANDOFF\n\n**Task / Issue:** #184\n**Phase:** A\nFirst' },
+      { id: '2', body: '## HANDOFF\n\n**Task / Issue:** #185\n**Phase:** B\nSecond' },
+    ]
+    const coordinator = new CoordinatorClass({
+      readState: async () => state,
+      writeState: async (next: any) => { state = next; return next },
+      listComments: async () => comments,
+      postComment: async (body: string) => ({ id: '3', body }),
+    })
+    await expect(coordinator.integrateHandoff({ handoffBody })).rejects.toThrow('competing HANDOFF')
+  })
+
+  it('ignores superseded historical HANDOFF when selecting active authority', async () => {
+    let state: any = { state: 'READY', review_cycle: 0, full_review_count: 0 }
+    const comments = [
+      {
+        id: 'old',
+        body: '## HANDOFF\n\n[superseded] not authorized\n\n**Task / Issue:** #184\n**Phase:** Old\nHistorical',
+      },
+      { id: 'active', body: handoffBody },
+    ]
+    expect(isExplicitlyNonAuthoritativeRoleBody(comments[0].body)).toBe(true)
+    expect(selectActiveRoleComments(comments, 'HANDOFF')).toHaveLength(1)
+    const coordinator = new CoordinatorClass({
+      readState: async () => state,
+      writeState: async (next: any) => { state = structuredClone(next); return state },
+      listComments: async () => comments,
+      postComment: async () => { throw new Error('should reuse active HANDOFF') },
+    })
+    const result = await coordinator.integrateHandoff({ handoffBody })
+    expect(result.outcome).toBe('DISPATCHED')
+    expect((result.comment as { id: string }).id).toBe('active')
+    expect(state.latest_handoff_comment_id).toBe('active')
+  })
+
+  it('binds task/phase/PR/head lineage when matching comments', () => {
+    const identity = normalizeTransitionIdentity(resultBody, { role: 'RESULT' })
+    expect(findMatchingComments(
+      [{ id: 'right', body: resultBody }],
+      identity,
+      { activeOnly: true, bindings: { prNumber: '999', headSha: 'deadbeef', taskId: '184' } },
+    )).toHaveLength(0)
+    expect(findMatchingComments(
+      [{ id: 'right', body: resultBody }],
+      identity,
+      { activeOnly: true, bindings: { prNumber: '186', headSha: 'deadbeef', taskId: '184' } },
+    ).map((comment: any) => comment.id)).toEqual(['right'])
+  })
+
+  it('rejects untrusted author matches as non-authoritative', () => {
+    const identity = normalizeTransitionIdentity(resultBody, { role: 'RESULT' })
+    const trust = resolveProductionCommentTrust({
+      env: {
+        NODE_ENV: process.env.NODE_ENV ?? 'test',
+        PAYLOAD_SECRET: process.env.PAYLOAD_SECRET ?? 'test',
+        BEMOAT_MC_TRUSTED_AUTHORS: 'boat1994',
+      } as NodeJS.ProcessEnv,
+    })
+    expect(trust).toMatchObject({
+      trustedAuthors: ['boat1994'],
+      requireTrustedAuthor: true,
+    })
+    expect(findMatchingComments(
+      [{
+        id: 'evil',
+        body: resultBody,
+        author: 'untrusted-bot',
+        author_association: 'NONE',
+      }],
+      identity,
+      { activeOnly: true, ...trust },
+    )).toHaveLength(0)
+    expect(findMatchingComments(
+      [{
+        id: 'ok',
+        body: resultBody,
+        author: 'boat1994',
+        author_association: 'OWNER',
+      }],
+      identity,
+      { activeOnly: true, ...trust },
+    ).map((comment: any) => comment.id)).toEqual(['ok'])
+  })
+
+  it('coordinator production trust path does not reuse untrusted comments', async () => {
+    let state: any = { state: 'READY', review_cycle: 0, full_review_count: 0 }
+    const comments: any[] = [{
+      id: 'evil',
+      body: handoffBody,
+      author: 'attacker',
+      author_association: 'NONE',
+    }]
+    const trust = resolveProductionCommentTrust({
+      env: {
+        NODE_ENV: process.env.NODE_ENV ?? 'test',
+        PAYLOAD_SECRET: process.env.PAYLOAD_SECRET ?? 'test',
+        BEMOAT_MC_TRUSTED_AUTHORS: 'boat1994',
+      } as NodeJS.ProcessEnv,
+    })
+    const coordinator = new CoordinatorClass({
+      readState: async () => state,
+      writeState: async (next: any) => { state = structuredClone(next); return state },
+      listComments: async () => comments,
+      postComment: async (body: string) => {
+        const posted = {
+          id: 'trusted-new',
+          body,
+          author: 'boat1994',
+          author_association: 'OWNER',
+        }
+        comments.push(posted)
+        return posted
+      },
+      ...trust,
+    })
+    const result = await coordinator.integrateHandoff({ handoffBody })
+    expect(result.outcome).toBe('DISPATCHED')
+    expect((result.comment as { id: string }).id).toBe('trusted-new')
+    expect(state.latest_handoff_comment_id).toBe('trusted-new')
+  })
+
+  it('ensures RESULT suppression before postconditions', async () => {
+    let state: any = { state: 'IN_PROGRESS', review_cycle: 0, full_review_count: 0 }
+    const comments: any[] = []
+    const coordinator = new CoordinatorClass({
+      readState: async () => state,
+      writeState: async (next: any) => { state = next; return next },
+      listComments: async () => comments,
+      postComment: async (body: string) => {
+        const posted = { id: 'result-1', body }
+        comments.push(posted)
+        return posted
+      },
+    })
+    await expect(coordinator.integrateResult({
+      resultBody,
+      projectState: () => ({ ...state, state: 'AWAITING_REVIEW_1' }),
+      verifyPreconditions: async () => { throw new Error('preconditions incomplete') },
+    })).rejects.toThrow('preconditions incomplete')
+    expect(comments).toHaveLength(0)
+  })
+
+  it('preserves counters and last_reviewed_head during reconciliation', async () => {
+    let state: any = {
+      state: 'AWAITING_REVIEW_1', review_cycle: 1, full_review_count: 1,
+      last_reviewed_head: 'abc1234', active_pr: '#121', current_head: 'abc1234',
+    }
+    const verdictBody = `## REVIEW_VERDICT
+
+**Task / Issue:** #120
+**Phase:** Reviewer
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/121 · \`main\` · \`abc1234\`
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+`
+    const comments = [{ id: 'verdict-1', body: verdictBody }]
+    const coordinator = new CoordinatorClass({
+      readState: async () => state,
+      writeState: async (next: any) => { state = next; return next },
+      listComments: async () => comments,
+      postComment: async (body: string) => ({ id: 'new', body }),
+    })
+    const result = await coordinator.reconcileReviewVerdict({
+      verdictBody,
+      projectReview: () => ({
+        state: 'ELIGIBLE_FOR_FOUNDER_REVIEW',
+        review_cycle: 1,
+        full_review_count: 1,
+        last_reviewed_head: 'abc1234',
+      }),
+    })
+    expect(result.outcome).toBe('RECONCILED')
+    expect(state.review_cycle).toBe(1)
+    expect(state.full_review_count).toBe(1)
+    expect(state.last_reviewed_head).toBe('abc1234')
+  })
+
+  it('integrates RESULT with exact identity', async () => {
+    let state: any = { state: 'IN_PROGRESS', review_cycle: 0, full_review_count: 0 }
+    const comments: any[] = []
+    const coordinator = new CoordinatorClass({
+      readState: async () => state,
+      writeState: async (next: any) => { state = structuredClone(next); return state },
+      listComments: async () => comments,
+      postComment: async (body: string) => {
+        const posted = { id: 'result-1', body }
+        comments.push(posted)
+        return posted
+      },
+    })
+    const result = await coordinator.integrateResult({
+      resultBody,
+      projectState: () => ({
+        ...state,
+        state: 'AWAITING_REVIEW_1',
+        active_pr: '"#186"',
+        current_head: 'deadbeef',
+        review_cycle: 0,
+        full_review_count: 0,
+      }),
+    })
+    expect(result.outcome).toBe('DELIVERED')
+    expect(state.state).toBe('AWAITING_REVIEW_1')
+    expect(state.latest_result_comment_id).toBe('result-1')
+    expect(normalizeTransitionIdentity(comments[0].body).contentHash)
+      .toBe(normalizeTransitionIdentity(resultBody).contentHash)
+  })
+
+  it('reconciles REVIEW_VERDICT external evidence', async () => {
+    let state: any = { state: 'AWAITING_REVIEW_1', review_cycle: 0, full_review_count: 0, last_reviewed_head: null }
+    const verdictBody = sampleVerdict
+    const comments = [{ id: 'v1', body: verdictBody }]
+    const coordinator = new CoordinatorClass({
+      readState: async () => state,
+      writeState: async (next: any) => { state = next; return next },
+      listComments: async () => comments,
+      postComment: async (body: string) => ({ id: 'new', body }),
+    })
+    const result = await coordinator.reconcileReviewVerdict({
+      verdictBody,
+      projectReview: () => proposeReviewReconciliation({
+        verdict: 'ELIGIBLE FOR FOUNDER REVIEW',
+        reviewedHead: 'abc1234',
+        reviewCycle: 0,
+        fullReviewCount: 0,
+      }),
+    })
+    expect(result.outcome).toBe('RECONCILED')
+    expect(state.state).toBe('ELIGIBLE_FOR_FOUNDER_REVIEW')
+  })
+
+  it('verifies state postcondition exactly', () => {
+    expect(() => verifyStatePostcondition(
+      { state: 'IN_PROGRESS', review_cycle: 0 },
+      { state: 'READY', review_cycle: 0 },
+    )).toThrow('postcondition mismatch on state')
+    expect(verifyStatePostcondition(
+      { state: 'IN_PROGRESS', review_cycle: 1 },
+      { state: 'IN_PROGRESS', review_cycle: 1 },
+    )).toBe(true)
+  })
+
+  it('preserves child harness closures', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const dispatchSource = readFileSync(
+      join(process.cwd(), 'scripts/mission-control-dispatch.mjs'),
+      'utf8',
+    )
+    const deliverySource = readFileSync(
+      join(process.cwd(), 'scripts/agent-delivery.mjs'),
+      'utf8',
+    )
+    expect(dispatchSource).toContain('dispatchFounderAuthorizedCorrection')
+    expect(dispatchSource).toContain('Coordinator')
+    expect(dispatchSource).toContain("from './mission-control-reconcile.mjs'")
+    expect(dispatchSource).toContain('listLiveComments')
+    expect(dispatchSource).toContain('new Coordinator(')
+    expect(dispatchSource).toContain('resolveProductionCommentTrust')
+    expect(dispatchSource).not.toContain('const comments = []')
+    expect(deliverySource).toContain('listLiveComments')
+    expect(deliverySource).toContain('parsePaginatedGhApiJson')
+    expect(deliverySource).toContain('resolveProductionCommentTrust')
+    expect(deliverySource).not.toContain('local-${')
+    expect(deliverySource).not.toContain('`local-')
+    expect(reconcileModule.Coordinator).toBeTruthy()
+    expect(reconcileModule.normalizeTransitionIdentity).toBeTruthy()
+    expect(reconcileModule.resolveProductionCommentTrust).toBeTruthy()
+  })
+
+  it('requires #182 and #184 merged/green and fresh child-sync HANDOFF', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    expect(CHILD_SYNC_GATE_ISSUES).toEqual([182, 184])
+    expect(CHILD_SYNC_GATE_REQUIREMENTS).toMatchObject({
+      requiresLiveChildStateReconstruction: true,
+      requiresFreshChildSyncHandoff: true,
+    })
+    expect(() => assertChildSyncGateReady()).toThrow('child-sync gate blocked')
+    expect(assertChildSyncGateReady({
+      issues182Merged: true,
+      issues184Merged: true,
+      liveChildReconstructed: true,
+      freshHandoffIssued: true,
+    })).toBe(true)
+    expect(resolveChildSyncCommandGate({ enforce: false })).toMatchObject({ enforced: false, allowed: true })
+    expect(() => resolveChildSyncCommandGate({ enforce: true })).toThrow('child-sync gate blocked')
+
+    const syncSource = readFileSync(join(process.cwd(), 'scripts/sync-boilerplate.mjs'), 'utf8')
+    expect(syncSource).toContain('enforceMcTransitionChildSyncGate')
+    expect(syncSource).toContain('resolveChildSyncCommandGate')
+    expect(syncSource).toContain('--skip-mc-transition-gate')
+    expect(syncSource).toContain('BEMOAT_SKIP_MC_TRANSITION_CHILD_SYNC_GATE')
+
+    const packageJson = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8'))
+    expect(packageJson.scripts['boilerplate:sync']).toBe('node scripts/sync-boilerplate.mjs')
+    expect(packageJson.scripts['bemoat:boilerplate:sync']).toBe('node scripts/sync-boilerplate.mjs')
+
+    const { enforceMcTransitionChildSyncGate } = await import('../../scripts/sync-boilerplate.mjs') as {
+      enforceMcTransitionChildSyncGate: (input?: { argv?: string[], env?: NodeJS.ProcessEnv }) => Record<string, unknown>
+    }
+    // Default invocation (documented pnpm scripts) must enforce the gate.
+    expect(() => enforceMcTransitionChildSyncGate({
+      argv: [],
+      env: {} as NodeJS.ProcessEnv,
+    })).toThrow('child-sync gate blocked')
+    expect(() => enforceMcTransitionChildSyncGate({
+      argv: ['--harness-only'],
+      env: {} as NodeJS.ProcessEnv,
+    })).toThrow('child-sync gate blocked')
+    expect(enforceMcTransitionChildSyncGate({
+      argv: [],
+      env: {
+        NODE_ENV: process.env.NODE_ENV ?? 'test',
+        PAYLOAD_SECRET: process.env.PAYLOAD_SECRET ?? 'test',
+        BEMOAT_CHILD_SYNC_182_MERGED: '1',
+        BEMOAT_CHILD_SYNC_184_MERGED: '1',
+        BEMOAT_CHILD_SYNC_LIVE_RECONSTRUCTED: '1',
+        BEMOAT_CHILD_SYNC_FRESH_HANDOFF: '1',
+      } as NodeJS.ProcessEnv,
+    })).toMatchObject({ enforced: true, allowed: true })
+    // Explicit documented bypass only.
+    expect(enforceMcTransitionChildSyncGate({
+      argv: ['--skip-mc-transition-gate'],
+      env: {} as NodeJS.ProcessEnv,
+    })).toMatchObject({ enforced: false, allowed: true })
+    expect(enforceMcTransitionChildSyncGate({
+      argv: [],
+      env: {
+        BEMOAT_SKIP_MC_TRANSITION_CHILD_SYNC_GATE: '1',
+        NODE_ENV: process.env.NODE_ENV ?? 'test',
+        PAYLOAD_SECRET: process.env.PAYLOAD_SECRET ?? 'test',
+      } as NodeJS.ProcessEnv,
+    })).toMatchObject({ enforced: false, allowed: true })
+  })
+
+  it('parses paginated live comment payloads and normalizes ids', () => {
+    const parsed = parsePaginatedGhApiJson('[{"id":1,"body":"a"}][{"id":2,"body":"b"}]')
+    expect(normalizeIssueComments(parsed).map((comment: any) => comment.id)).toEqual([1, 2])
   })
 })

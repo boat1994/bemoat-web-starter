@@ -1,4 +1,4 @@
-import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -10,32 +10,84 @@ const tempPaths: string[] = []
 function stubGhAndGit(prData: Record<string, unknown>, issueData: Record<string, unknown>, lsRemoteOutput: string, currentBranch: string = 'main', localCommit: string = 'abc1234') {
   const directory = mkdtempSync(join(tmpdir(), 'bemoat-agent-delivery-bin-'))
   tempPaths.push(directory)
-  
+
+  const fixture = join(directory, 'fixture.json')
+  const commentsStore = join(directory, 'comments.json')
+  const editedBody = join(directory, 'edited-body.md')
+  writeFileSync(commentsStore, '[]')
+  writeFileSync(fixture, JSON.stringify({
+    prData,
+    issueData,
+    repo: (prData.baseRepository as { nameWithOwner?: string } | undefined)?.nameWithOwner
+      ?? (prData.headRepository as { nameWithOwner?: string } | undefined)?.nameWithOwner
+      ?? 'acme/repo',
+    commentsStore,
+    editedBody,
+    failEdit: false,
+  }))
+
+  const ghJs = join(directory, 'gh-stub.mjs')
+  writeFileSync(ghJs, `import { readFileSync, writeFileSync, existsSync } from 'node:fs'
+const fixture = JSON.parse(readFileSync(${JSON.stringify(fixture)}, 'utf8'))
+const args = process.argv.slice(2)
+if (args[0] === 'pr' && args[1] === 'view') {
+  if (args.includes('baseRepository')) {
+    console.error('Unknown JSON field: baseRepository')
+    process.exit(1)
+  }
+  process.stdout.write(JSON.stringify(fixture.prData))
+  process.exit(0)
+}
+if (args[0] === 'repo' && args[1] === 'view') {
+  process.stdout.write(fixture.repo)
+  process.exit(0)
+}
+if (args[0] === 'issue' && args[1] === 'view') {
+  if (existsSync(fixture.editedBody)) {
+    process.stdout.write(JSON.stringify({ body: readFileSync(fixture.editedBody, 'utf8') }))
+  } else {
+    process.stdout.write(JSON.stringify(fixture.issueData))
+  }
+  process.exit(0)
+}
+if (args[0] === 'issue' && args[1] === 'edit') {
+  if (fixture.failEdit) {
+    console.error('Simulated GitHub API error')
+    process.exit(1)
+  }
+  const bodyFile = args[args.indexOf('--body-file') + 1]
+  writeFileSync(fixture.editedBody, readFileSync(bodyFile, 'utf8'))
+  process.exit(0)
+}
+if (args[0] === 'api') {
+  if (args.includes('--paginate')) {
+    process.stdout.write(readFileSync(fixture.commentsStore, 'utf8'))
+    process.exit(0)
+  }
+  if (args.includes('POST')) {
+    const input = args[args.indexOf('--input') + 1]
+    const payload = JSON.parse(readFileSync(input, 'utf8'))
+    const comments = JSON.parse(readFileSync(fixture.commentsStore, 'utf8'))
+    const posted = {
+      id: 9000 + comments.length,
+      body: payload.body,
+      user: { login: 'boat1994' },
+      author_association: 'OWNER',
+      html_url: 'https://github.com/acme/repo/issues/154#issuecomment-' + (9000 + comments.length),
+      created_at: '2026-07-29T00:00:00Z',
+    }
+    comments.push(posted)
+    writeFileSync(fixture.commentsStore, JSON.stringify(comments))
+    process.stdout.write(JSON.stringify(posted))
+    process.exit(0)
+  }
+}
+process.exit(0)
+`)
+
   const ghExec = join(directory, 'gh')
-  const prJson = JSON.stringify(prData).replace(/'/g, `'"'"'`)
-  const issueJson = JSON.stringify(issueData).replace(/'/g, `'"'"'`)
-  
   writeFileSync(ghExec, `#!/bin/sh
-if [ "$1" = "pr" ] && [ "$2" = "view" ]; then
-  case "$*" in *baseRepository*) echo 'Unknown JSON field: baseRepository' >&2; exit 1 ;; esac
-  printf '%s' '${prJson}'
-  exit 0
-fi
-if [ "$1" = "repo" ] && [ "$2" = "view" ]; then
-  printf '%s' '${String((prData.baseRepository as { nameWithOwner?: string } | undefined)?.nameWithOwner ?? 'acme/repo')}'
-  exit 0
-fi
-if [ "$1" = "issue" ] && [ "$2" = "view" ]; then
-  printf '%s' '${issueJson}'
-  exit 0
-fi
-if [ "$1" = "issue" ] && [ "$2" = "edit" ]; then
-  exit 0
-fi
-if [ "$1" = "issue" ] && [ "$2" = "comment" ]; then
-  exit 0
-fi
-exit 0
+exec "${process.execPath}" "${ghJs}" "$@"
 `)
   chmodSync(ghExec, 0o755)
 
@@ -70,8 +122,15 @@ exec "${process.execPath}" "$@"
 `)
   chmodSync(nodeExec, 0o755)
 
-  return { PATH: `${directory}:${process.env.PATH ?? ''}` }
+  return {
+    PATH: `${directory}:${process.env.PATH ?? ''}`,
+    directory,
+    fixture,
+    commentsStore,
+    editedBody,
+  }
 }
+
 
 function run(args: string[], options: { input?: string; env?: Record<string, string>; cwd?: string } = {}) {
   return spawnSync(process.execPath, [scriptPath, ...args], {
@@ -125,22 +184,22 @@ describe('bemoat:agent:delivery', () => {
   ].join('\n')
 
   it('fails if local commit does not match remote ref', () => {
-    const env = stubGhAndGit({}, {}, 'def5678 refs/heads/main', 'main', 'abc1234')
-    const result = run(['154'], { input: validResultBody, env })
+    const stub = stubGhAndGit({}, {}, 'def5678 refs/heads/main', 'main', 'abc1234')
+    const result = run(['154'], { input: validResultBody, env: { PATH: stub.PATH } })
     expect(result.status).toBe(1)
     expect(result.stderr).toContain('STATE_CONFLICT: Remote branch ref does not equal local commit abc1234')
   }, 10000)
 
   it('fails if PR head does not match local commit', () => {
-    const env = stubGhAndGit({ headRefOid: 'def5678', headRefName: 'main' }, {}, 'abc1234 refs/heads/main', 'main', 'abc1234')
-    const result = run(['154'], { input: validResultBody, env })
+    const stub = stubGhAndGit({ headRefOid: 'def5678', headRefName: 'main' }, {}, 'abc1234 refs/heads/main', 'main', 'abc1234')
+    const result = run(['154'], { input: validResultBody, env: { PATH: stub.PATH } })
     expect(result.status).toBe(1)
     expect(result.stderr).toContain('STATE_CONFLICT: PR head def5678 does not match local commit abc1234')
   }, 10000)
 
   it('fails if PR headRefName does not match local branch', () => {
-    const env = stubGhAndGit({ headRefOid: 'abc1234', headRefName: 'wrong-branch' }, {}, 'abc1234 refs/heads/main', 'main', 'abc1234')
-    const result = run(['154'], { input: validResultBody, env })
+    const stub = stubGhAndGit({ headRefOid: 'abc1234', headRefName: 'wrong-branch' }, {}, 'abc1234 refs/heads/main', 'main', 'abc1234')
+    const result = run(['154'], { input: validResultBody, env: { PATH: stub.PATH } })
     expect(result.status).toBe(1)
     expect(result.stderr).toContain('STATE_CONFLICT: PR headRefName wrong-branch does not match local branch main')
   }, 10000)
@@ -151,8 +210,8 @@ describe('bemoat:agent:delivery', () => {
       headRefName: 'main',
       statusCheckRollup: []
     }
-    const env = stubGhAndGit(prData, {}, 'abc1234 refs/heads/main', 'main', 'abc1234')
-    const result = run(['154'], { input: validResultBody, env })
+    const stub = stubGhAndGit(prData, {}, 'abc1234 refs/heads/main', 'main', 'abc1234')
+    const result = run(['154'], { input: validResultBody, env: { PATH: stub.PATH } })
     expect(result.status).toBe(1)
     expect(result.stderr).toContain('STATE_CONFLICT: Exact-head CI not verified')
   }, 10000)
@@ -165,8 +224,8 @@ describe('bemoat:agent:delivery', () => {
       baseRepository: { nameWithOwner: 'acme/repo' },
       statusCheckRollup: [{ conclusion: 'SUCCESS', targetUrl: 'https://ci/abc1234' }]
     }
-    const env = stubGhAndGit(prData, { body: validIssueBody }, 'abc1234 refs/heads/main', 'main', 'abc1234')
-    const result = run(['154', '--repo', 'acme/repo'], { input: validResultBody, env })
+    const stub = stubGhAndGit(prData, { body: validIssueBody }, 'abc1234 refs/heads/main', 'main', 'abc1234')
+    const result = run(['154', '--repo', 'acme/repo'], { input: validResultBody, env: { PATH: stub.PATH } })
     expect(result.status).toBe(1)
     expect(result.stderr).toContain('STATE_CONFLICT: PR head repository wrong/repo does not match expected repository acme/repo')
   }, 10000)
@@ -179,8 +238,8 @@ describe('bemoat:agent:delivery', () => {
       baseRepository: { nameWithOwner: 'acme/repo' },
       statusCheckRollup: [{ conclusion: 'SUCCESS', targetUrl: 'https://ci/abc1234' }],
     }
-    const env = stubGhAndGit(prData, { body: validIssueBody }, 'abc1234 refs/heads/main', 'main', 'abc1234')
-    const result = run(['154'], { input: validResultBody, env })
+    const stub = stubGhAndGit(prData, { body: validIssueBody }, 'abc1234 refs/heads/main', 'main', 'abc1234')
+    const result = run(['154'], { input: validResultBody, env: { PATH: stub.PATH } })
     expect(result.status).toBe(1)
     expect(result.stderr).toContain('STATE_CONFLICT: PR head repository wrong/repo does not match expected repository acme/repo')
   }, 10000)
@@ -194,15 +253,14 @@ describe('bemoat:agent:delivery', () => {
         { conclusion: 'SUCCESS', targetUrl: 'https://ci/abc1234' }
       ]
     }
-    const env = stubGhAndGit(prData, { body: validIssueBody }, 'abc1234 refs/heads/main', 'main', 'abc1234')
-    const result = run(['154'], { input: validResultBody, env })
+    const stub = stubGhAndGit(prData, { body: validIssueBody }, 'abc1234 refs/heads/main', 'main', 'abc1234')
+    const result = run(['154'], { input: validResultBody, env: { PATH: stub.PATH } })
     if (result.status !== 0) {
       console.log('STDERR:', result.stderr)
       console.log('STDOUT:', result.stdout)
     }
     expect(result.status).toBe(0)
-    expect(result.stdout).toContain('Delivery reconciliation successful')
-    // test could read the modified issue body if we intercepted `gh issue edit`
+    expect(result.stdout).toMatch(/Delivery reconciliation successful\. RESULT comment \d+ posted/)
   }, 10000)
 
   it('persists fresh Mission Control audit provenance for Correction 2 delivery', async () => {
@@ -220,28 +278,20 @@ describe('bemoat:agent:delivery', () => {
       .replace('current_head: null', 'current_head: "reviewed-head"')
       .replace('last_reviewed_head: null', 'last_reviewed_head: "reviewed-head"')
       .replace('updated_at: "2026-07-23T12:00:00Z"', 'updated_at: "2026-07-23T12:00:00Z"')
-    const env = stubGhAndGit(prData, { body: correctionBody }, 'abc1234 refs/heads/main', 'main', 'abc1234')
-    const edited = join(env.PATH.split(':')[0], 'correction-issue.md')
-    const ghExec = join(env.PATH.split(':')[0], 'gh')
-    const prJson = JSON.stringify(prData).replace(/'/g, `"'"'"`)
-    const issueJson = JSON.stringify({ body: correctionBody }).replace(/'/g, `"'"'"`)
-    writeFileSync(ghExec, `#!/bin/sh
-if [ "$1" = "repo" ] && [ "$2" = "view" ]; then printf '%s' 'acme/repo'; exit 0; fi
-if [ "$1" = "pr" ] && [ "$2" = "view" ]; then printf '%s' '${prJson}'; exit 0; fi
-if [ "$1" = "issue" ] && [ "$2" = "view" ]; then printf '%s' '${issueJson}'; exit 0; fi
-if [ "$1" = "issue" ] && [ "$2" = "edit" ]; then cp "$5" "${edited}"; exit 0; fi
-exit 0
-`)
+    const stub = stubGhAndGit(prData, { body: correctionBody }, 'abc1234 refs/heads/main', 'main', 'abc1234')
 
-    const result = run(['173'], { input: validResultBody.replace('#154', '#173').replace('/155', '/174'), env })
+    const result = run(['173'], {
+      input: validResultBody.replace('#154', '#173').replace('/155', '/174'),
+      env: { PATH: stub.PATH },
+    })
     expect(result.status, result.stderr || result.stdout).toBe(0)
-    const editedBody = readFileSync(edited, 'utf8')
+    const editedBody = readFileSync(stub.editedBody, 'utf8')
     expect(editedBody).toContain('state: AWAITING_REVIEW_3')
     expect(editedBody).toContain('updated_by: Mission Control')
     expect(editedBody).not.toContain('updated_at: "2026-07-23T12:00:00Z"')
   }, 10000)
 
-  it('fails closed and rolls back if RESULT post fails', () => {
+  it('fails closed without advancing state if RESULT post fails', () => {
     const prData = {
       headRefOid: 'abc1234',
       headRefName: 'main',
@@ -250,36 +300,14 @@ exit 0
         { conclusion: 'SUCCESS', targetUrl: 'https://ci/abc1234' }
       ]
     }
-    const env: Record<string, string> = stubGhAndGit(prData, { body: validIssueBody }, 'abc1234 refs/heads/main', 'main', 'abc1234')
-    env.NODE_FAIL_POST_ROLE_COMMENT = '1'
-
-    const ghExec = join(env.PATH.split(':')[0], 'gh')
-    const prJson = JSON.stringify(prData).replace(/'/g, `'"'"'`)
-    
-    // Mock gh to return the edited body on refetch so rollback proceeds
-    writeFileSync(ghExec, `#!/bin/sh
-if [ "$1" = "repo" ] && [ "$2" = "view" ]; then printf '%s' 'acme/repo'; exit 0; fi
-if [ "$1" = "pr" ] && [ "$2" = "view" ]; then printf '%s' '${prJson}'; exit 0; fi
-if [ "$1" = "issue" ] && [ "$2" = "view" ]; then
-  if [ -f "\${0}.edited" ]; then
-    "${process.execPath}" -e "process.stdout.write(JSON.stringify({body: require('fs').readFileSync('\${0}.edited', 'utf8')}))"
-  else
-    printf '%s' '${JSON.stringify({ body: validIssueBody }).replace(/'/g, `'"'"'`)}'
-  fi
-  exit 0
-fi
-if [ "$1" = "issue" ] && [ "$2" = "edit" ]; then
-  if [ ! -f "\${0}.edited" ]; then
-    cp "$5" "\${0}.edited"
-  fi
-  exit 0
-fi
-exit 0
-`)
-
-    const result = run(['154'], { input: validResultBody, env })
+    const stub = stubGhAndGit(prData, { body: validIssueBody }, 'abc1234 refs/heads/main', 'main', 'abc1234')
+    const result = run(['154'], {
+      input: validResultBody,
+      env: { PATH: stub.PATH, NODE_FAIL_POST_ROLE_COMMENT: '1' },
+    })
     expect(result.status).toBe(1)
-    expect(result.stderr).toContain('rollback successful with no concurrent edit')
+    expect(result.stderr).toMatch(/ambiguous POST has no provable match|Failed to validate RESULT comment|Failed to post RESULT comment/)
+    expect(existsSync(stub.editedBody)).toBe(false)
   }, 10000)
 
   it('preserves arbitrary custom YAML fields', async () => {
@@ -291,102 +319,76 @@ exit 0
       statusCheckRollup: [{ conclusion: 'SUCCESS', targetUrl: 'https://ci/abc1234' }]
     }
     const issueBodyWithCustom = validIssueBody.replace('```\n<!-- bemoat-mission-control-state:end -->', 'custom_field: "preserved"\ncustom_list:\n  - "a"\n  - "b"\n```\n<!-- bemoat-mission-control-state:end -->')
-    const env = stubGhAndGit(prData, { body: issueBodyWithCustom }, 'abc1234 refs/heads/main', 'main', 'abc1234')
-    const tmpFile = join(tmpdir(), 'bemoat_mock_issue_edit.md')
-    try { rmSync(tmpFile, { force: true }) } catch (ignore) {}
-    
-    const ghExec = join(env.PATH.split(':')[0], 'gh')
-    const prJson = JSON.stringify(prData).replace(/'/g, `'"'"'`)
-    const issueJson = JSON.stringify({ body: issueBodyWithCustom }).replace(/'/g, `'"'"'`)
-    writeFileSync(ghExec, `#!/bin/sh
-if [ "$1" = "repo" ] && [ "$2" = "view" ]; then printf '%s' 'acme/repo'; exit 0; fi
-if [ "$1" = "pr" ] && [ "$2" = "view" ]; then printf '%s' '${prJson}'; exit 0; fi
-if [ "$1" = "issue" ] && [ "$2" = "view" ]; then printf '%s' '${issueJson}'; exit 0; fi
-if [ "$1" = "issue" ] && [ "$2" = "edit" ]; then cp "$5" "${tmpFile}"; exit 0; fi
-exit 0
-`)
-    
-    const result = run(['154'], { input: validResultBody, env })
+    const stub = stubGhAndGit(prData, { body: issueBodyWithCustom }, 'abc1234 refs/heads/main', 'main', 'abc1234')
+
+    const result = run(['154'], { input: validResultBody, env: { PATH: stub.PATH } })
     expect(result.status).toBe(0)
-    
-    const editedBody = readFileSync(tmpFile, 'utf8')
+
+    const editedBody = readFileSync(stub.editedBody, 'utf8')
     expect(editedBody).toContain('custom_field: preserved')
     expect(editedBody).toContain('custom_list:\n  - a\n  - b')
   }, 10000)
 
-  it('RESULT failure followed by concurrent Issue edit prevents rollback overwrite', () => {
+  it('RESULT failure before state write leaves durable state unchanged', () => {
     const prData = {
       headRefOid: 'abc1234',
       headRefName: 'main',
       baseRefName: 'main',
       statusCheckRollup: [{ conclusion: 'SUCCESS', targetUrl: 'https://ci/abc1234' }]
     }
-    const env: Record<string, string> = stubGhAndGit(prData, { body: validIssueBody }, 'abc1234 refs/heads/main', 'main', 'abc1234')
-    env.NODE_FAIL_POST_ROLE_COMMENT = '1'
-
-    const ghExec = join(env.PATH.split(':')[0], 'gh')
-    const prJson = JSON.stringify(prData).replace(/'/g, `'"'"'`)
-    const issueJson1 = JSON.stringify({ body: validIssueBody }).replace(/'/g, `'"'"'`)
-    const issueJson2 = JSON.stringify({ body: validIssueBody + '\\nconcurrent' }).replace(/'/g, `'"'"'`)
-    writeFileSync(ghExec, `#!/bin/sh
-if [ "$1" = "repo" ] && [ "$2" = "view" ]; then printf '%s' 'acme/repo'; exit 0; fi
-if [ "$1" = "pr" ] && [ "$2" = "view" ]; then printf '%s' '${prJson}'; exit 0; fi
-if [ "$1" = "issue" ] && [ "$2" = "view" ]; then
-  if [ -f "\${0}.viewed" ]; then
-    printf '%s' '${issueJson2}'
-  else
-    touch "\${0}.viewed"
-    printf '%s' '${issueJson1}'
-  fi
-  exit 0
-fi
-if [ "$1" = "issue" ] && [ "$2" = "edit" ]; then exit 0; fi
-exit 0
-`)
-
-    const result = run(['154'], { input: validResultBody, env })
+    const stub = stubGhAndGit(prData, { body: validIssueBody }, 'abc1234 refs/heads/main', 'main', 'abc1234')
+    const result = run(['154'], {
+      input: validResultBody,
+      env: { PATH: stub.PATH, NODE_FAIL_POST_ROLE_COMMENT: '1' },
+    })
     expect(result.status).toBe(1)
-    expect(result.stderr).toContain('concurrent-change evidence found, rollback aborted')
+    expect(result.stderr).toMatch(/ambiguous POST has no provable match|Failed to validate RESULT comment|Failed to post RESULT comment/)
+    expect(existsSync(stub.editedBody)).toBe(false)
   }, 10000)
 
-  it('rollback write failure logs correctly', () => {
+  it('state write failure after RESULT post reports recoverable routing drift', async () => {
+    const { readFileSync, writeFileSync: write } = await import('node:fs')
     const prData = {
       headRefOid: 'abc1234',
       headRefName: 'main',
       baseRefName: 'main',
       statusCheckRollup: [{ conclusion: 'SUCCESS', targetUrl: 'https://ci/abc1234' }]
     }
-    const env: Record<string, string> = stubGhAndGit(prData, { body: validIssueBody }, 'abc1234 refs/heads/main', 'main', 'abc1234')
-    env.NODE_FAIL_POST_ROLE_COMMENT = '1'
+    const stub = stubGhAndGit(prData, { body: validIssueBody }, 'abc1234 refs/heads/main', 'main', 'abc1234')
+    const fixture = JSON.parse(readFileSync(stub.fixture, 'utf8'))
+    fixture.failEdit = true
+    write(stub.fixture, JSON.stringify(fixture))
 
-    const ghExec = join(env.PATH.split(':')[0], 'gh')
-    const prJson = JSON.stringify(prData).replace(/'/g, `'"'"'`)
-    
-    writeFileSync(ghExec, `#!/bin/sh
-if [ "$1" = "repo" ] && [ "$2" = "view" ]; then printf '%s' 'acme/repo'; exit 0; fi
-if [ "$1" = "pr" ] && [ "$2" = "view" ]; then printf '%s' '${prJson}'; exit 0; fi
-if [ "$1" = "issue" ] && [ "$2" = "view" ]; then
-  if [ -f "\${0}.edited" ]; then
-    "${process.execPath}" -e "process.stdout.write(JSON.stringify({body: require('fs').readFileSync('\${0}.edited', 'utf8')}))"
-  else
-    printf '%s' '${JSON.stringify({ body: validIssueBody }).replace(/'/g, `'"'"'`)}'
-  fi
-  exit 0
-fi
-if [ "$1" = "issue" ] && [ "$2" = "edit" ]; then
-  if [ -f "\${0}.edited" ]; then
-    echo "Simulated GitHub API error" >&2
-    exit 1
-  else
-    cp "$5" "\${0}.edited"
-    exit 0
-  fi
-fi
-exit 0
-`)
-
-    const result = run(['154'], { input: validResultBody, env })
+    const result = run(['154'], { input: validResultBody, env: { PATH: stub.PATH } })
     expect(result.status).toBe(1)
-    expect(result.stderr).toContain('Rollback write failure: Simulated GitHub API error')
+    expect(result.stderr).toContain('RECOVERABLE_ROUTING_DRIFT')
+  }, 10000)
+
+  it('rerun after comment-success/state-write-failure reuses the live comment id', async () => {
+    const { readFileSync, writeFileSync: write } = await import('node:fs')
+    const prData = {
+      headRefOid: 'abc1234',
+      headRefName: 'main',
+      baseRefName: 'main',
+      statusCheckRollup: [{ conclusion: 'SUCCESS', targetUrl: 'https://ci/abc1234' }],
+    }
+    const stub = stubGhAndGit(prData, { body: validIssueBody }, 'abc1234 refs/heads/main', 'main', 'abc1234')
+    const fixture = JSON.parse(readFileSync(stub.fixture, 'utf8'))
+    fixture.failEdit = true
+    write(stub.fixture, JSON.stringify(fixture))
+
+    const first = run(['154'], { input: validResultBody, env: { PATH: stub.PATH } })
+    expect(first.status).toBe(1)
+    expect(first.stderr).toContain('RECOVERABLE_ROUTING_DRIFT')
+    const commentsAfterFirst = JSON.parse(readFileSync(stub.commentsStore, 'utf8'))
+    expect(commentsAfterFirst).toHaveLength(1)
+    const commentId = commentsAfterFirst[0].id
+
+    fixture.failEdit = false
+    write(stub.fixture, JSON.stringify(fixture))
+    const second = run(['154'], { input: validResultBody, env: { PATH: stub.PATH } })
+    expect(second.status, second.stderr || second.stdout).toBe(0)
+    expect(second.stdout).toContain(`RESULT comment ${commentId}`)
+    expect(JSON.parse(readFileSync(stub.commentsStore, 'utf8'))).toHaveLength(1)
   }, 10000)
 })
