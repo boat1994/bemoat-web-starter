@@ -43,6 +43,7 @@ Vitest integration tests, Bemoat harness managed-runtime closure.
    - `scripts/mission-control-reconcile.mjs`
    - `scripts/mission-control-state.mjs`
    - `scripts/mission-control-dispatch.mjs`
+   - `scripts/agent-delivery.mjs`
    - `tests/int/mission-control-reconcile.int.spec.ts`
 3. **Exact symbols created or modified:**
    - `normalizeTransitionIdentity`
@@ -64,9 +65,9 @@ Vitest integration tests, Bemoat harness managed-runtime closure.
    }
    ```
 5. **Exact role-comment marker format:** `## HANDOFF`, `## RESULT`, `## REVIEW_VERDICT`
-6. **Exact state-machine phases:** `READY`, `IN_PROGRESS`, `AWAITING_REVIEW_1`, `CORRECTION_REQUIRED`, `ELIGIBLE_FOR_FOUNDER_REVIEW`
+6. **Exact state-machine phases:** `READY`, `IN_PROGRESS`, `AWAITING_REVIEW_1`, `CORRECTION_REQUIRED_1`, `ELIGIBLE_FOR_FOUNDER_REVIEW`
 7. **Exact classification for every failure:**
-   - `0_MATCHES`: `INCOMPLETE_BLOCKED_EXTERNAL`
+   - `0_MATCHES`: `BLOCKED_EXTERNAL`
    - `>1_MATCHES`: `STATE_CONFLICT`
    - `1_MATCH`: `RESUME_PROJECTION`
 8. **Exact test names and test files:**
@@ -76,12 +77,16 @@ Vitest integration tests, Bemoat harness managed-runtime closure.
      - `'classifies pure transition'`
      - `'coordinator injects transports'`
      - `'recovers ambiguous POST with one live match'`
-     - `'integrates HANDOFF with exact identity'`
+     - `'recovers from comment-success/state-update-failure plus rerun'`
+     - `'incompatible concurrent state fail-closed'`
+     - `'rejects competing HANDOFF'`
+     - `'ensures RESULT suppression before postconditions'`
+     - `'preserves counters and last_reviewed_head during reconciliation'`
      - `'integrates RESULT with exact identity'`
      - `'reconciles REVIEW_VERDICT external evidence'`
      - `'verifies state postcondition exactly'`
      - `'preserves child harness closures'`
-     - `'ensures child sync ignores transition state'`
+     - `'requires #182 and #184 merged/green and fresh child-sync HANDOFF'`
 9. **Exact red command and expected failure:** `npx vitest run tests/int/mission-control-reconcile.int.spec.ts -t 'normalizes transition identity consistently'` -> expected `ReferenceError: normalizeTransitionIdentity is not defined`
 10. **Exact minimal implementation step:** `- [ ] Export empty normalizeTransitionIdentity function returning dummy object`
 11. **Exact green command:** `npx vitest run tests/int/mission-control-reconcile.int.spec.ts`
@@ -136,16 +141,16 @@ Vitest integration tests, Bemoat harness managed-runtime closure.
 - **Exact commit command:** `git commit -m "feat(mc): implement pure transition classification"`
 - **Stop condition:** Failing test or unmodified file outside allowlist.
 
-### 4. coordinator with injected transports
+### 4. failure-recovery matrix
 - **Exact files:** `scripts/mission-control-reconcile.mjs`, `tests/int/mission-control-reconcile.int.spec.ts`
-- **Interfaces consumed and produced:** consumes injected `fetch` function, produces `Coordinator` instance
-- **One failing test step:** `- [ ] Add test 'coordinator injects transports'`
-- **Exact red command and expected assertion:** `npx vitest run tests/int/mission-control-reconcile.int.spec.ts -t 'coordinator injects transports'` -> expected `ReferenceError`
-- **Minimal implementation:** `- [ ] Export class Coordinator`
-- **Exact green command:** `npx vitest run tests/int/mission-control-reconcile.int.spec.ts -t 'coordinator injects transports'`
+- **Interfaces consumed and produced:** coordinates failure modes across transitions
+- **One failing test step:** `- [ ] Add tests for complete failure matrix (comment-success/state-update-failure plus rerun, incompatible concurrent state fail-closed, competing HANDOFF)`
+- **Exact red command and expected assertion:** `npx vitest run tests/int/mission-control-reconcile.int.spec.ts -t 'recovers from comment-success/state-update-failure plus rerun'` -> expected `ReferenceError`
+- **Minimal implementation:** `- [ ] Stub matrix recovery methods in Coordinator`
+- **Exact green command:** `npx vitest run tests/int/mission-control-reconcile.int.spec.ts -t 'recovers from comment-success/state-update-failure plus rerun'`
 - **Full verification command:** `pnpm run check`
 - **Git diff check:** `- [ ] git diff --stat`
-- **Exact commit command:** `git commit -m "feat(mc): implement coordinator with injected transports"`
+- **Exact commit command:** `git commit -m "feat(mc): implement failure-recovery matrix"`
 - **Stop condition:** Failing test or unmodified file outside allowlist.
 
 ### 5. ambiguous POST recovery
@@ -172,25 +177,25 @@ Vitest integration tests, Bemoat harness managed-runtime closure.
 - **Exact commit command:** `git commit -m "feat(mc): implement HANDOFF integration"`
 - **Stop condition:** Failing test or unmodified file outside allowlist.
 
-### 7. RESULT integration
-- **Exact files:** `scripts/mission-control-reconcile.mjs`, `tests/int/mission-control-reconcile.int.spec.ts`
+### 7. RESULT integration and suppression
+- **Exact files:** `scripts/agent-delivery.mjs`, `scripts/mission-control-reconcile.mjs`, `tests/int/mission-control-reconcile.int.spec.ts`
 - **Interfaces consumed and produced:** consumes `Coordinator` and `identity`, projects `RESULT` state
-- **One failing test step:** `- [ ] Add test 'integrates RESULT with exact identity'`
-- **Exact red command and expected assertion:** `npx vitest run tests/int/mission-control-reconcile.int.spec.ts -t 'integrates RESULT with exact identity'` -> expected `ReferenceError`
-- **Minimal implementation:** `- [ ] Implement Coordinator.integrateResult`
-- **Exact green command:** `npx vitest run tests/int/mission-control-reconcile.int.spec.ts -t 'integrates RESULT with exact identity'`
+- **One failing test step:** `- [ ] Add test 'ensures RESULT suppression before postconditions'`
+- **Exact red command and expected assertion:** `npx vitest run tests/int/mission-control-reconcile.int.spec.ts -t 'ensures RESULT suppression before postconditions'` -> expected `ReferenceError`
+- **Minimal implementation:** `- [ ] Implement Coordinator.integrateResult and wire in agent-delivery.mjs`
+- **Exact green command:** `npx vitest run tests/int/mission-control-reconcile.int.spec.ts -t 'ensures RESULT suppression before postconditions'`
 - **Full verification command:** `pnpm run check`
 - **Git diff check:** `- [ ] git diff --stat`
-- **Exact commit command:** `git commit -m "feat(mc): implement RESULT integration"`
+- **Exact commit command:** `git commit -m "feat(mc): implement RESULT integration and suppression"`
 - **Stop condition:** Failing test or unmodified file outside allowlist.
 
 ### 8. REVIEW_VERDICT external-evidence reconciliation
 - **Exact files:** `scripts/mission-control-reconcile.mjs`, `tests/int/mission-control-reconcile.int.spec.ts`
-- **Interfaces consumed and produced:** consumes `Coordinator` and `identity`, projects `REVIEW_VERDICT` state
-- **One failing test step:** `- [ ] Add test 'reconciles REVIEW_VERDICT external evidence'`
-- **Exact red command and expected assertion:** `npx vitest run tests/int/mission-control-reconcile.int.spec.ts -t 'reconciles REVIEW_VERDICT external evidence'` -> expected `ReferenceError`
-- **Minimal implementation:** `- [ ] Implement Coordinator.reconcileReviewVerdict`
-- **Exact green command:** `npx vitest run tests/int/mission-control-reconcile.int.spec.ts -t 'reconciles REVIEW_VERDICT external evidence'`
+- **Interfaces consumed and produced:** consumes `Coordinator` and `identity`, projects `REVIEW_VERDICT` state preserving counters
+- **One failing test step:** `- [ ] Add test 'preserves counters and last_reviewed_head during reconciliation'`
+- **Exact red command and expected assertion:** `npx vitest run tests/int/mission-control-reconcile.int.spec.ts -t 'preserves counters and last_reviewed_head during reconciliation'` -> expected `ReferenceError`
+- **Minimal implementation:** `- [ ] Implement Coordinator.reconcileReviewVerdict preserving counters`
+- **Exact green command:** `npx vitest run tests/int/mission-control-reconcile.int.spec.ts -t 'preserves counters and last_reviewed_head during reconciliation'`
 - **Full verification command:** `pnpm run check`
 - **Git diff check:** `- [ ] git diff --stat`
 - **Exact commit command:** `git commit -m "feat(mc): implement REVIEW_VERDICT external-evidence reconciliation"`
@@ -222,11 +227,11 @@ Vitest integration tests, Bemoat harness managed-runtime closure.
 
 ### 11. child-preservation regression
 - **Exact files:** `scripts/mission-control-reconcile.mjs`, `tests/int/mission-control-reconcile.int.spec.ts`
-- **Interfaces consumed and produced:** ensures reconcile does not break legacy syncing
-- **One failing test step:** `- [ ] Add test 'ensures child sync ignores transition state'`
-- **Exact red command and expected assertion:** `npx vitest run tests/int/mission-control-reconcile.int.spec.ts -t 'ensures child sync ignores transition state'` -> expected failure
-- **Minimal implementation:** `- [ ] Add regression protections for child sync`
-- **Exact green command:** `npx vitest run tests/int/mission-control-reconcile.int.spec.ts -t 'ensures child sync ignores transition state'`
+- **Interfaces consumed and produced:** ensures reconcile requires #182 and #184 merged/green, live child-state reconstruction, and fresh child-sync HANDOFF
+- **One failing test step:** `- [ ] Add test 'requires #182 and #184 merged/green and fresh child-sync HANDOFF'`
+- **Exact red command and expected assertion:** `npx vitest run tests/int/mission-control-reconcile.int.spec.ts -t 'requires #182 and #184 merged/green and fresh child-sync HANDOFF'` -> expected failure
+- **Minimal implementation:** `- [ ] Add regression protections and sequencing gates for child sync`
+- **Exact green command:** `npx vitest run tests/int/mission-control-reconcile.int.spec.ts -t 'requires #182 and #184 merged/green and fresh child-sync HANDOFF'`
 - **Full verification command:** `pnpm run check`
 - **Git diff check:** `- [ ] git diff --stat`
 - **Exact commit command:** `git commit -m "test(mc): add child-preservation regression tests"`
