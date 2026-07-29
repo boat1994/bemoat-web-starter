@@ -12,9 +12,14 @@ import {
   resolveProductionCommentTrust,
 } from './mission-control-reconcile.mjs'
 import { parseMissionControlState, renderMissionControlState } from './mission-control-state.mjs'
+import { writeIssueBodyWithLease } from './mission-control-issue-body-cas.mjs'
 
-function run(command, args) {
-  const result = spawnSync(command, args, { encoding: 'utf8' })
+function run(command, args, options = {}) {
+  const result = spawnSync(command, args, {
+    encoding: 'utf8',
+    input: options.input,
+    env: options.env,
+  })
   if (result.error || result.status !== 0) {
     throw new Error(result.stderr || result.stdout || result.error?.message || `${command} failed`)
   }
@@ -87,36 +92,37 @@ async function main() {
       throw new Error(`invalid managed state during write: ${liveParsed.reason ?? 'missing state block'}`)
     }
     if (expectedState && !sameState(liveParsed.state, expectedState)) {
-      throw new Error('concurrent Issue write detected')
+      throw new Error('STATE_CONFLICT: concurrent Issue write detected')
     }
     if (expectedBody !== null && live.body !== expectedBody) {
-      throw new Error('concurrent Issue write detected')
+      throw new Error('STATE_CONFLICT: concurrent Issue write detected')
     }
-    const nextBody = replaceStateBlock(live.body, state)
-    const temp = mkdtempSync(join(tmpdir(), 'bemoat-dispatch-'))
-    const bodyFile = join(temp, 'issue.md')
+    const observedBody = live.body
+    const nextBody = replaceStateBlock(observedBody, state)
+    await writeIssueBodyWithLease({
+      repo,
+      issueNumber: options.issue,
+      expectedBody: observedBody,
+      nextBody,
+      transitionIdentity: state?.latest_transition_identity ?? null,
+      holder: 'mission-control-dispatch',
+      repoFlag: options.repo,
+      deps: { runGh: (args, ghOptions) => run('gh', args, ghOptions) },
+    })
+    const verified = JSON.parse(run('gh', issueArgs(options, 'body')))
+    const verifiedParsed = parseMissionControlState(verified.body)
+    if (!verifiedParsed.present || !verifiedParsed.valid) {
+      throw new Error('postcondition: Issue state unreadable after write')
+    }
     try {
-      writeFileSync(bodyFile, nextBody)
-      const args = ['issue', 'edit', options.issue, '--body-file', bodyFile]
-      if (options.repo) args.push('--repo', options.repo)
-      run('gh', args)
-      const verified = JSON.parse(run('gh', issueArgs(options, 'body')))
-      const verifiedParsed = parseMissionControlState(verified.body)
-      if (!verifiedParsed.present || !verifiedParsed.valid) {
-        throw new Error('postcondition: Issue state unreadable after write')
-      }
-      try {
-        verifyStatePostcondition(state, verifiedParsed.state, [
-          'state', 'latest_transition_identity', 'latest_handoff_comment_id', 'next_permitted_action',
-        ])
-      } catch (error) {
-        throw new Error(`concurrent Issue write detected after state write: ${error instanceof Error ? error.message : String(error)}`)
-      }
-      expectedBody = verified.body
-      return verifiedParsed.state
-    } finally {
-      rmSync(temp, { recursive: true, force: true })
+      verifyStatePostcondition(state, verifiedParsed.state, [
+        'state', 'latest_transition_identity', 'latest_handoff_comment_id', 'next_permitted_action',
+      ])
+    } catch (error) {
+      throw new Error(`STATE_CONFLICT: concurrent Issue write detected after state write: ${error instanceof Error ? error.message : String(error)}`)
     }
+    expectedBody = verified.body
+    return verifiedParsed.state
   }
   const listLiveComments = () => {
     const stdout = run('gh', [
