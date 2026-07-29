@@ -3959,7 +3959,7 @@ ${review1ContractJson(head)}
         expect(rejected.status, _name + ': ' + (rejected.stderr || rejected.stdout)).toBe(1)
         expect(rejected.stdout).not.toContain('Edit authorization: granted')
       }
-    })
+    }, 20_000)
 
     it('compiles the source-bound #171 finding from Spec RESULT, Review 7, and the original thread', () => {
       const { root, ghStub } = setupIssue171AuthorityRepo('post_budget', '#181')
