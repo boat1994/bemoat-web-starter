@@ -3,6 +3,7 @@ import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statS
 import { dirname, join, resolve } from 'node:path'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
+import { assertManagedRuntimeDeliveryClosure } from './guard-harness-contract.mjs'
 import { scanToolchainContract } from './guard-toolchain-contract.mjs'
 
 export const SYNC_MODES = {
@@ -92,6 +93,8 @@ export const managedPaths = [
   '.bemoat/toolchain-contract.json',
   'scripts/guard-env-placeholder.mjs',
   'scripts/guard-frontend-seo.mjs',
+  'scripts/github-comment-projection.mjs',
+  'scripts/pr-identity.mjs',
   'scripts/check-branch-safety.sh',
   'scripts/install-git-hooks.mjs',
 
@@ -981,6 +984,11 @@ export function syncPathsFromSource({
   const skippedSeedFiles = []
   const mergedFiles = []
   const seedOnlyPathsSkipped = mode === SYNC_MODES.HARNESS_ONLY
+
+  assertManagedRuntimeDeliveryClosure({
+    root: sourceRootPath,
+    managedPaths: syncConfig.managedPaths,
+  })
 
   for (const path of syncConfig.managedPaths) {
     const result = copyManagedPath(sourceRootPath, targetRootPath, path)
