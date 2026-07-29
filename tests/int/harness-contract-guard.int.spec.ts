@@ -45,6 +45,12 @@ const UNVERIFIABLE_DYNAMIC_IMPORT_CASES = [
   ],
 ] as const
 
+const DYNAMIC_IMPORT_KEYWORD_GAP_CASES = [
+  ['block comment', ' /* gap */ ', ' /* gap */ '],
+  ['multiline block comment', ' /* multiline\n    gap */ ', ' /* multiline gap */ '],
+  ['line comment', ' // gap\n    ', ' // gap '],
+] as const
+
 describe('harness contract guard', () => {
   it('exports child-facing paths and forbidden raw scripts', async () => {
     const mod = await import('../../scripts/guard-harness-contract.mjs')
@@ -251,6 +257,77 @@ describe('managed runtime delivery closure', () => {
       }
     },
   )
+
+  it.each(DYNAMIC_IMPORT_KEYWORD_GAP_CASES)(
+    'classifies literal and computed imports once across a %s keyword gap',
+    async (_label, gap, normalizedGap) => {
+      const guardMod = await import('../../scripts/guard-harness-contract.mjs')
+      const tempRoot = mkdtempSync(join(tmpdir(), 'bemoat-182-comment-gap-dynamic-import-'))
+      const literalSourceExpression = `import${normalizedGap}('./leaf.mjs')`
+      const computedSourceExpression = `import${normalizedGap}(prefix + './leaf.mjs')`
+
+      try {
+        mkdirSync(join(tempRoot, 'scripts'), { recursive: true })
+        writeFileSync(
+          join(tempRoot, 'scripts/root.mjs'),
+          `const literal = await import${gap}('./leaf.mjs')\nconst computed = await import${gap}(prefix + './leaf.mjs')\n`,
+        )
+        writeFileSync(join(tempRoot, 'scripts/leaf.mjs'), 'export const value = 1\n')
+
+        const parsed = guardMod.parseRuntimeImportSpecifiers(
+          `const literal = await import${gap}('./leaf.mjs')\nconst computed = await import${gap}(prefix + './leaf.mjs')\n`,
+        )
+
+        expect(parsed.specifiers).toEqual([
+          { specifier: './leaf.mjs', sourceExpression: literalSourceExpression },
+        ])
+        expect(parsed.unverifiable).toEqual([
+          {
+            specifier: computedSourceExpression,
+            sourceExpression: computedSourceExpression,
+          },
+        ])
+        expect(parsed.specifiers).toHaveLength(1)
+        expect(parsed.unverifiable).toHaveLength(1)
+
+        const violations = guardMod.scanManagedRuntimeDeliveryClosure({
+          root: tempRoot,
+          managedPaths: ['scripts/root.mjs', 'scripts/leaf.mjs'],
+        })
+
+        expect(violations).toEqual([
+          {
+            type: 'unverifiable-dynamic-runtime-import',
+            importer: 'scripts/root.mjs',
+            callee: '<unresolved>',
+            specifier: computedSourceExpression,
+          },
+        ])
+      } finally {
+        rmSync(tempRoot, { recursive: true, force: true })
+      }
+    },
+  )
+
+  it('classifies multiple comment-separated dynamic imports exactly once', async () => {
+    const guardMod = await import('../../scripts/guard-harness-contract.mjs')
+    const parsed = guardMod.parseRuntimeImportSpecifiers(
+      "const a = import /* gap */ ('./a.mjs'); const b = import /* multiline\n gap */ (name); const c = import // gap\n (`./c.mjs`)\n",
+    )
+
+    expect(parsed.specifiers).toEqual([
+      { specifier: './a.mjs', sourceExpression: "import /* gap */ ('./a.mjs')" },
+      { specifier: './c.mjs', sourceExpression: 'import // gap (`./c.mjs`)' },
+    ])
+    expect(parsed.unverifiable).toEqual([
+      {
+        specifier: 'import /* multiline gap */ (name)',
+        sourceExpression: 'import /* multiline gap */ (name)',
+      },
+    ])
+    expect(parsed.specifiers).toHaveLength(2)
+    expect(parsed.unverifiable).toHaveLength(1)
+  })
 
   it('fails closed for combined static imports to unmanaged callees', async () => {
     const guardMod = await import('../../scripts/guard-harness-contract.mjs')

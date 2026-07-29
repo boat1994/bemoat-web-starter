@@ -43,7 +43,8 @@ const STATIC_IMPORT_FROM_RE =
   /\bimport\s+(?:type\s+)?(?:[^;]*?\sfrom\s+)?['"]([^'"]+)['"]/g
 const EXPORT_FROM_RE =
   /\bexport\s+(?:\{[^}]*\}|\*(?:\s+as\s+[\w$]+)?)\s+from\s+['"]([^'"]+)['"]/g
-const DYNAMIC_IMPORT_START_RE = /\bimport\s*\(/g
+const DYNAMIC_IMPORT_START_RE =
+  /\bimport(?:\s|\/\*[\s\S]*?\*\/|\/\/[^\r\n]*(?:\r\n?|\n|$))*\(/g
 
 export class ManagedRuntimeDeliveryClosureError extends Error {
   constructor(violations) {
