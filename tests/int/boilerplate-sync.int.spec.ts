@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { execFileSync } from 'node:child_process'
 import {
   cpSync,
   existsSync,
@@ -1736,6 +1737,50 @@ const ISSUE_182_CHILD_OWNED_SENTINELS = [
   'src/payload-owned-sentinel.ts',
 ] as const
 
+const ISSUE_182_FINANCE_SENTINELS = ['src/features/finance/child-owned-sentinel.ts'] as const
+
+const ISSUE_182_PLANNING_SENTINELS = ['docs/superpowers/plans/child-owned/plan.md'] as const
+
+const ISSUE_182_NON_MANAGED_SENTINELS = [
+  ...ISSUE_182_CHILD_OWNED_SENTINELS,
+  ...ISSUE_182_FINANCE_SENTINELS,
+  ...ISSUE_182_PLANNING_SENTINELS,
+] as const
+
+function listAllFiles(root: string, relativePath = ''): string[] {
+  const absolutePath = join(root, relativePath)
+  if (!existsSync(absolutePath)) return []
+
+  const stat = statSync(absolutePath)
+  if (!stat.isDirectory()) return [relativePath.replace(/\\/g, '/')]
+
+  const files: string[] = []
+  for (const entry of readdirSync(absolutePath).sort()) {
+    const childPath = relativePath ? `${relativePath}/${entry}` : entry
+    files.push(...listAllFiles(root, childPath))
+  }
+
+  return files
+}
+
+function isManagedFilePath(filePath: string, managedPaths: string[]) {
+  return managedPaths.some(
+    (managedPath) => filePath === managedPath || filePath.startsWith(`${managedPath}/`),
+  )
+}
+
+function snapshotNonManagedFiles(root: string, managedPaths: string[]) {
+  const snapshot: Record<string, string> = {}
+
+  for (const filePath of listAllFiles(root)) {
+    if (!isManagedFilePath(filePath, managedPaths)) {
+      snapshot[filePath] = readFileSync(join(root, filePath), 'utf8')
+    }
+  }
+
+  return snapshot
+}
+
 function hashDirectory(root: string, relativePath = ''): string {
   const hash = createHash('sha256')
   const absolutePath = join(root, relativePath)
@@ -1785,7 +1830,12 @@ function writeIssue182ChildFixture(targetRoot: string) {
     rmSync(projectionPath, { force: true })
   }
 
-  for (const relativePath of ISSUE_182_CHILD_OWNED_SENTINELS) {
+  const prIdentityPath = join(targetRoot, 'scripts/pr-identity.mjs')
+  if (existsSync(prIdentityPath)) {
+    rmSync(prIdentityPath, { force: true })
+  }
+
+  for (const relativePath of ISSUE_182_NON_MANAGED_SENTINELS) {
     const absolutePath = join(targetRoot, relativePath)
     mkdirSync(join(absolutePath, '..'), { recursive: true })
     writeFileSync(absolutePath, `CHILD_OWNED:${relativePath}\n`)
@@ -1793,7 +1843,7 @@ function writeIssue182ChildFixture(targetRoot: string) {
 }
 
 describe('issue #182 projection managed delivery regression', () => {
-  it('delivers github-comment-projection during harness-only sync without touching child-owned paths', async () => {
+  it('delivers github-comment-projection and pr-identity during harness-only sync without touching child-owned paths', async () => {
     const mod = await import('../../scripts/sync-boilerplate.mjs')
     const guardMod = await import('../../scripts/guard-harness-contract.mjs')
     const tempRoot = mkdtempSync(join(tmpdir(), 'bemoat-182-'))
@@ -1819,6 +1869,8 @@ describe('issue #182 projection managed delivery regression', () => {
       writeIssue182ChildFixture(childRoot)
 
       const syncConfig = mod.getSourceSyncConfig(sourceRoot)
+      const nonManagedBefore = snapshotNonManagedFiles(childRoot, syncConfig.managedPaths)
+
       const result = mod.syncPathsFromSource({
         sourceRootPath: sourceRoot,
         targetRootPath: childRoot,
@@ -1830,6 +1882,21 @@ describe('issue #182 projection managed delivery regression', () => {
 
       expect(result.seededFiles).toEqual([])
       expect(existsSync(join(childRoot, 'scripts/github-comment-projection.mjs'))).toBe(true)
+      expect(existsSync(join(childRoot, 'scripts/agent-issue.mjs'))).toBe(true)
+      expect(existsSync(join(childRoot, 'scripts/pr-identity.mjs'))).toBe(true)
+      expect(readFileSync(join(childRoot, 'scripts/agent-issue.mjs'), 'utf8')).toContain(
+        "./pr-identity.mjs'",
+      )
+
+      execFileSync(
+        process.execPath,
+        [
+          '--input-type=module',
+          '-e',
+          "import('./scripts/pr-identity.mjs').then((module) => { if (typeof module.parseCompleteGitHubPullUrl !== 'function') { throw new Error('missing parseCompleteGitHubPullUrl export') } })",
+        ],
+        { cwd: childRoot, stdio: 'pipe' },
+      )
 
       const runtimeViolations = guardMod.scanManagedRuntimeDeliveryClosure({
         root: childRoot,
@@ -1843,11 +1910,13 @@ describe('issue #182 projection managed delivery regression', () => {
         )
       }
 
-      for (const relativePath of ISSUE_182_CHILD_OWNED_SENTINELS) {
+      for (const relativePath of ISSUE_182_NON_MANAGED_SENTINELS) {
         expect(readFileSync(join(childRoot, relativePath), 'utf8')).toBe(
           `CHILD_OWNED:${relativePath}\n`,
         )
       }
+
+      expect(snapshotNonManagedFiles(childRoot, syncConfig.managedPaths)).toEqual(nonManagedBefore)
     } finally {
       rmSync(tempRoot, { recursive: true, force: true })
     }
@@ -1891,6 +1960,32 @@ describe('issue #182 projection managed delivery regression', () => {
         )
       },
       '- [unmanaged-relative-runtime-dependency] importer="scripts/github-comment-projection.mjs" -> callee="scripts/unmanaged-helper.mjs" specifier="./unmanaged-helper.mjs"',
+    ],
+    [
+      'missing pr-identity dependency',
+      (sourceRoot: string) => {
+        rmSync(join(sourceRoot, 'scripts/pr-identity.mjs'), { force: true })
+      },
+      '- [missing-managed-runtime-source] importer="managedPaths" -> callee="scripts/pr-identity.mjs" specifier="scripts/pr-identity.mjs"',
+    ],
+    [
+      'deleted pr-identity dependency',
+      (sourceRoot: string) => {
+        rmSync(join(sourceRoot, 'scripts/pr-identity.mjs'), { force: true })
+      },
+      '- [missing-managed-runtime-source] importer="managedPaths" -> callee="scripts/pr-identity.mjs" specifier="scripts/pr-identity.mjs"',
+    ],
+    [
+      'renamed pr-identity dependency',
+      (sourceRoot: string) => {
+        const prIdentityPath = join(sourceRoot, 'scripts/pr-identity.mjs')
+        writeFileSync(
+          join(sourceRoot, 'scripts/pr-identity-renamed.mjs'),
+          readFileSync(prIdentityPath, 'utf8'),
+        )
+        rmSync(prIdentityPath, { force: true })
+      },
+      '- [missing-managed-runtime-source] importer="managedPaths" -> callee="scripts/pr-identity.mjs" specifier="scripts/pr-identity.mjs"',
     ],
   ])(
     'fails closed before copy for %s and leaves the child byte-for-byte unchanged',

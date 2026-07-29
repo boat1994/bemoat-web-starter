@@ -38,19 +38,15 @@ export const FORBIDDEN_RAW_SCRIPTS = [
 
 export const MANAGED_RUNTIME_ROOT_PREFIX = 'scripts'
 
-/**
- * Known unmanaged runtime dependencies intentionally outside Issue #182 scope.
- * They must not widen managed ownership during projection-only delivery.
- */
-export const OUT_OF_SCOPE_UNMANAGED_RUNTIME_DEPENDENCIES = ['scripts/pr-identity.mjs']
-
 const PNPM_RUN_RE = /pnpm run ([a-zA-Z0-9:_-]+)/g
-const STATIC_IMPORT_RE =
-  /\bimport\s+(?:type\s+)?(?:(?:\{[^}]*\}|\*\s+as\s+[\w$]+|[\w$]+)\s+from\s+)?['"]([^'"]+)['"]/g
+const STATIC_IMPORT_FROM_RE =
+  /\bimport\s+(?:type\s+)?(?:[^;]*?\sfrom\s+)?['"]([^'"]+)['"]/g
 const EXPORT_FROM_RE =
   /\bexport\s+(?:\{[^}]*\}|\*(?:\s+as\s+[\w$]+)?)\s+from\s+['"]([^'"]+)['"]/g
 const LITERAL_DYNAMIC_IMPORT_RE = /\bimport\s*\(\s*(['"`])([^'"`$\\]+)\1\s*\)/g
-const NON_LITERAL_DYNAMIC_IMPORT_RE = /\bimport\s*\(\s*(?![`'"])/g
+const VARIABLE_DYNAMIC_IMPORT_RE = /\bimport\s*\(\s*(?![`'"])/g
+const CONCAT_DYNAMIC_IMPORT_RE = /\bimport\s*\(\s*['"][^'"]*['"]\s*\+/g
+const TEMPLATE_DYNAMIC_IMPORT_RE = /\bimport\s*\(\s*`[^`]*\$\{/g
 
 export class ManagedRuntimeDeliveryClosureError extends Error {
   constructor(violations) {
@@ -120,8 +116,9 @@ export function resolveRelativeRuntimeCallee(importerPath, specifier) {
 export function parseRuntimeImportSpecifiers(content) {
   const specifiers = []
   const unverifiable = []
+  const unverifiableIndexes = new Set()
 
-  for (const match of content.matchAll(STATIC_IMPORT_RE)) {
+  for (const match of content.matchAll(STATIC_IMPORT_FROM_RE)) {
     specifiers.push({ specifier: match[1], sourceExpression: match[1] })
   }
 
@@ -130,15 +127,26 @@ export function parseRuntimeImportSpecifiers(content) {
   }
 
   for (const match of content.matchAll(LITERAL_DYNAMIC_IMPORT_RE)) {
-    specifiers.push({ specifier: match[2], sourceExpression: match[0].replace(/^.*import\s*\(/, 'import(') })
+    specifiers.push({
+      specifier: match[2],
+      sourceExpression: match[0].replace(/^.*import\s*\(/, 'import('),
+    })
   }
 
-  for (const match of content.matchAll(NON_LITERAL_DYNAMIC_IMPORT_RE)) {
-    const snippet = content.slice(match.index, match.index + 80).split('\n')[0]
-    unverifiable.push({
-      specifier: snippet,
-      sourceExpression: snippet.trim(),
-    })
+  for (const pattern of [
+    VARIABLE_DYNAMIC_IMPORT_RE,
+    CONCAT_DYNAMIC_IMPORT_RE,
+    TEMPLATE_DYNAMIC_IMPORT_RE,
+  ]) {
+    for (const match of content.matchAll(pattern)) {
+      if (match.index == null || unverifiableIndexes.has(match.index)) continue
+      unverifiableIndexes.add(match.index)
+      const snippet = content.slice(match.index, match.index + 80).split('\n')[0].trim()
+      unverifiable.push({
+        specifier: snippet,
+        sourceExpression: snippet,
+      })
+    }
   }
 
   return { specifiers, unverifiable }
@@ -189,10 +197,6 @@ function compareViolations(left, right) {
     left.callee.localeCompare(right.callee) ||
     left.specifier.localeCompare(right.specifier)
   )
-}
-
-function isOutOfScopeUnmanagedCallee(callee) {
-  return OUT_OF_SCOPE_UNMANAGED_RUNTIME_DEPENDENCIES.includes(callee)
 }
 
 /**
@@ -277,8 +281,6 @@ export function scanManagedRuntimeDeliveryClosure({
       }
 
       const callee = resolved.callee
-      if (isOutOfScopeUnmanagedCallee(callee)) continue
-
       const absoluteCallee = join(root, callee)
 
       if (!exists(absoluteCallee) || !isFile(absoluteCallee)) {
@@ -291,7 +293,7 @@ export function scanManagedRuntimeDeliveryClosure({
         continue
       }
 
-      if (!isManagedPath(callee, managedPaths) && !isOutOfScopeUnmanagedCallee(callee)) {
+      if (!isManagedPath(callee, managedPaths)) {
         violations.push({
           type: 'unmanaged-relative-runtime-dependency',
           importer,

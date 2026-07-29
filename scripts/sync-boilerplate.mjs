@@ -94,6 +94,7 @@ export const managedPaths = [
   'scripts/guard-env-placeholder.mjs',
   'scripts/guard-frontend-seo.mjs',
   'scripts/github-comment-projection.mjs',
+  'scripts/pr-identity.mjs',
   'scripts/check-branch-safety.sh',
   'scripts/install-git-hooks.mjs',
 

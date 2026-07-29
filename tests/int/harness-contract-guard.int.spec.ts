@@ -46,6 +46,7 @@ describe('harness contract guard', () => {
     expect(syncMod.managedPaths).toContain('scripts/check-branch-safety.sh')
     expect(syncMod.managedPaths).toContain('scripts/guard-harness-contract.mjs')
     expect(syncMod.managedPaths).toContain('scripts/github-comment-projection.mjs')
+    expect(syncMod.managedPaths).toContain('scripts/pr-identity.mjs')
     expect(syncMod.managedPackageScripts).toContain('bemoat:branch:check')
     expect(syncMod.managedPackageScripts).toContain('bemoat:guard:harness-contract')
   })
@@ -109,6 +110,175 @@ describe('managed runtime delivery closure', () => {
       expect(guardMod.isBuiltinOrPackageSpecifier(entry.specifier)).toBe(true)
     }
     expect(specifiers.unverifiable).toEqual([])
+  })
+
+  it('parses combined static imports and literal dynamic imports', async () => {
+    const guardMod = await import('../../scripts/guard-harness-contract.mjs')
+
+    const combined = guardMod.parseRuntimeImportSpecifiers(
+      "import value, { helper } from './hidden.mjs'\n",
+    )
+    expect(combined.specifiers).toEqual([
+      { specifier: './hidden.mjs', sourceExpression: './hidden.mjs' },
+    ])
+    expect(combined.unverifiable).toEqual([])
+
+    const literalDynamic = guardMod.parseRuntimeImportSpecifiers(
+      "const ok = await import('./leaf.mjs')\n",
+    )
+    expect(literalDynamic.specifiers).toEqual([
+      { specifier: './leaf.mjs', sourceExpression: "import('./leaf.mjs')" },
+    ])
+    expect(literalDynamic.unverifiable).toEqual([])
+  })
+
+  it('classifies computed template and concatenated dynamic imports as unverifiable', async () => {
+    const guardMod = await import('../../scripts/guard-harness-contract.mjs')
+
+    const template = guardMod.parseRuntimeImportSpecifiers(
+      'const bad = await import(`./hidden/${name}.mjs`)\n',
+    )
+    expect(template.specifiers).toEqual([])
+    expect(template.unverifiable).toEqual([
+      {
+        specifier: 'import(`./hidden/${name}.mjs`)',
+        sourceExpression: 'import(`./hidden/${name}.mjs`)',
+      },
+    ])
+
+    const concatenated = guardMod.parseRuntimeImportSpecifiers(
+      "const bad = await import('./hidden' + '.mjs')\n",
+    )
+    expect(concatenated.specifiers).toEqual([])
+    expect(concatenated.unverifiable).toEqual([
+      {
+        specifier: "import('./hidden' + '.mjs')",
+        sourceExpression: "import('./hidden' + '.mjs')",
+      },
+    ])
+  })
+
+  it('fails closed for combined static imports to unmanaged callees', async () => {
+    const guardMod = await import('../../scripts/guard-harness-contract.mjs')
+    const tempRoot = mkdtempSync(join(tmpdir(), 'bemoat-182-combined-static-'))
+
+    try {
+      mkdirSync(join(tempRoot, 'scripts'), { recursive: true })
+      writeFileSync(
+        join(tempRoot, 'scripts/importer.mjs'),
+        "import value, { helper } from './hidden.mjs'\n",
+      )
+      writeFileSync(join(tempRoot, 'scripts/hidden.mjs'), 'export const value = 1\nexport const helper = 2\n')
+
+      const violations = guardMod.scanManagedRuntimeDeliveryClosure({
+        root: tempRoot,
+        managedPaths: ['scripts/importer.mjs'],
+      })
+
+      expect(violations).toEqual([
+        {
+          type: 'unmanaged-relative-runtime-dependency',
+          importer: 'scripts/importer.mjs',
+          callee: 'scripts/hidden.mjs',
+          specifier: './hidden.mjs',
+        },
+      ])
+    } finally {
+      rmSync(tempRoot, { recursive: true, force: true })
+    }
+  })
+
+  it('fails closed for template-interpolated dynamic imports', async () => {
+    const guardMod = await import('../../scripts/guard-harness-contract.mjs')
+    const tempRoot = mkdtempSync(join(tmpdir(), 'bemoat-182-template-dynamic-'))
+
+    try {
+      mkdirSync(join(tempRoot, 'scripts'), { recursive: true })
+      writeFileSync(
+        join(tempRoot, 'scripts/root.mjs'),
+        'const bad = await import(`./hidden/${name}.mjs`)\n',
+      )
+
+      const violations = guardMod.scanManagedRuntimeDeliveryClosure({
+        root: tempRoot,
+        managedPaths: ['scripts/root.mjs'],
+      })
+
+      expect(violations).toEqual([
+        {
+          type: 'unverifiable-dynamic-runtime-import',
+          importer: 'scripts/root.mjs',
+          callee: '<unresolved>',
+          specifier: 'import(`./hidden/${name}.mjs`)',
+        },
+      ])
+    } finally {
+      rmSync(tempRoot, { recursive: true, force: true })
+    }
+  })
+
+  it('fails closed for concatenated dynamic imports', async () => {
+    const guardMod = await import('../../scripts/guard-harness-contract.mjs')
+    const tempRoot = mkdtempSync(join(tmpdir(), 'bemoat-182-concat-dynamic-'))
+
+    try {
+      mkdirSync(join(tempRoot, 'scripts'), { recursive: true })
+      writeFileSync(
+        join(tempRoot, 'scripts/root.mjs'),
+        "const bad = await import('./hidden' + '.mjs')\n",
+      )
+
+      const violations = guardMod.scanManagedRuntimeDeliveryClosure({
+        root: tempRoot,
+        managedPaths: ['scripts/root.mjs'],
+      })
+
+      expect(violations).toEqual([
+        {
+          type: 'unverifiable-dynamic-runtime-import',
+          importer: 'scripts/root.mjs',
+          callee: '<unresolved>',
+          specifier: "import('./hidden' + '.mjs')",
+        },
+      ])
+    } finally {
+      rmSync(tempRoot, { recursive: true, force: true })
+    }
+  })
+
+  it('fails closed when pr-identity is missing from managed delivery', async () => {
+    const guardMod = await import('../../scripts/guard-harness-contract.mjs')
+    const tempRoot = mkdtempSync(join(tmpdir(), 'bemoat-182-missing-pr-identity-'))
+
+    try {
+      mkdirSync(join(tempRoot, 'scripts'), { recursive: true })
+      writeFileSync(
+        join(tempRoot, 'scripts/agent-issue.mjs'),
+        "import { parseCompleteGitHubPullUrl } from './pr-identity.mjs'\nexport {}\n",
+      )
+
+      const violations = guardMod.scanManagedRuntimeDeliveryClosure({
+        root: tempRoot,
+        managedPaths: ['scripts/agent-issue.mjs', 'scripts/pr-identity.mjs'],
+      })
+
+      expect(violations).toEqual([
+        {
+          type: 'missing-managed-runtime-source',
+          importer: 'managedPaths',
+          callee: 'scripts/pr-identity.mjs',
+          specifier: 'scripts/pr-identity.mjs',
+        },
+        {
+          type: 'missing-relative-runtime-dependency',
+          importer: 'scripts/agent-issue.mjs',
+          callee: 'scripts/pr-identity.mjs',
+          specifier: './pr-identity.mjs',
+        },
+      ])
+    } finally {
+      rmSync(tempRoot, { recursive: true, force: true })
+    }
   })
 
   it('traverses literal dynamic imports and rejects computed dynamic imports', async () => {
