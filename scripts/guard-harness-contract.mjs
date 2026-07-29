@@ -80,6 +80,10 @@ export function scanChildFacingHarnessFile(relativePath, content) {
   }))
 }
 
+/**
+ * @param {string} relativePath
+ * @param {string[]} managedPaths
+ */
 export function isManagedPath(relativePath, managedPaths) {
   for (const managedPath of managedPaths) {
     if (relativePath === managedPath) return true
@@ -156,6 +160,10 @@ function listRegularFiles(root, relativePath = '') {
   return files
 }
 
+/**
+ * @param {string} root
+ * @param {string[]} managedPaths
+ */
 export function collectManagedRuntimeScriptRoots(root, managedPaths) {
   const files = listRegularFiles(root, MANAGED_RUNTIME_ROOT_PREFIX)
   return files
@@ -164,6 +172,9 @@ export function collectManagedRuntimeScriptRoots(root, managedPaths) {
     .sort()
 }
 
+/**
+ * @param {string[]} managedPaths
+ */
 export function collectExplicitManagedRuntimeScriptPaths(managedPaths) {
   return managedPaths
     .filter((managedPath) => managedPath.startsWith(MANAGED_RUNTIME_ROOT_PREFIX))
@@ -184,6 +195,15 @@ function isOutOfScopeUnmanagedCallee(callee) {
   return OUT_OF_SCOPE_UNMANAGED_RUNTIME_DEPENDENCIES.includes(callee)
 }
 
+/**
+ * @param {{
+ *   root?: string,
+ *   managedPaths?: string[],
+ *   readFile?: (filePath: string) => string,
+ *   exists?: (filePath: string) => boolean,
+ *   isFile?: (filePath: string) => boolean,
+ * }} [options]
+ */
 export function scanManagedRuntimeDeliveryClosure({
   root = process.cwd(),
   managedPaths = [],
@@ -312,6 +332,9 @@ export function formatManagedRuntimeDeliveryViolations(violations) {
   return lines
 }
 
+/**
+ * @param {Parameters<typeof scanManagedRuntimeDeliveryClosure>[0]} [options]
+ */
 export function assertManagedRuntimeDeliveryClosure(options = {}) {
   const violations = scanManagedRuntimeDeliveryClosure(options)
   if (violations.length === 0) return violations
