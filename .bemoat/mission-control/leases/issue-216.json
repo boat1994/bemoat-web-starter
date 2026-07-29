@@ -2,8 +2,8 @@
   "schema_version": 1,
   "issue": "216",
   "transition_identity": "{\"taskId\":\"216\",\"phase\":\"Mission Control State Bootstrap\",\"role\":\"STATE_BOOTSTRAP\",\"contentHash\":\"8118dafdda50d798b4ac2c901fc8f70ab36409a3391873a7958db1928079a890\"}",
-  "observed_body_sha256": "efa78ff31351f99edca74f7b55b7396307cf426d87ab328247bee8c32f3976d9",
+  "observed_body_sha256": "edc0829f0294e95f8fa206450d87c484c0937f257a5972218c2293231dd18395",
   "holder": "mission-control-state-bootstrap-216",
-  "status": "held",
-  "updated_at": "2026-07-29T20:05:24.014Z"
+  "status": "released",
+  "updated_at": "2026-07-29T20:05:27.952Z"
 }
