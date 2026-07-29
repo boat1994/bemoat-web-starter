@@ -256,7 +256,11 @@ export async function compareAndSwapIssueBody({
   const leaseStore = deps.leaseStore ?? createGhContentsLeaseStore({ runGh: deps.runGh })
   const path = leasePathForIssue(issueNumber)
   const observedBodyHash = hashIssueBody(expectedBody)
-  const identityKey = normalizeLeaseTransitionIdentity(transitionIdentity)
+  const normalizedIdentity = normalizeLeaseTransitionIdentity(transitionIdentity)
+  // MC-R1-002: never share a blank transition key — empty/null gets a unique claim
+  // so two empty writers cannot dual-adopt. Same-identity transport recovery still
+  // requires a real non-empty transition identity from the caller.
+  const identityKey = normalizedIdentity || `empty-claim:${randomBytes(16).toString('hex')}`
 
   const existing = await leaseStore.read({ repo, path })
   const sameIdentity = Boolean(
@@ -307,6 +311,28 @@ export async function compareAndSwapIssueBody({
     }
   }
 
+  const bestEffortReleaseHeldLease = async (releaseObservedBodyHash) => {
+    try {
+      const current = await leaseStore.read({ repo, path })
+      if (!current?.content || current.content.status !== 'held') return
+      if (current.content.transition_identity !== identityKey) return
+      await leaseStore.write({
+        repo,
+        path,
+        content: buildLeasePayload({
+          issueNumber,
+          transitionIdentity: identityKey,
+          observedBodyHash: releaseObservedBodyHash,
+          holder,
+          status: 'released',
+        }),
+        sha: current.sha,
+      })
+    } catch {
+      // Best-effort only: never mask the primary STATE_CONFLICT / caller error.
+    }
+  }
+
   if (typeof deps.beforeIssueUpdate === 'function') {
     await deps.beforeIssueUpdate({
       repo,
@@ -320,6 +346,9 @@ export async function compareAndSwapIssueBody({
 
   const liveBody = await deps.readIssueBody({ repo, issueNumber })
   if (liveBody !== expectedBody) {
+    // MC-R1-001: pre-write final-reread conflict must not leave a poisoning held lease.
+    // Transport-failure recovery (writeIssueBody throws after lease win) intentionally keeps held.
+    await bestEffortReleaseHeldLease(observedBodyHash)
     throw new Error('STATE_CONFLICT: concurrent Issue body change detected before state write')
   }
 

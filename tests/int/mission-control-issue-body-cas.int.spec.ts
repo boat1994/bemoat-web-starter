@@ -33,6 +33,7 @@ describe('mission-control issue-body lease CAS', () => {
     const alienBody = 'concurrent-mc-shaped-body'
     const leaseStore = createMemoryLeaseStore()
     const writes: string[] = []
+    const path = leasePathForIssue(issueNumber)
 
     await expect(compareAndSwapIssueBody({
       repo,
@@ -57,6 +58,77 @@ describe('mission-control issue-body lease CAS', () => {
 
     expect(writes).toEqual([])
     expect(body).toBe(alienBody)
+    // MC-R1-001 Case A: conflict after lease win must not leave a poisoning held lease.
+    const leaseAfter = await leaseStore.read({ path })
+    expect(leaseAfter?.content?.status).not.toBe('held')
+    expect(leaseAfter?.content?.status).toBe('released')
+  })
+
+  it('gives empty transition identities distinct claim keys so they cannot dual-adopt', async () => {
+    let body = 'shared-observed-body'
+    const leaseStore = createMemoryLeaseStore()
+    const writes: string[] = []
+    let releaseSecond: (() => void) | null = null
+    const secondBlocked = new Promise<void>((resolve) => {
+      releaseSecond = resolve
+    })
+    let firstEnteredCritical = false
+
+    const first = compareAndSwapIssueBody({
+      repo,
+      issueNumber,
+      expectedBody: body,
+      nextBody: 'body-from-empty-first',
+      transitionIdentity: '',
+      holder: 'writer-empty-first',
+      deps: {
+        leaseStore,
+        readIssueBody: async () => body,
+        writeIssueBody: async ({ body: next }: { body: string }) => {
+          writes.push(next)
+          body = next
+        },
+        beforeIssueUpdate: async () => {
+          firstEnteredCritical = true
+          releaseSecond?.()
+          await new Promise((resolve) => setTimeout(resolve, 20))
+        },
+      },
+    })
+
+    await secondBlocked
+    expect(firstEnteredCritical).toBe(true)
+
+    const second = compareAndSwapIssueBody({
+      repo,
+      issueNumber,
+      expectedBody: 'shared-observed-body',
+      nextBody: 'body-from-empty-second',
+      transitionIdentity: null,
+      holder: 'writer-empty-second',
+      deps: {
+        leaseStore,
+        readIssueBody: async () => body,
+        writeIssueBody: async ({ body: next }: { body: string }) => {
+          writes.push(next)
+          body = next
+        },
+      },
+    })
+
+    const results = await Promise.allSettled([first, second])
+    const fulfilled = results.filter((result) => result.status === 'fulfilled')
+    const rejected = results.filter((result) => result.status === 'rejected')
+
+    expect(fulfilled).toHaveLength(1)
+    expect(rejected).toHaveLength(1)
+    expect((rejected[0] as PromiseRejectedResult).reason).toEqual(
+      expect.objectContaining({
+        message: expect.stringMatching(/STATE_CONFLICT: issue-body lease CAS lost/),
+      }),
+    )
+    expect(writes).toEqual(['body-from-empty-first'])
+    expect(body).toBe('body-from-empty-first')
   })
 
   it('permits exactly one winner under contended lease CAS; loser is STATE_CONFLICT', async () => {
