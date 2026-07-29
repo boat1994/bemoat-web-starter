@@ -127,8 +127,16 @@ export function runCorrectionPhasePreflight({
     return { ok: false, exitCode: 1, usageError: false, output, issueNumber, branchName, statusShort, issueMetadata }
   }
 
+  const defaultRepo = getDefaultRepo(cwd)
   const reviewThreeAuthorization = verifyReviewThreeCorrectionAuthorization({
-    issueBody: issueMetadata.body ?? '', contract: parsedContract.contract, comments: commentResult.comments,
+    issueBody: issueMetadata.body ?? '',
+    contract: parsedContract.contract,
+    comments: commentResult.comments,
+    issueNumber,
+    defaultRepo,
+    cwd,
+    env,
+    fetchIssueCommentById,
   })
   if (!reviewThreeAuthorization.ok) {
     output.push('Stop: Review 3 Founder correction authorization failed before correction edit authorization.')
