@@ -3854,12 +3854,12 @@ ${review1ContractJson(head)}
         implementation_head: ISSUE_171_IMPLEMENTATION_START_HEAD,
         finding_ids: [ISSUE_171_FINDING],
         action: 'Authorize exactly one bounded correction for MC-R1-171-001 after Review 8; distinguish and independently validate the historical correction base, authorized replacement base, and current implementation PR head; no Review 9 or other prohibited action.',
-        authorized_at: '2026-07-29T00:36:43Z',
+        authorized_at: '2026-07-29T00:36:43+07:00',
         handoff_comment_id: ISSUE_171_REVIEW_8_HANDOFF_ID,
         handoff_url: `https://github.com/boat1994/bemoat-web-starter/issues/171#issuecomment-${ISSUE_171_REVIEW_8_HANDOFF_ID}`,
         review_8_verdict_comment_id: ISSUE_171_REVIEW_8_VERDICT_ID,
         review_8_verdict_url: `https://github.com/boat1994/bemoat-web-starter/issues/171#issuecomment-${ISSUE_171_REVIEW_8_VERDICT_ID}`,
-        consumed_at: '2026-07-29T00:36:43Z',
+        consumed_at: '2026-07-28T17:36:43Z',
         review_9_authorized: false,
       }
       fixture.state.correction_dispatch = {
@@ -3874,22 +3874,42 @@ ${review1ContractJson(head)}
         review_number: 8,
         finding_ids: [ISSUE_171_FINDING],
       }
-      writeFileSync(fixture.review8HandoffRestPath, JSON.stringify({
+      const reviewEightHandoffBody = [
+        '## HANDOFF',
+        '**Target:** Dev / Correction Builder',
+        '**Objective:** Correct exactly ' + ISSUE_171_FINDING + ' on Draft PR #181.',
+        '**Founder authorization:** Exactly one bounded correction for ' + ISSUE_171_FINDING + ' at reviewed head ' + ISSUE_171_IMPLEMENTATION_START_HEAD + '.',
+        '**Three identities:** historical Review 7 correction base ' + ISSUE_171_CURRENT_HEAD + '; Founder-authorized replacement base ' + topology.replacementBase + '; current implementation PR head ' + ISSUE_171_IMPLEMENTATION_START_HEAD + '.',
+        '**Prohibited:** No Review 9.',
+      ].join('\n')
+      fixture.state.founder_review_8_correction_authorization.canonical_handoff_source_binding = {
+        schema_version: 1,
+        comment_id: ISSUE_171_REVIEW_8_HANDOFF_ID,
+        url: 'https://github.com/boat1994/bemoat-web-starter/issues/171#issuecomment-' + ISSUE_171_REVIEW_8_HANDOFF_ID,
+        author_login: 'boat1994',
+        author_association: 'OWNER',
+        content_sha256: sha256(reviewEightHandoffBody),
+        canonical_repository: 'boat1994/bemoat-web-starter',
+        issue: '#171',
+        pr: '#181',
+        finding_ids: [ISSUE_171_FINDING],
+        exact_head: topology.implementationHead,
+        created_at: '2026-07-28T17:37:49Z',
+        updated_at: '2026-07-28T17:37:49Z',
+      }
+      const reviewEightHandoffSource = {
         id: Number(ISSUE_171_REVIEW_8_HANDOFF_ID),
         html_url: 'https://github.com/boat1994/bemoat-web-starter/issues/171#issuecomment-' + ISSUE_171_REVIEW_8_HANDOFF_ID,
         user: { login: 'boat1994' },
         author_association: 'OWNER',
-        body: [
-          '## HANDOFF',
-          '**Target:** Dev / Correction Builder',
-          '**Objective:** Correct exactly ' + ISSUE_171_FINDING + ' on Draft PR #181.',
-          '**Founder authorization:** Exactly one bounded correction for ' + ISSUE_171_FINDING + ' at reviewed head ' + ISSUE_171_IMPLEMENTATION_START_HEAD + '.',
-          '**Three identities:** historical Review 7 correction base ' + ISSUE_171_CURRENT_HEAD + '; Founder-authorized replacement base ' + topology.replacementBase + '; current implementation PR head ' + ISSUE_171_IMPLEMENTATION_START_HEAD + '.',
-          '**Prohibited:** No Review 9.',
-        ].join('\n'),
-        created_at: '2026-07-29T00:36:43Z',
-        updated_at: '2026-07-29T00:36:43Z',
-      }))
+        body: reviewEightHandoffBody,
+        created_at: '2026-07-28T17:37:49Z',
+        updated_at: '2026-07-28T17:37:49Z',
+      }
+      const writeReviewEightHandoff = (overrides = {}) => {
+        writeFileSync(fixture.review8HandoffRestPath, JSON.stringify({ ...reviewEightHandoffSource, ...overrides }))
+      }
+      writeReviewEightHandoff()
       writeIssue171FixtureState(fixture)
 
       const result = runAgentIssue(topology.root, ['171', '--phase', 'correction'], {
@@ -3900,7 +3920,19 @@ ${review1ContractJson(head)}
       expect(result.stdout).toContain('Edit authorization: granted for the immutable finding set only.')
 
       const baseline = structuredClone(fixture.state)
-      const failClosedCases: Array<[string, (state: any) => void]> = [
+      const failClosedCases: Array<[string, (state: any, source: Record<string, unknown>) => void]> = [
+        ['mutated Founder authorization timestamp', (state) => { state.founder_review_8_correction_authorization.authorized_at = '2026-07-28T17:37:49Z' }],
+        ['missing Founder authorization timestamp', (state) => { state.founder_review_8_correction_authorization.authorized_at = null }],
+        ['mutated canonical HANDOFF created timestamp', (state) => { state.founder_review_8_correction_authorization.canonical_handoff_source_binding.created_at = '2026-07-28T17:37:50Z' }],
+        ['mutated canonical HANDOFF updated timestamp', (state) => { state.founder_review_8_correction_authorization.canonical_handoff_source_binding.updated_at = '2026-07-28T17:37:50Z' }],
+        ['missing canonical HANDOFF timestamp', (state) => { state.founder_review_8_correction_authorization.canonical_handoff_source_binding.created_at = null }],
+        ['mutated GitHub HANDOFF created metadata', (_state, source) => { source.created_at = '2026-07-28T17:37:50Z' }],
+        ['mutated GitHub HANDOFF updated metadata', (_state, source) => { source.updated_at = '2026-07-28T17:37:50Z' }],
+        ['swapped Founder and HANDOFF timestamps', (state) => {
+          state.founder_review_8_correction_authorization.authorized_at = '2026-07-28T17:37:49Z'
+          state.founder_review_8_correction_authorization.canonical_handoff_source_binding.created_at = '2026-07-28T17:36:43Z'
+          state.founder_review_8_correction_authorization.canonical_handoff_source_binding.updated_at = '2026-07-28T17:36:43Z'
+        }],
         ['unrelated implementation head', (state) => { state.correction_dispatch.implementation_head = ISSUE_171_CURRENT_HEAD }],
         ['stale durable current_head versus live PR head', (state) => { state.current_head = ISSUE_171_IMPLEMENTATION_START_HEAD }],
         ['mutated authorized replacement base', (state) => {
@@ -3917,7 +3949,9 @@ ${review1ContractJson(head)}
       ]
       for (const [_name, mutate] of failClosedCases) {
         Object.assign(fixture.state, structuredClone(baseline))
-        mutate(fixture.state)
+        const source: Record<string, unknown> = {}
+        mutate(fixture.state, source)
+        writeReviewEightHandoff(source)
         writeIssue171FixtureState(fixture)
         const rejected = runAgentIssue(topology.root, ['171', '--phase', 'correction'], {
           PATH: withStubbedGh(topology.root, fixture.ghStub),

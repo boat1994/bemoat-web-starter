@@ -215,15 +215,25 @@ function validateReplacementDispatchSource({ authority, decision, dispatch, comm
   return { ok: errors.length === 0, errors }
 }
 
-function validateReviewEightCorrectionSource({ authorization, source, issueNumber, defaultRepo }) {
+function validateReviewEightCorrectionSource({ authorization, source, state, issueNumber, defaultRepo }) {
   const errors = []
   const comment = source.comment
+  const binding = authorization.canonical_handoff_source_binding
   const expectedUrl = 'https://github.com/' + defaultRepo + '/issues/' + issueNumber + '#issuecomment-' + authorization.handoff_comment_id
   const body = String(comment?.body ?? '')
-  if (String(comment?.id) !== String(authorization.handoff_comment_id) || comment?.html_url !== expectedUrl ||
-      comment?.user?.login !== 'boat1994' || comment?.author_association !== 'OWNER' ||
-      !sameTimestamp(comment?.created_at, authorization.authorized_at) ||
-      !sameTimestamp(comment?.updated_at, authorization.authorized_at)) {
+  if (!sameTimestamp(authorization.authorized_at, authorization.consumed_at) ||
+      binding?.schema_version !== 1 ||
+      String(binding?.comment_id) !== String(authorization.handoff_comment_id) ||
+      binding?.url !== expectedUrl || binding?.author_login !== 'boat1994' || binding?.author_association !== 'OWNER' ||
+      binding?.canonical_repository !== defaultRepo || binding?.issue !== '#' + issueNumber ||
+      binding?.pr !== authorization.active_pr || binding?.exact_head !== state.current_head ||
+      JSON.stringify(binding?.finding_ids) !== JSON.stringify(authorization.finding_ids) ||
+      !/^[0-9a-f]{64}$/.test(String(binding?.content_sha256 ?? '')) ||
+      String(comment?.id) !== String(binding?.comment_id) || comment?.html_url !== binding?.url ||
+      comment?.user?.login !== binding?.author_login || comment?.author_association !== binding?.author_association ||
+      createHash('sha256').update(body).digest('hex') !== binding?.content_sha256 ||
+      !sameTimestamp(comment?.created_at, binding?.created_at) ||
+      !sameTimestamp(comment?.updated_at, binding?.updated_at)) {
     errors.push('STATE CONFLICT: Review 8 correction HANDOFF source identity or timestamp is inconsistent')
   }
   const requiredValues = [
@@ -574,6 +584,7 @@ export function recoverCurrentAuthority({
     ? validateReviewEightCorrectionSource({
         authorization: reviewEightAuthorization,
         source: reviewEightHandoffSource,
+        state: parsed.state,
         issueNumber,
         defaultRepo,
       })
