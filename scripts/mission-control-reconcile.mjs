@@ -1,9 +1,7 @@
 #!/usr/bin/env node
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
-import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
+import { writeIssueBodyWithLease } from './mission-control-issue-body-cas.mjs'
 
 const PRE_DELIVERY_STATES = new Set(['READY', 'IN_PROGRESS', 'CORRECTION_REQUIRED_1', 'CORRECTION_REQUIRED_2'])
 const CORE_VERDICTS = new Set([
@@ -1422,8 +1420,12 @@ export function analyzeReconciliation(context) {
   return result
 }
 
-function run(command, args) {
-  const result = spawnSync(command, args, { encoding: 'utf8' })
+function run(command, args, options = {}) {
+  const result = spawnSync(command, args, {
+    encoding: 'utf8',
+    input: options.input,
+    env: options.env,
+  })
   if (result.error || result.status !== 0) {
     throw new Error(result.stderr || result.stdout || result.error?.message || `${command} failed`)
   }
@@ -1487,24 +1489,28 @@ async function runProductionBoundedReconciliation() {
     const live = JSON.parse(run('gh', ['issue', 'view', options.issue, '--json', 'body', ...repoArgs]))
     const liveState = parseMissionControlState(live.body)
     if (!liveState.valid || !sameValue(liveState.state, expectedState) || live.body !== expectedBody) {
-      throw new Error('concurrent Issue write detected before reconciliation repair')
+      throw new Error('STATE_CONFLICT: concurrent Issue write detected before reconciliation repair')
     }
-    const nextBody = stateBlockReplacement(live.body, nextState, renderMissionControlState)
-    const temp = mkdtempSync(join(tmpdir(), 'bemoat-reconcile-'))
-    const bodyFile = join(temp, 'issue.md')
-    try {
-      writeFileSync(bodyFile, nextBody)
-      run('gh', ['issue', 'edit', options.issue, '--body-file', bodyFile, ...repoArgs])
-      const verified = JSON.parse(run('gh', ['issue', 'view', options.issue, '--json', 'body', ...repoArgs]))
-      const verifiedState = parseMissionControlState(verified.body)
-      if (!verifiedState.valid || !sameValue(verifiedState.state, nextState)) {
-        throw new Error('concurrent Issue write detected after reconciliation repair')
-      }
-      expectedBody = verified.body
-      return verifiedState.state
-    } finally {
-      rmSync(temp, { recursive: true, force: true })
+    const observedBody = live.body
+    const nextBody = stateBlockReplacement(observedBody, nextState, renderMissionControlState)
+    const repo = options.repo || run('gh', ['repo', 'view', '--json', 'nameWithOwner', '--jq', '.nameWithOwner'])
+    await writeIssueBodyWithLease({
+      repo,
+      issueNumber: options.issue,
+      expectedBody: observedBody,
+      nextBody,
+      transitionIdentity: nextState?.latest_transition_identity ?? null,
+      holder: 'mission-control-reconcile',
+      repoFlag: options.repo,
+      deps: { runGh: (args, ghOptions) => run('gh', args, ghOptions) },
+    })
+    const verified = JSON.parse(run('gh', ['issue', 'view', options.issue, '--json', 'body', ...repoArgs]))
+    const verifiedState = parseMissionControlState(verified.body)
+    if (!verifiedState.valid || !sameValue(verifiedState.state, nextState)) {
+      throw new Error('STATE_CONFLICT: concurrent Issue write detected after reconciliation repair')
     }
+    expectedBody = verified.body
+    return verifiedState.state
   }
 
   const result = await runBoundedReconciliation({ readEvidence, writeState })

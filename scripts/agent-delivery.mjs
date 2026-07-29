@@ -16,6 +16,7 @@ import {
   verifyStatePostcondition,
   resolveProductionCommentTrust,
 } from './mission-control-reconcile.mjs'
+import { writeIssueBodyWithLease } from './mission-control-issue-body-cas.mjs'
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, { encoding: 'utf8', ...options })
@@ -26,7 +27,7 @@ function run(command, args, options = {}) {
 }
 
 function tryRun(command, args, options = {}) {
-  return spawnSync(command, args, { encoding: 'utf8', ...options })
+  return spawnSync(command, args, { encoding: 'utf8', input: options.input, env: options.env, ...options })
 }
 
 function usage(message) {
@@ -248,22 +249,36 @@ async function mainAsync() {
         throw new Error('STATE_CONFLICT: concurrent Issue body change detected before state write')
       }
       const newStateBlock = renderStateBlock(nextState)
-      let newBody = live.body
+      const observedBody = live.body
+      let newBody = observedBody
       if (liveParsed.present) {
         newBody = newBody.replace(/<!--\s*bemoat-mission-control-state:start\s*-->[\s\S]*?<!--\s*bemoat-mission-control-state:end\s*-->/, newStateBlock)
       } else {
         newBody = `${newBody}\n\n${newStateBlock}\n`
       }
-      const tmpDir = mkdtempSync(join(tmpdir(), 'bemoat-delivery-'))
-      const tmpBody = join(tmpDir, 'body.md')
-      writeFileSync(tmpBody, newBody)
-      const editArgs = ['issue', 'edit', parsed.options.issue, '--body-file', tmpBody]
-      if (parsed.options.repo) editArgs.push('--repo', parsed.options.repo)
-      const editResult = tryRun('gh', editArgs)
-      rmSync(tmpDir, { recursive: true, force: true })
-      if (editResult.status !== 0) {
-        throw new Error('STATE_CONFLICT: Failed to write durable state to Issue')
-      }
+      await writeIssueBodyWithLease({
+        repo: expectedRepo,
+        issueNumber: parsed.options.issue,
+        expectedBody: observedBody,
+        nextBody: newBody,
+        transitionIdentity: nextState?.latest_transition_identity ?? null,
+        holder: 'agent-delivery',
+        repoFlag: parsed.options.repo,
+        deps: {
+          runGh: (args, ghOptions = {}) => {
+            const result = tryRun('gh', args, ghOptions)
+            if (result.error || result.status !== 0) {
+              const detail = result.stderr || result.stdout || result.error?.message || 'gh failed'
+              const error = new Error(detail)
+              error.status = result.status
+              error.stderr = result.stderr
+              error.stdout = result.stdout
+              throw error
+            }
+            return result.stdout.trim()
+          },
+        },
+      })
       const verifiedResult = tryRun('gh', issueArgs)
       if (verifiedResult.status !== 0) throw new Error('BLOCKED_EXTERNAL: GitHub issue lookup failed after state write')
       const verified = JSON.parse(verifiedResult.stdout)
