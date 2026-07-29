@@ -1,5 +1,17 @@
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { createHash } from 'node:crypto'
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join, dirname, resolve } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
@@ -311,6 +323,7 @@ describe('boilerplate sync managed paths', () => {
     mkdirSync(targetRoot, { recursive: true })
 
     writeFileSync(join(sourceRoot, 'AGENTS.md'), 'starter agents\n')
+    seedManagedRuntimeClosureSource(sourceRoot)
     writeFileSync(
       join(starterOnlyFixtureRoot, 'pinned-snapshot.json'),
       '{"pinned_sha":"c01156c66fd33741df9b5d4acf22b620b605f221"}\n',
@@ -675,6 +688,7 @@ describe('boilerplate sync managed paths', () => {
 
     writeFileSync(join(sourceRoot, 'open-next.config.ts'), "export default { buildCommand: 'starter' }\n")
     writeFileSync(join(targetRoot, 'open-next.config.ts'), "export default { buildCommand: 'child' }\n")
+    seedManagedRuntimeClosureSource(sourceRoot)
 
     try {
       mod.syncPathsFromSource({
@@ -983,6 +997,7 @@ describe('source-driven sync manifest', () => {
     mkdirSync(targetRoot, { recursive: true })
 
     writeFileSync(join(sourceRoot, '.new-harness-rail/README.md'), 'new harness rail\n')
+    seedManagedRuntimeClosureSource(sourceRoot)
 
     const simulatedOldManagedPaths = mod.managedPaths.filter(
       (path: string) => path !== '.agents' && path !== '.new-harness-rail',
@@ -1048,6 +1063,7 @@ describe('source-driven sync manifest', () => {
     mkdirSync(sourceRoot, { recursive: true })
     mkdirSync(targetRoot, { recursive: true })
     writeFileSync(join(sourceRoot, 'AGENTS.md'), 'starter agents\n')
+    seedManagedRuntimeClosureSource(sourceRoot)
 
     const syncConfig = mod.getSourceSyncConfig(sourceRoot)
 
@@ -1377,6 +1393,7 @@ describe('boilerplate sync modes', () => {
     mkdirSync(join(fixtureRoot, 'target/src/collections'), { recursive: true })
 
     writeFileSync(join(fixtureRoot, 'source/src/collections/Posts.ts'), 'export const Posts = {}\n')
+    seedManagedRuntimeClosureSource(join(fixtureRoot, 'source'))
 
     const result = mod.syncPathsFromSource({
       sourceRootPath: join(fixtureRoot, 'source'),
@@ -1401,6 +1418,7 @@ describe('boilerplate sync modes', () => {
     mkdirSync(join(fixtureRoot, 'target/src/collections'), { recursive: true })
 
     writeFileSync(join(fixtureRoot, 'source/src/collections/Posts.ts'), 'export const Posts = {}\n')
+    seedManagedRuntimeClosureSource(join(fixtureRoot, 'source'))
 
     const result = mod.syncPathsFromSource({
       sourceRootPath: join(fixtureRoot, 'source'),
@@ -1697,4 +1715,236 @@ describe('boilerplate drift check', () => {
 
     rmSync(fixtureRoot, { recursive: true, force: true })
   })
+})
+
+function seedManagedRuntimeClosureSource(sourceRoot: string) {
+  cpSync(join(process.cwd(), 'scripts'), join(sourceRoot, 'scripts'), { recursive: true })
+}
+
+const ISSUE_182_ALLOWLISTED_FILES = [
+  'scripts/sync-boilerplate.mjs',
+  '.bemoat/boilerplate-sync-manifest.json',
+  'scripts/guard-harness-contract.mjs',
+  'tests/int/harness-contract-guard.int.spec.ts',
+  'tests/int/boilerplate-sync.int.spec.ts',
+] as const
+
+const ISSUE_182_CHILD_OWNED_SENTINELS = [
+  'README.md',
+  'wrangler.jsonc',
+  'pnpm-lock.yaml',
+  'src/payload-owned-sentinel.ts',
+] as const
+
+function hashDirectory(root: string, relativePath = ''): string {
+  const hash = createHash('sha256')
+  const absolutePath = join(root, relativePath)
+
+  if (!existsSync(absolutePath)) return hash.digest('hex')
+
+  const stat = statSync(absolutePath)
+  if (!stat.isDirectory()) {
+    hash.update(relativePath)
+    hash.update(readFileSync(absolutePath))
+    return hash.digest('hex')
+  }
+
+  for (const entry of readdirSync(absolutePath).sort()) {
+    const childPath = relativePath ? `${relativePath}/${entry}` : entry
+    hash.update(hashDirectory(root, childPath))
+  }
+
+  return hash.digest('hex')
+}
+
+function copyManagedSnapshot(
+  repoRoot: string,
+  destinationRoot: string,
+  managedPaths: string[],
+  listPathFiles: (root: string, relativePath: string) => string[],
+) {
+  for (const managedPath of managedPaths) {
+    for (const filePath of listPathFiles(repoRoot, managedPath)) {
+      const sourceFile = join(repoRoot, filePath)
+      const destinationFile = join(destinationRoot, filePath)
+      mkdirSync(dirname(destinationFile), { recursive: true })
+      cpSync(sourceFile, destinationFile)
+    }
+  }
+}
+
+function writeIssue182ChildFixture(targetRoot: string) {
+  for (const relativePath of ISSUE_182_ALLOWLISTED_FILES) {
+    const absolutePath = join(targetRoot, relativePath)
+    mkdirSync(join(absolutePath, '..'), { recursive: true })
+    writeFileSync(absolutePath, `OLD_SENTINEL:${relativePath}\n`)
+  }
+
+  const projectionPath = join(targetRoot, 'scripts/github-comment-projection.mjs')
+  if (existsSync(projectionPath)) {
+    rmSync(projectionPath, { force: true })
+  }
+
+  for (const relativePath of ISSUE_182_CHILD_OWNED_SENTINELS) {
+    const absolutePath = join(targetRoot, relativePath)
+    mkdirSync(join(absolutePath, '..'), { recursive: true })
+    writeFileSync(absolutePath, `CHILD_OWNED:${relativePath}\n`)
+  }
+}
+
+describe('issue #182 projection managed delivery regression', () => {
+  it('delivers github-comment-projection during harness-only sync without touching child-owned paths', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const guardMod = await import('../../scripts/guard-harness-contract.mjs')
+    const tempRoot = mkdtempSync(join(tmpdir(), 'bemoat-182-'))
+    const sourceRoot = join(tempRoot, 'source')
+    const childRoot = join(tempRoot, 'child')
+
+    try {
+      mkdirSync(sourceRoot, { recursive: true })
+      mkdirSync(childRoot, { recursive: true })
+
+      copyManagedSnapshot(
+        process.cwd(),
+        sourceRoot,
+        mod.managedPaths,
+        mod.listPathFiles,
+      )
+      copyManagedSnapshot(
+        sourceRoot,
+        childRoot,
+        mod.getSourceSyncConfig(sourceRoot).managedPaths,
+        mod.listPathFiles,
+      )
+      writeIssue182ChildFixture(childRoot)
+
+      const syncConfig = mod.getSourceSyncConfig(sourceRoot)
+      const result = mod.syncPathsFromSource({
+        sourceRootPath: sourceRoot,
+        targetRootPath: childRoot,
+        mode: mod.SYNC_MODES.HARNESS_ONLY,
+        syncConfig,
+        onWarn: () => {},
+        onLog: () => {},
+      })
+
+      expect(result.seededFiles).toEqual([])
+      expect(existsSync(join(childRoot, 'scripts/github-comment-projection.mjs'))).toBe(true)
+
+      const runtimeViolations = guardMod.scanManagedRuntimeDeliveryClosure({
+        root: childRoot,
+        managedPaths: syncConfig.managedPaths,
+      })
+      expect(runtimeViolations).toEqual([])
+
+      for (const relativePath of ISSUE_182_ALLOWLISTED_FILES) {
+        expect(readFileSync(join(childRoot, relativePath), 'utf8')).toBe(
+          readFileSync(join(sourceRoot, relativePath), 'utf8'),
+        )
+      }
+
+      for (const relativePath of ISSUE_182_CHILD_OWNED_SENTINELS) {
+        expect(readFileSync(join(childRoot, relativePath), 'utf8')).toBe(
+          `CHILD_OWNED:${relativePath}\n`,
+        )
+      }
+    } finally {
+      rmSync(tempRoot, { recursive: true, force: true })
+    }
+  })
+
+  it.each([
+    [
+      'missing dependency',
+      (sourceRoot: string) => {
+        rmSync(join(sourceRoot, 'scripts/github-comment-projection.mjs'), { force: true })
+      },
+      '- [missing-managed-runtime-source] importer="managedPaths" -> callee="scripts/github-comment-projection.mjs" specifier="scripts/github-comment-projection.mjs"',
+    ],
+    [
+      'renamed dependency',
+      (sourceRoot: string) => {
+        const projectionPath = join(sourceRoot, 'scripts/github-comment-projection.mjs')
+        writeFileSync(
+          join(sourceRoot, 'scripts/github-comment-projection-renamed.mjs'),
+          readFileSync(projectionPath, 'utf8'),
+        )
+        rmSync(projectionPath, { force: true })
+      },
+      '- [missing-managed-runtime-source] importer="managedPaths" -> callee="scripts/github-comment-projection.mjs" specifier="scripts/github-comment-projection.mjs"',
+    ],
+    [
+      'deleted dependency',
+      (sourceRoot: string) => {
+        rmSync(join(sourceRoot, 'scripts/github-comment-projection.mjs'), { force: true })
+      },
+      '- [missing-managed-runtime-source] importer="managedPaths" -> callee="scripts/github-comment-projection.mjs" specifier="scripts/github-comment-projection.mjs"',
+    ],
+    [
+      'newly introduced unmanaged relative dependency',
+      (sourceRoot: string) => {
+        writeFileSync(join(sourceRoot, 'scripts/unmanaged-helper.mjs'), 'export const helper = 1\n')
+        const projectionPath = join(sourceRoot, 'scripts/github-comment-projection.mjs')
+        writeFileSync(
+          projectionPath,
+          `${readFileSync(projectionPath, 'utf8')}import { helper } from './unmanaged-helper.mjs'\n`,
+        )
+      },
+      '- [unmanaged-relative-runtime-dependency] importer="scripts/github-comment-projection.mjs" -> callee="scripts/unmanaged-helper.mjs" specifier="./unmanaged-helper.mjs"',
+    ],
+  ])(
+    'fails closed before copy for %s and leaves the child byte-for-byte unchanged',
+    async (_label, mutateSource, expectedLine) => {
+      const mod = await import('../../scripts/guard-harness-contract.mjs')
+      const syncMod = await import('../../scripts/sync-boilerplate.mjs')
+      const tempRoot = mkdtempSync(join(tmpdir(), 'bemoat-182-negative-'))
+      const sourceRoot = join(tempRoot, 'source')
+      const childRoot = join(tempRoot, 'child')
+
+      try {
+        mkdirSync(sourceRoot, { recursive: true })
+        mkdirSync(childRoot, { recursive: true })
+
+        copyManagedSnapshot(
+          process.cwd(),
+          sourceRoot,
+          syncMod.managedPaths,
+          syncMod.listPathFiles,
+        )
+        mutateSource(sourceRoot)
+
+        copyManagedSnapshot(
+          sourceRoot,
+          childRoot,
+          syncMod.getSourceSyncConfig(sourceRoot).managedPaths,
+          syncMod.listPathFiles,
+        )
+        writeIssue182ChildFixture(childRoot)
+
+        const beforeHash = hashDirectory(childRoot)
+        const syncConfig = syncMod.getSourceSyncConfig(sourceRoot)
+
+        let caught: unknown
+        try {
+          syncMod.syncPathsFromSource({
+            sourceRootPath: sourceRoot,
+            targetRootPath: childRoot,
+            mode: syncMod.SYNC_MODES.HARNESS_ONLY,
+            syncConfig,
+            onWarn: () => {},
+            onLog: () => {},
+          })
+        } catch (error) {
+          caught = error
+        }
+
+        expect(caught).toBeInstanceOf(mod.ManagedRuntimeDeliveryClosureError)
+        const formatted = (caught as { formatted?: string[] }).formatted ?? []
+        expect(formatted.join('\n')).toContain(expectedLine)
+        expect(hashDirectory(childRoot)).toBe(beforeHash)
+      } finally {
+        rmSync(tempRoot, { recursive: true, force: true })
+      }
+    },
+  )
 })
