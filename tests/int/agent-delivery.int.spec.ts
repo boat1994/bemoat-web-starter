@@ -1,4 +1,4 @@
-import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -241,7 +241,7 @@ exit 0
     expect(editedBody).not.toContain('updated_at: "2026-07-23T12:00:00Z"')
   }, 10000)
 
-  it('fails closed and rolls back if RESULT post fails', () => {
+  it('fails closed without advancing state if RESULT post fails', () => {
     const prData = {
       headRefOid: 'abc1234',
       headRefName: 'main',
@@ -279,7 +279,8 @@ exit 0
 
     const result = run(['154'], { input: validResultBody, env })
     expect(result.status).toBe(1)
-    expect(result.stderr).toContain('rollback successful with no concurrent edit')
+    expect(result.stderr).toMatch(/ambiguous POST has no provable match|Failed to post RESULT comment/)
+    expect(existsSync(join(ghExec + '.edited'))).toBe(false)
   }, 10000)
 
   it('preserves arbitrary custom YAML fields', async () => {
@@ -314,7 +315,7 @@ exit 0
     expect(editedBody).toContain('custom_list:\n  - a\n  - b')
   }, 10000)
 
-  it('RESULT failure followed by concurrent Issue edit prevents rollback overwrite', () => {
+  it('RESULT failure before state write leaves durable state unchanged', () => {
     const prData = {
       headRefOid: 'abc1234',
       headRefName: 'main',
@@ -346,10 +347,10 @@ exit 0
 
     const result = run(['154'], { input: validResultBody, env })
     expect(result.status).toBe(1)
-    expect(result.stderr).toContain('concurrent-change evidence found, rollback aborted')
+    expect(result.stderr).toMatch(/ambiguous POST has no provable match|Failed to post RESULT comment/)
   }, 10000)
 
-  it('rollback write failure logs correctly', () => {
+  it('state write failure after RESULT post reports recoverable routing drift', () => {
     const prData = {
       headRefOid: 'abc1234',
       headRefName: 'main',
@@ -357,7 +358,8 @@ exit 0
       statusCheckRollup: [{ conclusion: 'SUCCESS', targetUrl: 'https://ci/abc1234' }]
     }
     const env: Record<string, string> = stubGhAndGit(prData, { body: validIssueBody }, 'abc1234 refs/heads/main', 'main', 'abc1234')
-    env.NODE_FAIL_POST_ROLE_COMMENT = '1'
+    // Comment posts succeed; durable state write fails on the second issue edit attempt.
+    env.NODE_FAIL_POST_ROLE_COMMENT = '0'
 
     const ghExec = join(env.PATH.split(':')[0], 'gh')
     const prJson = JSON.stringify(prData).replace(/'/g, `'"'"'`)
@@ -366,27 +368,18 @@ exit 0
 if [ "$1" = "repo" ] && [ "$2" = "view" ]; then printf '%s' 'acme/repo'; exit 0; fi
 if [ "$1" = "pr" ] && [ "$2" = "view" ]; then printf '%s' '${prJson}'; exit 0; fi
 if [ "$1" = "issue" ] && [ "$2" = "view" ]; then
-  if [ -f "\${0}.edited" ]; then
-    "${process.execPath}" -e "process.stdout.write(JSON.stringify({body: require('fs').readFileSync('\${0}.edited', 'utf8')}))"
-  else
-    printf '%s' '${JSON.stringify({ body: validIssueBody }).replace(/'/g, `'"'"'`)}'
-  fi
+  printf '%s' '${JSON.stringify({ body: validIssueBody }).replace(/'/g, `'"'"'`)}'
   exit 0
 fi
 if [ "$1" = "issue" ] && [ "$2" = "edit" ]; then
-  if [ -f "\${0}.edited" ]; then
-    echo "Simulated GitHub API error" >&2
-    exit 1
-  else
-    cp "$5" "\${0}.edited"
-    exit 0
-  fi
+  echo "Simulated GitHub API error" >&2
+  exit 1
 fi
 exit 0
 `)
 
     const result = run(['154'], { input: validResultBody, env })
     expect(result.status).toBe(1)
-    expect(result.stderr).toContain('Rollback write failure: Simulated GitHub API error')
+    expect(result.stderr).toContain('RECOVERABLE_ROUTING_DRIFT')
   }, 10000)
 })

@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
-import { dispatchFounderAuthorizedCorrection, dispatchManagedTask } from './mission-control-reconcile.mjs'
+import { dispatchFounderAuthorizedCorrection, Coordinator } from './mission-control-reconcile.mjs'
 import { parseMissionControlState, renderMissionControlState } from './mission-control-state.mjs'
 
 function run(command, args) {
@@ -138,14 +138,37 @@ async function main() {
   }
 
   const timestamp = new Date().toISOString()
-  const dispatch = options.founderCorrection ? dispatchFounderAuthorizedCorrection : dispatchManagedTask
-  const result = await dispatch({
+  if (options.founderCorrection) {
+    const result = await dispatchFounderAuthorizedCorrection({
+      readState: async () => readIssue(),
+      writeState,
+      postHandoff,
+      retractHandoff,
+      reserveAuthorization,
+      releaseAuthorization,
+      handoffBody,
+      updatedAt: timestamp,
+      updatedBy: 'Mission Control',
+    })
+    process.stdout.write(`Mission Control dispatch ${result.outcome}: FOUNDER_AUTHORIZED_CORRECTION -> IN_PROGRESS + HANDOFF\n`)
+    return
+  }
+
+  const comments = []
+  const coordinator = new Coordinator({
     readState: async () => readIssue(),
-    writeState,
-    postHandoff,
-    retractHandoff,
-    reserveAuthorization,
-    releaseAuthorization,
+    writeState: async (nextState, _expectedState) => {
+      await writeState(nextState)
+      return nextState
+    },
+    listComments: async () => comments,
+    postComment: async (body) => {
+      const posted = await postHandoff(body)
+      comments.push({ id: posted.id, body })
+      return posted
+    },
+  })
+  const result = await coordinator.integrateHandoff({
     handoffBody,
     transitionState: (state) => ({
       ...structuredClone(state),
@@ -156,7 +179,7 @@ async function main() {
     updatedAt: timestamp,
     updatedBy: 'Mission Control',
   })
-  process.stdout.write(`Mission Control dispatch ${result.outcome}: ${options.founderCorrection ? 'FOUNDER_AUTHORIZED_CORRECTION' : 'READY'} -> IN_PROGRESS + HANDOFF\n`)
+  process.stdout.write(`Mission Control dispatch ${result.outcome}: READY -> IN_PROGRESS + HANDOFF\n`)
 }
 
 main().catch((error) => {

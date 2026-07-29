@@ -367,6 +367,315 @@ function sha256(value) {
   return createHash('sha256').update(value).digest('hex')
 }
 
+const ROLE_MARKERS = new Set(['HANDOFF', 'RESULT', 'REVIEW_VERDICT'])
+
+/**
+ * @param {string} body
+ * @returns {'HANDOFF' | 'RESULT' | 'REVIEW_VERDICT' | null}
+ */
+export function parseCommentMarker(body = '') {
+  const match = body.match(/^##\s+(HANDOFF|RESULT|REVIEW_VERDICT)\s*$/m)
+  const marker = match?.[1] ?? null
+  return marker && ROLE_MARKERS.has(marker) ? marker : null
+}
+
+/**
+ * @param {string} body
+ * @param {{ taskId?: string, phase?: string, role?: string }} [overrides]
+ */
+export function normalizeTransitionIdentity(body = '', overrides = {}) {
+  const role = overrides.role ?? parseCommentMarker(body) ?? ''
+  const taskId = overrides.taskId ??
+    body.match(/\*\*Task(?:\s*\/\s*Issue)?:\*\*\s*#?(\d+)/i)?.[1] ??
+    body.match(/Task\s*\/\s*Issue:\s*#?(\d+)/i)?.[1] ?? ''
+  const phase = overrides.phase ??
+    body.match(/\*\*Phase:\*\*\s*(.+?)\s*$/m)?.[1]?.trim() ??
+    body.match(/Phase:\s*(.+?)$/m)?.[1]?.trim() ?? ''
+  const normalizedContent = body
+    .replace(/^### Task log[\s\S]*?(?=\n\*\*|\n##|$)/m, '')
+    .replace(/^- Timestamp:.*$/gm, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return {
+    taskId: String(taskId),
+    phase,
+    role,
+    contentHash: sha256(normalizedContent),
+  }
+}
+
+export function serializeTransitionIdentity(identity) {
+  return JSON.stringify({
+    taskId: identity.taskId,
+    phase: identity.phase,
+    role: identity.role,
+    contentHash: identity.contentHash,
+  })
+}
+
+export function transitionIdentityMatches(left, right) {
+  return serializeTransitionIdentity(left) === serializeTransitionIdentity(right)
+}
+
+/**
+ * @param {number} matchCount
+ * @returns {'BLOCKED_EXTERNAL' | 'STATE_CONFLICT' | 'RESUME_PROJECTION'}
+ */
+export function classifyTransition(matchCount) {
+  if (matchCount === 0) return 'BLOCKED_EXTERNAL'
+  if (matchCount > 1) return 'STATE_CONFLICT'
+  return 'RESUME_PROJECTION'
+}
+
+/**
+ * @param {Array<{ body?: string, id?: string | number }>} comments
+ * @param {{ taskId: string, phase: string, role: string, contentHash: string }} identity
+ */
+export function findMatchingComments(comments = [], identity) {
+  return comments
+    .map((comment) => ({ comment, identity: normalizeTransitionIdentity(comment.body ?? '') }))
+    .filter((entry) => entry.identity.role === identity.role && transitionIdentityMatches(entry.identity, identity))
+    .map((entry) => entry.comment)
+}
+
+/**
+ * @param {{ comments?: Array<{ body?: string, id?: string | number }>, identity: object, ambiguousPost?: boolean }} input
+ */
+export function recoverAmbiguousPost({ comments = [], identity, ambiguousPost = true }) {
+  const matches = findMatchingComments(comments, identity)
+  const classification = classifyTransition(matches.length)
+  if (classification === 'RESUME_PROJECTION') {
+    return { classification, comment: matches[0], recovered: ambiguousPost }
+  }
+  if (classification === 'STATE_CONFLICT') {
+    return { classification, error: new Error('ambiguous POST resolved to competing matches') }
+  }
+  return { classification, error: new Error('ambiguous POST has no provable match') }
+}
+
+/**
+ * @param {Record<string, unknown>} expected
+ * @param {Record<string, unknown>} actual
+ * @param {string[] | null} [fields]
+ */
+export function verifyStatePostcondition(expected, actual, fields = null) {
+  const keys = fields ?? [
+    'state', 'review_cycle', 'full_review_count', 'active_pr', 'current_head', 'last_reviewed_head',
+  ]
+  for (const key of keys) {
+    if (!sameValue(expected?.[key], actual?.[key])) {
+      throw new Error(
+        `postcondition mismatch on ${key}: expected ${JSON.stringify(expected?.[key])}, got ${JSON.stringify(actual?.[key])}`,
+      )
+    }
+  }
+  return true
+}
+
+export const CHILD_SYNC_GATE_ISSUES = Object.freeze([182, 184])
+
+export const CHILD_SYNC_GATE_REQUIREMENTS = Object.freeze({
+  issuesMergedAndGreen: CHILD_SYNC_GATE_ISSUES,
+  requiresLiveChildStateReconstruction: true,
+  requiresFreshChildSyncHandoff: true,
+})
+
+export function assertChildSyncGateReady({ issues182Merged = false, issues184Merged = false, liveChildReconstructed = false, freshHandoffIssued = false } = {}) {
+  const blockers = []
+  if (!issues182Merged) blockers.push('Issue #182 must be merged and green on protected main')
+  if (!issues184Merged) blockers.push('Issue #184 must be merged and green on protected main')
+  if (!liveChildReconstructed) blockers.push('live child-state reconstruction required')
+  if (!freshHandoffIssued) blockers.push('fresh child-sync HANDOFF required')
+  if (blockers.length > 0) {
+    throw new Error(`child-sync gate blocked: ${blockers.join('; ')}`)
+  }
+  return true
+}
+
+/**
+ * Canonical comment-first transition coordinator. Role comments are immutable
+ * evidence; managed state is the routing projection.
+ */
+export class Coordinator {
+  /**
+   * @param {{
+   *   readState: () => Promise<Record<string, unknown>>,
+   *   writeState: (next: Record<string, unknown>, expected?: Record<string, unknown>) => Promise<Record<string, unknown>>,
+   *   listComments: () => Promise<Array<{ body?: string, id?: string | number }>>,
+   *   postComment: (body: string) => Promise<{ id?: string | number, body?: string }>,
+   *   readIssueBody?: () => Promise<string>,
+   * }} transports
+   */
+  constructor(transports) {
+    this.readState = transports.readState
+    this.writeState = transports.writeState
+    this.listComments = transports.listComments
+    this.postComment = transports.postComment
+    this.readIssueBody = transports.readIssueBody ?? null
+  }
+
+  async _resolveComment(roleBody, role) {
+    const identity = normalizeTransitionIdentity(roleBody, { role })
+    const comments = await this.listComments()
+    const roleComments = comments.filter((comment) => parseCommentMarker(comment.body ?? '') === role)
+    if (role === 'HANDOFF' && roleComments.length > 1) {
+      const identities = new Set(roleComments.map((comment) => serializeTransitionIdentity(normalizeTransitionIdentity(comment.body ?? ''))))
+      if (identities.size > 1) {
+        throw new Error('STATE_CONFLICT: competing HANDOFF comments')
+      }
+    }
+    let matches = findMatchingComments(comments, identity)
+    if (matches.length === 0) {
+      try {
+        const posted = await this.postComment(roleBody)
+        return { identity, comment: posted, created: true }
+      } catch (error) {
+        const recovery = recoverAmbiguousPost({ comments: await this.listComments(), identity, ambiguousPost: true })
+        if (recovery.classification === 'RESUME_PROJECTION' && recovery.comment) {
+          return { identity, comment: recovery.comment, created: false, recovered: true }
+        }
+        if (recovery.classification === 'STATE_CONFLICT') {
+          throw new Error('STATE_CONFLICT: ambiguous POST resolved to competing matches', { cause: error })
+        }
+        throw new Error('BLOCKED_EXTERNAL: ambiguous POST has no provable match', { cause: error })
+      }
+    }
+    if (matches.length > 1) {
+      throw new Error('STATE_CONFLICT: competing role comments for the same transition identity')
+    }
+    return { identity, comment: matches[0], created: false }
+  }
+
+  /**
+   * Comment-first READY -> IN_PROGRESS HANDOFF integration.
+   */
+  async integrateHandoff({ handoffBody, transitionState, updatedAt, updatedBy }) {
+    if (!/^## HANDOFF\s*$/m.test(handoffBody ?? '')) {
+      throw new Error('integrateHandoff requires one HANDOFF role comment')
+    }
+    const original = await this.readState()
+    if (original?.state !== 'READY') {
+      throw new Error(`integrateHandoff requires READY, received ${original?.state ?? 'missing state'}`)
+    }
+    const { identity, comment } = await this._resolveComment(handoffBody, 'HANDOFF')
+    const defaultTransition = (state) => ({
+      ...structuredClone(state),
+      state: 'IN_PROGRESS',
+      latest_transition_identity: serializeTransitionIdentity(identity),
+      updated_at: updatedAt ?? new Date().toISOString(),
+      updated_by: updatedBy ?? 'Mission Control',
+    })
+    const projected = (transitionState ?? defaultTransition)(original)
+    const written = await this.writeState(projected, original)
+    verifyStatePostcondition(projected, written)
+    return { outcome: 'DISPATCHED', state: written, comment, identity }
+  }
+
+  /**
+   * Comment-first RESULT integration with precondition gating.
+   */
+  async integrateResult({ resultBody, projectState, verifyPreconditions, updatedAt, updatedBy }) {
+    if (parseCommentMarker(resultBody) !== 'RESULT') {
+      throw new Error('integrateResult requires a RESULT role comment')
+    }
+    if (typeof verifyPreconditions === 'function') {
+      await verifyPreconditions()
+    }
+    const original = await this.readState()
+    const { identity, comment, created } = await this._resolveComment(resultBody, 'RESULT')
+    const projected = {
+      ...(typeof projectState === 'function' ? projectState(original) : projectState),
+      latest_transition_identity: serializeTransitionIdentity(identity),
+      updated_at: updatedAt ?? new Date().toISOString(),
+      updated_by: updatedBy ?? 'Mission Control',
+    }
+    try {
+      const written = await this.writeState(projected, original)
+      verifyStatePostcondition(projected, written)
+      return { outcome: 'DELIVERED', state: written, comment, identity, created }
+    } catch (error) {
+      if (created) {
+        return {
+          outcome: 'RECOVERABLE_ROUTING_DRIFT',
+          state: original,
+          comment,
+          identity,
+          error: error instanceof Error ? error.message : String(error),
+        }
+      }
+      throw error
+    }
+  }
+
+  /**
+   * Routing-only REVIEW_VERDICT projection preserving counters and heads.
+   */
+  async reconcileReviewVerdict({ verdictBody, projectReview }) {
+    if (parseCommentMarker(verdictBody) !== 'REVIEW_VERDICT') {
+      throw new Error('reconcileReviewVerdict requires a REVIEW_VERDICT role comment')
+    }
+    const original = await this.readState()
+    const identity = normalizeTransitionIdentity(verdictBody, { role: 'REVIEW_VERDICT' })
+    const comments = await this.listComments()
+    const matches = findMatchingComments(comments, identity)
+    const classification = classifyTransition(matches.length)
+    if (classification === 'BLOCKED_EXTERNAL') {
+      throw new Error('BLOCKED_EXTERNAL: no matching REVIEW_VERDICT evidence')
+    }
+    if (classification === 'STATE_CONFLICT') {
+      throw new Error('STATE_CONFLICT: competing REVIEW_VERDICT comments')
+    }
+    const projected = {
+      ...structuredClone(original),
+      ...(typeof projectReview === 'function' ? projectReview(original) : projectReview),
+      latest_transition_identity: serializeTransitionIdentity(identity),
+    }
+    if (
+      (projected.review_cycle ?? original.review_cycle) < (original.review_cycle ?? 0) ||
+      (projected.full_review_count ?? original.full_review_count) < (original.full_review_count ?? 0)
+    ) {
+      throw new Error('routing-only repair must not decrease review counters')
+    }
+    const written = await this.writeState(projected, original)
+    return { outcome: 'RECONCILED', state: written, comment: matches[0], identity }
+  }
+
+  /**
+   * Resume projection when comment exists but state update previously failed.
+   */
+  async resumeProjection({ roleBody, role, projectState }) {
+    const identity = normalizeTransitionIdentity(roleBody, { role })
+    const comments = await this.listComments()
+    const matches = findMatchingComments(comments, identity)
+    const classification = classifyTransition(matches.length)
+    if (classification !== 'RESUME_PROJECTION') {
+      throw new Error(`${classification}: cannot resume projection`)
+    }
+    const original = await this.readState()
+    const projected = {
+      ...(typeof projectState === 'function' ? projectState(original) : projectState),
+      latest_transition_identity: serializeTransitionIdentity(identity),
+    }
+    const written = await this.writeState(projected, original)
+    verifyStatePostcondition(projected, written)
+    return { outcome: 'RESUMED', state: written, comment: matches[0], identity }
+  }
+
+  /**
+   * Fail closed when concurrent incompatible state is observed.
+   */
+  async assertCompatibleSnapshot(expectedState) {
+    const live = await this.readState()
+    const incompatibleKeys = ['state', 'active_pr', 'review_cycle', 'full_review_count']
+    for (const key of incompatibleKeys) {
+      if (expectedState?.[key] !== undefined && !sameValue(live?.[key], expectedState[key])) {
+        throw new Error(`STATE_CONFLICT: incompatible concurrent state change on ${key}`)
+      }
+    }
+    return live
+  }
+}
+
 export function buildCorrectionHandoffBinding({ authorization, state, handoffBody, handoff }) {
   const target = handoffBody.match(/^\*\*Target:\*\*\s*(.+?)\s*$/m)?.[1]?.trim()
   if (!target) throw new Error('correction HANDOFF requires an explicit Target binding')

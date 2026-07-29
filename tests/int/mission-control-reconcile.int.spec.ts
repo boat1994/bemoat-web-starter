@@ -11,16 +11,32 @@ const {
   classifyDeliveryLag,
   classifyMergeDrift,
   classifyReviewLag,
+  classifyTransition,
   founderMergeTransitionAuthorized,
   dispatchManagedTask,
   dispatchFounderAuthorizedCorrection,
   isGenuineStateConflict,
   migrateLegacyManagedState,
   parseRoleCommentBody,
+  parseCommentMarker,
+  normalizeTransitionIdentity,
+  recoverAmbiguousPost,
+  verifyStatePostcondition,
+  CHILD_SYNC_GATE_ISSUES,
+  CHILD_SYNC_GATE_REQUIREMENTS,
+  assertChildSyncGateReady,
   proposeDeliveryReconciliation,
   proposeReviewReconciliation,
   runBoundedReconciliation,
 } = reconcileModule as unknown as Record<string, (...args: any[]) => any>
+
+const CoordinatorClass = reconcileModule.Coordinator as unknown as new (transports: Record<string, unknown>) => {
+  integrateHandoff: (input: Record<string, unknown>) => Promise<Record<string, unknown>>
+  integrateResult: (input: Record<string, unknown>) => Promise<Record<string, unknown>>
+  reconcileReviewVerdict: (input: Record<string, unknown>) => Promise<Record<string, unknown>>
+  resumeProjection: (input: Record<string, unknown>) => Promise<Record<string, unknown>>
+  assertCompatibleSnapshot: (input: Record<string, unknown>) => Promise<Record<string, unknown>>
+}
 
 const sampleResult = `## RESULT
 
@@ -907,5 +923,278 @@ describe('mission-control reconcile classifiers', () => {
     expect(fields.review_cycle).toBe(2)
     expect(fields.full_review_count).toBe(1)
     expect(fields.next_permitted_action).toMatch(/contradictory evidence/)
+  })
+})
+
+describe('mission-control transition idempotency', () => {
+  const handoffBody = `## HANDOFF
+
+**Target:** Dev / Builder
+**Task / Issue:** #184
+**Phase:** Dev (implementation)
+
+Bounded implementation work.
+`
+
+  const resultBody = `## RESULT
+
+### Task log
+- Timestamp: 2026-07-29T19:00:00+07:00
+- Task / Issue: #184
+- Phase: Dev (implementation)
+
+**Completed:** Dev (implementation)
+**State:** branch \`feature/184\` · base \`main\` · head \`deadbeef\`
+**PR:** https://github.com/boat1994/bemoat-web-starter/pull/186
+**Summary:** Transition idempotency implementation
+`
+
+  it('normalizes transition identity consistently', () => {
+    const first = normalizeTransitionIdentity(handoffBody)
+    const second = normalizeTransitionIdentity(handoffBody)
+    expect(first).toEqual(second)
+    expect(first).toMatchObject({
+      taskId: '184',
+      phase: 'Dev (implementation)',
+      role: 'HANDOFF',
+      contentHash: expect.stringMatching(/^[0-9a-f]{64}$/),
+    })
+  })
+
+  it('parses and matches comment markers exactly', () => {
+    expect(parseCommentMarker('## HANDOFF\n\nWork')).toBe('HANDOFF')
+    expect(parseCommentMarker('## RESULT\n\nDone')).toBe('RESULT')
+    expect(parseCommentMarker('## REVIEW_VERDICT\n\nReview')).toBe('REVIEW_VERDICT')
+    expect(parseCommentMarker('## OTHER\n\nNope')).toBeNull()
+  })
+
+  it('classifies pure transition', () => {
+    expect(classifyTransition(0)).toBe('BLOCKED_EXTERNAL')
+    expect(classifyTransition(1)).toBe('RESUME_PROJECTION')
+    expect(classifyTransition(2)).toBe('STATE_CONFLICT')
+  })
+
+  it('coordinator injects transports', async () => {
+    let state: any = { state: 'READY', review_cycle: 0, full_review_count: 0 }
+    const comments: any[] = []
+    const coordinator = new CoordinatorClass({
+      readState: async () => state,
+      writeState: async (next: any) => { state = next; return next },
+      listComments: async () => comments,
+      postComment: async (body: string) => {
+        const posted = { id: '1', body }
+        comments.push(posted)
+        return posted
+      },
+    })
+    const result = await coordinator.integrateHandoff({ handoffBody })
+    expect(result.outcome).toBe('DISPATCHED')
+    expect(state.state).toBe('IN_PROGRESS')
+    expect(comments).toHaveLength(1)
+  })
+
+  it('recovers ambiguous POST with one live match', () => {
+    const identity = normalizeTransitionIdentity(handoffBody, { role: 'HANDOFF' })
+    const recovery = recoverAmbiguousPost({
+      comments: [{ id: '99', body: handoffBody }],
+      identity,
+      ambiguousPost: true,
+    })
+    expect(recovery.classification).toBe('RESUME_PROJECTION')
+    expect(recovery.comment?.id).toBe('99')
+    expect(recovery.recovered).toBe(true)
+  })
+
+  it('recovers from comment-success/state-update-failure plus rerun', async () => {
+    let state: any = { state: 'READY', review_cycle: 0, full_review_count: 0 }
+    const comments = [{ id: 'posted-1', body: handoffBody }]
+    const coordinator = new CoordinatorClass({
+      readState: async () => state,
+      writeState: async (next: any) => { state = next; return next },
+      listComments: async () => comments,
+      postComment: async () => { throw new Error('should not post duplicate') },
+    })
+    const resumed = await coordinator.resumeProjection({
+      roleBody: handoffBody,
+      role: 'HANDOFF',
+      projectState: (current: any) => ({ ...current, state: 'IN_PROGRESS' }),
+    })
+    expect(resumed.outcome).toBe('RESUMED')
+    expect(state.state).toBe('IN_PROGRESS')
+    expect(comments).toHaveLength(1)
+  })
+
+  it('incompatible concurrent state fail-closed', async () => {
+    const coordinator = new CoordinatorClass({
+      readState: async () => ({ state: 'IN_PROGRESS', review_cycle: 1, full_review_count: 1 }),
+      writeState: async (next: any) => next,
+      listComments: async (): Promise<any[]> => [],
+      postComment: async (body: string) => ({ id: '1', body }),
+    })
+    await expect(coordinator.assertCompatibleSnapshot({
+      state: 'READY', review_cycle: 0, full_review_count: 0,
+    })).rejects.toThrow('STATE_CONFLICT: incompatible concurrent state change')
+  })
+
+  it('rejects competing HANDOFF', async () => {
+    let state: any = { state: 'READY', review_cycle: 0, full_review_count: 0 }
+    const comments = [
+      { id: '1', body: '## HANDOFF\n\n**Task / Issue:** #184\n**Phase:** A\nFirst' },
+      { id: '2', body: '## HANDOFF\n\n**Task / Issue:** #185\n**Phase:** B\nSecond' },
+    ]
+    const coordinator = new CoordinatorClass({
+      readState: async () => state,
+      writeState: async (next: any) => { state = next; return next },
+      listComments: async () => comments,
+      postComment: async (body: string) => ({ id: '3', body }),
+    })
+    await expect(coordinator.integrateHandoff({ handoffBody })).rejects.toThrow('competing HANDOFF')
+  })
+
+  it('ensures RESULT suppression before postconditions', async () => {
+    let state: any = { state: 'IN_PROGRESS', review_cycle: 0, full_review_count: 0 }
+    const comments: any[] = []
+    const coordinator = new CoordinatorClass({
+      readState: async () => state,
+      writeState: async (next: any) => { state = next; return next },
+      listComments: async () => comments,
+      postComment: async (body: string) => {
+        const posted = { id: 'result-1', body }
+        comments.push(posted)
+        return posted
+      },
+    })
+    await expect(coordinator.integrateResult({
+      resultBody,
+      projectState: () => ({ ...state, state: 'AWAITING_REVIEW_1' }),
+      verifyPreconditions: async () => { throw new Error('preconditions incomplete') },
+    })).rejects.toThrow('preconditions incomplete')
+    expect(comments).toHaveLength(0)
+  })
+
+  it('preserves counters and last_reviewed_head during reconciliation', async () => {
+    let state: any = {
+      state: 'AWAITING_REVIEW_1', review_cycle: 1, full_review_count: 1,
+      last_reviewed_head: 'abc1234', active_pr: '#121', current_head: 'abc1234',
+    }
+    const verdictBody = `## REVIEW_VERDICT
+
+**Task / Issue:** #120
+**Phase:** Reviewer
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/121 · \`main\` · \`abc1234\`
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+`
+    const comments = [{ id: 'verdict-1', body: verdictBody }]
+    const coordinator = new CoordinatorClass({
+      readState: async () => state,
+      writeState: async (next: any) => { state = next; return next },
+      listComments: async () => comments,
+      postComment: async (body: string) => ({ id: 'new', body }),
+    })
+    const result = await coordinator.reconcileReviewVerdict({
+      verdictBody,
+      projectReview: () => ({
+        state: 'ELIGIBLE_FOR_FOUNDER_REVIEW',
+        review_cycle: 1,
+        full_review_count: 1,
+        last_reviewed_head: 'abc1234',
+      }),
+    })
+    expect(result.outcome).toBe('RECONCILED')
+    expect(state.review_cycle).toBe(1)
+    expect(state.full_review_count).toBe(1)
+    expect(state.last_reviewed_head).toBe('abc1234')
+  })
+
+  it('integrates RESULT with exact identity', async () => {
+    let state: any = { state: 'IN_PROGRESS', review_cycle: 0, full_review_count: 0 }
+    const comments: any[] = []
+    const coordinator = new CoordinatorClass({
+      readState: async () => state,
+      writeState: async (next: any) => { state = next; return next },
+      listComments: async () => comments,
+      postComment: async (body: string) => {
+        const posted = { id: 'result-1', body }
+        comments.push(posted)
+        return posted
+      },
+    })
+    const result = await coordinator.integrateResult({
+      resultBody,
+      projectState: () => ({
+        ...state,
+        state: 'AWAITING_REVIEW_1',
+        active_pr: '"#186"',
+        current_head: 'deadbeef',
+        review_cycle: 0,
+        full_review_count: 0,
+      }),
+    })
+    expect(result.outcome).toBe('DELIVERED')
+    expect(state.state).toBe('AWAITING_REVIEW_1')
+    expect(normalizeTransitionIdentity(comments[0].body).contentHash)
+      .toBe(normalizeTransitionIdentity(resultBody).contentHash)
+  })
+
+  it('reconciles REVIEW_VERDICT external evidence', async () => {
+    let state: any = { state: 'AWAITING_REVIEW_1', review_cycle: 0, full_review_count: 0, last_reviewed_head: null }
+    const verdictBody = sampleVerdict
+    const comments = [{ id: 'v1', body: verdictBody }]
+    const coordinator = new CoordinatorClass({
+      readState: async () => state,
+      writeState: async (next: any) => { state = next; return next },
+      listComments: async () => comments,
+      postComment: async (body: string) => ({ id: 'new', body }),
+    })
+    const result = await coordinator.reconcileReviewVerdict({
+      verdictBody,
+      projectReview: () => proposeReviewReconciliation({
+        verdict: 'ELIGIBLE FOR FOUNDER REVIEW',
+        reviewedHead: 'abc1234',
+        reviewCycle: 0,
+        fullReviewCount: 0,
+      }),
+    })
+    expect(result.outcome).toBe('RECONCILED')
+    expect(state.state).toBe('ELIGIBLE_FOR_FOUNDER_REVIEW')
+  })
+
+  it('verifies state postcondition exactly', () => {
+    expect(() => verifyStatePostcondition(
+      { state: 'IN_PROGRESS', review_cycle: 0 },
+      { state: 'READY', review_cycle: 0 },
+    )).toThrow('postcondition mismatch on state')
+    expect(verifyStatePostcondition(
+      { state: 'IN_PROGRESS', review_cycle: 1 },
+      { state: 'IN_PROGRESS', review_cycle: 1 },
+    )).toBe(true)
+  })
+
+  it('preserves child harness closures', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const dispatchSource = readFileSync(
+      join(process.cwd(), 'scripts/mission-control-dispatch.mjs'),
+      'utf8',
+    )
+    expect(dispatchSource).toContain("import { dispatchFounderAuthorizedCorrection, Coordinator } from './mission-control-reconcile.mjs'")
+    expect(dispatchSource).toContain('new Coordinator(')
+    expect(reconcileModule.Coordinator).toBeTruthy()
+    expect(reconcileModule.normalizeTransitionIdentity).toBeTruthy()
+  })
+
+  it('requires #182 and #184 merged/green and fresh child-sync HANDOFF', () => {
+    expect(CHILD_SYNC_GATE_ISSUES).toEqual([182, 184])
+    expect(CHILD_SYNC_GATE_REQUIREMENTS).toMatchObject({
+      requiresLiveChildStateReconstruction: true,
+      requiresFreshChildSyncHandoff: true,
+    })
+    expect(() => assertChildSyncGateReady()).toThrow('child-sync gate blocked')
+    expect(assertChildSyncGateReady({
+      issues182Merged: true,
+      issues184Merged: true,
+      liveChildReconstructed: true,
+      freshHandoffIssued: true,
+    })).toBe(true)
   })
 })

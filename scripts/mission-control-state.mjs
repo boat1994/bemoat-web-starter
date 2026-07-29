@@ -337,6 +337,7 @@ export function renderMissionControlState(stateObj) {
     'schema_version', 'state', 'review_cycle', 'full_review_count', 'approved_base',
     'active_task_issue', 'active_pr', 'current_head', 'last_reviewed_head',
     'post_budget_reviews', 'founder_decision', 'founder_correction_authorization',
+    'latest_transition_identity',
     'guide_version', 'guide_source_ref', 'guide_source_sha', 'open_blockers',
     'follow_up_issues', 'next_permitted_action', 'material_change_status', 'updated_at',
     'updated_by'
