@@ -2,8 +2,8 @@
   "schema_version": 1,
   "issue": "213",
   "transition_identity": "",
-  "observed_body_sha256": "dba1a01913b5ed01f538f4b03b4f09a176ee14ec00034853c7636d84993613a2",
+  "observed_body_sha256": "50a072b916d5858487e2e0519e421fa3b08163da70f98d1a1d9f8dfb2a99f23d",
   "holder": "agent-delivery-repair",
-  "status": "held",
-  "updated_at": "2026-07-29T17:26:31.853Z"
+  "status": "released",
+  "updated_at": "2026-07-29T17:26:36.637Z"
 }
