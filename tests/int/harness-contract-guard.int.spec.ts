@@ -4,6 +4,47 @@ import { join, resolve } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
+const VERIFIABLE_DYNAMIC_IMPORT_CASES = [
+  ["single-quoted literal", "import('./leaf.mjs')", './leaf.mjs'],
+  ['double-quoted literal', 'import("./leaf.mjs")', './leaf.mjs'],
+  ['substitution-free template literal', 'import(`./leaf.mjs`)', './leaf.mjs'],
+] as const
+
+const UNVERIFIABLE_DYNAMIC_IMPORT_CASES = [
+  ['identifier', 'import(specifier)', 'import(specifier)'],
+  ['left literal concatenation', "import('./hidden' + suffix)", "import('./hidden' + suffix)"],
+  ['right literal concatenation', "import(prefix + './hidden')", "import(prefix + './hidden')"],
+  ['concat call with one argument', "import('./hidden'.concat('.mjs'))", "import('./hidden'.concat('.mjs'))"],
+  [
+    'concat call with multiple arguments',
+    "import('./hidden'.concat('.mjs', suffix))",
+    "import('./hidden'.concat('.mjs', suffix))",
+  ],
+  ['interpolated template', 'import(`./hidden/${name}.mjs`)', 'import(`./hidden/${name}.mjs`)'],
+  [
+    'interpolated template concatenated on the left',
+    "import(`./hidden/${name}` + '.mjs')",
+    "import(`./hidden/${name}` + '.mjs')",
+  ],
+  [
+    'interpolated template concatenated on the right',
+    "import('./hidden/' + `${name}.mjs`)",
+    "import('./hidden/' + `${name}.mjs`)",
+  ],
+  [
+    'conditional expression',
+    "import(condition ? './present.mjs' : './hidden.mjs')",
+    "import(condition ? './present.mjs' : './hidden.mjs')",
+  ],
+  ['function call', 'import(resolveSpecifier())', 'import(resolveSpecifier())'],
+  ['parenthesized expression', "import(('./hidden.mjs'))", "import(('./hidden.mjs'))"],
+  [
+    'multiline computed expression',
+    "import(\n  prefix +\n  '.mjs'\n)",
+    "import( prefix + '.mjs' )",
+  ],
+] as const
+
 describe('harness contract guard', () => {
   it('exports child-facing paths and forbidden raw scripts', async () => {
     const mod = await import('../../scripts/guard-harness-contract.mjs')
@@ -157,6 +198,59 @@ describe('managed runtime delivery closure', () => {
       },
     ])
   })
+
+  it.each(VERIFIABLE_DYNAMIC_IMPORT_CASES)(
+    'classifies %s dynamic imports as verifiable',
+    async (_label, invocation, specifier) => {
+      const guardMod = await import('../../scripts/guard-harness-contract.mjs')
+
+      const parsed = guardMod.parseRuntimeImportSpecifiers(`const module = await ${invocation}\n`)
+
+      expect(parsed.specifiers).toEqual([{ specifier, sourceExpression: invocation }])
+      expect(parsed.unverifiable).toEqual([])
+    },
+  )
+
+  it.each(UNVERIFIABLE_DYNAMIC_IMPORT_CASES)(
+    'fails closed once with deterministic diagnostics for %s dynamic imports',
+    async (_label, invocation, sourceExpression) => {
+      const guardMod = await import('../../scripts/guard-harness-contract.mjs')
+      const tempRoot = mkdtempSync(join(tmpdir(), 'bemoat-182-exhaustive-dynamic-import-'))
+
+      try {
+        mkdirSync(join(tempRoot, 'scripts'), { recursive: true })
+        writeFileSync(join(tempRoot, 'scripts/root.mjs'), `const module = await ${invocation}\n`)
+
+        const parsed = guardMod.parseRuntimeImportSpecifiers(`const module = await ${invocation}\n`)
+        expect(parsed.specifiers).toEqual([])
+        expect(parsed.unverifiable).toEqual([{ specifier: sourceExpression, sourceExpression }])
+
+        const violations = guardMod.scanManagedRuntimeDeliveryClosure({
+          root: tempRoot,
+          managedPaths: ['scripts/root.mjs'],
+        })
+
+        expect(violations).toEqual([
+          {
+            type: 'unverifiable-dynamic-runtime-import',
+            importer: 'scripts/root.mjs',
+            callee: '<unresolved>',
+            specifier: sourceExpression,
+          },
+        ])
+        expect(guardMod.formatManagedRuntimeDeliveryViolations(violations)).toEqual([
+          'Harness contract guard failed:',
+          '',
+          'Managed runtime delivery closure must resolve only managed local dependencies.',
+          'See docs/harness-sync-contract.md.',
+          '',
+          `- [unverifiable-dynamic-runtime-import] importer="scripts/root.mjs" -> callee="<unresolved>" specifier="${sourceExpression}"`,
+        ])
+      } finally {
+        rmSync(tempRoot, { recursive: true, force: true })
+      }
+    },
+  )
 
   it('fails closed for combined static imports to unmanaged callees', async () => {
     const guardMod = await import('../../scripts/guard-harness-contract.mjs')

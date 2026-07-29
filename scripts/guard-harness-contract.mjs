@@ -43,10 +43,7 @@ const STATIC_IMPORT_FROM_RE =
   /\bimport\s+(?:type\s+)?(?:[^;]*?\sfrom\s+)?['"]([^'"]+)['"]/g
 const EXPORT_FROM_RE =
   /\bexport\s+(?:\{[^}]*\}|\*(?:\s+as\s+[\w$]+)?)\s+from\s+['"]([^'"]+)['"]/g
-const LITERAL_DYNAMIC_IMPORT_RE = /\bimport\s*\(\s*(['"`])([^'"`$\\]+)\1\s*\)/g
-const VARIABLE_DYNAMIC_IMPORT_RE = /\bimport\s*\(\s*(?![`'"])/g
-const CONCAT_DYNAMIC_IMPORT_RE = /\bimport\s*\(\s*['"][^'"]*['"]\s*\+/g
-const TEMPLATE_DYNAMIC_IMPORT_RE = /\bimport\s*\(\s*`[^`]*\$\{/g
+const DYNAMIC_IMPORT_START_RE = /\bimport\s*\(/g
 
 export class ManagedRuntimeDeliveryClosureError extends Error {
   constructor(violations) {
@@ -113,10 +110,82 @@ export function resolveRelativeRuntimeCallee(importerPath, specifier) {
   return { kind: 'relative', callee: joined }
 }
 
+function normalizeDynamicImportSourceExpression(sourceExpression) {
+  return sourceExpression.replace(/\s+/g, ' ').trim()
+}
+
+function findDynamicImportInvocations(content) {
+  const invocations = []
+
+  for (const match of content.matchAll(DYNAMIC_IMPORT_START_RE)) {
+    if (match.index == null) continue
+
+    const start = match.index
+    const openParen = start + match[0].lastIndexOf('(')
+    let quote = null
+    let escaped = false
+    let depth = 1
+    let end = content.length
+
+    for (let index = openParen + 1; index < content.length; index += 1) {
+      const character = content[index]
+
+      if (quote) {
+        if (escaped) {
+          escaped = false
+        } else if (character === '\\') {
+          escaped = true
+        } else if (character === quote) {
+          quote = null
+        }
+        continue
+      }
+
+      if (character === "'" || character === '"' || character === '`') {
+        quote = character
+        continue
+      }
+
+      if (character === '(') {
+        depth += 1
+        continue
+      }
+
+      if (character === ')') {
+        depth -= 1
+        if (depth === 0) {
+          end = index + 1
+          break
+        }
+      }
+    }
+
+    const sourceExpression = normalizeDynamicImportSourceExpression(content.slice(start, end))
+    invocations.push({
+      sourceExpression,
+      argumentExpression: content.slice(openParen + 1, end - 1).trim(),
+    })
+  }
+
+  return invocations
+}
+
+function parseExactDynamicImportSpecifier(argumentExpression) {
+  const singleQuoted = argumentExpression.match(/^'([^'\\\r\n]*)'$/)
+  if (singleQuoted) return singleQuoted[1]
+
+  const doubleQuoted = argumentExpression.match(/^"([^"\\\r\n]*)"$/)
+  if (doubleQuoted) return doubleQuoted[1]
+
+  const templateLiteral = argumentExpression.match(/^`([^`$\\]*)`$/)
+  if (templateLiteral) return templateLiteral[1]
+
+  return null
+}
+
 export function parseRuntimeImportSpecifiers(content) {
   const specifiers = []
   const unverifiable = []
-  const unverifiableIndexes = new Set()
 
   for (const match of content.matchAll(STATIC_IMPORT_FROM_RE)) {
     specifiers.push({ specifier: match[1], sourceExpression: match[1] })
@@ -126,27 +195,17 @@ export function parseRuntimeImportSpecifiers(content) {
     specifiers.push({ specifier: match[1], sourceExpression: match[1] })
   }
 
-  for (const match of content.matchAll(LITERAL_DYNAMIC_IMPORT_RE)) {
-    specifiers.push({
-      specifier: match[2],
-      sourceExpression: match[0].replace(/^.*import\s*\(/, 'import('),
-    })
-  }
-
-  for (const pattern of [
-    VARIABLE_DYNAMIC_IMPORT_RE,
-    CONCAT_DYNAMIC_IMPORT_RE,
-    TEMPLATE_DYNAMIC_IMPORT_RE,
-  ]) {
-    for (const match of content.matchAll(pattern)) {
-      if (match.index == null || unverifiableIndexes.has(match.index)) continue
-      unverifiableIndexes.add(match.index)
-      const snippet = content.slice(match.index, match.index + 80).split('\n')[0].trim()
+  for (const invocation of findDynamicImportInvocations(content)) {
+    const specifier = parseExactDynamicImportSpecifier(invocation.argumentExpression)
+    if (specifier == null) {
       unverifiable.push({
-        specifier: snippet,
-        sourceExpression: snippet,
+        specifier: invocation.sourceExpression,
+        sourceExpression: invocation.sourceExpression,
       })
+      continue
     }
+
+    specifiers.push({ specifier, sourceExpression: invocation.sourceExpression })
   }
 
   return { specifiers, unverifiable }
