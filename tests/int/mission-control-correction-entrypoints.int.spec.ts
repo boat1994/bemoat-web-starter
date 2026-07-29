@@ -46,8 +46,48 @@ function createGhHarness(initialBody: string) {
   const issueBody = join(root, 'issue.md')
   const commentMarker = join(root, 'comment-count')
   const reservation = join(root, 'reservation')
+  const leaseStore = join(root, 'lease-store.json')
   writeFileSync(issueBody, initialBody)
   writeFileSync(commentMarker, '0')
+  writeFileSync(leaseStore, '{}')
+  const leaseHelper = join(root, 'lease-api.mjs')
+  writeFileSync(leaseHelper, `import { readFileSync, writeFileSync } from 'node:fs'
+const storePath = process.argv[2]
+const args = process.argv.slice(3)
+const store = JSON.parse(readFileSync(storePath, 'utf8'))
+const pathArg = args.find((arg) => arg.includes('/contents/.bemoat/mission-control/leases/')) || ''
+const path = decodeURIComponent(pathArg.split('/contents/')[1].split('?')[0])
+const isPut = args.includes('-X') && args.includes('PUT')
+if (!isPut) {
+  const current = store[path]
+  if (!current) {
+    process.stderr.write('Not Found\\n')
+    process.exit(1)
+  }
+  process.stdout.write(JSON.stringify({
+    sha: current.sha,
+    content: Buffer.from(JSON.stringify(current.content), 'utf8').toString('base64'),
+  }))
+  process.exit(0)
+}
+const chunks = []
+for await (const chunk of process.stdin) chunks.push(chunk)
+const payload = JSON.parse(Buffer.concat(chunks).toString('utf8'))
+const decoded = JSON.parse(Buffer.from(payload.content, 'base64').toString('utf8'))
+const current = store[path]
+if (!current && payload.sha) {
+  process.stderr.write('CAS_CONFLICT\\n')
+  process.exit(1)
+}
+if (current && current.sha !== payload.sha) {
+  process.stderr.write('409 Conflict\\n')
+  process.exit(1)
+}
+const nextSha = 'sha-' + String(Object.keys(store).length + 1)
+store[path] = { sha: nextSha, content: decoded }
+writeFileSync(storePath, JSON.stringify(store))
+process.stdout.write(JSON.stringify({ content: { sha: nextSha } }))
+`)
   const gh = join(root, 'gh')
   writeExecutable(gh, `#!/bin/sh
 case "$*" in
@@ -68,6 +108,14 @@ if [ "$1" = "pr" ] && [ "$2" = "view" ]; then
   printf '%s' '{"number":172,"title":"Correction PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/172","headRefName":"fix/171","baseRefName":"main","headRefOid":"1f05427a8fbb893e726dd0e317ff30a90d7b3570","state":"OPEN","statusCheckRollup":[],"commits":[]}'
   exit 0
 fi
+if [ "$1" = "api" ] && echo "$*" | grep -q 'git/ref/heads/'; then
+  printf '%s' '{"ref":"refs/heads/bemoat/mission-control-leases","object":{"sha":"leasebranchsha"}}'
+  exit 0
+fi
+if [ "$1" = "api" ] && [ "$2" = "repos/boat1994/bemoat-web-starter" ] && [ "$#" -eq 2 ]; then
+  printf '%s' '{"default_branch":"main"}'
+  exit 0
+fi
 if [ "$1" = "api" ] && echo "$*" | grep -q 'git/refs'; then
   if [ "$3" = "POST" ]; then
     if [ -f "${reservation}" ]; then echo 'duplicate reservation' >&2; exit 1; fi
@@ -75,12 +123,17 @@ if [ "$1" = "api" ] && echo "$*" | grep -q 'git/refs'; then
   fi
   rm -f "${reservation}"; exit 0
 fi
+if [ "$1" = "api" ] && echo "$*" | grep -q '/contents/.bemoat/mission-control/leases/'; then
+  "${process.execPath}" "${leaseHelper}" "${leaseStore}" "$@"
+  exit $?
+fi
 if [ "$1" = "api" ] && echo "$*" | grep -q '/comments'; then
   if [ "$3" = "POST" ]; then
     count=$(cat "${commentMarker}"); count=$((count + 1)); printf '%s' "$count" > "${commentMarker}"
     printf '%s' '{"id":501,"html_url":"https://github.com/boat1994/bemoat-web-starter/issues/171#issuecomment-501","created_at":"2026-07-26T02:00:00Z","updated_at":"2026-07-26T02:00:00Z"}'
     exit 0
   fi
+  printf '%s' '[]'
   exit 0
 fi
 echo "unexpected gh call: $*" >&2
