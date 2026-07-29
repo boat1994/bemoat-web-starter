@@ -457,6 +457,39 @@ function headsAlign(left, right) {
   return left === right || left.startsWith(right.slice(0, 7)) || right.startsWith(left.slice(0, 7))
 }
 
+export const DEFAULT_MC_TRUSTED_ASSOCIATIONS = Object.freeze([
+  'OWNER',
+  'MEMBER',
+  'COLLABORATOR',
+])
+
+/**
+ * Production trust filter for authoritative Mission Control role comments.
+ * Override authors with `BEMOAT_MC_TRUSTED_AUTHORS` (comma-separated).
+ *
+ * @param {{ env?: NodeJS.ProcessEnv, trustedAuthors?: string[] | null, trustedAssociations?: string[] | null }} [input]
+ */
+export function resolveProductionCommentTrust({
+  env = process.env,
+  trustedAuthors = null,
+  trustedAssociations = null,
+} = {}) {
+  const fromEnv = String(env.BEMOAT_MC_TRUSTED_AUTHORS || '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
+  const defaultAuthor = env.GITHUB_REPOSITORY_OWNER || 'boat1994'
+  return {
+    trustedAuthors: trustedAuthors?.length
+      ? trustedAuthors
+      : (fromEnv.length ? fromEnv : [defaultAuthor]),
+    requireTrustedAuthor: true,
+    trustedAssociations: trustedAssociations?.length
+      ? trustedAssociations
+      : [...DEFAULT_MC_TRUSTED_ASSOCIATIONS],
+  }
+}
+
 /**
  * @param {Array<{ body?: string, id?: string | number, author?: string, user?: { login?: string }, author_association?: string }>} comments
  * @param {{ taskId: string, phase: string, role: string, contentHash: string }} identity
@@ -465,6 +498,7 @@ function headsAlign(left, right) {
  *   bindings?: { prNumber?: string | number | null, headSha?: string | null, taskId?: string | null, phase?: string | null },
  *   trustedAuthors?: string[],
  *   requireTrustedAuthor?: boolean,
+ *   trustedAssociations?: string[],
  * }} [options]
  */
 export function findMatchingComments(comments = [], identity, options = {}) {
@@ -473,6 +507,7 @@ export function findMatchingComments(comments = [], identity, options = {}) {
     : selectActiveRoleComments(comments, identity.role)
   const bindings = options.bindings ?? null
   const trustedAuthors = options.trustedAuthors ?? null
+  const trustedAssociations = options.trustedAssociations ?? null
 
   return pool
     .map((comment) => ({
@@ -501,6 +536,9 @@ export function findMatchingComments(comments = [], identity, options = {}) {
         if (!entry.author || !trustedAuthors.includes(entry.author)) return false
       } else if (options.requireTrustedAuthor && !entry.author) {
         return false
+      }
+      if (trustedAssociations?.length) {
+        if (!entry.association || !trustedAssociations.includes(entry.association)) return false
       }
       return true
     })
@@ -627,6 +665,9 @@ export class Coordinator {
    *   listComments: () => Promise<Array<{ body?: string, id?: string | number }>>,
    *   postComment: (body: string) => Promise<{ id?: string | number, body?: string }>,
    *   readIssueBody?: () => Promise<string>,
+   *   trustedAuthors?: string[] | null,
+   *   requireTrustedAuthor?: boolean,
+   *   trustedAssociations?: string[] | null,
    * }} transports
    */
   constructor(transports) {
@@ -635,6 +676,9 @@ export class Coordinator {
     this.listComments = transports.listComments
     this.postComment = transports.postComment
     this.readIssueBody = transports.readIssueBody ?? null
+    this.trustedAuthors = transports.trustedAuthors ?? null
+    this.requireTrustedAuthor = transports.requireTrustedAuthor ?? false
+    this.trustedAssociations = transports.trustedAssociations ?? null
   }
 
   _matchOptions(roleBody, role) {
@@ -650,6 +694,9 @@ export class Coordinator {
           prNumber: parsed.prNumber,
           headSha: parsed.headSha,
         },
+        trustedAuthors: this.trustedAuthors ?? undefined,
+        requireTrustedAuthor: this.requireTrustedAuthor,
+        trustedAssociations: this.trustedAssociations ?? undefined,
       },
     }
   }

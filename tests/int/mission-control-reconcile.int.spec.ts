@@ -34,6 +34,7 @@ const {
   proposeDeliveryReconciliation,
   proposeReviewReconciliation,
   runBoundedReconciliation,
+  resolveProductionCommentTrust,
 } = reconcileModule as unknown as Record<string, (...args: any[]) => any>
 
 const CoordinatorClass = reconcileModule.Coordinator as unknown as new (transports: Record<string, unknown>) => {
@@ -1118,6 +1119,78 @@ Bounded implementation work.
     ).map((comment: any) => comment.id)).toEqual(['right'])
   })
 
+  it('rejects untrusted author matches as non-authoritative', () => {
+    const identity = normalizeTransitionIdentity(resultBody, { role: 'RESULT' })
+    const trust = resolveProductionCommentTrust({
+      env: {
+        NODE_ENV: process.env.NODE_ENV ?? 'test',
+        PAYLOAD_SECRET: process.env.PAYLOAD_SECRET ?? 'test',
+        BEMOAT_MC_TRUSTED_AUTHORS: 'boat1994',
+      } as NodeJS.ProcessEnv,
+    })
+    expect(trust).toMatchObject({
+      trustedAuthors: ['boat1994'],
+      requireTrustedAuthor: true,
+    })
+    expect(findMatchingComments(
+      [{
+        id: 'evil',
+        body: resultBody,
+        author: 'untrusted-bot',
+        author_association: 'NONE',
+      }],
+      identity,
+      { activeOnly: true, ...trust },
+    )).toHaveLength(0)
+    expect(findMatchingComments(
+      [{
+        id: 'ok',
+        body: resultBody,
+        author: 'boat1994',
+        author_association: 'OWNER',
+      }],
+      identity,
+      { activeOnly: true, ...trust },
+    ).map((comment: any) => comment.id)).toEqual(['ok'])
+  })
+
+  it('coordinator production trust path does not reuse untrusted comments', async () => {
+    let state: any = { state: 'READY', review_cycle: 0, full_review_count: 0 }
+    const comments: any[] = [{
+      id: 'evil',
+      body: handoffBody,
+      author: 'attacker',
+      author_association: 'NONE',
+    }]
+    const trust = resolveProductionCommentTrust({
+      env: {
+        NODE_ENV: process.env.NODE_ENV ?? 'test',
+        PAYLOAD_SECRET: process.env.PAYLOAD_SECRET ?? 'test',
+        BEMOAT_MC_TRUSTED_AUTHORS: 'boat1994',
+      } as NodeJS.ProcessEnv,
+    })
+    const coordinator = new CoordinatorClass({
+      readState: async () => state,
+      writeState: async (next: any) => { state = structuredClone(next); return state },
+      listComments: async () => comments,
+      postComment: async (body: string) => {
+        const posted = {
+          id: 'trusted-new',
+          body,
+          author: 'boat1994',
+          author_association: 'OWNER',
+        }
+        comments.push(posted)
+        return posted
+      },
+      ...trust,
+    })
+    const result = await coordinator.integrateHandoff({ handoffBody })
+    expect(result.outcome).toBe('DISPATCHED')
+    expect((result.comment as { id: string }).id).toBe('trusted-new')
+    expect(state.latest_handoff_comment_id).toBe('trusted-new')
+  })
+
   it('ensures RESULT suppression before postconditions', async () => {
     let state: any = { state: 'IN_PROGRESS', review_cycle: 0, full_review_count: 0 }
     const comments: any[] = []
@@ -1254,13 +1327,16 @@ Bounded implementation work.
     expect(dispatchSource).toContain("from './mission-control-reconcile.mjs'")
     expect(dispatchSource).toContain('listLiveComments')
     expect(dispatchSource).toContain('new Coordinator(')
+    expect(dispatchSource).toContain('resolveProductionCommentTrust')
     expect(dispatchSource).not.toContain('const comments = []')
     expect(deliverySource).toContain('listLiveComments')
     expect(deliverySource).toContain('parsePaginatedGhApiJson')
+    expect(deliverySource).toContain('resolveProductionCommentTrust')
     expect(deliverySource).not.toContain('local-${')
     expect(deliverySource).not.toContain('`local-')
     expect(reconcileModule.Coordinator).toBeTruthy()
     expect(reconcileModule.normalizeTransitionIdentity).toBeTruthy()
+    expect(reconcileModule.resolveProductionCommentTrust).toBeTruthy()
   })
 
   it('requires #182 and #184 merged/green and fresh child-sync HANDOFF', async () => {
@@ -1284,16 +1360,27 @@ Bounded implementation work.
     const syncSource = readFileSync(join(process.cwd(), 'scripts/sync-boilerplate.mjs'), 'utf8')
     expect(syncSource).toContain('enforceMcTransitionChildSyncGate')
     expect(syncSource).toContain('resolveChildSyncCommandGate')
+    expect(syncSource).toContain('--skip-mc-transition-gate')
+    expect(syncSource).toContain('BEMOAT_SKIP_MC_TRANSITION_CHILD_SYNC_GATE')
+
+    const packageJson = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8'))
+    expect(packageJson.scripts['boilerplate:sync']).toBe('node scripts/sync-boilerplate.mjs')
+    expect(packageJson.scripts['bemoat:boilerplate:sync']).toBe('node scripts/sync-boilerplate.mjs')
 
     const { enforceMcTransitionChildSyncGate } = await import('../../scripts/sync-boilerplate.mjs') as {
       enforceMcTransitionChildSyncGate: (input?: { argv?: string[], env?: NodeJS.ProcessEnv }) => Record<string, unknown>
     }
+    // Default invocation (documented pnpm scripts) must enforce the gate.
     expect(() => enforceMcTransitionChildSyncGate({
-      argv: ['--require-mc-transition-gate'],
+      argv: [],
+      env: {} as NodeJS.ProcessEnv,
+    })).toThrow('child-sync gate blocked')
+    expect(() => enforceMcTransitionChildSyncGate({
+      argv: ['--harness-only'],
       env: {} as NodeJS.ProcessEnv,
     })).toThrow('child-sync gate blocked')
     expect(enforceMcTransitionChildSyncGate({
-      argv: ['--require-mc-transition-gate'],
+      argv: [],
       env: {
         NODE_ENV: process.env.NODE_ENV ?? 'test',
         PAYLOAD_SECRET: process.env.PAYLOAD_SECRET ?? 'test',
@@ -1303,6 +1390,19 @@ Bounded implementation work.
         BEMOAT_CHILD_SYNC_FRESH_HANDOFF: '1',
       } as NodeJS.ProcessEnv,
     })).toMatchObject({ enforced: true, allowed: true })
+    // Explicit documented bypass only.
+    expect(enforceMcTransitionChildSyncGate({
+      argv: ['--skip-mc-transition-gate'],
+      env: {} as NodeJS.ProcessEnv,
+    })).toMatchObject({ enforced: false, allowed: true })
+    expect(enforceMcTransitionChildSyncGate({
+      argv: [],
+      env: {
+        BEMOAT_SKIP_MC_TRANSITION_CHILD_SYNC_GATE: '1',
+        NODE_ENV: process.env.NODE_ENV ?? 'test',
+        PAYLOAD_SECRET: process.env.PAYLOAD_SECRET ?? 'test',
+      } as NodeJS.ProcessEnv,
+    })).toMatchObject({ enforced: false, allowed: true })
   })
 
   it('parses paginated live comment payloads and normalizes ids', () => {

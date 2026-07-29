@@ -1156,18 +1156,29 @@ function printSuggestedNextCommands(syncMode, packageSync, applyBuildContract = 
 }
 
 /**
- * Mission Control transition child-sync gate. When enforcement is requested
- * (env or --require-mc-transition-gate), sync is blocked until #182/#184 are
- * merged/green, live child state is reconstructed, and a fresh child-sync
- * HANDOFF exists.
+ * Mission Control transition child-sync gate.
+ *
+ * Default: enforced for every `boilerplate:sync` / `bemoat:boilerplate:sync`
+ * invocation (including bare `node scripts/sync-boilerplate.mjs`). Sync is
+ * blocked until #182/#184 are merged/green, live child state is reconstructed,
+ * and a fresh child-sync HANDOFF exists.
+ *
+ * Explicit bypass (escape hatch only):
+ *   --skip-mc-transition-gate
+ *   BEMOAT_SKIP_MC_TRANSITION_CHILD_SYNC_GATE=1
+ *
+ * Legacy `--require-mc-transition-gate` /
+ * `BEMOAT_REQUIRE_MC_TRANSITION_CHILD_SYNC_GATE=1` remain accepted no-ops
+ * because enforcement is now the default.
  */
 export function enforceMcTransitionChildSyncGate({
   argv = process.argv.slice(2),
   env = process.env,
 } = {}) {
-  const enforce =
-    argv.includes('--require-mc-transition-gate') ||
-    env.BEMOAT_REQUIRE_MC_TRANSITION_CHILD_SYNC_GATE === '1'
+  const skip =
+    argv.includes('--skip-mc-transition-gate') ||
+    env.BEMOAT_SKIP_MC_TRANSITION_CHILD_SYNC_GATE === '1'
+  const enforce = !skip
   return resolveChildSyncCommandGate({
     enforce,
     issues182Merged: env.BEMOAT_CHILD_SYNC_182_MERGED === '1',

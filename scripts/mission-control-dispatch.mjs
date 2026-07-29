@@ -9,6 +9,7 @@ import {
   normalizeIssueComments,
   parsePaginatedGhApiJson,
   verifyStatePostcondition,
+  resolveProductionCommentTrust,
 } from './mission-control-reconcile.mjs'
 import { parseMissionControlState, renderMissionControlState } from './mission-control-state.mjs'
 
@@ -202,6 +203,7 @@ async function main() {
     writeState,
     listComments: async () => listLiveComments(),
     postComment: async (body) => postHandoff(body),
+    ...resolveProductionCommentTrust(),
   })
   // Coordinator owns latest_transition_identity, comment binding, and next_permitted_action.
   const result = await coordinator.integrateHandoff({

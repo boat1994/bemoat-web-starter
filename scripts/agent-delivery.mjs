@@ -14,6 +14,7 @@ import {
   findMatchingComments,
   normalizeTransitionIdentity,
   verifyStatePostcondition,
+  resolveProductionCommentTrust,
 } from './mission-control-reconcile.mjs'
 
 function run(command, args, options = {}) {
@@ -219,6 +220,7 @@ async function mainAsync() {
     return normalizeIssueComments(parsePaginatedGhApiJson(listResult.stdout))
   }
 
+  const commentTrust = resolveProductionCommentTrust()
   const coordinator = new Coordinator({
     readState: async () => {
       const liveIssueResult = tryRun('gh', issueArgs)
@@ -309,7 +311,10 @@ async function mainAsync() {
         const posted = JSON.parse(postResult.stdout)
         if (posted?.id == null) {
           const identity = normalizeTransitionIdentity(commentBody, { role: 'RESULT' })
-          const recovered = findMatchingComments(listLiveComments(), identity, { activeOnly: true })
+          const recovered = findMatchingComments(listLiveComments(), identity, {
+            activeOnly: true,
+            ...commentTrust,
+          })
           if (recovered.length === 1) return recovered[0]
           throw new Error('posted RESULT did not return a durable comment identifier')
         }
@@ -325,6 +330,7 @@ async function mainAsync() {
         rmSync(tmpDir, { recursive: true, force: true })
       }
     },
+    ...commentTrust,
   })
 
   const result = await coordinator.integrateResult({
