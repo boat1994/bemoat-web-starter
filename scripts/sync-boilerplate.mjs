@@ -5,6 +5,7 @@ import { execFileSync, spawnSync } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
 import { assertManagedRuntimeDeliveryClosure } from './guard-harness-contract.mjs'
 import { scanToolchainContract } from './guard-toolchain-contract.mjs'
+import { resolveChildSyncCommandGate } from './mission-control-reconcile.mjs'
 
 export const SYNC_MODES = {
   HARNESS_ONLY: 'harness-only',
@@ -1154,7 +1155,30 @@ function printSuggestedNextCommands(syncMode, packageSync, applyBuildContract = 
   }
 }
 
+/**
+ * Mission Control transition child-sync gate. When enforcement is requested
+ * (env or --require-mc-transition-gate), sync is blocked until #182/#184 are
+ * merged/green, live child state is reconstructed, and a fresh child-sync
+ * HANDOFF exists.
+ */
+export function enforceMcTransitionChildSyncGate({
+  argv = process.argv.slice(2),
+  env = process.env,
+} = {}) {
+  const enforce =
+    argv.includes('--require-mc-transition-gate') ||
+    env.BEMOAT_REQUIRE_MC_TRANSITION_CHILD_SYNC_GATE === '1'
+  return resolveChildSyncCommandGate({
+    enforce,
+    issues182Merged: env.BEMOAT_CHILD_SYNC_182_MERGED === '1',
+    issues184Merged: env.BEMOAT_CHILD_SYNC_184_MERGED === '1',
+    liveChildReconstructed: env.BEMOAT_CHILD_SYNC_LIVE_RECONSTRUCTED === '1',
+    freshHandoffIssued: env.BEMOAT_CHILD_SYNC_FRESH_HANDOFF === '1',
+  })
+}
+
 function main() {
+  enforceMcTransitionChildSyncGate()
   const syncMode = parseSyncMode()
   const applyBuildContract = parseApplyBuildContract()
   console.log(`Syncing Bemoat boilerplate from ${repo}#${ref} (${syncMode} mode)`)

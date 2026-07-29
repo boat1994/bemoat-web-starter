@@ -5,7 +5,16 @@ import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
 import { analyzeExactHeadCi } from './agent-issue.mjs'
 import { parseMissionControlState, renderMissionControlState as renderStateBlock } from './mission-control-state.mjs'
-import { proposeDeliveryReconciliation, parseRoleCommentBody, Coordinator } from './mission-control-reconcile.mjs'
+import {
+  proposeDeliveryReconciliation,
+  parseRoleCommentBody,
+  Coordinator,
+  normalizeIssueComments,
+  parsePaginatedGhApiJson,
+  findMatchingComments,
+  normalizeTransitionIdentity,
+  verifyStatePostcondition,
+} from './mission-control-reconcile.mjs'
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, { encoding: 'utf8', ...options })
@@ -53,6 +62,10 @@ function readBody(bodyFile) {
   return stdin
 }
 
+function sameState(left, right) {
+  return JSON.stringify(left) === JSON.stringify(right)
+}
+
 function main() {
   mainAsync().catch((error) => {
     process.stderr.write(`ERROR: ${error instanceof Error ? error.message : String(error)}\n`)
@@ -87,7 +100,7 @@ async function mainAsync() {
   let localCommit
   try {
     localCommit = run('git', ['rev-parse', 'HEAD'])
-  } catch (ignore) {
+  } catch {
     process.stderr.write(`ERROR: STATE_CONFLICT: Could not resolve local commit\n`)
     process.exitCode = 1
     return
@@ -115,7 +128,7 @@ async function mainAsync() {
   let prData
   try {
     prData = JSON.parse(prResult.stdout)
-  } catch (ignore) {
+  } catch {
     process.stderr.write('ERROR: BLOCKED_EXTERNAL: Invalid PR JSON\n')
     process.exitCode = 1
     return
@@ -168,7 +181,7 @@ async function mainAsync() {
   }
   const issueData = JSON.parse(issueResult.stdout)
   const currentState = parseMissionControlState(issueData.body)
-  
+
   if (currentState.present && !currentState.valid) {
     process.stderr.write(`ERROR: STATE_CONFLICT: Issue has invalid Mission Control state: ${currentState.reason}\n`)
     process.exitCode = 1
@@ -193,23 +206,48 @@ async function mainAsync() {
   if (!stateObj.guide_source_ref) stateObj.guide_source_ref = 'main'
   if (!stateObj.material_change_status) stateObj.material_change_status = 'none'
 
-  const comments = []
   let expectedBody = issueData.body
+  const listLiveComments = () => {
+    const listResult = tryRun('gh', [
+      'api',
+      '--paginate',
+      `repos/${expectedRepo}/issues/${parsed.options.issue}/comments`,
+    ])
+    if (listResult.status !== 0) {
+      throw new Error(`BLOCKED_EXTERNAL: GitHub issue comment lookup failed\n${listResult.stderr || listResult.stdout || ''}`)
+    }
+    return normalizeIssueComments(parsePaginatedGhApiJson(listResult.stdout))
+  }
+
   const coordinator = new Coordinator({
     readState: async () => {
-      const issueResult = tryRun('gh', issueArgs)
-      if (issueResult.status !== 0) throw new Error('BLOCKED_EXTERNAL: GitHub issue lookup failed')
-      const live = JSON.parse(issueResult.stdout)
+      const liveIssueResult = tryRun('gh', issueArgs)
+      if (liveIssueResult.status !== 0) throw new Error('BLOCKED_EXTERNAL: GitHub issue lookup failed')
+      const live = JSON.parse(liveIssueResult.stdout)
       const parsedState = parseMissionControlState(live.body)
       if (parsedState.present && !parsedState.valid) {
         throw new Error(`STATE_CONFLICT: Issue has invalid Mission Control state: ${parsedState.reason}`)
       }
+      expectedBody = live.body
       return parsedState.state ?? {}
     },
-    writeState: async (nextState) => {
+    writeState: async (nextState, expectedState) => {
+      const liveIssueResult = tryRun('gh', issueArgs)
+      if (liveIssueResult.status !== 0) throw new Error('BLOCKED_EXTERNAL: GitHub issue lookup failed before state write')
+      const live = JSON.parse(liveIssueResult.stdout)
+      const liveParsed = parseMissionControlState(live.body)
+      if (liveParsed.present && !liveParsed.valid) {
+        throw new Error(`STATE_CONFLICT: Issue has invalid Mission Control state: ${liveParsed.reason}`)
+      }
+      if (expectedState && !sameState(liveParsed.state ?? {}, expectedState)) {
+        throw new Error('STATE_CONFLICT: concurrent Issue write detected before state write')
+      }
+      if (expectedBody !== null && live.body !== expectedBody) {
+        throw new Error('STATE_CONFLICT: concurrent Issue body change detected before state write')
+      }
       const newStateBlock = renderStateBlock(nextState)
-      let newBody = expectedBody
-      if (currentState.present) {
+      let newBody = live.body
+      if (liveParsed.present) {
         newBody = newBody.replace(/<!--\s*bemoat-mission-control-state:start\s*-->[\s\S]*?<!--\s*bemoat-mission-control-state:end\s*-->/, newStateBlock)
       } else {
         newBody = `${newBody}\n\n${newStateBlock}\n`
@@ -224,24 +262,68 @@ async function mainAsync() {
       if (editResult.status !== 0) {
         throw new Error('STATE_CONFLICT: Failed to write durable state to Issue')
       }
-      expectedBody = newBody
-      return nextState
+      const verifiedResult = tryRun('gh', issueArgs)
+      if (verifiedResult.status !== 0) throw new Error('BLOCKED_EXTERNAL: GitHub issue lookup failed after state write')
+      const verified = JSON.parse(verifiedResult.stdout)
+      const verifiedParsed = parseMissionControlState(verified.body)
+      if (!verifiedParsed.present || !verifiedParsed.valid) {
+        throw new Error('STATE_CONFLICT: Issue state unreadable after write')
+      }
+      try {
+        verifyStatePostcondition(nextState, verifiedParsed.state, [
+          'state', 'active_pr', 'current_head', 'review_cycle', 'full_review_count',
+          'latest_transition_identity', 'latest_result_comment_id',
+        ])
+      } catch (error) {
+        throw new Error(`STATE_CONFLICT: concurrent Issue write detected after state write: ${error instanceof Error ? error.message : String(error)}`)
+      }
+      expectedBody = verified.body
+      return verifiedParsed.state
     },
-    listComments: async () => comments,
+    listComments: async () => listLiveComments(),
     postComment: async (commentBody) => {
       const tmpDir = mkdtempSync(join(tmpdir(), 'bemoat-delivery-'))
       const tmpComment = join(tmpDir, 'comment.md')
-      writeFileSync(tmpComment, commentBody)
-      const postCommentArgs = ['scripts/post-role-comment.mjs', parsed.options.issue, '--body-file', tmpComment]
-      if (parsed.options.repo) postCommentArgs.push('--repo', parsed.options.repo)
-      const postCommentResult = tryRun('node', postCommentArgs)
-      rmSync(tmpDir, { recursive: true, force: true })
-      if (postCommentResult.status !== 0) {
-        throw new Error(`STATE_CONFLICT: Failed to post RESULT comment\n${postCommentResult.stderr || postCommentResult.stdout || ''}`)
+      const payloadFile = join(tmpDir, 'payload.json')
+      try {
+        writeFileSync(tmpComment, commentBody)
+        const checkArgs = ['scripts/post-role-comment.mjs', parsed.options.issue, '--body-file', tmpComment, '--check']
+        if (parsed.options.repo) checkArgs.push('--repo', parsed.options.repo)
+        const checkResult = tryRun('node', checkArgs)
+        if (checkResult.status !== 0) {
+          throw new Error(`STATE_CONFLICT: Failed to validate RESULT comment\n${checkResult.stderr || checkResult.stdout || ''}`)
+        }
+        writeFileSync(payloadFile, JSON.stringify({ body: commentBody }))
+        const postResult = tryRun('gh', [
+          'api',
+          '--method',
+          'POST',
+          `repos/${expectedRepo}/issues/${parsed.options.issue}/comments`,
+          '--input',
+          payloadFile,
+        ])
+        if (postResult.status !== 0) {
+          // Ambiguous POST: recovery rereads live comments (not a process-local array).
+          throw new Error(`STATE_CONFLICT: Failed to post RESULT comment\n${postResult.stderr || postResult.stdout || ''}`)
+        }
+        const posted = JSON.parse(postResult.stdout)
+        if (posted?.id == null) {
+          const identity = normalizeTransitionIdentity(commentBody, { role: 'RESULT' })
+          const recovered = findMatchingComments(listLiveComments(), identity, { activeOnly: true })
+          if (recovered.length === 1) return recovered[0]
+          throw new Error('posted RESULT did not return a durable comment identifier')
+        }
+        return {
+          id: posted.id,
+          body: posted.body ?? commentBody,
+          author: posted.user?.login ?? null,
+          author_association: posted.author_association ?? null,
+          url: posted.html_url ?? posted.url ?? null,
+          createdAt: posted.created_at ?? null,
+        }
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true })
       }
-      const posted = { id: `local-${comments.length + 1}`, body: commentBody }
-      comments.push(posted)
-      return posted
     },
   })
 
@@ -259,7 +341,31 @@ async function mainAsync() {
     return
   }
 
-  process.stdout.write('Delivery reconciliation successful. RESULT posted and state updated.\n')
+  // Live postconditions: Issue state + comment id + PR head.
+  if (!result.comment?.id) {
+    process.stderr.write('ERROR: STATE_CONFLICT: RESULT integration did not retain a live comment id\n')
+    process.exitCode = 1
+    return
+  }
+  const liveComments = listLiveComments()
+  const bound = liveComments.find((comment) => String(comment.id) === String(result.comment.id))
+  if (!bound) {
+    process.stderr.write(`ERROR: STATE_CONFLICT: RESULT comment ${result.comment.id} was not found on live Issue comments\n`)
+    process.exitCode = 1
+    return
+  }
+  if (prData.headRefOid !== localCommit) {
+    process.stderr.write(`ERROR: STATE_CONFLICT: PR head drifted during delivery\n`)
+    process.exitCode = 1
+    return
+  }
+  if (result.state?.latest_result_comment_id && String(result.state.latest_result_comment_id) !== String(result.comment.id)) {
+    process.stderr.write('ERROR: STATE_CONFLICT: live state is not bound to the posted RESULT comment id\n')
+    process.exitCode = 1
+    return
+  }
+
+  process.stdout.write(`Delivery reconciliation successful. RESULT comment ${result.comment.id} posted and state updated.\n`)
 }
 
 main()
