@@ -1122,11 +1122,12 @@ Bounded implementation work.
   it('rejects untrusted author matches as non-authoritative', () => {
     const identity = normalizeTransitionIdentity(resultBody, { role: 'RESULT' })
     const trust = resolveProductionCommentTrust({
+      // Safe only at the test boundary: partial fixture → unknown → ProcessEnv.
       env: {
         NODE_ENV: process.env.NODE_ENV ?? 'test',
         PAYLOAD_SECRET: process.env.PAYLOAD_SECRET ?? 'test',
         BEMOAT_MC_TRUSTED_AUTHORS: 'boat1994',
-      } as NodeJS.ProcessEnv,
+      } as unknown as NodeJS.ProcessEnv,
     })
     expect(trust).toMatchObject({
       trustedAuthors: ['boat1994'],
@@ -1163,11 +1164,12 @@ Bounded implementation work.
       author_association: 'NONE',
     }]
     const trust = resolveProductionCommentTrust({
+      // Safe only at the test boundary: partial fixture → unknown → ProcessEnv.
       env: {
         NODE_ENV: process.env.NODE_ENV ?? 'test',
         PAYLOAD_SECRET: process.env.PAYLOAD_SECRET ?? 'test',
         BEMOAT_MC_TRUSTED_AUTHORS: 'boat1994',
-      } as NodeJS.ProcessEnv,
+      } as unknown as NodeJS.ProcessEnv,
     })
     const coordinator = new CoordinatorClass({
       readState: async () => state,
@@ -1364,20 +1366,25 @@ Bounded implementation work.
     expect(syncSource).toContain('BEMOAT_SKIP_MC_TRANSITION_CHILD_SYNC_GATE')
 
     const packageJson = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8'))
-    expect(packageJson.scripts['boilerplate:sync']).toBe('node scripts/sync-boilerplate.mjs')
+    // Child-owned contract: bemoat:boilerplate:sync is mandatory; legacy
+    // boilerplate:sync is starter-only and validated only when present.
     expect(packageJson.scripts['bemoat:boilerplate:sync']).toBe('node scripts/sync-boilerplate.mjs')
+    if (packageJson.scripts['boilerplate:sync'] !== undefined) {
+      expect(packageJson.scripts['boilerplate:sync']).toBe('node scripts/sync-boilerplate.mjs')
+    }
 
     const { enforceMcTransitionChildSyncGate } = await import('../../scripts/sync-boilerplate.mjs') as {
       enforceMcTransitionChildSyncGate: (input?: { argv?: string[], env?: NodeJS.ProcessEnv }) => Record<string, unknown>
     }
     // Default invocation (documented pnpm scripts) must enforce the gate.
+    // Safe only at the test boundary: partial fixture → unknown → ProcessEnv.
     expect(() => enforceMcTransitionChildSyncGate({
       argv: [],
-      env: {} as NodeJS.ProcessEnv,
+      env: {} as unknown as NodeJS.ProcessEnv,
     })).toThrow('child-sync gate blocked')
     expect(() => enforceMcTransitionChildSyncGate({
       argv: ['--harness-only'],
-      env: {} as NodeJS.ProcessEnv,
+      env: {} as unknown as NodeJS.ProcessEnv,
     })).toThrow('child-sync gate blocked')
     expect(enforceMcTransitionChildSyncGate({
       argv: [],
@@ -1388,12 +1395,12 @@ Bounded implementation work.
         BEMOAT_CHILD_SYNC_184_MERGED: '1',
         BEMOAT_CHILD_SYNC_LIVE_RECONSTRUCTED: '1',
         BEMOAT_CHILD_SYNC_FRESH_HANDOFF: '1',
-      } as NodeJS.ProcessEnv,
+      } as unknown as NodeJS.ProcessEnv,
     })).toMatchObject({ enforced: true, allowed: true })
     // Explicit documented bypass only.
     expect(enforceMcTransitionChildSyncGate({
       argv: ['--skip-mc-transition-gate'],
-      env: {} as NodeJS.ProcessEnv,
+      env: {} as unknown as NodeJS.ProcessEnv,
     })).toMatchObject({ enforced: false, allowed: true })
     expect(enforceMcTransitionChildSyncGate({
       argv: [],
@@ -1401,7 +1408,7 @@ Bounded implementation work.
         BEMOAT_SKIP_MC_TRANSITION_CHILD_SYNC_GATE: '1',
         NODE_ENV: process.env.NODE_ENV ?? 'test',
         PAYLOAD_SECRET: process.env.PAYLOAD_SECRET ?? 'test',
-      } as NodeJS.ProcessEnv,
+      } as unknown as NodeJS.ProcessEnv,
     })).toMatchObject({ enforced: false, allowed: true })
   })
 

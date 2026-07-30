@@ -67,8 +67,10 @@ function satisfiesChildPortableStarterCorpusContract(source: string): boolean {
 
 function mirrorsUpstreamChildSyncPackageGate(packageJson: { scripts?: Record<string, string> }) {
   const scripts = packageJson.scripts ?? {}
-  expect(scripts['boilerplate:sync']).toBe('node scripts/sync-boilerplate.mjs')
   expect(scripts['bemoat:boilerplate:sync']).toBe('node scripts/sync-boilerplate.mjs')
+  if (scripts['boilerplate:sync'] !== undefined) {
+    expect(scripts['boilerplate:sync']).toBe('node scripts/sync-boilerplate.mjs')
+  }
 }
 
 function runChildAugmentedProcessEnvTypecheck(): { status: number | null, output: string } {
