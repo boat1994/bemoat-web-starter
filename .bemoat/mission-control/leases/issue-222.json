@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "issue": "222",
+  "transition_identity": "empty-claim:bc11a67877c868484f5155cec52f5a2d",
+  "observed_body_sha256": "cdb847312a1a0cc8538d92c1b955c7be0380d167a1b1380018901e5f0b86cdf5",
+  "holder": "mission-control-state-bootstrap-222",
+  "status": "held",
+  "updated_at": "2026-07-30T13:40:40.935Z"
+}
