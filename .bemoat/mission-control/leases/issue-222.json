@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "issue": "222",
-  "transition_identity": "empty-claim:bc11a67877c868484f5155cec52f5a2d",
+  "transition_identity": "{\"taskId\":\"222\",\"phase\":\"Investigation — terminal-repair contract and blank-error diagnostics\",\"role\":\"HANDOFF\",\"contentHash\":\"7bf2382df22b37ece6ccec5511747f34a22d90bb48b28ba4002e837214e2ed41\"}",
   "observed_body_sha256": "d7138f314c57422fcfeb1862e361e920d64030bdb7317674c63ce161dc3ab1c4",
-  "holder": "mission-control-state-bootstrap-222",
-  "status": "released",
-  "updated_at": "2026-07-30T13:40:44.384Z"
+  "holder": "mission-control-dispatch",
+  "status": "held",
+  "updated_at": "2026-07-30T13:51:04.567Z"
 }
