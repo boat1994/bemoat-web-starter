@@ -43,7 +43,7 @@ export function fetchIssueMetadata(cwd, issueNumber, env = process.env) {
 }
 
 export function fetchIssueByReference(cwd, reference, env = process.env) {
-  const defaultRepo = getDefaultRepo(cwd)
+  const defaultRepo = getDefaultRepo(cwd, env)
   const parsed = parseIssueReference(reference, defaultRepo)
   if (!parsed?.number) {
     return { ok: false, reason: `Could not parse issue reference: ${reference}` }
@@ -85,7 +85,7 @@ export function fetchIssueComments(cwd, issueNumber, env = process.env) {
   }
 
   const args = ['issue', 'view', issueNumber, '--json', 'comments']
-  const defaultRepo = getDefaultRepo(cwd)
+  const defaultRepo = getDefaultRepo(cwd, env)
   if (defaultRepo) {
     args.push('--repo', defaultRepo)
   }
@@ -113,7 +113,7 @@ export function fetchIssueComments(cwd, issueNumber, env = process.env) {
 }
 
 export function fetchIssueCommentById(cwd, commentId, env = process.env) {
-  const defaultRepo = getDefaultRepo(cwd)
+  const defaultRepo = getDefaultRepo(cwd, env)
   if (!defaultRepo || !/^[1-9]\d*$/.test(String(commentId))) {
     return { ok: false, reason: 'repository identity or pinned comment ID is unavailable' }
   }
@@ -130,7 +130,7 @@ export function fetchIssueCommentById(cwd, commentId, env = process.env) {
 }
 
 export function fetchPullReviewCommentById(cwd, commentId, env = process.env) {
-  const defaultRepo = getDefaultRepo(cwd)
+  const defaultRepo = getDefaultRepo(cwd, env)
   if (!defaultRepo || !/^[1-9]\d*$/.test(String(commentId))) {
     return { ok: false, reason: 'repository identity or pinned finding thread ID is unavailable' }
   }

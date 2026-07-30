@@ -17,11 +17,13 @@ Do not guess which state is correct when evidence is contradictory.
 ### Merged PR with an open managed Issue
 
 Option A assigns Issue closure to merge transport, not the reconciler. Verify
-the Founder-authorized exact head and merge commit, close the managed Issue as
-completed, then run:
+the pinned Founder authorization comment, exact reviewed/current head, and
+exact-head CI, then rerun the idempotent transport:
 
 ```bash
-pnpm run bemoat:mission-control:reconcile -- <issue-number> [--repo owner/repo]
+pnpm run bemoat:mission-control:merge -- <issue-number> \
+  --repo owner/repo \
+  --authorization-comment <comment-id>
 ```
 
 The reconciler never closes or reopens Issues. Running it while the PR is merged
@@ -29,6 +31,12 @@ but the Issue remains open returns an actionable `STATE_CONFLICT`. Classified
 CLI failures use `finalReason`, then `reason`, then
 `Mission Control reconciliation failed without a diagnostic`, so `ERROR:` is
 never blank.
+
+If the PR merged but Issue closure failed, rerunning the merge transport skips
+the merge and retries closure. If closure succeeded but `DONE` projection
+failed, rerunning skips closure and resumes bounded reconciliation. Delegated
+parents require their own direct reconciliation authority and are not mutated by
+the child task transport.
 
 ### Issue-body write TOCTOU / lease CAS
 

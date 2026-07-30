@@ -114,7 +114,7 @@ export function analyzeProgressTracking({
   } else if (!stateAnalysis.valid) {
     blockers.push(`STATE_MIGRATION_REQUIRED: ${stateAnalysis.reason}.`)
   } else if (activeIssueNumber) {
-    const defaultRepo = getDefaultRepo(cwd)
+    const defaultRepo = getDefaultRepo(cwd, env)
     const stateTaskIssue = parseIssueReference(String(state.active_task_issue ?? ''), defaultRepo)
     if (
       !stateTaskIssue ||

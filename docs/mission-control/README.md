@@ -236,7 +236,11 @@ pnpm exec vitest run tests/int/mission-control-contract.int.spec.ts
 pnpm exec vitest run tests/int/boilerplate-sync.int.spec.ts
 pnpm exec vitest run tests/int/guard-pack.int.spec.ts
 
-# Terminal state projection after merge transport has closed the Issue
+# Founder-authorized merge, Issue closure, DONE projection, and NO_OP proof
+# Requires repository Actions variable BEMOAT_FOUNDER_LOGINS (comma-separated GitHub logins)
+pnpm run bemoat:mission-control:merge -- <issue-number> --repo owner/repo --authorization-comment <comment-id>
+
+# Terminal state projection only (the reconciler never closes Issues)
 pnpm run bemoat:mission-control:reconcile -- <issue-number> [--repo owner/repo]
 
 # Child harness pull (after starter merge)

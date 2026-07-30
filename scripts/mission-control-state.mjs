@@ -181,13 +181,15 @@ function validatePreReviewFounderDecisionGate(state) {
     return { valid: false, reason: 'pre-review Founder decision gate RESULT transition identity is invalid' }
   }
   const taskIssue = String(state.active_task_issue ?? '').match(/#(\d+)$/)?.[1] ?? null
+  const isDiagnosticPhase =
+    typeof identity?.phase === 'string' && /^(Diagnostic|Investigation)(?:\b|\s|[-—:(])/.test(identity.phase.trim())
   if (
     !identity || typeof identity !== 'object' || Array.isArray(identity) ||
     identity.role !== 'RESULT' || identity.taskId !== taskIssue ||
-    typeof identity.phase !== 'string' || !identity.phase.trim() ||
+    !isDiagnosticPhase ||
     typeof identity.contentHash !== 'string' || !/^[0-9a-f]{64}$/.test(identity.contentHash)
   ) {
-    return { valid: false, reason: 'pre-review Founder decision gate must bind the active task to a diagnostic or planning RESULT' }
+    return { valid: false, reason: 'pre-review Founder decision gate must bind the active task to a Diagnostic or Investigation RESULT phase' }
   }
   return { valid: true }
 }

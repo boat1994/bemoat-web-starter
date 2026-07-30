@@ -132,7 +132,7 @@ state.
 For bounded defects where root cause, acceptance criteria, and affected files are clear:
 - **No separate planning phase**: Bounded defects proceed directly to implementation (`READY` or `IN_PROGRESS`) without requiring a dedicated planning phase or separate plan document.
 - **No duplicate Founder approval gates**: If Founder authorization was already granted or the defect is pre-authorized correction work, do not insert a duplicate pre-implementation Founder review gate.
-- **Atomic Dev delivery**: Dev completes code changes, validation, Draft PR (`Closes #N`), exact-head CI verification, `## RESULT` comment, and state advancement (`AWAITING_REVIEW_1`) atomically in one delivery run.
+- **Atomic Dev delivery**: Dev completes code changes, validation, Draft PR (`Refs #N` when Option A merge transport owns Issue closure; otherwise the repository's normal linkage), exact-head CI verification, `## RESULT` comment, and state advancement (`AWAITING_REVIEW_1`) atomically in one delivery run.
 - **Deterministic comment-timestamp filtering**: When evaluating live task progress in `READY` or `IN_PROGRESS`, role comments (`RESULT` or `REVIEW_VERDICT`) from earlier planning or diagnostic phases whose valid timestamps (`createdAt`) precede a valid `state.updated_at` are ignored by deterministic preflight guards (`#146`) to prevent stale comments from triggering false `STATE_CONFLICT` blockers or inferring stale PR references. If either timestamp is absent or malformed (`NaN`), the role comment is preserved for normal reconciliation or fail-closed rules rather than treating invalid timestamps as epoch zero (`MC-R1-003`).
 
 ## Double-Loop Review Gate
@@ -538,6 +538,14 @@ Merge transport owns Issue closure. The canonical sequence is: verify Founder
 authorization and the exact reviewed head/CI; merge that head; verify the merge
 commit on the protected base; close the managed Issue as completed; run bounded
 reconciliation to write `DONE`; then verify the same evidence returns `NO_OP`.
+Use the executable `bemoat:mission-control:merge` entrypoint with a pinned,
+trusted Founder authorization comment whose authenticated author is listed in
+the repository Actions variable `BEMOAT_FOUNDER_LOGINS`. The repository-owned
+allowlist supports personal and organization-owned child repositories without
+trusting caller environment state. The transport marks a Draft PR ready,
+merges only the authorized expected head, closes only the directly managed Task
+Issue, and resumes safely after a partial merge, closure, or state-projection
+failure.
 
 The reconciler updates only the managed state block through lease/CAS. It never
 closes or reopens an Issue. A merged PR with an open managed Issue therefore

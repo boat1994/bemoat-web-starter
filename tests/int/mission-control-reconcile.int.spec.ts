@@ -164,6 +164,32 @@ describe('mission-control reconcile classifiers', () => {
     activeDelivery.active_pr = '#223'
     activeDelivery.current_head = 'c'.repeat(40)
     expect(parseMissionControlState(renderMissionControlState(activeDelivery))).toMatchObject({ valid: false })
+
+    for (const phase of ['Diagnostic — terminal contract', 'Investigation — terminal contract']) {
+      const accepted = structuredClone(base)
+      accepted.latest_transition_identity = JSON.stringify({
+        taskId: '222', phase, role: 'RESULT', contentHash: 'd'.repeat(64),
+      })
+      expect(parseMissionControlState(renderMissionControlState(accepted))).toMatchObject({ valid: true })
+    }
+
+    for (const phase of [
+      'Dev (implementation)',
+      'Dev (correction)',
+      'Delivery',
+      'Reviewer',
+      'Planning',
+      'arbitrary non-empty phase',
+    ]) {
+      const rejected = structuredClone(base)
+      rejected.latest_transition_identity = JSON.stringify({
+        taskId: '222', phase, role: 'RESULT', contentHash: 'e'.repeat(64),
+      })
+      expect(parseMissionControlState(renderMissionControlState(rejected))).toMatchObject({
+        valid: false,
+        reason: 'pre-review Founder decision gate must bind the active task to a Diagnostic or Investigation RESULT phase',
+      })
+    }
   })
 
   it('migrates the exact Issue #171 founder_decision representation once without altering its lineage', () => {

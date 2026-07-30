@@ -78,6 +78,7 @@ const SYNCED_SUPERPOWERS_TEMPLATE_PATHS = [
 
 const MANAGED_BEMOAT_PACKAGE_SCRIPTS = [
   'bemoat:agent:issue',
+  'bemoat:mission-control:merge',
   'bemoat:issue:comment',
   'bemoat:branch:check',
   'bemoat:guard:safety',

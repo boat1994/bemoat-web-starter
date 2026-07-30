@@ -50,7 +50,8 @@ export function buildIssueUrl(cwd, issueNumber) {
   return `${repoUrl}/issues/${issueNumber}`
 }
 
-export function getDefaultRepo(cwd) {
+export function getDefaultRepo(cwd, env = process.env) {
+  if (/^[^/\s]+\/[^/\s]+$/.test(env.GH_REPO ?? '')) return env.GH_REPO
   const origin = getOriginUrl(cwd)
   if (!origin) return null
 
