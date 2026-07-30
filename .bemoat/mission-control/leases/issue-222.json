@@ -3,7 +3,7 @@
   "issue": "222",
   "transition_identity": "{\"taskId\":\"222\",\"phase\":\"Investigation — terminal-repair contract and blank-error diagnostics\",\"role\":\"RESULT\",\"contentHash\":\"40f541cb735a6712a7d71e27f5e3fd14eb9edbf31ee77a9f56e51752d7377c98\"}",
   "observed_body_sha256": "3525a1e71363d9ec46ba88ff99c16707a52687732845a08d1a509f32773de8b2",
-  "holder": "diagnostic-investigator",
-  "status": "released",
-  "updated_at": "2026-07-30T13:59:07.261Z"
+  "holder": "mission-control-state-migration-222",
+  "status": "held",
+  "updated_at": "2026-07-30T14:12:08.435Z"
 }
