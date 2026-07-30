@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "issue": "222",
-  "transition_identity": "empty-claim:3ac046a69e7a7fedcd369edacb23199f",
+  "transition_identity": "{\"taskId\":\"222\",\"phase\":\"Dev (correction)\",\"role\":\"HANDOFF\",\"contentHash\":\"37d058a61a804028d1d9220635954bcc5122c369ca22701e677d68ec26a20d08\"}",
   "observed_body_sha256": "ac67d6c68e5c5285f5b8d13b0f986041e249536a6a87e9f4e83958a48a095ed0",
-  "holder": "mission-control",
-  "status": "released",
-  "updated_at": "2026-07-30T16:47:50.955Z"
+  "holder": "mission-control-correction-routing-resume-222",
+  "status": "held",
+  "updated_at": "2026-07-30T16:57:56.052Z"
 }
