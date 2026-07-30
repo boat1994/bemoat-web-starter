@@ -2,8 +2,8 @@
   "schema_version": 1,
   "issue": "219",
   "transition_identity": "empty-claim:6780e3946a1098eb6c836061b07eb33d",
-  "observed_body_sha256": "7a0562795c5bb143c7936ab763b794d5107f65f5306dce563acbb09042e99b80",
+  "observed_body_sha256": "2c10c8d46e209f54718e5993ddb27908289ca0f1857e64a278a8034f32272ec7",
   "holder": "mission-control-state-bootstrap-219",
-  "status": "held",
-  "updated_at": "2026-07-30T09:56:59.725Z"
+  "status": "released",
+  "updated_at": "2026-07-30T09:57:03.534Z"
 }
