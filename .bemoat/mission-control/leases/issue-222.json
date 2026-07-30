@@ -2,8 +2,8 @@
   "schema_version": 1,
   "issue": "222",
   "transition_identity": "{\"taskId\":\"222\",\"phase\":\"Investigation — terminal-repair contract and blank-error diagnostics\",\"role\":\"RESULT\",\"contentHash\":\"40f541cb735a6712a7d71e27f5e3fd14eb9edbf31ee77a9f56e51752d7377c98\"}",
-  "observed_body_sha256": "3525a1e71363d9ec46ba88ff99c16707a52687732845a08d1a509f32773de8b2",
-  "holder": "mission-control-state-migration-222",
-  "status": "held",
-  "updated_at": "2026-07-30T14:12:08.435Z"
+  "observed_body_sha256": "ad11c4d29d1c4f0c0a7ad117cf4678c8db5db8cbeca9721ed016efdbe1c5884b",
+  "holder": "mission-control-state-migrator-222",
+  "status": "released",
+  "updated_at": "2026-07-30T14:47:55.772Z"
 }
