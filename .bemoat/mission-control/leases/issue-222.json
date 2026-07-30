@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "issue": "222",
-  "transition_identity": "{\"taskId\":\"222\",\"phase\":\"Investigation — terminal-repair contract and blank-error diagnostics\",\"role\":\"RESULT\",\"contentHash\":\"40f541cb735a6712a7d71e27f5e3fd14eb9edbf31ee77a9f56e51752d7377c98\"}",
+  "transition_identity": "{\"taskId\":\"222\",\"phase\":\"Dev (implementation)\",\"role\":\"HANDOFF\",\"contentHash\":\"4cc7203a441b925299668b601f12719479953a805357407f50e5b7e838797e65\"}",
   "observed_body_sha256": "fb56ad395b9f06b4364d47a6522aa2da46d8fa1aabeb8c7d95eb98400517ff7c",
-  "holder": "mission-control-auth-reconcile-222",
-  "status": "released",
-  "updated_at": "2026-07-30T14:48:10.564Z"
+  "holder": "mission-control-dispatch",
+  "status": "held",
+  "updated_at": "2026-07-30T15:13:18.942Z"
 }
