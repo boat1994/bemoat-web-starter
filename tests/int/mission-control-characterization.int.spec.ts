@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
@@ -27,6 +27,13 @@ const proposeDeliveryReconciliation = rawProposeDeliveryReconciliation as unknow
 
 const tempRoots: string[] = []
 const dogfoodRoot = resolve(process.cwd(), 'docs/mission-control/dogfood')
+// Starter-only corpus: gate only tests that read/execute these paths so child
+// repos can run portable Mission Control characterization without the corpus.
+// Path literals must appear inside existsSync(...) for the child-portability
+// structural contract (avoid helpers whose args contain ')' before the path).
+const hasStarterOnlyCorpus =
+  existsSync('docs/mission-control/dogfood') &&
+  existsSync('scripts/capture-baseline.mjs')
 const renderStateBody = (state: Record<string, unknown>) => renderMissionControlState(state)
 
 afterEach(() => {
@@ -64,7 +71,7 @@ updated_by: "Mission Control"
       expect(parsed.state?.approved_base).toBe('dev-branch')
     })
 
-    it('derives protected-base loading order and bundle classifications from loader content', () => {
+    it.skipIf(!hasStarterOnlyCorpus)('derives protected-base loading order and bundle classifications from loader content', () => {
       const root = mkdtempSync(join(tmpdir(), 'mc-loader-contract-'))
       tempRoots.push(root)
       const fixturePath = join(root, 'loader.md')
@@ -102,7 +109,7 @@ updated_by: "Mission Control"
       expect(classification.live_github_evidence).toContain('exact-head CI/checks')
     })
 
-    it('records the approved-SHA loader as the derivation source for every loading bundle', () => {
+    it.skipIf(!hasStarterOnlyCorpus)('records the approved-SHA loader as the derivation source for every loading bundle', () => {
       const baseline = JSON.parse(
         readFileSync(join(dogfoodRoot, 'issue-150-baseline.json'), 'utf8'),
       )
@@ -309,7 +316,7 @@ schema_version: 1
       expect(isGenuineStateConflict({ staleCi: true })).toBe(true)
     })
 
-    it('preserves the explicit BLOCKED_EXTERNAL fail-closed outcome', () => {
+    it.skipIf(!hasStarterOnlyCorpus)('preserves the explicit BLOCKED_EXTERNAL fail-closed outcome', () => {
       const body = readFileSync(join(dogfoodRoot, 'fixtures/blocked-external-state.md'), 'utf8')
       const report = analyzeProgressTracking({ activeIssueBody: body })
 
@@ -845,7 +852,7 @@ updated_by: "Mission Control"
     })
   })
 
-  describe('Integrated upstream dogfood (MC-SCENARIO-008)', () => {
+  describe.skipIf(!hasStarterOnlyCorpus)('Integrated upstream dogfood (MC-SCENARIO-008)', () => {
     it('replays delivery, three review bounds, role transport, exact-head CI, and sync inventory', async () => {
       const head = 'abcdef1234567890'
       const livePr = { number: 151, headRefOid: head, baseRefName: 'main' }
@@ -948,7 +955,7 @@ updated_by: "Mission Control"
     })
   })
 
-  describe('Issue #149 contradiction and Issue #150 acceptance traceability', () => {
+  describe.skipIf(!hasStarterOnlyCorpus)('Issue #149 contradiction and Issue #150 acceptance traceability', () => {
     it('defines complete machine-readable before/current/approved benchmark scenarios', () => {
       const benchmark = JSON.parse(
         readFileSync(join(dogfoodRoot, 'issue-150-benchmark-scenarios.json'), 'utf8'),

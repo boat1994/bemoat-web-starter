@@ -1,0 +1,8 @@
+{
+  "name": "bogus-jewelry-child-shape-fixture",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "bemoat:boilerplate:sync": "node scripts/sync-boilerplate.mjs"
+  }
+}
