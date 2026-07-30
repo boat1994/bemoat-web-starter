@@ -2,8 +2,8 @@
   "schema_version": 1,
   "issue": "217",
   "transition_identity": "{\"taskId\":\"217\",\"phase\":\"Dev — child-portable validation green implementation\",\"role\":\"HANDOFF\",\"contentHash\":\"a740231dc06827cb7e2325aa6b9b9e928cf4367df1edc146e7f27b2ce95e171d\"}",
-  "observed_body_sha256": "fafacfc381f1fa1b1c838a165c870de04edd767defedd634f691251ffd2d4982",
+  "observed_body_sha256": "a67b9aea09cb81adbcb6d416598dd9c20c1ca7a8d3173c4a34321121ccf113ae",
   "holder": "mission-control-dispatch",
-  "status": "held",
-  "updated_at": "2026-07-30T06:09:39.392Z"
+  "status": "released",
+  "updated_at": "2026-07-30T06:09:42.870Z"
 }
