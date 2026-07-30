@@ -316,7 +316,7 @@ export function scanModuleContent(relativePath, content) {
       }
     }
   }
-  
+
   if (relativePath === MODULE_PROCEDURES_PATH) {
     if (!content.includes('AWAITING_REVIEW_1 state block')) {
       violations.push(
@@ -353,7 +353,7 @@ export function scanModuleContent(relativePath, content) {
       )
     }
   }
-  
+
   return violations
 }
 
@@ -653,9 +653,9 @@ export function runMissionControlContractGuard({
 } = {}) {
   const violations = []
 
-  
+
   let guide = readOptional(root, GUIDE_PATH, readFile) || '';
-  
+
   for (const modPath of MC_MANAGED_MODULES) {
     const modContent = readOptional(root, modPath, readFile);
     if (!modContent) {

@@ -9,7 +9,7 @@ const tmpRoot = resolve(process.cwd(), '.tmp-mission-control-contract-test')
 describe('mission-control contract guard', () => {
   it('enforces deterministic ordering of required modules', async () => {
     const mod = await import('../../scripts/guard-mission-control-contract.mjs')
-    
+
     expect(mod.MC_MANAGED_MODULES).toEqual([
       mod.MODULE_PROCEDURES_PATH,
       mod.MODULE_CHECKLISTS_PATH,
@@ -50,9 +50,9 @@ describe('mission-control contract guard', () => {
 
   it('fails if a required section is moved into an unrelated module', async () => {
     const mod = await import('../../scripts/guard-mission-control-contract.mjs')
-    
+
     const violations = mod.scanModuleContent(mod.MODULE_PROCEDURES_PATH, '## Some section\n')
-    
+
     expect(violations.some(v => v.rule === 'MC005' && v.message.includes('## Double-Loop Review Gate'))).toBe(true)
   })
 

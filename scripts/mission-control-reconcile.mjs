@@ -1292,7 +1292,7 @@ export function proposeReviewReconciliation(input) {
   }
 
   const nextCycle = Math.min(reviewCycle + 1, 3)
-  
+
   let currentFull = input.fullReviewCount ?? 0
   const nextFullReviewCount = Math.min(currentFull + (reviewCycle === 0 ? 1 : 0), 1)
 
