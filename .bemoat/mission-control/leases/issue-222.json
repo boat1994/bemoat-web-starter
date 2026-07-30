@@ -2,8 +2,8 @@
   "schema_version": 1,
   "issue": "222",
   "transition_identity": "empty-claim:4a6e467b1674b75c56955958d536c311",
-  "observed_body_sha256": "a4b721122f38ee572c1f97eb25a977af90ca5c0ef1a5434d67d93cfe99ffb074",
+  "observed_body_sha256": "e9af9f6925f7071166ca2697dbc6e95f9e3da43cddf16915229442aeb13c6044",
   "holder": "mission-control-review2-state-identity-repair-222",
-  "status": "held",
-  "updated_at": "2026-07-30T17:50:20.834Z"
+  "status": "released",
+  "updated_at": "2026-07-30T17:50:24.869Z"
 }
