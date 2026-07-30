@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "issue": "217",
-  "transition_identity": "empty-claim:cd9684c50552c630017db7cf1e1e4c6d",
+  "transition_identity": "{\"taskId\":\"217\",\"phase\":\"Reviewer — Full Semantic Review 1\",\"role\":\"REVIEW_VERDICT\",\"contentHash\":\"e2c0b2b946dacfde6a5ce4255df24a7a3e4edba94c04599ed3aa2837251fcedb\"}",
   "observed_body_sha256": "87629dffe3698640258902fa5a4a1ed8fbffa96033e97e8d0757537c69dcc7f4",
-  "holder": "mission-control-reconcile",
-  "status": "released",
-  "updated_at": "2026-07-30T06:53:50.842Z"
+  "holder": "mission-control-review1-state-repair-217",
+  "status": "held",
+  "updated_at": "2026-07-30T07:11:59.726Z"
 }
