@@ -3,7 +3,7 @@
   "issue": "216",
   "transition_identity": "{\"taskId\":\"216\",\"phase\":\"Tester — deterministic child-portability red reproduction\",\"role\":\"HANDOFF\",\"contentHash\":\"605019cf6b79bed11cabe535632311d10c2da9ac6b434b137de543d6a6069877\"}",
   "observed_body_sha256": "16133f80e149de786ce9a48bad3dd1a1ddeaa9046f9274e68318f0fa7e90374a",
-  "holder": "mission-control-dispatch",
-  "status": "released",
-  "updated_at": "2026-07-29T20:16:55.213Z"
+  "holder": "mission-control-parent-reconcile-216",
+  "status": "held",
+  "updated_at": "2026-07-30T07:36:00.540Z"
 }
