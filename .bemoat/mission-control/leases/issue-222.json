@@ -2,8 +2,8 @@
   "schema_version": 1,
   "issue": "222",
   "transition_identity": "empty-claim:ca1b65fb463c4e89c840a6abffab7d67",
-  "observed_body_sha256": "f6fa1005647e49923ce871b09f444d31291d60e1e9d7d3360e14bbd1f937a931",
+  "observed_body_sha256": "638cd16e818b28cb3042ac6421f78779a3f48e95fa858689590be358a980ecce",
   "holder": "mission-control-reconcile",
-  "status": "held",
-  "updated_at": "2026-07-30T16:24:13.437Z"
+  "status": "released",
+  "updated_at": "2026-07-30T16:24:18.561Z"
 }
