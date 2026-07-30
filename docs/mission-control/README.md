@@ -236,6 +236,9 @@ pnpm exec vitest run tests/int/mission-control-contract.int.spec.ts
 pnpm exec vitest run tests/int/boilerplate-sync.int.spec.ts
 pnpm exec vitest run tests/int/guard-pack.int.spec.ts
 
+# Terminal state projection after merge transport has closed the Issue
+pnpm run bemoat:mission-control:reconcile -- <issue-number> [--repo owner/repo]
+
 # Child harness pull (after starter merge)
 pnpm run bemoat:boilerplate:sync -- --harness-only
 ```
@@ -247,6 +250,8 @@ pnpm run bemoat:boilerplate:sync -- --harness-only
 | Guide missing on approved base | `BLOCKED EXTERNAL` — do not fall back to task-branch policy |
 | Plan / Issue / PR / state disagree (contradictory evidence) | `STATE CONFLICT` — one reconciliation action, then stop |
 | Valid PR/head/CI/RESULT but stale state block | Deterministic reconciliation or incomplete delivery — not `STATE CONFLICT` |
+| PR merged but managed Issue still open | `STATE CONFLICT` — merge transport closes the Issue as completed, then rerun reconciliation |
+| Reconcile prints a classified failure | Use the non-empty diagnostic; the CLI falls back from `finalReason` to `reason` to a safe literal |
 | Active task mid-review without state block | `STATE MIGRATION REQUIRED` — migrate; do not reset budget |
 | PR head moved after a review | Prior verdict is historical only; cover the new exact head |
 | Want another full review after a tiny fix | Not allowed; assign Review 2 delta unless Founder authorizes material change |

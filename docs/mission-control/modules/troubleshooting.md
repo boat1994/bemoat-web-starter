@@ -14,6 +14,22 @@ Distinguish **bookkeeping lag** from **genuine conflict**:
 
 Do not guess which state is correct when evidence is contradictory.
 
+### Merged PR with an open managed Issue
+
+Option A assigns Issue closure to merge transport, not the reconciler. Verify
+the Founder-authorized exact head and merge commit, close the managed Issue as
+completed, then run:
+
+```bash
+pnpm run bemoat:mission-control:reconcile -- <issue-number> [--repo owner/repo]
+```
+
+The reconciler never closes or reopens Issues. Running it while the PR is merged
+but the Issue remains open returns an actionable `STATE_CONFLICT`. Classified
+CLI failures use `finalReason`, then `reason`, then
+`Mission Control reconciliation failed without a diagnostic`, so `ERROR:` is
+never blank.
+
 ### Issue-body write TOCTOU / lease CAS
 
 Protocol writers (`mission-control-dispatch`, `agent-delivery`, and

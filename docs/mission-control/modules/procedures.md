@@ -80,7 +80,7 @@ State Reconciler completion
 = deterministic state repair from unambiguous evidence, or explicit STATE_CONFLICT
 
 Founder-authorized merge transition
-= verify authorization/head/CI + mark ready when needed + merge + verify merge commit + DONE/close
+= verify authorization/head/CI + mark ready when needed + merge + verify merge commit + close Issue completed + reconcile DONE + verify NO_OP
 ```
 
 A **State Reconciler** may normalize facts that are already proven. It may not
@@ -96,7 +96,8 @@ authorization.
 | `review_cycle`, `full_review_count` | Reviewer only (with `## REVIEW_VERDICT`) |
 | `last_reviewed_head` | Reviewer only |
 | Resulting correction/eligibility state | Reviewer or State Reconciler from verdict evidence |
-| `DONE` / terminal closure | Founder-authorized merge transition or State Reconciler from merge evidence |
+| Issue closure | Founder-authorized merge transport, after verified merge evidence |
+| `DONE` state projection | State Reconciler, only after the Issue is closed/completed and merge evidence agrees |
 | Issue acceptance criteria checklist | Mission Control pre-merge reconciliation only |
 
 Delivery and Reviewer roles may update **only** content between the
@@ -130,6 +131,7 @@ Apply this ordered classification before writing managed state:
 | Two authoritative live sources contradict each other | `STATE_CONFLICT` |
 | A managed task uses unambiguous legacy post-budget or Founder-authorization fields | deterministic migration |
 | One exact PR/head/CI/role-output chain is unambiguous and only bookkeeping lags | bookkeeping repair |
+| The PR is merged and otherwise valid, but the managed Issue is open | `STATE_CONFLICT`; merge transport must close the Issue |
 | The Issue is closed/completed, its PR is merged, and the reviewed head matches | terminal repair to `DONE` |
 | The same live evidence is already represented canonically | no-op |
 
@@ -145,6 +147,22 @@ one fresh live verification. It must not recurse or attempt a second repair.
 Identical evidence after a completed reconciliation performs no state write,
 posts no role comment, and requires no model stage. After terminal repair,
 stale non-authoritative bookkeeping must never reopen the task.
+
+The reconciler owns no Issue lifecycle operation: it never closes or reopens an
+Issue. Option A assigns closure to merge transport. After Founder authorization,
+the exact terminal command order is:
+
+```text
+verify exact reviewed head and exact-head CI
+→ merge and verify the protected-base merge commit
+→ close the managed Issue as completed
+→ pnpm run bemoat:mission-control:reconcile -- <issue-number> [--repo owner/repo]
+→ rerun the same reconcile command and require NO_OP
+```
+
+If the first reconcile command returns a classified failure, the CLI prints its
+`finalReason`, then its initial `reason`, then the deterministic safe fallback;
+it must never emit a blank `ERROR:` diagnostic.
 
 ### Atomic implementation dispatch
 

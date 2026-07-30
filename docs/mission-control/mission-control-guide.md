@@ -387,6 +387,18 @@ updated_by: null
 - If PR head changes after review, the previous verdict remains historical evidence but does not cover the new head.
 - If a managed task has a malformed or absent block, return `STATE_MIGRATION_REQUIRED`; do not silently initialize as Review 1.
 
+`BLOCKED_FOR_FOUNDER_DECISION` normally remains review-backed with
+`full_review_count: 1`. The only pre-review form uses counters `0/0` and is a
+no-code diagnostic/planning gate. It is valid only when `active_pr`,
+`current_head`, and `last_reviewed_head` are all `null`,
+`latest_result_comment_id` identifies the bound RESULT, and the structured
+`latest_transition_identity` binds the active task to role `RESULT` with a
+non-empty phase and SHA-256 content hash. A `REVIEW_VERDICT` identity cannot
+authorize this form. Free-form `next_permitted_action` text is routing only and
+must never discriminate the schema. Normal review-backed and post-budget
+Founder gates retain their existing counters, exact-head bindings, and
+authorization rules.
+
 ### Founder-authorized post-budget history
 
 ### Founder-authorized correction after normal Review 3
@@ -519,6 +531,20 @@ requires the separate `scope: correction` Founder decision shown above.
 Any normal state may transition to `BLOCKED_EXTERNAL`, `STATE_CONFLICT`, or
 `STATE_MIGRATION_REQUIRED` when proven. No backward transition without exact
 evidence and authorized reason.
+
+### Terminal completion contract (Option A)
+
+Merge transport owns Issue closure. The canonical sequence is: verify Founder
+authorization and the exact reviewed head/CI; merge that head; verify the merge
+commit on the protected base; close the managed Issue as completed; run bounded
+reconciliation to write `DONE`; then verify the same evidence returns `NO_OP`.
+
+The reconciler updates only the managed state block through lease/CAS. It never
+closes or reopens an Issue. A merged PR with an open managed Issue therefore
+fails closed with an actionable `STATE_CONFLICT` directing merge transport to
+close the Issue before terminal reconciliation. If Issue closure succeeds but
+the state write fails, rerunning reconciliation repairs `DONE` once and performs
+one verification.
 
 ## Review-cycle budget
 

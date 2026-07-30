@@ -110,6 +110,17 @@ export function classifyReconciliation(evidence = {}) {
   }
 
   const terminal = evidence.terminal ?? {}
+  if (
+    terminal.prMerged && !terminal.issueClosed &&
+    terminal.reviewedHeadMatches && terminal.currentHeadMatches &&
+    typeof terminal.mergeCommit === 'string' && terminal.mergeCommit.length > 0 &&
+    terminal.exactHeadCi === true
+  ) {
+    return {
+      outcome: 'STATE_CONFLICT',
+      reason: 'merged PR is verified but the managed Issue remains open; merge transport must close the Issue before terminal reconciliation',
+    }
+  }
   if (terminal.prMerged && (
     !terminal.issueClosed ||
     !terminal.reviewedHeadMatches ||
@@ -279,7 +290,12 @@ export async function runBoundedReconciliation({ readEvidence, writeState }) {
   measurements.reconciliation_attempts += 1
   const initial = classifyReconciliation(initialEvidence)
   if (!REPAIR_OUTCOMES.has(initial.outcome)) {
-    return { ...initial, finalOutcome: initial.outcome, measurements }
+    return {
+      ...initial,
+      finalOutcome: initial.outcome,
+      finalReason: initial.reason,
+      measurements,
+    }
   }
 
   let proposed
@@ -1514,10 +1530,14 @@ async function runProductionBoundedReconciliation() {
   }
 
   const result = await runBoundedReconciliation({ readEvidence, writeState })
-  if (result.finalOutcome === 'STATE_CONFLICT') {
-    throw new Error(result.finalReason)
+  if (['STATE_CONFLICT', 'BLOCKED_EXTERNAL'].includes(result.finalOutcome)) {
+    throw new Error(reconciliationFailureReason(result))
   }
   process.stdout.write(`Mission Control reconciliation ${result.finalOutcome}: ${result.measurements.reconciliation_attempts} attempt(s), ${result.measurements.state_writes} durable write(s)\n`)
+}
+
+export function reconciliationFailureReason(result = {}) {
+  return result.finalReason ?? result.reason ?? 'Mission Control reconciliation failed without a diagnostic'
 }
 
 if (process.argv[1]?.endsWith('/mission-control-reconcile.mjs')) {
