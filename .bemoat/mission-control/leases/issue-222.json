@@ -3,7 +3,7 @@
   "issue": "222",
   "transition_identity": "{\"taskId\":\"222\",\"phase\":\"Dev (implementation)\",\"role\":\"RESULT\",\"contentHash\":\"81c731bb0bc28e3b899c2e6c8b3d2398496f05a91654b0c88d9090451896d545\"}",
   "observed_body_sha256": "cf56e244b444e08f76af5aadd880a8849ccb99cbee85e97c05001dc1c66bfeea",
-  "holder": "agent-delivery",
-  "status": "released",
-  "updated_at": "2026-07-30T15:48:31.508Z"
+  "holder": "mission-control-next-action",
+  "status": "held",
+  "updated_at": "2026-07-30T15:49:29.854Z"
 }
