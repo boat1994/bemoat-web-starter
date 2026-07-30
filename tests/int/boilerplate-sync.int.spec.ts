@@ -12,7 +12,7 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, dirname, resolve } from 'node:path'
+import { join, dirname, resolve, extname } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
@@ -2042,4 +2042,74 @@ describe('issue #182 projection managed delivery regression', () => {
       }
     },
   )
+})
+
+describe('issue #219 managed corpus trailing whitespace regression', () => {
+  it('fails when managed files contain trailing whitespace', async () => {
+    const syncMod = await import('../../scripts/sync-boilerplate.mjs')
+    const repoRoot = process.cwd()
+
+    const BINARY_EXTENSIONS = new Set([
+      '.png',
+      '.jpg',
+      '.jpeg',
+      '.gif',
+      '.ico',
+      '.webp',
+      '.pdf',
+      '.woff',
+      '.woff2',
+      '.ttf',
+      '.eot',
+      '.zip',
+      '.tar',
+      '.gz',
+    ])
+
+    function isBinaryFile(filePath: string, buf: Buffer): boolean {
+      const ext = extname(filePath).toLowerCase()
+      if (BINARY_EXTENSIONS.has(ext)) return true
+      if (buf.includes(0)) return true
+      return false
+    }
+
+    const managedFiles = new Set<string>()
+    for (const managedPath of syncMod.managedPaths) {
+      for (const filePath of syncMod.listPathFiles(repoRoot, managedPath)) {
+        managedFiles.add(filePath)
+      }
+    }
+
+    const trailingHits: Array<{ file: string; line: number; text: string }> = []
+
+    for (const relativePath of Array.from(managedFiles).sort()) {
+      const absolutePath = join(repoRoot, relativePath)
+      if (!existsSync(absolutePath)) continue
+
+      const buffer = readFileSync(absolutePath)
+      if (isBinaryFile(relativePath, buffer)) continue
+
+      const content = buffer.toString('utf8')
+      const lines = content.split('\n')
+
+      lines.forEach((line, index) => {
+        if (/[ \t]+$/.test(line)) {
+          trailingHits.push({
+            file: relativePath,
+            line: index + 1,
+            text: line,
+          })
+        }
+      })
+    }
+
+    if (trailingHits.length > 0) {
+      const formatted = trailingHits
+        .map((hit) => `  ${hit.file}:${hit.line}:${JSON.stringify(hit.text)}`)
+        .join('\n')
+      expect.fail(
+        `Found ${trailingHits.length} trailing-whitespace hit(s) in managed files:\n${formatted}`,
+      )
+    }
+  })
 })
