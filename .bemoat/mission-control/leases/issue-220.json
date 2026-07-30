@@ -2,8 +2,8 @@
   "schema_version": 1,
   "issue": "220",
   "transition_identity": "{\"taskId\":\"220\",\"phase\":\"Dev — diff-scoped whitespace validation correction\",\"role\":\"HANDOFF\",\"contentHash\":\"1a8fea4ace4fed180a987aa695438041c661a405d7d01eade2a65f99adff7c08\"}",
-  "observed_body_sha256": "4090b8f164e29e1f9eed9a06ce71449eb154a1e55e404619f653afa5eda321a5",
+  "observed_body_sha256": "32681bc57467c4401ef5cfa34dddeb878431cf1cfa40140bf39549d14974ddd8",
   "holder": "mission-control-dispatch",
-  "status": "held",
-  "updated_at": "2026-07-30T11:32:50.957Z"
+  "status": "released",
+  "updated_at": "2026-07-30T11:32:54.602Z"
 }
