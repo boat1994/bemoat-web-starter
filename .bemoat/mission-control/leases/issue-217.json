@@ -2,8 +2,8 @@
   "schema_version": 1,
   "issue": "217",
   "transition_identity": "{\"taskId\":\"217\",\"phase\":\"Reviewer — Full Semantic Review 1\",\"role\":\"REVIEW_VERDICT\",\"contentHash\":\"e2c0b2b946dacfde6a5ce4255df24a7a3e4edba94c04599ed3aa2837251fcedb\"}",
-  "observed_body_sha256": "1c96923f6016834acc97561f97ac49b02220091f65b31823cb2014322114ec84",
+  "observed_body_sha256": "d27ff0533137e669ee6d84805eabbf1ed7264d047c9f9908a60f2a045087692d",
   "holder": "mission-control-terminal-repair-217",
-  "status": "held",
-  "updated_at": "2026-07-30T07:29:34.744Z"
+  "status": "released",
+  "updated_at": "2026-07-30T07:29:38.162Z"
 }
