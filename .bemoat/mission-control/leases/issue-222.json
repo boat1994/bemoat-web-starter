@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "issue": "222",
-  "transition_identity": "{\"taskId\":\"222\",\"phase\":\"Dev (implementation)\",\"role\":\"HANDOFF\",\"contentHash\":\"4cc7203a441b925299668b601f12719479953a805357407f50e5b7e838797e65\"}",
+  "transition_identity": "{\"taskId\":\"222\",\"phase\":\"Dev (implementation)\",\"role\":\"RESULT\",\"contentHash\":\"81c731bb0bc28e3b899c2e6c8b3d2398496f05a91654b0c88d9090451896d545\"}",
   "observed_body_sha256": "7113a43c4ee8539c022609db8e2443a5b6192192439b57afaa0769a527ad9d07",
-  "holder": "mission-control-dispatch",
-  "status": "released",
-  "updated_at": "2026-07-30T15:13:22.989Z"
+  "holder": "agent-delivery",
+  "status": "held",
+  "updated_at": "2026-07-30T15:48:27.603Z"
 }
