@@ -2,8 +2,8 @@
   "schema_version": 1,
   "issue": "222",
   "transition_identity": "{\"taskId\":\"222\",\"phase\":\"Dev (implementation)\",\"role\":\"RESULT\",\"contentHash\":\"81c731bb0bc28e3b899c2e6c8b3d2398496f05a91654b0c88d9090451896d545\"}",
-  "observed_body_sha256": "e71e61aa4feabed97792fc9c6ce9082e01b4aca84226fe5e0b092f8fcb5d3121",
+  "observed_body_sha256": "f6fa1005647e49923ce871b09f444d31291d60e1e9d7d3360e14bbd1f937a931",
   "holder": "mission-control-state-identity-repair-222",
-  "status": "held",
-  "updated_at": "2026-07-30T15:59:22.868Z"
+  "status": "released",
+  "updated_at": "2026-07-30T15:59:26.470Z"
 }
