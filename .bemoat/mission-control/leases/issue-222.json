@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "issue": "222",
-  "transition_identity": "{\"taskId\":\"222\",\"phase\":\"Dev (correction)\",\"role\":\"HANDOFF\",\"contentHash\":\"37d058a61a804028d1d9220635954bcc5122c369ca22701e677d68ec26a20d08\"}",
+  "transition_identity": "{\"taskId\":\"222\",\"phase\":\"Dev (correction)\",\"role\":\"RESULT\",\"contentHash\":\"1a82da421c266f3f74bc02b5583ba10212996e661cbd9c448b3821d1b882f57c\"}",
   "observed_body_sha256": "0966bd9a180f3b7912ee34b6d04224bdf9c4ddb88a30358d9344c0b846d0fefa",
-  "holder": "mission-control-correction-routing-resume-222",
-  "status": "released",
-  "updated_at": "2026-07-30T16:57:59.986Z"
+  "holder": "agent-delivery",
+  "status": "held",
+  "updated_at": "2026-07-30T17:44:04.035Z"
 }
