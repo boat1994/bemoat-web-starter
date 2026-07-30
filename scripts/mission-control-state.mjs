@@ -343,7 +343,7 @@ export function renderMissionControlState(stateObj) {
     'updated_by'
   ]
   const keys = new Set([...orderedKeys, ...Object.keys(stateObj)])
-  
+
   const orderedState = {}
   for (const key of keys) {
     if (Object.hasOwn(stateObj, key)) {

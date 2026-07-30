@@ -2044,72 +2044,202 @@ describe('issue #182 projection managed delivery regression', () => {
   )
 })
 
-describe('issue #219 managed corpus trailing whitespace regression', () => {
-  it('fails when managed files contain trailing whitespace', async () => {
-    const syncMod = await import('../../scripts/sync-boilerplate.mjs')
-    const repoRoot = process.cwd()
+const REPRESENTATIVE_CHILD_PRESYNC_FIXTURE_DIR =
+  'tests/fixtures/boilerplate-sync/representative-harness-child-presync'
 
-    const BINARY_EXTENSIONS = new Set([
-      '.png',
-      '.jpg',
-      '.jpeg',
-      '.gif',
-      '.ico',
-      '.webp',
-      '.pdf',
-      '.woff',
-      '.woff2',
-      '.ttf',
-      '.eot',
-      '.zip',
-      '.tar',
-      '.gz',
-    ])
+const INFORMATIONAL_SYNC_ARTIFACT_SUFFIXES = [
+  '.bemoat-package-sync-proposal.md',
+  'package-sync-proposal.md',
+]
 
-    function isBinaryFile(filePath: string, buf: Buffer): boolean {
-      const ext = extname(filePath).toLowerCase()
-      if (BINARY_EXTENSIONS.has(ext)) return true
-      if (buf.includes(0)) return true
-      return false
+const BINARY_EXTENSIONS = new Set([
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.gif',
+  '.ico',
+  '.webp',
+  '.pdf',
+  '.woff',
+  '.woff2',
+  '.ttf',
+  '.eot',
+  '.zip',
+  '.tar',
+  '.gz',
+  '.tgz',
+])
+
+function isBinaryFile(filePath: string, buf: Buffer): boolean {
+  const ext = extname(filePath).toLowerCase()
+  if (BINARY_EXTENSIONS.has(ext)) return true
+  if (buf.includes(0)) return true
+  return false
+}
+
+function isInformationalSyncArtifact(relativePath: string): boolean {
+  return INFORMATIONAL_SYNC_ARTIFACT_SUFFIXES.some(
+    (suffix) => relativePath === suffix || relativePath.endsWith(`/${suffix}`) || relativePath.endsWith(suffix),
+  )
+}
+
+function collectManagedFiles(
+  root: string,
+  managedPaths: string[],
+  listPathFiles: (root: string, relativePath: string) => string[],
+): Set<string> {
+  const managedFiles = new Set<string>()
+  for (const managedPath of managedPaths) {
+    for (const filePath of listPathFiles(root, managedPath)) {
+      managedFiles.add(filePath)
+    }
+  }
+  return managedFiles
+}
+
+function initGitRepo(root: string) {
+  execFileSync('git', ['init'], { cwd: root, stdio: 'pipe' })
+  execFileSync('git', ['config', 'user.email', 'harness@example.com'], { cwd: root, stdio: 'pipe' })
+  execFileSync('git', ['config', 'user.name', 'Harness Sync'], { cwd: root, stdio: 'pipe' })
+}
+
+function gitCommitAll(root: string, message: string) {
+  execFileSync('git', ['add', '-A'], { cwd: root, stdio: 'pipe' })
+  execFileSync('git', ['commit', '--allow-empty', '-m', message], { cwd: root, stdio: 'pipe' })
+}
+
+function listGitChangedPaths(root: string): string[] {
+  const diff = execFileSync('git', ['diff', '--name-only'], { cwd: root, encoding: 'utf8' })
+  const untracked = execFileSync('git', ['ls-files', '--others', '--exclude-standard'], {
+    cwd: root,
+    encoding: 'utf8',
+  })
+  return Array.from(
+    new Set(
+      [...diff.split('\n'), ...untracked.split('\n')]
+        .map((line) => line.trim())
+        .filter(Boolean),
+    ),
+  ).sort()
+}
+
+function tryGitDiffCheckHits(root: string, paths: string[]): Array<{ file: string; line: number; text: string }> {
+  if (paths.length === 0) return []
+
+  try {
+    execFileSync('git', ['diff', '--check', '--', ...paths], {
+      cwd: root,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+    return []
+  } catch (error) {
+    const err = error as { stdout?: string; stderr?: string; status?: number }
+    const output = `${err.stdout ?? ''}${err.stderr ?? ''}`
+    if (err.status !== 2 && !/trailing whitespace/i.test(output)) {
+      throw error
     }
 
-    const managedFiles = new Set<string>()
-    for (const managedPath of syncMod.managedPaths) {
-      for (const filePath of syncMod.listPathFiles(repoRoot, managedPath)) {
-        managedFiles.add(filePath)
+    const hits: Array<{ file: string; line: number; text: string }> = []
+    const lines = output.split('\n')
+    for (let index = 0; index < lines.length; index += 1) {
+      const match = lines[index]?.match(/^(.+):(\d+):\s+trailing whitespace\.\s*$/)
+      if (!match) continue
+      const file = match[1]
+      const line = Number(match[2])
+      const marker = lines[index + 1] ?? ''
+      const text = marker.startsWith('+') ? marker.slice(1) : marker
+      hits.push({ file, line, text })
+    }
+    return hits
+  }
+}
+
+function applyRepresentativeChildPresyncOverlay(childRoot: string, repoRoot: string) {
+  const fixtureDir = join(repoRoot, REPRESENTATIVE_CHILD_PRESYNC_FIXTURE_DIR)
+  const manifest = JSON.parse(readFileSync(join(fixtureDir, 'manifest.json'), 'utf8')) as {
+    presentPaths: string[]
+    absentPaths: string[]
+  }
+  const extractRoot = mkdtempSync(join(tmpdir(), 'bemoat-presync-extract-'))
+  try {
+    execFileSync('tar', ['xzf', join(fixtureDir, 'files.tgz'), '-C', extractRoot], { stdio: 'pipe' })
+    for (const relativePath of manifest.presentPaths) {
+      const sourceFile = join(extractRoot, relativePath)
+      const destinationFile = join(childRoot, relativePath)
+      mkdirSync(dirname(destinationFile), { recursive: true })
+      cpSync(sourceFile, destinationFile)
+    }
+    for (const relativePath of manifest.absentPaths) {
+      const destinationFile = join(childRoot, relativePath)
+      if (existsSync(destinationFile)) {
+        rmSync(destinationFile, { force: true })
       }
     }
+  } finally {
+    rmSync(extractRoot, { recursive: true, force: true })
+  }
+}
 
-    const trailingHits: Array<{ file: string; line: number; text: string }> = []
+describe('issue #220 representative managed child-sync trailing whitespace regression', () => {
+  it('fails when the representative harness-only managed sync delta contains trailing whitespace', async () => {
+    const syncMod = await import('../../scripts/sync-boilerplate.mjs')
+    const repoRoot = process.cwd()
+    const tempRoot = mkdtempSync(join(tmpdir(), 'bemoat-220-whitespace-'))
+    const sourceRoot = join(tempRoot, 'source')
+    const childRoot = join(tempRoot, 'child')
 
-    for (const relativePath of Array.from(managedFiles).sort()) {
-      const absolutePath = join(repoRoot, relativePath)
-      if (!existsSync(absolutePath)) continue
+    try {
+      mkdirSync(sourceRoot, { recursive: true })
+      mkdirSync(childRoot, { recursive: true })
 
-      const buffer = readFileSync(absolutePath)
-      if (isBinaryFile(relativePath, buffer)) continue
+      copyManagedSnapshot(repoRoot, sourceRoot, syncMod.managedPaths, syncMod.listPathFiles)
+      copyManagedSnapshot(sourceRoot, childRoot, syncMod.getSourceSyncConfig(sourceRoot).managedPaths, syncMod.listPathFiles)
 
-      const content = buffer.toString('utf8')
-      const lines = content.split('\n')
+      initGitRepo(childRoot)
+      gitCommitAll(childRoot, 'child managed baseline before representative overlay')
+      applyRepresentativeChildPresyncOverlay(childRoot, repoRoot)
+      gitCommitAll(childRoot, 'representative child pre-sync state')
 
-      lines.forEach((line, index) => {
-        if (/[ \t]+$/.test(line)) {
-          trailingHits.push({
-            file: relativePath,
-            line: index + 1,
-            text: line,
-          })
-        }
+      const syncConfig = syncMod.getSourceSyncConfig(sourceRoot)
+      syncMod.syncPathsFromSource({
+        sourceRootPath: sourceRoot,
+        targetRootPath: childRoot,
+        mode: syncMod.SYNC_MODES.HARNESS_ONLY,
+        syncConfig,
+        onWarn: () => {},
+        onLog: () => {},
       })
-    }
 
-    if (trailingHits.length > 0) {
-      const formatted = trailingHits
-        .map((hit) => `  ${hit.file}:${hit.line}:${JSON.stringify(hit.text)}`)
-        .join('\n')
-      expect.fail(
-        `Found ${trailingHits.length} trailing-whitespace hit(s) in managed files:\n${formatted}`,
+      const managedFiles = collectManagedFiles(sourceRoot, syncConfig.managedPaths, syncMod.listPathFiles)
+      const changedPaths = listGitChangedPaths(childRoot)
+      const informationalArtifacts = changedPaths.filter((path) => isInformationalSyncArtifact(path))
+      const managedChangedPaths = changedPaths.filter((path) => managedFiles.has(path))
+      const candidatePaths = managedChangedPaths.filter((path) => {
+        if (isInformationalSyncArtifact(path)) return false
+        const absolutePath = join(childRoot, path)
+        if (!existsSync(absolutePath)) return false
+        const buffer = readFileSync(absolutePath)
+        return !isBinaryFile(path, buffer)
+      })
+
+      expect(managedChangedPaths.length).toBeGreaterThan(0)
+      expect(informationalArtifacts.every((path) => !managedFiles.has(path) || isInformationalSyncArtifact(path))).toBe(
+        true,
       )
+
+      const trailingHits = tryGitDiffCheckHits(childRoot, candidatePaths)
+
+      if (trailingHits.length > 0) {
+        const formatted = trailingHits
+          .map((hit) => `  ${hit.file}:${hit.line}:${JSON.stringify(hit.text)}`)
+          .join('\n')
+        expect.fail(
+          `Found ${trailingHits.length} trailing-whitespace hit(s) in representative managed child-sync delta:\n${formatted}`,
+        )
+      }
+    } finally {
+      rmSync(tempRoot, { recursive: true, force: true })
     }
   })
 })
