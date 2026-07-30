@@ -2,8 +2,8 @@
   "schema_version": 1,
   "issue": "219",
   "transition_identity": "{\"taskId\":\"219\",\"phase\":\"Tester — managed-corpus trailing-whitespace red evidence\",\"role\":\"HANDOFF\",\"contentHash\":\"c5e36a7bb187ca74e7f3774839b40ea3f40b550f18d13ec7fcb1bf9762253a8c\"}",
-  "observed_body_sha256": "2c10c8d46e209f54718e5993ddb27908289ca0f1857e64a278a8034f32272ec7",
+  "observed_body_sha256": "53b03c2e6de91f147c26c57959384e6bfdafb5a1ae7eea930f618159c9fce0dc",
   "holder": "mission-control-dispatch",
-  "status": "held",
-  "updated_at": "2026-07-30T10:30:57.153Z"
+  "status": "released",
+  "updated_at": "2026-07-30T10:31:02.600Z"
 }
