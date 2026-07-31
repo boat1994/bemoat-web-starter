@@ -329,7 +329,7 @@ function main() {
     process.exitCode = 1
     return
   }
-  process.stdout.write(`posted ${role} comment to Issue #${parsed.options.issue}\n`)
+  process.stdout.write(`posted ${role} comment to Issue #${parsed.options.issue}; no durable-state transition was performed\n`)
 }
 
 main()

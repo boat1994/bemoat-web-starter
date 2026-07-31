@@ -34,6 +34,7 @@ const {
   findMatchingComments,
   proposeDeliveryReconciliation,
   proposeReviewReconciliation,
+  projectReviewVerdictState,
   reconciliationFailureReason,
   runBoundedReconciliation,
   resolveProductionCommentTrust,
@@ -80,6 +81,54 @@ const sampleVerdict = `## REVIEW_VERDICT
 `
 
 describe('mission-control reconcile classifiers', () => {
+  it('projects a full correction-required verdict with immutable findings and canonical transition bindings', () => {
+    const prior: Record<string, unknown> = {
+      schema_version: 1,
+      state: 'AWAITING_REVIEW_1',
+      review_cycle: 0,
+      full_review_count: 0,
+      approved_base: 'main',
+      active_task_issue: '#231',
+      active_pr: '#232',
+      current_head: 'reviewed-head',
+      last_reviewed_head: null,
+      guide_version: '1.2.0',
+      guide_source_ref: 'main',
+      guide_source_sha: 'guide-sha',
+      open_blockers: [],
+      follow_up_issues: [],
+      next_permitted_action: 'Reviewer performs Review 1.',
+      material_change_status: 'none',
+      updated_at: 'before',
+      updated_by: 'Delivery Coordinator',
+      latest_handoff_comment_id: 'handoff-1',
+      latest_result_comment_id: 'result-1',
+    }
+
+    expect(projectReviewVerdictState({
+      prior,
+      verdict: 'CORRECTION REQUIRED',
+      reviewType: 'full',
+      reviewedHead: 'reviewed-head',
+      commentId: 'verdict-1',
+      transitionIdentity: 'review-identity',
+      findings: [{ finding_id: 'MC-R1-231-001', severity: 'Important', disposition: 'open' }],
+      updatedAt: '2026-07-31T05:00:00Z',
+      updatedBy: 'Reviewer',
+    })).toMatchObject({
+      state: 'CORRECTION_REQUIRED_1',
+      review_cycle: 1,
+      full_review_count: 1,
+      current_head: 'reviewed-head',
+      last_reviewed_head: 'reviewed-head',
+      latest_review_verdict_comment_id: 'verdict-1',
+      latest_transition_identity: 'review-identity',
+      open_blockers: ['MC-R1-231-001'],
+      next_permitted_action: expect.stringContaining('correction'),
+      latest_handoff_comment_id: 'handoff-1',
+      latest_result_comment_id: 'result-1',
+    })
+  })
   it('explains that merge transport must close a merged PR open Issue before terminal reconciliation', () => {
     expect(classifyReconciliation({
       managedState: { state: 'ELIGIBLE_FOR_FOUNDER_REVIEW' },
