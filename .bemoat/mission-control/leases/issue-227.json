@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "issue": "227",
-  "transition_identity": "{\"taskId\":\"227\",\"phase\":\"Dev (implementation)\",\"role\":\"RESULT\",\"contentHash\":\"6b567de17c81264acdc1ab3e65c9ec8c0b3ae4dade846cbeeba6b865e3d1f89b\"}",
+  "transition_identity": "{\"taskId\":\"\",\"phase\":\"\",\"role\":\"REVIEW_VERDICT\",\"contentHash\":\"77a20bdcf7e2d3a4a2d65b86d52f5bed3a37e08ba86e6aeff9b82c396861a7ae\"}",
   "observed_body_sha256": "32b7c50f224a9b20169224fa9a8db68fbefcaa8c126f6abe6d4144e8a0e58766",
-  "holder": "agent-delivery",
-  "status": "released",
-  "updated_at": "2026-07-31T11:22:18.955Z"
+  "holder": "mission-control-reconcile",
+  "status": "held",
+  "updated_at": "2026-07-31T11:37:50.035Z"
 }
