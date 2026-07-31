@@ -99,7 +99,8 @@ export function analyzeProgressTracking({
   const stateAnalysis = parseMissionControlState(activeIssueBody)
   const stateRequired =
     declarations.missionControlMode === 'required' ||
-    (taskSize === 'core' && declarations.declaresMainIssue && declarations.declaresImplementationPlan)
+    (taskSize === 'core' && declarations.declaresMainIssue && declarations.declaresImplementationPlan) ||
+    (stateAnalysis.valid && stateAnalysis.present)
   const state = stateAnalysis.state
   let resolvedActiveIssueState = activeIssueState
   const stateNeedsPrEvidence = stateAnalysis.valid && stateRequiresPrEvidence(state.state)
