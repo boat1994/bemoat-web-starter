@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
+import { parse as parseYaml } from 'yaml'
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- deterministic .mjs transport boundary */
 import { getDefaultRepo } from '../../scripts/agent-issue/local-git-evidence.mjs'
+import { parsePrReference } from '../../scripts/agent-issue/issue-references.mjs'
 
 const reviewedHead = '527a48cb83364a7fbde0fad5f88f5c9d1244d0ab'
 const mergeCommit = '8df91686d715a0ddf0ddf258bf9fa5b060a4af29'
@@ -362,5 +364,89 @@ describe('Founder-authorized Mission Control merge transport', () => {
       deps: harness.deps,
     })).rejects.toThrow(/STATE_CONFLICT.*no active PR terminal ownership/)
     expect(harness.issues.get(219)).toEqual(parentBefore)
+  })
+
+  describe('Issue #227 canonical active_pr reference parsing', () => {
+    it('reproduces Issue #225 YAML-round-tripped active_pr and advances past ownership', async () => {
+      const yamlShape = parseYaml("active_pr: '\"#223\"'\nactive_task_issue: '\"#222\"'")
+      expect(yamlShape.active_pr).toBe('"#223"')
+      expect(parsePrReference(yamlShape.active_pr)).toEqual({ number: '223' })
+
+      const harness = createHarness({
+        managedState: {
+          active_pr: yamlShape.active_pr,
+          active_task_issue: yamlShape.active_task_issue,
+        },
+      })
+
+      await expect(execute({
+        issueNumber: 222,
+        repo: 'boat1994/bemoat-web-starter',
+        authorizationCommentId: '6000000001',
+        deps: harness.deps,
+      })).resolves.toMatchObject({ outcome: 'DONE', prNumber: 223 })
+
+      expect(harness.operations.some((entry) => entry.startsWith('merge:'))).toBe(true)
+    })
+
+    it.each([
+      [226, '226'],
+      ['226', '226'],
+      ['"226"', '226'],
+      ['#226', '226'],
+      ['"#226"', '226'],
+    ])('accepts canonical PR reference %j as %s', (input, expected) => {
+      expect(parsePrReference(input)).toEqual({ number: expected })
+    })
+
+    it.each([
+      [null],
+      [''],
+      ['#'],
+      ['PR #226 extra 227'],
+      ['unrelated text ending in 226'],
+      ['https://github.com/boat1994/bemoat-web-starter/issues/226'],
+      ['9007199254740992'],
+      [-1],
+      [0],
+      [1.5],
+    ])('rejects malformed or unsafe PR reference %j', (input) => {
+      expect(parsePrReference(input as never)).toBeNull()
+    })
+
+    it('fails closed when live PR does not match the managed active_pr', async () => {
+      const harness = createHarness({
+        managedState: { active_pr: '"#999"' },
+      })
+
+      await expect(execute({
+        issueNumber: 222,
+        repo: 'boat1994/bemoat-web-starter',
+        authorizationCommentId: '6000000001',
+        deps: harness.deps,
+      })).rejects.toThrow(/STATE_CONFLICT.*live PR does not match the managed task active PR/)
+
+      expect(harness.operations).toEqual([])
+    })
+
+    it('reaches the next pre-merge gate after accepting quoted active_pr ownership', async () => {
+      const harness = createHarness({
+        managedState: {
+          active_pr: '"#223"',
+          active_task_issue: '"#222"',
+          current_head: 'c'.repeat(40),
+        },
+      })
+
+      await expect(execute({
+        issueNumber: 222,
+        repo: 'boat1994/bemoat-web-starter',
+        authorizationCommentId: '6000000001',
+        deps: harness.deps,
+      })).rejects.toThrow(/STATE_CONFLICT.*heads must match exactly|Founder authorization reviewed head/)
+
+      expect(harness.operations).toEqual(['authorization:222'])
+      expect(harness.operations.some((entry) => entry.startsWith('merge:'))).toBe(false)
+    })
   })
 })
