@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "issue": "229",
-  "transition_identity": "empty-claim:c688c8b1f7c890bc41ecf6a114306f07",
+  "transition_identity": "{\"taskId\":\"229\",\"phase\":\"Dev\",\"role\":\"HANDOFF\",\"contentHash\":\"d47ab2a9c1b3f7f292876a69baff08593692d98e5141d7cc5217f1609e88b564\"}",
   "observed_body_sha256": "b53c35c0e271f10af1c801a0bfd3b4830261c3c79548c3df7c840f9af4978621",
-  "holder": "mission-control-ready-init-229",
-  "status": "released",
-  "updated_at": "2026-07-31T13:40:13.550Z"
+  "holder": "mission-control-dispatch",
+  "status": "held",
+  "updated_at": "2026-07-31T13:40:27.065Z"
 }
