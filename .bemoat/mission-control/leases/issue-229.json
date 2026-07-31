@@ -2,8 +2,8 @@
   "schema_version": 1,
   "issue": "229",
   "transition_identity": "{\"taskId\":\"229\",\"phase\":\"Bounded Delta Review 3\",\"role\":\"REVIEW_VERDICT\",\"contentHash\":\"174c1f398d992dbd07d3f2d1824ea02f188e04abde03b6421e5b0034493725da\"}",
-  "observed_body_sha256": "6324ca1b9291f461aae0bf2ff3007fd605cd298b0212b1a6888c0a138d22eae0",
+  "observed_body_sha256": "16fcb717ad0b0d1800a99b11a5663c20074de12dd15c34c4bfdf5123fb9dbb88",
   "holder": "hotfix-229-blocker-projection",
-  "status": "held",
-  "updated_at": "2026-07-31T17:52:39.168Z"
+  "status": "released",
+  "updated_at": "2026-07-31T17:52:42.558Z"
 }
