@@ -83,6 +83,17 @@ Founder-authorized merge transition
 = verify authorization/head/CI + mark ready when needed + merge + verify merge commit + close Issue completed + reconcile DONE + verify NO_OP
 ```
 
+Reviewer completion uses the repository-owned atomic facade, not the generic
+comment transport:
+
+```bash
+pnpm run bemoat:mission-control:review -- <issue-number> --body-file <verdict.md> \
+  --expected-state <state> --review-type <full|delta> --expected-head <sha>
+```
+
+`bemoat:issue:comment` remains a validation/posting primitive and does not
+project managed state.
+
 A **State Reconciler** may normalize facts that are already proven. It may not
 choose product behavior, expand scope, waive review, or infer missing
 authorization.

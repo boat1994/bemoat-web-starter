@@ -10,6 +10,7 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join, relative, resolve } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
@@ -329,10 +330,10 @@ function verifyStrictPinnedProvenance(runner: GitCommandRunner = defaultGitRunne
   }
 }
 
-function materializePinnedFixtureSource(targetDir: string, runner: GitCommandRunner = defaultGitRunner) {
-  verifyFixtureManifestEquality()
-  verifyStrictPinnedProvenance(runner)
-
+function materializePinnedFixtureSource(targetDir: string) {
+  // Callers must run verifyFixtureManifestEquality / verifyStrictPinnedProvenance
+  // once before materializing. Re-running provenance here doubled ~174 `git show`
+  // calls and pushed S10 over the default timeout under parallel `pnpm run check`.
   cpSync(FIXTURE_ROOT, targetDir, { recursive: true })
   for (const [relativePath, expectedDigest] of Object.entries(PINNED_MANIFEST.files)) {
     const destination = join(targetDir, relativePath)
@@ -912,8 +913,12 @@ describe('mission-control phase 1 dogfood scenarios (S1-S10)', () => {
 
   it('S10: pinned managed-path drift detects exactly one mutation with non-zero exit code', async () => {
     const statusBefore = gitStatusShort()
-    const scratchRoot = mkdtempSync(join(process.cwd(), '.tmp-mc-phase1-dogfood-s10-'))
-    const sourceRoot = join(scratchRoot, 'source')
+    // Keep scratch outside the checkout so parallel runners cannot observe
+    // temporary trees via git status, and so Cursor sandbox rules that block
+    // nested `.cursor/` creation under the repo cannot crash the Vitest worker
+    // and strand the checkout-scoped process lock.
+    const scratchRoot = mkdtempSync(join(tmpdir(), 'bemoat-mc-phase1-dogfood-s10-'))
+    const sourceRoot = FIXTURE_ROOT
     const targetRoot = join(scratchRoot, 'child')
 
     try {
@@ -925,8 +930,7 @@ describe('mission-control phase 1 dogfood scenarios (S1-S10)', () => {
       verifyStrictPinnedProvenance()
 
       const syncMod = await import('../../scripts/sync-boilerplate.mjs')
-      materializePinnedFixtureSource(sourceRoot)
-      cpSync(sourceRoot, targetRoot, { recursive: true })
+      materializePinnedFixtureSource(targetRoot)
 
       const mutatedPath = PINNED_FIXTURE.mutated_managed_path
       const targetFile = join(targetRoot, mutatedPath)
