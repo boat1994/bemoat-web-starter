@@ -126,4 +126,138 @@ describe('toolchain contract', () => {
     )
     rmSync(fixtureRoot, { recursive: true, force: true })
   })
+
+  it('preserves quoted comment-like sequences while stripping real JSONC comments', async () => {
+    const drift = await import('../../scripts/check-boilerplate-drift.mjs')
+
+    const stripped = drift.stripJsoncComments(`{
+  // line comment
+  "paths": {
+    "@/*": ["./src/*"],
+    "url": "https://example.com/path//keep",
+    "slashy": "has // inside",
+    "quote": "say \\"hi\\" then /* keep */",
+    "backslash": "tail\\\\"
+  },
+  "ok": true, /* block comment */
+}`)
+
+    expect(stripped).toContain('"@/*"')
+    expect(stripped).toContain('"https://example.com/path//keep"')
+    expect(stripped).toContain('"has // inside"')
+    expect(stripped).toContain('"say \\"hi\\" then /* keep */"')
+    expect(stripped).toContain('"tail\\\\"')
+    expect(stripped).not.toMatch(/^\s*\/\/ /m)
+    expect(stripped).not.toContain('/* block comment */')
+    expect(stripped).not.toContain('// line comment')
+
+    const parsed = JSON.parse(stripped)
+    expect(parsed.paths['@/*']).toEqual(['./src/*'])
+    expect(parsed.paths.url).toBe('https://example.com/path//keep')
+    expect(parsed.paths.slashy).toBe('has // inside')
+    expect(parsed.paths.quote).toBe('say "hi" then /* keep */')
+    expect(parsed.paths.backslash).toBe('tail\\')
+    expect(parsed.ok).toBe(true)
+  })
+
+  it('parses child-shaped tsconfig path aliases during toolchain drift checks', async () => {
+    const drift = await import('../../scripts/check-boilerplate-drift.mjs')
+    const fixtureRoot = resolve(process.cwd(), '.tmp-toolchain-jsonc-paths')
+    const sourceRoot = resolve(fixtureRoot, 'source')
+    const targetRoot = resolve(fixtureRoot, 'target')
+
+    rmSync(fixtureRoot, { recursive: true, force: true })
+    mkdirSync(resolve(sourceRoot, '.bemoat'), { recursive: true })
+    mkdirSync(targetRoot, { recursive: true })
+    writeFileSync(resolve(sourceRoot, '.bemoat/toolchain-contract.json'), readFileSync(resolve(process.cwd(), '.bemoat/toolchain-contract.json')))
+    writeFileSync(resolve(targetRoot, 'package.json'), JSON.stringify({
+      devDependencies: { typescript: '6.0.3' },
+      scripts: { 'bemoat:typecheck': 'node scripts/bemoat-typecheck.mjs' },
+    }))
+    writeFileSync(resolve(targetRoot, 'tsconfig.json'), `{
+  // child-shaped path alias fixture
+  "compilerOptions": {
+    "strict": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  } /* trailing block */
+}
+`)
+
+    expect(drift.compareToolchainContractDrift({ sourceRoot, targetRoot })).toEqual([])
+    rmSync(fixtureRoot, { recursive: true, force: true })
+  })
+
+  it('still reports genuine toolchain drift after JSONC-safe parsing', async () => {
+    const drift = await import('../../scripts/check-boilerplate-drift.mjs')
+    const fixtureRoot = resolve(process.cwd(), '.tmp-toolchain-jsonc-drift')
+    const sourceRoot = resolve(fixtureRoot, 'source')
+    const targetRoot = resolve(fixtureRoot, 'target')
+
+    rmSync(fixtureRoot, { recursive: true, force: true })
+    mkdirSync(resolve(sourceRoot, '.bemoat'), { recursive: true })
+    mkdirSync(targetRoot, { recursive: true })
+    writeFileSync(resolve(sourceRoot, '.bemoat/toolchain-contract.json'), readFileSync(resolve(process.cwd(), '.bemoat/toolchain-contract.json')))
+    writeFileSync(resolve(targetRoot, 'package.json'), JSON.stringify({
+      devDependencies: { typescript: '5.8.0' },
+      scripts: { 'bemoat:typecheck': 'node scripts/bemoat-typecheck.mjs' },
+    }))
+    writeFileSync(resolve(targetRoot, 'tsconfig.json'), `{
+  "compilerOptions": {
+    "strict": false,
+    "paths": { "@/*": ["./src/*"] }
+  }
+}
+`)
+
+    expect(drift.compareToolchainContractDrift({ sourceRoot, targetRoot })).toEqual([
+      'package.json TypeScript must pin 6.0.3',
+      'tsconfig.json must preserve strict mode and effective strictNullChecks',
+    ])
+    rmSync(fixtureRoot, { recursive: true, force: true })
+  })
+
+  it('MC-R1-001 preserves quoted trailing-comma lookalikes and removes structural trailing commas', async () => {
+    const drift = await import('../../scripts/check-boilerplate-drift.mjs')
+
+    expect(JSON.parse(drift.stripJsoncComments('{"value": ",}"}')).value).toBe(',}')
+    expect(JSON.parse(drift.stripJsoncComments('{"value": ",]"}')).value).toBe(',]')
+    expect(JSON.parse(drift.stripJsoncComments('{"value": ",   }"}')).value).toBe(',   }')
+    expect(JSON.parse(drift.stripJsoncComments('{"value": ",   ]"}')).value).toBe(',   ]')
+    expect(JSON.parse(drift.stripJsoncComments('{"value": ",\\n}"}')).value).toBe(',\n}')
+    expect(JSON.parse(drift.stripJsoncComments('{"value": ",\\n]"}')).value).toBe(',\n]')
+    expect(JSON.parse(drift.stripJsoncComments('{"value": "say \\",}\\" near"}')).value).toBe('say ",}" near')
+    expect(JSON.parse(drift.stripJsoncComments('{"value": "tail\\\\,}"}')).value).toBe('tail\\,}')
+
+    expect(JSON.parse(drift.stripJsoncComments('{"a":1,"b":2,}')).b).toBe(2)
+    expect(JSON.parse(drift.stripJsoncComments('{"nested":{"a":1,},"b":[1,2,],}')).nested.a).toBe(1)
+    expect(JSON.parse(drift.stripJsoncComments('[1,2,3,]')).length).toBe(3)
+    expect(JSON.parse(drift.stripJsoncComments('{"a":1, /* keep */ }')).a).toBe(1)
+    expect(JSON.parse(drift.stripJsoncComments('{"a":1, // keep\n}')).a).toBe(1)
+    expect(JSON.parse(drift.stripJsoncComments('[1, /* c */ ]'))).toEqual([1])
+  })
+
+  it('MC-R1-002 rejects unterminated block comments while preserving valid JSONC', async () => {
+    const drift = await import('../../scripts/check-boilerplate-drift.mjs')
+
+    expect(() => drift.stripJsoncComments('{"compilerOptions":{"strict":true}}/* no closing')).toThrow(SyntaxError)
+    expect(() => drift.stripJsoncComments('{"compilerOptions":{"strict":true}}/* no closing')).toThrow(/unterminated block comment/i)
+    expect(() => drift.stripJsoncComments('{"a":1 /* still open')).toThrow(SyntaxError)
+    expect(() => drift.stripJsoncComments('{"a":1 /* still open')).toThrow(/unterminated block comment/i)
+
+    expect(JSON.parse(drift.stripJsoncComments('{"a":1} /* closed */')).a).toBe(1)
+    expect(JSON.parse(drift.stripJsoncComments('{"a":1}/*one*//*two*/')).a).toBe(1)
+    expect(JSON.parse(drift.stripJsoncComments('{\n  /* multi\n     line */\n  "a": 1\n}')).a).toBe(1)
+
+    const childShaped = drift.stripJsoncComments(`{
+  // real line comment
+  "paths": { "@/*": ["./src/*"] }
+  /* real block comment */
+}`)
+    expect(JSON.parse(childShaped).paths['@/*']).toEqual(['./src/*'])
+    expect(childShaped).not.toContain('// real line comment')
+    expect(childShaped).not.toContain('/* real block comment */')
+  })
 })
