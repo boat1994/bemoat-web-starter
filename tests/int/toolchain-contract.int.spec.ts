@@ -218,4 +218,46 @@ describe('toolchain contract', () => {
     ])
     rmSync(fixtureRoot, { recursive: true, force: true })
   })
+
+  it('MC-R1-001 preserves quoted trailing-comma lookalikes and removes structural trailing commas', async () => {
+    const drift = await import('../../scripts/check-boilerplate-drift.mjs')
+
+    expect(JSON.parse(drift.stripJsoncComments('{"value": ",}"}')).value).toBe(',}')
+    expect(JSON.parse(drift.stripJsoncComments('{"value": ",]"}')).value).toBe(',]')
+    expect(JSON.parse(drift.stripJsoncComments('{"value": ",   }"}')).value).toBe(',   }')
+    expect(JSON.parse(drift.stripJsoncComments('{"value": ",   ]"}')).value).toBe(',   ]')
+    expect(JSON.parse(drift.stripJsoncComments('{"value": ",\\n}"}')).value).toBe(',\n}')
+    expect(JSON.parse(drift.stripJsoncComments('{"value": ",\\n]"}')).value).toBe(',\n]')
+    expect(JSON.parse(drift.stripJsoncComments('{"value": "say \\",}\\" near"}')).value).toBe('say ",}" near')
+    expect(JSON.parse(drift.stripJsoncComments('{"value": "tail\\\\,}"}')).value).toBe('tail\\,}')
+
+    expect(JSON.parse(drift.stripJsoncComments('{"a":1,"b":2,}')).b).toBe(2)
+    expect(JSON.parse(drift.stripJsoncComments('{"nested":{"a":1,},"b":[1,2,],}')).nested.a).toBe(1)
+    expect(JSON.parse(drift.stripJsoncComments('[1,2,3,]')).length).toBe(3)
+    expect(JSON.parse(drift.stripJsoncComments('{"a":1, /* keep */ }')).a).toBe(1)
+    expect(JSON.parse(drift.stripJsoncComments('{"a":1, // keep\n}')).a).toBe(1)
+    expect(JSON.parse(drift.stripJsoncComments('[1, /* c */ ]'))).toEqual([1])
+  })
+
+  it('MC-R1-002 rejects unterminated block comments while preserving valid JSONC', async () => {
+    const drift = await import('../../scripts/check-boilerplate-drift.mjs')
+
+    expect(() => drift.stripJsoncComments('{"compilerOptions":{"strict":true}}/* no closing')).toThrow(SyntaxError)
+    expect(() => drift.stripJsoncComments('{"compilerOptions":{"strict":true}}/* no closing')).toThrow(/unterminated block comment/i)
+    expect(() => drift.stripJsoncComments('{"a":1 /* still open')).toThrow(SyntaxError)
+    expect(() => drift.stripJsoncComments('{"a":1 /* still open')).toThrow(/unterminated block comment/i)
+
+    expect(JSON.parse(drift.stripJsoncComments('{"a":1} /* closed */')).a).toBe(1)
+    expect(JSON.parse(drift.stripJsoncComments('{"a":1}/*one*//*two*/')).a).toBe(1)
+    expect(JSON.parse(drift.stripJsoncComments('{\n  /* multi\n     line */\n  "a": 1\n}')).a).toBe(1)
+
+    const childShaped = drift.stripJsoncComments(`{
+  // real line comment
+  "paths": { "@/*": ["./src/*"] }
+  /* real block comment */
+}`)
+    expect(JSON.parse(childShaped).paths['@/*']).toEqual(['./src/*'])
+    expect(childShaped).not.toContain('// real line comment')
+    expect(childShaped).not.toContain('/* real block comment */')
+  })
 })

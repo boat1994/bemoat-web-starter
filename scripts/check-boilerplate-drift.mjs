@@ -91,12 +91,57 @@ function readJSON(path) {
 /**
  * Strip JSONC comments and trailing commas for deterministic JSON.parse.
  * Comment markers are recognized only outside quoted strings.
+ * Structural trailing commas are removed only outside quoted strings.
  */
 export function stripJsoncComments(content) {
   let output = ''
   let index = 0
   let inString = false
   let escaped = false
+
+  const isJsonWhitespace = (char) =>
+    char === ' ' || char === '\t' || char === '\n' || char === '\r'
+
+  const skipCommentAt = (startIndex) => {
+    if (content[startIndex] !== '/') return null
+    const next = content[startIndex + 1]
+    if (next === '/') {
+      let cursor = startIndex + 2
+      while (cursor < content.length && content[cursor] !== '\n' && content[cursor] !== '\r') {
+        cursor += 1
+      }
+      return cursor
+    }
+    if (next === '*') {
+      let cursor = startIndex + 2
+      while (cursor < content.length) {
+        if (content[cursor] === '*' && content[cursor + 1] === '/') {
+          return cursor + 2
+        }
+        cursor += 1
+      }
+      throw new SyntaxError(`Unterminated block comment starting at offset ${startIndex}`)
+    }
+    return null
+  }
+
+  const nextStructuralIndex = (fromIndex) => {
+    let cursor = fromIndex
+    while (cursor < content.length) {
+      const char = content[cursor]
+      if (isJsonWhitespace(char)) {
+        cursor += 1
+        continue
+      }
+      const afterComment = skipCommentAt(cursor)
+      if (afterComment !== null) {
+        cursor = afterComment
+        continue
+      }
+      return cursor
+    }
+    return cursor
+  }
 
   while (index < content.length) {
     const char = content[index]
@@ -123,22 +168,24 @@ export function stripJsoncComments(content) {
     }
 
     if (char === '/' && next === '/') {
-      index += 2
-      while (index < content.length && content[index] !== '\n' && content[index] !== '\r') {
-        index += 1
-      }
+      index = skipCommentAt(index)
       continue
     }
 
     if (char === '/' && next === '*') {
-      index += 2
-      while (index < content.length) {
-        if (content[index] === '*' && content[index + 1] === '/') {
-          index += 2
-          break
-        }
+      index = skipCommentAt(index)
+      continue
+    }
+
+    if (char === ',') {
+      const structuralIndex = nextStructuralIndex(index + 1)
+      const structural = content[structuralIndex]
+      if (structural === '}' || structural === ']') {
         index += 1
+        continue
       }
+      output += char
+      index += 1
       continue
     }
 
@@ -146,7 +193,7 @@ export function stripJsoncComments(content) {
     index += 1
   }
 
-  return output.replace(/,\s*([}\]])/g, '$1')
+  return output
 }
 
 function parseJsonc(content) {
