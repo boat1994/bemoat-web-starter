@@ -767,7 +767,7 @@ export class Coordinator {
 
   _coordinatorOwnedRouting({ identity, comment, role, updatedAt, updatedBy, base }) {
     const target = (comment?.body ?? '').match(/^\*\*Target:\*\*\s*(.+?)\s*$/m)?.[1]?.trim()
-    const owned = {
+    let owned = {
       ...base,
       latest_transition_identity: serializeTransitionIdentity(identity),
       updated_at: updatedAt ?? new Date().toISOString(),
@@ -779,6 +779,13 @@ export class Coordinator {
       owned.next_permitted_action = target
         ? `${target} executes the authorized HANDOFF; do not re-post HANDOFF.`
         : 'Worker executes the authorized HANDOFF; do not re-post HANDOFF.'
+
+      if (owned.guide_source_sha) {
+        const populated = populateOrPreservePlanningAuthorizationBaseSha(owned, owned.guide_source_sha)
+        if (populated.ok && populated.populated) {
+          owned = populated.state
+        }
+      }
     }
     if (role === 'RESULT' && comment?.id != null) {
       owned.latest_result_comment_id = String(comment.id)
@@ -1302,7 +1309,7 @@ export function proposeDeliveryReconciliation(evidence) {
   if (managedState && Object.hasOwn(normalCorrectionTransitions, managedState.state)) {
     const nextState = normalCorrectionTransitions[managedState.state]
     const nextReview = managedState.review_cycle + 1
-    let next = {
+    return {
       ...structuredClone(managedState),
       state: nextState,
       approved_base: approvedBase,
@@ -1317,12 +1324,6 @@ export function proposeDeliveryReconciliation(evidence) {
       updated_at: updatedAt,
       updated_by: updatedBy,
     }
-    if (evidence.planningAuthorizationBaseSha) {
-      const populated = populateOrPreservePlanningAuthorizationBaseSha(next, evidence.planningAuthorizationBaseSha)
-      if (!populated.ok) throw new Error(populated.reason)
-      next = populated.state
-    }
-    return next
   }
 
   return {
