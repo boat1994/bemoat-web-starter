@@ -1813,6 +1813,68 @@ printf '%s' '{"title":"PR","url":"https://github.com/boat1994/bemoat-web-starter
     })
   })
 
+  it('assembles reconciliation evidence for a valid managed-state block without mode prose', () => {
+    const root = createRepo('feature/231-terminal-noop')
+    const analysis = analyzeProgressTracking({
+      cwd: root,
+      activeIssueNumber: '231',
+      activeIssueState: 'closed',
+      activeIssueBody: managedState({
+        state: 'DONE',
+        review_cycle: '1',
+        full_review_count: '1',
+        active_task_issue: '"#231"',
+        active_pr: '"#232"',
+        current_head: 'merge-commit',
+        last_reviewed_head: 'reviewed-head',
+        open_blockers: '[]',
+      }),
+      env: {
+        ...process.env,
+        PATH: withStubbedGh(root, `#!/usr/bin/env sh
+printf '%s' '{"title":"PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/232","headRefName":"feature/231-terminal-noop","baseRefName":"main","headRefOid":"reviewed-head","state":"MERGED","mergeCommit":{"oid":"merge-commit"},"statusCheckRollup":[{"name":"ci","conclusion":"SUCCESS"}],"commits":[]}'
+`),
+      },
+    })
+
+    expect(analysis.report.reconciliation).toMatchObject({
+      classification: { outcome: 'NO_OP' },
+      proposal: null,
+    })
+  })
+
+  it('does not assemble reconciliation evidence for malformed managed-state blocks without mode prose', () => {
+    const analysis = analyzeProgressTracking({
+      activeIssueBody: '<!-- bemoat-mission-control-state:start -->\n```yaml\nstate: DONE\n```\n',
+    })
+
+    expect(analysis.report.reconciliation).toBeNull()
+    expect(analysis.blockers.join(' ')).toContain('STATE_MIGRATION_REQUIRED')
+  })
+
+  it('does not produce false NO_OP for semantically incomplete managed state without mode prose', () => {
+    const root = createRepo('feature/233-incomplete-state')
+    const analysis = analyzeProgressTracking({
+      cwd: root,
+      activeIssueNumber: '233',
+      activeIssueBody: managedState({
+        state: 'AWAITING_REVIEW_1',
+        review_cycle: '0',
+        full_review_count: '0',
+        active_task_issue: '"#233"',
+        active_pr: 'null',
+        current_head: 'null',
+      }),
+      env: {
+        ...process.env,
+        PATH: withStubbedGh(root, '#!/usr/bin/env sh\necho offline >&2\nexit 1\n'),
+      },
+    })
+
+    expect(analysis.report.reconciliation?.classification?.outcome).not.toBe('NO_OP')
+    expect(analysis.blockers.join(' ')).toContain('STATE_MIGRATION_REQUIRED')
+  })
+
   it('surfaces recorded terminal classifications and unavailable required PR evidence as blockers', () => {
     const root = createRepo('feature/115-external-state')
     const conflict = analyzeProgressTracking({
