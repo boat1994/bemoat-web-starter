@@ -2,8 +2,8 @@
   "schema_version": 1,
   "issue": "229",
   "transition_identity": "{\"taskId\":\"229\",\"phase\":\"Correction 1\",\"role\":\"RESULT\",\"contentHash\":\"1d04e40dcb6909d5c666b89b8f3be3512e0ee735b8368b74700b7ad9696b651a\"}",
-  "observed_body_sha256": "bff13358ecabb7d31f1251cb0ca7e8b8101b642689a924ebcd9a961ec436ee03",
+  "observed_body_sha256": "53ef6dd9bbc436b2e8b7b4e996d0be7459dc2d4b0f2fc7fedaefc82dec66af69",
   "holder": "agent-delivery",
-  "status": "held",
-  "updated_at": "2026-07-31T14:26:42.687Z"
+  "status": "released",
+  "updated_at": "2026-07-31T14:26:46.801Z"
 }
