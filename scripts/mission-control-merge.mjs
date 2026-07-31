@@ -2,6 +2,7 @@
 import { spawnSync } from 'node:child_process'
 
 import { analyzeExactHeadCi, normalizeStatusChecks, isCheckSuccessful } from './agent-issue/exact-head-ci.mjs'
+import { resolveIssueNumber, resolvePrNumber } from './agent-issue/issue-references.mjs'
 import { parseMissionControlState } from './mission-control-state.mjs'
 
 const STARTER_REPOSITORY = 'boat1994/bemoat-web-starter'
@@ -14,9 +15,12 @@ function blockedExternal(message) {
   return new Error(`BLOCKED_EXTERNAL: ${message}`)
 }
 
-function normalizeNumber(value) {
-  const match = String(value ?? '').match(/#?(\d+)$/)
-  return match ? Number(match[1]) : null
+function normalizeIssueNumber(value) {
+  return resolveIssueNumber(value)
+}
+
+function normalizePrNumber(value) {
+  return resolvePrNumber(value)
 }
 
 function parseJsonBlock(body = '') {
@@ -56,8 +60,8 @@ export function validateFounderMergeAuthorization({
     authorization.authority === 'Founder' &&
     authorization.scope === 'merge' &&
     authorization.action === 'merge' &&
-    normalizeNumber(authorization.task_issue) === issueNumber &&
-    normalizeNumber(authorization.pr) === prNumber &&
+    normalizeIssueNumber(authorization.task_issue) === issueNumber &&
+    normalizePrNumber(authorization.pr) === prNumber &&
     authorization.reviewed_head === reviewedHead &&
     String(authorization.comment_id) === String(authorizationCommentId)
   if (!valid) throw stateConflict('explicit Founder merge authorization does not bind the managed task, PR, reviewed head, and action')
@@ -82,12 +86,12 @@ function verifyRequiredExactHeadCi(pr, repo) {
 function verifyDirectOwnership(issueNumber, issue, pr) {
   const state = issue?.managedState
   if (!state) throw stateConflict('managed Issue state is unavailable')
-  if (normalizeNumber(state.active_task_issue) !== issueNumber) {
+  if (normalizeIssueNumber(state.active_task_issue) !== issueNumber) {
     throw stateConflict('merge transport may operate only on the directly managed task Issue')
   }
-  const prNumber = normalizeNumber(state.active_pr)
+  const prNumber = normalizePrNumber(state.active_pr)
   if (!prNumber) throw stateConflict('directly managed task has no active PR terminal ownership')
-  if (pr?.number != null && normalizeNumber(pr.number) !== prNumber) {
+  if (pr?.number != null && normalizePrNumber(pr.number) !== prNumber) {
     throw stateConflict('live PR does not match the managed task active PR')
   }
   return prNumber
@@ -110,7 +114,7 @@ function verifyHeadBindings(state, pr, authorization, repo) {
 
 function verifyNoAutomaticClosure(pr, issueNumber, repo) {
   const linkedClosure = (pr.closingIssuesReferences ?? []).some((reference) =>
-    normalizeNumber(reference.number) === issueNumber &&
+    normalizeIssueNumber(reference.number) === issueNumber &&
     (reference.repository?.nameWithOwner ?? repo) === repo
   )
   const escapedRepo = repo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -153,7 +157,7 @@ export async function runFounderAuthorizedMerge({
 
   let issue = await deps.readManagedIssue(issueNumber, repo)
   const state = issue?.managedState
-  const prNumber = normalizeNumber(state?.active_pr)
+  const prNumber = normalizePrNumber(state?.active_pr)
   if (!prNumber) throw stateConflict('directly managed task has no active PR terminal ownership')
   let pr = await deps.readPullRequest(prNumber, repo)
   verifyDirectOwnership(issueNumber, issue, pr)
