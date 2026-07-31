@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
+import { parseCorrectionContract } from './correction-contract.mjs'
 import { writeIssueBodyWithLease } from './mission-control-issue-body-cas.mjs'
 import { populateOrPreservePlanningAuthorizationBaseSha } from './mission-control-state.mjs'
 
@@ -1422,9 +1423,9 @@ export function projectReviewVerdictState({
   const immutableFindings = findings
     .filter((finding) => finding?.finding_id || finding?.id)
     .map((finding) => String(finding.finding_id ?? finding.id))
-  const blockerIds = verdict === 'CORRECTION REQUIRED'
-    ? immutableFindings
-    : []
+  const projectsContractBlockers =
+    verdict === 'CORRECTION REQUIRED' || verdict === 'BLOCKED FOR FOUNDER DECISION'
+  const blockerIds = projectsContractBlockers ? immutableFindings : []
 
   return {
     ...structuredClone(prior),
@@ -1504,6 +1505,19 @@ export function analyzeReconciliation(context) {
       reviewCycle: context.managedState?.review_cycle ?? 0,
       fullReviewCount: context.managedState?.full_review_count ?? 0,
     })
+  }
+
+  const authoritativeContract = parseCorrectionContract(context.latestVerdict?.comment?.body ?? '')
+  if (authoritativeContract.ok) {
+    const expectedBlockers = authoritativeContract.contract.findings.map((finding) => finding.id)
+    const durableBlockers = context.managedState?.open_blockers ?? []
+    if (!sameValue(expectedBlockers, durableBlockers)) {
+      bookkeepingType = bookkeepingType ?? 'review'
+      bookkeepingProposal = {
+        ...(bookkeepingProposal ?? {}),
+        open_blockers: expectedBlockers,
+      }
+    }
   }
 
   const classification = classifyReconciliation({
