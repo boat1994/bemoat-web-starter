@@ -88,6 +88,71 @@ function readJSON(path) {
   return JSON.parse(readFileSync(path, 'utf8'))
 }
 
+/**
+ * Strip JSONC comments and trailing commas for deterministic JSON.parse.
+ * Comment markers are recognized only outside quoted strings.
+ */
+export function stripJsoncComments(content) {
+  let output = ''
+  let index = 0
+  let inString = false
+  let escaped = false
+
+  while (index < content.length) {
+    const char = content[index]
+    const next = content[index + 1]
+
+    if (inString) {
+      output += char
+      if (escaped) {
+        escaped = false
+      } else if (char === '\\') {
+        escaped = true
+      } else if (char === '"') {
+        inString = false
+      }
+      index += 1
+      continue
+    }
+
+    if (char === '"') {
+      inString = true
+      output += char
+      index += 1
+      continue
+    }
+
+    if (char === '/' && next === '/') {
+      index += 2
+      while (index < content.length && content[index] !== '\n' && content[index] !== '\r') {
+        index += 1
+      }
+      continue
+    }
+
+    if (char === '/' && next === '*') {
+      index += 2
+      while (index < content.length) {
+        if (content[index] === '*' && content[index + 1] === '/') {
+          index += 2
+          break
+        }
+        index += 1
+      }
+      continue
+    }
+
+    output += char
+    index += 1
+  }
+
+  return output.replace(/,\s*([}\]])/g, '$1')
+}
+
+function parseJsonc(content) {
+  return JSON.parse(stripJsoncComments(content))
+}
+
 function digestFile(path) {
   return createHash('sha256').update(readFileSync(path)).digest('hex')
 }
@@ -170,7 +235,7 @@ export function compareToolchainContractDrift({ sourceRoot: source, targetRoot: 
 
   const contract = readJSON(contractPath)
   const targetPackage = readJSON(targetPackagePath)
-  const targetConfig = JSON.parse(readFileSync(targetConfigPath, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '').replace(/,\s*([}\]])/g, '$1'))
+  const targetConfig = parseJsonc(readFileSync(targetConfigPath, 'utf8'))
   const drift = []
 
   if (targetPackage.devDependencies?.typescript !== contract.typescript) {
