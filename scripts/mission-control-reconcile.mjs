@@ -765,7 +765,7 @@ export class Coordinator {
     return { identity, comment: matches[0], created: false }
   }
 
-  _coordinatorOwnedRouting({ identity, comment, role, updatedAt, updatedBy, base }) {
+  _coordinatorOwnedRouting({ identity, comment, role, updatedAt, updatedBy, base, planningAuthorizationBaseSha }) {
     const target = (comment?.body ?? '').match(/^\*\*Target:\*\*\s*(.+?)\s*$/m)?.[1]?.trim()
     let owned = {
       ...base,
@@ -780,11 +780,22 @@ export class Coordinator {
         ? `${target} executes the authorized HANDOFF; do not re-post HANDOFF.`
         : 'Worker executes the authorized HANDOFF; do not re-post HANDOFF.'
 
-      if (owned.guide_source_sha) {
-        const populated = populateOrPreservePlanningAuthorizationBaseSha(owned, owned.guide_source_sha)
-        if (populated.ok && populated.populated) {
-          owned = populated.state
+      // planning_authorization_base_sha is ancestry authority for planning_no_pr only.
+      // It is never derived from guide_source_sha (policy provenance at HANDOFF time).
+      // Authoritative sources: explicit integrateHandoff seam, or durable state already set
+      // when Mission Control authorized the planning branch from that exact commit.
+      if (owned.workflow_mode === 'planning_no_pr') {
+        const lineageSha = planningAuthorizationBaseSha ?? owned.planning_authorization_base_sha
+        if (lineageSha == null || lineageSha === '') {
+          throw new Error(
+            'STATE_CONFLICT: planning_no_pr HANDOFF requires explicit planning_authorization_base_sha ancestry authority',
+          )
         }
+        const populated = populateOrPreservePlanningAuthorizationBaseSha(owned, lineageSha)
+        if (!populated.ok) {
+          throw new Error(`STATE_CONFLICT: ${populated.reason}`)
+        }
+        owned = populated.state
       }
     }
     if (role === 'RESULT' && comment?.id != null) {
@@ -796,7 +807,7 @@ export class Coordinator {
   /**
    * Comment-first READY -> IN_PROGRESS HANDOFF integration.
    */
-  async integrateHandoff({ handoffBody, transitionState, updatedAt, updatedBy }) {
+  async integrateHandoff({ handoffBody, transitionState, updatedAt, updatedBy, planningAuthorizationBaseSha }) {
     if (!/^## HANDOFF\s*$/m.test(handoffBody ?? '')) {
       throw new Error('integrateHandoff requires one HANDOFF role comment')
     }
@@ -815,6 +826,7 @@ export class Coordinator {
       updatedAt,
       updatedBy,
       base: callerProjection,
+      planningAuthorizationBaseSha,
     })
     const written = await this.writeState(projected, original)
     verifyStatePostcondition(projected, written, [
@@ -954,7 +966,7 @@ export class Coordinator {
   /**
    * Resume projection when comment exists but state update previously failed.
    */
-  async resumeProjection({ roleBody, role, projectState }) {
+  async resumeProjection({ roleBody, role, projectState, planningAuthorizationBaseSha }) {
     const { identity, options } = this._matchOptions(roleBody, role)
     const comments = await this.listComments()
     const matches = findMatchingComments(comments, identity, options)
@@ -969,6 +981,7 @@ export class Coordinator {
       comment: matches[0],
       role,
       base: callerProjection,
+      planningAuthorizationBaseSha,
     })
     const written = await this.writeState(projected, original)
     verifyStatePostcondition(projected, written)

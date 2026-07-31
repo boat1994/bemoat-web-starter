@@ -27,6 +27,28 @@ const missionControlRequiredKeys = [
 
 const FULL_COMMIT_SHA = /^[0-9a-f]{40}$/i
 
+/** Durable workflow discriminator for planning vs implementation transport. */
+export const MISSION_CONTROL_WORKFLOW_MODES = new Set(['planning_no_pr', 'implementation_pr'])
+
+/**
+ * Optional additive workflow discriminator. Absent/null is valid (non-planning).
+ * Free-text, branch names, and title heuristics are rejected.
+ *
+ * @param {unknown} value
+ * @returns {{ ok: true, value: string | null | undefined } | { ok: false, reason: string }}
+ */
+export function normalizeWorkflowMode(value) {
+  if (value === undefined) return { ok: true, value: undefined }
+  if (value === null || value === '') return { ok: true, value: null }
+  if (typeof value !== 'string' || !MISSION_CONTROL_WORKFLOW_MODES.has(value)) {
+    return {
+      ok: false,
+      reason: 'workflow_mode must be null, planning_no_pr, or implementation_pr',
+    }
+  }
+  return { ok: true, value }
+}
+
 /**
  * Optional additive planning-lineage field. Absent/null is valid for non-planning
  * tasks; when present it must be an exact full commit SHA (fail closed).
@@ -258,6 +280,7 @@ function validatePreReviewFounderDecisionGate(state) {
  *   current_head: string | null,
  *   last_reviewed_head: string | null,
  *   planning_authorization_base_sha?: string | null,
+ *   workflow_mode?: 'planning_no_pr' | 'implementation_pr' | null,
  *   post_budget_reviews?: unknown[],
  *   founder_decision?: unknown,
  *   guide_version: string,
@@ -323,6 +346,11 @@ export function parseMissionControlState(body = '') {
     const lineage = normalizePlanningAuthorizationBaseSha(state.planning_authorization_base_sha)
     if (!lineage.ok) return { present: true, valid: false, reason: lineage.reason }
     state.planning_authorization_base_sha = lineage.value
+  }
+  if (Object.hasOwn(state, 'workflow_mode')) {
+    const mode = normalizeWorkflowMode(state.workflow_mode)
+    if (!mode.ok) return { present: true, valid: false, reason: mode.reason }
+    state.workflow_mode = mode.value
   }
   if (!Number.isInteger(state.review_cycle) || !Number.isInteger(state.full_review_count) || state.review_cycle < 0 || state.review_cycle > 3 || state.full_review_count < 0 || state.full_review_count > 1 || state.full_review_count > state.review_cycle) {
     return { present: true, valid: false, reason: 'impossible review counter values' }
@@ -432,6 +460,7 @@ export function renderMissionControlState(stateObj) {
   const orderedKeys = [
     'schema_version', 'state', 'review_cycle', 'full_review_count', 'approved_base',
     'active_task_issue', 'active_pr', 'current_head', 'last_reviewed_head',
+    'workflow_mode',
     'planning_authorization_base_sha',
     'post_budget_reviews', 'founder_decision', 'founder_correction_authorization',
     'latest_transition_identity',
