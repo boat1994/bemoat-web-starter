@@ -2,8 +2,8 @@
   "schema_version": 1,
   "issue": "231",
   "transition_identity": "{\"taskId\":\"231\",\"phase\":\"Dev (implementation)\",\"role\":\"RESULT\",\"contentHash\":\"b41d4f0758e952c31eecf82a9f45051f23a705ef45ce205fb950e83c5882bbcf\"}",
-  "observed_body_sha256": "4d2180d95503e498dd99b998a072d4cda08d9b0c4c22425f5870e1b25308f906",
+  "observed_body_sha256": "04065fda435f09055fc87eccad3af30e0ec10f348b945351b2fbb5221a7f8255",
   "holder": "mission-control-reconcile",
-  "status": "held",
-  "updated_at": "2026-07-31T15:17:08.864Z"
+  "status": "released",
+  "updated_at": "2026-07-31T15:17:11.844Z"
 }
