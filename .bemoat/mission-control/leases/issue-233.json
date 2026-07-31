@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "issue": "233",
-  "transition_identity": "{\"taskId\":\"233\",\"phase\":\"Dev (implementation)\",\"role\":\"RESULT\",\"contentHash\":\"8a6cfb8939384a4548d50fcd1b20df6cc9aca6b090ce36fec3e266812217fbe4\"}",
+  "transition_identity": "{\"taskId\":\"233\",\"phase\":\"Delivery state migration\",\"role\":\"HANDOFF\",\"contentHash\":\"delivery-state-migration-5144850756\"}",
   "observed_body_sha256": "2c9089a3c01b145bd23316eb831eee8f4c4b93bf0ce5063cf5fb4e2aeafc52e0",
-  "holder": "agent-delivery",
-  "status": "released",
-  "updated_at": "2026-07-31T15:58:17.198Z"
+  "holder": "state-reconciler-233",
+  "status": "held",
+  "updated_at": "2026-07-31T15:59:03.413Z"
 }
