@@ -3,7 +3,7 @@
   "issue": "229",
   "transition_identity": "{\"taskId\":\"229\",\"phase\":\"Bounded Delta Review 3\",\"role\":\"REVIEW_VERDICT\",\"contentHash\":\"20432466cf32088d7dcda1d390b8a96f0d2bc6a45b3b2aa130c47de8f42ca9d5\"}",
   "observed_body_sha256": "7accd4d4f6b07e6afa27da37e56d02c18f1aefa2e08fe621e820573b754da0f1",
-  "holder": "mission-control-review",
-  "status": "released",
-  "updated_at": "2026-07-31T18:47:59.879Z"
+  "holder": "mission-control-reconcile",
+  "status": "held",
+  "updated_at": "2026-07-31T18:55:12.927Z"
 }
