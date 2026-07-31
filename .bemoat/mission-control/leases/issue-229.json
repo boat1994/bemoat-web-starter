@@ -4,6 +4,6 @@
   "transition_identity": "{\"taskId\":\"229\",\"phase\":\"Bounded Delta Review 3\",\"role\":\"REVIEW_VERDICT\",\"contentHash\":\"174c1f398d992dbd07d3f2d1824ea02f188e04abde03b6421e5b0034493725da\"}",
   "observed_body_sha256": "01776d35df3e8135cc2e127a0c5bb803ed9f3bb42db06850fdcc073ec31b1b77",
   "holder": "update-state",
-  "status": "released",
-  "updated_at": "2026-07-31T18:25:45.598Z"
+  "status": "held",
+  "updated_at": "2026-07-31T18:26:04.240Z"
 }
