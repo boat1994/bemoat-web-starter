@@ -375,6 +375,8 @@ if (args[0] === 'repo' && args[1] === 'view') {
 
     const finalState = JSON.parse(readFileSync(statePath, 'utf8'))
     const parsed = parseMissionControlState(finalState.body)
+    expect(parsed.state).toBeTruthy()
+    if (!parsed.state) throw new Error('State must be populated')
     expect(parsed.state.planning_authorization_base_sha).toBe(lineageBase)
     expect(parsed.state.planning_authorization_base_sha).not.toBe(policyTip)
     expect(parsed.state.guide_source_sha).toBe(policyTip)
