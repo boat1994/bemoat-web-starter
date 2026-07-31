@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "issue": "229",
-  "transition_identity": "empty-claim:a5fe10ab4614adec9ad9bb7e55a12d3e",
+  "transition_identity": "{\"taskId\":\"229\",\"phase\":\"Review 1\",\"role\":\"REVIEW_VERDICT\",\"contentHash\":\"30797a057c3178ea0b8bcab4c557cdc19cc24737719e29c798423b420583297e\"}",
   "observed_body_sha256": "0aff926ae46c34547b825c98a6133581776369b2340fc5e7954e626b9dda6687",
-  "holder": "mission-control-reconcile",
-  "status": "released",
-  "updated_at": "2026-07-31T14:11:38.081Z"
+  "holder": "mission-control-authority-repair",
+  "status": "held",
+  "updated_at": "2026-07-31T14:13:05.016Z"
 }
