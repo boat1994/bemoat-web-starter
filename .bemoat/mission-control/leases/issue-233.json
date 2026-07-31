@@ -3,7 +3,7 @@
   "issue": "233",
   "transition_identity": "{\"taskId\":\"233\",\"phase\":\"Full Semantic Review 1\",\"role\":\"REVIEW_VERDICT\",\"contentHash\":\"33428f1aee2734ae70d66866f0be3b9ab610826d251807a2d21cbfcdb227c4b4\"}",
   "observed_body_sha256": "36ed32a8a43e4f54c2686763bf4cae2f42edffa7216deb909d361d4b4ec1d99f",
-  "holder": "mission-control-review",
-  "status": "released",
-  "updated_at": "2026-07-31T16:04:37.687Z"
+  "holder": "mission-control-reconcile",
+  "status": "held",
+  "updated_at": "2026-07-31T16:11:45.503Z"
 }
