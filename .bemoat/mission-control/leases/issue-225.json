@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "issue": "225",
-  "transition_identity": "{\"taskId\":\"225\",\"phase\":\"Dev (correction)\",\"role\":\"RESULT\",\"contentHash\":\"6e1047015333b97d287bb8f903cfcf3f618f4cdd6dfd9feaa26abf21040bee96\"}",
+  "transition_identity": "{\"taskId\":\"225\",\"phase\":\"Delta Review 2 — verify Founder-authorized correction for MC-R1-001 and MC-R1-002\",\"role\":\"HANDOFF\",\"contentHash\":\"cc7f077e917c11265c52681c1d95826003a79706f4ee10a7e0e55e1b5aee5048\"}",
   "observed_body_sha256": "e128241c36f2259aa48527bc7115031e6fb67a2f36aa883423d0a2ff7ec5b85d",
-  "holder": "agent-delivery",
-  "status": "released",
-  "updated_at": "2026-07-31T08:54:46.105Z"
+  "holder": "mission-control-reconcile",
+  "status": "held",
+  "updated_at": "2026-07-31T10:06:38.270Z"
 }
