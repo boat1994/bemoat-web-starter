@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "issue": "225",
+  "transition_identity": "{\"taskId\":\"225\",\"phase\":\"Dev (implementation)\",\"role\":\"RESULT\",\"contentHash\":\"fdbb43db92012a8e982c3bc3a8a68887d467f943d8bb10b73a9011990c21b114\"}",
+  "observed_body_sha256": "578774f6bf00a83deefbc6ec1845b238cce1ea736a2866abaa450c712831ad2f",
+  "holder": "agent-delivery",
+  "status": "held",
+  "updated_at": "2026-07-31T07:29:20.863Z"
+}
