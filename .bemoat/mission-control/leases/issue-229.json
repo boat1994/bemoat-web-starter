@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "issue": "229",
-  "transition_identity": "{\"taskId\":\"229\",\"phase\":\"Review 1\",\"role\":\"REVIEW_VERDICT\",\"contentHash\":\"30797a057c3178ea0b8bcab4c557cdc19cc24737719e29c798423b420583297e\"}",
+  "transition_identity": "{\"taskId\":\"229\",\"phase\":\"Correction 1\",\"role\":\"HANDOFF\",\"contentHash\":\"be1689a946d1bf8a2d38f6450d7ab1876a341b8bb5b17a3091e50c749cf9e141\"}",
   "observed_body_sha256": "d1ef766996fef426de1e4503b813b5d544ff5ba75a13b2218e03e4fbf270a474",
-  "holder": "mission-control-authority-repair",
-  "status": "released",
-  "updated_at": "2026-07-31T14:13:08.814Z"
+  "holder": "mission-control-correction-handoff-bind",
+  "status": "held",
+  "updated_at": "2026-07-31T14:13:48.744Z"
 }
