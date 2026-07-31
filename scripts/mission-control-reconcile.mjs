@@ -2,6 +2,7 @@
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { writeIssueBodyWithLease } from './mission-control-issue-body-cas.mjs'
+import { populateOrPreservePlanningAuthorizationBaseSha } from './mission-control-state.mjs'
 
 const PRE_DELIVERY_STATES = new Set(['READY', 'IN_PROGRESS', 'CORRECTION_REQUIRED_1', 'CORRECTION_REQUIRED_2'])
 const CORE_VERDICTS = new Set([
@@ -255,7 +256,14 @@ export function migrateLegacyManagedState(managedState = {}) {
 }
 
 function proposedRepair(evidence, classification) {
-  if (evidence.proposedState) return structuredClone(evidence.proposedState)
+  if (evidence.proposedState) {
+    // Bookkeeping deltas must merge onto the live managed state so additive
+    // fields (for example planning_authorization_base_sha) are preserved.
+    return {
+      ...structuredClone(evidence.managedState ?? {}),
+      ...structuredClone(evidence.proposedState),
+    }
+  }
   const migrated = migrateLegacyManagedState(evidence.managedState ?? {}).state
   if (classification.outcome === 'TERMINAL_REPAIR') {
     return {
@@ -1253,7 +1261,7 @@ export function proposeDeliveryReconciliation(evidence) {
   if (managedState && Object.hasOwn(normalCorrectionTransitions, managedState.state)) {
     const nextState = normalCorrectionTransitions[managedState.state]
     const nextReview = managedState.review_cycle + 1
-    return {
+    let next = {
       ...structuredClone(managedState),
       state: nextState,
       approved_base: approvedBase,
@@ -1268,6 +1276,12 @@ export function proposeDeliveryReconciliation(evidence) {
       updated_at: updatedAt,
       updated_by: updatedBy,
     }
+    if (evidence.planningAuthorizationBaseSha) {
+      const populated = populateOrPreservePlanningAuthorizationBaseSha(next, evidence.planningAuthorizationBaseSha)
+      if (!populated.ok) throw new Error(populated.reason)
+      next = populated.state
+    }
+    return next
   }
 
   return {
@@ -1494,10 +1508,18 @@ async function runProductionBoundedReconciliation() {
     })
     const reconciliation = analysis.report.reconciliation
     if (!reconciliation) throw new Error('production preflight did not produce reconciliation evidence')
+    const bookkeepingFields =
+      reconciliation.proposal?.type === 'review' || reconciliation.proposal?.type === 'delivery'
+        ? reconciliation.proposal.fields
+        : null
     return {
       managedState: state.state,
       classification: reconciliation.classification,
-      proposedState: reconciliation.proposal?.fields ?? null,
+      bookkeepingProposal: bookkeepingFields,
+      // Keep proposedState as the merged bookkeeping view for proposedRepair callers.
+      proposedState: bookkeepingFields
+        ? { ...structuredClone(state.state), ...structuredClone(bookkeepingFields) }
+        : (reconciliation.proposal?.fields ?? null),
     }
   }
 

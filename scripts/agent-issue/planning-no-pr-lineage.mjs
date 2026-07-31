@@ -1,6 +1,11 @@
 import { parseMissionControlState } from '../mission-control-state.mjs'
 import { run } from './process-runner.mjs'
 
+export {
+  normalizePlanningAuthorizationBaseSha,
+  populateOrPreservePlanningAuthorizationBaseSha,
+} from '../mission-control-state.mjs'
+
 const FULL_COMMIT_SHA = /^[0-9a-f]{40}$/i
 
 /**

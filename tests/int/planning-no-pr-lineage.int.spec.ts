@@ -333,8 +333,125 @@ describe('planning_no_pr lineage Option A', () => {
     })
 
     expect(result.ok).toBe(false)
-    expect(result.errors).toContain(
-      'STATE CONFLICT: planning_authorization_base_sha must be an exact full commit SHA (immutable lineage base)',
+    expect(result.errors.join('\n')).toMatch(
+      /STATE CONFLICT: managed Mission Control state block is missing or invalid for planning_no_pr authorization|planning_authorization_base_sha must be an exact full commit SHA/,
     )
+  })
+})
+
+describe('planning_authorization_base_sha durable schema support', () => {
+  it('parse/render preserves an exact lineage SHA intentionally (not only unknown-field pass-through)', async () => {
+    const { parseMissionControlState, renderMissionControlState } = await import(
+      '../../scripts/mission-control-state.mjs'
+    )
+    const lineageSha = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+    const body = renderMissionControlState({
+      schema_version: 1,
+      state: 'CORRECTION_REQUIRED_1',
+      review_cycle: 1,
+      full_review_count: 1,
+      approved_base: 'main',
+      active_task_issue: '"#229"',
+      active_pr: null as string | null,
+      current_head: null as string | null,
+      last_reviewed_head: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+      planning_authorization_base_sha: lineageSha,
+      guide_version: '1.2.0',
+      guide_source_ref: 'main',
+      guide_source_sha: null as string | null,
+      open_blockers: [] as string[],
+      follow_up_issues: [] as string[],
+      next_permitted_action: 'bounded planning correction',
+      material_change_status: 'none',
+      updated_at: '2026-07-31T00:00:00.000Z',
+      updated_by: 'Mission Control',
+    })
+
+    expect(body).toContain('planning_authorization_base_sha:')
+    const parsed = parseMissionControlState(body)
+    expect(parsed.valid).toBe(true)
+    expect(parsed.state?.planning_authorization_base_sha).toBe(lineageSha)
+
+    const roundTrip = parseMissionControlState(renderMissionControlState(parsed.state ?? {}))
+    expect(roundTrip.valid).toBe(true)
+    expect(roundTrip.state?.planning_authorization_base_sha).toBe(lineageSha)
+  })
+
+  it('fails closed on malformed planning_authorization_base_sha values', async () => {
+    const { parseMissionControlState, renderMissionControlState } = await import(
+      '../../scripts/mission-control-state.mjs'
+    )
+    const body = renderMissionControlState({
+      schema_version: 1,
+      state: 'READY',
+      review_cycle: 0,
+      full_review_count: 0,
+      approved_base: 'main',
+      active_task_issue: '"#229"',
+      active_pr: null as string | null,
+      current_head: null as string | null,
+      last_reviewed_head: null as string | null,
+      planning_authorization_base_sha: 'main',
+      guide_version: '1.2.0',
+      guide_source_ref: 'main',
+      guide_source_sha: null as string | null,
+      open_blockers: [] as string[],
+      follow_up_issues: [] as string[],
+      next_permitted_action: 'authorize planning lineage',
+      material_change_status: 'none',
+      updated_at: '2026-07-31T00:00:00.000Z',
+      updated_by: 'Mission Control',
+    })
+    const parsed = parseMissionControlState(body)
+    expect(parsed.valid).toBe(false)
+    expect(parsed.reason).toContain('planning_authorization_base_sha')
+  })
+
+  it('populateOrPreservePlanningAuthorizationBaseSha is the deterministic write path for new planning tasks', async () => {
+    const { populateOrPreservePlanningAuthorizationBaseSha, parseMissionControlState, renderMissionControlState } =
+      await import('../../scripts/mission-control-state.mjs')
+    const lineageSha = 'cccccccccccccccccccccccccccccccccccccccc'
+    const base: Record<string, unknown> = {
+      schema_version: 1,
+      state: 'READY',
+      review_cycle: 0,
+      full_review_count: 0,
+      approved_base: 'main',
+      active_task_issue: '"#229"',
+      active_pr: null,
+      current_head: null,
+      last_reviewed_head: null,
+      guide_version: '1.2.0',
+      guide_source_ref: 'main',
+      guide_source_sha: null,
+      open_blockers: [],
+      follow_up_issues: [],
+      next_permitted_action: 'authorize planning lineage',
+      material_change_status: 'none',
+      updated_at: '2026-07-31T00:00:00.000Z',
+      updated_by: 'Mission Control',
+    }
+
+    const populated = populateOrPreservePlanningAuthorizationBaseSha(base, lineageSha)
+    expect(populated.ok).toBe(true)
+    if (!populated.ok) return
+    expect(populated.populated).toBe(true)
+    expect(populated.state.planning_authorization_base_sha).toBe(lineageSha)
+
+    const preserved = populateOrPreservePlanningAuthorizationBaseSha(populated.state, lineageSha)
+    expect(preserved.ok).toBe(true)
+    if (!preserved.ok) return
+    expect(preserved.populated).toBe(false)
+
+    const conflict = populateOrPreservePlanningAuthorizationBaseSha(
+      populated.state,
+      'dddddddddddddddddddddddddddddddddddddddd',
+    )
+    expect(conflict.ok).toBe(false)
+
+    const rendered = renderMissionControlState(populated.state)
+    const parsed = parseMissionControlState(rendered)
+    expect(parsed.valid).toBe(true)
+    expect(parsed.state?.planning_authorization_base_sha).toBe(lineageSha)
   })
 })

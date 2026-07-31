@@ -4179,6 +4179,9 @@ ${review1ContractJson(head)}
       seedTrackedFile(root, 'README.md', 'initial seed')
       const mainHead = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim()
       spawnSync('git', ['checkout', '-b', 'feature/145-planning-no-pr-correction'], { cwd: root, encoding: 'utf8' })
+      // MINOR-1: create a strict descendant so lineage base (mainHead) is a true
+      // ancestor of reviewed head, not an identical SHA.
+      seedTrackedFile(root, 'planning-correction.md', 'planning_no_pr correction fixture commit\n')
       const actualHead = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim()
       const verdictHead = headOverride?.verdictHead ?? actualHead
       const contractHead = headOverride?.contractHead ?? actualHead
