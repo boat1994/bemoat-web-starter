@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "issue": "222",
-  "transition_identity": "empty-claim:dc924492430451aff054a62286f6939b",
-  "observed_body_sha256": "be5b2719e3c09fffd27060f6444ced06f426cae2d6c52c7a43cede48c4524d0f",
-  "holder": "mission-control-reconcile",
-  "status": "released",
-  "updated_at": "2026-07-31T05:18:03.687Z"
+  "transition_identity": "{\"taskId\":\"222\",\"phase\":\"Review 2 Delta\",\"role\":\"REVIEW_VERDICT\",\"contentHash\":\"6b40af9eac5594d26e0553f7b8c47c2f64037ae58c5efd47dbd067d223fe447c\"}",
+  "observed_body_sha256": "761758e8ac82674a76688ff62a9614770722f4ecd065ad5eb35d747dc935f849",
+  "holder": "mission-control-founder-manual-review2-reconstruct-222",
+  "status": "held",
+  "updated_at": "2026-07-31T05:34:32.937Z"
 }
