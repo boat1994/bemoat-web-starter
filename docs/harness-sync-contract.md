@@ -171,6 +171,7 @@ Managed namespaced scripts (see `managedPackageScripts` in `scripts/sync-boilerp
 
 - `bemoat:branch:check`
 - `bemoat:issue:comment` — validates and safely posts a Mission Control `HANDOFF`, `RESULT`, or `REVIEW_VERDICT` comment; sync adds the wrapper only when the child has no existing namespaced entry
+- `bemoat:mission-control:review` — validates, posts, and verifies the atomic durable-state projection for a canonical reviewer verdict
 - `bemoat:guard:safety` (repo safety + harness contract)
 - `bemoat:guard:harness-contract` (standalone harness contract check)
 - `bemoat:guard:cloudflare-env`

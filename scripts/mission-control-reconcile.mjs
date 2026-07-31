@@ -895,6 +895,47 @@ export class Coordinator {
     return { outcome: 'RECONCILED', state: written, comment: matches[0], identity }
   }
 
+  /** Comment-first reviewer completion with a verified durable projection. */
+  async integrateReviewVerdict({ verdictBody, projectState, verifyPreconditions, updatedAt, updatedBy }) {
+    if (parseCommentMarker(verdictBody) !== 'REVIEW_VERDICT') {
+      throw new Error('integrateReviewVerdict requires a REVIEW_VERDICT role comment')
+    }
+    if (typeof verifyPreconditions === 'function') await verifyPreconditions()
+    const original = await this.readState()
+    const { identity, comment, created } = await this._resolveComment(verdictBody, 'REVIEW_VERDICT')
+    const serializedIdentity = serializeTransitionIdentity(identity)
+    if (
+      original?.latest_transition_identity === serializedIdentity &&
+      String(original?.latest_review_verdict_comment_id ?? '') === String(comment.id)
+    ) {
+      return { outcome: 'REVIEWED', state: original, comment, identity, created: false, replayed: true }
+    }
+    const callerProjection = typeof projectState === 'function' ? projectState(original, comment, identity) : projectState
+    const projected = {
+      ...structuredClone(callerProjection),
+      latest_transition_identity: serializedIdentity,
+      latest_review_verdict_comment_id: String(comment.id),
+      updated_at: updatedAt ?? new Date().toISOString(),
+      updated_by: updatedBy ?? 'Reviewer',
+    }
+    try {
+      const written = await this.writeState(projected, original)
+      verifyStatePostcondition(projected, written, [
+        'state', 'review_cycle', 'full_review_count', 'current_head', 'last_reviewed_head',
+        'latest_transition_identity', 'latest_review_verdict_comment_id', 'open_blockers',
+      ])
+      return { outcome: 'REVIEWED', state: written, comment, identity, created }
+    } catch (error) {
+      if (!created) throw error
+      const live = await this.readState()
+      if (sameValue(live, projected)) return { outcome: 'REVIEWED', state: live, comment, identity, created }
+      if (sameValue(live, original)) {
+        return { outcome: 'RECOVERABLE_ROUTING_DRIFT', state: original, comment, identity, created, error: String(error) }
+      }
+      throw new Error(`STATE_CONFLICT: incompatible concurrent authority after verdict post: ${error instanceof Error ? error.message : String(error)}`, { cause: error })
+    }
+  }
+
   /**
    * Resume projection when comment exists but state update previously failed.
    */
@@ -1318,6 +1359,55 @@ export function proposeReviewReconciliation(input) {
     full_review_count: nextFullReviewCount,
     last_reviewed_head: input.reviewedHead,
     next_permitted_action: nextActionForVerdict(input.verdict, nextCycle),
+  }
+}
+
+/**
+ * Build the complete reviewer-owned durable projection.  The executable
+ * facade supplies only evidence already bound to the live Issue/PR/comment;
+ * this pure function never reads transport state or posts comments.
+ */
+export function projectReviewVerdictState({
+  prior,
+  verdict,
+  reviewType,
+  reviewedHead,
+  commentId,
+  transitionIdentity,
+  findings = [],
+  updatedAt = new Date().toISOString(),
+  updatedBy = 'Reviewer',
+}) {
+  if (!prior || typeof prior !== 'object') throw new Error('review projection requires prior managed state')
+  if (!CORE_VERDICTS.has(verdict)) throw new Error('review projection requires a Core verdict')
+  if (!['full', 'delta'].includes(reviewType)) throw new Error('review projection requires review type full or delta')
+  if (!reviewedHead) throw new Error('review projection requires exact reviewed head')
+  if (reviewType === 'full' && prior.review_cycle !== 0) throw new Error('full review requires review_cycle 0')
+  if (reviewType === 'delta' && prior.review_cycle < 1) throw new Error('delta review requires an existing review cycle')
+
+  const proposal = proposeReviewReconciliation({
+    verdict,
+    reviewedHead,
+    reviewCycle: prior.review_cycle,
+    fullReviewCount: prior.full_review_count,
+  })
+  const immutableFindings = findings
+    .filter((finding) => finding?.finding_id || finding?.id)
+    .map((finding) => String(finding.finding_id ?? finding.id))
+  const blockerIds = verdict === 'CORRECTION REQUIRED'
+    ? immutableFindings
+    : []
+
+  return {
+    ...structuredClone(prior),
+    ...proposal,
+    current_head: reviewedHead,
+    last_reviewed_head: reviewedHead,
+    open_blockers: blockerIds,
+    latest_review_verdict_comment_id: String(commentId),
+    latest_transition_identity: transitionIdentity,
+    updated_at: updatedAt,
+    updated_by: updatedBy,
   }
 }
 
