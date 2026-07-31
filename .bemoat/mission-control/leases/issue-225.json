@@ -2,8 +2,8 @@
   "schema_version": 1,
   "issue": "225",
   "transition_identity": "{\"taskId\":\"225\",\"phase\":\"Bounded Delta Review 2\",\"role\":\"REVIEW_VERDICT\",\"contentHash\":\"0e0031361d7947fcca3067c8d2d92e1d300a103f01257327564f3d1abce28a65\"}",
-  "observed_body_sha256": "0804bdb972870a053228c81c19cd66a3985712aeabb1fb9253c88bd6ba956083",
+  "observed_body_sha256": "0d689c0b3c6e202b8bee2cc130063f3c1eda2a522a5a1ad26349238bc14b8a0b",
   "holder": "mission-control-reconcile",
-  "status": "held",
-  "updated_at": "2026-07-31T11:52:51.906Z"
+  "status": "released",
+  "updated_at": "2026-07-31T11:52:55.523Z"
 }
