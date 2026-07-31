@@ -305,6 +305,41 @@ describe('bemoat:issue:comment', () => {
     expect(result.stderr).toContain('missing correction finding contract')
   })
 
+  it('rejects BLOCKED FOR FOUNDER DECISION that names Critical/Important findings without a contract', () => {
+    const body = `## REVIEW_VERDICT
+### Task log
+- Timestamp: 2026-08-01T00:20:00+07:00
+- Task / Issue: #229
+- Phase: Bounded Delta Review 3
+- Executing role: Reviewer
+**PR / base / head:** PR #230 / main / · \`8b73bdfec3ebdec69588069fa275baf4fd15c333\`
+**Verdict:** BLOCKED FOR FOUNDER DECISION
+**Findings:** Critical: CRITICAL-2, CRITICAL-3 remain open · Important: IMPORTANT-2 remains unproven
+**Gates:** exact-head CI pass
+**Next:** Founder Approve or Decline
+`
+    const result = run(['229', '--check'], { input: body })
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain('missing correction finding contract')
+  })
+
+  it('accepts a pure Founder BLOCKED verdict with no implementation findings and no contract', () => {
+    const body = `## REVIEW_VERDICT
+### Task log
+- Timestamp: 2026-08-01T00:20:00+07:00
+- Task / Issue: #229
+- Phase: Bounded Delta Review 3
+- Executing role: Reviewer
+**PR / base / head:** PR #230 / main / · \`8b73bdfec3ebdec69588069fa275baf4fd15c333\`
+**Verdict:** BLOCKED FOR FOUNDER DECISION
+**Findings:** Critical: None · Important: None
+**Gates:** exact-head CI pass
+**Next:** Founder Approve or Decline the policy choice
+`
+    const result = run(['229', '--check'], { input: body })
+    expect(result.status, result.stderr).toBe(0)
+  })
+
   it('fails closed when a correction RESULT is posted with no reconstructable canonical contract', () => {
     const body = `## RESULT
 ### Task log

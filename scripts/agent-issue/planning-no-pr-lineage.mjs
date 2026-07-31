@@ -1,6 +1,42 @@
 import { parseMissionControlState } from '../mission-control-state.mjs'
 import { run } from './process-runner.mjs'
 
+export {
+  normalizePlanningAuthorizationBaseSha,
+  populateOrPreservePlanningAuthorizationBaseSha,
+} from '../mission-control-state.mjs'
+
+const FULL_COMMIT_SHA = /^[0-9a-f]{40}$/i
+
+/**
+ * Immutable planning-lineage base for ancestry proofs.
+ * Must be an exact full commit SHA from durable state — never a mutable branch tip.
+ *
+ * @param {Record<string, unknown>} state
+ * @returns {{ sha: string | null, missing: boolean, invalid: boolean }}
+ */
+export function resolvePlanningAuthorizationBaseSha(state) {
+  const raw = state?.planning_authorization_base_sha
+  if (raw === undefined || raw === null || raw === '') {
+    return { sha: null, missing: true, invalid: false }
+  }
+  if (typeof raw !== 'string' || !FULL_COMMIT_SHA.test(raw.trim())) {
+    return { sha: null, missing: false, invalid: true }
+  }
+  return { sha: raw.trim().toLowerCase(), missing: false, invalid: false }
+}
+
+/**
+ * planning_no_pr durable authorization proofs.
+ *
+ * Ancestry contract (Option A):
+ * - Current protected policy source (`approved_base` / tip) may advance independently.
+ * - Ancestry requires: immutable `planning_authorization_base_sha` is an ancestor of
+ *   the contract reviewed head.
+ * - Do not require the current protected policy tip to be an ancestor of the
+ *   historical planning reviewed head.
+ * - Never resolve mutable local branch refs as lineage authority.
+ */
 export function verifyPlanningNoPrDurableProofs({
   cwd,
   env,
@@ -8,7 +44,7 @@ export function verifyPlanningNoPrDurableProofs({
   issueNumber,
   contractReviewedHead,
   branchName,
-  verdictBase,
+  verdictBase: _verdictBase,
 }) {
   const errors = []
   const stateAnalysis = parseMissionControlState(issueBody ?? '')
@@ -46,18 +82,35 @@ export function verifyPlanningNoPrDurableProofs({
     }
   }
 
-  const approvedBase = state.approved_base || verdictBase
-  if (!approvedBase) {
-    errors.push('STATE CONFLICT: approved_base is required for planning_no_pr ancestry proof')
+  const lineage = resolvePlanningAuthorizationBaseSha(state)
+  if (lineage.missing) {
+    const mutableHint =
+      typeof state.approved_base === 'string' && state.approved_base.length > 0
+        ? ` mutable approved_base ${JSON.stringify(state.approved_base)} is not ancestry authority`
+        : ' mutable approved_base alone is not ancestry authority'
+    errors.push(
+      `STATE_MIGRATION_REQUIRED: planning_no_pr requires durable planning_authorization_base_sha (immutable lineage base);${mutableHint}`,
+    )
+  } else if (lineage.invalid) {
+    errors.push(
+      'STATE CONFLICT: planning_authorization_base_sha must be an exact full commit SHA (immutable lineage base)',
+    )
   } else {
-    const baseRef = run('git', ['rev-parse', '--verify', approvedBase], { cwd, env })
-    if (baseRef.status !== 0) {
-      errors.push(`STATE CONFLICT: approved_base ${approvedBase} is not a valid git ref`)
+    const objectCheck = run('git', ['rev-parse', '--verify', `${lineage.sha}^{commit}`], { cwd, env })
+    if (objectCheck.status !== 0) {
+      errors.push(
+        `STATE CONFLICT: planning_authorization_base_sha ${lineage.sha} is not a resolvable commit object`,
+      )
     } else {
-      const baseSha = baseRef.stdout.trim()
-      const onBaseCheck = run('git', ['merge-base', '--is-ancestor', baseSha, contractReviewedHead], { cwd, env })
+      const lineageSha = objectCheck.stdout.trim().toLowerCase()
+      const onBaseCheck = run('git', ['merge-base', '--is-ancestor', lineageSha, contractReviewedHead], {
+        cwd,
+        env,
+      })
       if (onBaseCheck.status !== 0) {
-        errors.push('STATE CONFLICT: reviewed_head is not safely descended from approved_base')
+        errors.push(
+          'STATE CONFLICT: reviewed_head is not safely descended from planning_authorization_base_sha',
+        )
       }
     }
   }

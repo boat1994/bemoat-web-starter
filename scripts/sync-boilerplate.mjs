@@ -117,6 +117,7 @@ export const managedPaths = [
   'tests/int/build-wrapper.int.spec.ts',
   'tests/int/branch-safety.int.spec.ts',
   'tests/int/agent-issue.int.spec.ts',
+  'tests/int/planning-no-pr-lineage.int.spec.ts',
   'tests/fixtures/agent-issue',
   'tests/int/github-comment-projection.int.spec.ts',
   'tests/int/agent-delivery.int.spec.ts',

@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
 import { analyzeExactHeadCi } from './agent-issue/exact-head-ci.mjs'
-import { parseCorrectionContract } from './correction-contract.mjs'
+import { parseReviewVerdictContractFindings } from './correction-contract.mjs'
 import { parseMissionControlState, renderMissionControlState } from './mission-control-state.mjs'
 import {
   Coordinator,
@@ -52,10 +52,9 @@ function replaceStateBlock(body, state) {
 }
 
 function parseFindings(body, verdict) {
-  if (verdict !== 'CORRECTION REQUIRED') return []
-  const parsed = parseCorrectionContract(body)
+  const parsed = parseReviewVerdictContractFindings(body, verdict)
   if (!parsed.ok) throw new Error(`STATE_CONFLICT: ${parsed.errors.join('; ')}`)
-  return parsed.contract.findings.map((finding) => ({ finding_id: finding.id, severity: 'Important', disposition: 'open' }))
+  return parsed.findings
 }
 
 async function main() {

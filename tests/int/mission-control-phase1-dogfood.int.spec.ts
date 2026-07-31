@@ -262,7 +262,7 @@ function classifyPinnedCommitObjectAvailability(
     }
 
     const exitStatus = err.status
-    const stderr = Buffer.isBuffer(err.stderr) ? err.stderr.toString('utf8') : String(err.stderr ?? '')
+    const stderr = err.stderr && Buffer.isBuffer(err.stderr) ? err.stderr.toString('utf8') : String(err.stderr ?? '')
 
     if (exitStatus === undefined) {
       return {

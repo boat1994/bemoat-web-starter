@@ -27,7 +27,7 @@ function run(command, args, options = {}) {
 }
 
 function parseArgs(argv) {
-  const options = { issue: null, repo: null, bodyFile: null, founderCorrection: false }
+  const options = { issue: null, repo: null, bodyFile: null, founderCorrection: false, workflowMode: null, planningBaseSha: null }
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index]
     if (argument === '--') continue
@@ -35,10 +35,13 @@ function parseArgs(argv) {
       options.founderCorrection = true
       continue
     }
-    if (argument === '--repo' || argument === '--body-file') {
+    if (argument === '--repo' || argument === '--body-file' || argument === '--workflow-mode' || argument === '--planning-base-sha') {
       const value = argv[++index]
       if (!value) throw new Error(`${argument} requires a value`)
-      options[argument === '--repo' ? 'repo' : 'bodyFile'] = value
+      if (argument === '--repo') options.repo = value
+      else if (argument === '--body-file') options.bodyFile = value
+      else if (argument === '--workflow-mode') options.workflowMode = value
+      else if (argument === '--planning-base-sha') options.planningBaseSha = value
       continue
     }
     if (argument.startsWith('-') || options.issue) throw new Error(`unexpected argument: ${argument}`)
@@ -211,11 +214,18 @@ async function main() {
     postComment: async (body) => postHandoff(body),
     ...resolveProductionCommentTrust(),
   })
+
+  const transitionState = options.workflowMode
+    ? (state) => ({ ...structuredClone(state), workflow_mode: options.workflowMode })
+    : undefined
+
   // Coordinator owns latest_transition_identity, comment binding, and next_permitted_action.
   const result = await coordinator.integrateHandoff({
     handoffBody,
+    transitionState,
     updatedAt: timestamp,
     updatedBy: 'Mission Control',
+    planningAuthorizationBaseSha: options.planningBaseSha,
   })
   const liveComments = listLiveComments()
   const bound = liveComments.find((comment) => String(comment.id) === String(result.comment?.id))

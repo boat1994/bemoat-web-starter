@@ -445,11 +445,89 @@ export function isCorrectionPhaseResult(body = '') {
 }
 
 /**
+ * True only for CORRECTION REQUIRED — the sole verdict that authorizes a
+ * correction RESULT against the immutable finding contract.
  * @param {string} body
  */
 export function isCorrectionEligibleVerdict(body = '') {
   const verdict = body.match(/^\*\*Verdict:\*\*\s*(.+?)\s*$/m)?.[1]?.trim()
   return verdict === 'CORRECTION REQUIRED'
+}
+
+/**
+ * Parse the required operational **Findings:** field. Values that begin with
+ * "None" declare no unresolved Critical/Important implementation findings.
+ * Authoritative finding IDs still come only from the Correction Contract JSON.
+ * @param {string} body
+ */
+export function findingsFieldDeclaresUnresolvedImplementationFindings(body = '') {
+  const findings = body.match(/^\*\*Findings:\*\*\s*(.+?)\s*$/m)?.[1]?.trim()
+  if (!findings) return false
+  const critical = findings.match(/Critical:\s*(.+?)(?:\s*·\s*Important:|$)/i)?.[1]?.trim() ?? ''
+  const important = findings.match(/Important:\s*(.+?)$/i)?.[1]?.trim() ?? ''
+  const isNone = (value) => !value || /^none\b/i.test(value)
+  return !isNone(critical) || !isNone(important)
+}
+
+/**
+ * Whether a REVIEW_VERDICT body must carry a machine-readable Correction Contract.
+ * @param {string} body
+ */
+export function requiresCorrectionFindingContract(body = '') {
+  const verdict = body.match(/^\*\*Verdict:\*\*\s*(.+?)\s*$/m)?.[1]?.trim()
+  if (verdict === 'CORRECTION REQUIRED') return true
+  if (verdict === 'BLOCKED FOR FOUNDER DECISION') {
+    if (findingsFieldDeclaresUnresolvedImplementationFindings(body)) return true
+    return extractJsonObjects(body).some(
+      (object) => Object.hasOwn(object, 'findings') && Object.hasOwn(object, 'reviewed_head'),
+    )
+  }
+  return false
+}
+
+/**
+ * Resolve durable open_blocker candidates from a REVIEW_VERDICT body.
+ * Authoritative IDs come only from a valid Correction Contract when required.
+ * @param {string} body
+ * @param {string} [verdict]
+ * @returns {{ ok: true, findings: Array<{ finding_id: string, severity: string, disposition: string }> } | { ok: false, errors: string[] }}
+ */
+export function parseReviewVerdictContractFindings(body = '', verdict = null) {
+  const resolvedVerdict = verdict ?? body.match(/^\*\*Verdict:\*\*\s*(.+?)\s*$/m)?.[1]?.trim()
+  if (resolvedVerdict === 'CORRECTION REQUIRED') {
+    const parsed = parseCorrectionContract(body)
+    if (!parsed.ok) return { ok: false, errors: parsed.errors }
+    return {
+      ok: true,
+      findings: parsed.contract.findings.map((finding) => ({
+        finding_id: finding.id,
+        severity: 'Important',
+        disposition: 'open',
+      })),
+    }
+  }
+  if (resolvedVerdict === 'BLOCKED FOR FOUNDER DECISION') {
+    const hasContractShape = extractJsonObjects(body).some(
+      (object) => Object.hasOwn(object, 'findings') && Object.hasOwn(object, 'reviewed_head'),
+    )
+    if (!hasContractShape) {
+      if (findingsFieldDeclaresUnresolvedImplementationFindings(body)) {
+        return { ok: false, errors: ['missing correction finding contract JSON block'] }
+      }
+      return { ok: true, findings: [] }
+    }
+    const parsed = parseCorrectionContract(body)
+    if (!parsed.ok) return { ok: false, errors: parsed.errors }
+    return {
+      ok: true,
+      findings: parsed.contract.findings.map((finding) => ({
+        finding_id: finding.id,
+        severity: 'Important',
+        disposition: 'open',
+      })),
+    }
+  }
+  return { ok: true, findings: [] }
 }
 
 /**
@@ -464,7 +542,7 @@ export function validateCorrectionRoleComment({
 } = {}) {
   const errors = []
 
-  if (role === 'REVIEW_VERDICT' && isCorrectionEligibleVerdict(body)) {
+  if (role === 'REVIEW_VERDICT' && requiresCorrectionFindingContract(body)) {
     const parsed = parseCorrectionContract(body)
     if (!parsed.ok) errors.push(...parsed.errors)
   }
