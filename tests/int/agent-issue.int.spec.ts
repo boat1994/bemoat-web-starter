@@ -4154,6 +4154,9 @@ ${review1ContractJson(head)}
         material_change_status: 'none',
         updated_at: '"2026-07-22T22:50:00+07:00"',
         updated_by: '"Mission Control"',
+        // Immutable planning-lineage base (Option A). Callers override when the
+        // fixture graph separates lineage base from reviewed head.
+        planning_authorization_base_sha: `"${reviewedHead}"`,
         ...overrides,
       })
     }
@@ -4174,12 +4177,14 @@ ${review1ContractJson(head)}
       spawnSync('git', ['config', 'user.email', 'agent-issue@test'], { cwd: root, encoding: 'utf8' })
       spawnSync('git', ['config', 'user.name', 'Agent Issue Test'], { cwd: root, encoding: 'utf8' })
       seedTrackedFile(root, 'README.md', 'initial seed')
+      const mainHead = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim()
       spawnSync('git', ['checkout', '-b', 'feature/145-planning-no-pr-correction'], { cwd: root, encoding: 'utf8' })
       const actualHead = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim()
       const verdictHead = headOverride?.verdictHead ?? actualHead
       const contractHead = headOverride?.contractHead ?? actualHead
       const issueBody = planningManagedState(contractHead, {
         approved_base: 'main',
+        planning_authorization_base_sha: `"${mainHead}"`,
         ...stateOverrides,
       })
 
@@ -4239,7 +4244,7 @@ ${ghStubExtra}
     ;;
 esac
 `
-      return { root, ghStub, actualHead, contractHead, issueBody, mainHead: actualHead }
+      return { root, ghStub, actualHead, contractHead, issueBody, mainHead }
     }
 
     it('TEST-PLAN-01: accepts valid planning-only no-PR correction preflight', () => {
