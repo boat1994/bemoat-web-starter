@@ -2,8 +2,8 @@
   "schema_version": 1,
   "issue": "225",
   "transition_identity": "{\"taskId\":\"225\",\"phase\":\"Review 1 — full semantic review of JSONC drift-check repair\",\"role\":\"HANDOFF\",\"contentHash\":\"2ef9401b78c7f0a466790d8889b0d50b275a17868e240c8beb09810e5734e3fd\"}",
-  "observed_body_sha256": "9e2b0eaff5c068608248d34f7b550d8bbc0e28c55929acfde69af5b82eaab15d",
+  "observed_body_sha256": "62763546d3f440412a2866d6d83867a24bf6231828f1bcb3e3724bcd2ffa09a6",
   "holder": "mission-control-reconcile",
-  "status": "held",
-  "updated_at": "2026-07-31T07:39:22.941Z"
+  "status": "released",
+  "updated_at": "2026-07-31T07:39:26.499Z"
 }
