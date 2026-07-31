@@ -2,8 +2,8 @@
   "schema_version": 1,
   "issue": "233",
   "transition_identity": "{\"taskId\":\"233\",\"phase\":\"Delivery state migration\",\"role\":\"HANDOFF\",\"contentHash\":\"delivery-state-migration-5144850756\"}",
-  "observed_body_sha256": "2c9089a3c01b145bd23316eb831eee8f4c4b93bf0ce5063cf5fb4e2aeafc52e0",
+  "observed_body_sha256": "8cbd5b5414b7d8c8a9d009d74ed86291c9aa359dfe4f4dfce86d6590b08a1cf0",
   "holder": "state-reconciler-233",
-  "status": "held",
-  "updated_at": "2026-07-31T15:59:03.413Z"
+  "status": "released",
+  "updated_at": "2026-07-31T15:59:06.611Z"
 }
