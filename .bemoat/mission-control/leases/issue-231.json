@@ -2,8 +2,8 @@
   "schema_version": 1,
   "issue": "231",
   "transition_identity": "{\"taskId\":\"231\",\"phase\":\"Full Semantic Review 1\",\"role\":\"REVIEW_VERDICT\",\"contentHash\":\"70079b25dcee5f674cdf046d224d734e3da89f966c808e9d5261a29067189675\"}",
-  "observed_body_sha256": "04065fda435f09055fc87eccad3af30e0ec10f348b945351b2fbb5221a7f8255",
+  "observed_body_sha256": "b750a3608f12fbf23414bf929f14436f83543529590e35eec39e65b61591dc1b",
   "holder": "mission-control-review",
-  "status": "held",
-  "updated_at": "2026-07-31T15:21:44.165Z"
+  "status": "released",
+  "updated_at": "2026-07-31T15:21:47.228Z"
 }
