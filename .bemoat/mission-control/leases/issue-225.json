@@ -2,8 +2,8 @@
   "schema_version": 1,
   "issue": "225",
   "transition_identity": "{\"taskId\":\"225\",\"phase\":\"Delta Review 2 — verify Founder-authorized correction for MC-R1-001 and MC-R1-002\",\"role\":\"HANDOFF\",\"contentHash\":\"cc7f077e917c11265c52681c1d95826003a79706f4ee10a7e0e55e1b5aee5048\"}",
-  "observed_body_sha256": "e128241c36f2259aa48527bc7115031e6fb67a2f36aa883423d0a2ff7ec5b85d",
+  "observed_body_sha256": "7b42e56bbe0a5932805cd84fbd58fca4e27fdf1eeca5c4cf2fa95f9f970f0cd4",
   "holder": "mission-control-reconcile",
-  "status": "held",
-  "updated_at": "2026-07-31T10:06:38.270Z"
+  "status": "released",
+  "updated_at": "2026-07-31T10:06:42.777Z"
 }
