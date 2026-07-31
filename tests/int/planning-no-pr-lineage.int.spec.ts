@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -297,28 +297,88 @@ describe('planning_no_pr lineage Option A', () => {
 })
 
 describe('WF-01..WF-12 planning_no_pr lineage evidence matrix', () => {
-  it('WF-01: native population through real HANDOFF production transition', async () => {
+  it('WF-01: native population through real HANDOFF production transition', () => {
     const lineageBase = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
     const policyTip = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
-    const { coordinator, getState } = createCoordinator(
-      readyPlanningState({ guide_source_sha: policyTip }),
-    )
+    
+    const root = mkdtempSync(join(tmpdir(), 'bemoat-dispatch-test-'))
+    tempRoots.push(root)
+    const ghPath = join(root, 'gh')
+    const statePath = join(root, 'state.json')
+    const initialBody = renderMissionControlState(readyPlanningState({ guide_source_sha: policyTip }))
+    writeFileSync(statePath, JSON.stringify({ body: initialBody, comments: [] }))
+    
+    const ghMock = `#!/usr/bin/env node
+import { readFileSync, writeFileSync } from 'node:fs'
+const statePath = ${JSON.stringify(statePath)}
+const args = process.argv.slice(2)
+const state = JSON.parse(readFileSync(statePath, 'utf8'))
+if (args[0] === 'repo' && args[1] === 'view') {
+  console.log(JSON.stringify({ nameWithOwner: 'boat1994/test' }))
+} else if (args[0] === 'issue' && args[1] === 'view') {
+  console.log(JSON.stringify({ body: state.body }))
+} else if (args[0] === 'api' && args.some(a => a.includes('comments')) && !args.includes('POST')) {
+  console.log(JSON.stringify(state.comments))
+} else if (args[0] === 'api' && args.some(a => a.includes('comments')) && args.includes('POST')) {
+  const input = JSON.parse(readFileSync(args[args.indexOf('--input') + 1], 'utf8'))
+  const comment = { id: 100, body: input.body, user: { login: 'boat1994' } }
+  state.comments.push(comment)
+  writeFileSync(statePath, JSON.stringify(state))
+  console.log(JSON.stringify(comment))
+} else if (args[0] === 'issue' && args[1] === 'comment') {
+  const body = readFileSync(args[args.indexOf('--body-file') + 1], 'utf8')
+  const comment = { id: 100, body, user: { login: 'boat1994' } }
+  state.comments.push(comment)
+  writeFileSync(statePath, JSON.stringify(state))
+} else if (args[0] === 'issue' && args[1] === 'edit') {
+  const body = readFileSync(args[args.indexOf('--body-file') + 1], 'utf8')
+  state.body = body
+  writeFileSync(statePath, JSON.stringify(state))
+} else if (args[0] === 'api' && args.some(a => a.includes('/contents/'))) {
+  // mock for lease store
+  if (args.includes('PUT') || args.includes('-X')) {
+    console.log(JSON.stringify({ content: { sha: 'new_sha' } }))
+  } else {
+    // 404 for read
+    process.stderr.write('404 Not Found')
+    process.exit(1)
+  }
+}
+`
+    writeFileSync(ghPath, ghMock)
+    chmodSync(ghPath, 0o755)
 
-    const withoutSeam = createCoordinator(readyPlanningState({ guide_source_sha: policyTip }))
-    await expect(withoutSeam.coordinator.integrateHandoff({ handoffBody: planningHandoffBody })).rejects.toThrow(
-      /planning_no_pr HANDOFF requires explicit planning_authorization_base_sha/,
-    )
-    expect(withoutSeam.getState()).not.toHaveProperty('planning_authorization_base_sha')
+    const dispatchScript = join(process.cwd(), 'scripts/mission-control-dispatch.mjs')
+    const handoffPath = join(root, 'handoff.md')
+    writeFileSync(handoffPath, planningHandoffBody)
 
-    const result = await coordinator.integrateHandoff({
-      handoffBody: planningHandoffBody,
-      planningAuthorizationBaseSha: lineageBase,
+    // Test without seam
+    const withoutSeam = spawnSync(process.execPath, [dispatchScript, '92', '--repo', 'boat1994/test', '--body-file', handoffPath], {
+      env: { ...process.env, PATH: `${root}:${process.env.PATH}`, GITHUB_REPOSITORY_OWNER: 'boat1994' },
+      encoding: 'utf8',
     })
-    expect(result.outcome).toBe('DISPATCHED')
-    expect(getState().planning_authorization_base_sha).toBe(lineageBase)
-    expect(getState().planning_authorization_base_sha).not.toBe(policyTip)
-    expect(getState().guide_source_sha).toBe(policyTip)
-    expect(getState().workflow_mode).toBe('planning_no_pr')
+    expect(withoutSeam.status).not.toBe(0)
+    expect(withoutSeam.stderr || withoutSeam.stdout).toMatch(/planning_no_pr HANDOFF requires explicit planning_authorization_base_sha/)
+
+    // Reset state for retry
+    writeFileSync(statePath, JSON.stringify({ body: initialBody, comments: [] }))
+
+    // Test with seam
+    const result = spawnSync(process.execPath, [dispatchScript, '92', '--repo', 'boat1994/test', '--body-file', handoffPath, '--workflow-mode', 'planning_no_pr', '--planning-base-sha', lineageBase], {
+      env: { ...process.env, PATH: `${root}:${process.env.PATH}`, GITHUB_REPOSITORY_OWNER: 'boat1994' },
+      encoding: 'utf8',
+    })
+    if (result.status !== 0) {
+      console.error(result.stderr || result.stdout)
+    }
+    expect(result.status).toBe(0)
+
+    const finalState = JSON.parse(readFileSync(statePath, 'utf8'))
+    const parsed = parseMissionControlState(finalState.body)
+    expect(parsed.state.planning_authorization_base_sha).toBe(lineageBase)
+    expect(parsed.state.planning_authorization_base_sha).not.toBe(policyTip)
+    expect(parsed.state.guide_source_sha).toBe(policyTip)
+    expect(parsed.state.workflow_mode).toBe('planning_no_pr')
   })
 
   it('WF-02: planning branch created before protected policy advance', () => {
