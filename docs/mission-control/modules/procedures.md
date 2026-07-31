@@ -80,7 +80,7 @@ State Reconciler completion
 = deterministic state repair from unambiguous evidence, or explicit STATE_CONFLICT
 
 Founder-authorized merge transition
-= verify authorization/head/CI + mark ready when needed + merge + verify merge commit + DONE/close
+= verify authorization/head/CI + mark ready when needed + merge + verify merge commit + close Issue completed + reconcile DONE + verify NO_OP
 ```
 
 A **State Reconciler** may normalize facts that are already proven. It may not
@@ -96,7 +96,8 @@ authorization.
 | `review_cycle`, `full_review_count` | Reviewer only (with `## REVIEW_VERDICT`) |
 | `last_reviewed_head` | Reviewer only |
 | Resulting correction/eligibility state | Reviewer or State Reconciler from verdict evidence |
-| `DONE` / terminal closure | Founder-authorized merge transition or State Reconciler from merge evidence |
+| Issue closure | Founder-authorized merge transport, after verified merge evidence |
+| `DONE` state projection | State Reconciler, only after the Issue is closed/completed and merge evidence agrees |
 | Issue acceptance criteria checklist | Mission Control pre-merge reconciliation only |
 
 Delivery and Reviewer roles may update **only** content between the
@@ -130,6 +131,7 @@ Apply this ordered classification before writing managed state:
 | Two authoritative live sources contradict each other | `STATE_CONFLICT` |
 | A managed task uses unambiguous legacy post-budget or Founder-authorization fields | deterministic migration |
 | One exact PR/head/CI/role-output chain is unambiguous and only bookkeeping lags | bookkeeping repair |
+| The PR is merged and otherwise valid, but the managed Issue is open | `STATE_CONFLICT`; merge transport must close the Issue |
 | The Issue is closed/completed, its PR is merged, and the reviewed head matches | terminal repair to `DONE` |
 | The same live evidence is already represented canonically | no-op |
 
@@ -145,6 +147,64 @@ one fresh live verification. It must not recurse or attempt a second repair.
 Identical evidence after a completed reconciliation performs no state write,
 posts no role comment, and requires no model stage. After terminal repair,
 stale non-authoritative bookkeeping must never reopen the task.
+
+The reconciler owns no Issue lifecycle operation: it never closes or reopens an
+Issue. Option A assigns closure to merge transport. After Founder authorization,
+configure the repository Actions variable `BEMOAT_FOUNDER_LOGINS` as a
+comma-separated allowlist of GitHub user logins. This repository-owned setting
+is required for personal and organization-owned repositories; caller-provided
+environment values never establish Founder identity. Then record one trusted
+Issue comment containing the exact authorization object:
+
+```json
+{
+  "schema_version": 1,
+  "authority": "Founder",
+  "scope": "merge",
+  "task_issue": 123,
+  "pr": 124,
+  "reviewed_head": "<exact-reviewed-head>",
+  "action": "merge"
+}
+```
+
+Then run the single terminal entrypoint with that comment ID:
+
+```bash
+pnpm run bemoat:mission-control:merge -- 123 \
+  --repo owner/repository \
+  --authorization-comment <comment-id>
+```
+
+The PR body must use `Refs #<issue>`. The PR title/body and every commit subject
+and body must not contain `Closes`, `Fixes`, or `Resolves` references to the
+managed Issue. The transport queries every commit through GitHub's paginated
+commits endpoint and rejects all of those automatic closing sources so GitHub
+cannot close the Issue before protected-base verification and the explicit
+closure step.
+
+The executable command performs this exact order:
+
+```text
+verify explicit Founder authorization
+→ verify exact reviewed/current PR head and required exact-head CI
+→ mark the Draft PR ready when required
+→ merge with expected-head protection
+→ verify the merge commit on the protected base
+→ close only the directly managed Issue as completed
+→ invoke bounded reconciliation and require DONE
+→ rerun reconciliation and require NO_OP
+```
+
+If merge succeeds before Issue closure fails, rerun the same merge command; it
+does not merge twice. If Issue closure succeeds before `DONE` projection fails,
+rerun it; the already-closed Issue is not closed twice. An already-merged,
+closed, `DONE` task returns `NO_OP`. A delegated parent without direct
+`active_pr` ownership is never closed or projected by a child task transport.
+
+If the first reconcile command returns a classified failure, the CLI prints its
+`finalReason`, then its initial `reason`, then the deterministic safe fallback;
+it must never emit a blank `ERROR:` diagnostic.
 
 ### Atomic implementation dispatch
 

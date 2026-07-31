@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- untyped runtime .mjs boundary */
 import * as reconcileModule from '../../scripts/mission-control-reconcile.mjs'
+import { parseMissionControlState, renderMissionControlState } from '../../scripts/mission-control-state.mjs'
 
 // Shared .mjs scripts expose runtime behavior, not TypeScript declarations. Keep
 // the strict-project boundary explicit without changing the production API.
@@ -33,6 +34,7 @@ const {
   findMatchingComments,
   proposeDeliveryReconciliation,
   proposeReviewReconciliation,
+  reconciliationFailureReason,
   runBoundedReconciliation,
   resolveProductionCommentTrust,
 } = reconcileModule as unknown as Record<string, (...args: any[]) => any>
@@ -78,6 +80,118 @@ const sampleVerdict = `## REVIEW_VERDICT
 `
 
 describe('mission-control reconcile classifiers', () => {
+  it('explains that merge transport must close a merged PR open Issue before terminal reconciliation', () => {
+    expect(classifyReconciliation({
+      managedState: { state: 'ELIGIBLE_FOR_FOUNDER_REVIEW' },
+      terminal: {
+        issueClosed: false,
+        prMerged: true,
+        reviewedHeadMatches: true,
+        currentHeadMatches: true,
+        mergeCommit: 'merge-sha',
+        exactHeadCi: true,
+      },
+    })).toEqual({
+      outcome: 'STATE_CONFLICT',
+      reason: 'merged PR is verified but the managed Issue remains open; merge transport must close the Issue before terminal reconciliation',
+    })
+  })
+
+  it.each([
+    ['STATE_CONFLICT', { authoritativeContradiction: true }, 'authoritative live evidence contradicts'],
+    ['BLOCKED_EXTERNAL', { requiredEvidenceUnavailable: true }, 'required live evidence is unavailable'],
+  ])('propagates a non-empty finalReason for an initial %s without writing', async (_outcome, evidence, reason) => {
+    let writes = 0
+    const result = await runBoundedReconciliation({
+      readEvidence: async () => evidence,
+      writeState: async () => { writes += 1 },
+    })
+
+    expect(result).toMatchObject({ finalOutcome: _outcome, finalReason: reason })
+    expect(writes).toBe(0)
+  })
+
+  it('selects a deterministic production diagnostic fallback without a blank error', () => {
+    expect(reconciliationFailureReason({ finalReason: 'verified failure', reason: 'initial failure' }))
+      .toBe('verified failure')
+    expect(reconciliationFailureReason({ reason: 'initial failure' })).toBe('initial failure')
+    expect(reconciliationFailureReason({})).toBe('Mission Control reconciliation failed without a diagnostic')
+  })
+
+  it('accepts only a structured RESULT-bound pre-review Founder decision gate at counters 0/0', () => {
+    const base: any = {
+      schema_version: 1,
+      state: 'BLOCKED_FOR_FOUNDER_DECISION',
+      review_cycle: 0,
+      full_review_count: 0,
+      approved_base: 'main',
+      active_task_issue: '#222',
+      active_pr: null,
+      current_head: null,
+      last_reviewed_head: null,
+      latest_transition_identity: JSON.stringify({
+        taskId: '222',
+        phase: 'Investigation',
+        role: 'RESULT',
+        contentHash: 'a'.repeat(64),
+      }),
+      latest_result_comment_id: '5131773375',
+      guide_version: '1.2.0',
+      guide_source_ref: 'main',
+      guide_source_sha: '8df91686d715a0ddf0ddf258bf9fa5b060a4af29',
+      open_blockers: [],
+      follow_up_issues: [],
+      next_permitted_action: 'Founder decides the bounded implementation direction.',
+      material_change_status: 'none',
+      updated_at: '2026-07-30T13:59:01Z',
+      updated_by: 'Diagnostic Investigator',
+    }
+
+    expect(parseMissionControlState(renderMissionControlState(base))).toMatchObject({ valid: true })
+
+    const freeFormOnly = structuredClone(base)
+    delete (freeFormOnly as Record<string, unknown>).latest_transition_identity
+    delete (freeFormOnly as Record<string, unknown>).latest_result_comment_id
+    expect(parseMissionControlState(renderMissionControlState(freeFormOnly))).toMatchObject({ valid: false })
+
+    const reviewBacked = structuredClone(base)
+    reviewBacked.latest_transition_identity = JSON.stringify({
+      taskId: '222', phase: 'Review', role: 'REVIEW_VERDICT', contentHash: 'b'.repeat(64),
+    })
+    expect(parseMissionControlState(renderMissionControlState(reviewBacked))).toMatchObject({ valid: false })
+
+    const activeDelivery = structuredClone(base)
+    activeDelivery.active_pr = '#223'
+    activeDelivery.current_head = 'c'.repeat(40)
+    expect(parseMissionControlState(renderMissionControlState(activeDelivery))).toMatchObject({ valid: false })
+
+    for (const phase of ['Diagnostic — terminal contract', 'Investigation — terminal contract']) {
+      const accepted = structuredClone(base)
+      accepted.latest_transition_identity = JSON.stringify({
+        taskId: '222', phase, role: 'RESULT', contentHash: 'd'.repeat(64),
+      })
+      expect(parseMissionControlState(renderMissionControlState(accepted))).toMatchObject({ valid: true })
+    }
+
+    for (const phase of [
+      'Dev (implementation)',
+      'Dev (correction)',
+      'Delivery',
+      'Reviewer',
+      'Planning',
+      'arbitrary non-empty phase',
+    ]) {
+      const rejected = structuredClone(base)
+      rejected.latest_transition_identity = JSON.stringify({
+        taskId: '222', phase, role: 'RESULT', contentHash: 'e'.repeat(64),
+      })
+      expect(parseMissionControlState(renderMissionControlState(rejected))).toMatchObject({
+        valid: false,
+        reason: 'pre-review Founder decision gate must bind the active task to a Diagnostic or Investigation RESULT phase',
+      })
+    }
+  })
+
   it('migrates the exact Issue #171 founder_decision representation once without altering its lineage', () => {
     const legacy: any = {
       state: 'STATE_MIGRATION_REQUIRED',

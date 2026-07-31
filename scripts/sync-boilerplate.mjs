@@ -79,6 +79,7 @@ export const managedPaths = [
   'scripts/agent-delivery.mjs',
   'scripts/correction-contract.mjs',
   'scripts/mission-control-reconcile.mjs',
+  'scripts/mission-control-merge.mjs',
   'scripts/mission-control-dispatch.mjs',
   'scripts/mission-control-issue-body-cas.mjs',
   'scripts/post-role-comment.mjs',
@@ -126,6 +127,7 @@ export const managedPaths = [
   'tests/int/guard-planning-contract-starter-main-base.int.spec.ts',
   'tests/int/mission-control-contract.int.spec.ts',
   'tests/int/mission-control-reconcile.int.spec.ts',
+  'tests/int/mission-control-merge.int.spec.ts',
   'tests/int/mission-control-issue-body-cas.int.spec.ts',
   'tests/int/mission-control-correction-entrypoints.int.spec.ts',
   'tests/int/mission-control-characterization.int.spec.ts',
@@ -171,6 +173,7 @@ export const packageSyncProposalPath = '.bemoat/package-sync-proposal.md'
 export const managedPackageScripts = [
   'bemoat:agent:issue',
   'bemoat:mission-control:dispatch',
+  'bemoat:mission-control:merge',
   'bemoat:agent:delivery',
   'bemoat:issue:comment',
   'bemoat:branch:check',

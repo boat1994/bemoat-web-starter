@@ -132,7 +132,7 @@ state.
 For bounded defects where root cause, acceptance criteria, and affected files are clear:
 - **No separate planning phase**: Bounded defects proceed directly to implementation (`READY` or `IN_PROGRESS`) without requiring a dedicated planning phase or separate plan document.
 - **No duplicate Founder approval gates**: If Founder authorization was already granted or the defect is pre-authorized correction work, do not insert a duplicate pre-implementation Founder review gate.
-- **Atomic Dev delivery**: Dev completes code changes, validation, Draft PR (`Closes #N`), exact-head CI verification, `## RESULT` comment, and state advancement (`AWAITING_REVIEW_1`) atomically in one delivery run.
+- **Atomic Dev delivery**: Dev completes code changes, validation, Draft PR (`Refs #N` when Option A merge transport owns Issue closure; otherwise the repository's normal linkage), exact-head CI verification, `## RESULT` comment, and state advancement (`AWAITING_REVIEW_1`) atomically in one delivery run.
 - **Deterministic comment-timestamp filtering**: When evaluating live task progress in `READY` or `IN_PROGRESS`, role comments (`RESULT` or `REVIEW_VERDICT`) from earlier planning or diagnostic phases whose valid timestamps (`createdAt`) precede a valid `state.updated_at` are ignored by deterministic preflight guards (`#146`) to prevent stale comments from triggering false `STATE_CONFLICT` blockers or inferring stale PR references. If either timestamp is absent or malformed (`NaN`), the role comment is preserved for normal reconciliation or fail-closed rules rather than treating invalid timestamps as epoch zero (`MC-R1-003`).
 
 ## Double-Loop Review Gate
@@ -387,6 +387,18 @@ updated_by: null
 - If PR head changes after review, the previous verdict remains historical evidence but does not cover the new head.
 - If a managed task has a malformed or absent block, return `STATE_MIGRATION_REQUIRED`; do not silently initialize as Review 1.
 
+`BLOCKED_FOR_FOUNDER_DECISION` normally remains review-backed with
+`full_review_count: 1`. The only pre-review form uses counters `0/0` and is a
+no-code diagnostic/planning gate. It is valid only when `active_pr`,
+`current_head`, and `last_reviewed_head` are all `null`,
+`latest_result_comment_id` identifies the bound RESULT, and the structured
+`latest_transition_identity` binds the active task to role `RESULT` with a
+non-empty phase and SHA-256 content hash. A `REVIEW_VERDICT` identity cannot
+authorize this form. Free-form `next_permitted_action` text is routing only and
+must never discriminate the schema. Normal review-backed and post-budget
+Founder gates retain their existing counters, exact-head bindings, and
+authorization rules.
+
 ### Founder-authorized post-budget history
 
 ### Founder-authorized correction after normal Review 3
@@ -519,6 +531,28 @@ requires the separate `scope: correction` Founder decision shown above.
 Any normal state may transition to `BLOCKED_EXTERNAL`, `STATE_CONFLICT`, or
 `STATE_MIGRATION_REQUIRED` when proven. No backward transition without exact
 evidence and authorized reason.
+
+### Terminal completion contract (Option A)
+
+Merge transport owns Issue closure. The canonical sequence is: verify Founder
+authorization and the exact reviewed head/CI; merge that head; verify the merge
+commit on the protected base; close the managed Issue as completed; run bounded
+reconciliation to write `DONE`; then verify the same evidence returns `NO_OP`.
+Use the executable `bemoat:mission-control:merge` entrypoint with a pinned,
+trusted Founder authorization comment whose authenticated author is listed in
+the repository Actions variable `BEMOAT_FOUNDER_LOGINS`. The repository-owned
+allowlist supports personal and organization-owned child repositories without
+trusting caller environment state. The transport marks a Draft PR ready,
+merges only the authorized expected head, closes only the directly managed Task
+Issue, and resumes safely after a partial merge, closure, or state-projection
+failure.
+
+The reconciler updates only the managed state block through lease/CAS. It never
+closes or reopens an Issue. A merged PR with an open managed Issue therefore
+fails closed with an actionable `STATE_CONFLICT` directing merge transport to
+close the Issue before terminal reconciliation. If Issue closure succeeds but
+the state write fails, rerunning reconciliation repairs `DONE` once and performs
+one verification.
 
 ## Review-cycle budget
 

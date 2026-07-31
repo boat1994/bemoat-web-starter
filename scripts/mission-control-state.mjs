@@ -163,6 +163,37 @@ function validatePostBudgetReviews(state) {
   return { valid: true, reviews: state.post_budget_reviews }
 }
 
+function validatePreReviewFounderDecisionGate(state) {
+  if (state.active_pr !== null || state.current_head !== null || state.last_reviewed_head !== null) {
+    return { valid: false, reason: 'pre-review Founder decision gate cannot bind an active PR or head' }
+  }
+  if (typeof state.latest_result_comment_id !== 'string' || !/^[1-9]\d*$/.test(state.latest_result_comment_id)) {
+    return { valid: false, reason: 'pre-review Founder decision gate requires a bound RESULT comment id' }
+  }
+  if (typeof state.latest_transition_identity !== 'string' || !state.latest_transition_identity) {
+    return { valid: false, reason: 'pre-review Founder decision gate requires a bound RESULT transition identity' }
+  }
+
+  let identity
+  try {
+    identity = JSON.parse(state.latest_transition_identity)
+  } catch {
+    return { valid: false, reason: 'pre-review Founder decision gate RESULT transition identity is invalid' }
+  }
+  const taskIssue = String(state.active_task_issue ?? '').match(/#(\d+)$/)?.[1] ?? null
+  const isDiagnosticPhase =
+    typeof identity?.phase === 'string' && /^(Diagnostic|Investigation)(?:\b|\s|[-—:(])/.test(identity.phase.trim())
+  if (
+    !identity || typeof identity !== 'object' || Array.isArray(identity) ||
+    identity.role !== 'RESULT' || identity.taskId !== taskIssue ||
+    !isDiagnosticPhase ||
+    typeof identity.contentHash !== 'string' || !/^[0-9a-f]{64}$/.test(identity.contentHash)
+  ) {
+    return { valid: false, reason: 'pre-review Founder decision gate must bind the active task to a Diagnostic or Investigation RESULT phase' }
+  }
+  return { valid: true }
+}
+
 /**
  * @typedef {{
  *   schema_version: number,
@@ -318,7 +349,6 @@ export function parseMissionControlState(body = '') {
     AWAITING_REVIEW_2: 1,
     CORRECTION_REQUIRED_2: 1,
     AWAITING_REVIEW_3: 1,
-    BLOCKED_FOR_FOUNDER_DECISION: 1,
     ELIGIBLE_FOR_FOUNDER_REVIEW: 1,
     DONE: 1,
   }
@@ -327,6 +357,14 @@ export function parseMissionControlState(body = '') {
   }
   if (state.state === 'IN_PROGRESS' && !hasPostBudgetReviews && state.full_review_count !== 0 && state.full_review_count !== 1) {
     return { present: true, valid: false, reason: 'state and full_review_count are inconsistent' }
+  }
+  if (state.state === 'BLOCKED_FOR_FOUNDER_DECISION') {
+    if (state.review_cycle === 0 && state.full_review_count === 0) {
+      const preReviewGate = validatePreReviewFounderDecisionGate(state)
+      if (!preReviewGate.valid) return { present: true, valid: false, reason: preReviewGate.reason }
+    } else if (state.full_review_count !== 1) {
+      return { present: true, valid: false, reason: 'state and full_review_count are inconsistent' }
+    }
   }
 
   return { present: true, valid: true, state: /** @type {MissionControlState} */ (state) }
