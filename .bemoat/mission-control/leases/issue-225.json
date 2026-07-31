@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "issue": "225",
-  "transition_identity": "{\"taskId\":\"225\",\"phase\":\"Dev (correction)\",\"role\":\"HANDOFF\",\"contentHash\":\"05566dbf7e8637132f31d019c721767578876aac75c9e7df72d0f9d991c655dd\"}",
+  "transition_identity": "{\"taskId\":\"225\",\"phase\":\"Dev (correction)\",\"role\":\"RESULT\",\"contentHash\":\"6e1047015333b97d287bb8f903cfcf3f618f4cdd6dfd9feaa26abf21040bee96\"}",
   "observed_body_sha256": "f5c2ed8bef9e1fd1ab9a60a57cc4a3629135812059232747f28893e3784949d8",
-  "holder": "mission-control-founder-correction-225",
-  "status": "released",
-  "updated_at": "2026-07-31T08:09:57.088Z"
+  "holder": "agent-delivery",
+  "status": "held",
+  "updated_at": "2026-07-31T08:54:42.490Z"
 }
