@@ -2,8 +2,8 @@
   "schema_version": 1,
   "issue": "215",
   "transition_identity": "{\"taskId\":\"215\",\"phase\":\"Dev (correction)\",\"role\":\"RESULT\",\"contentHash\":\"81588f51c4255aa9b594dc8827df80872489ee9d667df6754c8406f1255c626e\"}",
-  "observed_body_sha256": "7a77d58004f678df61ec0b5aa5d3a13abf186d0305cae008e1809f48228ff3d3",
+  "observed_body_sha256": "19a73bd0abe7d89f96197e9a80027ae8b06372184d4635da67c1cc2c8ccebd32",
   "holder": "mission-control-state-reconciler",
-  "status": "held",
-  "updated_at": "2026-08-01T15:54:24.178Z"
+  "status": "released",
+  "updated_at": "2026-08-01T15:54:27.672Z"
 }
