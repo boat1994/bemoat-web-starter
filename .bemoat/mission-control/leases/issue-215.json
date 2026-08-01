@@ -3,7 +3,7 @@
   "issue": "215",
   "transition_identity": "{\"taskId\":\"215\",\"phase\":\"Dev (implementation) — Slice 1 delivery reconciliation\",\"role\":\"RESULT\",\"contentHash\":\"11ac7cec12f35814ed9e4917d2e035b4ac0d7e6d78c1112e3be47457425fcd6a\"}",
   "observed_body_sha256": "169e05ddd951384e15076baac4cdebab2c7ccd0d0d68ec36a66123664e60eeb3",
-  "holder": "agent-delivery",
-  "status": "released",
-  "updated_at": "2026-08-01T14:50:29.160Z"
+  "holder": "mission-control-reconcile",
+  "status": "held",
+  "updated_at": "2026-08-01T14:56:42.917Z"
 }
