@@ -2,8 +2,8 @@
   "schema_version": 1,
   "issue": "215",
   "transition_identity": "founder-decision:issue-215:revised-p1-p2-milestone:f9359ecc608160d40f5143bbba89c4ac835432ad",
-  "observed_body_sha256": "7b426d9c8fbc08b2fcabd07d2e9df6011c31b833176ec1d65252ddd901cd24c1",
+  "observed_body_sha256": "5f67ff9ae678c032ec8ee008edb583d0c22cf0be42c76ff10a139ed4141bd2b9",
   "holder": "mission-control-founder-decision-recording",
-  "status": "held",
-  "updated_at": "2026-08-01T11:27:54.192Z"
+  "status": "released",
+  "updated_at": "2026-08-01T11:27:57.645Z"
 }
