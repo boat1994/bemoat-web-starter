@@ -2,8 +2,8 @@
   "schema_version": 1,
   "issue": "240",
   "transition_identity": "{\"taskId\":\"240\",\"phase\":\"Full Semantic Review 1\",\"role\":\"REVIEW_VERDICT\",\"contentHash\":\"f039c0fbff4b53334967cb2261e4d82b1fd3aa08b1093639318ce1839fc40926\"}",
-  "observed_body_sha256": "cab7aa0f8acf341a69f41cb6b0a04f4b44c8b9561c34dd2d192df63899061cb4",
+  "observed_body_sha256": "82456ce248773e555ffbb02f48d28eb43728e0dcd9cc362e6442f6304238023e",
   "holder": "mission-control-review-verdict-reconciler",
-  "status": "held",
-  "updated_at": "2026-08-01T18:19:24.586Z"
+  "status": "released",
+  "updated_at": "2026-08-01T18:19:27.823Z"
 }
