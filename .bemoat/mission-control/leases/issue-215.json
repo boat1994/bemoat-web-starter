@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "issue": "215",
-  "transition_identity": "{\"taskId\":\"215\",\"phase\":\"Diagnostic — Slice 1 planning and characterization re-run\",\"role\":\"RESULT\",\"contentHash\":\"e95add295cd2b9f2c8604d4c23006553c5fff8e95746d32ad9916391ec8d766a\"}",
+  "transition_identity": "{\"taskId\":\"215\",\"phase\":\"Dev (implementation) — Slice 1\",\"role\":\"HANDOFF\",\"contentHash\":\"2031e1936e82e0f69ea260a0a6262009adc29bfcb5c2eb760fc61e131fe4fce6\"}",
   "observed_body_sha256": "0ad9776e0c4588423a3b1a6a063ccb34cd0746677d78f61dba44f47715295094",
-  "holder": "slice1-planning-diagnostic",
-  "status": "released",
-  "updated_at": "2026-08-01T12:18:45.925Z"
+  "holder": "founder-decision-215-slice1-plan-approve",
+  "status": "held",
+  "updated_at": "2026-08-01T12:49:47.272Z"
 }
