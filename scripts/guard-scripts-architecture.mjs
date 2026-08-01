@@ -12,6 +12,7 @@ export class ArchitectureContractError extends Error {
 }
 
 const FROM_RE = /\bfrom\s+['"](\.\.?\/[^'"]+\.mjs)['"]/g
+const SIDE_EFFECT_IMPORT_RE = /\bimport\s+['"](\.\.?\/[^'"]+\.mjs)['"]/g
 const DYNAMIC_RE = /\bimport\s*\(\s*['"](\.\.?\/[^'"]+\.mjs)['"]\s*\)/g
 
 function listMjsFiles(dir, out = []) {
@@ -40,7 +41,7 @@ function toRepoPath(root, absolutePath) {
 function extractRelativeSpecs(source) {
   const specs = []
   const cleaned = stripComments(source)
-  for (const pattern of [FROM_RE, DYNAMIC_RE]) {
+  for (const pattern of [FROM_RE, SIDE_EFFECT_IMPORT_RE, DYNAMIC_RE]) {
     pattern.lastIndex = 0
     let match
     while ((match = pattern.exec(cleaned))) {
@@ -63,7 +64,6 @@ export function buildScriptImportGraph(root) {
       const targetAbsolute = normalize(resolve(dirname(absolutePath), spec))
       if (!existsSync(targetAbsolute)) continue
       const target = toRepoPath(root, targetAbsolute)
-      if (target === importer) continue
       graph.get(importer).add(target)
       if (!graph.has(target)) graph.set(target, new Set())
     }
@@ -128,17 +128,22 @@ export function collectInternalEdges(graph, component) {
   return edges
 }
 
+function componentHasSelfEdge(graph, component) {
+  return component.some((node) => (graph.get(node) ?? new Set()).has(node))
+}
+
 export function validateArchitectureContract(root) {
   const contractPath = join(root, 'scripts/architecture-contract.json')
   const contract = JSON.parse(readFileSync(contractPath, 'utf8'))
   const cycleNodesAllowed = new Set(contract.cycleNodes)
   const cycleEdgesAllowed = new Set(contract.cycleEdges)
-  
+
   const graph = buildScriptImportGraph(root)
   const violations = []
 
   for (const component of findStronglyConnectedComponents(graph)) {
-    if (component.length < 2) continue
+    const isCyclic = component.length >= 2 || componentHasSelfEdge(graph, component)
+    if (!isCyclic) continue
 
     for (const path of component) {
       if (!cycleNodesAllowed.has(path)) {
@@ -167,13 +172,20 @@ export function validateArchitectureContract(root) {
     }
 
     const expectedImporters = new Set(config.importers || [])
-    const actualImporters = [...graph.entries()]
-      .filter(([, targets]) => targets.has(adapterPath))
-      .map(([importer]) => importer)
+    const actualImporters = new Set(
+      [...graph.entries()]
+        .filter(([, targets]) => targets.has(adapterPath))
+        .map(([importer]) => importer),
+    )
 
     for (const importer of actualImporters) {
       if (!expectedImporters.has(importer)) {
         violations.push(`Unallowed importer for adapter ${adapterPath}: ${importer}`)
+      }
+    }
+    for (const importer of expectedImporters) {
+      if (!actualImporters.has(importer)) {
+        violations.push(`Missing expected importer for adapter ${adapterPath}: ${importer}`)
       }
     }
   }
