@@ -1156,17 +1156,28 @@ printf '%s' '{"title":"Minimal bemoat:agent:issue contract for issue-driven AI w
     seedTrackedFile(root, 'README.md', 'approved planning baseline\n')
     const baselineSha = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim()
     const issueBody = issue243Body(baselineSha)
+    // Exact live GitHub body of Issue #243 comment 5153066669 (created_at 2026-08-01T19:32:42Z).
+    // Role-comment prose may look approving; it is not durable Founder approval or edit authority.
     const handoffBody = `## HANDOFF
 
 ### Task log
+- Timestamp: \`2026-08-02T09:00:00+07:00\`
 - Task / Issue: #243
 - Phase: Implementation
+- Executing role: Mission Control
+- Model / reasoning: GPT-5 / coordination
 
 **Target:** Dev
 **Objective:** Implement exactly the additive campaign projection schema v1 and bounded implementation plan already approved on Issue #243.
 **Founder decision:** APPROVE
-**Authorized scope:** Independent campaign marker/schema v1 only.
-**Prohibited:** implementing #242 or changing unrelated state.
+
+**Authorized scope:** Independent campaign marker/schema v1, strict parser/renderer/validator, architecture mapping, characterization/integration evidence, and the listed focused validation only.
+
+**Prohibited:** changing task schema v1; writing to live Issue #215; modifying or merging PR #241; implementing #242; starting Slice 3; child sync; Finance #92; deployment; migration; production access; retained-data mutation; or any scope expansion.
+
+**Verify:** Preserve all unrelated Issue #243 bytes; run the exact focused tests, architecture integration test, \`pnpm run check\`, and \`git diff --check\`; stop at Full Semantic Review 1.
+
+**Next:** Dev posts one implementation RESULT with exact head and evidence.
 `
     const issuePayload = JSON.stringify({
       title: '[Harness][Campaign Schema] Add independent campaign projection for Issue #215',
@@ -1178,7 +1189,7 @@ printf '%s' '{"title":"Minimal bemoat:agent:issue contract for issue-driven AI w
       comments: [{
         id: 5153066669,
         body: handoffBody,
-        createdAt: '2026-08-02T02:33:00Z',
+        createdAt: '2026-08-01T19:32:42Z',
       }],
     }).replace(/'/g, `'"'"'`)
     const result = runAgentIssue(root, ['243'], {
@@ -1205,12 +1216,15 @@ esac
     expect(result.stdout).toContain('Read-only planning/diagnostic validation: exact approved protected baseline verified')
     expect(result.stdout).toContain('Next manual step: Remain read-only; Founder decision is required before implementation.')
     expect(result.stdout).not.toContain('Edit authorization: granted')
-    expect(parseRoleCommentBody(handoffBody)).toMatchObject({
-      role: 'HANDOFF',
-      verdict: null,
-      prNumber: null,
-      headSha: null,
-    })
+
+    const parsedHandoff = parseRoleCommentBody(handoffBody)
+    expect(parsedHandoff.role).toBe('HANDOFF')
+    expect(parsedHandoff.verdict).toBeNull()
+    expect(parsedHandoff.headSha).toBeNull()
+    // Live prohibited prose mentions PR #241; a role HANDOFF must not become PR/head authority.
+    expect(handoffBody).toContain('modifying or merging PR #241')
+    expect(handoffBody).toContain('**Founder decision:** APPROVE')
+    expect(handoffBody).toContain('Phase: Implementation')
 
     const analysis = analyzeProgressTracking({
       cwd: root,
@@ -1227,10 +1241,98 @@ esac
         workflow_mode: 'planning_no_pr',
         active_pr: null,
         current_head: null,
+        last_reviewed_head: null,
         latest_handoff_comment_id: '5153066669',
+        latest_result_comment_id: '5153076506',
+        latest_transition_identity: expect.stringContaining('"phase":"Diagnostic"'),
+        open_blockers: expect.arrayContaining([
+          expect.stringContaining('Founder implementation approval is required'),
+        ]),
         next_permitted_action: expect.stringContaining('Founder approves'),
       }),
     })
+    // Preflight is allowed only by durable planning_no_pr 0/0 shape + exact protected baseline.
+    // Role-comment APPROVE prose is not durable Founder approval or implementation authorization.
+    expect(analysis.report.missionControlState.state.founder_decision).toBeUndefined()
+    expect(analysis.report.missionControlState.state.active_pr).toBeNull()
+    expect(analysis.report.missionControlState.state.current_head).toBeNull()
+  })
+
+  it('keeps an explicitly approving synthetic HANDOFF from replacing durable Founder-decision state', () => {
+    const root = createRepo('main')
+    seedTrackedFile(root, 'README.md', 'approved planning baseline\n')
+    const baselineSha = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim()
+    const syntheticHandoffId = 9005153066669
+    const issueBody = issue243Body(baselineSha, {
+      latest_handoff_comment_id: String(syntheticHandoffId),
+    })
+    const syntheticApprovingHandoff = `## HANDOFF
+
+### Task log
+- Task / Issue: #243
+- Phase: Implementation
+- Executing role: Mission Control
+
+**Target:** Dev
+**Objective:** Synthetic approving HANDOFF used only to prove role comments are not durable Founder authority.
+**Founder decision:** APPROVE
+**Authorized scope:** none — synthetic fixture only.
+**Prohibited:** treating this comment as Founder-decision or implementation authorization.
+`
+    const issuePayload = JSON.stringify({
+      title: '[Harness][Campaign Schema] Add independent campaign projection for Issue #215',
+      url: 'https://github.com/boat1994/bemoat-web-starter/issues/243',
+      body: issueBody,
+      labels: [],
+    }).replace(/'/g, `'"'"'`)
+    const commentsPayload = JSON.stringify({
+      comments: [{
+        id: syntheticHandoffId,
+        body: syntheticApprovingHandoff,
+        createdAt: '2026-08-02T03:00:00Z',
+      }],
+    }).replace(/'/g, `'"'"'`)
+    const result = runAgentIssue(root, ['243'], {
+      PATH: withStubbedGh(
+        root,
+        `#!/usr/bin/env sh
+case "$*" in
+  *"issue view 243"*"title,url,body,labels"*) printf '%s' '${issuePayload}' ;;
+  *"issue view 243"*"comments"*) printf '%s' '${commentsPayload}' ;;
+  *) echo "unexpected gh call: $*" >&2; exit 1 ;;
+esac
+`,
+      ),
+    })
+
+    expect(result.status, result.stderr || result.stdout).toBe(0)
+    expect(result.stdout).toContain('Read-only planning/diagnostic validation: exact approved protected baseline verified')
+    expect(result.stdout).toContain('Next manual step: Remain read-only; Founder decision is required before implementation.')
+    expect(result.stdout).not.toContain('Edit authorization: granted')
+    expect(parseRoleCommentBody(syntheticApprovingHandoff)).toMatchObject({
+      role: 'HANDOFF',
+      verdict: null,
+      prNumber: null,
+      headSha: null,
+    })
+
+    const analysis = analyzeProgressTracking({
+      cwd: root,
+      activeIssueNumber: '243',
+      activeIssueBody: issueBody,
+    })
+    expect(analysis.blockers).toEqual([])
+    expect(analysis.report.missionControlState.state).toMatchObject({
+      state: 'BLOCKED_FOR_FOUNDER_DECISION',
+      workflow_mode: 'planning_no_pr',
+      review_cycle: 0,
+      full_review_count: 0,
+      active_pr: null,
+      current_head: null,
+      latest_handoff_comment_id: String(syntheticHandoffId),
+      next_permitted_action: expect.stringContaining('Founder approves'),
+    })
+    expect(analysis.report.missionControlState.state.founder_decision).toBeUndefined()
   })
 
   it('continues requiring PR and head evidence for eligibility even when planning_no_pr is present', () => {
