@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "issue": "215",
-  "transition_identity": "{\"taskId\":\"215\",\"phase\":\"Dev (implementation) — Slice 1 delivery reconciliation\",\"role\":\"RESULT\",\"contentHash\":\"11ac7cec12f35814ed9e4917d2e035b4ac0d7e6d78c1112e3be47457425fcd6a\"}",
+  "transition_identity": "{\"taskId\":\"215\",\"phase\":\"Dev (review)\",\"role\":\"REVIEW_VERDICT\",\"contentHash\":\"e6d7909b548fdf5efd4228bc4c81fa289ffc4a9611011e98f76c17f7f0706e23\"}",
   "observed_body_sha256": "a6734b56ea16479b3e5a33636290d5bc29c2287da1dde770622de801781ab1cb",
-  "holder": "mission-control-reconcile",
-  "status": "released",
-  "updated_at": "2026-08-01T14:56:46.270Z"
+  "holder": "mission-control-review",
+  "status": "held",
+  "updated_at": "2026-08-01T15:06:01.018Z"
 }
