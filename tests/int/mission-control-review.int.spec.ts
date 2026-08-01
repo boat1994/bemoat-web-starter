@@ -178,9 +178,19 @@ describe('mission-control review transition', () => {
   it('keeps the review CLI as a sync-managed facade', async () => {
     const sync = await import('../../scripts/sync-boilerplate.mjs')
     expect(sync.managedPaths).toContain('scripts/mission-control-review.mjs')
+    expect(sync.managedPaths).toContain('scripts/command-runner.mjs')
     expect(sync.managedPackageScripts).toContain('bemoat:mission-control:review')
     expect((await import('../../package.json', { with: { type: 'json' } })).default.scripts['bemoat:mission-control:review'])
       .toBe('node scripts/mission-control-review.mjs')
+  })
+
+  it('routes subprocess execution through CommandRunner with no direct child_process import', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { resolve } = await import('node:path')
+    const source = readFileSync(resolve(process.cwd(), 'scripts/mission-control-review.mjs'), 'utf8')
+    expect(source).toMatch(/from '\.\/command-runner\.mjs'/)
+    expect(source).not.toMatch(/from 'node:child_process'/)
+    expect(source).not.toMatch(/\bspawnSync\b/)
   })
 })
 

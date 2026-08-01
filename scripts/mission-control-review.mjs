@@ -2,8 +2,8 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { spawnSync } from 'node:child_process'
 import { analyzeExactHeadCi } from './agent-issue/exact-head-ci.mjs'
+import { runCommand as run } from './command-runner.mjs'
 import { parseReviewVerdictContractFindings } from './correction-contract.mjs'
 import { parseMissionControlState, renderMissionControlState } from './mission-control-state.mjs'
 import {
@@ -15,12 +15,6 @@ import {
   resolveProductionCommentTrust,
 } from './mission-control-reconcile.mjs'
 import { writeIssueBodyWithLease } from './mission-control-issue-body-cas.mjs'
-
-function run(command, args, options = {}) {
-  const result = spawnSync(command, args, { encoding: 'utf8', ...options })
-  if (result.error || result.status !== 0) throw new Error(result.stderr || result.stdout || result.error?.message || `${command} failed`)
-  return result.stdout.trim()
-}
 
 function parseArgs(argv) {
   const options = { issue: null, repo: null, bodyFile: null, expectedState: null, reviewType: null, expectedHead: null }
