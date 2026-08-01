@@ -23,6 +23,9 @@ import {
   runHarnessContractGuard,
 } from './guard-harness-contract.mjs'
 import {
+  validateArchitectureContract,
+} from './guard-scripts-architecture.mjs'
+import {
   formatMissionControlContractViolations,
   runMissionControlContractGuard,
 } from './guard-mission-control-contract.mjs'
@@ -112,6 +115,21 @@ export const GUARD_PACK = [
     run: runMissionControlDriftGuard,
     format: formatMissionControlDriftViolations,
   },
+  {
+    id: 'scripts-architecture',
+    summary: 'Scripts architecture contract (allowed cycles and edges)',
+    run: (options) => validateArchitectureContract(options?.root || process.cwd()),
+    format: (violations) => {
+      if (violations.length === 0) return ['Architecture contract guard passed.']
+      return [
+        'Architecture contract guard failed:',
+        '',
+        'Scripts architecture graph must match scripts/architecture-contract.json.',
+        '',
+        ...violations.map(v => `- ${v}`)
+      ]
+    },
+  },
 ]
 
 export function runGuardPack(options = {}) {
@@ -192,7 +210,8 @@ function main() {
 
   for (const line of lines) console.log(line)
 
-  process.exit(getGuardPackExitCode(results))
+  const exitCode = getGuardPackExitCode(results)
+  process.exit(exitCode)
 }
 
 if (isDirectExecution()) main()

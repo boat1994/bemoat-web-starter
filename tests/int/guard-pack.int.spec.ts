@@ -30,6 +30,7 @@ describe('central guard pack', () => {
       'mission-control-contract',
       'planning-contract',
       'mission-control-drift',
+      'scripts-architecture',
     ])
   })
 
@@ -247,6 +248,12 @@ describe('planning contract guard pack integration', () => {
     const absolutePlanPath = join(tempRoot, planPath)
     mkdirSync(dirname(absolutePlanPath), { recursive: true })
     writeFileSync(absolutePlanPath, readFileSync(join(planningFixturesRoot, 'closed-issue-169-reuse.md'), 'utf8'))
+
+    mkdirSync(join(tempRoot, 'scripts'), { recursive: true })
+    writeFileSync(
+      join(tempRoot, 'scripts/architecture-contract.json'),
+      readFileSync(resolve(process.cwd(), 'scripts/architecture-contract.json'), 'utf8')
+    )
 
     const results = mod.runGuardPack({
       root: tempRoot,
