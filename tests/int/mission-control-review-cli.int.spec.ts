@@ -77,7 +77,7 @@ if (args[0] === 'api') {
   const methodPostIndex = args.indexOf('-X');
   const methodPut = methodPostIndex !== -1 && args[methodPostIndex + 1] === 'PUT';
   const endpoint = args.find(a => a.startsWith('repos/'));
-  
+
   if (endpoint && endpoint.includes('/issues/') && endpoint.includes('/comments')) {
     if (method === 'POST') {
       if (config.simulateProjectionFailure) {
@@ -92,7 +92,7 @@ if (args[0] === 'api') {
       process.exit(0);
     }
   }
-  
+
   if (endpoint && endpoint.includes('/contents/.bemoat/mission-control/leases')) {
     if (methodPut) {
       if (config.failCas) {
@@ -117,12 +117,12 @@ if (args[0] === 'api') {
       process.exit(0);
     }
   }
-  
+
   if (endpoint && endpoint.includes('/git/ref/')) {
     console.log(JSON.stringify({ object: { sha: 'branch-sha' } }));
     process.exit(0);
   }
-  
+
   if (endpoint === 'repos/' + (config.repo || 'acme/repo')) {
     console.log(JSON.stringify({ default_branch: 'main' }));
     process.exit(0);
@@ -242,7 +242,7 @@ updated_by: "Mission Control"
   it('case 8: duplicate rerun / idempotency behavior', () => {
     const bodyFile = tempFile('verdict.md', validVerdict)
     const idempotentState = validState.replace('state: CORRECTION_REQUIRED_2', 'state: BLOCKED_FOR_FOUNDER_DECISION').replace('review_cycle: 2', 'review_cycle: 3').replace('last_reviewed_head: abc1234', 'last_reviewed_head: abc1234\nlatest_review_verdict_comment_id: 9001')
-    const gh = createGhMock({ 
+    const gh = createGhMock({
       issueBody: idempotentState, repo: 'acme/repo', prNumber: 230, prHead: 'abc1234', noLease: true,
       comments: [{ id: '9001', body: validVerdict, createdAt: '2026-08-01T00:30:00Z' }]
     })
