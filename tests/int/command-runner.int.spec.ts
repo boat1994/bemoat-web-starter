@@ -1,9 +1,21 @@
 import { describe, expect, it } from 'vitest'
-import { createCommandRunner, runCommand } from '../../scripts/command-runner.mjs'
+import {
+  createCommandRunner as createFromAdapter,
+  runCommand as runFromAdapter,
+} from '../../scripts/adapters/command-runner.mjs'
+import {
+  createCommandRunner as createFromFacade,
+  runCommand as runFromFacade,
+} from '../../scripts/command-runner.mjs'
 
 describe('scripts/command-runner.mjs', () => {
+  it('re-exports the same createCommandRunner and runCommand values as the adapter', () => {
+    expect(createFromFacade).toBe(createFromAdapter)
+    expect(runFromFacade).toBe(runFromAdapter)
+  })
+
   it('returns trimmed stdout on success', () => {
-    const run = createCommandRunner(() => ({
+    const run = createFromFacade(() => ({
       status: 0,
       stdout: '  ok\n',
       stderr: '',
@@ -13,7 +25,7 @@ describe('scripts/command-runner.mjs', () => {
   })
 
   it('throws stderr when the command exits non-zero', () => {
-    const run = createCommandRunner(() => ({
+    const run = createFromFacade(() => ({
       status: 1,
       stdout: '',
       stderr: 'boom',
@@ -23,7 +35,7 @@ describe('scripts/command-runner.mjs', () => {
   })
 
   it('throws stdout when stderr is empty on failure', () => {
-    const run = createCommandRunner(() => ({
+    const run = createFromFacade(() => ({
       status: 2,
       stdout: 'rate limited',
       stderr: '',
@@ -33,7 +45,7 @@ describe('scripts/command-runner.mjs', () => {
   })
 
   it('throws spawn error message when spawn fails', () => {
-    const run = createCommandRunner(() => ({
+    const run = createFromFacade(() => ({
       status: null,
       stdout: '',
       stderr: '',
@@ -43,7 +55,7 @@ describe('scripts/command-runner.mjs', () => {
   })
 
   it('falls back to "<command> failed" when no diagnostics exist', () => {
-    const run = createCommandRunner(() => ({
+    const run = createFromFacade(() => ({
       status: 1,
       stdout: '',
       stderr: '',
@@ -53,12 +65,13 @@ describe('scripts/command-runner.mjs', () => {
   })
 
   it('default runCommand can execute a real node process', () => {
-    expect(runCommand(process.execPath, ['-e', 'process.stdout.write("ping")'])).toBe('ping')
+    expect(runFromFacade(process.execPath, ['-e', 'process.stdout.write("ping")'])).toBe('ping')
   })
 
   it('is listed in managedPaths for boilerplate sync', async () => {
     const sync = await import('../../scripts/sync-boilerplate.mjs')
     expect(sync.managedPaths).toContain('scripts/command-runner.mjs')
+    expect(sync.managedPaths).toContain('scripts/adapters/command-runner.mjs')
     expect(sync.managedPaths).toContain('tests/int/command-runner.int.spec.ts')
   })
 })
