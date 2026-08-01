@@ -2,8 +2,8 @@
   "schema_version": 1,
   "issue": "215",
   "transition_identity": "{\"taskId\":\"215\",\"phase\":\"Dev (review)\",\"role\":\"REVIEW_VERDICT\",\"contentHash\":\"e8ac67eda1574133b6fe1150bc3443579ae9068d116e75602823306a593086f4\"}",
-  "observed_body_sha256": "b771857df4c29816543170ab0d2d5a5e1dd2e7526025b19420b6b61b7f9dc160",
+  "observed_body_sha256": "4557baf3c2b87b568e59964ddcc3e234fc819575066f7a6d4cdab43db3614cc5",
   "holder": "mission-control-transport-repair",
-  "status": "held",
-  "updated_at": "2026-08-01T15:33:33.303Z"
+  "status": "released",
+  "updated_at": "2026-08-01T15:33:36.817Z"
 }
