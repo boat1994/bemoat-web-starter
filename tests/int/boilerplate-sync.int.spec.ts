@@ -41,6 +41,10 @@ const STARTER_ONLY_INT_TESTS: { path: string; reason: string }[] = [
     path: 'tests/int/mission-control-phase1-dogfood.int.spec.ts',
     reason: 'Phase 1 Mission Control dogfood proof scenarios (Issue #169) are starter harness validation only',
   },
+  {
+    path: 'tests/int/mission-control-review-cli.int.spec.ts',
+    reason: 'Review CLI characterization tests are starter harness validation only',
+  },
 ]
 
 /** Fixture trees that are starter-only and intentionally not synced. */
