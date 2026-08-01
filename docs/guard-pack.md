@@ -33,6 +33,7 @@ Child-facing automation (`.github/workflows/ci.yml`, `.githooks/pre-commit`, `.g
 | **Frontend SEO** | `scripts/guard-frontend-seo.mjs` | Missing `metadata`/`generateMetadata` in `src/app/(frontend)/layout.tsx`; invalid `sitemap.ts`/`robots.ts` when present | Export `metadata` with `title` and `description`; add App Router SEO files when ready |
 | **Mission Control contract** | `scripts/guard-mission-control-contract.mjs` | Missing/invalid guide frontmatter; review budget ≠ 3; missing required sections/templates; thin loader broken or oversized; `AGENTS.md` pointer missing; managed-path omissions; live `.bemoat/mission-control-overrides.md` accidentally managed; forbidden Review-4 / silent-reset / Minor-as-blocker markers | Restore canonical guide/loader/templates; keep loader thin; sync managed paths without managing the live override |
 | **Planning contract** | `scripts/guard-planning-contract.mjs` | Missing or malformed `<!-- bemoat-task-identity:start -->` blocks; paired spec/plan identity mismatch; branch template or transition conflicts; invalid `task_issue_strategy`; unconditional planning SHA execution rule; live GitHub issue or Mission Control state conflicts when `gh` is available | Add balanced task-identity YAML to new or modified planning files under `docs/superpowers/specs/**` and `docs/superpowers/plans/**`; align paired documents; use `resolve_live_protected_base_at_dispatch`; keep executable issue references open |
+| **Scripts architecture** | `scripts/guard-scripts-architecture.mjs` | Scripts architecture dependency graph contains unallowed cycles, unallowed edges, or violates adapter constraints | Ensure scripts dependency graph matches `scripts/architecture-contract.json` |
 
 Orchestrator: `scripts/guard-pack.mjs` runs guards in the order above and aggregates failures.
 
@@ -141,6 +142,7 @@ Mission Control rule IDs: `MC001`–`MC012` (see `scripts/guard-mission-control-
 | Frontend SEO | Custom frontend layouts without `(frontend)` route group | Guard skips when starter frontend layout path is absent |
 | Mission Control | Editorial wording changes trigger section checks | Prefer stable `##` headings and invariant HTML markers; keep loader under 80 lines and free of long-form section titles |
 | Planning contract | Closed issue numbers in historical prose or progress checklists | Guard scans only executable contract blocks and modified planning files; historical `- [x] Task N (#169)` references outside markers are ignored |
+| Scripts architecture | Minor changes to scripts architecture trigger failures | Update `scripts/architecture-contract.json` when intentionally modifying architecture |
 
 ## Known gaps (v1)
 

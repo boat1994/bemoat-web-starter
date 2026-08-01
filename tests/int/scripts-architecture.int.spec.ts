@@ -1,192 +1,135 @@
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
-import { dirname, join, normalize, relative, resolve } from 'node:path'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 
-type ImportGraph = Map<string, Set<string>>
+import {
+  buildScriptImportGraph,
+  validateArchitectureContract,
+} from '../../scripts/guard-scripts-architecture.mjs'
+import architectureContract from '../../scripts/architecture-contract.json'
 
-const BASELINE_CYCLE_NODES = new Set([
-  'scripts/agent-issue.mjs',
-  'scripts/agent-issue/correction-pr-reconciliation.mjs',
-  'scripts/agent-issue/correction-preflight.mjs',
-  'scripts/agent-issue/github-evidence.mjs',
-  'scripts/agent-issue/historical-review3-authority.mjs',
-  'scripts/agent-issue/issue-preflight.mjs',
-  'scripts/agent-issue/progress-tracking.mjs',
-  'scripts/github-comment-projection.mjs',
-  'scripts/mission-control-reconcile.mjs',
-])
+const tempRoots: string[] = []
 
-const BASELINE_CYCLE_EDGES = new Set([
-  'scripts/agent-issue.mjs -> scripts/agent-issue/issue-preflight.mjs',
-  'scripts/agent-issue.mjs -> scripts/agent-issue/progress-tracking.mjs',
-  'scripts/agent-issue/correction-pr-reconciliation.mjs -> scripts/agent-issue/github-evidence.mjs',
-  'scripts/agent-issue/correction-preflight.mjs -> scripts/agent-issue/correction-pr-reconciliation.mjs',
-  'scripts/agent-issue/correction-preflight.mjs -> scripts/agent-issue/github-evidence.mjs',
-  'scripts/agent-issue/correction-preflight.mjs -> scripts/agent-issue/historical-review3-authority.mjs',
-  'scripts/agent-issue/correction-preflight.mjs -> scripts/mission-control-reconcile.mjs',
-  'scripts/agent-issue/github-evidence.mjs -> scripts/github-comment-projection.mjs',
-  'scripts/agent-issue/historical-review3-authority.mjs -> scripts/mission-control-reconcile.mjs',
-  'scripts/agent-issue/issue-preflight.mjs -> scripts/agent-issue/correction-preflight.mjs',
-  'scripts/agent-issue/issue-preflight.mjs -> scripts/agent-issue/github-evidence.mjs',
-  'scripts/agent-issue/issue-preflight.mjs -> scripts/agent-issue/progress-tracking.mjs',
-  'scripts/agent-issue/progress-tracking.mjs -> scripts/agent-issue/github-evidence.mjs',
-  'scripts/agent-issue/progress-tracking.mjs -> scripts/mission-control-reconcile.mjs',
-  'scripts/github-comment-projection.mjs -> scripts/mission-control-reconcile.mjs',
-  'scripts/mission-control-reconcile.mjs -> scripts/agent-issue.mjs',
-])
-
-const ADAPTER_PATH = 'scripts/adapters/command-runner.mjs'
-const ADAPTER_IMPORTERS = new Set([
-  'scripts/command-runner.mjs',
-  'scripts/mission-control-review.mjs',
-])
-
-const FROM_RE = /\bfrom\s+['"](\.\.?\/[^'"]+\.mjs)['"]/g
-const DYNAMIC_RE = /\bimport\s*\(\s*['"](\.\.?\/[^'"]+\.mjs)['"]\s*\)/g
-
-function listMjsFiles(dir: string, out: string[] = []): string[] {
-  for (const entry of readdirSync(dir)) {
-    const absolutePath = join(dir, entry)
-    const stat = statSync(absolutePath)
-    if (stat.isDirectory()) {
-      listMjsFiles(absolutePath, out)
-      continue
-    }
-    if (entry.endsWith('.mjs')) out.push(absolutePath)
+afterEach(() => {
+  while (tempRoots.length > 0) {
+    const root = tempRoots.pop()
+    if (root) rmSync(root, { recursive: true, force: true })
   }
-  return out
+})
+
+function createTempRoot(prefix: string) {
+  const root = mkdtempSync(join(tmpdir(), prefix))
+  tempRoots.push(root)
+  return root
 }
 
-function stripComments(source: string): string {
-  return source
-    .replace(/\/\*[\s\S]*?\*\//g, (block) => block.replace(/[^\n]/g, ' '))
-    .replace(/(^|[^:])\/\/.*$/gm, '$1')
+function writeScript(root: string, relativePath: string, source: string) {
+  const absolutePath = join(root, relativePath)
+  mkdirSync(join(absolutePath, '..'), { recursive: true })
+  writeFileSync(absolutePath, source)
 }
 
-function toRepoPath(root: string, absolutePath: string): string {
-  return relative(root, absolutePath).split('\\').join('/')
-}
-
-function extractRelativeSpecs(source: string): string[] {
-  const specs: string[] = []
-  const cleaned = stripComments(source)
-  for (const pattern of [FROM_RE, DYNAMIC_RE]) {
-    pattern.lastIndex = 0
-    let match: RegExpExecArray | null
-    while ((match = pattern.exec(cleaned))) {
-      specs.push(match[1])
-    }
-  }
-  return specs
-}
-
-function buildScriptImportGraph(root: string): ImportGraph {
-  const scriptsRoot = join(root, 'scripts')
-  const graph: ImportGraph = new Map()
-
-  for (const absolutePath of listMjsFiles(scriptsRoot)) {
-    const importer = toRepoPath(root, absolutePath)
-    if (!graph.has(importer)) graph.set(importer, new Set())
-
-    const specs = extractRelativeSpecs(readFileSync(absolutePath, 'utf8'))
-    for (const spec of specs) {
-      const targetAbsolute = normalize(resolve(dirname(absolutePath), spec))
-      if (!existsSync(targetAbsolute)) continue
-      const target = toRepoPath(root, targetAbsolute)
-      if (target === importer) continue
-      graph.get(importer)!.add(target)
-      if (!graph.has(target)) graph.set(target, new Set())
-    }
-  }
-
-  return graph
-}
-
-function findStronglyConnectedComponents(graph: ImportGraph): string[][] {
-  let nextIndex = 0
-  const indices = new Map<string, number>()
-  const lowlink = new Map<string, number>()
-  const stack: string[] = []
-  const onStack = new Set<string>()
-  const components: string[][] = []
-
-  function strongConnect(vertex: string) {
-    indices.set(vertex, nextIndex)
-    lowlink.set(vertex, nextIndex)
-    nextIndex += 1
-    stack.push(vertex)
-    onStack.add(vertex)
-
-    for (const neighbor of graph.get(vertex) ?? []) {
-      if (!indices.has(neighbor)) {
-        strongConnect(neighbor)
-        lowlink.set(vertex, Math.min(lowlink.get(vertex)!, lowlink.get(neighbor)!))
-      } else if (onStack.has(neighbor)) {
-        lowlink.set(vertex, Math.min(lowlink.get(vertex)!, indices.get(neighbor)!))
-      }
-    }
-
-    if (lowlink.get(vertex) === indices.get(vertex)) {
-      const component: string[] = []
-      let member: string | undefined
-      do {
-        member = stack.pop()
-        if (!member) break
-        onStack.delete(member)
-        component.push(member)
-      } while (member !== vertex)
-      components.push(component.sort())
-    }
-  }
-
-  for (const vertex of [...graph.keys()].sort()) {
-    if (!indices.has(vertex)) strongConnect(vertex)
-  }
-
-  return components
-}
-
-function collectInternalEdges(graph: ImportGraph, component: ReadonlySet<string>): Set<string> {
-  const edges = new Set<string>()
-  for (const importer of component) {
-    for (const target of graph.get(importer) ?? []) {
-      if (component.has(target)) {
-        edges.add(`${importer} -> ${target}`)
-      }
-    }
-  }
-  return edges
+function writeContract(
+  root: string,
+  contract: {
+    cycleNodes?: string[]
+    cycleEdges?: string[]
+    adapters?: Record<string, { importers?: string[] }>
+  },
+) {
+  mkdirSync(join(root, 'scripts'), { recursive: true })
+  writeFileSync(join(root, 'scripts/architecture-contract.json'), `${JSON.stringify(contract, null, 2)}\n`)
 }
 
 describe('scripts architecture ratchet', () => {
-  it('rejects new or expanded dependency cycles beyond the recorded nine-node baseline', () => {
-    const graph = buildScriptImportGraph(process.cwd())
-
-    for (const component of findStronglyConnectedComponents(graph)) {
-      if (component.length < 2) continue
-
-      expect(component.every((path) => BASELINE_CYCLE_NODES.has(path))).toBe(true)
-
-      const edges = collectInternalEdges(graph, new Set(component))
-      for (const edge of edges) {
-        expect(BASELINE_CYCLE_EDGES.has(edge)).toBe(true)
-      }
-    }
+  it('validates architecture contract (no unallowed cycles or edges, adapter constraints)', () => {
+    const violations = validateArchitectureContract(process.cwd())
+    expect(violations).toEqual([])
   })
 
-  it('keeps the CommandRunner adapter free of repository imports and limited to the allowlisted importers', () => {
-    const graph = buildScriptImportGraph(process.cwd())
-    const adapterAbsolute = join(process.cwd(), ADAPTER_PATH)
+  it('preserves the approved nine-node sixteen-edge baseline SCC in the contract', () => {
+    expect(architectureContract.cycleNodes).toHaveLength(9)
+    expect(architectureContract.cycleEdges).toHaveLength(16)
+  })
 
-    expect(existsSync(adapterAbsolute)).toBe(true)
-    expect([...(graph.get(ADAPTER_PATH) ?? [])]).toEqual([])
+  it('captures side-effect static imports in the production architecture graph (F-SLICE1-02)', () => {
+    const root = createTempRoot('bemoat-arch-side-effect-')
+    writeContract(root, { cycleNodes: [], cycleEdges: [], adapters: {} })
+    writeScript(root, 'scripts/alpha.mjs', "import './beta.mjs'\n")
+    writeScript(root, 'scripts/beta.mjs', "import './alpha.mjs'\n")
 
-    const importers = [...graph.entries()]
-      .filter(([, targets]) => targets.has(ADAPTER_PATH))
-      .map(([importer]) => importer)
-      .sort()
+    const graph = buildScriptImportGraph(root)
+    expect([...graph.get('scripts/alpha.mjs') ?? []]).toEqual(['scripts/beta.mjs'])
+    expect([...graph.get('scripts/beta.mjs') ?? []]).toEqual(['scripts/alpha.mjs'])
 
-    expect(importers).toEqual([...ADAPTER_IMPORTERS].sort())
+    const violations = validateArchitectureContract(root)
+    expect(violations).toEqual(
+      expect.arrayContaining([
+        'Unallowed cycle node: scripts/alpha.mjs',
+        'Unallowed cycle node: scripts/beta.mjs',
+        'Unallowed cycle edge: scripts/alpha.mjs -> scripts/beta.mjs',
+        'Unallowed cycle edge: scripts/beta.mjs -> scripts/alpha.mjs',
+      ]),
+    )
+  })
+
+  it('rejects unexpected CommandRunner importers (F-SLICE1-03)', () => {
+    const root = createTempRoot('bemoat-arch-importer-unexpected-')
+    writeContract(root, {
+      cycleNodes: [],
+      cycleEdges: [],
+      adapters: {
+        'scripts/adapters/command-runner.mjs': {
+          importers: ['scripts/command-runner.mjs'],
+        },
+      },
+    })
+    writeScript(root, 'scripts/adapters/command-runner.mjs', 'export const run = () => {}\n')
+    writeScript(root, 'scripts/command-runner.mjs', "import { run } from './adapters/command-runner.mjs'\n")
+    writeScript(root, 'scripts/rogue.mjs', "import { run } from './adapters/command-runner.mjs'\n")
+
+    const violations = validateArchitectureContract(root)
+    expect(violations).toContain(
+      'Unallowed importer for adapter scripts/adapters/command-runner.mjs: scripts/rogue.mjs',
+    )
+  })
+
+  it('rejects missing expected CommandRunner importers (F-SLICE1-03)', () => {
+    const root = createTempRoot('bemoat-arch-importer-missing-')
+    writeContract(root, {
+      cycleNodes: [],
+      cycleEdges: [],
+      adapters: {
+        'scripts/adapters/command-runner.mjs': {
+          importers: ['scripts/command-runner.mjs', 'scripts/mission-control-review.mjs'],
+        },
+      },
+    })
+    writeScript(root, 'scripts/adapters/command-runner.mjs', 'export const run = () => {}\n')
+    writeScript(root, 'scripts/command-runner.mjs', "import { run } from './adapters/command-runner.mjs'\n")
+
+    const violations = validateArchitectureContract(root)
+    expect(violations).toContain(
+      'Missing expected importer for adapter scripts/adapters/command-runner.mjs: scripts/mission-control-review.mjs',
+    )
+  })
+
+  it('retains self-import edges and rejects unallowlisted self-loops (F-SLICE1-04)', () => {
+    const root = createTempRoot('bemoat-arch-self-loop-')
+    writeContract(root, { cycleNodes: [], cycleEdges: [], adapters: {} })
+    writeScript(root, 'scripts/lonely.mjs', "import './lonely.mjs'\n")
+
+    const graph = buildScriptImportGraph(root)
+    expect([...graph.get('scripts/lonely.mjs') ?? []]).toEqual(['scripts/lonely.mjs'])
+
+    const violations = validateArchitectureContract(root)
+    expect(violations).toEqual(
+      expect.arrayContaining([
+        'Unallowed cycle node: scripts/lonely.mjs',
+        'Unallowed cycle edge: scripts/lonely.mjs -> scripts/lonely.mjs',
+      ]),
+    )
   })
 })
