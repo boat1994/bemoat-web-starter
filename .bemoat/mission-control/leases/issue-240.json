@@ -2,8 +2,8 @@
   "schema_version": 1,
   "issue": "240",
   "transition_identity": "{\"taskId\":\"240\",\"phase\":\"Founder merge decision\",\"role\":\"FOUNDER_DECISION\",\"commentId\":\"5152798739\"}",
-  "observed_body_sha256": "82456ce248773e555ffbb02f48d28eb43728e0dcd9cc362e6442f6304238023e",
+  "observed_body_sha256": "a9d10a71df21489a22144a244e0b64e7bdb12a6c91fb040f21d21152897ad046",
   "holder": "mission-control-founder-decision",
-  "status": "held",
-  "updated_at": "2026-08-01T18:34:01.541Z"
+  "status": "released",
+  "updated_at": "2026-08-01T18:34:04.914Z"
 }
