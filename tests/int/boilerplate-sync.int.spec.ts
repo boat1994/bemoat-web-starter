@@ -2049,6 +2049,76 @@ describe('issue #182 projection managed delivery regression', () => {
   )
 })
 
+describe('issue #224 CommandRunner additive child delivery', () => {
+  it('delivers nested CommandRunner adapter in one harness-only sync without touching child-owned files', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const tempRoot = mkdtempSync(join(tmpdir(), 'bemoat-224-command-runner-'))
+    const sourceRoot = join(tempRoot, 'source')
+    const childRoot = join(tempRoot, 'child')
+    const adapterRelativePath = 'scripts/adapters/command-runner.mjs'
+    const childOwnedRelativePath = 'src/features/finance/child-owned-sentinel.ts'
+
+    try {
+      mkdirSync(sourceRoot, { recursive: true })
+      mkdirSync(childRoot, { recursive: true })
+
+      copyManagedSnapshot(
+        process.cwd(),
+        sourceRoot,
+        mod.managedPaths,
+        mod.listPathFiles,
+      )
+      expect(existsSync(join(sourceRoot, adapterRelativePath))).toBe(true)
+
+      copyManagedSnapshot(
+        sourceRoot,
+        childRoot,
+        mod.getSourceSyncConfig(sourceRoot).managedPaths,
+        mod.listPathFiles,
+      )
+      rmSync(join(childRoot, adapterRelativePath), { force: true })
+      expect(existsSync(join(childRoot, adapterRelativePath))).toBe(false)
+      expect(existsSync(join(childRoot, 'scripts/command-runner.mjs'))).toBe(true)
+
+      mkdirSync(join(childRoot, dirname(childOwnedRelativePath)), { recursive: true })
+      writeFileSync(join(childRoot, childOwnedRelativePath), `CHILD_OWNED:${childOwnedRelativePath}\n`)
+
+      const syncConfig = mod.getSourceSyncConfig(sourceRoot)
+      const nonManagedBefore = snapshotNonManagedFiles(childRoot, syncConfig.managedPaths)
+
+      const result = mod.syncPathsFromSource({
+        sourceRootPath: sourceRoot,
+        targetRootPath: childRoot,
+        mode: mod.SYNC_MODES.HARNESS_ONLY,
+        syncConfig,
+        onWarn: () => {},
+        onLog: () => {},
+      })
+
+      expect(result.seededFiles).toEqual([])
+      expect(existsSync(join(childRoot, 'scripts/command-runner.mjs'))).toBe(true)
+      expect(existsSync(join(childRoot, adapterRelativePath))).toBe(true)
+
+      execFileSync(
+        process.execPath,
+        [
+          '--input-type=module',
+          '-e',
+          "import('./scripts/command-runner.mjs').then((m) => { if (typeof m.runCommand !== 'function') throw new Error('missing compatibility export') })",
+        ],
+        { cwd: childRoot, stdio: 'pipe' },
+      )
+
+      expect(snapshotNonManagedFiles(childRoot, syncConfig.managedPaths)).toEqual(nonManagedBefore)
+      expect(readFileSync(join(childRoot, childOwnedRelativePath), 'utf8')).toBe(
+        `CHILD_OWNED:${childOwnedRelativePath}\n`,
+      )
+    } finally {
+      rmSync(tempRoot, { recursive: true, force: true })
+    }
+  })
+})
+
 const REPRESENTATIVE_CHILD_PRESYNC_FIXTURE_DIR =
   'tests/fixtures/boilerplate-sync/representative-harness-child-presync'
 

@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { analyzeExactHeadCi } from './agent-issue/exact-head-ci.mjs'
-import { runCommand as run } from './command-runner.mjs'
+import { runCommand as run } from './adapters/command-runner.mjs'
 import { parseReviewVerdictContractFindings } from './correction-contract.mjs'
 import { parseMissionControlState, renderMissionControlState } from './mission-control-state.mjs'
 import {
