@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "issue": "215",
-  "transition_identity": "{\"taskId\":\"215\",\"phase\":\"Dev (review)\",\"role\":\"REVIEW_VERDICT\",\"contentHash\":\"882e51ac8871601d63c534429fb85d7dc7d51a5218f205a142c1cda8439c7b12\"}",
+  "transition_identity": "{\"taskId\":\"215\",\"phase\":\"Dev (correction)\",\"role\":\"RESULT\",\"contentHash\":\"81588f51c4255aa9b594dc8827df80872489ee9d667df6754c8406f1255c626e\"}",
   "observed_body_sha256": "5d09cf10ea4410c2e0e2e6111f556952cc2bef76040f88252292384a25ced8a6",
-  "holder": "mission-control-transport-repair",
-  "status": "released",
-  "updated_at": "2026-08-01T15:35:10.050Z"
+  "holder": "agent-delivery",
+  "status": "held",
+  "updated_at": "2026-08-01T15:48:05.708Z"
 }
