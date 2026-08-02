@@ -2,8 +2,8 @@
   "schema_version": 1,
   "issue": "254",
   "transition_identity": "{\"taskId\":\"254\",\"phase\":\"Dev (implementation authorization)\",\"role\":\"HANDOFF\",\"contentHash\":\"99e963fb464fdd9dfad024467a78a09ac8d8e9dc6006c170e5ef010c866a8f84\"}",
-  "observed_body_sha256": "d0d817efbf3ce0bdaf37cf6bc9f300d07c619ed2c76557233d8bed47599b781b",
+  "observed_body_sha256": "4718ee8be2594689fe6af5853e5441a520dfeb95a6cc34819aac755b0c433e2b",
   "holder": "mission-control-issue-254-impl-auth",
-  "status": "held",
-  "updated_at": "2026-08-02T18:57:37.958Z"
+  "status": "released",
+  "updated_at": "2026-08-02T18:57:41.893Z"
 }
