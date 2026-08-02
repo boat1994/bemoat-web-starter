@@ -49,30 +49,6 @@ export {
   syncManifestPath,
 } from './boilerplate/inventory.mjs'
 
-/*
- * Static compatibility inventory for the synchronous Mission Control contract guard.
- * Runtime ownership remains in scripts/boilerplate/inventory.mjs.
- * export const managedPaths = [
- *   'docs/mission-control/README.md',
- *   'docs/mission-control/mission-control-guide.md',
- *   'docs/mission-control/handoff-template.md',
- *   'docs/mission-control/result-template.md',
- *   'docs/mission-control/project-overrides.example.md',
- *   'prompts/mission-control/chatgpt-project-loader.md',
- *   'scripts/guard-mission-control-contract.mjs',
- *   'scripts/mission-control-reconcile.mjs',
- *   'tests/int/mission-control-contract.int.spec.ts',
- *   'tests/int/mission-control-reconcile.int.spec.ts',
- *   'tests/fixtures/mission-control',
- *   'docs/mission-control/modules/procedures.md',
- *   'docs/mission-control/modules/checklists.md',
- *   'docs/mission-control/modules/templates-examples.md',
- *   'docs/mission-control/modules/troubleshooting.md',
- *   'docs/mission-control/modules/migration-guidance.md',
- *   'docs/mission-control/modules/child-sync-operations.md',
- * ]
- */
-
 const repo = process.env.BEMOAT_BOILERPLATE_REPO || 'boat1994/bemoat-web-starter'
 const ref = process.env.BEMOAT_BOILERPLATE_REF || 'main'
 const targetRoot = process.cwd()
