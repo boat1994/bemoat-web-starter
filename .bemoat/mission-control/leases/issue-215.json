@@ -2,8 +2,8 @@
   "schema_version": 1,
   "issue": "215",
   "transition_identity": "{\"taskId\":\"215\",\"phase\":\"Campaign Projection Repair\",\"role\":\"State Reconciler\",\"sourceIssue\":\"254\",\"handoffCommentId\":\"5158396308\"}",
-  "observed_body_sha256": "300bf2ac40244c726dbdacb81ca2f522b8cf80801f173a93fbc7e0de6f8b59b5",
+  "observed_body_sha256": "f679df2ac5f13b745ff329375418fe06b0058c6d04bae604bf8f3671a525d3d5",
   "holder": "mission-control-campaign-projection-repair",
-  "status": "held",
-  "updated_at": "2026-08-02T18:17:40.417Z"
+  "status": "released",
+  "updated_at": "2026-08-02T18:17:44.048Z"
 }
