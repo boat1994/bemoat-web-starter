@@ -2,8 +2,8 @@
   "schema_version": 1,
   "issue": "254",
   "transition_identity": "founder-decision-254-5159933438-live-main-d6e99c3",
-  "observed_body_sha256": "633be732cb779a761b0fec59e9db8a66a28a3040310342f4e4a584b85c91c077",
+  "observed_body_sha256": "6a39df8f7ada0fcdec695f49c560fb8572cadecfb8148eeb0d1b570f610ae5cf",
   "holder": "mission-control-founder-decision",
-  "status": "held",
-  "updated_at": "2026-08-02T19:18:31.467Z"
+  "status": "released",
+  "updated_at": "2026-08-02T19:18:34.989Z"
 }
