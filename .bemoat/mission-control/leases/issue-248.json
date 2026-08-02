@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "issue": "248",
+  "transition_identity": "{\"taskId\":\"248\",\"phase\":\"Slice 3 Task Issue creation\",\"role\":\"RESULT\",\"contentHash\":\"62d0192444b9442f11ee70e7fbeea95773093c170a22cc6e920c8e5688601853\"}",
+  "observed_body_sha256": "879d1cdd492d690a8bc75f2c657b68bfab20b5f8ab040b89de5f1a1f2434821a",
+  "holder": "mission-control-slice3-init",
+  "status": "held",
+  "updated_at": "2026-08-02T06:56:46.014Z"
+}
