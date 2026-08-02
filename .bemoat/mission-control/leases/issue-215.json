@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "issue": "215",
-  "transition_identity": "{\"taskId\":\"215\",\"phase\":\"Delta Review 2\",\"role\":\"REVIEW_VERDICT\",\"contentHash\":\"3d224fca16632f2c9c5d9f13bd254471d82f12d7e13b308ceed9e313836f8e10\"}",
+  "transition_identity": "{\"taskId\":\"215\",\"phase\":\"Campaign projection reconciliation — Slice 2 completed\",\"role\":\"RESULT\",\"contentHash\":\"ab3ef5945feed46df8a2166f8a35c3b97fc0f0d87342c7fd0e33615009a86de4\"}",
   "observed_body_sha256": "7c2bc8077723982e59a8949c72273de116a5bc11c899503a7bfb968592fed12e",
-  "holder": "mission-control-reconcile",
-  "status": "released",
-  "updated_at": "2026-08-01T16:08:08.180Z"
+  "holder": "mission-control-campaign-projection",
+  "status": "held",
+  "updated_at": "2026-08-02T06:52:21.660Z"
 }
