@@ -29,11 +29,24 @@ Managed state: DONE. Migration/deploy not authorized in this transition.
 ### Safe merge completion bundle
 
 ```markdown
-Founder authorization and exact reviewed head verified.
-Merge PR #N → verify protected-base merge commit `<merge_sha>`.
-Post final RESULT → close Task #N → write Task DONE → project campaign slice DONE.
-Next permitted action: <one selected campaign action>; do not start it in this bundle.
-Separate reconciliation: only if projection fails, evidence conflicts, or a concurrent write occurs.
+Repository: owner/repository
+Task Issue: #N · PR: #N
+Authority: comment <immutable-comment-id> · author @founder · scope merge · action merge
+Policy/base/head: 1.3.0 · main · `<exact-reviewed-head>`
+Exact-head CI: <required-check-links> passed for `<exact-reviewed-head>`
+Review verdict: `ELIGIBLE FOR FOUNDER REVIEW` · comment <verdict-comment-id> · not superseded
+Objective: merge this exact reviewed PR and complete the Task/campaign terminal projection.
+Stop before mutation on: authority, head, CI, verdict, mergeability, protected-base,
+CAS, or lease drift; ambiguous/conflicting evidence also stops fail-closed.
+Prohibited: implementation, independent review, new merge approval, Review 4,
+migration, deploy, production access, child sync, retained-data mutation, or
+starting the next campaign action.
+Execute: verify evidence → merge with expected-head protection → verify the
+protected-base merge commit `<merge_sha>` → post final RESULT → close Task #N
+→ write Task DONE → project campaign slice DONE → select next action with
+`started: false`.
+Reconcile separately only after projection failure, ambiguous/conflicting
+evidence, unavailable evidence, or a concurrent write.
 ```
 
 ### Terminal closure

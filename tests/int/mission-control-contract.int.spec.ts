@@ -317,7 +317,7 @@ max_review_cycles: 4
 
     for (const phrase of [
       'bounded objective',
-      'exact head/base',
+      'exact policy/base/head',
       'Compact bundle prompts',
       'prohibited actions',
       'Do not bundle across implementation, review,',

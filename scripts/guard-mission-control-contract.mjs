@@ -264,6 +264,12 @@ export const REQUIRED_SAFE_BUNDLE_GUIDE_PHRASES = [
   'one bounded objective with one authority scope',
   'Successful bundles write their deterministic durable projection directly.',
   'After Founder merge approval, the merge completion bundle may verify',
+  '### Generic Founder authorization record',
+  'trusted Founder identity',
+  'immutable decision comment/reference',
+  'non-supersession verification',
+  'exact scope/action',
+  'Separate reconciliation is permitted only when a projection fails',
   'Hard gates remain unchanged',
   'No autonomous Review 4 or',
 ]
@@ -271,7 +277,46 @@ export const REQUIRED_SAFE_BUNDLE_GUIDE_PHRASES = [
 export const REQUIRED_SAFE_BUNDLE_LOADER_PHRASES = [
   'one bounded objective or explicitly authorized safe execution',
   'Compact bundle prompts must name',
+  'exact Task Issue/PR',
+  'authority comment and authenticated author',
+  'exact scope and action',
+  'exact policy/base/head',
+  'exact-head CI evidence',
+  'review verdict',
+  'stop conditions for authority/head/CI/verdict/mergeability/CAS/lease drift',
+  'prohibited actions',
   'Do not bundle across implementation, review,',
+]
+
+export const REQUIRED_SAFE_BUNDLE_PROCEDURE_PHRASES = [
+  'verify exact Founder authorization/verdict/head/base/CI/mergeability',
+  'merge the expected head',
+  'project campaign slice DONE',
+  'select, but do not start, the next campaign action',
+  'not merge authority',
+  'State Reconciler only after projection failure',
+]
+
+export const REQUIRED_SAFE_BUNDLE_TEMPLATE_PHRASES = [
+  'Repository: owner/repository',
+  'Task Issue: #N · PR: #N',
+  'Authority: comment <immutable-comment-id> · author @founder · scope merge · action merge',
+  'Policy/base/head: 1.3.0 · main · `<exact-reviewed-head>`',
+  'Exact-head CI:',
+  'Review verdict: `ELIGIBLE FOR FOUNDER REVIEW`',
+  'Stop before mutation on:',
+  'CAS, or lease drift',
+  'Prohibited:',
+  '`started: false`',
+  'Reconcile separately only after projection failure',
+]
+
+export const REQUIRED_PLANNING_MIGRATION_PHRASES = [
+  'RESULT comment `5156067541`',
+  '`main@fbb587f883e10a4b7f2c21d2af80da84b2f95084`',
+  '`planning_no_pr` mode',
+  'counters `review_cycle: 0` and `full_review_count: 0`',
+  'separate Founder implementation authorization',
 ]
 
 export const LOADER_MAX_LINES = 80
@@ -371,6 +416,33 @@ export function scanModuleContent(relativePath, content) {
       violations.push(
         violation('MC012', relativePath, 'Module must define the Double-Loop gate as a no-code checkpoint'),
       )
+    }
+    for (const phrase of REQUIRED_SAFE_BUNDLE_PROCEDURE_PHRASES) {
+      if (!content.includes(phrase)) {
+        violations.push(
+          violation('MC012', relativePath, `Module missing safe merge-completion invariant: ${phrase}`),
+        )
+      }
+    }
+  }
+
+  if (relativePath === MODULE_TEMPLATES_PATH) {
+    for (const phrase of REQUIRED_SAFE_BUNDLE_TEMPLATE_PHRASES) {
+      if (!content.includes(phrase)) {
+        violations.push(
+          violation('MC012', relativePath, `Module missing complete merge template field: ${phrase}`),
+        )
+      }
+    }
+  }
+
+  if (relativePath === MODULE_MIGRATION_PATH) {
+    for (const phrase of REQUIRED_PLANNING_MIGRATION_PHRASES) {
+      if (!content.includes(phrase)) {
+        violations.push(
+          violation('MC012', relativePath, `Module missing Issue #248 migration invariant: ${phrase}`),
+        )
+      }
     }
   }
 

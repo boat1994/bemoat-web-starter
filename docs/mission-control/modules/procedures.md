@@ -80,8 +80,16 @@ State Reconciler completion
 = deterministic state repair from unambiguous evidence, or explicit STATE_CONFLICT
 
 Founder-authorized merge transition
-= verify authorization/head/CI + mark ready when needed + merge + verify merge commit + close Issue completed + reconcile DONE + verify NO_OP
+= verify exact Founder authorization/verdict/head/base/CI/mergeability → mark ready when needed → merge the expected head → verify protected-base merge commit → post final RESULT → close Task Issue → write Task DONE → project campaign slice DONE → select, but do not start, the next campaign action
 ```
+
+The merge transition uses one generic Founder authorization record. It must
+contain the trusted Founder identity, immutable decision comment/reference,
+non-supersession verification, repository, Task Issue, PR when applicable,
+exact head and protected base when applicable, exact scope, and exact
+authorized action. A ratification, implementation-only decision, ambiguous or
+fabricated comment, superseded decision, scope mismatch, or non-merge action is
+not merge authority.
 
 Reviewer completion uses the repository-owned atomic facade, not the generic
 comment transport:
@@ -108,7 +116,7 @@ authorization.
 | `last_reviewed_head` | Reviewer only |
 | Resulting correction/eligibility state | Reviewer or State Reconciler from verdict evidence |
 | Issue closure | Founder-authorized merge transport, after verified merge evidence |
-| `DONE` state projection | State Reconciler, only after the Issue is closed/completed and merge evidence agrees |
+| `DONE` state projection | Merge transport during successful merge completion; State Reconciler only after projection failure, ambiguous/conflicting evidence, or a concurrent CAS/lease write |
 | Issue acceptance criteria checklist | Mission Control pre-merge reconciliation only |
 
 Delivery and Reviewer roles may update **only** content between the
@@ -183,11 +191,21 @@ Issue comment containing the exact authorization object:
 ```json
 {
   "schema_version": 1,
+  "status": "approved",
   "authority": "Founder",
+  "author_login": "<trusted-founder-login>",
+  "comment_id": "<immutable-decision-comment>",
+  "comment_sha256": "<sha256-of-comment-body>",
+  "immutable_comment_reference": true,
+  "non_superseded": true,
+  "repository": "owner/repository",
   "scope": "merge",
   "task_issue": 123,
   "pr": 124,
+  "exact_head": "<exact-reviewed-head>",
   "reviewed_head": "<exact-reviewed-head>",
+  "base": "main",
+  "policy_version": "1.3.0",
   "action": "merge"
 }
 ```
@@ -210,8 +228,7 @@ closure step.
 The executable command performs this exact merge completion bundle:
 
 ```text
-verify explicit Founder authorization
-→ verify exact reviewed/current PR head and required exact-head CI
+verify exact Founder authorization, non-superseded verdict, reviewed/current PR head, base, policy, exact-head CI, and mergeability
 → mark the Draft PR ready when required
 → merge with expected-head protection
 → verify the merge commit on the protected base
@@ -220,8 +237,9 @@ verify explicit Founder authorization
 → write Task DONE and project the completed campaign slice
 → select the next campaign action without starting it
 
-If the bundle's final projection fails, invoke bounded reconciliation and
-require either the proven repair or a fail-closed classification; repeated
+Separate reconciliation runs only if the final projection fails, evidence is
+ambiguous/conflicting or unavailable, or a concurrent CAS/lease write occurs;
+require either the proven repair or a fail-closed classification. Repeated
 identical evidence returns `NO_OP`.
 ```
 

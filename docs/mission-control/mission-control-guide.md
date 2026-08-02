@@ -147,6 +147,39 @@ Recording an already-made Founder authorization may be bundled with executing
 that exact authorization. Founder decision-making itself is never silently
 combined with implementation, independent review, or merge approval.
 
+### Generic Founder authorization record
+
+Every Founder authorization is a repository-bound, immutable record with a
+trusted Founder identity, an immutable decision comment/reference, and
+non-supersession verification. It has these fields (omitting PR/head/base only
+when the authorized action genuinely has no such object):
+
+```yaml
+schema_version: 1
+status: approved
+authority: Founder
+author_login: <trusted-founder-login>
+comment_id: <immutable-decision-comment>
+comment_sha256: <sha256-of-comment-body>
+immutable_comment_reference: true
+non_superseded: true
+repository: owner/repository
+task_issue: <issue-number>
+pr: <pull-request-number-or-null>
+exact_head: <full-sha-or-null>
+reviewed_head: <full-sha-or-null>
+base: main
+scope: merge
+action: merge
+policy_version: 1.3.0
+```
+
+The runtime verifies the authenticated Founder against the repository-owned
+allowlist, the comment identity and hash, non-supersession, every repository
+and task/PR/head/base binding, and the exact scope/action. Ambiguous,
+fabricated, superseded, scope-mismatched, implementation-only, ratifying, or
+non-merge decisions fail closed and cannot authorize merge.
+
 Every bundle must verify its complete evidence set before the first mutation and
 stop at the first safe checkpoint if any identity, scope, authority, head, CI,
 lease, CAS, or mergeability assumption changes.
@@ -602,25 +635,40 @@ evidence and authorized reason.
 
 ### Terminal completion contract (Option A)
 
-Merge transport owns Issue closure. The canonical sequence is: verify Founder
-authorization and the exact reviewed head/CI; merge that head; verify the merge
-commit on the protected base; close the managed Issue as completed; run bounded
-reconciliation to write `DONE`; then verify the same evidence returns `NO_OP`.
-Use the executable `bemoat:mission-control:merge` entrypoint with a pinned,
-trusted Founder authorization comment whose authenticated author is listed in
-the repository Actions variable `BEMOAT_FOUNDER_LOGINS`. The repository-owned
-allowlist supports personal and organization-owned child repositories without
-trusting caller environment state. The transport marks a Draft PR ready,
-merges only the authorized expected head, closes only the directly managed Task
-Issue, and resumes safely after a partial merge, closure, or state-projection
-failure.
+Merge transport owns the complete terminal transition. Before the first
+mutation it must verify the exact Founder merge authorization record, the
+non-superseded `ELIGIBLE FOR FOUNDER REVIEW` verdict, exact reviewed/current PR
+head, exact-head CI, protected base, policy, and mergeability. It then performs
+one bounded merge-completion bundle:
 
-The reconciler updates only the managed state block through lease/CAS. It never
-closes or reopens an Issue. A merged PR with an open managed Issue therefore
-fails closed with an actionable `STATE_CONFLICT` directing merge transport to
-close the Issue before terminal reconciliation. If Issue closure succeeds but
-the state write fails, rerunning reconciliation repairs `DONE` once and performs
-one verification.
+```text
+verify authority/verdict/head/base/CI/mergeability
+→ mark ready when required
+→ merge with expected-head protection
+→ verify the protected-base merge commit
+→ post final RESULT
+→ close the managed Task Issue as completed
+→ write Task DONE
+→ project the campaign slice DONE
+→ select the next campaign action without starting it
+```
+
+The executable `bemoat:mission-control:merge` entrypoint requires a pinned,
+trusted Founder authorization comment whose authenticated author is listed in
+the repository Actions variable `BEMOAT_FOUNDER_LOGINS`. Its exact record binds
+the repository, Task Issue, PR, exact head/base, policy, scope, action, comment
+identity, and non-supersession evidence. The repository-owned allowlist supports
+personal and organization-owned child repositories without trusting caller
+environment state.
+
+Successful deterministic completion writes its terminal projection directly;
+it does not invoke reconciliation and does not perform a second `NO_OP` run.
+An already closed, merged, and `DONE` task is an idempotent `NO_OP` after the
+same evidence is verified. Separate reconciliation is permitted only when a projection fails,
+evidence is ambiguous/conflicting or unavailable, or a concurrent CAS/lease
+write occurs. Reconciliation remains bounded, idempotent,
+and fail-closed; it never closes or reopens an Issue. A failure after a partial
+merge or projection must stop and retain an actionable classification.
 
 ## Review-cycle budget
 
