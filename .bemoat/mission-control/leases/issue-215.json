@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "issue": "215",
-  "transition_identity": "campaign-repair:215:restore-parser-valid-seven-slice-v1",
-  "observed_body_sha256": "ac96ccc80c30317b6ad526534621319073634d7e652cebe6aaa3ce5251549fc4",
-  "holder": "mission-control-state-reconciler",
-  "status": "released",
-  "updated_at": "2026-08-02T13:42:39.582Z"
+  "transition_identity": "{\"taskId\":\"215\",\"phase\":\"Campaign Projection Repair\",\"role\":\"State Reconciler\",\"sourceIssue\":\"254\",\"handoffCommentId\":\"5158396308\"}",
+  "observed_body_sha256": "300bf2ac40244c726dbdacb81ca2f522b8cf80801f173a93fbc7e0de6f8b59b5",
+  "holder": "mission-control-campaign-projection-repair",
+  "status": "held",
+  "updated_at": "2026-08-02T18:17:40.417Z"
 }
