@@ -264,7 +264,12 @@ describe('boilerplate sync managed paths', () => {
       'tests/int/post-role-comment.int.spec.ts',
       'tests/int/branch-safety.int.spec.ts',
       'tests/int/harness-contract-guard.int.spec.ts',
+      'tests/int/harness-contract/child-script-policy.int.spec.ts',
+      'tests/int/harness-contract/runtime-import-parser.int.spec.ts',
+      'tests/int/harness-contract/managed-runtime-closure.int.spec.ts',
+      'tests/int/harness-contract/facade-exports.int.spec.ts',
       'tests/int/mission-control-contract.int.spec.ts',
+      'scripts/harness-contract',
       'tests/int/starter-acceptance.int.spec.ts',
       'tests/int/open-next-config.int.spec.ts',
       'tests/int/payload-build-context.int.spec.ts',
@@ -2313,6 +2318,77 @@ describe('issue #220 representative managed child-sync trailing whitespace regre
           `Found ${trailingHits.length} trailing-whitespace hit(s) in representative managed child-sync delta:\n${formatted}`,
         )
       }
+    } finally {
+      rmSync(tempRoot, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('issue #240 slice 2 harness-contract facade child portability', () => {
+  it('delivers harness-contract modules via temp-dir harness-only simulation without real child sync', async () => {
+    const syncMod = await import('../../scripts/sync-boilerplate.mjs')
+    const guardMod = await import('../../scripts/guard-harness-contract.mjs')
+    const repoRoot = process.cwd()
+    const tempRoot = mkdtempSync(join(tmpdir(), 'bemoat-240-slice2-portability-'))
+    const sourceRoot = join(tempRoot, 'source')
+    const childRoot = join(tempRoot, 'child')
+
+    try {
+      mkdirSync(sourceRoot, { recursive: true })
+      mkdirSync(childRoot, { recursive: true })
+
+      copyManagedSnapshot(repoRoot, sourceRoot, syncMod.managedPaths, syncMod.listPathFiles)
+      copyManagedSnapshot(
+        sourceRoot,
+        childRoot,
+        syncMod.getSourceSyncConfig(sourceRoot).managedPaths,
+        syncMod.listPathFiles,
+      )
+      writeIssue182ChildFixture(childRoot)
+      applyRepresentativeChildPresyncOverlay(childRoot, repoRoot)
+
+      const syncConfig = syncMod.getSourceSyncConfig(sourceRoot)
+      const nonManagedBefore = snapshotNonManagedFiles(childRoot, syncConfig.managedPaths)
+
+      const result = syncMod.syncPathsFromSource({
+        sourceRootPath: sourceRoot,
+        targetRootPath: childRoot,
+        mode: syncMod.SYNC_MODES.HARNESS_ONLY,
+        syncConfig,
+        onWarn: () => {},
+        onLog: () => {},
+      })
+
+      expect(result.seededFiles).toEqual([])
+      expect(existsSync(join(childRoot, 'scripts/guard-harness-contract.mjs'))).toBe(true)
+      expect(existsSync(join(childRoot, 'scripts/harness-contract/child-script-policy.mjs'))).toBe(
+        true,
+      )
+      expect(existsSync(join(childRoot, 'scripts/harness-contract/runtime-import-parser.mjs'))).toBe(
+        true,
+      )
+      expect(
+        existsSync(join(childRoot, 'scripts/harness-contract/managed-runtime-closure.mjs')),
+      ).toBe(true)
+      expect(existsSync(join(childRoot, 'scripts/harness-contract/manifest.mjs'))).toBe(true)
+      expect(
+        existsSync(join(childRoot, 'tests/int/harness-contract/facade-exports.int.spec.ts')),
+      ).toBe(true)
+
+      const guardResult = execFileSync(process.execPath, ['scripts/guard-harness-contract.mjs'], {
+        cwd: childRoot,
+        encoding: 'utf8',
+      })
+      expect(guardResult.trim()).toBe('Harness contract guard passed.')
+
+      expect(
+        guardMod.scanManagedRuntimeDeliveryClosure({
+          root: childRoot,
+          managedPaths: syncConfig.managedPaths,
+        }),
+      ).toEqual([])
+
+      expect(snapshotNonManagedFiles(childRoot, syncConfig.managedPaths)).toEqual(nonManagedBefore)
     } finally {
       rmSync(tempRoot, { recursive: true, force: true })
     }

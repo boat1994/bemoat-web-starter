@@ -92,6 +92,8 @@ describe('harness contract guard', () => {
 
     expect(syncMod.managedPaths).toContain('scripts/check-branch-safety.sh')
     expect(syncMod.managedPaths).toContain('scripts/guard-harness-contract.mjs')
+    expect(syncMod.managedPaths).toContain('scripts/harness-contract')
+    expect(syncMod.managedPaths).toContain('tests/int/harness-contract/facade-exports.int.spec.ts')
     expect(syncMod.managedPaths).toContain('scripts/github-comment-projection.mjs')
     expect(syncMod.managedPaths).toContain('scripts/pr-identity.mjs')
     expect(syncMod.managedPackageScripts).toContain('bemoat:branch:check')
