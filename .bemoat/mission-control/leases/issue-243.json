@@ -2,8 +2,8 @@
   "schema_version": 1,
   "issue": "243",
   "transition_identity": "{\"taskId\":\"243\",\"phase\":\"Diagnostic\",\"role\":\"RESULT\",\"contentHash\":\"b96001d3d189151e72e45c7c4240698664a1949e2bba7509e8cafd30eada3462\"}",
-  "observed_body_sha256": "b6280cc393c95872743a72a2e88dea4c3b31d79ea7ab8746cd755c9e355e30bb",
-  "holder": "mission-control-243-diagnostic-reconciliation",
-  "status": "released",
-  "updated_at": "2026-08-01T19:39:38.898Z"
+  "observed_body_sha256": "9f2cfad17ed186c90a842da16d30fa2d3ef981ad8179fb58f1d16cc9c370f3bf",
+  "holder": "mission-control-metadata-correction-243",
+  "status": "held",
+  "updated_at": "2026-08-02T05:11:25.311Z"
 }
