@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "issue": "254",
-  "transition_identity": "planning-init:254:handoff:5158302718:active-task-self-bind",
-  "observed_body_sha256": "5b821378b3138fa4ac0261e220821ab178ca214e0f3bcf1cb1ca8e17c4e56570",
-  "holder": "mission-control",
-  "status": "released",
-  "updated_at": "2026-08-02T13:47:06.594Z"
+  "transition_identity": "{\"taskId\":\"254\",\"phase\":\"Dev (implementation authorization)\",\"role\":\"HANDOFF\",\"contentHash\":\"99e963fb464fdd9dfad024467a78a09ac8d8e9dc6006c170e5ef010c866a8f84\"}",
+  "observed_body_sha256": "d0d817efbf3ce0bdaf37cf6bc9f300d07c619ed2c76557233d8bed47599b781b",
+  "holder": "mission-control-issue-254-impl-auth",
+  "status": "held",
+  "updated_at": "2026-08-02T18:57:37.958Z"
 }
