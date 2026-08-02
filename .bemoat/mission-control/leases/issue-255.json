@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "issue": "255",
-  "transition_identity": "{\"taskId\":\"255\",\"phase\":\"Reviewer\",\"role\":\"REVIEW_VERDICT\",\"contentHash\":\"14c547e7d9bce4ac84608987346736114d054c3632f343bf50fe88bef809e067\"}",
-  "observed_body_sha256": "e783eeff07f7ab67d4790869d52ae17ee3f972042940556bbfc3aa4ede2d1983",
-  "holder": "mission-control-review",
-  "status": "released",
-  "updated_at": "2026-08-02T15:41:32.444Z"
+  "transition_identity": "{\"taskId\":\"255\",\"phase\":\"Correction 1\",\"role\":\"HANDOFF\",\"contentHash\":\"04b8efc573b6af74a9597bd2b0033128a99daf38ae178844356582468c017a18\"}",
+  "observed_body_sha256": "ba83a3cc2a197109b1b944aa6eaf5b69dde55245dba11e6dc995f57b1ba0d16b",
+  "holder": "mission-control-correction-1",
+  "status": "held",
+  "updated_at": "2026-08-02T16:07:37.513Z"
 }
