@@ -1,0 +1,4 @@
+```yaml
+schema_version: 1
+```
+<!-- bemoat-mission-control-campaign:end -->

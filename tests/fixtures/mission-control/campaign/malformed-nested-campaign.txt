@@ -1,0 +1,6 @@
+<!-- bemoat-mission-control-campaign:start -->
+outer
+<!-- bemoat-mission-control-campaign:start -->
+inner
+<!-- bemoat-mission-control-campaign:end -->
+<!-- bemoat-mission-control-campaign:end -->
