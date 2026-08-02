@@ -2,8 +2,8 @@
   "schema_version": 1,
   "issue": "248",
   "transition_identity": "{\"taskId\":\"\",\"phase\":\"\",\"role\":\"REVIEW_VERDICT\",\"contentHash\":\"c16dbfff143f0a34c3188bdb4805a75d96bc9d1319ea30cdf48cdebf047ada5f\"}",
-  "observed_body_sha256": "d7fda9448e947b9b3b006a58fa8b184629cb3ca678248a83d794d4ed68cfc99d",
+  "observed_body_sha256": "56ea4664ccf09a1ee3800e5ff956d34a4cd2c7a67360f364fb7e407e41f02e7f",
   "holder": "mission-control-reconcile",
-  "status": "held",
-  "updated_at": "2026-08-02T11:09:29.944Z"
+  "status": "released",
+  "updated_at": "2026-08-02T11:09:33.632Z"
 }
