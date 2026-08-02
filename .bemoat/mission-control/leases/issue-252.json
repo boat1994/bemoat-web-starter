@@ -2,8 +2,8 @@
   "schema_version": 1,
   "issue": "252",
   "transition_identity": "{\"taskId\":\"252\",\"phase\":\"Planning-only diagnostic\",\"role\":\"RESULT\",\"contentHash\":\"66c47666ac22bd1b247a380c8431ef0c9d192bd94b63a4e55dc51779dc02825b\"}",
-  "observed_body_sha256": "b6fd85c06fa8abc97c2d21058a05e5e6832321e7e472adf6d7da99a3e27c4567",
+  "observed_body_sha256": "c3636822aa5f74d3937d1d89c7b60d46267b730ba689e6800bb45dbf0d12611a",
   "holder": "planning-investigator-252",
-  "status": "held",
-  "updated_at": "2026-08-02T11:32:35.911Z"
+  "status": "released",
+  "updated_at": "2026-08-02T11:32:39.203Z"
 }
