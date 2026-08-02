@@ -2,8 +2,8 @@
   "schema_version": 1,
   "issue": "215",
   "transition_identity": "campaign-reconcile:215:handoff:5158243471:slice4-done:expand-8-11",
-  "observed_body_sha256": "3fcc9813d0a4fda046abc8327ffd1b323b87b3ead3ea97a43681aa492a869e50",
+  "observed_body_sha256": "b2801fd189a26bf032e407f623d727dcc81e465c7864d7c5473de710c4b90c38",
   "holder": "mission-control-state-reconciler",
-  "status": "held",
-  "updated_at": "2026-08-02T13:39:28.073Z"
+  "status": "released",
+  "updated_at": "2026-08-02T13:39:32.303Z"
 }
