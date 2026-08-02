@@ -2,8 +2,8 @@
   "schema_version": 1,
   "issue": "255",
   "transition_identity": "{\"taskId\":\"255\",\"phase\":\"Correction 1\",\"role\":\"HANDOFF\",\"contentHash\":\"04b8efc573b6af74a9597bd2b0033128a99daf38ae178844356582468c017a18\"}",
-  "observed_body_sha256": "ba83a3cc2a197109b1b944aa6eaf5b69dde55245dba11e6dc995f57b1ba0d16b",
+  "observed_body_sha256": "a119ee8607874c92dc4bbc80118993c72ceb11714fee082b74f75956abe7f879",
   "holder": "mission-control-correction-1",
-  "status": "held",
-  "updated_at": "2026-08-02T16:07:37.513Z"
+  "status": "released",
+  "updated_at": "2026-08-02T16:07:40.905Z"
 }
