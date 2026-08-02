@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "issue": "243",
-  "transition_identity": "{\"taskId\":\"243\",\"phase\":\"Review 1\",\"role\":\"REVIEW_VERDICT\",\"contentHash\":\"47fbb7a902639f33348c9e9a55b9b547df22eb0ec9565a0003f84ffc7a2a5b55\"}",
-  "observed_body_sha256": "5379eb37da547c17f0c13685012910c5bd2c12caceb860284597c9ea0f5ef1e2",
-  "holder": "mission-control-review",
-  "status": "released",
-  "updated_at": "2026-08-02T06:00:57.092Z"
+  "transition_identity": "{\"taskId\":\"243\",\"phase\":\"Review 1 verdict reconciliation\",\"role\":\"REVIEW_VERDICT\",\"contentHash\":\"00dafe351dbc1dcee6e1a811b15e7c86789ac677a22882af003582c65e4b02ee\"}",
+  "observed_body_sha256": "747a28a72d6d8065cfa18974a74f6a6522a030c8fddb55ace84e5d7c13cfb7b0",
+  "holder": "mission-control-reconcile",
+  "status": "held",
+  "updated_at": "2026-08-02T06:04:57.811Z"
 }
