@@ -38,6 +38,7 @@
     ".github/pull_request_template.md",
     ".github/ISSUE_TEMPLATE/agent-task.yml",
     "scripts/sync-boilerplate.mjs",
+    "scripts/boilerplate",
     "scripts/check-boilerplate-drift.mjs",
     "scripts/deploy-smoke-test.mjs",
     "scripts/guard-repo-safety.mjs",

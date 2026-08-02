@@ -187,7 +187,7 @@ describe('synced harness CI and hooks', () => {
 
 describe('boilerplate sync managed paths', () => {
   it('includes repository agent instructions and editor agent rules', () => {
-    const script = readFileSync(resolve(process.cwd(), 'scripts/sync-boilerplate.mjs'), 'utf8')
+    const script = readFileSync(resolve(process.cwd(), 'scripts/boilerplate/inventory.mjs'), 'utf8')
 
     expect(script).toContain("'AGENTS.md'")
     expect(script).toContain("'ANTIGRAVITY.md'")
@@ -900,6 +900,33 @@ describe('boilerplate sync managed paths', () => {
     expect(mod.seedOnlyPaths).toContain('src/app/(frontend)')
     expect(mod.suggestedPackageScripts).toContain('deploy')
     expect(mod.suggestedPackageSections).toEqual(['dependencies', 'devDependencies'])
+  })
+
+  it('keeps configuration and inventory seams aligned with the stable root exports', async () => {
+    const [root, config, inventory] = await Promise.all([
+      import('../../scripts/sync-boilerplate.mjs'),
+      import('../../scripts/boilerplate/config.mjs'),
+      import('../../scripts/boilerplate/inventory.mjs'),
+    ])
+
+    expect(config.SYNC_MODES).toBe(root.SYNC_MODES)
+    expect(config.getDefaultSyncConfig).toBe(root.getDefaultSyncConfig)
+    expect(config.readSourceSyncManifest).toBe(root.readSourceSyncManifest)
+    expect(config.getSourceSyncConfig).toBe(root.getSourceSyncConfig)
+    expect(config.parseSyncMode).toBe(root.parseSyncMode)
+    expect(config.parseApplyBuildContract).toBe(root.parseApplyBuildContract)
+
+    expect(inventory.managedPaths).toBe(root.managedPaths)
+    expect(inventory.managedPaths).toContain('scripts/boilerplate')
+    expect(inventory.seedOnlyPaths).toBe(root.seedOnlyPaths)
+    expect(inventory.mergeKeepPaths).toBe(root.mergeKeepPaths)
+    expect(inventory.managedPackageScripts).toBe(root.managedPackageScripts)
+    expect(inventory.suggestedPackageScripts).toBe(root.suggestedPackageScripts)
+    expect(inventory.buildContractPackageScripts).toBe(root.buildContractPackageScripts)
+    expect(inventory.buildContractFilePaths).toBe(root.buildContractFilePaths)
+    expect(inventory.suggestedPackageSections).toBe(root.suggestedPackageSections)
+    expect(inventory.listPathFiles).toBe(root.listPathFiles)
+    expect(inventory.expandSeedOnlyFiles).toBe(root.expandSeedOnlyFiles)
   })
 
   it('exports the sync commit scope without treating package.json as managed rails', async () => {
