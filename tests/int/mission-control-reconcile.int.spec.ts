@@ -605,6 +605,74 @@ describe('mission-control reconcile classifiers', () => {
     })
     expect(proposal.next_permitted_action).toMatch(/Review 2/)
   })
+
+  it('Issue #255: delivery projection keeps canonical issue and PR scalars through YAML round-trip', () => {
+    const prior: any = {
+      schema_version: 1,
+      state: 'CORRECTION_REQUIRED_1',
+      review_cycle: 1,
+      full_review_count: 1,
+      approved_base: 'main',
+      active_task_issue: '#255',
+      active_pr: '#256',
+      current_head: '20fd9bd3587fa0159a2259f203324b6bc5ba1006',
+      last_reviewed_head: '20fd9bd3587fa0159a2259f203324b6bc5ba1006',
+      workflow_mode: 'implementation_pr',
+      guide_version: '1.3.0',
+      guide_source_ref: 'main',
+      guide_source_sha: '4e18fbaf85b7f87091eb43ed6489b2ed565cf289',
+      open_blockers: ['MC-R1-001'],
+      follow_up_issues: [],
+      next_permitted_action: 'Reviewer performs bounded Review 2.',
+      material_change_status: 'none',
+      updated_at: '2026-08-02T22:44:00+07:00',
+      updated_by: 'Mission Control',
+      founder_decision: {
+        status: 'approved',
+        authority: 'Founder',
+        scope: 'issue_255_p0_reliability_implementation',
+        action: 'Approve bounded implementation plan',
+      },
+      latest_handoff_comment_id: '5158958994',
+      latest_result_comment_id: '5158896755',
+      latest_review_verdict_comment_id: '5158946437',
+      latest_transition_identity: 'transition-255-review-1',
+    }
+    const proposal = proposeDeliveryReconciliation({
+      managedState: prior,
+      livePr: { number: '256', headRefOid: 'corrected-head', baseRefName: 'main' },
+      activeTaskIssue: '255',
+      latestResult: { parsed: { headSha: 'corrected-head', prNumber: '256' } },
+      updatedAt: '2026-08-02T22:50:00+07:00',
+    })
+
+    expect(proposal).toMatchObject({
+      state: 'AWAITING_REVIEW_2',
+      review_cycle: 1,
+      full_review_count: 1,
+      active_task_issue: '#255',
+      active_pr: '#256',
+      open_blockers: ['MC-R1-001'],
+      founder_decision: prior.founder_decision,
+    })
+
+    const rendered = renderMissionControlState(proposal)
+    const parsed = parseMissionControlState(rendered)
+    expect(parsed).toMatchObject({ present: true, valid: true })
+    expect(parsed.state).toMatchObject({
+      active_task_issue: '#255',
+      active_pr: '#256',
+      review_cycle: 1,
+      full_review_count: 1,
+      open_blockers: ['MC-R1-001'],
+      founder_decision: prior.founder_decision,
+    })
+    expect(parsed.state?.active_task_issue).not.toMatch(/["\\]/)
+    expect(parsed.state?.active_pr).not.toMatch(/["\\]/)
+    expect(rendered).toContain('active_task_issue: "#255"')
+    expect(rendered).toContain('active_pr: "#256"')
+    expect(rendered).not.toMatch(/\\/)
+  })
   it.each([
     ['contradictory authority', { authoritativeContradiction: true }, 'STATE_CONFLICT'],
     ['unavailable evidence', { requiredEvidenceUnavailable: true }, 'BLOCKED_EXTERNAL'],
@@ -990,7 +1058,7 @@ describe('mission-control reconcile classifiers', () => {
 
     expect(proposal).toMatchObject({
       state: 'AWAITING_REVIEW_1',
-      active_pr: '"#121"',
+      active_pr: '#121',
       current_head: 'abc1234',
       review_cycle: 0,
       full_review_count: 0,

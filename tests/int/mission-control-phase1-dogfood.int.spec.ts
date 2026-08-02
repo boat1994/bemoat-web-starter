@@ -505,7 +505,7 @@ describe('mission-control phase 1 dogfood scenarios (S1-S10)', () => {
       state: 'AWAITING_REVIEW_1',
       review_cycle: 0,
       full_review_count: 0,
-      active_pr: '"#170"',
+      active_pr: '#170',
       current_head: reviewedHead,
       last_reviewed_head: null,
     })
