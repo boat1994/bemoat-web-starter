@@ -5,8 +5,10 @@ For operational GitHub posts, prefer the compact-delta shape in
 [../agent-loop/role-handoff-contract.md](../agent-loop/role-handoff-contract.md)
 while retaining material risk fields below when omission would create risk.
 
-The handoff must contain one bounded job. Do not bundle implementation, review,
-merge, and next-task discovery into one run.
+The handoff must contain one bounded job or one explicitly named safe execution
+bundle. Bundles may contain only mechanically dependent steps with one authority
+scope and one terminal durable outcome; they must not cross implementation,
+independent review, Founder approval, or production-operation gates.
 
 ## HANDOFF
 

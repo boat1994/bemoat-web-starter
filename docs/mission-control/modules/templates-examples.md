@@ -26,6 +26,29 @@ Merged PR #N at verified head `<sha>` → merge commit `<merge_sha>`.
 Managed state: DONE. Migration/deploy not authorized in this transition.
 ```
 
+### Safe merge completion bundle
+
+```markdown
+Repository: owner/repository
+Task Issue: #N · PR: #N
+Authority: comment <immutable-comment-id> · author @founder · scope `merge` · action `merge` · bundle `merge-completion`
+Policy/source/base/head: version `1.3.0` · merged-policy source `<exact-merged-policy-source-sha>` (full 40-hex) · protected base `main@<exact-protected-base-sha>` (full 40-hex) · reviewed head `<exact-reviewed-head>` (full 40-hex)
+Exact-head CI: <required-check-links> passed for `<exact-reviewed-head>`
+Review verdict: `ELIGIBLE FOR FOUNDER REVIEW` · comment <verdict-comment-id> · not superseded
+Objective: merge this exact reviewed PR and complete the Task/campaign terminal projection.
+Stop before mutation on: authority, head, CI, verdict, mergeability, protected-base,
+CAS, or lease drift; ambiguous/conflicting evidence also stops fail-closed.
+Prohibited: implementation, independent review, new merge approval, Review 4,
+migration, deploy, production access, child sync, retained-data mutation, or
+starting the next campaign action.
+Execute: verify evidence → merge with expected-head protection → verify the
+protected-base merge commit `<merge_sha>` → post final RESULT → close Task #N
+→ write Task DONE → project campaign slice DONE → select next action with
+`started: false`.
+Reconcile separately only after projection failure, ambiguous/conflicting
+evidence, unavailable evidence, or a concurrent write.
+```
+
 ### Terminal closure
 
 Task #N closed DONE. Active PR merged; exact-head CI and review gates satisfied.
@@ -126,5 +149,3 @@ None
 Founder reply `approve` approves only the Option A recommendation. Mission
 Control remains in brainstorming until the Founder later says `start dev` or
 another explicit implementation authorization phrase.
-
-

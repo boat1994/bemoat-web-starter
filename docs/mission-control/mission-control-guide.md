@@ -1,6 +1,6 @@
 ---
 policy_id: bemoat-mission-control
-version: 1.2.0
+version: 1.3.0
 scope: repository-development
 canonical_repository: boat1994/bemoat-web-starter
 max_review_cycles: 3
@@ -135,6 +135,109 @@ For bounded defects where root cause, acceptance criteria, and affected files ar
 - **Atomic Dev delivery**: Dev completes code changes, validation, Draft PR (`Refs #N` when Option A merge transport owns Issue closure; otherwise the repository's normal linkage), exact-head CI verification, `## RESULT` comment, and state advancement (`AWAITING_REVIEW_1`) atomically in one delivery run.
 - **Deterministic comment-timestamp filtering**: When evaluating live task progress in `READY` or `IN_PROGRESS`, role comments (`RESULT` or `REVIEW_VERDICT`) from earlier planning or diagnostic phases whose valid timestamps (`createdAt`) precede a valid `state.updated_at` are ignored by deterministic preflight guards (`#146`) to prevent stale comments from triggering false `STATE_CONFLICT` blockers or inferring stale PR references. If either timestamp is absent or malformed (`NaN`), the role comment is preserved for normal reconciliation or fail-closed rules rather than treating invalid timestamps as epoch zero (`MC-R1-003`).
 
+## Safe execution bundles
+
+A safe execution bundle is one bounded objective with one authority scope and one
+terminal durable outcome. It may contain multiple mechanical substeps only when
+they share the same immutable scope, require no new discretionary decision, and
+are preflighted against the same live authority, head, base, CI, and state
+evidence.
+
+Recording an already-made Founder authorization may be bundled with executing
+that exact authorization. Founder decision-making itself is never silently
+combined with implementation, independent review, or merge approval.
+
+### Generic Founder authorization record
+
+Every Founder authorization is a repository-bound, immutable record with a
+trusted Founder identity, an immutable decision comment/reference, and
+non-supersession verification. It has these fields (omitting PR/head/base only
+when the authorized action genuinely has no such object):
+
+```yaml
+schema_version: 1
+status: approved
+authority: Founder
+author_login: <trusted-founder-login>
+comment_id: <immutable-decision-comment>
+comment_sha256: <sha256-of-comment-body>
+immutable_comment_reference: true
+non_superseded: true
+repository: owner/repository
+task_issue: <issue-number>
+pr: <pull-request-number-or-null>
+exact_head: <full-sha-or-null>
+reviewed_head: <full-sha-or-null>
+base: main
+policy_source_sha: <full-sha-of-merged-policy-source>
+protected_base_sha: <full-sha-of-approved-protected-base>
+bundle_kind: merge-completion
+scope: merge
+action: merge
+policy_version: 1.3.0
+```
+
+The runtime verifies the authenticated Founder against the repository-owned
+allowlist, the comment identity and hash, non-supersession, every repository
+and task/PR/head/base/policy-source binding, the exact
+`bundle_kind: merge-completion` tuple, and the exact scope/action. The merge
+transport never treats a generic `delivery`, implementation, ratification, or
+other bundle as merge authority. Ambiguous,
+fabricated, superseded, scope-mismatched, implementation-only, ratifying, or
+non-merge decisions fail closed and cannot authorize merge.
+
+Every bundle must verify its complete evidence set before the first mutation and
+stop at the first safe checkpoint if any identity, scope, authority, head, CI,
+lease, CAS, or mergeability assumption changes.
+
+## Allowed bundled flows
+
+The allowed flows are limited to mechanically dependent steps within one
+authority scope:
+
+- record Founder authorization → execute the exact authorized action → project
+  its deterministic Task state;
+- create Task Issue → initialize planning state → update the parent campaign
+  projection;
+- deliver implementation → verify exact-head CI → post `RESULT` → project
+  `AWAITING_REVIEW_1`;
+- after Founder merge approval, verify and merge the exact reviewed head → post
+  final `RESULT` → close the Task Issue → project Task/campaign `DONE` → select
+  the next campaign action without starting it.
+
+## Prohibited cross-gate bundles
+
+Bundles must not combine implementation-plan approval with implementation,
+implementation with independent review, review with correction or re-review,
+review with Founder merge approval, or merge with migration, deployment,
+production access, destructive work, or real child sync.
+
+Closing one task and starting the next task is also prohibited. Campaign
+projection may select the next permitted action, but never authorizes its
+execution. A bundle must stop rather than introduce a new discretionary
+decision, broaden Acceptance Criteria, or change architecture or scope.
+
+## Reconciliation only on failure
+
+Successful bundles write their deterministic durable projection directly. A
+separate reconciliation run is required only when projection fails, a concurrent
+writer changes authority or state, evidence is ambiguous or unavailable, or the
+durable result conflicts with the action outcome. Reconciliation remains
+bounded, idempotent, and fail-closed; identical evidence is `NO_OP`.
+
+## Merge completion bundle
+
+After Founder merge approval, the merge completion bundle may verify the exact
+reviewed head and exact-head CI, merge with expected-head protection, verify the
+protected-base merge commit, post the final RESULT, close the Task Issue, write
+Task `DONE`, project the campaign slice as `DONE`, and select the next campaign
+action. It may not start that next action or add a new gate.
+
+Hard gates remain unchanged: implementation-plan Founder approval, exact-head
+independent review, exact-head CI, Founder merge approval, protected-base and
+merged-policy verification, and fail-closed behavior. No autonomous Review 4 or
+review-counter reset is introduced.
+
 ## Double-Loop Review Gate
 
 Extracted to module: [Procedures](./modules/procedures.md)
@@ -231,6 +334,10 @@ retaining full evidence in GitHub.
 - Migration, deployment, production mutation, destructive rollback, material
   scope change, and starting dependent work remain separately gated unless
   explicitly authorized.
+- Compact prompts must identify only the repository and active Issue/PR,
+  authority reference, exact head/base, bounded objective, stop conditions,
+  required evidence, and prohibited actions. Stable policy and historical
+  evidence should be linked rather than repeated.
 
 ## Brainstorming Response Profile
 
@@ -358,7 +465,7 @@ active_pr: null
 current_head: null
 last_reviewed_head: null
 post_budget_reviews: []
-guide_version: 1.2.0
+guide_version: 1.3.0
 guide_source_ref: main
 guide_source_sha: null
 open_blockers: []
@@ -534,25 +641,40 @@ evidence and authorized reason.
 
 ### Terminal completion contract (Option A)
 
-Merge transport owns Issue closure. The canonical sequence is: verify Founder
-authorization and the exact reviewed head/CI; merge that head; verify the merge
-commit on the protected base; close the managed Issue as completed; run bounded
-reconciliation to write `DONE`; then verify the same evidence returns `NO_OP`.
-Use the executable `bemoat:mission-control:merge` entrypoint with a pinned,
-trusted Founder authorization comment whose authenticated author is listed in
-the repository Actions variable `BEMOAT_FOUNDER_LOGINS`. The repository-owned
-allowlist supports personal and organization-owned child repositories without
-trusting caller environment state. The transport marks a Draft PR ready,
-merges only the authorized expected head, closes only the directly managed Task
-Issue, and resumes safely after a partial merge, closure, or state-projection
-failure.
+Merge transport owns the complete terminal transition. Before the first
+mutation it must verify the exact Founder merge authorization record, the
+non-superseded `ELIGIBLE FOR FOUNDER REVIEW` verdict, exact reviewed/current PR
+head, exact-head CI, protected base, policy, and mergeability. It then performs
+one bounded merge-completion bundle:
 
-The reconciler updates only the managed state block through lease/CAS. It never
-closes or reopens an Issue. A merged PR with an open managed Issue therefore
-fails closed with an actionable `STATE_CONFLICT` directing merge transport to
-close the Issue before terminal reconciliation. If Issue closure succeeds but
-the state write fails, rerunning reconciliation repairs `DONE` once and performs
-one verification.
+```text
+verify authority/verdict/head/base/CI/mergeability
+→ mark ready when required
+→ merge with expected-head protection
+→ verify the protected-base merge commit
+→ post final RESULT
+→ close the managed Task Issue as completed
+→ write Task DONE
+→ project the campaign slice DONE
+→ select the next campaign action without starting it
+```
+
+The executable `bemoat:mission-control:merge` entrypoint requires a pinned,
+trusted Founder authorization comment whose authenticated author is listed in
+the repository Actions variable `BEMOAT_FOUNDER_LOGINS`. Its exact record binds
+the repository, Task Issue, PR, exact head/base, policy, scope, action, comment
+identity, and non-supersession evidence. The repository-owned allowlist supports
+personal and organization-owned child repositories without trusting caller
+environment state.
+
+Successful deterministic completion writes its terminal projection directly;
+it does not invoke reconciliation and does not perform a second `NO_OP` run.
+An already closed, merged, and `DONE` task is an idempotent `NO_OP` after the
+same evidence is verified. Separate reconciliation is permitted only when a projection fails,
+evidence is ambiguous/conflicting or unavailable, or a concurrent CAS/lease
+write occurs. Reconciliation remains bounded, idempotent,
+and fail-closed; it never closes or reopens an Issue. A failure after a partial
+merge or projection must stop and retain an actionable classification.
 
 ## Review-cycle budget
 
@@ -743,11 +865,13 @@ file a new regression Issue. Minor cleanup uses follow-up Issues.
 
 ## Handoff contract
 
-Every handoff contains one bounded job. Use
+Every handoff contains one bounded job or one explicitly named safe execution
+bundle. Use
 [handoff-template.md](./handoff-template.md) for the full field checklist. For
 operational GitHub comments, prefer the compact-delta shape in
-[role-handoff-contract.md](../agent-loop/role-handoff-contract.md). Do not
-bundle implementation, review, merge, and next-task discovery into one run.
+[role-handoff-contract.md](../agent-loop/role-handoff-contract.md). A bundle
+may not cross independent review, Founder approval, or production-operation
+gates.
 
 ## RESULT contract
 
@@ -782,7 +906,12 @@ blockers.
 
 ## Stop conditions
 
-Stop after one bounded Mission Control action or state transition. Stop on
+Stop after one bounded objective with one authority scope and one terminal
+durable outcome. Stop before mutation or at the first safe checkpoint when the
+exact head moves, CI is stale or changes, newer authority supersedes the
+bundle, the review verdict changes, mergeability changes materially, a CAS or
+lease write fails, an unexpected file/Issue/PR/campaign state would be modified,
+or implementation semantics would exceed the approved plan. Also stop on
 `STATE_CONFLICT`, `STATE_MIGRATION_REQUIRED`, Founder gate, exhausted review
 budget without autonomous Review 4, or when evidence cannot be proven
 (`BLOCKED_EXTERNAL`).

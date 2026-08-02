@@ -256,6 +256,90 @@ export function migrateLegacyManagedState(managedState = {}) {
   return { changed: true, state }
 }
 
+/**
+ * Preserve a planning-only task while the canonical guide changes. This is a
+ * migration projection, not implementation authority: the planning RESULT,
+ * ancestry baseline, counters, and null PR/head fields remain immutable.
+ */
+export function isSeparatePlanningImplementationAuthorization({
+  authorization,
+  managedState,
+  repository = null,
+} = {}) {
+  if (!authorization || typeof authorization !== 'object' || Array.isArray(authorization)) return false
+  const issueNumber = String(managedState?.active_task_issue ?? '').match(/#?(\d+)$/)?.[1] ?? null
+  const expectedBaseline = managedState?.planning_authorization_base_sha
+  return authorization.status === 'approved' &&
+    authorization.authority === 'Founder' &&
+    authorization.scope === 'implementation' &&
+    authorization.action === 'implement' &&
+    String(authorization.task_issue ?? '') === String(issueNumber) &&
+    (!repository || authorization.repository === repository) &&
+    authorization.base === managedState?.approved_base &&
+    authorization.planning_baseline_sha === expectedBaseline &&
+    managedState?.workflow_mode === 'planning_no_pr' &&
+    managedState?.active_pr == null &&
+    managedState?.current_head == null &&
+    managedState?.last_reviewed_head == null
+}
+
+/**
+ * Migrate a planning-only task such as Issue #248 onto a newer merged guide.
+ * The function deliberately refuses to normalize an implementation-shaped
+ * state or to infer implementation approval from the planning RESULT.
+ */
+export function migratePlanningOnlyTaskState({
+  managedState,
+  issueNumber,
+  resultCommentId,
+  planningBaselineSha,
+  guideVersion,
+  policySourceSha = null,
+  implementationAuthorization = null,
+  repository = null,
+} = {}) {
+  if (!managedState || typeof managedState !== 'object' || Array.isArray(managedState)) {
+    throw new Error('STATE_MIGRATION_REQUIRED: planning task state is missing')
+  }
+  const expectedIssue = String(issueNumber ?? '')
+  if (!/^\d+$/.test(expectedIssue) || !/^[0-9a-f]{40}$/i.test(String(planningBaselineSha ?? ''))) {
+    throw new Error('STATE_MIGRATION_REQUIRED: planning migration requires an exact Issue and baseline SHA')
+  }
+  if (managedState.state !== 'BLOCKED_FOR_FOUNDER_DECISION' ||
+      managedState.workflow_mode !== 'planning_no_pr' ||
+      managedState.review_cycle !== 0 || managedState.full_review_count !== 0 ||
+      managedState.active_pr !== null || managedState.current_head !== null || managedState.last_reviewed_head !== null ||
+      managedState.active_task_issue !== `#${expectedIssue}` ||
+      managedState.planning_authorization_base_sha !== planningBaselineSha ||
+      String(managedState.latest_result_comment_id) !== String(resultCommentId)) {
+    throw new Error('STATE_CONFLICT: planning migration evidence does not preserve the exact planning RESULT, baseline, counters, mode, or null PR/head')
+  }
+  if (implementationAuthorization && !isSeparatePlanningImplementationAuthorization({
+    authorization: implementationAuthorization,
+    managedState,
+    repository,
+  })) {
+    throw new Error('STATE_CONFLICT: planning migration cannot infer implementation approval from a mismatched Founder decision')
+  }
+
+  const nextState = {
+    ...structuredClone(managedState),
+    guide_version: guideVersion,
+    guide_source_sha: policySourceSha ?? managedState.guide_source_sha,
+    next_permitted_action: 'Separate Founder implementation approval is required for the bounded implementation plan before any HANDOFF.',
+  }
+  const implementationApproved = isSeparatePlanningImplementationAuthorization({
+    authorization: implementationAuthorization,
+    managedState: nextState,
+    repository,
+  })
+  return {
+    changed: JSON.stringify(nextState) !== JSON.stringify(managedState),
+    state: nextState,
+    implementationApprovalRequired: !implementationApproved,
+  }
+}
+
 function proposedRepair(evidence, classification) {
   if (evidence.proposedState) {
     // Bookkeeping deltas must merge onto the live managed state so additive

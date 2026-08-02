@@ -63,6 +63,11 @@ export const MODULE_SECTION_MAP = {
     '## Applicability and preflight outcomes',
     '## Workflow profiles',
     '## Operational-stage minimization and state necessity',
+    '## Safe execution bundles',
+    '## Allowed bundled flows',
+    '## Prohibited cross-gate bundles',
+    '## Reconciliation only on failure',
+    '## Merge completion bundle',
     '## Roles and authority boundaries',
     '## Responsibility/source-of-truth model',
     '## Protocol compression',
@@ -90,6 +95,7 @@ export const MODULE_SECTION_MAP = {
     '## Execution roles and atomic completions',
     '## Role-owned durable state updates',
     '## Deterministic reconciliation',
+    '## Reconciliation only on failure',
     '## Bootstrap and state reconstruction',
   ],
   [MODULE_CHECKLISTS_PATH]: [
@@ -254,6 +260,69 @@ export const REQUIRED_LEAN_FOUNDER_LOADER_PHRASES = [
   'Founder Decision stops stay lean',
 ]
 
+export const REQUIRED_SAFE_BUNDLE_GUIDE_PHRASES = [
+  'one bounded objective with one authority scope',
+  'Successful bundles write their deterministic durable projection directly.',
+  'After Founder merge approval, the merge completion bundle may verify',
+  '### Generic Founder authorization record',
+  'trusted Founder identity',
+  'immutable decision comment/reference',
+  'non-supersession verification',
+  'exact scope/action',
+  'Separate reconciliation is permitted only when a projection fails',
+  'Hard gates remain unchanged',
+  'No autonomous Review 4 or',
+]
+
+export const REQUIRED_SAFE_BUNDLE_LOADER_PHRASES = [
+  'one bounded objective or explicitly authorized safe execution',
+  'Compact bundle prompts must name',
+  'exact Task Issue/PR',
+  'authority comment and authenticated author',
+  'exact scope and action',
+  'exact policy/base/head',
+  'merged-policy source commit SHA',
+  'protected-base commit SHA',
+  'exact-head CI evidence',
+  'review verdict',
+  'stop conditions for authority/head/CI/verdict/mergeability/CAS/lease drift',
+  'prohibited actions',
+  'Do not bundle across implementation, review,',
+]
+
+export const REQUIRED_SAFE_BUNDLE_PROCEDURE_PHRASES = [
+  'verify exact Founder authorization/verdict/head/base/CI/mergeability',
+  'merge the expected head',
+  'project campaign slice DONE',
+  'select, but do not start, the next campaign action',
+  'not merge authority',
+  'State Reconciler only after projection failure',
+]
+
+export const REQUIRED_SAFE_BUNDLE_TEMPLATE_PHRASES = [
+  'Repository: owner/repository',
+  'Task Issue: #N · PR: #N',
+  'Authority: comment <immutable-comment-id> · author @founder · scope `merge` · action `merge` · bundle `merge-completion`',
+  'merged-policy source `<exact-merged-policy-source-sha>`',
+  'protected base `main@<exact-protected-base-sha>`',
+  'full 40-hex',
+  'Exact-head CI:',
+  'Review verdict: `ELIGIBLE FOR FOUNDER REVIEW`',
+  'Stop before mutation on:',
+  'CAS, or lease drift',
+  'Prohibited:',
+  '`started: false`',
+  'Reconcile separately only after projection failure',
+]
+
+export const REQUIRED_PLANNING_MIGRATION_PHRASES = [
+  'RESULT comment `5156067541`',
+  '`main@fbb587f883e10a4b7f2c21d2af80da84b2f95084`',
+  '`planning_no_pr` mode',
+  'counters `review_cycle: 0` and `full_review_count: 0`',
+  'separate Founder implementation authorization',
+]
+
 export const LOADER_MAX_LINES = 80
 export const LOADER_FORBIDDEN_TITLES = ['## Review-cycle budget', '## Finding severity']
 
@@ -351,6 +420,33 @@ export function scanModuleContent(relativePath, content) {
       violations.push(
         violation('MC012', relativePath, 'Module must define the Double-Loop gate as a no-code checkpoint'),
       )
+    }
+    for (const phrase of REQUIRED_SAFE_BUNDLE_PROCEDURE_PHRASES) {
+      if (!content.includes(phrase)) {
+        violations.push(
+          violation('MC012', relativePath, `Module missing safe merge-completion invariant: ${phrase}`),
+        )
+      }
+    }
+  }
+
+  if (relativePath === MODULE_TEMPLATES_PATH) {
+    for (const phrase of REQUIRED_SAFE_BUNDLE_TEMPLATE_PHRASES) {
+      if (!content.includes(phrase)) {
+        violations.push(
+          violation('MC012', relativePath, `Module missing complete merge template field: ${phrase}`),
+        )
+      }
+    }
+  }
+
+  if (relativePath === MODULE_MIGRATION_PATH) {
+    for (const phrase of REQUIRED_PLANNING_MIGRATION_PHRASES) {
+      if (!content.includes(phrase)) {
+        violations.push(
+          violation('MC012', relativePath, `Module missing Issue #248 migration invariant: ${phrase}`),
+        )
+      }
     }
   }
 
@@ -454,6 +550,13 @@ export function scanGuideContent(relativePath, content) {
       )
     }
   }
+  for (const phrase of REQUIRED_SAFE_BUNDLE_GUIDE_PHRASES) {
+    if (!content.includes(phrase)) {
+      violations.push(
+        violation('MC012', relativePath, `Guide missing safe execution bundle invariant: ${phrase}`),
+      )
+    }
+  }
 
   for (const phrase of REQUIRED_CORRECTION_GUIDE_PHRASES) {
     if (!content.includes(phrase)) {
@@ -511,6 +614,13 @@ export function scanLoaderContent(relativePath, content) {
     if (!content.includes(phrase)) {
       violations.push(
         violation('MC007', relativePath, `Loader missing lean Founder Decision invariant: ${phrase}`),
+      )
+    }
+  }
+  for (const phrase of REQUIRED_SAFE_BUNDLE_LOADER_PHRASES) {
+    if (!content.includes(phrase)) {
+      violations.push(
+        violation('MC012', relativePath, `Loader missing safe execution bundle invariant: ${phrase}`),
       )
     }
   }

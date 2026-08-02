@@ -80,8 +80,16 @@ State Reconciler completion
 = deterministic state repair from unambiguous evidence, or explicit STATE_CONFLICT
 
 Founder-authorized merge transition
-= verify authorization/head/CI + mark ready when needed + merge + verify merge commit + close Issue completed + reconcile DONE + verify NO_OP
+= verify exact Founder authorization/verdict/head/base/CI/mergeability → mark ready when needed → merge the expected head → verify protected-base merge commit → post final RESULT → close Task Issue → write Task DONE → project campaign slice DONE → select, but do not start, the next campaign action
 ```
+
+The merge transition uses one generic Founder authorization record. It must
+contain the trusted Founder identity, immutable decision comment/reference,
+non-supersession verification, repository, Task Issue, PR when applicable,
+exact head and protected base when applicable, exact scope, and exact
+authorized action. A ratification, implementation-only decision, ambiguous or
+fabricated comment, superseded decision, scope mismatch, or non-merge action is
+not merge authority.
 
 Reviewer completion uses the repository-owned atomic facade, not the generic
 comment transport:
@@ -108,7 +116,7 @@ authorization.
 | `last_reviewed_head` | Reviewer only |
 | Resulting correction/eligibility state | Reviewer or State Reconciler from verdict evidence |
 | Issue closure | Founder-authorized merge transport, after verified merge evidence |
-| `DONE` state projection | State Reconciler, only after the Issue is closed/completed and merge evidence agrees |
+| `DONE` state projection | Merge transport during successful merge completion; State Reconciler only after projection failure, ambiguous/conflicting evidence, or a concurrent CAS/lease write |
 | Issue acceptance criteria checklist | Mission Control pre-merge reconciliation only |
 
 Delivery and Reviewer roles may update **only** content between the
@@ -117,9 +125,22 @@ content outside the markers. Dev must never increment `review_cycle` or `full_re
 
 ## Deterministic reconciliation
 
-When bookkeeping lag is unambiguous, Mission Control or a State Reconciler
-should repair the managed state block without requiring a separate coordination
-run before Review 1 or the next permitted action.
+When a safe execution bundle deterministically produces its durable projection,
+the executor writes that final state in the same authorized run. A separate
+reconciliation run is not required for successful bundled execution.
+
+## Reconciliation only on failure
+
+Require a separate reconciliation run only when the bundle's projection failed,
+a concurrent writer changed authority or state, evidence is ambiguous or
+unavailable, or the durable result conflicts with the action outcome. In those
+cases reconciliation remains bounded, idempotent, fail-closed, and subject to
+the existing one-repair/one-verification rules. Identical evidence remains
+`NO_OP` and must not create another model stage.
+
+When bookkeeping lag is unambiguous outside a bundle, Mission Control or a
+State Reconciler may repair the managed state block without requiring a
+separate coordination run before Review 1 or the next permitted action.
 
 Reconciliation inputs (all must agree):
 
@@ -170,11 +191,24 @@ Issue comment containing the exact authorization object:
 ```json
 {
   "schema_version": 1,
+  "status": "approved",
   "authority": "Founder",
+  "author_login": "<trusted-founder-login>",
+  "comment_id": "<immutable-decision-comment>",
+  "comment_sha256": "<sha256-of-comment-body>",
+  "immutable_comment_reference": true,
+  "non_superseded": true,
+  "repository": "owner/repository",
+  "bundle_kind": "merge-completion",
   "scope": "merge",
   "task_issue": 123,
   "pr": 124,
+  "exact_head": "<exact-reviewed-head>",
   "reviewed_head": "<exact-reviewed-head>",
+  "base": "main",
+  "policy_source_sha": "<exact-merged-policy-source-sha>",
+  "protected_base_sha": "<exact-protected-base-sha>",
+  "policy_version": "1.3.0",
   "action": "merge"
 }
 ```
@@ -194,17 +228,22 @@ commits endpoint and rejects all of those automatic closing sources so GitHub
 cannot close the Issue before protected-base verification and the explicit
 closure step.
 
-The executable command performs this exact order:
+The executable command performs this exact merge completion bundle:
 
 ```text
-verify explicit Founder authorization
-→ verify exact reviewed/current PR head and required exact-head CI
+verify exact Founder authorization, non-superseded verdict, reviewed/current PR head, base, policy, exact-head CI, and mergeability
 → mark the Draft PR ready when required
 → merge with expected-head protection
 → verify the merge commit on the protected base
+→ post final Task RESULT
 → close only the directly managed Issue as completed
-→ invoke bounded reconciliation and require DONE
-→ rerun reconciliation and require NO_OP
+→ write Task DONE and project the completed campaign slice
+→ select the next campaign action without starting it
+
+Separate reconciliation runs only if the final projection fails, evidence is
+ambiguous/conflicting or unavailable, or a concurrent CAS/lease write occurs;
+require either the proven repair or a fail-closed classification. Repeated
+identical evidence returns `NO_OP`.
 ```
 
 If merge succeeds before Issue closure fails, rerun the same merge command; it

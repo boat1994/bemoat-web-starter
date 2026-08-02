@@ -287,6 +287,57 @@ max_review_cycles: 4
     ).toBe(true)
   })
 
+  it('requires safe execution bundle semantics and preserved gate boundaries', async () => {
+    const mod = await import('../../scripts/guard-mission-control-contract.mjs')
+    const guide = readFileSync(resolve(process.cwd(), 'docs/mission-control/mission-control-guide.md'), 'utf8')
+
+    for (const phrase of [
+      '## Safe execution bundles',
+      '## Allowed bundled flows',
+      'one bounded objective with one authority scope',
+      '## Prohibited cross-gate bundles',
+      '## Reconciliation only on failure',
+      '## Merge completion bundle',
+      'exact-head',
+      'exact-head CI',
+      'Founder merge approval',
+      'No autonomous Review 4',
+      'record Founder authorization → execute the exact authorized action',
+      'create Task Issue → initialize planning state',
+      'after Founder merge approval, verify and merge the exact reviewed head',
+    ]) {
+      expect(guide).toContain(phrase)
+    }
+    for (const phrase of mod.REQUIRED_SAFE_BUNDLE_GUIDE_PHRASES) expect(guide).toContain(phrase)
+  })
+
+  it('requires compact bundle-aware prompts while retaining fail-closed stops', async () => {
+    const mod = await import('../../scripts/guard-mission-control-contract.mjs')
+    const loader = readFileSync(resolve(process.cwd(), 'prompts/mission-control/chatgpt-project-loader.md'), 'utf8')
+
+    for (const phrase of [
+      'bounded objective',
+      'exact policy/base/head',
+      'Compact bundle prompts',
+      'prohibited actions',
+      'Do not bundle across implementation, review,',
+    ]) {
+      expect(loader).toContain(phrase)
+    }
+    for (const phrase of mod.REQUIRED_SAFE_BUNDLE_LOADER_PHRASES) expect(loader).toContain(phrase)
+  })
+
+  it('requires immutable policy-source and protected-base SHAs in compact merge prompts', async () => {
+    const mod = await import('../../scripts/guard-mission-control-contract.mjs')
+    const template = readFileSync(resolve(process.cwd(), mod.MODULE_TEMPLATES_PATH), 'utf8')
+    const loader = readFileSync(resolve(process.cwd(), mod.LOADER_PATH), 'utf8')
+
+    expect(template).toMatch(/exact-merged-policy-source-sha/)
+    expect(template).toMatch(/exact-protected-base-sha/)
+    expect(loader).toMatch(/merged-policy source commit SHA/i)
+    expect(loader).toMatch(/protected-base commit SHA/i)
+  })
+
   it('fails when AGENTS.md lacks the Mission Control pointer', async () => {
     const mod = await import('../../scripts/guard-mission-control-contract.mjs')
     const violations = mod.scanAgentsPointer(mod.AGENTS_PATH, '# Agents\n')

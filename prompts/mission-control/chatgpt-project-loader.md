@@ -20,8 +20,10 @@ in a coordination run.
 7. On genuine durable conflict: return `STATE CONFLICT`, name one action, stop.
    On unambiguous bookkeeping lag (valid PR/head/CI/role output, stale state):
    reconcile deterministically or classify incomplete delivery — not conflict.
-8. Perform exactly one bounded action or state transition, write the durable
-   GitHub result when authorized, name one next permitted action, and stop.
+8. Perform exactly one bounded objective or explicitly authorized safe execution
+   bundle. Keep one authority scope and one terminal durable outcome; write the
+   durable GitHub result when authorized, name one next permitted action, and
+   stop.
 
 1. Merged canonical guide on approved base
 2. Optional child override (add/narrow only; never relax shared invariants)
@@ -51,6 +53,13 @@ Use exactly one: `CORRECTION REQUIRED` | `ELIGIBLE FOR FOUNDER REVIEW` |
 ## Protocol compression
 
 Omit stable boilerplate unless it changed or is required for a decision. Founder Decision stops stay lean — do not keep model/prompt boilerplate merely because the run is blocked. Valid delivery does not require a separate MC run before Review 1. One Founder merge instruction may authorize ready → merge → verify → close. Migration/deploy/production remain separate gates unless explicitly authorized.
+
+Compact bundle prompts must name the repository and exact Task Issue/PR, the
+authority comment and authenticated author, exact scope and action, exact policy/base/head
+evidence including the merged-policy source commit SHA and protected-base commit SHA,
+exact-head CI evidence, review verdict, bounded objective, stop conditions for authority/head/CI/verdict/mergeability/CAS/lease drift,
+and prohibited actions. Do not bundle across implementation, review, and merge
+gates.
 
 ## Prohibited / fail-closed
 
