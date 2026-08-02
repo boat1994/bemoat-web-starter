@@ -2,8 +2,8 @@
   "schema_version": 1,
   "issue": "254",
   "transition_identity": "planning-init:254:handoff:5158302718:active-task-self-bind",
-  "observed_body_sha256": "c7e9a7408599d7aeaaf46f78444f42e1f44ee0a8daa16630e4b1629af5cced37",
+  "observed_body_sha256": "5b821378b3138fa4ac0261e220821ab178ca214e0f3bcf1cb1ca8e17c4e56570",
   "holder": "mission-control",
-  "status": "held",
-  "updated_at": "2026-08-02T13:47:02.986Z"
+  "status": "released",
+  "updated_at": "2026-08-02T13:47:06.594Z"
 }
