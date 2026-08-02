@@ -2,8 +2,8 @@
   "schema_version": 1,
   "issue": "255",
   "transition_identity": "merge-completion:255:256:cfe041a91e1e6125c0972dcb3787a7ecfb3be32d:d6e99c350f8d92e536fe97f81bd6507f6cdaa686",
-  "observed_body_sha256": "515a8bfc7d92622a151a5fe79b0a08992a674ac7cb4e6e2cb911c05fe1009248",
+  "observed_body_sha256": "021fb21f5f5cf28c2c4d36b4ccc4aadda66e139ad2da221cc90da7a01759c17e",
   "holder": "mission-control-merge",
-  "status": "held",
-  "updated_at": "2026-08-02T18:11:23.721Z"
+  "status": "released",
+  "updated_at": "2026-08-02T18:11:27.637Z"
 }
