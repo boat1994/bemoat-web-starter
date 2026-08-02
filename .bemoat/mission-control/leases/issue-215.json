@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "issue": "215",
-  "transition_identity": "{\"taskId\":\"215\",\"phase\":\"Campaign Projection Repair\",\"role\":\"State Reconciler\",\"sourceIssue\":\"254\",\"handoffCommentId\":\"5158396308\"}",
+  "transition_identity": "campaign-215-issue-254-state-conflict-reconciliation-5159878063",
   "observed_body_sha256": "f679df2ac5f13b745ff329375418fe06b0058c6d04bae604bf8f3671a525d3d5",
-  "holder": "mission-control-campaign-projection-repair",
-  "status": "released",
-  "updated_at": "2026-08-02T18:17:44.048Z"
+  "holder": "mission-control-campaign-reconcile",
+  "status": "held",
+  "updated_at": "2026-08-02T19:10:46.633Z"
 }
