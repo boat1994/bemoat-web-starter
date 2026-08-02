@@ -3,6 +3,7 @@ import { resolve } from 'node:path'
 
 import {
   AGENTS_PATH,
+  BOILERPLATE_INVENTORY_PATH,
   GUIDE_PATH,
   HANDOFF_PATH,
   LOADER_PATH,
@@ -15,7 +16,7 @@ import {
 } from './inventory.mjs'
 import { scanGuideContent } from './scan-guide.mjs'
 import { scanLoaderContent, scanAgentsPointer } from './scan-loader.mjs'
-import { scanManagedPathsContract, extractManagedPathsFromSyncScript } from './managed-paths.mjs'
+import { scanManagedPathsContract, extractManagedPaths } from './managed-paths.mjs'
 import { scanModuleContent } from './scan-modules.mjs'
 import { scanHandoffTemplate, scanResultTemplate, scanRoleHandoffContract } from './scan-transport.mjs'
 import { violation } from './violation.mjs'
@@ -63,8 +64,9 @@ export function runMissionControlContractGuard({
 
   let paths = managedPaths
   if (!paths) {
+    const inventorySource = readOptional(root, BOILERPLATE_INVENTORY_PATH, readFile)
     const syncSource = readOptional(root, SYNC_SCRIPT_PATH, readFile)
-    paths = syncSource ? extractManagedPathsFromSyncScript(syncSource) : []
+    paths = extractManagedPaths({ inventory: inventorySource, legacySync: syncSource })
 
     const manifestRaw = readOptional(root, MANIFEST_PATH, readFile)
     if (manifestRaw) {

@@ -22,6 +22,31 @@ describe('mission-control managed-path and composition boundaries', () => {
     ])
   })
 
+  it('prefers the extracted inventory and falls back to legacy root inventory', async () => {
+    const { extractManagedPaths } = await import(
+      '../../scripts/guards/mission-control-contract/managed-paths.mjs'
+    )
+
+    const inventory = `
+      export const syncManifestPath = '.bemoat/boilerplate-sync-manifest.json'
+      export const managedPaths = [
+        // Agent and workflow rails
+        syncManifestPath, 'scripts/boilerplate'
+      ]
+    `
+    const legacySync = "export const managedPaths = ['AGENTS.md', 'scripts/sync-boilerplate.mjs']"
+
+    expect(extractManagedPaths({ inventory, legacySync })).toEqual([
+      '.bemoat/boilerplate-sync-manifest.json',
+      'scripts/boilerplate',
+    ])
+    expect(extractManagedPaths({ inventory: null, legacySync })).toEqual([
+      'AGENTS.md',
+      'scripts/sync-boilerplate.mjs',
+    ])
+    expect(extractManagedPaths({ inventory: 'export const managedPaths = [unknownPath]', legacySync })).toEqual([])
+  })
+
   it('rejects the live override path through the managed-path scanner', async () => {
     const managedPaths = await import('../../scripts/guards/mission-control-contract/managed-paths.mjs')
     const inventory = await import('../../scripts/guards/mission-control-contract/inventory.mjs')
