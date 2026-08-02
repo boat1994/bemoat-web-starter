@@ -65,6 +65,7 @@
     "scripts/architecture-contract.json",
     "scripts/AGENTS.md",
     "scripts/ARCHITECTURE.md",
+    "scripts/mission-control",
     "scripts/mission-control-state.mjs",
     "scripts/mission-control-brainstorming.mjs",
     "scripts/guard-package-manager.mjs",
@@ -106,6 +107,7 @@
     "tests/int/mission-control-reconcile.int.spec.ts",
     "tests/int/command-runner.int.spec.ts",
     "tests/int/scripts-architecture.int.spec.ts",
+    "tests/int/campaign-schema.int.spec.ts",
     "tests/int/scripts-entrypoints-contract.int.spec.ts",
     "tests/int/mission-control-review.int.spec.ts",
     "tests/int/mission-control-merge.int.spec.ts",
@@ -142,7 +144,9 @@
     "src/lib",
     "src/payload.config.ts"
   ],
-  "mergeKeepPaths": [".gitignore"],
+  "mergeKeepPaths": [
+    ".gitignore"
+  ],
   "managedPackageScripts": [
     "bemoat:agent:issue",
     "bemoat:mission-control:dispatch",
@@ -194,6 +198,11 @@
     "deploy:dev",
     "preview"
   ],
-  "buildContractFilePaths": ["open-next.config.ts"],
-  "suggestedPackageSections": ["dependencies", "devDependencies"]
+  "buildContractFilePaths": [
+    "open-next.config.ts"
+  ],
+  "suggestedPackageSections": [
+    "dependencies",
+    "devDependencies"
+  ]
 }

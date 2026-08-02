@@ -1,0 +1,12 @@
+prefix
+<!-- bemoat-mission-control-campaign:start -->
+```yaml
+schema_version: 1
+```
+<!-- bemoat-mission-control-campaign:end -->
+middle
+<!-- bemoat-mission-control-campaign:start -->
+```yaml
+schema_version: 1
+```
+<!-- bemoat-mission-control-campaign:end -->

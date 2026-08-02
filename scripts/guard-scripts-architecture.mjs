@@ -3,6 +3,13 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join, normalize, relative, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
+import {
+  FACADE_DISPOSITIONS,
+  INTERNAL_DESTINATION_PREFIXES,
+  MIGRATION_STATUSES,
+} from './mission-control/domain/campaign-enums.mjs'
+import { validateRootScriptMappingRecord } from './mission-control/domain/campaign-validator.mjs'
+
 export class ArchitectureContractError extends Error {
   constructor(violations) {
     super('Scripts architecture contract validation failed')
@@ -132,6 +139,104 @@ function componentHasSelfEdge(graph, component) {
   return component.some((node) => (graph.get(node) ?? new Set()).has(node))
 }
 
+export function listRootScripts(root) {
+  const scriptsRoot = join(root, 'scripts')
+  if (!existsSync(scriptsRoot)) return []
+  return readdirSync(scriptsRoot)
+    .filter((entry) => {
+      const absolutePath = join(scriptsRoot, entry)
+      return statSync(absolutePath).isFile() && /\.(mjs|sh)$/.test(entry)
+    })
+    .map((entry) => `scripts/${entry}`)
+    .sort()
+}
+
+export function validateRootScriptMap(contract, root) {
+  const violations = []
+  const hasRootScripts = Object.hasOwn(contract, 'rootScripts')
+  const hasTransitional = Object.hasOwn(contract, 'transitionalDirectories')
+
+  // Temp architecture fixtures may omit the campaign-era root-script map.
+  // Production contracts include both keys and are enforced completely.
+  if (!hasRootScripts && !hasTransitional) return violations
+
+  const rootScripts = contract.rootScripts
+  if (!Array.isArray(rootScripts)) {
+    violations.push('architecture-contract.json rootScripts must be an array')
+    return violations
+  }
+
+  const actual = listRootScripts(root)
+  const mappedPaths = rootScripts.map((entry) => entry?.path)
+  const sortedMapped = [...mappedPaths].sort()
+
+  if (JSON.stringify(mappedPaths) !== JSON.stringify(sortedMapped)) {
+    violations.push('rootScripts must be ordered deterministically by path')
+  }
+
+  const seen = new Set()
+  for (const entry of rootScripts) {
+    const validated = validateRootScriptMappingRecord(entry)
+    if (!validated.valid) {
+      violations.push(`Invalid rootScripts entry for ${entry?.path ?? '<missing>'}: ${validated.reason}`)
+      continue
+    }
+    if (seen.has(validated.record.path)) {
+      violations.push(`Duplicate rootScripts mapping: ${validated.record.path}`)
+    }
+    seen.add(validated.record.path)
+    if (!FACADE_DISPOSITIONS.has(validated.record.facade_disposition)) {
+      violations.push(`Invalid facade_disposition for ${validated.record.path}`)
+    }
+    if (!MIGRATION_STATUSES.has(validated.record.migration_status)) {
+      violations.push(`Invalid migration_status for ${validated.record.path}`)
+    }
+    if (!INTERNAL_DESTINATION_PREFIXES.some((prefix) => validated.record.internal_destination.startsWith(prefix))) {
+      violations.push(`Invalid internal_destination vocabulary for ${validated.record.path}`)
+    }
+  }
+
+  for (const path of actual) {
+    if (!seen.has(path)) {
+      violations.push(`Missing rootScripts mapping for ${path}`)
+    }
+  }
+  for (const path of seen) {
+    if (!actual.includes(path)) {
+      violations.push(`rootScripts mapping references missing root script: ${path}`)
+    }
+  }
+
+  const transitional = contract.transitionalDirectories
+  if (!Array.isArray(transitional)) {
+    violations.push('architecture-contract.json transitionalDirectories must be an array')
+    return violations
+  }
+
+  const harness = transitional.find((entry) => entry?.path === 'scripts/harness-contract/')
+  if (!harness) {
+    violations.push('transitionalDirectories must record scripts/harness-contract/')
+  } else if (harness.migration_status !== 'transitional') {
+    violations.push('scripts/harness-contract/ must remain migration_status transitional')
+  }
+
+  for (const entry of transitional) {
+    if (typeof entry?.path !== 'string' || !entry.path.startsWith('scripts/')) {
+      violations.push('transitionalDirectories entries require a scripts/ path')
+      continue
+    }
+    if (entry.migration_status !== 'transitional') {
+      violations.push(`transitionalDirectories ${entry.path} must use migration_status transitional`)
+    }
+    // Transitional directories are not destination vocabulary and must not be treated as approved target tree.
+    if (INTERNAL_DESTINATION_PREFIXES.some((prefix) => entry.path === prefix || entry.path === prefix.slice(0, -1))) {
+      violations.push(`transitionalDirectories must not reclassify destination vocabulary path ${entry.path}`)
+    }
+  }
+
+  return violations
+}
+
 export function validateArchitectureContract(root) {
   const contractPath = join(root, 'scripts/architecture-contract.json')
   const contract = JSON.parse(readFileSync(contractPath, 'utf8'))
@@ -189,6 +294,8 @@ export function validateArchitectureContract(root) {
       }
     }
   }
+
+  violations.push(...validateRootScriptMap(contract, root))
 
   return violations
 }
