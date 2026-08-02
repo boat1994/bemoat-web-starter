@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "issue": "249",
+  "transition_identity": "merge-completion:249:250:b74027aed2cf2930e15bf4260ac86533cb069604:42cc310a9b96457e7fa7ad177f234b17b6acf041",
+  "observed_body_sha256": "16653c01166e4cb0a893967963f46410af8dd1a872368b4181ca84ced9390d1c",
+  "holder": "mission-control-merge",
+  "status": "held",
+  "updated_at": "2026-08-02T10:20:11.110Z"
+}
