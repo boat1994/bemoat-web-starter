@@ -2,8 +2,8 @@
   "schema_version": 1,
   "issue": "255",
   "transition_identity": "{\"taskId\":\"255\",\"phase\":\"Review 2 — bounded Delta Review\",\"role\":\"REVIEW_VERDICT\",\"contentHash\":\"af636df4ac70fef91bfafe95f02af56ef484ef0e27a17a9f2d334cb8af2739ce\"}",
-  "observed_body_sha256": "a119ee8607874c92dc4bbc80118993c72ceb11714fee082b74f75956abe7f879",
+  "observed_body_sha256": "8bb6ec4be52cff784037bc90d1d0541da95355e9f5d67502fd35a2f1a32b867a",
   "holder": "mission-control-review",
-  "status": "held",
-  "updated_at": "2026-08-02T16:45:42.125Z"
+  "status": "released",
+  "updated_at": "2026-08-02T16:45:45.541Z"
 }
