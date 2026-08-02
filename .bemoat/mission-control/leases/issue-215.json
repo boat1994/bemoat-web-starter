@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "issue": "215",
-  "transition_identity": "{\"taskId\":\"215\",\"phase\":\"Slice 3 Task Issue creation and campaign projection\",\"role\":\"RESULT\",\"contentHash\":\"937daa292a999bd6ef1ca1b28e586c6e09232551d17c727d2e66010ccd8c28e5\"}",
-  "observed_body_sha256": "937daa292a999bd6ef1ca1b28e586c6e09232551d17c727d2e66010ccd8c28e5",
-  "holder": "mission-control-slice3-init",
-  "status": "released",
-  "updated_at": "2026-08-02T06:56:56.264Z"
+  "transition_identity": "merge-campaign:215:3:248:5dc5e96c377ca82f74c567b6da5b41ab306acb62",
+  "observed_body_sha256": "27d1ac9e2dbe7e852b9b91decc920929500b2502f8fa1cfc250a2bff9f8ddf73",
+  "holder": "mission-control-merge",
+  "status": "held",
+  "updated_at": "2026-08-02T11:16:16.400Z"
 }
