@@ -2,8 +2,8 @@
   "schema_version": 1,
   "issue": "215",
   "transition_identity": "campaign-repair:215:restore-parser-valid-seven-slice-v1",
-  "observed_body_sha256": "b2801fd189a26bf032e407f623d727dcc81e465c7864d7c5473de710c4b90c38",
+  "observed_body_sha256": "ac96ccc80c30317b6ad526534621319073634d7e652cebe6aaa3ce5251549fc4",
   "holder": "mission-control-state-reconciler",
-  "status": "held",
-  "updated_at": "2026-08-02T13:42:35.415Z"
+  "status": "released",
+  "updated_at": "2026-08-02T13:42:39.582Z"
 }
