@@ -232,9 +232,22 @@ export function parseDurableProgress(body = '') {
   }
 }
 
+export function isPreReviewPlanningNoPrState(state = {}) {
+  return state?.workflow_mode === 'planning_no_pr' &&
+    state?.state === 'BLOCKED_FOR_FOUNDER_DECISION' &&
+    state?.review_cycle === 0 &&
+    state?.full_review_count === 0 &&
+    state?.active_pr === null &&
+    state?.current_head === null &&
+    state?.last_reviewed_head === null
+}
+
 export function stateRequiresPrEvidence(state) {
-  return /^(AWAITING_REVIEW_|CORRECTION_REQUIRED_)/.test(state) ||
-    ['BLOCKED_FOR_FOUNDER_DECISION', 'ELIGIBLE_FOR_FOUNDER_REVIEW', 'DONE'].includes(state)
+  if (isPreReviewPlanningNoPrState(state)) return false
+
+  const stateName = typeof state === 'string' ? state : state?.state
+  return /^(AWAITING_REVIEW_|CORRECTION_REQUIRED_)/.test(stateName) ||
+    ['BLOCKED_FOR_FOUNDER_DECISION', 'ELIGIBLE_FOR_FOUNDER_REVIEW', 'DONE'].includes(stateName)
 }
 
 export function validatePlanPath(cwd, planPath, relevantSection = null) {

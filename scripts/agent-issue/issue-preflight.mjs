@@ -7,6 +7,7 @@ import {
   getCurrentBranch,
   getStatusShort,
   hasDevBranch,
+  isReadOnlyPlanningBaseline,
   runBranchSafety,
 } from './local-git-evidence.mjs'
 import { analyzeProgressTracking } from './progress-tracking.mjs'
@@ -77,15 +78,28 @@ export function runAgentIssuePreflight({
           },
         }
 
-  const nextStep = buildNextStep({
-    branchSafetyOk: branchSafety.ok,
-    dirty,
+  const readOnlyPlanningBaseline = isReadOnlyPlanningBaseline({
+    cwd,
     branchName,
-    issueNumber,
-    suggestedBranchName,
-    devBranchAvailable,
-    progressBlockers: progressAnalysis.blockers,
+    state: progressAnalysis.report.missionControlState?.state,
+    env,
   })
+
+  const nextStep =
+    readOnlyPlanningBaseline && !dirty && progressAnalysis.blockers.length === 0
+      ? {
+          label: 'Next manual step',
+          value: 'Remain read-only; Founder decision is required before implementation.',
+        }
+      : buildNextStep({
+          branchSafetyOk: branchSafety.ok,
+          dirty,
+          branchName,
+          issueNumber,
+          suggestedBranchName,
+          devBranchAvailable,
+          progressBlockers: progressAnalysis.blockers,
+        })
 
   const output = [
     'Bemoat agent issue preflight',
@@ -97,6 +111,11 @@ export function runAgentIssuePreflight({
     '',
     'Branch safety:',
     ...(branchSafety.lines.length > 0 ? branchSafety.lines : ['<no branch safety output>']),
+    ...(readOnlyPlanningBaseline
+      ? [
+          `Read-only planning/diagnostic validation: exact approved protected baseline verified at main@${progressAnalysis.report.missionControlState.state.planning_authorization_base_sha}; direct coding remains blocked on main.`,
+        ]
+      : []),
     '',
   ]
 
@@ -148,7 +167,8 @@ export function runAgentIssuePreflight({
   output.push(`${nextStep.label}: ${nextStep.value}`)
 
   const hasProgressBlockers = progressAnalysis.blockers.length > 0
-  const ok = branchSafety.ok && !dirty && !hasProgressBlockers
+  const branchSafetyAllowsPreflight = branchSafety.ok || readOnlyPlanningBaseline
+  const ok = branchSafetyAllowsPreflight && !dirty && !hasProgressBlockers
 
   return {
     ok,

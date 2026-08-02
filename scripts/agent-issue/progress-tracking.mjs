@@ -103,7 +103,7 @@ export function analyzeProgressTracking({
     (stateAnalysis.valid && stateAnalysis.present)
   const state = stateAnalysis.state
   let resolvedActiveIssueState = activeIssueState
-  const stateNeedsPrEvidence = stateAnalysis.valid && stateRequiresPrEvidence(state.state)
+  const stateNeedsPrEvidence = stateAnalysis.valid && stateRequiresPrEvidence(state)
 
   report.missionControlState = stateAnalysis
   if (!stateAnalysis.present) {

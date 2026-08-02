@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import {
   buildScriptImportGraph,
+  listRootScripts,
   validateArchitectureContract,
 } from '../../scripts/guard-scripts-architecture.mjs'
 import architectureContract from '../../scripts/architecture-contract.json'
@@ -52,6 +53,36 @@ describe('scripts architecture ratchet', () => {
   it('preserves the approved nine-node sixteen-edge baseline SCC in the contract', () => {
     expect(architectureContract.cycleNodes).toHaveLength(9)
     expect(architectureContract.cycleEdges).toHaveLength(16)
+  })
+
+  it('maps every root script exactly once with destination vocabulary and transitional harness-contract', () => {
+    const actual = listRootScripts(process.cwd())
+    const mapped = architectureContract.rootScripts.map((entry) => entry.path)
+    expect(mapped).toEqual(actual)
+    expect(new Set(mapped).size).toBe(mapped.length)
+
+    for (const entry of architectureContract.rootScripts) {
+      expect(['stable_facade', 'composition_root', 'tooling_entrypoint']).toContain(entry.facade_disposition)
+      expect(['unmapped', 'planned', 'transitional', 'migrated', 'retained']).toContain(entry.migration_status)
+      expect(entry.owning_slice).toBeGreaterThanOrEqual(1)
+      expect(entry.owning_slice).toBeLessThanOrEqual(7)
+      expect(
+        [
+          'scripts/mission-control/',
+          'scripts/agent-issue/',
+          'scripts/boilerplate/',
+          'scripts/guards/',
+          'scripts/adapters/',
+          'scripts/tooling/',
+          'scripts/shared/',
+        ].some((prefix) => entry.internal_destination.startsWith(prefix)),
+      ).toBe(true)
+    }
+
+    const harness = architectureContract.transitionalDirectories.find(
+      (entry) => entry.path === 'scripts/harness-contract/',
+    )
+    expect(harness?.migration_status).toBe('transitional')
   })
 
   it('captures side-effect static imports in the production architecture graph (F-SLICE1-02)', () => {
