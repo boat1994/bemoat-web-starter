@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process'
 
 import { analyzeExactHeadCi, normalizeStatusChecks, isCheckSuccessful } from './agent-issue/exact-head-ci.mjs'
 import { resolveIssueNumber, resolvePrNumber } from './agent-issue/issue-references.mjs'
-import { parseMissionControlState, renderMissionControlState } from './mission-control-state.mjs'
+import { parseMissionControlState, projectMissionControlStateBlock } from './mission-control-state.mjs'
 import { writeIssueBodyWithLease } from './mission-control-issue-body-cas.mjs'
 import { parseCampaign } from './mission-control/domain/campaign-parser.mjs'
 import { replaceCampaignBlock } from './mission-control/domain/campaign-renderer.mjs'
@@ -92,6 +92,15 @@ function stateConflict(message) {
   return new Error(`STATE_CONFLICT: ${message}`)
 }
 
+export const AUTHORIZATION_VALIDATION_FAILURE = 'AUTHORIZATION_VALIDATION_FAILURE'
+
+function authorizationValidationFailure(message) {
+  const error = new Error(`${AUTHORIZATION_VALIDATION_FAILURE}: ${message}`)
+  error.code = AUTHORIZATION_VALIDATION_FAILURE
+  error.classification = AUTHORIZATION_VALIDATION_FAILURE
+  return error
+}
+
 function blockedExternal(message) {
   return new Error(`BLOCKED_EXTERNAL: ${message}`)
 }
@@ -104,13 +113,60 @@ function normalizePrNumber(value) {
   return resolvePrNumber(value)
 }
 
-function parseJsonBlock(body = '') {
-  const fenced = String(body).match(/```json\s*([\s\S]*?)```/i)?.[1]
-  try {
-    return JSON.parse(fenced ?? String(body).trim())
-  } catch {
-    throw stateConflict('Founder merge authorization comment does not contain valid JSON evidence')
+export function parseFounderMergeAuthorization(body = '') {
+  if (typeof body !== 'string') {
+    throw authorizationValidationFailure('Founder merge authorization evidence must be raw JSON text')
   }
+  const source = body.trim()
+  if (!source || source.startsWith('```') || source.endsWith('```')) {
+    throw authorizationValidationFailure('Founder merge authorization evidence must contain exactly one raw JSON object')
+  }
+
+  let parsed
+  try {
+    parsed = JSON.parse(source)
+  } catch {
+    throw authorizationValidationFailure('Founder merge authorization comment does not contain valid raw JSON evidence')
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw authorizationValidationFailure('Founder merge authorization evidence must decode to one JSON object, not a string or array')
+  }
+  return parsed
+}
+
+export function generateFounderMergeAuthorization(authorization) {
+  if (!authorization || typeof authorization !== 'object' || Array.isArray(authorization)) {
+    throw authorizationValidationFailure('Founder merge authorization generator requires an object, not a string or array')
+  }
+  if (authorization.non_superseded === false || authorization.superseded_by != null) {
+    throw authorizationValidationFailure('Founder merge authorization generator cannot emit a superseded record')
+  }
+  const record = {
+    ...structuredClone(authorization),
+    non_superseded: true,
+    superseded_by: null,
+  }
+  if (record.supersedes_comment_ids != null && (!Array.isArray(record.supersedes_comment_ids) ||
+    record.supersedes_comment_ids.some((id) => !/^[1-9]\d*$/.test(String(id))))) {
+    throw authorizationValidationFailure('Founder merge authorization supersession references must be positive comment IDs')
+  }
+  return JSON.stringify(record, null, 2)
+}
+
+export const serializeFounderMergeAuthorization = generateFounderMergeAuthorization
+
+export function validateFounderMergeAuthorizationEvidence({
+  body,
+  authorizationCommentId,
+  trustedFounderLogins,
+  expected,
+}) {
+  return validateFounderAuthorizationRecord({
+    authorization: parseFounderMergeAuthorization(body),
+    authorizationCommentId,
+    trustedFounderLogins,
+    expected,
+  })
 }
 
 export function normalizePaginatedCommitMessages(pages) {
@@ -131,10 +187,10 @@ export function validateFounderAuthorizationRecord({
   expected,
 }) {
   if (!Array.isArray(trustedFounderLogins) || trustedFounderLogins.length === 0) {
-    throw stateConflict('repository-owned Founder identity configuration is missing or empty')
+    throw authorizationValidationFailure('repository-owned Founder identity configuration is missing or empty')
   }
   if (!authorization || typeof authorization !== 'object' || Array.isArray(authorization)) {
-    throw stateConflict('Founder authorization record is missing or ambiguous')
+    throw authorizationValidationFailure('Founder authorization record is missing, stringified, or ambiguous')
   }
   const required = [
     authorization.schema_version === 1,
@@ -162,10 +218,10 @@ export function validateFounderAuthorizationRecord({
     expected.reviewCommentId == null || String(authorization.review_verdict_comment_id) === String(expected.reviewCommentId),
   ]
   if (required.some((condition) => !condition)) {
-    throw stateConflict('Founder authorization record does not bind trusted identity, immutable comment, non-supersession, repository, task, PR, exact head/base, scope, policy, and action')
+    throw authorizationValidationFailure('Founder authorization record does not bind trusted identity, immutable comment, non-supersession, repository, task, PR, exact head/base, scope, policy, and action')
   }
   if (!trustedFounderLogins.includes(authorization.author_login)) {
-    throw stateConflict('authorization comment author does not match repository-owned Founder identity configuration')
+    throw authorizationValidationFailure('authorization comment author does not match repository-owned Founder identity configuration')
   }
   return authorization
 }
@@ -642,9 +698,11 @@ function parseArgs(argv) {
 }
 
 function stateBlockReplacement(body, state) {
-  const pattern = /<!--\s*bemoat-mission-control-state:start\s*-->[\s\S]*?<!--\s*bemoat-mission-control-state:end\s*-->/
-  if (!pattern.test(body)) throw stateConflict('managed state block is missing')
-  return body.replace(pattern, renderMissionControlState(state))
+  try {
+    return projectMissionControlStateBlock(body, state)
+  } catch (error) {
+    throw stateConflict(error instanceof Error ? error.message : String(error))
+  }
 }
 
 function sameTerminalBinding(left, right) {
@@ -654,6 +712,25 @@ function sameTerminalBinding(left, right) {
 
 function flattenGhPages(value) {
   return Array.isArray(value) ? value.flat(Infinity).filter((entry) => entry && typeof entry === 'object') : []
+}
+
+function commentSupersedesId(body, targetCommentId) {
+  const text = String(body ?? '')
+  if (text.includes(`supersedes: ${targetCommentId}`) ||
+    text.includes(`superseded_comment_id: ${targetCommentId}`) ||
+    (text.includes(String(targetCommentId)) && /superseded|not authoritative/i.test(text))) {
+    return true
+  }
+  try {
+    const parsed = parseFounderMergeAuthorization(text)
+    const supersededIds = [
+      ...(Array.isArray(parsed.supersedes_comment_ids) ? parsed.supersedes_comment_ids : []),
+      ...(parsed.supersedes_comment_id == null ? [] : [parsed.supersedes_comment_id]),
+    ]
+    return supersededIds.some((id) => String(id) === String(targetCommentId))
+  } catch {
+    return false
+  }
 }
 
 function createProductionDeps() {
@@ -695,12 +772,9 @@ function createProductionDeps() {
     readPullRequest,
     readFounderAuthorization: async (repo, issueNumber, commentId) => {
       const comment = readIssueComment(repo, issueNumber, commentId)
-      const parsed = parseJsonBlock(comment.body)
+      const parsed = parseFounderMergeAuthorization(comment.body)
       const superseded = readIssueComments(repo, issueNumber).some((entry) => {
-        const body = String(entry.body ?? '')
-        return body.includes(`supersedes: ${comment.id}`) ||
-          body.includes(`superseded_comment_id: ${comment.id}`) ||
-          (body.includes(String(comment.id)) && /superseded|not authoritative/i.test(body))
+        return String(entry.id) !== String(comment.id) && commentSupersedesId(entry.body, comment.id)
       })
       return {
         ...parsed,

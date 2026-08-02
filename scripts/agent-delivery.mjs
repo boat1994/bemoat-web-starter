@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
 import { analyzeExactHeadCi } from './agent-issue.mjs'
-import { parseMissionControlState, renderMissionControlState as renderStateBlock } from './mission-control-state.mjs'
+import { parseMissionControlState, projectMissionControlStateBlock, renderMissionControlState as renderStateBlock } from './mission-control-state.mjs'
 import {
   proposeDeliveryReconciliation,
   parseRoleCommentBody,
@@ -248,13 +248,12 @@ async function mainAsync() {
       if (expectedBody !== null && live.body !== expectedBody) {
         throw new Error('STATE_CONFLICT: concurrent Issue body change detected before state write')
       }
-      const newStateBlock = renderStateBlock(nextState)
       const observedBody = live.body
       let newBody = observedBody
       if (liveParsed.present) {
-        newBody = newBody.replace(/<!--\s*bemoat-mission-control-state:start\s*-->[\s\S]*?<!--\s*bemoat-mission-control-state:end\s*-->/, newStateBlock)
+        newBody = projectMissionControlStateBlock(newBody, nextState)
       } else {
-        newBody = `${newBody}\n\n${newStateBlock}\n`
+        newBody = `${newBody}\n\n${renderStateBlock(nextState)}\n`
       }
       await writeIssueBodyWithLease({
         repo: expectedRepo,

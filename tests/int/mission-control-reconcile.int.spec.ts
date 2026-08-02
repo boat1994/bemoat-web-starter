@@ -605,6 +605,74 @@ describe('mission-control reconcile classifiers', () => {
     })
     expect(proposal.next_permitted_action).toMatch(/Review 2/)
   })
+
+  it('Issue #255: delivery projection keeps canonical issue and PR scalars through YAML round-trip', () => {
+    const prior: any = {
+      schema_version: 1,
+      state: 'CORRECTION_REQUIRED_1',
+      review_cycle: 1,
+      full_review_count: 1,
+      approved_base: 'main',
+      active_task_issue: '#255',
+      active_pr: '#256',
+      current_head: '20fd9bd3587fa0159a2259f203324b6bc5ba1006',
+      last_reviewed_head: '20fd9bd3587fa0159a2259f203324b6bc5ba1006',
+      workflow_mode: 'implementation_pr',
+      guide_version: '1.3.0',
+      guide_source_ref: 'main',
+      guide_source_sha: '4e18fbaf85b7f87091eb43ed6489b2ed565cf289',
+      open_blockers: ['MC-R1-001'],
+      follow_up_issues: [],
+      next_permitted_action: 'Reviewer performs bounded Review 2.',
+      material_change_status: 'none',
+      updated_at: '2026-08-02T22:44:00+07:00',
+      updated_by: 'Mission Control',
+      founder_decision: {
+        status: 'approved',
+        authority: 'Founder',
+        scope: 'issue_255_p0_reliability_implementation',
+        action: 'Approve bounded implementation plan',
+      },
+      latest_handoff_comment_id: '5158958994',
+      latest_result_comment_id: '5158896755',
+      latest_review_verdict_comment_id: '5158946437',
+      latest_transition_identity: 'transition-255-review-1',
+    }
+    const proposal = proposeDeliveryReconciliation({
+      managedState: prior,
+      livePr: { number: '256', headRefOid: 'corrected-head', baseRefName: 'main' },
+      activeTaskIssue: '255',
+      latestResult: { parsed: { headSha: 'corrected-head', prNumber: '256' } },
+      updatedAt: '2026-08-02T22:50:00+07:00',
+    })
+
+    expect(proposal).toMatchObject({
+      state: 'AWAITING_REVIEW_2',
+      review_cycle: 1,
+      full_review_count: 1,
+      active_task_issue: '#255',
+      active_pr: '#256',
+      open_blockers: ['MC-R1-001'],
+      founder_decision: prior.founder_decision,
+    })
+
+    const rendered = renderMissionControlState(proposal)
+    const parsed = parseMissionControlState(rendered)
+    expect(parsed).toMatchObject({ present: true, valid: true })
+    expect(parsed.state).toMatchObject({
+      active_task_issue: '#255',
+      active_pr: '#256',
+      review_cycle: 1,
+      full_review_count: 1,
+      open_blockers: ['MC-R1-001'],
+      founder_decision: prior.founder_decision,
+    })
+    expect(parsed.state?.active_task_issue).not.toMatch(/["\\]/)
+    expect(parsed.state?.active_pr).not.toMatch(/["\\]/)
+    expect(rendered).toContain('active_task_issue: "#255"')
+    expect(rendered).toContain('active_pr: "#256"')
+    expect(rendered).not.toMatch(/\\/)
+  })
   it.each([
     ['contradictory authority', { authoritativeContradiction: true }, 'STATE_CONFLICT'],
     ['unavailable evidence', { requiredEvidenceUnavailable: true }, 'BLOCKED_EXTERNAL'],
@@ -990,7 +1058,7 @@ describe('mission-control reconcile classifiers', () => {
 
     expect(proposal).toMatchObject({
       state: 'AWAITING_REVIEW_1',
-      active_pr: '"#121"',
+      active_pr: '#121',
       current_head: 'abc1234',
       review_cycle: 0,
       full_review_count: 0,
@@ -1632,5 +1700,212 @@ Bounded implementation work.
   it('parses paginated live comment payloads and normalizes ids', () => {
     const parsed = parsePaginatedGhApiJson('[{"id":1,"body":"a"}][{"id":2,"body":"b"}]')
     expect(normalizeIssueComments(parsed).map((comment: any) => comment.id)).toEqual([1, 2])
+  })
+})
+
+describe('Issue #255 atomic role-transition regressions', () => {
+  const issue255ResultBody = `## RESULT
+
+### Task log
+- Timestamp: 2026-08-02T22:00:00+07:00
+- Task / Issue: #255
+- Phase: Dev (implementation)
+- Executing role: Dev / Builder
+
+**State:** branch \`fix/255-atomic-role-transitions\` · base \`main\` · head \`255head\`
+**PR:** https://github.com/boat1994/bemoat-web-starter/pull/300
+**Next:** Reviewer
+`
+
+  it('Issue #255: one canonical role comment repairs stale latest_* metadata and rejects caller-supplied lineage', async () => {
+    let state: any = {
+      state: 'IN_PROGRESS',
+      review_cycle: 0,
+      full_review_count: 0,
+      latest_handoff_comment_id: 'handoff-255',
+      latest_result_comment_id: 'stale-result-255',
+      latest_review_verdict_comment_id: 'verdict-255',
+      latest_transition_identity: 'stale-transition-255',
+    }
+    const comments = [{ id: 'canonical-result-255', body: issue255ResultBody }]
+    const coordinator = new CoordinatorClass({
+      readState: async () => structuredClone(state),
+      writeState: async (next: any, expected: any) => {
+        expect(expected).toMatchObject({ latest_result_comment_id: 'stale-result-255' })
+        state = structuredClone(next)
+        return structuredClone(state)
+      },
+      listComments: async () => comments,
+      postComment: async () => { throw new Error('canonical RESULT should be reused') },
+    })
+
+    const result = await coordinator.integrateResult({
+      resultBody: issue255ResultBody,
+      projectState: () => ({
+        ...state,
+        state: 'AWAITING_REVIEW_1',
+        active_pr: '#300',
+        current_head: '255head',
+        latest_handoff_comment_id: 'caller-forged-handoff',
+        latest_result_comment_id: 'caller-forged-result',
+        latest_review_verdict_comment_id: 'caller-forged-verdict',
+        latest_transition_identity: 'caller-forged-transition',
+      }),
+    })
+
+    expect(result.classification).toBe('REPAIRABLE_DRIFT')
+    expect(state).toMatchObject({
+      state: 'AWAITING_REVIEW_1',
+      latest_handoff_comment_id: 'handoff-255',
+      latest_result_comment_id: 'canonical-result-255',
+      latest_review_verdict_comment_id: 'verdict-255',
+      latest_transition_identity: JSON.stringify(normalizeTransitionIdentity(issue255ResultBody)),
+    })
+  })
+
+  it('Issue #255: duplicate or competing active role comments fail closed as STATE_CONFLICT', async () => {
+    const competing = issue255ResultBody.replace('Phase: Dev (implementation)', 'Phase: Correction 1')
+    let state: any = { state: 'IN_PROGRESS', review_cycle: 0, full_review_count: 0 }
+    const comments = [
+      { id: 'canonical-result-255', body: issue255ResultBody },
+      { id: 'competing-result-255', body: competing },
+    ]
+    const coordinator = new CoordinatorClass({
+      readState: async () => state,
+      writeState: async (next: any) => { state = structuredClone(next); return state },
+      listComments: async () => comments,
+      postComment: async () => { throw new Error('competing role comments must fail closed') },
+    })
+
+    await expect(coordinator.integrateResult({ resultBody: issue255ResultBody }))
+      .rejects.toThrow(/STATE_CONFLICT: competing role comments/)
+  })
+
+  it('Issue #255: timeout after role-comment POST is idempotent on retry', async () => {
+    let state: any = { state: 'READY', review_cycle: 0, full_review_count: 0 }
+    const comments: any[] = []
+    let postAttempts = 0
+    let failStateWrite = true
+    const coordinator = new CoordinatorClass({
+      readState: async () => structuredClone(state),
+      writeState: async (next: any) => {
+        if (failStateWrite) throw new Error('Issue body write timed out after POST')
+        state = structuredClone(next)
+        return structuredClone(state)
+      },
+      listComments: async () => comments,
+      postComment: async (body: string) => {
+        postAttempts += 1
+        const comment = { id: 'handoff-timeout-255', body }
+        comments.push(comment)
+        throw new Error('role-comment POST timed out after publication')
+      },
+    })
+    const handoffBody = `## HANDOFF
+
+**Target:** Dev / Builder
+**Task / Issue:** #255
+**Phase:** P0 reliability implementation
+`
+
+    await expect(coordinator.integrateHandoff({ handoffBody })).rejects.toThrow(/Issue body write timed out/)
+    failStateWrite = false
+    const retry = await coordinator.integrateHandoff({ handoffBody })
+
+    expect(retry.outcome).toBe('DISPATCHED')
+    expect(postAttempts).toBe(1)
+    expect(comments).toHaveLength(1)
+    expect(state.latest_handoff_comment_id).toBe('handoff-timeout-255')
+  })
+
+  it('Issue #255: genuinely ambiguous durable authority returns STATE CONFLICT', () => {
+    expect(classifyReconciliation({ authoritativeContradiction: true })).toMatchObject({
+      outcome: 'STATE_CONFLICT',
+    })
+    expect(analyzeReconciliation({
+      managedState: { state: 'IN_PROGRESS', current_head: 'old-head' },
+      livePr: { number: '300', headRefOid: 'new-head' },
+      stateConflictBlockers: [],
+    }).classification).toMatchObject({ outcome: 'STATE_CONFLICT' })
+  })
+
+  it('Issue #255: Founder decline plus same-Issue Planning Correction 1 initialization preserves planning lineage', async () => {
+    const planningBase = 'a'.repeat(40)
+    let state: any = {
+      state: 'BLOCKED_FOR_FOUNDER_DECISION',
+      review_cycle: 0,
+      full_review_count: 0,
+      approved_base: 'main',
+      active_task_issue: '#255',
+      active_pr: null,
+      current_head: null,
+      last_reviewed_head: null,
+      workflow_mode: 'planning_no_pr',
+      planning_authorization_base_sha: planningBase,
+      latest_result_comment_id: 'result-255',
+      latest_transition_identity: JSON.stringify(normalizeTransitionIdentity(issue255ResultBody)),
+      founder_decision: {
+        status: 'declined',
+        authority: 'Founder',
+        scope: 'implementation',
+        task_issue: '#255',
+        action: 'Require Planning Correction 1',
+      },
+    }
+    const comments = [{ id: 'result-255', body: issue255ResultBody }]
+    const handoffBody = `## HANDOFF
+
+### Task log
+- Timestamp: 2026-08-02T22:00:00+07:00
+- Task / Issue: #255
+- Phase: Planning Correction 1 Initialization
+- Executing role: Mission Control
+
+**Target:** Planning Investigator
+**Objective:** Produce the bounded correction plan on the same Issue.
+**Next:** Execute Planning Correction 1.
+`
+    const coordinator = new CoordinatorClass({
+      readState: async () => structuredClone(state),
+      writeState: async (next: any) => {
+        state = structuredClone(next)
+        return structuredClone(state)
+      },
+      listComments: async () => comments,
+      postComment: async (body: string) => {
+        const comment = { id: 'handoff-255-correction', body }
+        comments.push(comment)
+        return comment
+      },
+    })
+
+    const result = await coordinator.integrateHandoff({
+      handoffBody,
+      planningAuthorizationBaseSha: planningBase,
+      transitionState: (prior: any) => ({
+        ...prior,
+        state: 'BLOCKED_FOR_FOUNDER_DECISION',
+        latest_result_comment_id: 'caller-forged-result',
+        latest_transition_identity: 'caller-forged-transition',
+        next_permitted_action: 'Execute Planning Correction 1.',
+      }),
+    })
+
+    expect(result.outcome).toBe('DISPATCHED')
+    expect(state).toMatchObject({
+      state: 'BLOCKED_FOR_FOUNDER_DECISION',
+      review_cycle: 0,
+      full_review_count: 0,
+      active_pr: null,
+      current_head: null,
+      last_reviewed_head: null,
+      workflow_mode: 'planning_no_pr',
+      planning_authorization_base_sha: planningBase,
+      latest_result_comment_id: 'result-255',
+      latest_handoff_comment_id: 'handoff-255-correction',
+      next_permitted_action: 'Execute Planning Correction 1.',
+    })
+    expect(state.latest_transition_identity).toBe(JSON.stringify(normalizeTransitionIdentity(handoffBody)))
+    expect(state).not.toHaveProperty('state', 'PLANNING')
   })
 })

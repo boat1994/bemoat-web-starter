@@ -9,6 +9,40 @@ export {
 const FULL_COMMIT_SHA = /^[0-9a-f]{40}$/i
 
 /**
+ * Compare two protected-base commit objects without treating a mutable branch
+ * tip as immutable planning authority. A tree-identical advance is stale
+ * bookkeeping that can be repaired; a changed tree is contradictory authority.
+ */
+export function compareProtectedBaseTrees({ cwd, env = process.env, previousSha, currentSha } = {}) {
+  const resolveTree = (sha) => run('git', ['rev-parse', '--verify', `${sha}^{tree}`], { cwd, env })
+  if (!FULL_COMMIT_SHA.test(String(previousSha ?? '')) || !FULL_COMMIT_SHA.test(String(currentSha ?? ''))) {
+    return {
+      sameTree: false,
+      classification: 'BLOCKED_EXTERNAL',
+      reason: 'protected-base comparison requires two exact commit SHAs',
+    }
+  }
+
+  const previous = resolveTree(previousSha)
+  const current = resolveTree(currentSha)
+  if (previous.status !== 0 || current.status !== 0) {
+    return {
+      sameTree: false,
+      classification: 'BLOCKED_EXTERNAL',
+      reason: 'protected-base tree object is unavailable',
+    }
+  }
+
+  const sameTree = previous.stdout.trim() === current.stdout.trim()
+  return {
+    sameTree,
+    classification: sameTree ? 'REPAIRABLE_DRIFT' : 'STATE_CONFLICT',
+    previousTree: previous.stdout.trim(),
+    currentTree: current.stdout.trim(),
+  }
+}
+
+/**
  * Immutable planning-lineage base for ancestry proofs.
  * Must be an exact full commit SHA from durable state — never a mutable branch tip.
  *

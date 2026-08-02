@@ -11,7 +11,7 @@ import {
   verifyStatePostcondition,
   resolveProductionCommentTrust,
 } from './mission-control-reconcile.mjs'
-import { parseMissionControlState, renderMissionControlState } from './mission-control-state.mjs'
+import { parseMissionControlState, projectMissionControlStateBlock } from './mission-control-state.mjs'
 import { writeIssueBodyWithLease } from './mission-control-issue-body-cas.mjs'
 
 function run(command, args, options = {}) {
@@ -60,10 +60,7 @@ function issueArgs(options, fields) {
 }
 
 function replaceStateBlock(body, state) {
-  const rendered = renderMissionControlState(state)
-  const pattern = /<!--\s*bemoat-mission-control-state:start\s*-->[\s\S]*?<!--\s*bemoat-mission-control-state:end\s*-->/
-  if (!pattern.test(body)) throw new Error('managed state block is missing')
-  return body.replace(pattern, rendered)
+  return projectMissionControlStateBlock(body, state)
 }
 
 function sameState(left, right) {

@@ -199,6 +199,64 @@ describe('mission-control issue-body lease CAS', () => {
     expect(body).toBe('body-from-first')
   })
 
+  it('Issue #255: CAS lease winner and loser produce one durable body transition', async () => {
+    let body = 'issue-255-observed-body'
+    const leaseStore = createMemoryLeaseStore()
+    const writes: string[] = []
+    let releaseContender: (() => void) | null = null
+    const contenderReady = new Promise<void>((resolve) => {
+      releaseContender = resolve
+    })
+
+    const winner = compareAndSwapIssueBody({
+      repo,
+      issueNumber: '255',
+      expectedBody: body,
+      nextBody: 'issue-255-winner-transition',
+      transitionIdentity: 'issue-255-transition',
+      holder: 'issue-255-winner',
+      deps: {
+        leaseStore,
+        readIssueBody: async () => body,
+        writeIssueBody: async ({ body: next }: { body: string }) => {
+          writes.push(next)
+          body = next
+        },
+        beforeIssueUpdate: async () => {
+          releaseContender?.()
+          await new Promise((resolve) => setTimeout(resolve, 20))
+        },
+      },
+    })
+
+    await contenderReady
+    const loser = compareAndSwapIssueBody({
+      repo,
+      issueNumber: '255',
+      expectedBody: 'issue-255-observed-body',
+      nextBody: 'issue-255-loser-transition',
+      transitionIdentity: 'issue-255-competing-transition',
+      holder: 'issue-255-loser',
+      deps: {
+        leaseStore,
+        readIssueBody: async () => body,
+        writeIssueBody: async ({ body: next }: { body: string }) => {
+          writes.push(next)
+          body = next
+        },
+      },
+    })
+
+    const results = await Promise.allSettled([winner, loser])
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1)
+    expect(results.filter((result) => result.status === 'rejected')).toHaveLength(1)
+    expect(results.find((result) => result.status === 'rejected')).toEqual(expect.objectContaining({
+      reason: expect.objectContaining({ message: expect.stringMatching(/STATE_CONFLICT: issue-body lease CAS lost/) }),
+    }))
+    expect(writes).toEqual(['issue-255-winner-transition'])
+    expect(body).toBe('issue-255-winner-transition')
+  })
+
   it('keeps post-write verification green for the winning projection', async () => {
     let body = '<!-- bemoat-mission-control-state:start -->\nstate: IN_PROGRESS\n<!-- bemoat-mission-control-state:end -->'
     const nextBody = '<!-- bemoat-mission-control-state:start -->\nstate: AWAITING_REVIEW_1\n<!-- bemoat-mission-control-state:end -->'

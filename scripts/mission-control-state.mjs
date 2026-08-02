@@ -487,3 +487,31 @@ export function renderMissionControlState(stateObj) {
     '<!-- bemoat-mission-control-state:end -->'
   ].join('\n')
 }
+
+/**
+ * Replace exactly one managed Mission Control state block without touching the
+ * surrounding Issue prose. Marker positions are resolved before rendering so
+ * duplicate or unbalanced blocks fail closed instead of allowing a broad
+ * string replacement to select an arbitrary block.
+ *
+ * @param {string} body
+ * @param {Record<string, unknown>} stateObj
+ * @returns {string}
+ */
+export function projectMissionControlStateBlock(body = '', stateObj = {}) {
+  const starts = [...String(body).matchAll(/<!--\s*bemoat-mission-control-state:start\s*-->/g)]
+  const ends = [...String(body).matchAll(/<!--\s*bemoat-mission-control-state:end\s*-->/g)]
+
+  if (starts.length === 0 && ends.length === 0) {
+    throw new Error('managed state block is missing')
+  }
+  if (starts.length !== 1 || ends.length !== 1 || starts[0].index > ends[0].index) {
+    throw new Error('exactly one balanced marker pair is required')
+  }
+
+  const start = starts[0]
+  const end = ends[0]
+  const before = String(body).slice(0, start.index)
+  const after = String(body).slice(end.index + end[0].length)
+  return `${before}${renderMissionControlState(stateObj)}${after}`
+}

@@ -265,13 +265,13 @@ describe('Founder-authorized Mission Control merge transport', () => {
   })
 
   it.each([
-    ['Founder authority', { authorization: { authority: 'Reviewer' } }],
-    ['Founder identity', { authorization: { author_login: 'attacker' } }],
-    ['superseded authority', { authorization: { non_superseded: false } }],
-    ['reviewed head', { authorization: { reviewed_head: 'a'.repeat(40) } }],
-    ['current PR head', { pull: { headRefOid: 'b'.repeat(40) } }],
-    ['protected base', { pull: { baseRefName: 'dev' } }],
-    ['failed exact-head CI', { pull: { statusCheckRollup: [{ name: 'ci', conclusion: 'FAILURE', status: 'COMPLETED' }] } }],
+    ['Founder authority', { authorization: { authority: 'Reviewer' } }, 'AUTHORIZATION_VALIDATION_FAILURE'],
+    ['Founder identity', { authorization: { author_login: 'attacker' } }, 'AUTHORIZATION_VALIDATION_FAILURE'],
+    ['superseded authority', { authorization: { non_superseded: false } }, 'AUTHORIZATION_VALIDATION_FAILURE'],
+    ['reviewed head', { authorization: { reviewed_head: 'a'.repeat(40) } }, 'AUTHORIZATION_VALIDATION_FAILURE'],
+    ['current PR head', { pull: { headRefOid: 'b'.repeat(40) } }, 'STATE_CONFLICT'],
+    ['protected base', { pull: { baseRefName: 'dev' } }, 'STATE_CONFLICT'],
+    ['failed exact-head CI', { pull: { statusCheckRollup: [{ name: 'ci', conclusion: 'FAILURE', status: 'COMPLETED' }] } }, 'STATE_CONFLICT'],
     ['stale exact-head CI', {
       pull: {
         statusCheckRollup: {
@@ -281,10 +281,10 @@ describe('Founder-authorized Mission Control merge transport', () => {
           ],
         },
       },
-    }],
-    ['changed verdict', { reviewVerdict: 'CORRECTION REQUIRED' }],
-    ['mergeability drift', { pull: { mergeable: 'CONFLICTING' } }],
-  ])('fails closed before merge when %s differs', async (_label, options) => {
+    }, 'STATE_CONFLICT'],
+    ['changed verdict', { reviewVerdict: 'CORRECTION REQUIRED' }, 'STATE_CONFLICT'],
+    ['mergeability drift', { pull: { mergeable: 'CONFLICTING' } }, 'STATE_CONFLICT'],
+  ])('fails closed before merge when %s differs', async (_label, options, expectedClassification) => {
     const harness = createHarness(options)
 
     await expect(execute({
@@ -292,7 +292,7 @@ describe('Founder-authorized Mission Control merge transport', () => {
       repo: 'boat1994/bemoat-web-starter',
       authorizationCommentId: '6000000001',
       deps: harness.deps,
-    })).rejects.toThrow(/STATE_CONFLICT/)
+    })).rejects.toThrow(new RegExp(expectedClassification))
 
     expect(harness.operations).not.toContain(expect.stringMatching(/^merge:/))
     expect(harness.operations).not.toContain('close:222')
@@ -373,7 +373,7 @@ describe('Founder-authorized Mission Control merge transport', () => {
       repo: 'boat1994/bemoat-web-starter',
       authorizationCommentId: '6000000001',
       deps: harness.deps,
-    })).rejects.toThrow(/STATE_CONFLICT.*Founder identity/)
+    })).rejects.toThrow(/AUTHORIZATION_VALIDATION_FAILURE.*Founder identity/)
 
     expect(harness.operations).toEqual(['authorization:222'])
   })
@@ -683,7 +683,7 @@ describe('Mission Control safe bundle and Founder authorization contracts', () =
         scope: 'merge',
         action: 'merge',
       },
-    })).toThrow(/STATE_CONFLICT/)
+    })).toThrow(/AUTHORIZATION_VALIDATION_FAILURE/)
   })
 
   it('rejects an implementation-only Founder decision as merge authority even when the head matches', async () => {
@@ -719,5 +719,116 @@ describe('Mission Control safe bundle and Founder authorization contracts', () =
 
     expect(result).toMatchObject({ valid: false })
     expect(result.reason).toMatch(/authority scope/i)
+  })
+})
+
+describe('canonical Founder merge-authorization JSON transport', () => {
+  function expectedAuthorization() {
+    return {
+      repository: 'boat1994/bemoat-web-starter',
+      taskIssue: 222,
+      pr: 223,
+      exactHead: reviewedHead,
+      base: 'main',
+      bundleKind: 'merge-completion',
+      policySourceSha,
+      protectedBaseSha,
+      policyVersion: '1.3.0',
+      scope: 'merge',
+      action: 'merge',
+    }
+  }
+
+  function recordBody(overrides: Record<string, unknown> = {}) {
+    const record = authorization(overrides)
+    delete record.comment_id
+    delete record.comment_sha256
+    return record
+  }
+
+  function completeRecord(overrides: Record<string, unknown> = {}) {
+    return authorization(overrides)
+  }
+
+  it('emits one raw JSON object with non_superseded true', async () => {
+    const mergeTransport = await import('../../scripts/mission-control-merge.mjs')
+    const raw = mergeTransport.generateFounderMergeAuthorization(completeRecord({
+      supersedes_comment_ids: ['5159403964', '5159448302'],
+    }))
+
+    expect(raw).toMatch(/^\{[\s\S]*\}$/)
+    expect(raw).not.toContain('```')
+    expect(JSON.parse(raw)).toMatchObject({
+      non_superseded: true,
+      superseded_by: null,
+      supersedes_comment_ids: ['5159403964', '5159448302'],
+    })
+    expect(JSON.parse(raw)).not.toBeTypeOf('string')
+    expect(mergeTransport.validateFounderMergeAuthorizationEvidence({
+      body: raw,
+      authorizationCommentId: '6000000001',
+      trustedFounderLogins: ['boat1994'],
+      expected: expectedAuthorization(),
+    })).toMatchObject({ non_superseded: true, superseded_by: null })
+  })
+
+  it.each([
+    ['malformed', '{"schema_version":1,'],
+    ['escaped', JSON.stringify(recordBody(), null, 2).replace(/\n/g, '\\n')],
+    ['double-stringified', JSON.stringify(JSON.stringify(recordBody()))],
+  ])('rejects %s authorization evidence as authorization validation failure', async (_label, body) => {
+    const mergeTransport = await import('../../scripts/mission-control-merge.mjs')
+
+    expect(() => mergeTransport.validateFounderMergeAuthorizationEvidence({
+      body,
+      authorizationCommentId: '6000000001',
+      trustedFounderLogins: ['boat1994'],
+      expected: expectedAuthorization(),
+    })).toThrow(/AUTHORIZATION_VALIDATION_FAILURE/)
+    expect(() => mergeTransport.validateFounderMergeAuthorizationEvidence({
+      body,
+      authorizationCommentId: '6000000001',
+      trustedFounderLogins: ['boat1994'],
+      expected: expectedAuthorization(),
+    })).not.toThrow(/STATE_CONFLICT/)
+  })
+
+  it('rejects missing non_superseded evidence without classifying durable state conflict', async () => {
+    const mergeTransport = await import('../../scripts/mission-control-merge.mjs')
+    const body = JSON.stringify(completeRecord({ non_superseded: undefined }))
+    const error = (() => {
+      try {
+        mergeTransport.validateFounderMergeAuthorizationEvidence({
+          body,
+          authorizationCommentId: '6000000001',
+          trustedFounderLogins: ['boat1994'],
+          expected: expectedAuthorization(),
+        })
+        return null
+      } catch (caught) {
+        return caught as Error & { code?: string, classification?: string }
+      }
+    })()
+
+    expect(error).toMatchObject({
+      code: 'AUTHORIZATION_VALIDATION_FAILURE',
+      classification: 'AUTHORIZATION_VALIDATION_FAILURE',
+    })
+    expect(error?.message).not.toContain('STATE_CONFLICT')
+  })
+
+  it('rejects a superseded authorization record as authorization validation failure', async () => {
+    const mergeTransport = await import('../../scripts/mission-control-merge.mjs')
+    const body = JSON.stringify(completeRecord({
+      non_superseded: false,
+      superseded_by: '5159453303',
+    }))
+
+    expect(() => mergeTransport.validateFounderMergeAuthorizationEvidence({
+      body,
+      authorizationCommentId: '6000000001',
+      trustedFounderLogins: ['boat1994'],
+      expected: expectedAuthorization(),
+    })).toThrow(/AUTHORIZATION_VALIDATION_FAILURE/)
   })
 })
