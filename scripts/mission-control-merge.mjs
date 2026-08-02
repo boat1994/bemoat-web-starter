@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process'
 
 import { analyzeExactHeadCi, normalizeStatusChecks, isCheckSuccessful } from './agent-issue/exact-head-ci.mjs'
 import { resolveIssueNumber, resolvePrNumber } from './agent-issue/issue-references.mjs'
-import { parseMissionControlState, renderMissionControlState } from './mission-control-state.mjs'
+import { parseMissionControlState, projectMissionControlStateBlock } from './mission-control-state.mjs'
 import { writeIssueBodyWithLease } from './mission-control-issue-body-cas.mjs'
 import { parseCampaign } from './mission-control/domain/campaign-parser.mjs'
 import { replaceCampaignBlock } from './mission-control/domain/campaign-renderer.mjs'
@@ -642,9 +642,11 @@ function parseArgs(argv) {
 }
 
 function stateBlockReplacement(body, state) {
-  const pattern = /<!--\s*bemoat-mission-control-state:start\s*-->[\s\S]*?<!--\s*bemoat-mission-control-state:end\s*-->/
-  if (!pattern.test(body)) throw stateConflict('managed state block is missing')
-  return body.replace(pattern, renderMissionControlState(state))
+  try {
+    return projectMissionControlStateBlock(body, state)
+  } catch (error) {
+    throw stateConflict(error instanceof Error ? error.message : String(error))
+  }
 }
 
 function sameTerminalBinding(left, right) {

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { analyzeExactHeadCi } from './agent-issue/exact-head-ci.mjs'
 import { runCommand as run } from './adapters/command-runner.mjs'
 import { parseReviewVerdictContractFindings } from './correction-contract.mjs'
-import { parseMissionControlState, renderMissionControlState } from './mission-control-state.mjs'
+import { parseMissionControlState, projectMissionControlStateBlock } from './mission-control-state.mjs'
 import {
   Coordinator,
   normalizeIssueComments,
@@ -40,9 +40,7 @@ function parseArgs(argv) {
 }
 
 function replaceStateBlock(body, state) {
-  const pattern = /<!--\s*bemoat-mission-control-state:start\s*-->[\s\S]*?<!--\s*bemoat-mission-control-state:end\s*-->/
-  if (!pattern.test(body)) throw new Error('managed state block is missing')
-  return body.replace(pattern, renderMissionControlState(state))
+  return projectMissionControlStateBlock(body, state)
 }
 
 function parseFindings(body, verdict) {

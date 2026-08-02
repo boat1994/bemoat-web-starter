@@ -9,6 +9,7 @@ import {
   resolvePlanningAuthorizationBaseSha,
   verifyPlanningNoPrDurableProofs,
 } from '../../scripts/agent-issue/planning-no-pr-lineage.mjs'
+import * as planningNoPrLineageModule from '../../scripts/agent-issue/planning-no-pr-lineage.mjs'
 import * as reconcileModule from '../../scripts/mission-control-reconcile.mjs'
 import {
   normalizeWorkflowMode,
@@ -19,6 +20,7 @@ import {
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- untyped runtime .mjs boundary */
 const { proposeDeliveryReconciliation } = reconcileModule as unknown as Record<string, (...args: any[]) => any>
+const compareProtectedBaseTrees = planningNoPrLineageModule.compareProtectedBaseTrees as unknown as (input: Record<string, unknown>) => Record<string, unknown>
 const CoordinatorClass = reconcileModule.Coordinator as unknown as new (transports: Record<string, unknown>) => {
   integrateHandoff: (input: Record<string, unknown>) => Promise<Record<string, unknown>>
   integrateResult: (input: Record<string, unknown>) => Promise<Record<string, unknown>>
@@ -241,6 +243,31 @@ describe('planning_no_pr lineage Option A', () => {
     expect(normalizeWorkflowMode(null)).toEqual({ ok: true, value: null })
     expect(normalizeWorkflowMode('docs/92-planning')).toMatchObject({ ok: false })
     expect(normalizeWorkflowMode('planning')).toMatchObject({ ok: false })
+  })
+
+  it('Issue #255: tree-identical protected-base advance is repairable and a changed tree conflicts', () => {
+    const root = createRepo('main')
+    const protectedBase = seedCommit(root, 'README.md', 'protected policy', 'protected baseline')
+    const treeIdenticalAdvance = runGit(root, ['commit', '--allow-empty', '-m', 'protected ref advance'])
+      && runGit(root, ['rev-parse', 'HEAD'])
+    const changedTree = seedCommit(root, 'README.md', 'changed protected policy', 'changed protected tree')
+
+    expect(compareProtectedBaseTrees({
+      cwd: root,
+      previousSha: protectedBase,
+      currentSha: treeIdenticalAdvance,
+    })).toMatchObject({
+      sameTree: true,
+      classification: 'REPAIRABLE_DRIFT',
+    })
+    expect(compareProtectedBaseTrees({
+      cwd: root,
+      previousSha: protectedBase,
+      currentSha: changedTree,
+    })).toMatchObject({
+      sameTree: false,
+      classification: 'STATE_CONFLICT',
+    })
   })
 
   it('1: protected policy base unchanged — lineage base ancestor of reviewed head — pass', () => {

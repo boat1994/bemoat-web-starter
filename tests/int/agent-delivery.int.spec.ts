@@ -391,4 +391,35 @@ describe('bemoat:agent:delivery', () => {
     expect(second.stdout).toContain(`RESULT comment ${commentId}`)
     expect(JSON.parse(readFileSync(stub.commentsStore, 'utf8'))).toHaveLength(1)
   }, 10000)
+
+  it('Issue #255: comment succeeds, body write fails, and retry reuses one RESULT comment', async () => {
+    const { readFileSync, writeFileSync: write } = await import('node:fs')
+    const prData = {
+      headRefOid: 'abc1234',
+      headRefName: 'main',
+      baseRefName: 'main',
+      statusCheckRollup: [{ conclusion: 'SUCCESS', targetUrl: 'https://ci/abc1234' }],
+    }
+    const resultBody = validResultBody.replaceAll('154', '255').replace('pull/155', 'pull/300')
+    const stub = stubGhAndGit(prData, { body: validIssueBody }, 'abc1234 refs/heads/main', 'main', 'abc1234')
+    const fixture = JSON.parse(readFileSync(stub.fixture, 'utf8'))
+    fixture.failEdit = true
+    write(stub.fixture, JSON.stringify(fixture))
+
+    const first = run(['255'], { input: resultBody, env: { PATH: stub.PATH } })
+    expect(first.status).toBe(1)
+    expect(first.stderr).toContain('RECOVERABLE_ROUTING_DRIFT')
+    const firstComments = JSON.parse(readFileSync(stub.commentsStore, 'utf8'))
+    expect(firstComments).toHaveLength(1)
+    const resultCommentId = firstComments[0].id
+
+    fixture.failEdit = false
+    write(stub.fixture, JSON.stringify(fixture))
+    const retry = run(['255'], { input: resultBody, env: { PATH: stub.PATH } })
+
+    expect(retry.status, retry.stderr || retry.stdout).toBe(0)
+    expect(retry.stdout).toContain(`RESULT comment ${resultCommentId}`)
+    expect(JSON.parse(readFileSync(stub.commentsStore, 'utf8'))).toHaveLength(1)
+    expect(readFileSync(stub.editedBody, 'utf8')).toContain(`latest_result_comment_id: "${resultCommentId}"`)
+  }, 10000)
 })

@@ -5,6 +5,7 @@ import { join, resolve } from 'node:path'
 
 import { afterEach, describe, it, expect } from 'vitest'
 import { parseMissionControlState, renderMissionControlState } from '../../scripts/mission-control-state.mjs'
+import * as missionControlStateModule from '../../scripts/mission-control-state.mjs'
 import {
   analyzeProgressTracking,
   analyzeExactHeadCi,
@@ -35,12 +36,51 @@ const hasStarterOnlyCorpus =
   existsSync('docs/mission-control/dogfood') &&
   existsSync('scripts/capture-baseline.mjs')
 const renderStateBody = (state: Record<string, unknown>) => renderMissionControlState(state)
+const projectMissionControlStateBlock = missionControlStateModule.projectMissionControlStateBlock as unknown as (
+  body: string,
+  state: Record<string, unknown>,
+) => string
 
 afterEach(() => {
   for (const root of tempRoots.splice(0)) rmSync(root, { recursive: true, force: true })
 })
 
 describe('Mission Control Characterization (Issue #150)', () => {
+
+  it('Issue #255: centralized state-block projection preserves prose and fails closed on duplicate markers', () => {
+    const prior: Record<string, unknown> = {
+      schema_version: 1,
+      state: 'READY',
+      review_cycle: 0,
+      full_review_count: 0,
+      approved_base: 'main',
+      active_task_issue: '#255',
+      active_pr: null,
+      current_head: null,
+      last_reviewed_head: null,
+      guide_version: '1.3.0',
+      guide_source_ref: 'main',
+      guide_source_sha: null,
+      open_blockers: [],
+      follow_up_issues: [],
+      next_permitted_action: 'Mission Control posts HANDOFF',
+      material_change_status: 'none',
+      updated_at: null,
+      updated_by: null,
+    }
+    const next = { ...prior, state: 'IN_PROGRESS', updated_by: 'Mission Control' }
+    const body = `prose before\n${renderMissionControlState(prior)}\nprose after`
+
+    expect(projectMissionControlStateBlock(body, next)).toBe(
+      `prose before\n${renderMissionControlState(next)}\nprose after`,
+    )
+    expect(() => projectMissionControlStateBlock(
+      `${body}\n${renderMissionControlState(prior)}`,
+      next,
+    )).toThrow(/exactly one balanced marker pair/i)
+    expect(() => projectMissionControlStateBlock('prose without a managed block', next))
+      .toThrow(/managed state block is missing/i)
+  })
 
   describe('Policy/base resolution (MC-SCENARIO-001)', () => {
     it('resolves approved base from state block when present', () => {

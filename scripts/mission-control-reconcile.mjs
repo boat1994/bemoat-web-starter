@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { parseCorrectionContract } from './correction-contract.mjs'
 import { writeIssueBodyWithLease } from './mission-control-issue-body-cas.mjs'
-import { populateOrPreservePlanningAuthorizationBaseSha } from './mission-control-state.mjs'
+import { populateOrPreservePlanningAuthorizationBaseSha, projectMissionControlStateBlock } from './mission-control-state.mjs'
 
 const PRE_DELIVERY_STATES = new Set(['READY', 'IN_PROGRESS', 'CORRECTION_REQUIRED_1', 'CORRECTION_REQUIRED_2'])
 const CORE_VERDICTS = new Set([
@@ -748,6 +748,69 @@ export const CHILD_SYNC_GATE_REQUIREMENTS = Object.freeze({
   requiresFreshChildSyncHandoff: true,
 })
 
+const COORDINATOR_OWNED_LINEAGE_KEYS = Object.freeze([
+  'latest_handoff_comment_id',
+  'latest_result_comment_id',
+  'latest_review_verdict_comment_id',
+  'latest_transition_identity',
+])
+
+function coordinatorOwnedProjection({ prior = {}, base = {}, identity, comment, role }) {
+  const owned = {
+    ...structuredClone(prior ?? {}),
+    ...structuredClone(base ?? {}),
+  }
+
+  // Callers may propose domain state, counters, and heads, but they cannot
+  // manufacture comment lineage. Preserve the durable prior values first and
+  // let the coordinator replace only the field owned by this role transition.
+  for (const key of COORDINATOR_OWNED_LINEAGE_KEYS) {
+    if (Object.hasOwn(prior ?? {}, key)) owned[key] = prior[key]
+    else delete owned[key]
+  }
+
+  if (role === 'REVIEW_VERDICT') {
+    for (const key of ['review_cycle', 'full_review_count']) {
+      if (Number.isInteger(prior?.[key]) &&
+          (!Number.isInteger(owned[key]) || owned[key] < prior[key])) {
+        owned[key] = prior[key]
+      }
+    }
+    for (const key of ['current_head', 'last_reviewed_head']) {
+      if (Object.hasOwn(prior ?? {}, key)) owned[key] = prior[key]
+    }
+  }
+
+  owned.latest_transition_identity = serializeTransitionIdentity(identity)
+  if (role === 'HANDOFF') {
+    owned.latest_handoff_comment_id = comment?.id != null ? String(comment.id) : null
+  } else if (role === 'RESULT') {
+    owned.latest_result_comment_id = comment?.id != null ? String(comment.id) : null
+  } else if (role === 'REVIEW_VERDICT') {
+    owned.latest_review_verdict_comment_id = comment?.id != null ? String(comment.id) : null
+  }
+
+  return owned
+}
+
+function routingDriftClassification({ prior = {}, identity, comment, role }) {
+  const expectedIdentity = serializeTransitionIdentity(identity)
+  const expectedId = comment?.id != null ? String(comment.id) : null
+  const key = role === 'HANDOFF'
+    ? 'latest_handoff_comment_id'
+    : role === 'RESULT'
+      ? 'latest_result_comment_id'
+      : role === 'REVIEW_VERDICT'
+        ? 'latest_review_verdict_comment_id'
+        : null
+  if (!key) return null
+  if (String(prior?.[key] ?? '') !== String(expectedId ?? '') ||
+      prior?.latest_transition_identity !== expectedIdentity) {
+    return 'REPAIRABLE_DRIFT'
+  }
+  return null
+}
+
 export function assertChildSyncGateReady({ issues182Merged = false, issues184Merged = false, liveChildReconstructed = false, freshHandoffIssued = false } = {}) {
   const blockers = []
   if (!issues182Merged) blockers.push('Issue #182 must be merged and green on protected main')
@@ -820,6 +883,14 @@ export class Coordinator {
         throw new Error('STATE_CONFLICT: competing HANDOFF comments')
       }
     }
+    if (identity.taskId) {
+      const sameTaskComments = activeRoleComments.filter((comment) =>
+        normalizeTransitionIdentity(comment.body ?? '').taskId === identity.taskId,
+      )
+      if (sameTaskComments.length > 1) {
+        throw new Error(`STATE_CONFLICT: competing role comments for ${role}`)
+      }
+    }
     const matches = findMatchingComments(comments, identity, options)
     if (matches.length === 0) {
       try {
@@ -850,20 +921,19 @@ export class Coordinator {
     return { identity, comment: matches[0], created: false }
   }
 
-  _coordinatorOwnedRouting({ identity, comment, role, updatedAt, updatedBy, base, planningAuthorizationBaseSha }) {
+  _coordinatorOwnedRouting({ identity, comment, role, updatedAt, updatedBy, base, prior, planningAuthorizationBaseSha, preserveState = false }) {
     const target = (comment?.body ?? '').match(/^\*\*Target:\*\*\s*(.+?)\s*$/m)?.[1]?.trim()
     let owned = {
-      ...base,
+      ...coordinatorOwnedProjection({ prior, base, identity, comment, role }),
       latest_transition_identity: serializeTransitionIdentity(identity),
       updated_at: updatedAt ?? new Date().toISOString(),
       updated_by: updatedBy ?? 'Mission Control',
     }
     if (role === 'HANDOFF') {
-      owned.state = 'IN_PROGRESS'
-      owned.latest_handoff_comment_id = comment?.id != null ? String(comment.id) : null
+      if (!preserveState) owned.state = 'IN_PROGRESS'
       owned.next_permitted_action = target
-        ? `${target} executes the authorized HANDOFF; do not re-post HANDOFF.`
-        : 'Worker executes the authorized HANDOFF; do not re-post HANDOFF.'
+        ? (preserveState ? (owned.next_permitted_action ?? `${target} executes the authorized HANDOFF; do not re-post HANDOFF.`) : `${target} executes the authorized HANDOFF; do not re-post HANDOFF.`)
+        : (preserveState ? (owned.next_permitted_action ?? 'Worker executes the authorized HANDOFF; do not re-post HANDOFF.') : 'Worker executes the authorized HANDOFF; do not re-post HANDOFF.')
 
       // planning_authorization_base_sha is ancestry authority for planning_no_pr only.
       // It is never derived from guide_source_sha (policy provenance at HANDOFF time).
@@ -883,9 +953,6 @@ export class Coordinator {
         owned = populated.state
       }
     }
-    if (role === 'RESULT' && comment?.id != null) {
-      owned.latest_result_comment_id = String(comment.id)
-    }
     return owned
   }
 
@@ -897,10 +964,19 @@ export class Coordinator {
       throw new Error('integrateHandoff requires one HANDOFF role comment')
     }
     const original = await this.readState()
-    if (original?.state !== 'READY') {
+    const planningCorrectionInitialization = original?.state === 'BLOCKED_FOR_FOUNDER_DECISION' &&
+      original?.workflow_mode === 'planning_no_pr' &&
+      original?.review_cycle === 0 &&
+      original?.full_review_count === 0 &&
+      original?.active_pr == null &&
+      original?.current_head == null &&
+      original?.last_reviewed_head == null &&
+      original?.founder_decision?.status === 'declined' &&
+      /Planning Correction 1 Initialization/i.test(handoffBody)
+    if (original?.state !== 'READY' && !planningCorrectionInitialization) {
       throw new Error(`integrateHandoff requires READY, received ${original?.state ?? 'missing state'}`)
     }
-    const { identity, comment } = await this._resolveComment(handoffBody, 'HANDOFF')
+    const { identity, comment, recovered } = await this._resolveComment(handoffBody, 'HANDOFF')
     const callerProjection = typeof transitionState === 'function'
       ? transitionState(original)
       : (transitionState ?? structuredClone(original))
@@ -911,13 +987,22 @@ export class Coordinator {
       updatedAt,
       updatedBy,
       base: callerProjection,
+      prior: original,
+      preserveState: planningCorrectionInitialization,
       planningAuthorizationBaseSha,
     })
     const written = await this.writeState(projected, original)
     verifyStatePostcondition(projected, written, [
       'state', 'latest_transition_identity', 'latest_handoff_comment_id', 'next_permitted_action',
     ])
-    return { outcome: 'DISPATCHED', state: written, comment, identity }
+    return {
+      outcome: 'DISPATCHED',
+      classification: routingDriftClassification({ prior: original, identity, comment, role: 'HANDOFF' }),
+      state: written,
+      comment,
+      identity,
+      recovered: Boolean(recovered),
+    }
   }
 
   /**
@@ -931,7 +1016,7 @@ export class Coordinator {
       await verifyPreconditions()
     }
     const original = await this.readState()
-    const { identity, comment, created } = await this._resolveComment(resultBody, 'RESULT')
+    const { identity, comment, created, recovered } = await this._resolveComment(resultBody, 'RESULT')
     const callerProjection = typeof projectState === 'function' ? projectState(original) : projectState
     const projected = this._coordinatorOwnedRouting({
       identity,
@@ -940,11 +1025,20 @@ export class Coordinator {
       updatedAt,
       updatedBy,
       base: callerProjection,
+      prior: original,
     })
     try {
       const written = await this.writeState(projected, original)
       verifyStatePostcondition(projected, written)
-      return { outcome: 'DELIVERED', state: written, comment, identity, created }
+      return {
+        outcome: 'DELIVERED',
+        classification: routingDriftClassification({ prior: original, identity, comment, role: 'RESULT' }),
+        state: written,
+        comment,
+        identity,
+        created,
+        recovered: Boolean(recovered),
+      }
     } catch (error) {
       if (!created) throw error
       let live
@@ -956,9 +1050,11 @@ export class Coordinator {
       if (sameValue(live, original)) {
         return {
           outcome: 'RECOVERABLE_ROUTING_DRIFT',
+          classification: 'REPAIRABLE_DRIFT',
           state: original,
           comment,
           identity,
+          recovered: Boolean(recovered),
           error: error instanceof Error ? error.message : String(error),
         }
       }
@@ -991,12 +1087,13 @@ export class Coordinator {
     if (classification === 'STATE_CONFLICT') {
       throw new Error('STATE_CONFLICT: competing REVIEW_VERDICT comments')
     }
-    const projected = {
-      ...structuredClone(original),
-      ...(typeof projectReview === 'function' ? projectReview(original) : projectReview),
-      latest_transition_identity: serializeTransitionIdentity(identity),
-      latest_review_verdict_comment_id: matches[0]?.id != null ? String(matches[0].id) : null,
-    }
+    const projected = this._coordinatorOwnedRouting({
+      identity,
+      comment: matches[0],
+      role: 'REVIEW_VERDICT',
+      base: typeof projectReview === 'function' ? projectReview(original) : projectReview,
+      prior: original,
+    })
     if (
       (projected.review_cycle ?? original.review_cycle) < (original.review_cycle ?? 0) ||
       (projected.full_review_count ?? original.full_review_count) < (original.full_review_count ?? 0)
@@ -1004,7 +1101,13 @@ export class Coordinator {
       throw new Error('routing-only repair must not decrease review counters')
     }
     const written = await this.writeState(projected, original)
-    return { outcome: 'RECONCILED', state: written, comment: matches[0], identity }
+    return {
+      outcome: 'RECONCILED',
+      classification: routingDriftClassification({ prior: original, identity, comment: matches[0], role: 'REVIEW_VERDICT' }),
+      state: written,
+      comment: matches[0],
+      identity,
+    }
   }
 
   /** Comment-first reviewer completion with a verified durable projection. */
@@ -1014,7 +1117,7 @@ export class Coordinator {
     }
     if (typeof verifyPreconditions === 'function') await verifyPreconditions()
     const original = await this.readState()
-    const { identity, comment, created } = await this._resolveComment(verdictBody, 'REVIEW_VERDICT')
+    const { identity, comment, created, recovered } = await this._resolveComment(verdictBody, 'REVIEW_VERDICT')
     const serializedIdentity = serializeTransitionIdentity(identity)
     if (
       original?.latest_transition_identity === serializedIdentity &&
@@ -1023,26 +1126,53 @@ export class Coordinator {
       return { outcome: 'REVIEWED', state: original, comment, identity, created: false, replayed: true }
     }
     const callerProjection = typeof projectState === 'function' ? projectState(original, comment, identity) : projectState
-    const projected = {
-      ...structuredClone(callerProjection),
-      latest_transition_identity: serializedIdentity,
-      latest_review_verdict_comment_id: String(comment.id),
-      updated_at: updatedAt ?? new Date().toISOString(),
-      updated_by: updatedBy ?? 'Reviewer',
-    }
+    const projected = this._coordinatorOwnedRouting({
+      identity,
+      comment,
+      role: 'REVIEW_VERDICT',
+      base: callerProjection,
+      prior: original,
+      updatedAt,
+      updatedBy: updatedBy ?? 'Reviewer',
+    })
     try {
       const written = await this.writeState(projected, original)
       verifyStatePostcondition(projected, written, [
         'state', 'review_cycle', 'full_review_count', 'current_head', 'last_reviewed_head',
         'latest_transition_identity', 'latest_review_verdict_comment_id', 'open_blockers',
       ])
-      return { outcome: 'REVIEWED', state: written, comment, identity, created }
+      return {
+        outcome: 'REVIEWED',
+        classification: routingDriftClassification({ prior: original, identity, comment, role: 'REVIEW_VERDICT' }),
+        state: written,
+        comment,
+        identity,
+        created,
+        recovered: Boolean(recovered),
+      }
     } catch (error) {
       if (!created) throw error
       const live = await this.readState()
-      if (sameValue(live, projected)) return { outcome: 'REVIEWED', state: live, comment, identity, created }
+      if (sameValue(live, projected)) return {
+        outcome: 'REVIEWED',
+        classification: routingDriftClassification({ prior: original, identity, comment, role: 'REVIEW_VERDICT' }),
+        state: live,
+        comment,
+        identity,
+        created,
+        recovered: Boolean(recovered),
+      }
       if (sameValue(live, original)) {
-        return { outcome: 'RECOVERABLE_ROUTING_DRIFT', state: original, comment, identity, created, error: String(error) }
+        return {
+          outcome: 'RECOVERABLE_ROUTING_DRIFT',
+          classification: 'REPAIRABLE_DRIFT',
+          state: original,
+          comment,
+          identity,
+          created,
+          recovered: Boolean(recovered),
+          error: String(error),
+        }
       }
       throw new Error(`STATE_CONFLICT: incompatible concurrent authority after verdict post: ${error instanceof Error ? error.message : String(error)}`, { cause: error })
     }
@@ -1066,6 +1196,7 @@ export class Coordinator {
       comment: matches[0],
       role,
       base: callerProjection,
+      prior: original,
       planningAuthorizationBaseSha,
     })
     const written = await this.writeState(projected, original)
@@ -1684,18 +1815,15 @@ function parseReconcileArgs(argv) {
   return options
 }
 
-function stateBlockReplacement(body, state, renderMissionControlState) {
-  const rendered = renderMissionControlState(state)
-  const pattern = /<!--\s*bemoat-mission-control-state:start\s*-->[\s\S]*?<!--\s*bemoat-mission-control-state:end\s*-->/
-  if (!pattern.test(body)) throw new Error('managed state block is missing')
-  return body.replace(pattern, rendered)
+function stateBlockReplacement(body, state) {
+  return projectMissionControlStateBlock(body, state)
 }
 
 async function runProductionBoundedReconciliation() {
   const options = parseReconcileArgs(process.argv.slice(2))
   const repoArgs = options.repo ? ['--repo', options.repo] : []
   const { analyzeProgressTracking } = await import('./agent-issue.mjs')
-  const { parseMissionControlState, renderMissionControlState } = await import('./mission-control-state.mjs')
+  const { parseMissionControlState } = await import('./mission-control-state.mjs')
   let expectedBody = null
 
   const readEvidence = async () => {
@@ -1732,7 +1860,7 @@ async function runProductionBoundedReconciliation() {
       throw new Error('STATE_CONFLICT: concurrent Issue write detected before reconciliation repair')
     }
     const observedBody = live.body
-    const nextBody = stateBlockReplacement(observedBody, nextState, renderMissionControlState)
+    const nextBody = stateBlockReplacement(observedBody, nextState)
     const repo = options.repo || run('gh', ['repo', 'view', '--json', 'nameWithOwner', '--jq', '.nameWithOwner'])
     await writeIssueBodyWithLease({
       repo,

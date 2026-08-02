@@ -421,4 +421,67 @@ describe('Issue #229 Review 3 blocker-projection hotfix', () => {
 
     expect(analysis.classification.outcome).toBe('NO_OP')
   })
+
+  it('Issue #255: REVIEW_VERDICT projection never resets review counters or reviewed heads', async () => {
+    let state: any = {
+      state: 'CORRECTION_REQUIRED_1',
+      review_cycle: 1,
+      full_review_count: 1,
+      active_pr: '#300',
+      current_head: REVIEWED_HEAD,
+      last_reviewed_head: REVIEWED_HEAD,
+      latest_handoff_comment_id: 'handoff-255',
+      latest_result_comment_id: 'result-255',
+    }
+    const verdictBody = `## REVIEW_VERDICT
+
+### Task log
+- Timestamp: 2026-08-02T22:00:00+07:00
+- Task / Issue: #255
+- Phase: Reviewer
+- Executing role: Reviewer
+
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/300 · \`main\` · \`${REVIEWED_HEAD}\`
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+**Next:** Founder merge authorization
+`
+    const comments = [{ id: 'verdict-255', body: verdictBody }]
+    const coordinator = new Coordinator({
+      readState: async () => structuredClone(state),
+      writeState: async (next: any) => {
+        state = structuredClone(next)
+        return structuredClone(state)
+      },
+      listComments: async () => comments,
+      postComment: async () => { throw new Error('canonical REVIEW_VERDICT should be reused') },
+    })
+
+    const result = await coordinator.integrateReviewVerdict({
+      verdictBody,
+      projectState: () => ({
+        ...state,
+        state: 'ELIGIBLE_FOR_FOUNDER_REVIEW',
+        review_cycle: 0,
+        full_review_count: 0,
+        current_head: 'caller-forged-head',
+        last_reviewed_head: 'caller-forged-head',
+        latest_handoff_comment_id: 'caller-forged-handoff',
+        latest_result_comment_id: 'caller-forged-result',
+        latest_review_verdict_comment_id: 'caller-forged-verdict',
+        latest_transition_identity: 'caller-forged-transition',
+      }),
+    })
+
+    expect(result.outcome).toBe('REVIEWED')
+    expect(state).toMatchObject({
+      state: 'ELIGIBLE_FOR_FOUNDER_REVIEW',
+      review_cycle: 1,
+      full_review_count: 1,
+      current_head: REVIEWED_HEAD,
+      last_reviewed_head: REVIEWED_HEAD,
+      latest_handoff_comment_id: 'handoff-255',
+      latest_result_comment_id: 'result-255',
+      latest_review_verdict_comment_id: 'verdict-255',
+    })
+  })
 })
