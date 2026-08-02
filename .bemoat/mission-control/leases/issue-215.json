@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "issue": "215",
-  "transition_identity": "merge-campaign:215:3:248:5dc5e96c377ca82f74c567b6da5b41ab306acb62",
+  "transition_identity": "campaign-reconcile:215:slice3-done:slice4-planning-next-action",
   "observed_body_sha256": "88bd4202761de2a87300bdebd74e8458af4fc8d7b4e2aa0d67e631d972a2f200",
-  "holder": "mission-control-merge",
-  "status": "released",
-  "updated_at": "2026-08-02T11:16:19.746Z"
+  "holder": "mission-control-campaign-reconcile",
+  "status": "held",
+  "updated_at": "2026-08-02T11:17:55.282Z"
 }
