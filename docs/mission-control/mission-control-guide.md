@@ -169,6 +169,9 @@ pr: <pull-request-number-or-null>
 exact_head: <full-sha-or-null>
 reviewed_head: <full-sha-or-null>
 base: main
+policy_source_sha: <full-sha-of-merged-policy-source>
+protected_base_sha: <full-sha-of-approved-protected-base>
+bundle_kind: merge-completion
 scope: merge
 action: merge
 policy_version: 1.3.0
@@ -176,7 +179,10 @@ policy_version: 1.3.0
 
 The runtime verifies the authenticated Founder against the repository-owned
 allowlist, the comment identity and hash, non-supersession, every repository
-and task/PR/head/base binding, and the exact scope/action. Ambiguous,
+and task/PR/head/base/policy-source binding, the exact
+`bundle_kind: merge-completion` tuple, and the exact scope/action. The merge
+transport never treats a generic `delivery`, implementation, ratification, or
+other bundle as merge authority. Ambiguous,
 fabricated, superseded, scope-mismatched, implementation-only, ratifying, or
 non-merge decisions fail closed and cannot authorize merge.
 

@@ -55,9 +55,10 @@ Use exactly one: `CORRECTION REQUIRED` | `ELIGIBLE FOR FOUNDER REVIEW` |
 Omit stable boilerplate unless it changed or is required for a decision. Founder Decision stops stay lean — do not keep model/prompt boilerplate merely because the run is blocked. Valid delivery does not require a separate MC run before Review 1. One Founder merge instruction may authorize ready → merge → verify → close. Migration/deploy/production remain separate gates unless explicitly authorized.
 
 Compact bundle prompts must name the repository and exact Task Issue/PR, the
-authority comment and authenticated author, exact scope and action, exact policy/base/head, exact-head CI evidence, review verdict, bounded objective,
-stop conditions for authority/head/CI/verdict/mergeability/CAS/lease drift, and
-prohibited actions. Do not bundle across implementation, review, and merge
+authority comment and authenticated author, exact scope and action, exact policy/base/head
+evidence including the merged-policy source commit SHA and protected-base commit SHA,
+exact-head CI evidence, review verdict, bounded objective, stop conditions for authority/head/CI/verdict/mergeability/CAS/lease drift,
+and prohibited actions. Do not bundle across implementation, review, and merge
 gates.
 
 ## Prohibited / fail-closed

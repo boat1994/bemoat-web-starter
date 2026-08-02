@@ -12,6 +12,8 @@ import { replaceCampaignBlock } from './mission-control/domain/campaign-renderer
 const STARTER_REPOSITORY = 'boat1994/bemoat-web-starter'
 const FULL_SHA_RE = /^[0-9a-f]{40}$/i
 const COMMENT_SHA_RE = /^[0-9a-f]{64}$/i
+const MERGE_COMPLETION_BUNDLE_KIND = 'merge-completion'
+const MERGE_COMPLETION_AUTHORITY_SCOPE = 'merge'
 
 export const SAFE_EXECUTION_BUNDLES = Object.freeze({
   'authorization-execution': Object.freeze([
@@ -79,8 +81,8 @@ export function validateSafeExecutionBundle(bundle = {}) {
 
 function defaultMergeCompletionBundle() {
   return {
-    kind: 'merge-completion',
-    authority_scope: 'merge',
+    kind: MERGE_COMPLETION_BUNDLE_KIND,
+    authority_scope: MERGE_COMPLETION_AUTHORITY_SCOPE,
     terminal_outcome: 'Task DONE and campaign slice DONE; next action selected but not started',
     steps: SAFE_EXECUTION_BUNDLES['merge-completion'],
   }
@@ -145,12 +147,15 @@ export function validateFounderAuthorizationRecord({
     authorization.non_superseded === true,
     authorization.superseded_by == null,
     authorization.repository === expected.repository,
+    authorization.bundle_kind === expected.bundleKind,
     normalizeIssueNumber(authorization.task_issue) === expected.taskIssue,
     normalizePrNumber(authorization.pr) === expected.pr,
     FULL_SHA_RE.test(String(expected.exactHead)) && FULL_SHA_RE.test(String(authorization.exact_head)),
     authorization.exact_head === expected.exactHead,
     authorization.reviewed_head === expected.exactHead,
     authorization.base === expected.base,
+    FULL_SHA_RE.test(String(expected.policySourceSha)) && authorization.policy_source_sha === expected.policySourceSha,
+    FULL_SHA_RE.test(String(expected.protectedBaseSha)) && authorization.protected_base_sha === expected.protectedBaseSha,
     authorization.scope === expected.scope,
     authorization.action === expected.action,
     expected.policyVersion == null || authorization.policy_version === expected.policyVersion,
@@ -175,6 +180,8 @@ export function validateFounderMergeAuthorization({
   repository,
   policyVersion,
   reviewCommentId,
+  policySourceSha,
+  protectedBaseSha,
   trustedFounderLogins,
 }) {
   return validateFounderAuthorizationRecord({
@@ -187,9 +194,12 @@ export function validateFounderMergeAuthorization({
       pr: prNumber,
       exactHead: reviewedHead,
       base,
+      bundleKind: MERGE_COMPLETION_BUNDLE_KIND,
+      policySourceSha,
+      protectedBaseSha,
       policyVersion,
       reviewCommentId,
-      scope: 'merge',
+      scope: MERGE_COMPLETION_AUTHORITY_SCOPE,
       action: 'merge',
     },
   })
@@ -241,6 +251,12 @@ function verifyHeadBindings(state, pr, authorization, repo) {
   }
   if (!reviewedHead || state.current_head !== reviewedHead || pr.headRefOid !== reviewedHead) {
     throw stateConflict('current, reviewed, and live PR heads must match exactly')
+  }
+  if (!FULL_SHA_RE.test(String(state?.guide_source_sha)) || authorization.policy_source_sha !== state.guide_source_sha) {
+    throw stateConflict('merged policy source SHA does not match the managed policy evidence')
+  }
+  if (!FULL_SHA_RE.test(String(pr?.baseRefOid)) || authorization.protected_base_sha !== pr.baseRefOid) {
+    throw stateConflict('protected base commit SHA does not match the live PR base evidence')
   }
   if (authorization.reviewed_head !== reviewedHead) {
     throw stateConflict('Founder authorization reviewed head differs from managed/live head')
@@ -307,6 +323,48 @@ function finalResultBody({ issueNumber, prNumber, reviewedHead, mergeCommit, bas
   ].join('\n')
 }
 
+async function completeTerminalCampaignProjection({
+  deps,
+  repo,
+  issueNumber,
+  prNumber,
+  reviewedHead,
+  mergeCommit,
+  authorization,
+  state,
+  authorizationCommentId,
+}) {
+  const campaignIssue = normalizeIssueNumber(authorization.campaign_issue ?? state.campaign_issue)
+  const campaignSlice = Number(authorization.campaign_slice ?? state.campaign_slice)
+  if (!campaignIssue || !Number.isInteger(campaignSlice) || campaignSlice <= 0) {
+    throw stateConflict('merge completion requires an exact campaign Issue and slice binding')
+  }
+
+  const campaignProjection = await deps.projectCampaignSliceDone({
+    repo,
+    campaignIssue,
+    campaignSlice,
+    taskIssue: issueNumber,
+    prNumber,
+    reviewedHead,
+    mergeCommit,
+    authorizationCommentId: String(authorizationCommentId),
+  })
+  if (campaignProjection?.status !== 'DONE') throw stateConflict('campaign slice DONE projection was not confirmed')
+
+  const nextAction = await deps.selectNextCampaignAction({
+    repo,
+    campaignIssue,
+    completedSlice: campaignSlice,
+    taskIssue: issueNumber,
+  })
+  if (!nextAction || nextAction.started !== false || typeof nextAction.action !== 'string' || nextAction.action.length === 0) {
+    throw stateConflict('merge completion must select the next campaign action without starting it')
+  }
+
+  return { campaignIssue, campaignSlice, nextAction }
+}
+
 async function reconcileAfterFailure({ deps, issueNumber, repo, error }) {
   if (typeof deps.reconcile !== 'function') return null
   try {
@@ -332,6 +390,9 @@ export async function runFounderAuthorizedMerge({
   }
   const bundleCheck = validateSafeExecutionBundle(executionBundle ?? defaultMergeCompletionBundle())
   if (!bundleCheck.valid) throw stateConflict(bundleCheck.reason)
+  if (bundleCheck.kind !== MERGE_COMPLETION_BUNDLE_KIND || bundleCheck.authority_scope !== MERGE_COMPLETION_AUTHORITY_SCOPE) {
+    throw stateConflict('merge transport requires the exact merge-completion bundle and merge authority scope')
+  }
   if (!deps || typeof deps.readManagedIssue !== 'function' || typeof deps.readPullRequest !== 'function') {
     throw blockedExternal('merge completion transport dependencies are incomplete')
   }
@@ -357,6 +418,8 @@ export async function runFounderAuthorizedMerge({
     repository: repo,
     policyVersion: state.guide_version,
     reviewCommentId,
+    policySourceSha: state.guide_source_sha,
+    protectedBaseSha: pr.baseRefOid,
     trustedFounderLogins,
   })
   if (typeof deps.readReviewVerdict !== 'function') {
@@ -380,27 +443,20 @@ export async function runFounderAuthorizedMerge({
     throw stateConflict(`managed task state ${state.state ?? 'unknown'} is not eligible for Founder-authorized merge`)
   }
 
-  if (alreadyDone) {
-    if (normalizeIssueState(issue) !== 'CLOSED' || normalizeIssueReason(issue) !== 'COMPLETED' || String(pr.state).toUpperCase() !== 'MERGED') {
-      throw stateConflict('DONE task does not have the verified closed Issue and merged PR terminal projection')
-    }
-    const commit = mergeCommitOid(pr, null)
-    if (!commit) throw stateConflict('DONE task does not expose a merge commit')
-    const onBase = await deps.verifyCommitOnProtectedBase({ repo, base: state.approved_base, commit })
-    if (!onBase) throw stateConflict('verified merge commit has not reached the protected base')
-    return { outcome: 'NO_OP', issueNumber, prNumber, reviewedHead, mergeCommit: commit }
-  }
-
   const requiredProjectionDeps = [
-    'markReadyForReview',
-    'mergePullRequest',
-    'verifyCommitOnProtectedBase',
-    'postFinalResult',
-    'closeIssueCompleted',
-    'writeTaskDone',
     'projectCampaignSliceDone',
     'selectNextCampaignAction',
   ]
+  if (!alreadyDone) {
+    requiredProjectionDeps.unshift(
+      'markReadyForReview',
+      'mergePullRequest',
+      'verifyCommitOnProtectedBase',
+      'postFinalResult',
+      'closeIssueCompleted',
+      'writeTaskDone',
+    )
+  }
   const missingProjectionDeps = requiredProjectionDeps.filter((name) => typeof deps[name] !== 'function')
   if (missingProjectionDeps.length > 0) {
     throw blockedExternal(`merge completion projection dependencies are unavailable: ${missingProjectionDeps.join(', ')}`)
@@ -409,6 +465,43 @@ export async function runFounderAuthorizedMerge({
   let mutationStarted = false
   let mergeResult = null
   try {
+    if (alreadyDone) {
+      if (normalizeIssueState(issue) !== 'CLOSED' || normalizeIssueReason(issue) !== 'COMPLETED' || String(pr.state).toUpperCase() !== 'MERGED') {
+        throw stateConflict('DONE task does not have the verified closed Issue and merged PR terminal projection')
+      }
+      const commit = mergeCommitOid(pr, null)
+      if (!commit) throw stateConflict('DONE task does not expose a merge commit')
+      if (state.merged_commit_sha !== commit) {
+        throw stateConflict('DONE task does not bind the verified merge commit')
+      }
+      if (!/^[1-9]\d*$/.test(String(state.latest_result_comment_id ?? ''))) {
+        throw stateConflict('DONE task does not bind a final RESULT comment')
+      }
+      const onBase = await deps.verifyCommitOnProtectedBase({ repo, base: state.approved_base, commit })
+      if (!onBase) throw stateConflict('verified merge commit has not reached the protected base')
+      mutationStarted = true
+      const terminal = await completeTerminalCampaignProjection({
+        deps,
+        repo,
+        issueNumber,
+        prNumber,
+        reviewedHead,
+        mergeCommit: commit,
+        authorization,
+        state,
+        authorizationCommentId,
+      })
+      return {
+        outcome: 'NO_OP',
+        issueNumber,
+        prNumber,
+        reviewedHead,
+        mergeCommit: commit,
+        finalResultCommentId: String(state.latest_result_comment_id),
+        nextAction: terminal.nextAction.action,
+      }
+    }
+
     if (String(pr.state).toUpperCase() !== 'MERGED') {
       if (normalizeIssueState(issue) !== 'OPEN') throw stateConflict('an unmerged PR cannot belong to an already-closed managed Issue')
       if (String(pr.state).toUpperCase() !== 'OPEN') throw stateConflict('PR must be open before merge')
@@ -484,32 +577,17 @@ export async function runFounderAuthorizedMerge({
     })
     if (taskProjection?.state !== 'DONE') throw stateConflict('direct deterministic Task DONE projection was not confirmed')
 
-    const campaignIssue = normalizeIssueNumber(authorization.campaign_issue ?? state.campaign_issue)
-    const campaignSlice = Number(authorization.campaign_slice ?? state.campaign_slice)
-    if (!campaignIssue || !Number.isInteger(campaignSlice) || campaignSlice <= 0) {
-      throw stateConflict('merge completion requires an exact campaign Issue and slice binding')
-    }
-    const campaignProjection = await deps.projectCampaignSliceDone({
+    const terminal = await completeTerminalCampaignProjection({
+      deps,
       repo,
-      campaignIssue,
-      campaignSlice,
-      taskIssue: issueNumber,
+      issueNumber,
       prNumber,
       reviewedHead,
       mergeCommit: commit,
-      authorizationCommentId: String(authorizationCommentId),
+      authorization,
+      state,
+      authorizationCommentId,
     })
-    if (campaignProjection?.status !== 'DONE') throw stateConflict('campaign slice DONE projection was not confirmed')
-
-    const nextAction = await deps.selectNextCampaignAction({
-      repo,
-      campaignIssue,
-      completedSlice: campaignSlice,
-      taskIssue: issueNumber,
-    })
-    if (!nextAction || nextAction.started !== false || typeof nextAction.action !== 'string' || nextAction.action.length === 0) {
-      throw stateConflict('merge completion must select the next campaign action without starting it')
-    }
 
     return {
       outcome: 'DONE',
@@ -518,7 +596,7 @@ export async function runFounderAuthorizedMerge({
       reviewedHead,
       mergeCommit: commit,
       finalResultCommentId: String(finalResultId),
-      nextAction: nextAction.action,
+      nextAction: terminal.nextAction.action,
     }
   } catch (error) {
     if (mutationStarted) await reconcileAfterFailure({ deps, issueNumber, repo, error })
@@ -588,7 +666,7 @@ function createProductionDeps() {
   const readPullRequest = async (prNumber, repo) => {
     const pr = JSON.parse(runGh([
       'pr', 'view', String(prNumber), '--repo', repo,
-      '--json', 'number,state,isDraft,mergeable,headRefOid,baseRefName,statusCheckRollup,mergeCommit,url,title,body,closingIssuesReferences',
+      '--json', 'number,state,isDraft,mergeable,headRefOid,baseRefName,baseRefOid,statusCheckRollup,mergeCommit,url,title,body,closingIssuesReferences',
     ]))
     const commitPages = JSON.parse(runGh([
       'api', '--paginate', '--slurp', `repos/${repo}/pulls/${prNumber}/commits?per_page=100`,

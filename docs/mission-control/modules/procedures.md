@@ -199,12 +199,15 @@ Issue comment containing the exact authorization object:
   "immutable_comment_reference": true,
   "non_superseded": true,
   "repository": "owner/repository",
+  "bundle_kind": "merge-completion",
   "scope": "merge",
   "task_issue": 123,
   "pr": 124,
   "exact_head": "<exact-reviewed-head>",
   "reviewed_head": "<exact-reviewed-head>",
   "base": "main",
+  "policy_source_sha": "<exact-merged-policy-source-sha>",
+  "protected_base_sha": "<exact-protected-base-sha>",
   "policy_version": "1.3.0",
   "action": "merge"
 }

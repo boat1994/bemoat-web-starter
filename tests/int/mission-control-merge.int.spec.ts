@@ -8,6 +8,8 @@ import { parsePrReference } from '../../scripts/agent-issue/issue-references.mjs
 const reviewedHead = '527a48cb83364a7fbde0fad5f88f5c9d1244d0ab'
 const mergeCommit = '8df91686d715a0ddf0ddf258bf9fa5b060a4af29'
 const reviewCommentId = '6000000002'
+const policySourceSha = '1111111111111111111111111111111111111111'
+const protectedBaseSha = '2222222222222222222222222222222222222222'
 
 async function execute(input: any) {
   const mergeTransport = await import('../../scripts/mission-control-merge.mjs')
@@ -36,6 +38,7 @@ function managedState(overrides: Record<string, unknown> = {}) {
     current_head: reviewedHead,
     last_reviewed_head: reviewedHead,
     approved_base: 'main',
+    guide_source_sha: policySourceSha,
     guide_version: '1.3.0',
     latest_review_verdict_comment_id: reviewCommentId,
     campaign_issue: '#215',
@@ -55,12 +58,15 @@ function authorization(overrides: Record<string, unknown> = {}): Record<string, 
     non_superseded: true,
     superseded_by: null,
     repository: 'boat1994/bemoat-web-starter',
+    bundle_kind: 'merge-completion',
     scope: 'merge',
     task_issue: 222,
     pr: 223,
     exact_head: reviewedHead,
     reviewed_head: reviewedHead,
     base: 'main',
+    policy_source_sha: policySourceSha,
+    protected_base_sha: protectedBaseSha,
     policy_version: '1.3.0',
     review_verdict_comment_id: reviewCommentId,
     review_verdict: 'ELIGIBLE FOR FOUNDER REVIEW',
@@ -101,6 +107,7 @@ function createHarness(options: Record<string, any> = {}) {
     mergeable: 'MERGEABLE',
     headRefOid: reviewedHead,
     baseRefName: 'main',
+    baseRefOid: protectedBaseSha,
     statusCheckRollup: successfulChecks(),
     mergeCommit: options.prState === 'MERGED' ? { oid: mergeCommit } : null,
     ...options.pull,
@@ -109,6 +116,7 @@ function createHarness(options: Record<string, any> = {}) {
   const reconcileOutcomes = [...(options.reconcileOutcomes ?? ['DONE', 'NO_OP'])]
   let closeFailures = options.closeFailures ?? 0
   let projectionFailures = options.projectionFailures ?? 0
+  let campaignProjectionFailures = options.campaignProjectionFailures ?? 0
 
   const deps = {
     readManagedIssue: async (issueNumber: number) => structuredClone(issues.get(issueNumber)),
@@ -143,9 +151,11 @@ function createHarness(options: Record<string, any> = {}) {
       operations.push(`verify-base:${commit}:${base}`)
       return true
     },
-    postFinalResult: async ({ commentId }: { commentId?: string }) => {
+    postFinalResult: async ({ issueNumber, mergeCommit: completedMergeCommit, commentId }: { issueNumber: number, mergeCommit: string, commentId?: string }) => {
       const resultCommentId = commentId ?? '6000000003'
       operations.push(`result:${resultCommentId}`)
+      issues.get(issueNumber).managedState.latest_result_comment_id = resultCommentId
+      issues.get(issueNumber).managedState.merged_commit_sha = completedMergeCommit
       return { id: resultCommentId }
     },
     closeIssueCompleted: async (issueNumber: number) => {
@@ -169,6 +179,10 @@ function createHarness(options: Record<string, any> = {}) {
     },
     projectCampaignSliceDone: async ({ campaignIssue, campaignSlice }: { campaignIssue: number, campaignSlice: number }) => {
       operations.push(`campaign-done:${campaignIssue}:${campaignSlice}`)
+      if (campaignProjectionFailures > 0) {
+        campaignProjectionFailures -= 1
+        throw new Error('simulated campaign slice projection failure')
+      }
       return { status: 'DONE', campaignIssue, campaignSlice }
     },
     selectNextCampaignAction: async () => {
@@ -187,6 +201,27 @@ function createHarness(options: Record<string, any> = {}) {
 }
 
 describe('Founder-authorized Mission Control merge transport', () => {
+  it('rejects a delivery bundle at the merge boundary before mutation', async () => {
+    const harness = createHarness()
+    const mergeTransport = await import('../../scripts/mission-control-merge.mjs')
+
+    await expect(execute({
+      issueNumber: 222,
+      repo: 'boat1994/bemoat-web-starter',
+      authorizationCommentId: '6000000001',
+      executionBundle: {
+        kind: 'delivery',
+        authority_scope: 'delivery',
+        terminal_outcome: 'implementation delivered',
+        steps: mergeTransport.SAFE_EXECUTION_BUNDLES.delivery,
+      },
+      deps: harness.deps,
+    })).rejects.toThrow(/merge-completion|merge authority/i)
+
+    expect(harness.operations).not.toContain('mark-ready')
+    expect(harness.operations.some((entry) => entry.startsWith('merge:'))).toBe(false)
+  })
+
   it('executes the complete merge bundle in order without reconciliation or starting the next task', async () => {
     const harness = createHarness()
 
@@ -398,12 +433,48 @@ describe('Founder-authorized Mission Control merge transport', () => {
     expect(harness.operations.filter((entry) => entry === 'reconcile:222')).toHaveLength(1)
   })
 
-  it('returns NO_OP for an already-closed Issue in DONE state without lifecycle mutation', async () => {
+  it('resumes campaign projection and next-action selection after a partial terminal bundle', async () => {
+    const harness = createHarness({ campaignProjectionFailures: 1 })
+    const input = {
+      issueNumber: 222,
+      repo: 'boat1994/bemoat-web-starter',
+      authorizationCommentId: '6000000001',
+      deps: harness.deps,
+    }
+
+    await expect(execute(input)).rejects.toThrow('simulated campaign slice projection failure')
+    await expect(execute(input)).resolves.toMatchObject({ outcome: 'NO_OP' })
+
+    expect(harness.operations.filter((entry) => entry.startsWith('merge:'))).toHaveLength(1)
+    expect(harness.operations.filter((entry) => entry === 'campaign-done:215:3')).toHaveLength(2)
+    expect(harness.operations.filter((entry) => entry === 'select-next')).toHaveLength(1)
+  })
+
+  it('fails closed instead of returning NO_OP when terminal RESULT evidence is missing', async () => {
     const harness = createHarness({
       issueState: 'CLOSED',
       prState: 'MERGED',
       isDraft: false,
       managedState: { state: 'DONE', merged_commit_sha: mergeCommit },
+    })
+
+    await expect(execute({
+      issueNumber: 222,
+      repo: 'boat1994/bemoat-web-starter',
+      authorizationCommentId: '6000000001',
+      deps: harness.deps,
+    })).rejects.toThrow(/STATE_CONFLICT.*RESULT/i)
+
+    expect(harness.operations).not.toContain('campaign-done:215:3')
+    expect(harness.operations).not.toContain('select-next')
+  })
+
+  it('returns NO_OP for an already-closed Issue in DONE state without lifecycle mutation', async () => {
+    const harness = createHarness({
+      issueState: 'CLOSED',
+      prState: 'MERGED',
+      isDraft: false,
+      managedState: { state: 'DONE', merged_commit_sha: mergeCommit, latest_result_comment_id: '6000000003' },
       reconcileOutcomes: ['NO_OP'],
     })
 
@@ -583,6 +654,12 @@ describe('Mission Control safe bundle and Founder authorization contracts', () =
     ['PR mismatch', { pr: 999 }],
     ['head mismatch', { exact_head: 'a'.repeat(40), reviewed_head: 'a'.repeat(40) }],
     ['base mismatch', { base: 'dev' }],
+    ['missing bundle kind', { bundle_kind: undefined }],
+    ['bundle kind mismatch', { bundle_kind: 'delivery' }],
+    ['missing policy source SHA', { policy_source_sha: undefined }],
+    ['stale policy source SHA', { policy_source_sha: '3333333333333333333333333333333333333333' }],
+    ['missing protected base SHA', { protected_base_sha: undefined }],
+    ['stale protected base SHA', { protected_base_sha: '4444444444444444444444444444444444444444' }],
     ['scope mismatch', { scope: 'implementation' }],
     ['action mismatch', { action: 'review' }],
     ['implementation-only decision', { scope: 'implementation', action: 'implement' }],
@@ -599,6 +676,9 @@ describe('Mission Control safe bundle and Founder authorization contracts', () =
         pr: 223,
         exactHead: reviewedHead,
         base: 'main',
+        bundleKind: 'merge-completion',
+        policySourceSha,
+        protectedBaseSha,
         policyVersion: '1.3.0',
         scope: 'merge',
         action: 'merge',
@@ -618,6 +698,9 @@ describe('Mission Control safe bundle and Founder authorization contracts', () =
         pr: 223,
         exactHead: reviewedHead,
         base: 'main',
+        bundleKind: 'merge-completion',
+        policySourceSha,
+        protectedBaseSha,
         policyVersion: '1.3.0',
         scope: 'merge',
         action: 'merge',

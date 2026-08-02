@@ -31,8 +31,8 @@ Managed state: DONE. Migration/deploy not authorized in this transition.
 ```markdown
 Repository: owner/repository
 Task Issue: #N · PR: #N
-Authority: comment <immutable-comment-id> · author @founder · scope merge · action merge
-Policy/base/head: 1.3.0 · main · `<exact-reviewed-head>`
+Authority: comment <immutable-comment-id> · author @founder · scope `merge` · action `merge` · bundle `merge-completion`
+Policy/source/base/head: version `1.3.0` · merged-policy source `<exact-merged-policy-source-sha>` (full 40-hex) · protected base `main@<exact-protected-base-sha>` (full 40-hex) · reviewed head `<exact-reviewed-head>` (full 40-hex)
 Exact-head CI: <required-check-links> passed for `<exact-reviewed-head>`
 Review verdict: `ELIGIBLE FOR FOUNDER REVIEW` · comment <verdict-comment-id> · not superseded
 Objective: merge this exact reviewed PR and complete the Task/campaign terminal projection.

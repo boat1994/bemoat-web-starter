@@ -327,6 +327,17 @@ max_review_cycles: 4
     for (const phrase of mod.REQUIRED_SAFE_BUNDLE_LOADER_PHRASES) expect(loader).toContain(phrase)
   })
 
+  it('requires immutable policy-source and protected-base SHAs in compact merge prompts', async () => {
+    const mod = await import('../../scripts/guard-mission-control-contract.mjs')
+    const template = readFileSync(resolve(process.cwd(), mod.MODULE_TEMPLATES_PATH), 'utf8')
+    const loader = readFileSync(resolve(process.cwd(), mod.LOADER_PATH), 'utf8')
+
+    expect(template).toMatch(/exact-merged-policy-source-sha/)
+    expect(template).toMatch(/exact-protected-base-sha/)
+    expect(loader).toMatch(/merged-policy source commit SHA/i)
+    expect(loader).toMatch(/protected-base commit SHA/i)
+  })
+
   it('fails when AGENTS.md lacks the Mission Control pointer', async () => {
     const mod = await import('../../scripts/guard-mission-control-contract.mjs')
     const violations = mod.scanAgentsPointer(mod.AGENTS_PATH, '# Agents\n')
