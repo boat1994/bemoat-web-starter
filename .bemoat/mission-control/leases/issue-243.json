@@ -2,8 +2,8 @@
   "schema_version": 1,
   "issue": "243",
   "transition_identity": "{\"taskId\":\"243\",\"phase\":\"Implementation\",\"role\":\"HANDOFF\",\"contentHash\":\"6e6e31b10d6b1011890831b4e855be0537bd9fa4c2767a56fed7bd52a3c560b5\"}",
-  "observed_body_sha256": "ac0181cc48afb50aade50c2d9b909a44865b79fb7a6fee98b86df03b3a17b1de",
+  "observed_body_sha256": "0e68caab5fc0e8776fcc90b72b4a83395e3c405b859eee67fec5282242815567",
   "holder": "mission-control-handoff-dispatch-243",
-  "status": "held",
-  "updated_at": "2026-08-02T05:24:02.860Z"
+  "status": "released",
+  "updated_at": "2026-08-02T05:24:06.542Z"
 }
