@@ -3,7 +3,7 @@
   "issue": "248",
   "transition_identity": "{\"taskId\":\"248\",\"phase\":\"Diagnostic — Slice 3 planning and characterization\",\"role\":\"RESULT\",\"contentHash\":\"11a48b29668ad29f0edf24d706027cf243b57d05294162356d4b5f61784668e0\"}",
   "observed_body_sha256": "e242e9d16f6c98cddf21341def8abaed67d66763464052a1f11335768bc52706",
-  "holder": "mission-control-slice3-planning",
-  "status": "released",
-  "updated_at": "2026-08-02T07:00:09.708Z"
+  "holder": "mission-control-reconcile",
+  "status": "held",
+  "updated_at": "2026-08-02T10:30:02.042Z"
 }
