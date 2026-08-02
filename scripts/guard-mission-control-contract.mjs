@@ -63,6 +63,11 @@ export const MODULE_SECTION_MAP = {
     '## Applicability and preflight outcomes',
     '## Workflow profiles',
     '## Operational-stage minimization and state necessity',
+    '## Safe execution bundles',
+    '## Allowed bundled flows',
+    '## Prohibited cross-gate bundles',
+    '## Reconciliation only on failure',
+    '## Merge completion bundle',
     '## Roles and authority boundaries',
     '## Responsibility/source-of-truth model',
     '## Protocol compression',
@@ -90,6 +95,7 @@ export const MODULE_SECTION_MAP = {
     '## Execution roles and atomic completions',
     '## Role-owned durable state updates',
     '## Deterministic reconciliation',
+    '## Reconciliation only on failure',
     '## Bootstrap and state reconstruction',
   ],
   [MODULE_CHECKLISTS_PATH]: [
@@ -252,6 +258,20 @@ export const REQUIRED_LEAN_FOUNDER_LOADER_PHRASES = [
   'After **Decline**: minimal stop/closure only',
   'Keep `ELIGIBLE_FOR_FOUNDER_REVIEW` on the default merge path',
   'Founder Decision stops stay lean',
+]
+
+export const REQUIRED_SAFE_BUNDLE_GUIDE_PHRASES = [
+  'one bounded objective with one authority scope',
+  'Successful bundles write their deterministic durable projection directly.',
+  'After Founder merge approval, the merge completion bundle may verify',
+  'Hard gates remain unchanged',
+  'No autonomous Review 4 or',
+]
+
+export const REQUIRED_SAFE_BUNDLE_LOADER_PHRASES = [
+  'one bounded objective or explicitly authorized safe execution',
+  'Compact bundle prompts must name',
+  'Do not bundle across implementation, review,',
 ]
 
 export const LOADER_MAX_LINES = 80
@@ -454,6 +474,13 @@ export function scanGuideContent(relativePath, content) {
       )
     }
   }
+  for (const phrase of REQUIRED_SAFE_BUNDLE_GUIDE_PHRASES) {
+    if (!content.includes(phrase)) {
+      violations.push(
+        violation('MC012', relativePath, `Guide missing safe execution bundle invariant: ${phrase}`),
+      )
+    }
+  }
 
   for (const phrase of REQUIRED_CORRECTION_GUIDE_PHRASES) {
     if (!content.includes(phrase)) {
@@ -511,6 +538,13 @@ export function scanLoaderContent(relativePath, content) {
     if (!content.includes(phrase)) {
       violations.push(
         violation('MC007', relativePath, `Loader missing lean Founder Decision invariant: ${phrase}`),
+      )
+    }
+  }
+  for (const phrase of REQUIRED_SAFE_BUNDLE_LOADER_PHRASES) {
+    if (!content.includes(phrase)) {
+      violations.push(
+        violation('MC012', relativePath, `Loader missing safe execution bundle invariant: ${phrase}`),
       )
     }
   }

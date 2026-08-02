@@ -117,9 +117,22 @@ content outside the markers. Dev must never increment `review_cycle` or `full_re
 
 ## Deterministic reconciliation
 
-When bookkeeping lag is unambiguous, Mission Control or a State Reconciler
-should repair the managed state block without requiring a separate coordination
-run before Review 1 or the next permitted action.
+When a safe execution bundle deterministically produces its durable projection,
+the executor writes that final state in the same authorized run. A separate
+reconciliation run is not required for successful bundled execution.
+
+## Reconciliation only on failure
+
+Require a separate reconciliation run only when the bundle's projection failed,
+a concurrent writer changed authority or state, evidence is ambiguous or
+unavailable, or the durable result conflicts with the action outcome. In those
+cases reconciliation remains bounded, idempotent, fail-closed, and subject to
+the existing one-repair/one-verification rules. Identical evidence remains
+`NO_OP` and must not create another model stage.
+
+When bookkeeping lag is unambiguous outside a bundle, Mission Control or a
+State Reconciler may repair the managed state block without requiring a
+separate coordination run before Review 1 or the next permitted action.
 
 Reconciliation inputs (all must agree):
 
@@ -194,7 +207,7 @@ commits endpoint and rejects all of those automatic closing sources so GitHub
 cannot close the Issue before protected-base verification and the explicit
 closure step.
 
-The executable command performs this exact order:
+The executable command performs this exact merge completion bundle:
 
 ```text
 verify explicit Founder authorization
@@ -202,9 +215,14 @@ verify explicit Founder authorization
 → mark the Draft PR ready when required
 → merge with expected-head protection
 → verify the merge commit on the protected base
+→ post final Task RESULT
 → close only the directly managed Issue as completed
-→ invoke bounded reconciliation and require DONE
-→ rerun reconciliation and require NO_OP
+→ write Task DONE and project the completed campaign slice
+→ select the next campaign action without starting it
+
+If the bundle's final projection fails, invoke bounded reconciliation and
+require either the proven repair or a fail-closed classification; repeated
+identical evidence returns `NO_OP`.
 ```
 
 If merge succeeds before Issue closure fails, rerun the same merge command; it

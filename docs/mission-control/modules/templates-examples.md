@@ -26,6 +26,16 @@ Merged PR #N at verified head `<sha>` → merge commit `<merge_sha>`.
 Managed state: DONE. Migration/deploy not authorized in this transition.
 ```
 
+### Safe merge completion bundle
+
+```markdown
+Founder authorization and exact reviewed head verified.
+Merge PR #N → verify protected-base merge commit `<merge_sha>`.
+Post final RESULT → close Task #N → write Task DONE → project campaign slice DONE.
+Next permitted action: <one selected campaign action>; do not start it in this bundle.
+Separate reconciliation: only if projection fails, evidence conflicts, or a concurrent write occurs.
+```
+
 ### Terminal closure
 
 Task #N closed DONE. Active PR merged; exact-head CI and review gates satisfied.
@@ -126,5 +136,3 @@ None
 Founder reply `approve` approves only the Option A recommendation. Mission
 Control remains in brainstorming until the Founder later says `start dev` or
 another explicit implementation authorization phrase.
-
-
