@@ -2,8 +2,8 @@
   "schema_version": 1,
   "issue": "215",
   "transition_identity": "{\"taskId\":\"215\",\"phase\":\"Campaign projection reconciliation — Slice 2 completed\",\"role\":\"RESULT\",\"contentHash\":\"ab3ef5945feed46df8a2166f8a35c3b97fc0f0d87342c7fd0e33615009a86de4\"}",
-  "observed_body_sha256": "7c2bc8077723982e59a8949c72273de116a5bc11c899503a7bfb968592fed12e",
+  "observed_body_sha256": "ab3ef5945feed46df8a2166f8a35c3b97fc0f0d87342c7fd0e33615009a86de4",
   "holder": "mission-control-campaign-projection",
-  "status": "held",
-  "updated_at": "2026-08-02T06:52:21.660Z"
+  "status": "released",
+  "updated_at": "2026-08-02T06:52:25.256Z"
 }
