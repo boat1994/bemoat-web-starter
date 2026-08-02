@@ -2,8 +2,8 @@
   "schema_version": 1,
   "issue": "243",
   "transition_identity": "{\"taskId\":\"243\",\"phase\":\"Diagnostic\",\"role\":\"RESULT\",\"contentHash\":\"b96001d3d189151e72e45c7c4240698664a1949e2bba7509e8cafd30eada3462\"}",
-  "observed_body_sha256": "9f2cfad17ed186c90a842da16d30fa2d3ef981ad8179fb58f1d16cc9c370f3bf",
+  "observed_body_sha256": "1a185c17654b352278e089454e41eb617d7688b217c4b6dfdb8263a05965e3a9",
   "holder": "mission-control-metadata-correction-243",
-  "status": "held",
-  "updated_at": "2026-08-02T05:11:25.311Z"
+  "status": "released",
+  "updated_at": "2026-08-02T05:11:29.481Z"
 }
