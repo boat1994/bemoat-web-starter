@@ -16,7 +16,7 @@ import { validateCampaign } from '../domain/campaign-validator.mjs'
  *   campaign: Record<string, unknown>,
  *   mode?: 'render-only' | 'dry-run',
  *   evidence?: object,
- *   transition?: { mode: 'append' | 'lifecycle', targetSlice?: string | number },
+ *   transition?: { mode: 'append' | 'lifecycle' | 'blocker-resolution', targetSlice?: string | number, blockerId?: string },
  * }} input
  */
 export function projectCampaign(input) {

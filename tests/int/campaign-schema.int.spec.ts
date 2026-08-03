@@ -101,6 +101,22 @@ function wrapCampaignYaml(raw: string) {
   ].join('\n')
 }
 
+const issue254BlockerId = 'issue-254-planning-correction-1'
+
+function withIssue254Blocker(campaign: Record<string, unknown>): Record<string, unknown> {
+  const next = structuredClone(campaign) as Record<string, unknown>
+  next.campaign_blockers = [{
+    id: issue254BlockerId,
+    summary: 'Issue #254 must complete before the blocked campaign action can proceed.',
+    evidence: { issue: '#254', pr: '#258', comment_ids: [] },
+    resolution_scope: 'Founder-authorized bounded completion recovery for Issue #254.',
+  }]
+  const slices = next.slices as Record<string, Record<string, unknown>>
+  for (const slice of Object.values(slices)) slice.blocker_ids = []
+  slices['5'].blocker_ids = [issue254BlockerId]
+  return next
+}
+
 describe('campaign schema characterization (Issue #243)', () => {
   it('captures exact Issue #215 body and task schema v1 block as byte fixtures', () => {
     const body = readFixture('issue-215-body.exact.txt')
@@ -507,5 +523,87 @@ describe('authority-backed campaign schema expansion (Issue #254)', () => {
       code: 'CAMPAIGN_SLICE_RANGE_SHRINK',
       classification: 'STATE_CONFLICT',
     })
+  })
+
+  it('removes exactly the bound blocker while appending only authorized NOT_STARTED rows', () => {
+    const expanded = withIssue254Blocker(loadExpandedCampaignFixture())
+    const prior = structuredClone(expanded) as Record<string, unknown>
+    delete prior.campaign_expansion_authority
+    for (const key of ['8', '9', '10', '11']) delete (prior.slices as Record<string, unknown>)[key]
+    const priorRootScriptMap = prior.root_script_map as Record<string, unknown>
+    priorRootScriptMap.validation_status = 'PENDING_IMPLEMENTATION'
+    const resolved = structuredClone(expanded) as Record<string, unknown>
+    resolved.campaign_blockers = []
+    ;(resolved.slices as Record<string, Record<string, unknown>>)['5'].blocker_ids = []
+    const evidence = campaignAuthorityEvidence()
+
+    const transition = validateCampaignTransition(prior, resolved, {
+      mode: 'blocker-resolution',
+      blockerId: issue254BlockerId,
+      evidence,
+    })
+
+    expect(transition).toMatchObject({ valid: true })
+    expect(Object.keys(resolved.slices as Record<string, unknown>)).toEqual(
+      Array.from({ length: 11 }, (_, index) => String(index + 1)),
+    )
+    expect((resolved.slices as Record<string, Record<string, unknown>>)['5']).toMatchObject({
+      status: 'NOT_STARTED',
+      issue: null,
+      pr: null,
+      reviewed_head: null,
+      merged_commit: null,
+      authority_comment_ids: [],
+      blocker_ids: [],
+    })
+    expect(validateCampaign(resolved, { evidence })).toMatchObject({ valid: true })
+  })
+
+  it('rejects blocker-resolution slice status mutation even when the bound blocker is removed', () => {
+    const expanded = withIssue254Blocker(loadExpandedCampaignFixture())
+    const prior = structuredClone(expanded) as Record<string, unknown>
+    delete prior.campaign_expansion_authority
+    for (const key of ['8', '9', '10', '11']) delete (prior.slices as Record<string, unknown>)[key]
+    const priorRootScriptMap = prior.root_script_map as Record<string, unknown>
+    priorRootScriptMap.validation_status = 'PENDING_IMPLEMENTATION'
+    const resolved = structuredClone(expanded) as Record<string, unknown>
+    resolved.campaign_blockers = []
+    const resolvedSlices = resolved.slices as Record<string, Record<string, unknown>>
+    resolvedSlices['5'].blocker_ids = []
+    resolvedSlices['5'].status = 'PLANNING'
+
+    expect(validateCampaignTransition(prior, resolved, {
+      mode: 'blocker-resolution',
+      blockerId: issue254BlockerId,
+      evidence: campaignAuthorityEvidence(),
+    })).toMatchObject({
+      valid: false,
+      code: 'CAMPAIGN_BLOCKER_RESOLUTION_SLICE_STATUS_MUTATION',
+      classification: 'STATE_CONFLICT',
+    })
+  })
+
+  it('keeps blocker-resolution campaign projection render-only and selects Slice 5 without starting it', () => {
+    const expanded = withIssue254Blocker(loadExpandedCampaignFixture())
+    const prior = structuredClone(expanded) as Record<string, unknown>
+    delete prior.campaign_expansion_authority
+    for (const key of ['8', '9', '10', '11']) delete (prior.slices as Record<string, unknown>)[key]
+    ;(prior.root_script_map as Record<string, unknown>).validation_status = 'PENDING_IMPLEMENTATION'
+    const projected = structuredClone(expanded) as Record<string, unknown>
+    projected.campaign_blockers = []
+    ;(projected.slices as Record<string, Record<string, unknown>>)['5'].blocker_ids = []
+    const body = `${renderCampaign(prior)}\n`
+
+    const result = projectCampaign({
+      body,
+      campaign: projected,
+      mode: 'dry-run',
+      evidence: campaignAuthorityEvidence(),
+      transition: { mode: 'blocker-resolution', blockerId: issue254BlockerId },
+    })
+
+    expect(result).toMatchObject({ ok: true, replaced: true, wrote: false })
+    expect(selectNextCampaignAction(result.campaign)).toMatchObject({ slice: '5', started: false })
+    expect(String(result.body)).toContain('"11"')
   })
 })

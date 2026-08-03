@@ -11,11 +11,13 @@ import {
   MC_MANAGED_MODULES,
   MC_MANAGED_PATHS,
   RESULT_PATH,
+  COMMAND_REFERENCE_PATH,
   ROLE_HANDOFF_PATH,
   SYNC_SCRIPT_PATH,
 } from './inventory.mjs'
 import { scanGuideContent } from './scan-guide.mjs'
 import { scanLoaderContent, scanAgentsPointer } from './scan-loader.mjs'
+import { scanCommandReferenceContent } from './scan-command-reference.mjs'
 import { scanManagedPathsContract, extractManagedPaths } from './managed-paths.mjs'
 import { scanModuleContent } from './scan-modules.mjs'
 import { scanHandoffTemplate, scanResultTemplate, scanRoleHandoffContract } from './scan-transport.mjs'
@@ -61,6 +63,9 @@ export function runMissionControlContractGuard({
 
   const roleHandoff = readOptional(root, ROLE_HANDOFF_PATH, readFile)
   violations.push(...scanRoleHandoffContract(ROLE_HANDOFF_PATH, roleHandoff))
+
+  const commandReference = readOptional(root, COMMAND_REFERENCE_PATH, readFile)
+  violations.push(...scanCommandReferenceContent(COMMAND_REFERENCE_PATH, commandReference))
 
   let paths = managedPaths
   if (!paths) {

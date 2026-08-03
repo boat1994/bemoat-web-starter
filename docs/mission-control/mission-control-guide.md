@@ -26,6 +26,8 @@ role-handoff contract uses the same vocabulary for Core Mission Control work;
 do not invent alternate gate words such as bare `PASS` / `BLOCKED` for Core
 MC-gated tasks.
 
+The exact production command contract is [Mission Control command reference](./command-reference.md).
+
 <!-- bemoat-mc:invariant:no-autonomous-review-4 -->
 <!-- bemoat-mc:invariant:no-silent-reset -->
 <!-- bemoat-mc:invariant:minor-nit-non-blocking -->

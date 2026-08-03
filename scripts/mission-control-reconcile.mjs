@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { parseCorrectionContract } from './correction-contract.mjs'
 import { writeIssueBodyWithLease } from './mission-control-issue-body-cas.mjs'
-import { populateOrPreservePlanningAuthorizationBaseSha, projectMissionControlStateBlock } from './mission-control-state.mjs'
+import { parseMissionControlState, populateOrPreservePlanningAuthorizationBaseSha, projectMissionControlStateBlock } from './mission-control-state.mjs'
 
 const PRE_DELIVERY_STATES = new Set(['READY', 'IN_PROGRESS', 'CORRECTION_REQUIRED_1', 'CORRECTION_REQUIRED_2'])
 const CORE_VERDICTS = new Set([
@@ -493,8 +493,8 @@ export function parseCommentMarker(body = '') {
 export function normalizeTransitionIdentity(body = '', overrides = {}) {
   const role = overrides.role ?? parseCommentMarker(body) ?? ''
   const taskId = overrides.taskId ??
-    body.match(/\*\*Task(?:\s*\/\s*Issue)?:\*\*\s*#?(\d+)/i)?.[1] ??
-    body.match(/Task\s*\/\s*Issue:\s*#?(\d+)/i)?.[1] ?? ''
+    body.match(/\*\*Task(?:\s*\/\s*Issue)?:\*\*\s*(?:Issue\s*)?#?(\d+)/i)?.[1] ??
+    body.match(/Task\s*\/\s*Issue:\s*(?:Issue\s*)?#?(\d+)/i)?.[1] ?? ''
   const phase = overrides.phase ??
     body.match(/\*\*Phase:\*\*\s*(.+?)\s*$/m)?.[1]?.trim() ??
     body.match(/Phase:\s*(.+?)$/m)?.[1]?.trim() ?? ''
@@ -1072,7 +1072,7 @@ export class Coordinator {
   /**
    * Routing-only REVIEW_VERDICT projection preserving counters and heads.
    */
-  async reconcileReviewVerdict({ verdictBody, projectReview }) {
+  async reconcileReviewVerdict({ verdictBody, projectReview, routingOnly = false }) {
     if (parseCommentMarker(verdictBody) !== 'REVIEW_VERDICT') {
       throw new Error('reconcileReviewVerdict requires a REVIEW_VERDICT role comment')
     }
@@ -1080,11 +1080,11 @@ export class Coordinator {
     const { identity, options } = this._matchOptions(verdictBody, 'REVIEW_VERDICT')
     const comments = await this.listComments()
     const matches = findMatchingComments(comments, identity, options)
-    const classification = classifyTransition(matches.length)
-    if (classification === 'BLOCKED_EXTERNAL') {
+    const matchClassification = classifyTransition(matches.length)
+    if (matchClassification === 'BLOCKED_EXTERNAL') {
       throw new Error('BLOCKED_EXTERNAL: no matching REVIEW_VERDICT evidence')
     }
-    if (classification === 'STATE_CONFLICT') {
+    if (matchClassification === 'STATE_CONFLICT') {
       throw new Error('STATE_CONFLICT: competing REVIEW_VERDICT comments')
     }
     const projected = this._coordinatorOwnedRouting({
@@ -1094,16 +1094,76 @@ export class Coordinator {
       base: typeof projectReview === 'function' ? projectReview(original) : projectReview,
       prior: original,
     })
+    if (routingOnly) {
+      const allowedKeys = new Set([
+        'latest_review_verdict_comment_id',
+        'latest_transition_identity',
+        'updated_at',
+        'updated_by',
+      ])
+      const keys = new Set([...Object.keys(original ?? {}), ...Object.keys(projected ?? {})])
+      for (const key of keys) {
+        if (!allowedKeys.has(key) && !sameValue(original?.[key], projected?.[key])) {
+          throw new Error(`STATE_CONFLICT: routing-only REVIEW_VERDICT repair changed ${key}`)
+        }
+      }
+    }
     if (
       (projected.review_cycle ?? original.review_cycle) < (original.review_cycle ?? 0) ||
       (projected.full_review_count ?? original.full_review_count) < (original.full_review_count ?? 0)
     ) {
       throw new Error('routing-only repair must not decrease review counters')
     }
+    const classification = routingDriftClassification({
+      prior: original,
+      identity,
+      comment: matches[0],
+      role: 'REVIEW_VERDICT',
+    })
+    if (classification === null) {
+      const verified = await this.readState()
+      verifyStatePostcondition(original, verified, [
+        'state',
+        'review_cycle',
+        'full_review_count',
+        'active_pr',
+        'current_head',
+        'last_reviewed_head',
+        'latest_result_comment_id',
+        'latest_review_verdict_comment_id',
+        'latest_transition_identity',
+        'founder_decision',
+        'guide_version',
+        'guide_source_ref',
+        'guide_source_sha',
+      ])
+      return {
+        outcome: 'NO_OP',
+        classification: null,
+        state: verified,
+        comment: matches[0],
+        identity,
+      }
+    }
     const written = await this.writeState(projected, original)
+    verifyStatePostcondition(projected, written, [
+      'state',
+      'review_cycle',
+      'full_review_count',
+      'active_pr',
+      'current_head',
+      'last_reviewed_head',
+      'latest_result_comment_id',
+      'latest_review_verdict_comment_id',
+      'latest_transition_identity',
+      'founder_decision',
+      'guide_version',
+      'guide_source_ref',
+      'guide_source_sha',
+    ])
     return {
       outcome: 'RECONCILED',
-      classification: routingDriftClassification({ prior: original, identity, comment: matches[0], role: 'REVIEW_VERDICT' }),
+      classification,
       state: written,
       comment: matches[0],
       identity,
@@ -1819,8 +1879,157 @@ function stateBlockReplacement(body, state) {
   return projectMissionControlStateBlock(body, state)
 }
 
+function parseCanonicalReviewTarget(body = '') {
+  const match = body.match(
+    /^\*\*PR\s*\/\s*base\s*\/\s*head:\*\*[^\n]*?·\s*`([^`]+)`\s*·\s*`([0-9a-f]{7,40})`\s*$/im,
+  )
+  return match ? { base: match[1], head: match[2] } : null
+}
+
+function parseTaskIssueNumber(body = '') {
+  return body.match(/\*\*Task(?:\s*\/\s*Issue)?:\*\*\s*(?:Issue\s*)?#?(\d+)/i)?.[1] ??
+    body.match(/Task\s*\/\s*Issue:\s*(?:Issue\s*)?#?(\d+)/i)?.[1] ?? null
+}
+
+function selectLiveReviewVerdictComment({ comments, issueNumber, livePr }) {
+  const active = selectActiveRoleComments(comments, 'REVIEW_VERDICT')
+  const relevant = active.filter((comment) => {
+    const taskIssue = parseTaskIssueNumber(comment.body ?? '')
+    return taskIssue == null || String(taskIssue) === String(issueNumber)
+  })
+  if (relevant.length === 0) {
+    throw new Error('BLOCKED_EXTERNAL: no active REVIEW_VERDICT evidence for the managed Issue')
+  }
+  if (relevant.length > 1) {
+    throw new Error('STATE_CONFLICT: competing active REVIEW_VERDICT comments')
+  }
+
+  const comment = relevant[0]
+  const parsed = parseRoleCommentBody(comment.body ?? '')
+  const target = parseCanonicalReviewTarget(comment.body ?? '')
+  if (!parsed.prNumber || !parsed.headSha || !target) {
+    throw new Error('STATE_CONFLICT: live REVIEW_VERDICT is missing canonical PR/base/head evidence')
+  }
+  if (String(parsed.prNumber) !== String(livePr.number)) {
+    throw new Error('STATE_CONFLICT: REVIEW_VERDICT PR does not match the live PR')
+  }
+  if (target.base !== livePr.baseRefName) {
+    throw new Error('STATE_CONFLICT: REVIEW_VERDICT base does not match the live PR')
+  }
+  if (target.head !== livePr.headRefOid || parsed.headSha !== livePr.headRefOid) {
+    throw new Error('STATE_CONFLICT: REVIEW_VERDICT exact head does not match the live PR')
+  }
+  if (parsed.verdict !== 'ELIGIBLE FOR FOUNDER REVIEW') {
+    throw new Error('STATE_CONFLICT: eligible managed state requires an eligible REVIEW_VERDICT')
+  }
+  return comment
+}
+
+async function runProductionReviewVerdictReconciliation(options) {
+  const repoArgs = options.repo ? ['--repo', options.repo] : []
+  const issueArgs = ['issue', 'view', options.issue, '--json', 'body,state', ...repoArgs]
+  const issue = JSON.parse(run('gh', issueArgs))
+  const parsedIssue = parseMissionControlState(issue.body)
+  if (!parsedIssue.present || !parsedIssue.valid) {
+    throw new Error(`STATE_CONFLICT: invalid managed state: ${parsedIssue.reason ?? 'missing state block'}`)
+  }
+  const state = parsedIssue.state
+  if (state.state !== 'ELIGIBLE_FOR_FOUNDER_REVIEW') return null
+  if (!state.active_pr || !state.current_head || !state.last_reviewed_head) {
+    throw new Error('STATE_CONFLICT: eligible managed state is missing exact PR/head lineage')
+  }
+
+  const prNumber = String(state.active_pr).replace(/^#/, '')
+  const pr = JSON.parse(run('gh', [
+    'pr', 'view', prNumber, '--json', 'number,headRefOid,baseRefName,state', ...repoArgs,
+  ]))
+  if (String(pr.number) !== prNumber || pr.baseRefName !== state.approved_base || String(pr.state).toUpperCase() !== 'OPEN') {
+    throw new Error('STATE_CONFLICT: managed active PR or approved base does not match live PR')
+  }
+  if (pr.headRefOid !== state.current_head || pr.headRefOid !== state.last_reviewed_head) {
+    throw new Error('STATE_CONFLICT: managed exact head does not match live PR head')
+  }
+
+  const repo = options.repo || run('gh', ['repo', 'view', '--json', 'nameWithOwner', '--jq', '.nameWithOwner'])
+  const comments = normalizeIssueComments(parsePaginatedGhApiJson(
+    run('gh', ['api', '--paginate', `repos/${repo}/issues/${options.issue}/comments`]),
+  ))
+  const verdictComment = selectLiveReviewVerdictComment({
+    comments,
+    issueNumber: options.issue,
+    livePr: pr,
+  })
+
+  let expectedBody = issue.body
+  const readState = async () => {
+    const live = JSON.parse(run('gh', issueArgs))
+    const liveState = parseMissionControlState(live.body)
+    if (!liveState.present || !liveState.valid) {
+      throw new Error(`STATE_CONFLICT: invalid managed state: ${liveState.reason ?? 'missing state block'}`)
+    }
+    expectedBody = live.body
+    return liveState.state
+  }
+  const listComments = async () => normalizeIssueComments(parsePaginatedGhApiJson(
+    run('gh', ['api', '--paginate', `repos/${repo}/issues/${options.issue}/comments`]),
+  ))
+  const writeState = async (nextState, expectedState) => {
+    const live = JSON.parse(run('gh', ['issue', 'view', options.issue, '--json', 'body', ...repoArgs]))
+    const liveState = parseMissionControlState(live.body)
+    if (!liveState.valid || !sameValue(liveState.state, expectedState) || live.body !== expectedBody) {
+      throw new Error('STATE_CONFLICT: concurrent Issue write detected before verdict reconciliation')
+    }
+    const nextBody = stateBlockReplacement(live.body, nextState)
+    await writeIssueBodyWithLease({
+      repo,
+      issueNumber: options.issue,
+      expectedBody: live.body,
+      nextBody,
+      transitionIdentity: nextState?.latest_transition_identity ?? null,
+      holder: 'mission-control-reconcile-review-verdict',
+      repoFlag: options.repo,
+      deps: { runGh: (args, ghOptions) => run('gh', args, ghOptions) },
+    })
+    const verified = JSON.parse(run('gh', ['issue', 'view', options.issue, '--json', 'body', ...repoArgs]))
+    const verifiedState = parseMissionControlState(verified.body)
+    if (!verifiedState.valid || !sameValue(verifiedState.state, nextState)) {
+      throw new Error('STATE_CONFLICT: verdict reconciliation projection could not be verified')
+    }
+    expectedBody = verified.body
+    return verifiedState.state
+  }
+
+  const coordinator = new Coordinator({
+    readState,
+    writeState,
+    listComments,
+    postComment: async () => {
+      throw new Error('STATE_CONFLICT: routing reconciliation must not post a REVIEW_VERDICT')
+    },
+    ...resolveProductionCommentTrust(),
+  })
+  const result = await coordinator.reconcileReviewVerdict({
+    verdictBody: verdictComment.body,
+    routingOnly: true,
+    projectReview: (prior) => structuredClone(prior),
+  })
+  const verified = await readState()
+  if (String(verified.latest_review_verdict_comment_id ?? '') !== String(verdictComment.id) ||
+      verified.latest_transition_identity !== serializeTransitionIdentity(result.identity)) {
+    throw new Error('STATE_CONFLICT: verdict reconciliation readback did not match live comment lineage')
+  }
+  return { ...result, state: verified }
+}
+
 async function runProductionBoundedReconciliation() {
   const options = parseReconcileArgs(process.argv.slice(2))
+  const reviewVerdictResult = await runProductionReviewVerdictReconciliation(options)
+  if (reviewVerdictResult) {
+    process.stdout.write(
+      `Mission Control REVIEW_VERDICT reconciliation ${reviewVerdictResult.outcome}: comment ${reviewVerdictResult.comment.id}\n`,
+    )
+    return
+  }
   const repoArgs = options.repo ? ['--repo', options.repo] : []
   const { analyzeProgressTracking } = await import('./agent-issue.mjs')
   const { parseMissionControlState } = await import('./mission-control-state.mjs')
