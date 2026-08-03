@@ -32,6 +32,7 @@
   "scripts/mission-control-review.mjs",
   "scripts/mission-control-state.mjs",
   "scripts/mission-control-task-create.mjs",
+  "scripts/mission-control-unmanaged-genesis-review.mjs",
   "scripts/post-role-comment.mjs",
   "scripts/pr-identity.mjs",
   "scripts/sync-boilerplate.mjs"

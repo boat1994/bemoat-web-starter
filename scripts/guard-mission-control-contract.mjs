@@ -14,6 +14,7 @@ export {
   scanResultTemplate,
   scanRoleHandoffContract,
 } from './guards/mission-control-contract/scan-transport.mjs'
+export { scanCommandDiscovery } from './guards/mission-control-contract/scan-command-discovery.mjs'
 export { scanManagedPathsContract } from './guards/mission-control-contract/managed-paths.mjs'
 export { runMissionControlContractGuard } from './guards/mission-control-contract/runner.mjs'
 export {

@@ -33,7 +33,8 @@
       "importers": [
         "scripts/command-runner.mjs",
         "scripts/mission-control-review.mjs",
-        "scripts/mission-control/adapters/task-bootstrap-github.mjs"
+        "scripts/mission-control/adapters/task-bootstrap-github.mjs",
+        "scripts/mission-control/adapters/unmanaged-genesis-review-github.mjs"
       ]
     }
   },
@@ -266,6 +267,13 @@
       "path": "scripts/mission-control-task-create.mjs",
       "facade_disposition": "composition_root",
       "internal_destination": "scripts/mission-control/workflows/task-bootstrap.mjs",
+      "owning_slice": 5,
+      "migration_status": "planned"
+    },
+    {
+      "path": "scripts/mission-control-unmanaged-genesis-review.mjs",
+      "facade_disposition": "composition_root",
+      "internal_destination": "scripts/mission-control/workflows/unmanaged-genesis-review.mjs",
       "owning_slice": 5,
       "migration_status": "planned"
     },

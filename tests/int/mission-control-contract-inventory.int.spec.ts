@@ -25,4 +25,10 @@ describe('mission-control contract inventory boundary', () => {
     expect(inventory.MC_MANAGED_PATHS).toContain(inventory.GUARD_SCRIPT_PATH)
     expect(inventory.MC_MANAGED_PATHS).toContain(inventory.INT_TEST_PATH)
   })
+
+  it('keeps command-reference discovery on the managed inventory', async () => {
+    const inventory = await import('../../scripts/guards/mission-control-contract/inventory.mjs')
+    expect(inventory.MC_MANAGED_PATHS).toContain(inventory.COMMAND_REFERENCE_PATH)
+    expect(inventory.COMMAND_REFERENCE_PATH).toBe('docs/mission-control/command-reference.md')
+  })
 })

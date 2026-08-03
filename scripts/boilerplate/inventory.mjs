@@ -26,7 +26,7 @@ export const managedPaths = [
   'scripts/guard-mission-control-contract.mjs', 'scripts/guards/mission-control-contract',
   'scripts/guard-build-script-contract.mjs', 'scripts/build.mjs', 'scripts/agent-issue.mjs',
   'scripts/agent-issue', 'scripts/agent-delivery.mjs', 'scripts/correction-contract.mjs',
-  'scripts/mission-control-reconcile.mjs', 'scripts/mission-control-task-create.mjs', 'scripts/command-runner.mjs',
+  'scripts/mission-control-reconcile.mjs', 'scripts/mission-control-task-create.mjs', 'scripts/mission-control-unmanaged-genesis-review.mjs', 'scripts/command-runner.mjs',
   'scripts/adapters/command-runner.mjs', 'scripts/mission-control-review.mjs',
   'scripts/mission-control-merge.mjs', 'scripts/mission-control-dispatch.mjs',
   'scripts/mission-control-issue-body-cas.mjs', 'scripts/post-role-comment.mjs',
@@ -69,6 +69,7 @@ export const managedPaths = [
   'tests/int/mission-control-merge.int.spec.ts', 'tests/int/mission-control-issue-body-cas.int.spec.ts',
   'tests/int/mission-control-correction-entrypoints.int.spec.ts',
   'tests/int/mission-control-characterization.int.spec.ts', 'tests/int/mission-control-task-bootstrap-contract.int.spec.ts', 'tests/int/mission-control-task-initialization.int.spec.ts',
+  'tests/int/mission-control-unmanaged-genesis-review.int.spec.ts',
   'tests/int/mission-control-child-portability.int.spec.ts',
   'tests/int/mission-control-brainstorming.int.spec.ts', 'tests/int/toolchain-contract.int.spec.ts',
   'tests/int/vitest-process-lock.int.spec.ts', 'tests/int/starter-acceptance.int.spec.ts',
@@ -93,6 +94,7 @@ export const packageSyncProposalPath = '.bemoat/package-sync-proposal.md'
 /** Namespaced scripts safe to add when missing during sync. Never overwrite existing entries. */
 export const managedPackageScripts = [
   'bemoat:agent:issue', 'bemoat:mission-control:dispatch', 'bemoat:mission-control:review', 'bemoat:mission-control:task-bootstrap',
+  'bemoat:mission-control:unmanaged-genesis-review',
   'bemoat:mission-control:merge', 'bemoat:agent:delivery', 'bemoat:issue:comment',
   'bemoat:branch:check', 'bemoat:guard:safety', 'bemoat:guard:pack',
   'bemoat:guard:harness-contract', 'bemoat:guard:mission-control-contract',

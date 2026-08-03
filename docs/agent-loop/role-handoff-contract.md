@@ -326,6 +326,11 @@ the existing state fields rather than creating a Double-Loop state model.
 
 ### REVIEW_VERDICT (operational)
 
+For the unmanaged-genesis exception (Issue #262 / Draft PR #266), raw
+`## REVIEW_VERDICT` comments are evidence-only. Canonical Full/Delta authority
+comes only from `pnpm run bemoat:mission-control:unmanaged-genesis-review`
+signed records; Full alone or Delta alone cannot authorize the corrected head.
+
 ```markdown
 ## REVIEW_VERDICT
 

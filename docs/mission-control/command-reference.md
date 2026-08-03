@@ -69,3 +69,33 @@ Rollback is operational rather than destructive: stop the workflow, preserve
 the provisional Issue and registry evidence, and diagnose or retry the same
 request. Do not delete, close, edit, or rebind an allocated Task as a rollback
 shortcut.
+
+## Unmanaged-genesis Full/Delta Review transport
+
+Issue #262 remains unmanaged while Draft PR #266 is the one-time genesis
+implementation under review. The repository therefore exposes a dedicated
+`UNMANAGED_GENESIS_REVIEW` transport that records signed Full and Delta review
+evidence without creating a managed-state block, `review_cycle`, or
+`full_review_count`.
+
+The only supported caller interface is:
+
+```bash
+pnpm run bemoat:mission-control:unmanaged-genesis-review -- \
+  --founder-authorization-comment-id=<comment-id>
+```
+
+The caller may supply only that immutable Founder authorization comment ID.
+Evidence class (`full` or `delta`), Issue/PR/base/head, source-review binding,
+policy tuple, CI, correction range, and predecessor links are derived from the
+authorization comment and live GitHub evidence. Raw `gh issue comment` bodies,
+generic role comments, Issue-body edits, copied JSON records, and unsigned
+comments remain non-authoritative.
+
+A Full record alone cannot authorize the corrected head. A Delta record alone
+cannot authorize it. Merge review eligibility requires one valid Full root for
+the historical reviewed head, exactly one non-forked Delta tip rooted in that
+Full, exact-current-head CI on that tip, and `ELIGIBLE FOR FOUNDER REVIEW` with
+no unresolved Critical/Important findings. Head drift fails closed. Identical
+retry returns `NO_OP`. Competing, forked, edited, superseded, or ambiguous
+records return `STATE CONFLICT`.

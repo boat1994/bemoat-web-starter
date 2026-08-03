@@ -327,3 +327,10 @@ At the start of every Mission Control run:
 9. Write the durable result to GitHub, identify one next permitted action, and stop.
 
 Never reset or infer the review count from chat history.
+
+For the unmanaged-genesis exception (Issue #262 / Draft PR #266), use
+`pnpm run bemoat:mission-control:unmanaged-genesis-review` with only
+`--founder-authorization-comment-id`. Do not create `review_cycle`,
+`full_review_count`, or a managed-state block. Signed Full plus exact-current-
+head Delta composition is required before Founder merge review; raw Review
+comments are evidence-only.
