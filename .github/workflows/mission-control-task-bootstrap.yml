@@ -1,0 +1,80 @@
+name: Mission Control Task Bootstrap
+
+on:
+  workflow_dispatch:
+    inputs:
+      founder_authorization_comment_id:
+        description: Immutable Founder authorization comment ID on Issue #262
+        required: true
+        type: string
+
+# The only write capability in this workflow is the Issues API. Contents is
+# read-only so ordinary repository agents cannot obtain a workflow-equivalent
+# Issue-write credential through this file.
+permissions:
+  actions: read
+  checks: read
+  contents: read
+  issues: write
+  metadata: read
+  pull-requests: read
+  statuses: read
+
+# One repository-wide winner. A retry waits for the protected environment and
+# then recovers the same deterministic request; it must never cancel a holder.
+concurrency:
+  group: mission-control-task-creation-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    # The environment must be configured in repository settings with Founder
+    # as its required reviewer. Secrets below are step-scoped only.
+    environment:
+      name: mission-control-task-creation
+    steps:
+      - name: Require the protected main dispatch ref
+        env:
+          EXPECTED_REF: refs/heads/main
+        run: |
+          set -eu
+          test "${GITHUB_REF}" = "${EXPECTED_REF}"
+
+      - name: Load implementation from protected main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify checkout is the dispatched protected ref
+        run: |
+          set -eu
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.15.0
+          cache: pnpm
+
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Execute canonical bootstrap
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BEMOAT_FOUNDER_LOGINS: ${{ vars.BEMOAT_FOUNDER_LOGINS }}
+          BEMOAT_TASK_BOOTSTRAP_SIGNING_KEY_ID: ${{ vars.BEMOAT_TASK_BOOTSTRAP_SIGNING_KEY_ID }}
+          BEMOAT_TASK_BOOTSTRAP_SIGNING_PRIVATE_KEY: ${{ secrets.BEMOAT_TASK_BOOTSTRAP_SIGNING_PRIVATE_KEY }}
+          FOUNDER_AUTHORIZATION_COMMENT_ID: ${{ inputs.founder_authorization_comment_id }}
+        run: |
+          set -eu
+          node scripts/mission-control-task-create.mjs \
+            --founder-authorization-comment-id "${FOUNDER_AUTHORIZATION_COMMENT_ID}"

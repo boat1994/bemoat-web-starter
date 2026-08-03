@@ -64,6 +64,7 @@ Rules that change day-to-day behavior:
 | File | Responsibility |
 | --- | --- |
 | [`mission-control-guide.md`](./mission-control-guide.md) | Only long-form operating policy |
+| [`command-reference.md`](./command-reference.md) | Canonical command and credential-boundary reference |
 | [`../../prompts/mission-control/chatgpt-project-loader.md`](../../prompts/mission-control/chatgpt-project-loader.md) | Ready-to-paste ChatGPT Project instruction |
 | [`handoff-template.md`](./handoff-template.md) | Full `## HANDOFF` field checklist |
 | [`result-template.md`](./result-template.md) | Full `## RESULT` / verdict field checklist |
@@ -76,6 +77,12 @@ comment shape only; it must use the same verdict vocabulary (see below).
 
 Normal Mission Control runs must load the guide from the **merged approved
 protected base**, never from an unmerged task branch.
+
+The one-time genesis managed-Task bootstrap is the exception for Issue
+creation: its implementation is reviewed as an ordinary PR, while its runtime
+still requires a separate exact Founder authorization, protected environment
+approval, live evidence, and signed readback. Do not execute it against Issue
+#262 during the implementation PR.
 
 ## Reviewer verdict vocabulary (single source)
 
