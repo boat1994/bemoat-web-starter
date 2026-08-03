@@ -19,6 +19,7 @@ import { parseIssueReference, parsePrReference } from './issue-references.mjs'
 import { getDefaultRepo } from './local-git-evidence.mjs'
 import { fetchIssueByReference, fetchIssueComments, fetchPrByReference } from './github-evidence.mjs'
 import { stripFencedCodeBlocks } from './pure-helpers.mjs'
+import { preflightCanonicalBootstrapTask } from '../mission-control/domain/task-bootstrap-preflight.mjs'
 
 export function normalizeSliceName(slice) {
   if (!slice) return ''
@@ -305,6 +306,24 @@ export function analyzeProgressTracking({
     } else {
       report.pr = prResult.pr
       report.exactHeadCi = analyzeExactHeadCi(prResult.pr)
+      if (String(activeIssueBody).includes('bemoat-mission-control-task-attestation:v1')) {
+        const repository = getDefaultRepo(cwd, env)
+        const liveTask = activeIssueNumber
+          ? fetchIssueByReference(cwd, `#${activeIssueNumber}`, env)
+          : { ok: false, reason: 'active Task Issue number is unavailable' }
+        if (!repository || !liveTask.ok) {
+          blockers.push('BLOCKED_EXTERNAL: canonical bootstrap Task identity evidence is unavailable.')
+        } else {
+          const bootstrapPreflight = preflightCanonicalBootstrapTask({
+            issue: liveTask.issue,
+            pullRequest: prResult.pr,
+            repository,
+          })
+          if (!bootstrapPreflight.ok) {
+            blockers.push(`${bootstrapPreflight.classification ?? 'STATE_CONFLICT'}: ${bootstrapPreflight.reason}.`)
+          }
+        }
+      }
       if (stateAnalysis.valid) {
         const expectedPr = parsePrReference(String(state.active_pr ?? ''))
         if (expectedPr?.number && expectedPr.number !== String(prResult.reference.number)) {

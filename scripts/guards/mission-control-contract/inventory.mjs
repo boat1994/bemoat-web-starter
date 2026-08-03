@@ -4,6 +4,7 @@ export const HANDOFF_PATH = 'docs/mission-control/handoff-template.md'
 export const RESULT_PATH = 'docs/mission-control/result-template.md'
 export const ROLE_HANDOFF_PATH = 'docs/agent-loop/role-handoff-contract.md'
 export const README_PATH = 'docs/mission-control/README.md'
+export const COMMAND_REFERENCE_PATH = 'docs/mission-control/command-reference.md'
 export const OVERRIDE_EXAMPLE_PATH = 'docs/mission-control/project-overrides.example.md'
 export const LIVE_OVERRIDE_PATH = '.bemoat/mission-control-overrides.md'
 export const AGENTS_PATH = 'AGENTS.md'
@@ -34,6 +35,7 @@ export const MC_MANAGED_MODULES = [
 
 export const MC_MANAGED_PATHS = [
   README_PATH,
+  COMMAND_REFERENCE_PATH,
   GUIDE_PATH,
   HANDOFF_PATH,
   RESULT_PATH,

@@ -6,6 +6,7 @@ import { analyzeExactHeadCi } from './agent-issue/exact-head-ci.mjs'
 import { runCommand as run } from './adapters/command-runner.mjs'
 import { parseReviewVerdictContractFindings } from './correction-contract.mjs'
 import { parseMissionControlState, projectMissionControlStateBlock } from './mission-control-state.mjs'
+import { preflightCanonicalBootstrapTask } from './mission-control/domain/task-bootstrap-preflight.mjs'
 import {
   Coordinator,
   normalizeIssueComments,
@@ -60,17 +61,19 @@ async function main() {
   if (parsedVerdict.headSha !== options.expectedHead) throw new Error('STATE_CONFLICT: verdict head differs from --expected-head')
 
   const repo = options.repo || run('gh', ['repo', 'view', '--json', 'nameWithOwner', '--jq', '.nameWithOwner'])
-  const issueArgs = ['issue', 'view', options.issue, '--json', 'body']
+  const issueArgs = ['issue', 'view', options.issue, '--json', 'number,id,title,body']
   if (options.repo) issueArgs.push('--repo', options.repo)
   let expectedBody = null
+  let liveIssue = null
   const readIssue = () => {
     const issue = JSON.parse(run('gh', issueArgs))
+    liveIssue = issue
     const parsed = parseMissionControlState(issue.body)
     if (!parsed.present || !parsed.valid) throw new Error(`STATE_CONFLICT: invalid managed state: ${parsed.reason ?? 'missing state block'}`)
     expectedBody = issue.body
     return parsed.state
   }
-  const pr = JSON.parse(run('gh', ['pr', 'view', parsedVerdict.prNumber, '--json', 'number,headRefOid,baseRefName,statusCheckRollup', ...(options.repo ? ['--repo', options.repo] : [])]))
+  const pr = JSON.parse(run('gh', ['pr', 'view', parsedVerdict.prNumber, '--json', 'number,id,headRefOid,baseRefName,statusCheckRollup', ...(options.repo ? ['--repo', options.repo] : [])]))
   if (pr.headRefOid !== options.expectedHead || pr.headRefOid !== parsedVerdict.headSha) throw new Error('STATE_CONFLICT: live PR head differs from reviewed head')
   if (!analyzeExactHeadCi(pr).exactHeadVerified) throw new Error('STATE_CONFLICT: exact-head CI is not verified')
 
@@ -97,6 +100,12 @@ async function main() {
     return verifiedState.state
   }
   const original = readIssue()
+  const bootstrapPreflight = preflightCanonicalBootstrapTask({
+    issue: liveIssue,
+    pullRequest: pr,
+    repository: repo,
+  })
+  if (!bootstrapPreflight.ok) throw new Error(`${bootstrapPreflight.classification ?? 'STATE_CONFLICT'}: ${bootstrapPreflight.reason}`)
   if (original.state !== options.expectedState) throw new Error(`STATE_CONFLICT: expected ${options.expectedState}, received ${original.state}`)
   if (original.approved_base !== pr.baseRefName) throw new Error('STATE_CONFLICT: live PR base differs from approved base')
   if (original.current_head !== options.expectedHead) throw new Error('STATE_CONFLICT: managed current head differs from reviewed head')

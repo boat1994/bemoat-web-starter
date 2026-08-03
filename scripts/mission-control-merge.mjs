@@ -12,6 +12,7 @@ import {
 } from './mission-control/domain/campaign-authority.mjs'
 import { parseCampaign } from './mission-control/domain/campaign-parser.mjs'
 import { replaceCampaignBlock } from './mission-control/domain/campaign-renderer.mjs'
+import { preflightCanonicalBootstrapTask } from './mission-control/domain/task-bootstrap-preflight.mjs'
 
 const STARTER_REPOSITORY = 'boat1994/bemoat-web-starter'
 const FULL_SHA_RE = /^[0-9a-f]{40}$/i
@@ -463,6 +464,12 @@ export async function runFounderAuthorizedMerge({
   if (!prNumber) throw stateConflict('directly managed task has no active PR terminal ownership')
   let pr = await deps.readPullRequest(prNumber, repo)
   verifyDirectOwnership(issueNumber, issue, pr)
+  const bootstrapPreflight = preflightCanonicalBootstrapTask({
+    issue,
+    pullRequest: pr,
+    repository: repo,
+  })
+  if (!bootstrapPreflight.ok) throw stateConflict(`${bootstrapPreflight.classification ?? 'STATE_CONFLICT'}: ${bootstrapPreflight.reason}`)
 
   const authorization = await deps.readFounderAuthorization(repo, issueNumber, authorizationCommentId)
   const trustedFounderLogins = await deps.readTrustedFounderLogins(repo)
@@ -745,7 +752,7 @@ function campaignParseFailure(parsed, context) {
 
 function createProductionDeps() {
   const readManagedIssue = async (issueNumber, repo) => {
-    const issue = JSON.parse(runGh(['issue', 'view', String(issueNumber), '--repo', repo, '--json', 'body,state,stateReason']))
+    const issue = JSON.parse(runGh(['issue', 'view', String(issueNumber), '--repo', repo, '--json', 'number,id,title,body,state,stateReason']))
     const parsed = parseMissionControlState(issue.body)
     if (!parsed.present || !parsed.valid) throw stateConflict(`Issue has invalid managed state: ${parsed.reason ?? 'missing state block'}`)
     return { ...issue, managedState: parsed.state }
@@ -753,7 +760,7 @@ function createProductionDeps() {
   const readPullRequest = async (prNumber, repo) => {
     const pr = JSON.parse(runGh([
       'pr', 'view', String(prNumber), '--repo', repo,
-      '--json', 'number,state,isDraft,mergeable,headRefOid,baseRefName,baseRefOid,statusCheckRollup,mergeCommit,url,title,body,closingIssuesReferences',
+      '--json', 'number,id,state,isDraft,mergeable,headRefOid,baseRefName,baseRefOid,statusCheckRollup,mergeCommit,url,title,body,closingIssuesReferences',
     ]))
     const commitPages = JSON.parse(runGh([
       'api', '--paginate', '--slurp', `repos/${repo}/pulls/${prNumber}/commits?per_page=100`,

@@ -49,7 +49,7 @@ export function fetchIssueByReference(cwd, reference, env = process.env) {
     return { ok: false, reason: `Could not parse issue reference: ${reference}` }
   }
 
-  const args = ['issue', 'view', parsed.number, '--json', 'title,url,body,state']
+  const args = ['issue', 'view', parsed.number, '--json', 'number,id,url,title,body,state']
   if (parsed.repo) {
     args.push('--repo', parsed.repo)
   }
@@ -160,7 +160,7 @@ export function fetchPrByReference(cwd, reference, env = process.env) {
     'view',
     parsed.number,
     '--json',
-    'title,url,headRefName,baseRefName,headRefOid,state,isDraft,statusCheckRollup,commits,headRepository,mergeCommit',
+    'number,id,url,title,headRefName,baseRefName,headRefOid,state,isDraft,statusCheckRollup,commits,headRepository,mergeCommit',
   ]
   if (parsed.repo) {
     args.push('--repo', parsed.repo)
