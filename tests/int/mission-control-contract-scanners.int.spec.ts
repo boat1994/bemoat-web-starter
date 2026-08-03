@@ -41,16 +41,4 @@ describe('mission-control contract scanner boundaries', () => {
       'MC011',
     )
   })
-
-  it('discovers unmanaged-genesis review command wiring', async () => {
-    const { scanCommandDiscovery } = await import(
-      '../../scripts/guards/mission-control-contract/scan-command-discovery.mjs'
-    )
-    expect(scanCommandDiscovery({
-      packageJson: JSON.stringify({ scripts: {} }),
-      commandReference: '',
-      readme: '',
-      loader: '',
-    }).some((entry) => entry.rule === 'MC014')).toBe(true)
-  })
 })

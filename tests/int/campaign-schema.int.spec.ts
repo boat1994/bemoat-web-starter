@@ -146,7 +146,7 @@ describe('campaign schema characterization (Issue #243)', () => {
     const actual = listRootScripts()
     expect(actual).toEqual(inventory)
     expect(new Set(actual).size).toBe(actual.length)
-    expect(actual).toHaveLength(37)
+    expect(actual).toHaveLength(36)
   })
 
   it.each([

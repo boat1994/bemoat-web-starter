@@ -444,17 +444,6 @@ review counters, or durable role-comment semantics.
 
 Extracted to module: [Procedures](./modules/procedures.md)
 
-Unmanaged Issue #262 reviewing Draft PR #266 uses the separate
-`bemoat:mission-control:unmanaged-genesis-review` transport. It records a
-two-linked-authorization lifecycle: `FULL_RECORDING` first, then
-`DELTA_RECORDING`, without creating managed-state markers or review counters.
-The historical Full binds its reviewed head and historical CI; live-head
-equality is not required when the historical head is an ancestor of the live
-PR head. The sole raw `## RESULT` exception is comment `5168547881`, consumed
-only as `LEGACY_DELTA_EVIDENCE_RESULT`; generic `## RESULT` comments are
-non-authoritative. Full-only or Delta-only evidence is insufficient, and exact
-contiguous coverage plus Founder merge authorization remain mandatory.
-
 ## Durable Mission Control state schema
 
 Write review-cycle state on the Active Task Issue between stable markers.

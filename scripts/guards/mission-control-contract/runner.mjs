@@ -4,14 +4,12 @@ import { resolve } from 'node:path'
 import {
   AGENTS_PATH,
   BOILERPLATE_INVENTORY_PATH,
-  COMMAND_REFERENCE_PATH,
   GUIDE_PATH,
   HANDOFF_PATH,
   LOADER_PATH,
   MANIFEST_PATH,
   MC_MANAGED_MODULES,
   MC_MANAGED_PATHS,
-  README_PATH,
   RESULT_PATH,
   ROLE_HANDOFF_PATH,
   SYNC_SCRIPT_PATH,
@@ -21,7 +19,6 @@ import { scanLoaderContent, scanAgentsPointer } from './scan-loader.mjs'
 import { scanManagedPathsContract, extractManagedPaths } from './managed-paths.mjs'
 import { scanModuleContent } from './scan-modules.mjs'
 import { scanHandoffTemplate, scanResultTemplate, scanRoleHandoffContract } from './scan-transport.mjs'
-import { scanCommandDiscovery } from './scan-command-discovery.mjs'
 import { violation } from './violation.mjs'
 
 function readOptional(root, relativePath, readFile) {
@@ -90,16 +87,6 @@ export function runMissionControlContractGuard({
   }
 
   violations.push(...scanManagedPathsContract(paths))
-
-  const packageJson = readOptional(root, 'package.json', readFile)
-  const commandReference = readOptional(root, COMMAND_REFERENCE_PATH, readFile)
-  const readme = readOptional(root, README_PATH, readFile)
-  violations.push(...scanCommandDiscovery({
-    packageJson,
-    commandReference,
-    readme,
-    loader,
-  }))
 
   return violations
 }

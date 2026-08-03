@@ -16,7 +16,7 @@ in a coordination run.
 3. Report repository, policy ref, policy commit SHA, and guide version.
 4. Derive FAST / STANDARD / MANAGED from declared tier and Mission Control mode. For FAST, do not create/reconcile durable state; use focused verification, PR, compact RESULT, and Founder gate.
 5. When proven non-convergence triggers the Double-Loop Review Gate, route one no-code diagnostic checkpoint through the existing HANDOFF/RESULT transport before another materially similar edit; do not create state, a new comment type, or Review 4.
-6. Otherwise reconstruct durable state using the loading order below. For unmanaged Issue #262 / Draft PR #266, use `bemoat:mission-control:unmanaged-genesis-review` signed Full/Delta records; do not invent counters.
+6. Otherwise reconstruct durable state using the loading order below.
 7. On genuine durable conflict: return `STATE CONFLICT`, name one action, stop.
    On unambiguous bookkeeping lag (valid PR/head/CI/role output, stale state):
    reconcile deterministically or classify incomplete delivery — not conflict.

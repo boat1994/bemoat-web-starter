@@ -42,7 +42,6 @@
     "bemoat:agent:issue": "node scripts/agent-issue.mjs",
     "bemoat:mission-control:dispatch": "node scripts/mission-control-dispatch.mjs",
     "bemoat:mission-control:task-bootstrap": "node scripts/mission-control-task-create.mjs",
-    "bemoat:mission-control:unmanaged-genesis-review": "node scripts/mission-control-unmanaged-genesis-review.mjs",
     "bemoat:mission-control:merge": "node scripts/mission-control-merge.mjs",
     "bemoat:mission-control:reconcile": "node scripts/mission-control-reconcile.mjs",
     "bemoat:mission-control:review": "node scripts/mission-control-review.mjs",

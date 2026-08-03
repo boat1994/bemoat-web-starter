@@ -84,17 +84,6 @@ still requires a separate exact Founder authorization, protected environment
 approval, live evidence, and signed readback. Do not execute it against Issue
 #262 during the implementation PR.
 
-While Issue #262 remains unmanaged and Draft PR #266 is under review, use
-`pnpm run bemoat:mission-control:unmanaged-genesis-review` to record signed
-Full/Delta review evidence. The transport uses two linked raw-JSON Founder
-authorizations: `FULL_RECORDING` first, then `DELTA_RECORDING`. A historical Full
-binds its reviewed head and historical CI and does not require live-head
-equality; it requires that head to be an ancestor of the live PR head. The sole
-raw `## RESULT` exception is comment `5168547881`, consumed only as
-`LEGACY_DELTA_EVIDENCE_RESULT`; generic `## RESULT` comments are
-non-authoritative. Full-only or Delta-only evidence is insufficient, and the
-transport never creates managed-state counters.
-
 ## Reviewer verdict vocabulary (single source)
 
 For Core Mission Control review, `## REVIEW_VERDICT` must use exactly one of:
@@ -253,10 +242,6 @@ pnpm run guard:safety
 pnpm exec vitest run tests/int/mission-control-contract.int.spec.ts
 pnpm exec vitest run tests/int/boilerplate-sync.int.spec.ts
 pnpm exec vitest run tests/int/guard-pack.int.spec.ts
-
-# Unmanaged-genesis Full/Delta review recording (Issue #262 / PR #266 only)
-# Requires BEMOAT_FOUNDER_LOGINS and protected signing material; do not run live during implementation
-pnpm run bemoat:mission-control:unmanaged-genesis-review -- --founder-authorization-comment-id=<comment-id>
 
 # Founder-authorized merge, Issue closure, DONE projection, and NO_OP proof
 # Requires repository Actions variable BEMOAT_FOUNDER_LOGINS (comma-separated GitHub logins)
