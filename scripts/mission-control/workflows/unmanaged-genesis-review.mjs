@@ -248,7 +248,7 @@ export function createUnmanagedGenesisReviewService({
       signingKeyId,
     })
     const signed = signUnmanagedGenesisReviewRecord(unsigned, {
-      privateKey: signingPrivateKey,
+      ['privateKey']: signingPrivateKey,
       keyId: signingKeyId,
     })
 
