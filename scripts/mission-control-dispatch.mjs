@@ -13,6 +13,7 @@ import {
 } from './mission-control-reconcile.mjs'
 import { parseMissionControlState, projectMissionControlStateBlock } from './mission-control-state.mjs'
 import { writeIssueBodyWithLease } from './mission-control-issue-body-cas.mjs'
+import { preflightCanonicalBootstrapTask } from './mission-control/domain/task-bootstrap-preflight.mjs'
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
@@ -77,10 +78,21 @@ async function main() {
 
   let expectedBody = null
   const readIssue = () => {
-    const issue = JSON.parse(run('gh', issueArgs(options, 'body,state')))
+    const issue = JSON.parse(run('gh', issueArgs(options, 'number,id,title,body,state')))
     const parsed = parseMissionControlState(issue.body)
     if (!parsed.present || !parsed.valid) {
       throw new Error(`invalid managed state: ${parsed.reason ?? 'missing state block'}`)
+    }
+    if (String(issue.body ?? '').includes('bemoat-mission-control-task-attestation:v1') && parsed.state?.active_pr) {
+      const prNumber = String(parsed.state.active_pr).match(/#?(\d+)/)?.[1]
+      if (!prNumber) throw new Error('STATE_CONFLICT: bootstrap Task active PR reference is unreadable')
+      const pr = JSON.parse(run('gh', ['pr', 'view', prNumber, '--repo', repo, '--json', 'number,id,headRefOid,baseRefName,statusCheckRollup']))
+      const bootstrapPreflight = preflightCanonicalBootstrapTask({
+        issue,
+        pullRequest: pr,
+        repository: repo,
+      })
+      if (!bootstrapPreflight.ok) throw new Error(`${bootstrapPreflight.classification ?? 'STATE_CONFLICT'}: ${bootstrapPreflight.reason}`)
     }
     expectedBody = issue.body
     return parsed.state
