@@ -67,10 +67,10 @@ export function scanCommandReferenceContent(relativePath, content) {
 
   const expectedTableHeaders = [
     '| Command |',
-    '| dispatch |',
-    '| review |',
-    '| reconcile |',
-    '| merge |'
+    '| `dispatch` |',
+    '| `review` |',
+    '| `reconcile` |',
+    '| `merge` |'
   ]
 
   for (const phrase of expectedTableHeaders) {
@@ -85,6 +85,22 @@ export function scanCommandReferenceContent(relativePath, content) {
 
   if (!content.includes('## Partial failure and retry behavior')) {
     violations.push(violation('MC027', relativePath, 'Command reference missing partial failure table'))
+  }
+
+  const semanticInvariants = [
+    'Dispatch does not own `AWAITING_REVIEW_1` transitions.',
+    'Rerun the same canonical review command. Do not post another verdict manually.',
+    'Do not edit the immutable authorization comment.',
+    '### Dispatch checks',
+    '### Review checks',
+    '### Reconcile checks',
+    '### Merge checks'
+  ]
+
+  for (const invariant of semanticInvariants) {
+    if (!content.includes(invariant)) {
+      violations.push(violation('MC028', relativePath, `Command reference missing semantic invariant: ${invariant}`))
+    }
   }
 
   return violations

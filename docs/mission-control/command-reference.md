@@ -8,7 +8,8 @@ overrides chat, copied handoffs, local notes, or stale values.
 
 | Command | Usage |
 | --- | --- |
-| `dispatch` | Start work on a Task Issue, claim `IN_PROGRESS` or transition to `AWAITING_REVIEW_1`. |
+| `dispatch` | Start work on a Task Issue, claim `IN_PROGRESS` only. Dispatch does not own `AWAITING_REVIEW_1` transitions. |
+| `delivery` | Owns the transition of a successful implementation to `AWAITING_REVIEW_1`. (Note: Delivery is a workflow boundary, not a standalone CLI script in this reference). |
 | `review` | Submit a Full Review 1 or Delta Review verdict, update counters and target states. |
 | `reconcile` | Repair state routing mismatch. Requires an existing valid managed-state block. Cannot initialize state, replay reviews, post verdicts, or increment counters. |
 | `merge` | Finalize Founder-authorized merge. Uses the live PR head and an existing Founder JSON authorization comment. |
@@ -16,16 +17,33 @@ overrides chat, copied handoffs, local notes, or stale values.
 
 ## Preflight checklist
 
-Before invoking a command, manually verify the following values to avoid `STATE_CONFLICT` or `BLOCKED_EXTERNAL`:
+Before invoking a command, manually verify these specific values to avoid `STATE_CONFLICT` or `BLOCKED_EXTERNAL`.
+
+### Shared checks (all commands)
 - [ ] Active repository matches command target.
 - [ ] Active Task Issue has a valid managed state block.
+- [ ] The command's expected state matches the live Issue state.
+- [ ] There are no competing superseding comments blocking this transition.
+
+### Dispatch checks
+- [ ] Read Task Issue state without requiring an existing PR or CI.
+- [ ] The provided body/file matches exactly the required structural format (e.g., `## HANDOFF`).
+
+### Review checks
 - [ ] Target PR is open and bound to the Task Issue.
 - [ ] Approved base branch strictly matches the PR base branch.
 - [ ] Live PR `headRefOid` is exactly 40 characters and fully synced.
 - [ ] Exact-head CI is fully completed and successful. CI present but pending or failed is invalid. Missing CI reads classify as `BLOCKED_EXTERNAL`.
-- [ ] The provided body/file matches exactly the required structural format (e.g., `## HANDOFF`, `## REVIEW_VERDICT`, or raw Founder JSON).
-- [ ] The command's expected state matches the live Issue state.
-- [ ] There are no competing superseding comments blocking this transition.
+- [ ] The provided body/file matches exactly the structural format of `## REVIEW_VERDICT`.
+
+### Reconcile checks
+- [ ] Requires an existing valid managed state.
+- [ ] Requires matching evidence (active PR, exact head, existing `REVIEW_VERDICT` comments).
+
+### Merge checks
+- [ ] Requires an immutable Founder merge authority JSON comment.
+- [ ] Requires the authorized reviewed head to match the live PR head.
+- [ ] Exact-head CI is fully completed and successful.
 
 ## Evidence vocabulary
 
@@ -44,7 +62,11 @@ Keep these values distinct in every handoff and invocation:
 
 Do not infer any supplied value from a chat transcript. Re-read the Task Issue,
 campaign authorization, PR, comments, protected base, and exact head live before
-running a transport. Examples of accepted bodies: [HANDOFF](handoff-template.md), [REVIEW_VERDICT](result-template.md).
+running a transport.
+
+Examples of accepted bodies:
+- [HANDOFF](handoff-template.md)
+- `REVIEW_VERDICT`: Use a minimal structurally complete canonical template containing all required role-comment fields (e.g., identity, exact head, target state). Do not describe `result-template.md` as a complete accepted body unless it actually contains all required role-comment fields.
 
 ## Dispatch
 
@@ -204,10 +226,10 @@ transition scripts are prohibited substitutes.
 | --- | --- |
 | success | The operation completed fully and state was advanced. No retry needed. |
 | NO_OP | The state is already correctly aligned with live evidence. No retry needed. |
-| RECOVERABLE_ROUTING_DRIFT | Routing repair succeeded but required correcting drift. Check next steps. |
+| RECOVERABLE_ROUTING_DRIFT | The `REVIEW_VERDICT` comment was posted but state projection failed. Rerun the same canonical review command. Do not post another verdict manually. Do not edit Issue YAML. |
 | STATE_CONFLICT | State, PR, or comment evidence disagreed. Stop, refresh live context, and manually resolve before retrying. |
 | BLOCKED_EXTERNAL | A GitHub or CI API read failed. Can safely retry after verifying external availability. |
-| AUTHORIZATION_VALIDATION_FAILURE | Founder authorization comment was malformed or mismatched. Fix authorization comment and retry merge. |
+| AUTHORIZATION_VALIDATION_FAILURE | Do not edit the immutable authorization comment. Stop merge. Require a new Founder-authored immutable authorization record when the prior record is malformed or mismatched. Record supersession where required. |
 
 ## Shared stop rule
 
