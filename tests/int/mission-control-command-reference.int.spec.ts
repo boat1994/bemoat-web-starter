@@ -41,16 +41,23 @@ describe('Mission Control command reference contract', () => {
     const md = readFileSync('docs/mission-control/command-reference.md', 'utf8')
     const match = md.match(/```markdown\n(## REVIEW_VERDICT[\s\S]*?)```/)
     expect(match).not.toBeNull()
+    if (!match?.[1]) {
+      throw new Error('expected REVIEW_VERDICT markdown fence in command-reference.md')
+    }
 
     writeFileSync('.tmp-test-verdict.md', match[1])
     const result = spawnSync('node', ['scripts/post-role-comment.mjs', '--', '123', '--body-file', '.tmp-test-verdict.md', '--check'], { encoding: 'utf8' })
     unlinkSync('.tmp-test-verdict.md')
     expect(result.status).toBe(0)
-})
+  })
 
   it('proves removal or corruption of required fields fails', () => {
     const md = readFileSync('docs/mission-control/command-reference.md', 'utf8')
     const match = md.match(/```markdown\n(## REVIEW_VERDICT[\s\S]*?)```/)
+    expect(match).not.toBeNull()
+    if (!match?.[1]) {
+      throw new Error('expected REVIEW_VERDICT markdown fence in command-reference.md')
+    }
     writeFileSync('.tmp-test-verdict-fail.md', match[1].replace('**Verdict:** ELIGIBLE FOR FOUNDER REVIEW', ''))
     const result = spawnSync('node', ['scripts/post-role-comment.mjs', '--', '123', '--body-file', '.tmp-test-verdict-fail.md', '--check'], { encoding: 'utf8' })
     unlinkSync('.tmp-test-verdict-fail.md')
