@@ -330,7 +330,12 @@ Never reset or infer the review count from chat history.
 
 For the unmanaged-genesis exception (Issue #262 / Draft PR #266), use
 `pnpm run bemoat:mission-control:unmanaged-genesis-review` with only
-`--founder-authorization-comment-id`. Do not create `review_cycle`,
-`full_review_count`, or a managed-state block. Signed Full plus exact-current-
-head Delta composition is required before Founder merge review; raw Review
-comments are evidence-only.
+`--founder-authorization-comment-id`. Authorization schema v2 records two
+linked authorizations: `FULL_RECORDING` followed by `DELTA_RECORDING`. Full
+verification uses the historical reviewed head and historical CI and does not
+require live-head equality, provided ancestry is proven. The sole raw
+`## RESULT` exception is comment `5168547881` as
+`LEGACY_DELTA_EVIDENCE_RESULT`; generic `## RESULT` comments are
+non-authoritative. Do not create `review_cycle`, `full_review_count`, or a
+managed-state block. Full-only or Delta-only evidence remains
+merge-ineligible.

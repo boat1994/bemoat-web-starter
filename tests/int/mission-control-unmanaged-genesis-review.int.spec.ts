@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- untyped runtime .mjs boundary */
-import { generateKeyPairSync, createHash } from 'node:crypto'
+import { generateKeyPairSync } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
@@ -14,8 +14,6 @@ import {
   parseFounderUnmanagedGenesisAuthorization,
   parseHistoricalReviewOccurrence,
   parseUnmanagedGenesisReviewComment,
-  signUnmanagedGenesisReviewRecord,
-  buildUnmanagedGenesisReviewRecord,
   verifyUnmanagedGenesisReviewRecord,
 } from '../../scripts/mission-control/domain/unmanaged-genesis-review.mjs'
 import { createUnmanagedGenesisReviewService } from '../../scripts/mission-control/workflows/unmanaged-genesis-review.mjs'
@@ -23,8 +21,12 @@ import { sha256Hex } from '../../scripts/mission-control/domain/task-attestation
 
 const REPO = UGR_CONTRACT.repository
 const OLD_HEAD = UGR_CONTRACT.historicalFullReviewedHead as string
-const NEW_HEAD = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+const CURRENT_HEAD = '50879fe28e0293ef4c1f93edcb1f378e9ee8f7e6'
+const NEXT_HEAD = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+const MID_HEAD = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 const MAIN_SHA = UGR_CONTRACT.protectedBaseSha as string
+const APP_SLUG = 'bemoat-mc'
+const SIGNING_KEY_ID = 'ugr-test-key'
 
 function keyMaterial() {
   const pair = generateKeyPairSync('ed25519')
@@ -34,59 +36,150 @@ function keyMaterial() {
   }
 }
 
-function loadHistoricalOccurrence(): any {
-  return JSON.parse(
-    readFileSync(resolve(process.cwd(), 'tests/fixtures/mission-control/issue-262-review-occurrence-5167077714.json'), 'utf8'),
-  )
+function loadFixture(name: string): any {
+  return JSON.parse(readFileSync(resolve(process.cwd(), `tests/fixtures/mission-control/${name}`), 'utf8'))
+}
+
+function fixtureComment(fixture: any, { id = fixture.id, body = fixture.body } = {}): any {
+  return {
+    id,
+    node_id: fixture.node_id,
+    body,
+    user: fixture.user,
+    author: fixture.user,
+    issue_number: 262,
+    created_at: fixture.created_at,
+    updated_at: fixture.updated_at,
+    performed_via_github_app: fixture.performed_via_github_app,
+  }
+}
+
+function appComment(id: number, body: string, appSlug = APP_SLUG): any {
+  return {
+    id,
+    body,
+    user: { login: 'bemoat-mc-app' },
+    author: { login: 'bemoat-mc-app' },
+    issue_number: 262,
+    created_at: '2026-08-03T22:00:00Z',
+    updated_at: '2026-08-03T22:00:00Z',
+    performed_via_github_app: appSlug == null ? null : { slug: appSlug },
+  }
+}
+
+function reviewVerdictComment(id: number, base: string, head: string): any {
+  const body = [
+    '## REVIEW_VERDICT',
+    '',
+    'ELIGIBLE FOR FOUNDER REVIEW',
+    '',
+    `**PR**: #266`,
+    `**Base**: \`main\``,
+    `**Exact Head**: \`${head}\``,
+    '',
+  ].join('\n')
+  return {
+    id,
+    node_id: `review-${id}`,
+    body,
+    user: { login: 'boat1994' },
+    author: { login: 'boat1994' },
+    issue_number: 262,
+    created_at: '2026-08-03T21:30:00Z',
+    updated_at: '2026-08-03T21:30:00Z',
+    performed_via_github_app: null,
+    rangeBase: base,
+    rangeHead: head,
+  }
 }
 
 function createWorld({
-  head = OLD_HEAD,
+  recordClass = 'FULL_RECORDING',
+  head = CURRENT_HEAD,
+  authCommentId = 9001,
   issueBody = 'Issue #262 remains unmanaged.\n',
   extraComments = [] as any[],
-  authOverrides = {} as Record<string, any>,
-  evidenceClass = 'full',
+  authorizationOverrides = {} as Record<string, any>,
   diffText = 'diff --git a/x b/x\n+correction\n',
+  overallDiffText = diffText,
+  correctionDiffText = diffText,
+  historicalChecks = [
+    { name: 'ci', conclusion: 'SUCCESS', id: 11 },
+    { name: 'starter-ci', conclusion: 'SUCCESS', id: 12 },
+  ] as any[],
+  ancestorResult = true,
+  postFailure = null as 'append-then-fail' | 'fail' | null,
+  includeLegacy = recordClass === 'DELTA_RECORDING',
+  appSlug = APP_SLUG,
   keys = keyMaterial(),
 }: {
+  recordClass?: 'FULL_RECORDING' | 'DELTA_RECORDING'
   head?: string
+  authCommentId?: number
   issueBody?: string
   extraComments?: any[]
-  authOverrides?: Record<string, any>
-  evidenceClass?: string
+  authorizationOverrides?: Record<string, any>
   diffText?: string
+  overallDiffText?: string
+  correctionDiffText?: string
+  historicalChecks?: any[]
+  ancestorResult?: boolean
+  postFailure?: 'append-then-fail' | 'fail' | null
+  includeLegacy?: boolean
+  appSlug?: string | null
   keys?: { privateKey: string, publicKey: string }
 } = {}) {
-  const historical = loadHistoricalOccurrence()
+  const historical = loadFixture('issue-262-review-occurrence-5167077714.json')
+  const legacy = loadFixture('issue-262-delta-evidence-5168547881.json')
+  const legacySegment = {
+    base: OLD_HEAD,
+    head: CURRENT_HEAD,
+    comment_id: legacy.id,
+    body_sha256: sha256Hex(legacy.body),
+    role: 'LEGACY_DELTA_EVIDENCE_RESULT',
+    verdict: 'ELIGIBLE FOR FOUNDER REVIEW',
+  }
   const authBody = createFounderUnmanagedGenesisAuthorizationBody({
-    evidenceClass,
-    reviewedHead: head,
-    sourceReviewCommentId: historical.id,
-    correctionBase: evidenceClass === 'delta' ? OLD_HEAD : null,
-    correctionHead: evidenceClass === 'delta' ? head : null,
-    correctionCommitOids: evidenceClass === 'delta' ? [NEW_HEAD] : null,
-    correctionDiffSha256: evidenceClass === 'delta' ? sha256Hex(diffText) : null,
-    correctionResultCommentId: evidenceClass === 'delta' ? 9002 : null,
-    findingDisposition: evidenceClass === 'delta' ? [] : null,
-    priorFullRecordCommentId: evidenceClass === 'delta' ? 8001 : null,
-    priorFullRecordId: evidenceClass === 'delta' ? 'mc-ugr-v1-placeholder' : null,
-    ...authOverrides,
+    recordClass,
+    observedHead: head,
+    sourceSha: MAIN_SHA,
+    githubAppSlug: appSlug,
+    signingKeyId: SIGNING_KEY_ID,
+    full: {
+      reviewed_head: OLD_HEAD,
+      source_evidence: {
+        comment_id: historical.id,
+        body_sha256: sha256Hex(historical.body),
+        role: 'FULL_REVIEW_VERDICT',
+        verdict: 'ELIGIBLE FOR FOUNDER REVIEW',
+      },
+      required_historical_checks: ['ci', 'starter-ci'],
+    },
+    delta: {
+      parent_full: {
+        authorization_id: 'mc-ugr-auth-v2-placeholder',
+        authorization_comment_id: 9001,
+        record_id: 'mc-ugr-v1-placeholder',
+        record_comment_id: 10001,
+        record_body_sha256: 'a'.repeat(64),
+      },
+      predecessor_delta_record_id: null,
+      exact_current_head: head,
+      coverage_segments: [legacySegment],
+      correction_commit_oids: [head],
+      correction_diff_sha256: sha256Hex(correctionDiffText),
+      overall_diff_sha256: sha256Hex(overallDiffText),
+      finding_disposition: [],
+      required_current_checks: ['ci', 'starter-ci'],
+    },
+    authorizationOverrides,
   } as any)
 
   const comments: any[] = [
+    fixtureComment(historical),
+    ...(includeLegacy ? [fixtureComment(legacy)] : []),
     {
-      id: Number(historical.id),
-      node_id: historical.node_id,
-      body: historical.body,
-      user: historical.user,
-      author: historical.user,
-      issue_number: 262,
-      created_at: historical.created_at,
-      updated_at: historical.updated_at,
-      performed_via_github_app: historical.performed_via_github_app,
-    },
-    {
-      id: 9001,
+      id: authCommentId,
       body: authBody,
       user: { login: 'boat1994' },
       author: { login: 'boat1994' },
@@ -126,7 +219,12 @@ function createWorld({
     commits: [{ oid: head, messageHeadline: 'feat' }],
   }
 
-  const calls = { postComment: 0, updateIssueBody: 0 }
+  const calls = {
+    postComment: 0,
+    updateIssueBody: 0,
+    getCommitCheckRuns: [] as string[],
+    isCommitAncestor: [] as { ancestor: string, descendant: string }[],
+  }
   let nextCommentId = Math.max(10000, ...comments.map((comment) => Number(comment.id) || 0)) + 1
 
   const github = {
@@ -150,24 +248,31 @@ function createWorld({
       if (number !== 266) throw Object.assign(new Error('wrong pr'), { code: 'STATE_CONFLICT' })
       return { ...pullRequest }
     },
-    async getPullRequestDiff(number: number) {
+    async getPullRequestDiff(number: number, { base, head: diffHead }: { base: string, head: string } = {} as any) {
       if (number !== 266) throw Object.assign(new Error('wrong pr'), { code: 'STATE_CONFLICT' })
-      return diffText
+      if (base === OLD_HEAD && diffHead === head) return overallDiffText
+      return correctionDiffText
+    },
+    async getCommitCheckRuns(sha: string) {
+      calls.getCommitCheckRuns.push(sha)
+      return sha === OLD_HEAD ? historicalChecks : [
+        { name: 'ci', conclusion: 'SUCCESS', id: 21 },
+        { name: 'starter-ci', conclusion: 'SUCCESS', id: 22 },
+      ]
+    },
+    async isCommitAncestor({ ancestor, descendant }: { ancestor: string, descendant: string }) {
+      calls.isCommitAncestor.push({ ancestor, descendant })
+      return ancestorResult
     },
     async postIssueComment(number: number, body: string) {
       if (number !== 262) throw Object.assign(new Error('wrong issue'), { code: 'STATE_CONFLICT' })
       calls.postComment += 1
-      const comment = {
-        id: nextCommentId++,
-        body,
-        user: { login: 'bemoat-mc-app' },
-        author: { login: 'bemoat-mc-app' },
-        issue_number: 262,
-        created_at: '2026-08-03T22:00:00Z',
-        updated_at: '2026-08-03T22:00:00Z',
-        performed_via_github_app: { slug: 'bemoat-mc' },
-      }
+      const comment = appComment(nextCommentId++, body, appSlug ?? undefined)
       comments.push(comment)
+      if (postFailure) {
+        if (postFailure === 'fail') comments.pop()
+        throw new Error('simulated post ambiguity')
+      }
       return { ...comment }
     },
     async updateIssueBody() {
@@ -181,307 +286,443 @@ function createWorld({
     repository: REPO,
     publicKey: keys.publicKey,
     signingPrivateKey: keys.privateKey,
-    signingKeyId: 'ugr-test-key',
-    workflow: { file: 'scripts/mission-control-unmanaged-genesis-review.mjs', ref: 'refs/heads/main', sha: MAIN_SHA, runId: '1' },
-    env: { BEMOAT_FOUNDER_LOGINS: 'boat1994' } as unknown as NodeJS.ProcessEnv,
+    signingKeyId: SIGNING_KEY_ID,
+    workflow: {
+      file: 'scripts/mission-control-unmanaged-genesis-review.mjs',
+      ref: 'refs/heads/main',
+      sha: MAIN_SHA,
+      runId: '1',
+    },
+    env: {
+      BEMOAT_FOUNDER_LOGINS: 'boat1994',
+      BEMOAT_UGR_GITHUB_APP_SLUG: appSlug ?? '',
+    } as unknown as NodeJS.ProcessEnv,
   } as any)
 
-  return { keys, github, service, comments, issue, pullRequest, calls, authBody, historical, diffText }
+  return {
+    keys,
+    github,
+    service,
+    comments,
+    issue,
+    pullRequest,
+    calls,
+    authBody,
+    historical,
+    legacy,
+    diffText,
+  }
 }
 
-describe('unmanaged-genesis review occurrence fixture', () => {
-  it('reproduces comment 5167077714 as evidence-only, never merge authority', () => {
-    const historical = loadHistoricalOccurrence()
+async function recordFullAndPrepareDelta({
+  keys = keyMaterial(),
+  fullHead = CURRENT_HEAD,
+  deltaHead = CURRENT_HEAD,
+  deltaOverrides = {},
+  deltaDiffText = 'diff --git a/scripts/x.mjs b/scripts/x.mjs\n+delta\n',
+}: {
+  keys?: { privateKey: string, publicKey: string }
+  fullHead?: string
+  deltaHead?: string
+  deltaOverrides?: Record<string, any>
+  deltaDiffText?: string
+} = {}) {
+  const fullWorld = createWorld({ recordClass: 'FULL_RECORDING', head: fullHead, keys })
+  const fullResult = await fullWorld.service.recordReview({ founderAuthorizationCommentId: 9001 })
+  const fullComment = fullWorld.comments.at(-1)
+  const fullRecord = parseUnmanagedGenesisReviewComment(fullComment.body).record
+  const parentFull = {
+    authorization_id: fullRecord.founder_authorization.authorization_id,
+    authorization_comment_id: fullRecord.founder_authorization.comment_id,
+    record_id: fullRecord.record_id,
+    record_comment_id: fullResult.commentId,
+    record_body_sha256: sha256Hex(fullComment.body),
+  }
+  const deltaWorld = createWorld({
+    recordClass: 'DELTA_RECORDING',
+    head: deltaHead,
+    keys,
+    extraComments: [fullComment],
+    diffText: deltaDiffText,
+    correctionDiffText: deltaDiffText,
+    overallDiffText: deltaDiffText,
+    authorizationOverrides: {
+      delta: {
+        parent_full: parentFull,
+        ...deltaOverrides.delta,
+      },
+      ...deltaOverrides,
+    },
+  })
+  return { fullWorld, fullResult, fullComment, fullRecord, parentFull, deltaWorld }
+}
+
+describe('unmanaged-genesis review fixtures and schema', () => {
+  it('treats historical Full and legacy Delta comments as evidence-only', () => {
+    const historical = loadFixture('issue-262-review-occurrence-5167077714.json')
+    const legacy = loadFixture('issue-262-delta-evidence-5168547881.json')
     expect(historical.id).toBe(5167077714)
     expect(historical.user.login).toBe('boat1994')
     expect(historical.performed_via_github_app).toBeNull()
-    expect(historical.body).toContain('## REVIEW_VERDICT')
-    expect(historical.body).toContain(OLD_HEAD)
     expect(historical.body).not.toContain(UGR_MARKER_START)
-
-    const parsed = parseHistoricalReviewOccurrence(historical.body)
-    expect(parsed.verdict).toBe('ELIGIBLE FOR FOUNDER REVIEW')
-    expect(parsed.pullRequest).toBe(266)
-    expect(parsed.evidenceOnly).toBe(true)
-    expect(parsed.hasSignedRecord).toBe(false)
-
-    const eligibility = evaluateUnmanagedGenesisMergeEligibility({
-      records: [],
-      livePullRequestHead: OLD_HEAD,
-    } as any)
-    expect(eligibility.eligible).toBe(false)
-    expect(eligibility.reason).toMatch(/no valid signed Full root/i)
+    expect(parseHistoricalReviewOccurrence(historical.body).verdict).toBe('ELIGIBLE FOR FOUNDER REVIEW')
+    expect(legacy.id).toBe(5168547881)
+    expect(legacy.body).toContain('This RESULT is durable semantic evidence only.')
+    expect(legacy.body).not.toContain(UGR_MARKER_START)
   })
 
-  it('keeps the committed public key verification-only', () => {
+  it('emits a v2 raw authorization with a canonical authorization ID', () => {
+    const auth = parseFounderUnmanagedGenesisAuthorization(
+      createFounderUnmanagedGenesisAuthorizationBody({
+        recordClass: 'FULL_RECORDING',
+        observedHead: CURRENT_HEAD,
+        sourceSha: MAIN_SHA,
+        githubAppSlug: APP_SLUG,
+        signingKeyId: SIGNING_KEY_ID,
+      } as any),
+    )
+    expect(auth.schema_version).toBe(2)
+    expect(auth.authorization_schema).toBe('bemoat-mission-control-unmanaged-genesis-review-authorization')
+    expect(auth.authorization_id).toMatch(/^mc-ugr-auth-v2-[0-9a-f]{64}$/)
+    expect(auth.lifecycle_id).toBe('mc-ugr-262-266-v2')
+    expect(auth.record_class).toBe('FULL_RECORDING')
+    expect(auth.pull_request).toBe(266)
+    expect(auth.task_issue).toBe(262)
+    expect(auth.full.reviewed_head).toBe(OLD_HEAD)
+    expect(auth.full.require_ancestor_of_observed_head).toBe(true)
+    expect(auth.delta).toBeUndefined()
+  })
+
+  it('keeps the committed public key verification-only and preserves the CLI alias', () => {
     const publicKey = readFileSync(UGR_CONTRACT.publicKeyPath, 'utf8')
     const cli = readFileSync('scripts/mission-control-unmanaged-genesis-review.mjs', 'utf8')
+    const pkg = JSON.parse(readFileSync('package.json', 'utf8'))
     expect(publicKey).toContain('BEGIN PUBLIC KEY')
     expect(publicKey).not.toContain('PRIVATE KEY')
     expect(cli).toContain('--founder-authorization-comment-id')
+    expect(cli).toContain('--authorization-comment')
+    expect(pkg.scripts['bemoat:mission-control:unmanaged-genesis-review']).toBe(
+      'node scripts/mission-control-unmanaged-genesis-review.mjs',
+    )
     expect(cli).not.toContain('console.log(process.env.BEMOAT_UNMANAGED_GENESIS_REVIEW_SIGNING_PRIVATE_KEY')
   })
 })
 
 describe('unmanaged-genesis Full/Delta transport', () => {
-  it('records a trusted Full root from historical evidence and still denies merge eligibility alone', async () => {
-    const world = createWorld({ evidenceClass: 'full', head: OLD_HEAD })
+  it('records Full against historical CI while live PR head is newer', async () => {
+    const world = createWorld({ recordClass: 'FULL_RECORDING', head: CURRENT_HEAD })
     const result = await world.service.recordReview({ founderAuthorizationCommentId: 9001 })
+    const record = parseUnmanagedGenesisReviewComment(world.comments.at(-1).body).record
     expect(result.outcome).toBe('RECORDED')
     expect(result.evidenceClass).toBe('full')
-    expect(result.issueBodyWrites).toBe(0)
-    expect(world.calls.postComment).toBe(1)
-    expect(world.calls.updateIssueBody).toBe(0)
+    expect(result.reviewedHead).toBe(OLD_HEAD)
+    expect(record.live_pr_head).toBe(CURRENT_HEAD)
+    expect(record.exact_head_ci.head).toBe(OLD_HEAD)
+    expect(world.calls.getCommitCheckRuns).toEqual([OLD_HEAD])
+    expect(world.calls.isCommitAncestor).toEqual([{ ancestor: OLD_HEAD, descendant: CURRENT_HEAD }])
     expect(result.mergeEligibility.eligible).toBe(false)
-    expect(result.mergeEligibility.reason).toMatch(/Full evidence alone cannot authorize/i)
-
-    const posted = world.comments.at(-1)
-    const parsed = parseUnmanagedGenesisReviewComment(posted.body)
-    expect(parsed.ok).toBe(true)
-    expect(verifyUnmanagedGenesisReviewRecord(parsed.record, {
-      publicKey: world.keys.publicKey,
-      signingKeyId: 'ugr-test-key',
-    } as any).ok).toBe(true)
-    expect(world.issue.body).not.toMatch(/review_cycle|full_review_count|bemoat-mission-control-state/)
   })
 
-  it('returns NO_OP on identical retry without duplicate comment', async () => {
-    const world = createWorld({ evidenceClass: 'full', head: OLD_HEAD })
-    const first = await world.service.recordReview({ founderAuthorizationCommentId: 9001 })
-    const second = await world.service.recordReview({ founderAuthorizationCommentId: 9001 })
-    expect(first.outcome).toBe('RECORDED')
-    expect(second.outcome).toBe('NO_OP')
-    expect(second.recordId).toBe(first.recordId)
-    expect(world.calls.postComment).toBe(1)
+  it.each([
+    ['ancestry failure', { ancestorResult: false }, /ancestor/i],
+    ['historical CI failure', {
+      historicalChecks: [{ name: 'ci', conclusion: 'SUCCESS' }],
+    }, /historical.*CI|check starter-ci/i],
+  ])('rejects Full when %s', async (_name, options, message) => {
+    const world = createWorld({ recordClass: 'FULL_RECORDING', head: CURRENT_HEAD, ...options })
+    await expect(world.service.recordReview({ founderAuthorizationCommentId: 9001 }))
+      .rejects.toMatchObject({ code: 'STATE_CONFLICT', message })
   })
 
-  it('rejects unsigned/direct comments, copied records, and Issue-body edits as authority', async () => {
-    const world = createWorld({ evidenceClass: 'full', head: OLD_HEAD })
-    await world.service.recordReview({ founderAuthorizationCommentId: 9001 })
-    const signed = world.comments.at(-1)
+  it('accepts only the exact legacy Delta RESULT in contiguous coverage', async () => {
+    const { fullComment, parentFull, deltaWorld } = await recordFullAndPrepareDelta()
+    const result = await deltaWorld.service.recordReview({ founderAuthorizationCommentId: 9001 })
+    const record = parseUnmanagedGenesisReviewComment(deltaWorld.comments.at(-1).body).record
+    expect(result.outcome).toBe('RECORDED')
+    expect(result.evidenceClass).toBe('delta')
+    expect(record.delta.parent_full).toEqual(parentFull)
+    expect(record.delta.coverage_segments[0].comment_id).toBe(5168547881)
+    expect(result.mergeEligibility.eligible).toBe(true)
+    expect(fullComment).toBeDefined()
+  })
 
-    // Raw historical comment alone
-    expect(evaluateUnmanagedGenesisMergeEligibility({
-      records: [],
-      livePullRequestHead: OLD_HEAD,
-    } as any).eligible).toBe(false)
-
-    // Copied record body without valid signature against committed key
-    const copied = {
-      ...parseUnmanagedGenesisReviewComment(signed.body).record,
-      signing: {
-        algorithm: 'Ed25519',
-        key_id: 'ugr-test-key',
-        signature: Buffer.from('forged').toString('base64'),
-      },
-    }
-    expect(verifyUnmanagedGenesisReviewRecord(copied, {
-      publicKey: world.keys.publicKey,
-      signingKeyId: 'ugr-test-key',
-    } as any).ok).toBe(false)
-
-    // Manual Issue-body edit cannot create counters/authority
-    const mutated = createWorld({
-      evidenceClass: 'full',
-      head: OLD_HEAD,
-      issueBody: '<!-- bemoat-mission-control-state:start -->\n```yaml\nreview_cycle: 1\nfull_review_count: 1\n```\n<!-- bemoat-mission-control-state:end -->\n',
+  it('rejects a generic RESULT as non-authoritative Delta evidence', async () => {
+    const prepared = await recordFullAndPrepareDelta()
+    const genericBody = '## RESULT\n\nA generic result is not review authority.\n'
+    const generic = fixtureComment(prepared.deltaWorld.legacy, {
+      id: 9999,
+      body: genericBody,
     })
-    await expect(mutated.service.recordReview({ founderAuthorizationCommentId: 9001 }))
-      .rejects.toMatchObject({ code: 'STATE_CONFLICT' })
-  })
-
-  it('rejects malformed Founder authorization', async () => {
-    const world = createWorld({ evidenceClass: 'full', head: OLD_HEAD })
-    world.comments[1].body = JSON.stringify({ status: 'approved', evidence_class: 'full' })
+    const world = createWorld({
+      recordClass: 'DELTA_RECORDING',
+      head: CURRENT_HEAD,
+      keys: prepared.fullWorld.keys,
+      extraComments: [prepared.fullComment, generic],
+      includeLegacy: false,
+      authorizationOverrides: {
+        delta: {
+          parent_full: prepared.parentFull,
+          coverage_segments: [{
+            base: OLD_HEAD,
+            head: CURRENT_HEAD,
+            comment_id: 9999,
+            body_sha256: sha256Hex(genericBody),
+            role: 'LEGACY_DELTA_EVIDENCE_RESULT',
+            verdict: 'ELIGIBLE FOR FOUNDER REVIEW',
+          }],
+        },
+      },
+    })
     await expect(world.service.recordReview({ founderAuthorizationCommentId: 9001 }))
       .rejects.toMatchObject({ code: 'STATE_CONFLICT' })
   })
 
-  it('composes valid Full + exact-current-head Delta into ELIGIBLE FOR FOUNDER REVIEW', async () => {
+  it.each([
+    ['missing parent', {}],
+    ['wrong parent record', {
+      delta: {
+        parent_full: {
+          authorization_id: 'mc-ugr-auth-v2-wrong',
+          authorization_comment_id: 9001,
+          record_id: 'mc-ugr-v1-wrong',
+          record_comment_id: 10001,
+          record_body_sha256: 'b'.repeat(64),
+        },
+      },
+    }],
+  ])('fails closed when Delta has a %s Full link', async (_name, overrides) => {
+    const prepared = await recordFullAndPrepareDelta()
+    const world = createWorld({
+      recordClass: 'DELTA_RECORDING',
+      head: CURRENT_HEAD,
+      keys: prepared.fullWorld.keys,
+      extraComments: [prepared.fullComment],
+      authorizationOverrides: overrides,
+    })
+    await expect(world.service.recordReview({ founderAuthorizationCommentId: 9001 }))
+      .rejects.toMatchObject({ code: 'STATE_CONFLICT' })
+  })
+
+  it('denies merge eligibility for Full-only and Delta-only evidence', async () => {
+    const { fullWorld, fullResult, fullComment, fullRecord, deltaWorld } = await recordFullAndPrepareDelta()
+    const fullRecords = collectVerifiedRecords([...fullWorld.comments], {
+      publicKey: fullWorld.keys.publicKey,
+      signingKeyId: SIGNING_KEY_ID,
+      githubAppSlug: APP_SLUG,
+    } as any)
+    expect(evaluateUnmanagedGenesisMergeEligibility({
+      records: fullRecords,
+      livePullRequestHead: CURRENT_HEAD,
+    } as any).eligible).toBe(false)
+
+    await deltaWorld.service.recordReview({ founderAuthorizationCommentId: 9001 })
+    const deltaRecords = collectVerifiedRecords([deltaWorld.comments.at(-1)], {
+      publicKey: fullWorld.keys.publicKey,
+      signingKeyId: SIGNING_KEY_ID,
+      githubAppSlug: APP_SLUG,
+    } as any)
+    expect(evaluateUnmanagedGenesisMergeEligibility({
+      records: deltaRecords,
+      livePullRequestHead: CURRENT_HEAD,
+    } as any).eligible).toBe(false)
+    expect(fullResult.commentId).toBeDefined()
+    expect(fullComment.body).toContain(fullRecord.record_id)
+  })
+
+  it('rejects a Delta whose exact_current_head is stale', async () => {
+    const { fullWorld, fullComment, parentFull } = await recordFullAndPrepareDelta()
+    const world = createWorld({
+      recordClass: 'DELTA_RECORDING',
+      head: CURRENT_HEAD,
+      keys: fullWorld.keys,
+      extraComments: [fullComment],
+      authorizationOverrides: {
+        delta: {
+          parent_full: parentFull,
+          exact_current_head: NEXT_HEAD,
+        },
+      },
+    })
+    await expect(world.service.recordReview({ founderAuthorizationCommentId: 9001 }))
+      .rejects.toMatchObject({ code: 'STATE_CONFLICT', message: /exact_current_head|live PR head|coverage/i })
+  })
+
+  it('recovers an ambiguous post as NO_OP and keeps deterministic retries idempotent', async () => {
+    const world = createWorld({ recordClass: 'FULL_RECORDING', postFailure: 'append-then-fail' })
+    const recovered = await world.service.recordReview({ founderAuthorizationCommentId: 9001 })
+    const retry = await world.service.recordReview({ founderAuthorizationCommentId: 9001 })
+    expect(recovered.outcome).toBe('NO_OP')
+    expect(recovered.recovered).toBe(true)
+    expect(retry.outcome).toBe('NO_OP')
+    expect(retry.recordId).toBe(recovered.recordId)
+    expect(world.calls.postComment).toBe(1)
+
+    const missing = createWorld({ recordClass: 'FULL_RECORDING', postFailure: 'fail' })
+    await expect(missing.service.recordReview({ founderAuthorizationCommentId: 9001 }))
+      .rejects.toMatchObject({ code: 'BLOCKED_EXTERNAL' })
+  })
+
+  it('rejects App identity, signed-record, and authorization tampering', async () => {
+    const world = createWorld({ recordClass: 'FULL_RECORDING' })
+    await world.service.recordReview({ founderAuthorizationCommentId: 9001 })
+    const posted = world.comments.at(-1)
+    const wrongApp = { ...posted, performed_via_github_app: { slug: 'copied-app' } }
+    expect(() => collectVerifiedRecords([...world.comments.slice(0, -1), wrongApp], {
+      publicKey: world.keys.publicKey,
+      signingKeyId: SIGNING_KEY_ID,
+      githubAppSlug: APP_SLUG,
+    } as any)).toThrow(/App|app|identity/i)
+
+    const parsed = parseUnmanagedGenesisReviewComment(posted.body)
+    expect(verifyUnmanagedGenesisReviewRecord({
+      ...parsed.record,
+      signing: { ...parsed.record.signing, signature: Buffer.from('tampered').toString('base64') },
+    }, { publicKey: world.keys.publicKey, signingKeyId: SIGNING_KEY_ID } as any).ok).toBe(false)
+
+    const copied = createWorld({ recordClass: 'FULL_RECORDING' })
+    const authComment = copied.comments.find((comment) => comment.id === 9001)
+    const auth = JSON.parse(authComment.body)
+    auth.expected_pr.observed_head = NEXT_HEAD
+    authComment.body = JSON.stringify(auth)
+    await expect(copied.service.recordReview({ founderAuthorizationCommentId: 9001 }))
+      .rejects.toMatchObject({ code: 'STATE_CONFLICT' })
+  })
+
+  it('returns STATE_CONFLICT for competing Full roots and forked Deltas', async () => {
     const keys = keyMaterial()
-    const fullWorld = createWorld({ evidenceClass: 'full', head: OLD_HEAD, keys })
-    const fullResult = await fullWorld.service.recordReview({ founderAuthorizationCommentId: 9001 })
-    expect(fullResult.outcome).toBe('RECORDED')
+    const firstFull = createWorld({ recordClass: 'FULL_RECORDING', authCommentId: 9001, keys })
+    await firstFull.service.recordReview({ founderAuthorizationCommentId: 9001 })
+    const secondFull = createWorld({ recordClass: 'FULL_RECORDING', authCommentId: 9004, keys })
+    await secondFull.service.recordReview({ founderAuthorizationCommentId: 9004 })
+    const competing = collectVerifiedRecords([
+      firstFull.comments.at(-1),
+      secondFull.comments.at(-1),
+    ], { publicKey: keys.publicKey, signingKeyId: SIGNING_KEY_ID, githubAppSlug: APP_SLUG } as any)
+    expect(evaluateUnmanagedGenesisMergeEligibility({
+      records: competing,
+      livePullRequestHead: CURRENT_HEAD,
+    } as any).classification).toBe('STATE_CONFLICT')
 
-    const fullComment = fullWorld.comments.at(-1)
-    const fullRecord = parseUnmanagedGenesisReviewComment(fullComment.body).record
-    const diffText = 'diff --git a/scripts/x.mjs b/scripts/x.mjs\n+delta\n'
+    const prepared = await recordFullAndPrepareDelta({ keys })
+    const deltaOne = createWorld({
+      recordClass: 'DELTA_RECORDING',
+      authCommentId: 9003,
+      keys,
+      extraComments: [prepared.fullComment],
+      correctionDiffText: 'diff --git a/a b/a\n+one\n',
+      overallDiffText: 'diff --git a/a b/a\n+one\n',
+      authorizationOverrides: { delta: { parent_full: prepared.parentFull } },
+    })
+    await deltaOne.service.recordReview({ founderAuthorizationCommentId: 9003 })
+    const deltaTwo = createWorld({
+      recordClass: 'DELTA_RECORDING',
+      authCommentId: 9004,
+      keys,
+      extraComments: [prepared.fullComment],
+      correctionDiffText: 'diff --git a/a b/a\n+two\n',
+      overallDiffText: 'diff --git a/a b/a\n+two\n',
+      authorizationOverrides: { delta: { parent_full: prepared.parentFull } },
+    })
+    await deltaTwo.service.recordReview({ founderAuthorizationCommentId: 9004 })
+    const forked = collectVerifiedRecords([
+      prepared.fullComment,
+      deltaOne.comments.at(-1),
+      deltaTwo.comments.at(-1),
+    ], { publicKey: keys.publicKey, signingKeyId: SIGNING_KEY_ID, githubAppSlug: APP_SLUG } as any)
+    expect(evaluateUnmanagedGenesisMergeEligibility({
+      records: forked,
+      livePullRequestHead: CURRENT_HEAD,
+    } as any).classification).toBe('STATE_CONFLICT')
+  })
 
+  it('requires contiguous coverage from the Full head to the current head', async () => {
+    const prepared = await recordFullAndPrepareDelta()
+    const first = reviewVerdictComment(7001, OLD_HEAD, MID_HEAD)
+    const second = reviewVerdictComment(7002, NEXT_HEAD, CURRENT_HEAD)
+    const world = createWorld({
+      recordClass: 'DELTA_RECORDING',
+      head: CURRENT_HEAD,
+      keys: prepared.fullWorld.keys,
+      includeLegacy: false,
+      extraComments: [prepared.fullComment, first, second],
+      authorizationOverrides: {
+        delta: {
+          parent_full: prepared.parentFull,
+          coverage_segments: [
+            {
+              base: OLD_HEAD,
+              head: MID_HEAD,
+              comment_id: first.id,
+              body_sha256: sha256Hex(first.body),
+              role: 'DELTA_REVIEW_VERDICT',
+              verdict: 'ELIGIBLE FOR FOUNDER REVIEW',
+            },
+            {
+              base: NEXT_HEAD,
+              head: CURRENT_HEAD,
+              comment_id: second.id,
+              body_sha256: sha256Hex(second.body),
+              role: 'DELTA_REVIEW_VERDICT',
+              verdict: 'ELIGIBLE FOR FOUNDER REVIEW',
+            },
+          ],
+        },
+      },
+    })
+    await expect(world.service.recordReview({ founderAuthorizationCommentId: 9001 }))
+      .rejects.toMatchObject({ code: 'STATE_CONFLICT', message: /contiguous|coverage/i })
+  })
+
+  it('accepts ordinary DELTA_REVIEW_VERDICT segments for later ranges', async () => {
+    const prepared = await recordFullAndPrepareDelta()
+    const first = reviewVerdictComment(7001, OLD_HEAD, MID_HEAD)
+    const second = reviewVerdictComment(7002, MID_HEAD, CURRENT_HEAD)
+    const world = createWorld({
+      recordClass: 'DELTA_RECORDING',
+      head: CURRENT_HEAD,
+      keys: prepared.fullWorld.keys,
+      includeLegacy: false,
+      extraComments: [prepared.fullComment, first, second],
+      authorizationOverrides: {
+        delta: {
+          parent_full: prepared.parentFull,
+          coverage_segments: [
+            {
+              base: OLD_HEAD,
+              head: MID_HEAD,
+              comment_id: first.id,
+              body_sha256: sha256Hex(first.body),
+              role: 'DELTA_REVIEW_VERDICT',
+              verdict: 'ELIGIBLE FOR FOUNDER REVIEW',
+            },
+            {
+              base: MID_HEAD,
+              head: CURRENT_HEAD,
+              comment_id: second.id,
+              body_sha256: sha256Hex(second.body),
+              role: 'DELTA_REVIEW_VERDICT',
+              verdict: 'ELIGIBLE FOR FOUNDER REVIEW',
+            },
+          ],
+        },
+      },
+    })
+    const result = await world.service.recordReview({ founderAuthorizationCommentId: 9001 })
+    expect(result.outcome).toBe('RECORDED')
+    expect(result.mergeEligibility.eligible).toBe(true)
+  })
+
+  it('never writes Issue body state or review counters', async () => {
+    const prepared = await recordFullAndPrepareDelta()
     const deltaWorld = createWorld({
-      evidenceClass: 'delta',
-      head: NEW_HEAD,
-      diffText,
-      keys,
-      extraComments: [fullComment],
-      authOverrides: {
-        priorFullRecordCommentId: fullComment.id,
-        priorFullRecordId: fullRecord.record_id,
-        correctionBase: OLD_HEAD,
-        correctionHead: NEW_HEAD,
-        correctionCommitOids: [NEW_HEAD],
-        correctionDiffSha256: sha256Hex(diffText),
-        correctionResultCommentId: 9002,
-        findingDisposition: [],
-        sourceReviewCommentId: fullWorld.historical.id,
-      },
+      recordClass: 'DELTA_RECORDING',
+      head: CURRENT_HEAD,
+      keys: prepared.fullWorld.keys,
+      extraComments: [prepared.fullComment],
+      authorizationOverrides: { delta: { parent_full: prepared.parentFull } },
     })
-    const deltaResult = await deltaWorld.service.recordReview({ founderAuthorizationCommentId: 9001 })
-    expect(deltaResult.outcome).toBe('RECORDED')
-    expect(deltaResult.evidenceClass).toBe('delta')
-    expect(deltaResult.mergeEligibility.eligible).toBe(true)
-    expect(deltaResult.mergeEligibility.next).toBe('ELIGIBLE FOR FOUNDER REVIEW')
-  })
-
-  it('fails closed on post-Delta head drift', async () => {
-    const keys = keyMaterial()
-    const fullWorld = createWorld({ evidenceClass: 'full', head: OLD_HEAD, keys })
-    await fullWorld.service.recordReview({ founderAuthorizationCommentId: 9001 })
-    const fullComment = fullWorld.comments.at(-1)
-    const fullRecord = parseUnmanagedGenesisReviewComment(fullComment.body).record
-    const diffText = 'diff --git a/a b/a\n+1\n'
-
-    const deltaWorld = createWorld({
-      evidenceClass: 'delta',
-      head: NEW_HEAD,
-      diffText,
-      keys,
-      extraComments: [fullComment],
-      authOverrides: {
-        priorFullRecordCommentId: fullComment.id,
-        priorFullRecordId: fullRecord.record_id,
-        correctionBase: OLD_HEAD,
-        correctionHead: NEW_HEAD,
-        correctionCommitOids: [NEW_HEAD],
-        correctionDiffSha256: sha256Hex(diffText),
-        findingDisposition: [],
-      },
-    })
-    const deltaResult = await deltaWorld.service.recordReview({ founderAuthorizationCommentId: 9001 })
-    expect(deltaResult.mergeEligibility.eligible).toBe(true)
-
-    const drifted = evaluateUnmanagedGenesisMergeEligibility({
-      records: collectVerifiedRecords(deltaWorld.comments, {
-        publicKey: keys.publicKey,
-        signingKeyId: 'ugr-test-key',
-      } as any),
-      livePullRequestHead: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
-    } as any)
-    expect(drifted.eligible).toBe(false)
-    expect(drifted.reason).toMatch(/head drift/i)
-  })
-
-  it('returns STATE CONFLICT for competing Full roots', async () => {
-    const keys = keyMaterial()
-    const base = buildUnmanagedGenesisReviewRecord({
-      evidenceClass: 'full',
-      repository: { nameWithOwner: REPO, id: 'R', node_id: 'R' },
-      taskIssue: { number: 262, id: 'I', node_id: 'I' },
-      pullRequest: { number: 266, id: 'P', node_id: 'P', baseRefName: 'main', baseRefOid: MAIN_SHA },
-      founderAuthorization: { commentId: 1, bodySha256: 'a'.repeat(64), authorLogin: 'boat1994' },
-      sourceReview: { commentId: 5167077714, bodySha256: 'b'.repeat(64), authorLogin: 'boat1994', verdict: 'ELIGIBLE FOR FOUNDER REVIEW' },
-      reviewedHead: OLD_HEAD,
-      exactHeadCi: { head: OLD_HEAD, checks: [{ name: 'ci', conclusion: 'SUCCESS' }] },
-      findings: [],
-      full: { reviewed_old_head: OLD_HEAD, findings_sha256: createHash('sha256').update('[]').digest('hex') },
-      workflow: { file: 'x', ref: 'refs/heads/main', sha: MAIN_SHA, runId: '1' },
-      signingKeyId: 'k',
-    } as any)
-    const first = signUnmanagedGenesisReviewRecord({
-      ...base,
-      founder_authorization: { ...base.founder_authorization, comment_id: 1 },
-    }, { privateKey: keys.privateKey, keyId: 'k' })
-    const second = signUnmanagedGenesisReviewRecord({
-      ...base,
-      founder_authorization: { ...base.founder_authorization, comment_id: 2, comment_body_sha256: 'c'.repeat(64) },
-      findings: [{ id: 'f1', severity: 'Important', summary: 'x' }],
-      full: { reviewed_old_head: OLD_HEAD, findings_sha256: createHash('sha256').update('f').digest('hex') },
-    }, { privateKey: keys.privateKey, keyId: 'k' })
-    expect(first.record_id).not.toBe(second.record_id)
-
-    const eligibility = evaluateUnmanagedGenesisMergeEligibility({
-      records: [
-        { verified: true, record: first, commentId: 10 },
-        { verified: true, record: second, commentId: 11 },
-      ],
-      livePullRequestHead: NEW_HEAD,
-    } as any)
-    expect(eligibility.eligible).toBe(false)
-    expect(eligibility.classification).toBe('STATE_CONFLICT')
-  })
-
-  it('links CORRECTION REQUIRED → later Delta through predecessor fields without Issue counters', async () => {
-    const keys = keyMaterial()
-    const fullWorld = createWorld({ evidenceClass: 'full', head: OLD_HEAD, keys })
-    await fullWorld.service.recordReview({ founderAuthorizationCommentId: 9001 })
-    const fullComment = fullWorld.comments.at(-1)
-    const fullRecord = parseUnmanagedGenesisReviewComment(fullComment.body).record
-    const diff1 = 'diff --git a/a b/a\n+fix1\n'
-    const head1 = 'cccccccccccccccccccccccccccccccccccccccc'
-
-    const correctionDelta = createWorld({
-      evidenceClass: 'delta',
-      head: head1,
-      diffText: diff1,
-      keys,
-      extraComments: [fullComment],
-      authOverrides: {
-        priorFullRecordCommentId: fullComment.id,
-        priorFullRecordId: fullRecord.record_id,
-        correctionBase: OLD_HEAD,
-        correctionHead: head1,
-        correctionCommitOids: [head1],
-        correctionDiffSha256: sha256Hex(diff1),
-        findingDisposition: [{ finding_id: 'F1', status: 'UNRESOLVED', summary: 'needs fix' }],
-        sourceReviewCommentId: fullWorld.historical.id,
-      },
-    })
-    const firstDelta = await correctionDelta.service.recordReview({ founderAuthorizationCommentId: 9001 })
-    expect(firstDelta.outcome).toBe('RECORDED')
-    expect(firstDelta.mergeEligibility.eligible).toBe(false)
-    const firstDeltaComment = correctionDelta.comments.at(-1)
-    const firstDeltaRecord = parseUnmanagedGenesisReviewComment(firstDeltaComment.body).record
-    expect(firstDeltaRecord.delta.prior_full_record_id).toBe(fullRecord.record_id)
-    expect(firstDeltaRecord.delta.finding_disposition[0].finding_id).toBe('F1')
-
-    const head2 = 'dddddddddddddddddddddddddddddddddddddddd'
-    const diff2 = 'diff --git a/a b/a\n+fix2\n'
-    const secondDeltaWorld = createWorld({
-      evidenceClass: 'delta',
-      head: head2,
-      diffText: diff2,
-      keys,
-      extraComments: [fullComment, firstDeltaComment],
-      authOverrides: {
-        priorFullRecordCommentId: fullComment.id,
-        priorFullRecordId: fullRecord.record_id,
-        predecessorDeltaRecordId: firstDeltaRecord.record_id,
-        correctionOfRecordId: firstDeltaRecord.record_id,
-        correctionBase: head1,
-        correctionHead: head2,
-        correctionCommitOids: [head2],
-        correctionDiffSha256: sha256Hex(diff2),
-        findingDisposition: [{ finding_id: 'F1', status: 'RESOLVED', summary: 'fixed' }],
-      },
-    })
-    const second = await secondDeltaWorld.service.recordReview({ founderAuthorizationCommentId: 9001 })
-    expect(second.outcome).toBe('RECORDED')
-    const secondRecord = parseUnmanagedGenesisReviewComment(secondDeltaWorld.comments.at(-1).body).record
-    expect(secondRecord.delta.predecessor_delta_record_id).toBe(firstDeltaRecord.record_id)
-    expect(secondRecord.delta.correction_of_record_id).toBe(firstDeltaRecord.record_id)
-    expect(secondDeltaWorld.issue.body).not.toMatch(/review_cycle|full_review_count/)
-    expect(second.mergeEligibility.eligible).toBe(true)
-  })
-
-  it('exposes only founder_authorization_comment_id at the package script boundary', () => {
-    const pkg = JSON.parse(readFileSync('package.json', 'utf8'))
-    expect(pkg.scripts['bemoat:mission-control:unmanaged-genesis-review']).toBe(
-      'node scripts/mission-control-unmanaged-genesis-review.mjs',
-    )
-    const auth = parseFounderUnmanagedGenesisAuthorization(
-      createFounderUnmanagedGenesisAuthorizationBody({ evidenceClass: 'full' }),
-    )
-    expect(auth.evidence_class).toBe('full')
-    expect(auth.pr).toBe(266)
-    expect(auth.task_issue).toBe(262)
+    await deltaWorld.service.recordReview({ founderAuthorizationCommentId: 9001 })
+    expect(deltaWorld.calls.updateIssueBody).toBe(0)
+    expect(deltaWorld.issue.body).not.toMatch(/review_cycle|full_review_count|bemoat-mission-control-state/)
   })
 })

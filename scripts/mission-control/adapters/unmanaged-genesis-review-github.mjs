@@ -207,6 +207,29 @@ export function createUnmanagedGenesisReviewGithubAdapter({ repository, env = pr
       })
     },
 
+    async isCommitAncestor({ ancestor, descendant } = {}) {
+      if (!ancestor || !descendant) throw externalError('ancestor comparison requires two commit SHAs')
+      const comparison = api(`repos/${repository}/compare/${ancestor}...${descendant}`, {
+        label: `commit ancestry ${ancestor}...${descendant}`,
+      })
+      return comparison?.status === 'ahead' ||
+        comparison?.status === 'identical' ||
+        (Number(comparison?.ahead_by) > 0 && Number(comparison?.behind_by) === 0)
+    },
+
+    async getCommitCheckRuns(sha) {
+      if (!sha) throw externalError('commit check runs require a commit SHA')
+      const raw = api(`repos/${repository}/commits/${sha}/check-runs?per_page=100`, {
+        label: `commit check runs ${sha}`,
+      })
+      return (raw?.check_runs ?? []).map((check) => ({
+        name: check.name ?? null,
+        conclusion: check.conclusion ?? null,
+        state: check.status ?? null,
+        id: check.id ?? check.database_id ?? null,
+      }))
+    },
+
     async getPullRequestDiff(prNumber, { base, head } = {}) {
       assertPullRequest(prNumber)
       if (!base || !head) throw externalError('diff requires base and head')

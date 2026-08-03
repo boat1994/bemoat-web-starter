@@ -86,16 +86,23 @@ pnpm run bemoat:mission-control:unmanaged-genesis-review -- \
 ```
 
 The caller may supply only that immutable Founder authorization comment ID.
-Evidence class (`full` or `delta`), Issue/PR/base/head, source-review binding,
-policy tuple, CI, correction range, and predecessor links are derived from the
-authorization comment and live GitHub evidence. Raw `gh issue comment` bodies,
-generic role comments, Issue-body edits, copied JSON records, and unsigned
-comments remain non-authoritative.
+Authorization schema v2 requires two linked records: `FULL_RECORDING` with the
+historical reviewed head, ancestor proof, and historical CI, followed by
+`DELTA_RECORDING` with an exact-current-head binding and a cryptographic
+`parent_full` link. Full recording does not require live-head equality; the
+historical head must only be an ancestor of the live PR head.
+
+The sole raw `## RESULT` exception is comment `5168547881`, consumed only as
+`LEGACY_DELTA_EVIDENCE_RESULT` with its immutable body hash and exact
+`0ad7ec2..50879fe` range. Generic `## RESULT` comments are non-authoritative;
+later ranges use ordinary `DELTA_REVIEW_VERDICT` segments. Raw comments,
+Issue-body edits, copied JSON records, and unsigned comments remain
+non-authoritative.
 
 A Full record alone cannot authorize the corrected head. A Delta record alone
-cannot authorize it. Merge review eligibility requires one valid Full root for
-the historical reviewed head, exactly one non-forked Delta tip rooted in that
-Full, exact-current-head CI on that tip, and `ELIGIBLE FOR FOUNDER REVIEW` with
-no unresolved Critical/Important findings. Head drift fails closed. Identical
-retry returns `NO_OP`. Competing, forked, edited, superseded, or ambiguous
-records return `STATE CONFLICT`.
+cannot authorize it. Merge review eligibility requires one valid Full root,
+exactly one contiguous, non-forked Delta chain rooted in that Full, current-head
+CI, and `ELIGIBLE FOR FOUNDER REVIEW` with no unresolved Critical/Important
+findings. Head drift fails closed. Identical retry returns `NO_OP`.
+Competing, forked, edited, superseded, or ambiguous records return
+`STATE_CONFLICT`.

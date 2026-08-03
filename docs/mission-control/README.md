@@ -86,8 +86,14 @@ approval, live evidence, and signed readback. Do not execute it against Issue
 
 While Issue #262 remains unmanaged and Draft PR #266 is under review, use
 `pnpm run bemoat:mission-control:unmanaged-genesis-review` to record signed
-Full/Delta review evidence. Do not invent managed-state counters, and do not
-treat raw Review comments as merge authority.
+Full/Delta review evidence. The transport uses two linked raw-JSON Founder
+authorizations: `FULL_RECORDING` first, then `DELTA_RECORDING`. A historical Full
+binds its reviewed head and historical CI and does not require live-head
+equality; it requires that head to be an ancestor of the live PR head. The sole
+raw `## RESULT` exception is comment `5168547881`, consumed only as
+`LEGACY_DELTA_EVIDENCE_RESULT`; generic `## RESULT` comments are
+non-authoritative. Full-only or Delta-only evidence is insufficient, and the
+transport never creates managed-state counters.
 
 ## Reviewer verdict vocabulary (single source)
 
