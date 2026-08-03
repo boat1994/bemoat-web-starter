@@ -2,8 +2,8 @@
   "schema_version": 1,
   "issue": "215",
   "transition_identity": "campaign-215-issue-254-handoff-5162206148",
-  "observed_body_sha256": "80dde15df5cf3a124b998b68f50b23c032e88ce4ec77c469c59b1f47d378ee9f",
+  "observed_body_sha256": "8c93e4abaf9de419b8c25e7fc9fe0f75d2c06a124db6119feb7c329b18f18a96",
   "holder": "mission-control-campaign-reconciliation",
-  "status": "held",
-  "updated_at": "2026-08-03T04:19:00.398Z"
+  "status": "released",
+  "updated_at": "2026-08-03T04:19:04.124Z"
 }
