@@ -25,6 +25,9 @@ export const CAMPAIGN_DIAGNOSTIC_CODES = Object.freeze({
   COMPLETED_SLICE_MUTATION: 'CAMPAIGN_COMPLETED_SLICE_MUTATION',
   EXPANSION_ROOT_MUTATION: 'CAMPAIGN_EXPANSION_ROOT_MUTATION',
   EXPANSION_ROW_INVALID: 'CAMPAIGN_EXPANSION_ROW_INVALID',
+  BLOCKER_BINDING_INVALID: 'CAMPAIGN_BLOCKER_BINDING_INVALID',
+  BLOCKER_SLICE_STATUS_MUTATION: 'CAMPAIGN_BLOCKER_RESOLUTION_SLICE_STATUS_MUTATION',
+  BLOCKER_SLICE_MUTATION: 'CAMPAIGN_BLOCKER_RESOLUTION_SLICE_MUTATION',
 })
 
 function invalid(code, reason, classification = 'STATE_CONFLICT') {
@@ -252,6 +255,30 @@ function sameAuthority(left, right) {
   return sameCampaignValue(left ?? null, right ?? null)
 }
 
+function sameBlockerResolutionRoot(left, right) {
+  const leftRoot = copyWithout(left, [
+    'campaign_blockers',
+    'campaign_expansion_authority',
+    'root_script_map',
+    'slices',
+    'updated_at',
+    'updated_by',
+  ])
+  const rightRoot = copyWithout(right, [
+    'campaign_blockers',
+    'campaign_expansion_authority',
+    'root_script_map',
+    'slices',
+    'updated_at',
+    'updated_by',
+  ])
+  if (!sameCampaignValue(leftRoot, rightRoot)) return false
+
+  const leftMap = copyWithout(left?.root_script_map, ['validation_status'])
+  const rightMap = copyWithout(right?.root_script_map, ['validation_status'])
+  return sameCampaignValue(leftMap, rightMap)
+}
+
 function changedKeys(left, right, keys) {
   return keys.filter((key) => !sameCampaignValue(left?.slices?.[key], right?.slices?.[key]))
 }
@@ -276,10 +303,137 @@ function validateNewExpansionRows(campaign, keys) {
   return { valid: true }
 }
 
+function validateExactBlockerRemoval(previous, next, blockerId) {
+  if (typeof blockerId !== 'string' || blockerId.length === 0) {
+    return invalid(CAMPAIGN_DIAGNOSTIC_CODES.BLOCKER_BINDING_INVALID, 'blocker-resolution requires one exact blocker id')
+  }
+  if (!Array.isArray(previous.campaign_blockers) || !Array.isArray(next.campaign_blockers)) {
+    return invalid(CAMPAIGN_DIAGNOSTIC_CODES.BLOCKER_BINDING_INVALID, 'campaign blocker bindings must be arrays')
+  }
+  const matches = previous.campaign_blockers.filter((blocker) => blocker?.id === blockerId)
+  if (matches.length !== 1) {
+    return invalid(CAMPAIGN_DIAGNOSTIC_CODES.BLOCKER_BINDING_INVALID, `campaign blocker ${blockerId} is not bound exactly once`)
+  }
+  const expected = previous.campaign_blockers.filter((blocker) => blocker?.id !== blockerId)
+  if (!sameCampaignValue(expected, next.campaign_blockers)) {
+    return invalid(CAMPAIGN_DIAGNOSTIC_CODES.BLOCKER_BINDING_INVALID, 'blocker-resolution may remove only the exactly bound campaign blocker')
+  }
+  return { valid: true }
+}
+
+function validateBlockerResolutionSlices(previous, next, priorRange, blockerId) {
+  for (const key of priorRange.keys) {
+    const priorSlice = previous.slices[key]
+    const nextSlice = next.slices[key]
+    if (!nextSlice) {
+      return invalid(CAMPAIGN_DIAGNOSTIC_CODES.RANGE_RENUMBERED, `existing campaign slice ${key} cannot be replaced or removed`)
+    }
+
+    const priorWithoutBlockers = copyWithout(priorSlice, ['blocker_ids'])
+    const nextWithoutBlockers = copyWithout(nextSlice, ['blocker_ids'])
+    if (!sameCampaignValue(priorWithoutBlockers, nextWithoutBlockers)) {
+      if (priorSlice?.status !== nextSlice?.status) {
+        return invalid(
+          CAMPAIGN_DIAGNOSTIC_CODES.BLOCKER_SLICE_STATUS_MUTATION,
+          `blocker-resolution may not mutate campaign slice ${key} status`,
+        )
+      }
+      return invalid(
+        CAMPAIGN_DIAGNOSTIC_CODES.BLOCKER_SLICE_MUTATION,
+        `blocker-resolution may mutate only blocker references on campaign slices`,
+      )
+    }
+
+    const priorBlockerIds = Array.isArray(priorSlice?.blocker_ids) ? priorSlice.blocker_ids : null
+    const nextBlockerIds = Array.isArray(nextSlice?.blocker_ids) ? nextSlice.blocker_ids : null
+    const expectedBlockerIds = priorBlockerIds?.filter((id) => id !== blockerId) ?? null
+    if (!sameCampaignValue(expectedBlockerIds, nextBlockerIds)) {
+      return invalid(
+        CAMPAIGN_DIAGNOSTIC_CODES.BLOCKER_SLICE_MUTATION,
+        `blocker-resolution may remove only blocker references for ${blockerId}`,
+      )
+    }
+  }
+  return { valid: true }
+}
+
+export function validateCampaignBlockerResolutionTransition(previous, next, options = {}) {
+  if (!isMapping(previous) || !isMapping(next)) {
+    return invalid(CAMPAIGN_DIAGNOSTIC_CODES.BLOCKER_BINDING_INVALID, 'blocker-resolution requires two campaign mappings')
+  }
+
+  const blockerRemoval = validateExactBlockerRemoval(previous, next, options.blockerId)
+  if (!blockerRemoval.valid) return blockerRemoval
+
+  const priorRange = inspectSliceRange(previous.slices)
+  if (!priorRange.valid) return priorRange
+  const nextRange = inspectSliceRange(next.slices)
+  if (!nextRange.valid) return nextRange
+
+  const nextAuthority = validateCampaignExpansionAuthority(next.campaign_expansion_authority, options.evidence ?? null)
+  if (!nextAuthority.valid) return nextAuthority
+  const priorAuthority = validateCampaignExpansionAuthority(previous.campaign_expansion_authority, options.evidence ?? null)
+  if (!priorAuthority.valid) return priorAuthority
+
+  if (!sameBlockerResolutionRoot(previous, next)) {
+    return invalid(CAMPAIGN_DIAGNOSTIC_CODES.EXPANSION_ROOT_MUTATION, 'blocker-resolution may not mutate unrelated campaign root fields')
+  }
+
+  const missingPriorKeys = priorRange.keys.filter((key) => !Object.hasOwn(next.slices, key))
+  if (missingPriorKeys.length > 0 || nextRange.maxSlice < priorRange.maxSlice) {
+    return invalid(CAMPAIGN_DIAGNOSTIC_CODES.RANGE_SHRINK, 'blocker-resolution may not shrink or renumber campaign slices')
+  }
+
+  if (nextRange.maxSlice > LEGACY_MAX_SLICE && !nextAuthority.expanded) {
+    return invalid(CAMPAIGN_DIAGNOSTIC_CODES.RANGE_UNAUTHORIZED, 'campaign slice range exceeds Founder-authorized maximum')
+  }
+  if (priorRange.maxSlice > LEGACY_MAX_SLICE && !sameAuthority(previous.campaign_expansion_authority, next.campaign_expansion_authority)) {
+    return invalid(CAMPAIGN_DIAGNOSTIC_CODES.AUTHORITY_INVALID, 'campaign expansion authority cannot change during blocker-resolution')
+  }
+
+  if (nextRange.maxSlice > priorRange.maxSlice) {
+    if (!nextAuthority.expanded || nextRange.maxSlice > nextAuthority.maxSlice) {
+      return invalid(CAMPAIGN_DIAGNOSTIC_CODES.RANGE_UNAUTHORIZED, 'campaign slice range exceeds Founder-authorized maximum')
+    }
+    const expectedNewKeys = expectedSliceKeys(nextRange.maxSlice).slice(priorRange.maxSlice)
+    const actualNewKeys = nextRange.keys.slice(priorRange.maxSlice)
+    if (!sameCampaignValue(expectedNewKeys, actualNewKeys)) {
+      return invalid(CAMPAIGN_DIAGNOSTIC_CODES.RANGE_RENUMBERED, 'new campaign slice keys must be appended contiguously')
+    }
+    if (
+      previous.root_script_map?.validation_status === 'PENDING_IMPLEMENTATION' &&
+      next.root_script_map?.validation_status !== 'PENDING_EXPANDED_IMPLEMENTATION'
+    ) {
+      return invalid(CAMPAIGN_DIAGNOSTIC_CODES.ROOT_SCRIPT_MAP_STATUS_INVALID, 'expanded campaign requires PENDING_EXPANDED_IMPLEMENTATION root status')
+    }
+    if (
+      previous.root_script_map?.validation_status !== 'PENDING_IMPLEMENTATION' &&
+      previous.root_script_map?.validation_status !== next.root_script_map?.validation_status
+    ) {
+      return invalid(CAMPAIGN_DIAGNOSTIC_CODES.ROOT_SCRIPT_MAP_STATUS_INVALID, 'campaign root validation status may not change during blocker-resolution expansion')
+    }
+    const newRows = validateNewExpansionRows(next, actualNewKeys)
+    if (!newRows.valid) return newRows
+  } else {
+    if (!sameAuthority(previous.campaign_expansion_authority, next.campaign_expansion_authority)) {
+      return invalid(CAMPAIGN_DIAGNOSTIC_CODES.AUTHORITY_INVALID, 'campaign expansion authority is immutable during blocker-resolution')
+    }
+    if (previous.root_script_map?.validation_status !== next.root_script_map?.validation_status) {
+      return invalid(CAMPAIGN_DIAGNOSTIC_CODES.ROOT_SCRIPT_MAP_STATUS_INVALID, 'campaign root validation status may not change during blocker-resolution')
+    }
+  }
+
+  return validateBlockerResolutionSlices(previous, next, priorRange, options.blockerId)
+}
+
 export function validateCampaignTransition(previous, next, options = {}) {
   const mode = options.mode ?? 'lifecycle'
   if (!isMapping(previous) || !isMapping(next)) {
     return invalid(CAMPAIGN_DIAGNOSTIC_CODES.RANGE_RENUMBERED, 'campaign transition requires two campaign mappings')
+  }
+
+  if (mode === 'blocker-resolution') {
+    return validateCampaignBlockerResolutionTransition(previous, next, options)
   }
 
   const priorRange = inspectSliceRange(previous.slices)

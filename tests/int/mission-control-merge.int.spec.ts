@@ -48,7 +48,7 @@ function managedState(overrides: Record<string, unknown> = {}) {
 }
 
 function authorization(overrides: Record<string, unknown> = {}): Record<string, unknown> {
-  return {
+  const record: Record<string, unknown> = {
     schema_version: 1,
     status: 'approved',
     authority: 'Founder',
@@ -76,15 +76,32 @@ function authorization(overrides: Record<string, unknown> = {}): Record<string, 
     campaign_slice: 3,
     ...overrides,
   }
+  if (record.projection_kind === 'blocker-resolution' && !Object.hasOwn(overrides, 'campaign_slice')) {
+    delete record.campaign_slice
+  }
+  return record
 }
 
 function createHarness(options: Record<string, any> = {}) {
+  const taskIssue = options.taskIssue ?? 222
+  const prNumber = options.prNumber ?? 223
+  const taskReviewedHead = options.reviewedHead ?? reviewedHead
+  const taskMergeCommit = options.mergeCommit ?? mergeCommit
+  const taskBase = options.base ?? 'main'
+  const taskProtectedBaseSha = options.protectedBaseSha ?? protectedBaseSha
   const issues = new Map<number, any>([
-    [222, {
-      number: 222,
+    [taskIssue, {
+      number: taskIssue,
       state: options.issueState ?? 'OPEN',
       stateReason: options.issueState === 'CLOSED' ? 'COMPLETED' : null,
-      managedState: managedState(options.managedState),
+      managedState: managedState({
+        active_task_issue: `#${taskIssue}`,
+        active_pr: `#${prNumber}`,
+        current_head: taskReviewedHead,
+        last_reviewed_head: taskReviewedHead,
+        approved_base: taskBase,
+        ...options.managedState,
+      }),
     }],
     [219, {
       number: 219,
@@ -101,15 +118,15 @@ function createHarness(options: Record<string, any> = {}) {
     }],
   ])
   const pull = {
-    number: 223,
+    number: prNumber,
     state: options.prState ?? 'OPEN',
     isDraft: options.isDraft ?? true,
     mergeable: 'MERGEABLE',
-    headRefOid: reviewedHead,
-    baseRefName: 'main',
-    baseRefOid: protectedBaseSha,
+    headRefOid: taskReviewedHead,
+    baseRefName: taskBase,
+    baseRefOid: taskProtectedBaseSha,
     statusCheckRollup: successfulChecks(),
-    mergeCommit: options.prState === 'MERGED' ? { oid: mergeCommit } : null,
+    mergeCommit: options.prState === 'MERGED' ? { oid: taskMergeCommit } : null,
     ...options.pull,
   }
   const operations: string[] = []
@@ -117,22 +134,31 @@ function createHarness(options: Record<string, any> = {}) {
   let closeFailures = options.closeFailures ?? 0
   let projectionFailures = options.projectionFailures ?? 0
   let campaignProjectionFailures = options.campaignProjectionFailures ?? 0
+  let campaignBlockerProjectionFailures = options.campaignBlockerProjectionFailures ?? 0
 
   const deps = {
     readManagedIssue: async (issueNumber: number) => structuredClone(issues.get(issueNumber)),
     readPullRequest: async () => structuredClone(pull),
     readFounderAuthorization: async (_repo: string, issueNumber: number) => {
       operations.push(`authorization:${issueNumber}`)
-      return authorization(options.authorization)
+      return authorization({
+        task_issue: taskIssue,
+        pr: prNumber,
+        exact_head: taskReviewedHead,
+        reviewed_head: taskReviewedHead,
+        base: taskBase,
+        protected_base_sha: taskProtectedBaseSha,
+        ...options.authorization,
+      })
     },
     readReviewVerdict: async (_repo: string, _issueNumber: number, commentId: string) => {
       operations.push(`review-verdict:${commentId}`)
       return {
         comment_id: commentId,
         verdict: options.reviewVerdict ?? 'ELIGIBLE FOR FOUNDER REVIEW',
-        reviewed_head: options.reviewedVerdictHead ?? reviewedHead,
-        pr: 223,
-        base: 'main',
+        reviewed_head: options.reviewedVerdictHead ?? taskReviewedHead,
+        pr: prNumber,
+        base: taskBase,
         non_superseded: options.reviewVerdictSuperseded !== true,
       }
     },
@@ -144,8 +170,8 @@ function createHarness(options: Record<string, any> = {}) {
     mergePullRequest: async ({ expectedHead }: { expectedHead: string }) => {
       operations.push(`merge:${expectedHead}`)
       pull.state = 'MERGED'
-      pull.mergeCommit = { oid: mergeCommit }
-      return { mergeCommit: { oid: mergeCommit } }
+      pull.mergeCommit = { oid: taskMergeCommit }
+      return { mergeCommit: { oid: taskMergeCommit } }
     },
     verifyCommitOnProtectedBase: async ({ commit, base }: { commit: string, base: string }) => {
       operations.push(`verify-base:${commit}:${base}`)
@@ -184,6 +210,14 @@ function createHarness(options: Record<string, any> = {}) {
         throw new Error('simulated campaign slice projection failure')
       }
       return { status: 'DONE', campaignIssue, campaignSlice }
+    },
+    projectCampaignBlockerResolved: async ({ campaignIssue, campaignBlockerId }: { campaignIssue: number, campaignBlockerId: string }) => {
+      operations.push(`campaign-blocker-resolved:${campaignIssue}:${campaignBlockerId}`)
+      if (campaignBlockerProjectionFailures > 0) {
+        campaignBlockerProjectionFailures -= 1
+        throw new Error('simulated campaign blocker projection failure')
+      }
+      return { status: 'RESOLVED', campaignIssue, campaignBlockerId }
     },
     selectNextCampaignAction: async () => {
       operations.push('select-next')
@@ -248,6 +282,120 @@ describe('Founder-authorized Mission Control merge transport', () => {
     ])
     expect(harness.issues.get(222)).toMatchObject({ state: 'CLOSED', stateReason: 'COMPLETED', managedState: { state: 'DONE' } })
     expect(harness.operations).not.toContain('reconcile:222')
+  })
+
+  it('executes the exact #254 blocker-resolution shape without projecting any slice status', async () => {
+    const harness = createHarness({
+      taskIssue: 254,
+      prNumber: 258,
+      managedState: { campaign_issue: '#215', campaign_slice: null },
+      authorization: {
+        projection_kind: 'blocker-resolution',
+        campaign_issue: 215,
+        campaign_blocker_id: 'issue-254-planning-correction-1',
+      },
+    })
+
+    const result = await execute({
+      issueNumber: 254,
+      repo: 'boat1994/bemoat-web-starter',
+      authorizationCommentId: '6000000001',
+      deps: harness.deps,
+    })
+
+    expect(result).toMatchObject({ outcome: 'DONE', issueNumber: 254, prNumber: 258 })
+    expect(harness.operations).toEqual([
+      'authorization:254',
+      `review-verdict:${reviewCommentId}`,
+      'mark-ready',
+      `review-verdict:${reviewCommentId}`,
+      `merge:${reviewedHead}`,
+      `verify-base:${mergeCommit}:main`,
+      'result:6000000003',
+      'close:254',
+      'task-done:254',
+      'campaign-blocker-resolved:215:issue-254-planning-correction-1',
+      'select-next',
+    ])
+    expect(harness.operations).not.toContain('campaign-done:215:5')
+  })
+
+  it.each([
+    ['missing projection kind', { campaign_issue: 215, campaign_blocker_id: 'issue-254-planning-correction-1' }],
+    ['missing campaign binding', { projection_kind: 'blocker-resolution', campaign_issue: undefined, campaign_blocker_id: 'issue-254-planning-correction-1' }],
+    ['wrong campaign binding', { projection_kind: 'blocker-resolution', campaign_issue: 216, campaign_blocker_id: 'issue-254-planning-correction-1' }],
+    ['missing blocker binding', { projection_kind: 'blocker-resolution', campaign_issue: 215, campaign_blocker_id: undefined }],
+  ])('fails closed before mutation for blocker-resolution %s', async (_label, authorizationOverrides) => {
+    const harness = createHarness({
+      taskIssue: 254,
+      prNumber: 258,
+      managedState: { campaign_issue: '#215', campaign_slice: null },
+      authorization: authorizationOverrides,
+    })
+
+    await expect(execute({
+      issueNumber: 254,
+      repo: 'boat1994/bemoat-web-starter',
+      authorizationCommentId: '6000000001',
+      deps: harness.deps,
+    })).rejects.toThrow(/STATE_CONFLICT.*(projection kind|campaign|blocker)/i)
+
+    expect(harness.operations).not.toContain('mark-ready')
+    expect(harness.operations.some((entry) => entry.startsWith('merge:'))).toBe(false)
+    expect(harness.operations).not.toContain('close:254')
+  })
+
+  it('fails closed when blocker-resolution supplies a campaign_slice', async () => {
+    const harness = createHarness({
+      taskIssue: 254,
+      prNumber: 258,
+      managedState: { campaign_issue: '#215', campaign_slice: null },
+      authorization: {
+        projection_kind: 'blocker-resolution',
+        campaign_issue: 215,
+        campaign_blocker_id: 'issue-254-planning-correction-1',
+        campaign_slice: 5,
+      },
+    })
+
+    await expect(execute({
+      issueNumber: 254,
+      repo: 'boat1994/bemoat-web-starter',
+      authorizationCommentId: '6000000001',
+      deps: harness.deps,
+    })).rejects.toThrow(/STATE_CONFLICT.*campaign_slice/i)
+
+    expect(harness.operations).not.toContain('mark-ready')
+    expect(harness.operations.some((entry) => entry.startsWith('merge:'))).toBe(false)
+  })
+
+  it('retries blocker resolution after a partial terminal bundle without merging twice', async () => {
+    const harness = createHarness({
+      taskIssue: 254,
+      prNumber: 258,
+      managedState: { campaign_issue: '#215', campaign_slice: null },
+      authorization: {
+        projection_kind: 'blocker-resolution',
+        campaign_issue: 215,
+        campaign_blocker_id: 'issue-254-planning-correction-1',
+      },
+      campaignBlockerProjectionFailures: 1,
+      reconcileOutcomes: ['DONE'],
+    })
+    const input = {
+      issueNumber: 254,
+      repo: 'boat1994/bemoat-web-starter',
+      authorizationCommentId: '6000000001',
+      deps: harness.deps,
+    }
+
+    await expect(execute(input)).rejects.toThrow('simulated campaign blocker projection failure')
+    await expect(execute(input)).resolves.toMatchObject({ outcome: 'NO_OP', issueNumber: 254, prNumber: 258 })
+
+    expect(harness.operations.filter((entry) => entry.startsWith('merge:'))).toHaveLength(1)
+    expect(harness.operations.filter((entry) => entry === 'close:254')).toHaveLength(1)
+    expect(harness.operations.filter((entry) => entry === 'campaign-blocker-resolved:215:issue-254-planning-correction-1')).toHaveLength(2)
+    expect(harness.operations.filter((entry) => entry === 'select-next')).toHaveLength(1)
   })
 
   it('fails closed when merge completion would start the selected next campaign action', async () => {
