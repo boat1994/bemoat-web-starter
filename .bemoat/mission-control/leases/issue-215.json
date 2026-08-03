@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "issue": "215",
-  "transition_identity": "campaign-215-issue-254-state-conflict-reconciliation-5159878063",
+  "transition_identity": "campaign-215-issue-254-handoff-5162206148",
   "observed_body_sha256": "80dde15df5cf3a124b998b68f50b23c032e88ce4ec77c469c59b1f47d378ee9f",
-  "holder": "mission-control-campaign-reconcile",
-  "status": "released",
-  "updated_at": "2026-08-02T19:10:50.521Z"
+  "holder": "mission-control-campaign-reconciliation",
+  "status": "held",
+  "updated_at": "2026-08-03T04:19:00.398Z"
 }
