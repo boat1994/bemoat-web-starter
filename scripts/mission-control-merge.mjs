@@ -6,6 +6,10 @@ import { analyzeExactHeadCi, normalizeStatusChecks, isCheckSuccessful } from './
 import { resolveIssueNumber, resolvePrNumber } from './agent-issue/issue-references.mjs'
 import { parseMissionControlState, projectMissionControlStateBlock } from './mission-control-state.mjs'
 import { writeIssueBodyWithLease } from './mission-control-issue-body-cas.mjs'
+import {
+  selectNextCampaignAction,
+  validateCampaignTransition,
+} from './mission-control/domain/campaign-authority.mjs'
 import { parseCampaign } from './mission-control/domain/campaign-parser.mjs'
 import { replaceCampaignBlock } from './mission-control/domain/campaign-renderer.mjs'
 
@@ -733,6 +737,12 @@ function commentSupersedesId(body, targetCommentId) {
   }
 }
 
+function campaignParseFailure(parsed, context) {
+  const message = `${context}: ${parsed.reason ?? 'invalid campaign projection'}`
+  if (parsed.classification === 'BLOCKED_EXTERNAL') throw blockedExternal(message)
+  throw stateConflict(message)
+}
+
 function createProductionDeps() {
   const readManagedIssue = async (issueNumber, repo) => {
     const issue = JSON.parse(runGh(['issue', 'view', String(issueNumber), '--repo', repo, '--json', 'body,state,stateReason']))
@@ -765,6 +775,35 @@ function createProductionDeps() {
       'api', '--paginate', '--slurp', `repos/${repo}/issues/${issueNumber}/comments?per_page=100`,
     ]))
     return flattenGhPages(pages)
+  }
+
+  const readTrustedFounderLogins = async (repo) => {
+    const variable = JSON.parse(runGh(['api', `repos/${repo}/actions/variables/BEMOAT_FOUNDER_LOGINS`]))
+    const value = String(variable.value ?? '').trim()
+    const logins = value.split(',').map((login) => login.trim()).filter(Boolean)
+    if (logins.length === 0 || logins.some((login) => !/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/.test(login))) {
+      throw stateConflict('repository Actions variable BEMOAT_FOUNDER_LOGINS must contain a comma-separated list of GitHub logins')
+    }
+    return logins
+  }
+
+  const readCampaignAuthorityEvidence = async (repo, campaignIssue) => {
+    const [comments, trustedFounderLogins, mainRef] = await Promise.all([
+      Promise.resolve(readIssueComments(repo, campaignIssue)),
+      readTrustedFounderLogins(repo),
+      Promise.resolve(JSON.parse(runGh(['api', `repos/${repo}/git/ref/heads/main`]))),
+    ])
+    const currentProtectedBaseSha = mainRef?.object?.sha
+    if (!FULL_SHA_RE.test(String(currentProtectedBaseSha ?? ''))) {
+      throw blockedExternal('live protected main ref is unavailable while verifying campaign expansion authority')
+    }
+    return {
+      campaignExpansionAuthority: {
+        comments,
+        trustedFounderLogins,
+        currentProtectedBaseSha,
+      },
+    }
   }
 
   return {
@@ -804,15 +843,8 @@ function createProductionDeps() {
         non_superseded: !/superseded|not authoritative/i.test(body),
       }
     },
-    readTrustedFounderLogins: async (repo) => {
-      const variable = JSON.parse(runGh(['api', `repos/${repo}/actions/variables/BEMOAT_FOUNDER_LOGINS`]))
-      const value = String(variable.value ?? '').trim()
-      const logins = value.split(',').map((login) => login.trim()).filter(Boolean)
-      if (logins.length === 0 || logins.some((login) => !/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/.test(login))) {
-        throw stateConflict('repository Actions variable BEMOAT_FOUNDER_LOGINS must contain a comma-separated list of GitHub logins')
-      }
-      return logins
-    },
+    readTrustedFounderLogins,
+    readCampaignAuthorityEvidence,
     markReadyForReview: async (prNumber, repo) => { runGh(['pr', 'ready', String(prNumber), '--repo', repo]) },
     mergePullRequest: async ({ prNumber, repo, expectedHead }) => {
       runGh(['pr', 'merge', String(prNumber), '--repo', repo, '--merge', '--match-head-commit', expectedHead])
@@ -864,8 +896,10 @@ function createProductionDeps() {
     },
     projectCampaignSliceDone: async ({ repo, campaignIssue, campaignSlice, taskIssue, prNumber, reviewedHead, mergeCommit, authorizationCommentId }) => {
       const issue = JSON.parse(runGh(['issue', 'view', String(campaignIssue), '--repo', repo, '--json', 'body,state']))
-      const parsed = parseCampaign(issue.body)
-      if (!parsed.present || !parsed.valid) throw stateConflict(`campaign Issue #${campaignIssue} has invalid projection: ${parsed.reason ?? 'missing campaign block'}`)
+      const hasExpansionAuthority = /campaign_expansion_authority\s*:/.test(String(issue.body ?? ''))
+      const evidence = hasExpansionAuthority ? await readCampaignAuthorityEvidence(repo, campaignIssue) : undefined
+      const parsed = parseCampaign(issue.body, { evidence })
+      if (!parsed.present || !parsed.valid) campaignParseFailure(parsed, `campaign Issue #${campaignIssue} has invalid projection`)
       const key = String(campaignSlice)
       const priorSlice = parsed.campaign?.slices?.[key]
       if (!priorSlice || (priorSlice.issue != null && normalizeIssueNumber(priorSlice.issue) !== taskIssue)) {
@@ -889,7 +923,15 @@ function createProductionDeps() {
         updated_at: new Date().toISOString(),
         updated_by: 'Founder-authorized merge transport',
       }
-      const replacement = replaceCampaignBlock(issue.body, nextCampaign)
+      const transition = validateCampaignTransition(parsed.campaign, nextCampaign, {
+        mode: 'lifecycle',
+        targetSlice: key,
+        evidence,
+      })
+      if (!transition.valid) {
+        throw stateConflict(`${transition.code ?? 'CAMPAIGN_TRANSITION_INVALID'}: ${transition.reason}`)
+      }
+      const replacement = replaceCampaignBlock(issue.body, nextCampaign, { evidence })
       if (!replacement.unchanged) {
         await writeIssueBodyWithLease({
           repo,
@@ -903,21 +945,20 @@ function createProductionDeps() {
         })
       }
       const verified = JSON.parse(runGh(['issue', 'view', String(campaignIssue), '--repo', repo, '--json', 'body']))
-      const verifiedCampaign = parseCampaign(verified.body)
+      const verifiedEvidence = hasExpansionAuthority ? await readCampaignAuthorityEvidence(repo, campaignIssue) : undefined
+      const verifiedCampaign = parseCampaign(verified.body, { evidence: verifiedEvidence })
       if (!verifiedCampaign.valid || verifiedCampaign.campaign?.slices?.[key]?.status !== 'DONE') {
-        throw stateConflict(`campaign slice ${key} DONE projection did not survive postcondition verification`)
+        campaignParseFailure(verifiedCampaign, `campaign slice ${key} DONE projection did not survive postcondition verification`)
       }
       return { status: 'DONE', campaignIssue, campaignSlice }
     },
     selectNextCampaignAction: async ({ repo, campaignIssue }) => {
       const issue = JSON.parse(runGh(['issue', 'view', String(campaignIssue), '--repo', repo, '--json', 'body']))
-      const parsed = parseCampaign(issue.body)
-      if (!parsed.valid) throw stateConflict('campaign evidence is unavailable while selecting the next action')
-      const next = Object.entries(parsed.campaign.slices ?? {}).find(([, slice]) => slice?.status === 'NOT_STARTED')
-      return {
-        action: next ? `Campaign slice ${next[0]} is selected for a future bounded action.` : 'none on this campaign',
-        started: false,
-      }
+      const hasExpansionAuthority = /campaign_expansion_authority\s*:/.test(String(issue.body ?? ''))
+      const evidence = hasExpansionAuthority ? await readCampaignAuthorityEvidence(repo, campaignIssue) : undefined
+      const parsed = parseCampaign(issue.body, { evidence })
+      if (!parsed.valid) campaignParseFailure(parsed, 'campaign evidence is unavailable while selecting the next action')
+      return selectNextCampaignAction(parsed.campaign)
     },
     reconcile: async (issueNumber, repo) => {
       const stdout = runNode(

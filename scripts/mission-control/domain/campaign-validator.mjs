@@ -7,9 +7,13 @@ import {
   CAMPAIGN_REQUIRED_KEYS,
   FULL_COMMIT_SHA,
   INTERNAL_DESTINATION_PREFIXES,
-  SLICE_KEYS,
   SLICE_REQUIRED_KEYS,
 } from './campaign-enums.mjs'
+import {
+  CAMPAIGN_DIAGNOSTIC_CODES as AUTHORITY_DIAGNOSTIC_CODES,
+  inspectSliceRange,
+  validateCampaignExpansionAuthority,
+} from './campaign-authority.mjs'
 import {
   normalizeCampaignLifecycle,
   normalizeFacadeDisposition,
@@ -201,18 +205,51 @@ function validateSlice(slice, key, blockerIds) {
  * @param {Set<string>} blockerIds
  * @returns {{ valid: true, slices: Record<string, unknown> } | { valid: false, reason: string }}
  */
-function validateSlices(slices, blockerIds) {
+function validateSlices(slices, blockerIds, expansionAuthority) {
   if (!slices || typeof slices !== 'object' || Array.isArray(slices)) {
     return { valid: false, reason: 'slices must be a mapping' }
   }
 
-  const keys = Object.keys(slices)
-  if (keys.length !== SLICE_KEYS.length || SLICE_KEYS.some((key) => !Object.hasOwn(slices, key))) {
-    return { valid: false, reason: 'slices must contain keys "1" through "7" exactly once' }
+  const range = inspectSliceRange(slices)
+  if (!range.valid) {
+    if (expansionAuthority.expanded) return range
+    return {
+      valid: false,
+      code: AUTHORITY_DIAGNOSTIC_CODES.SLICE_KEYS_NOT_CONTIGUOUS,
+      reason: 'slices must contain keys "1" through "7" exactly once',
+    }
+  }
+  if (!expansionAuthority.expanded && range.maxSlice > 7) {
+    return {
+      valid: false,
+      code: AUTHORITY_DIAGNOSTIC_CODES.RANGE_UNAUTHORIZED,
+      reason: 'campaign slice range exceeds Founder-authorized maximum',
+    }
+  }
+  if (!expansionAuthority.expanded && range.maxSlice < 7) {
+    return {
+      valid: false,
+      code: AUTHORITY_DIAGNOSTIC_CODES.RANGE_SHRINK,
+      reason: 'legacy campaign slice range must contain keys "1" through "7" exactly once',
+    }
+  }
+  if (expansionAuthority.expanded && range.maxSlice < 8) {
+    return {
+      valid: false,
+      code: AUTHORITY_DIAGNOSTIC_CODES.RANGE_UNAUTHORIZED,
+      reason: 'campaign expansion authority requires an expanded slice range',
+    }
+  }
+  if (expansionAuthority.expanded && range.maxSlice > expansionAuthority.maxSlice) {
+    return {
+      valid: false,
+      code: AUTHORITY_DIAGNOSTIC_CODES.RANGE_UNAUTHORIZED,
+      reason: 'campaign slice range exceeds Founder-authorized maximum',
+    }
   }
 
   const normalized = {}
-  for (const key of SLICE_KEYS) {
+  for (const key of range.keys) {
     const result = validateSlice(slices[key], key, blockerIds)
     if (!result.valid) return result
     normalized[key] = result.slice
@@ -224,7 +261,7 @@ function validateSlices(slices, blockerIds) {
  * @param {unknown} rootScriptMap
  * @returns {{ valid: true, root_script_map: Record<string, unknown> } | { valid: false, reason: string }}
  */
-function validateRootScriptMap(rootScriptMap) {
+function validateRootScriptMap(rootScriptMap, expansionAuthority) {
   if (!rootScriptMap || typeof rootScriptMap !== 'object' || Array.isArray(rootScriptMap)) {
     return { valid: false, reason: 'root_script_map must be a mapping' }
   }
@@ -232,7 +269,27 @@ function validateRootScriptMap(rootScriptMap) {
     return { valid: false, reason: 'root_script_map.contract_path must be scripts/architecture-contract.json' }
   }
   const status = normalizeRootScriptMapValidationStatus(rootScriptMap.validation_status)
-  if (!status.ok) return { valid: false, reason: status.reason }
+  if (!status.ok) {
+    return {
+      valid: false,
+      code: AUTHORITY_DIAGNOSTIC_CODES.ROOT_SCRIPT_MAP_STATUS_INVALID,
+      reason: status.reason,
+    }
+  }
+  if (expansionAuthority.expanded && status.value === 'PENDING_IMPLEMENTATION') {
+    return {
+      valid: false,
+      code: AUTHORITY_DIAGNOSTIC_CODES.ROOT_SCRIPT_MAP_STATUS_INVALID,
+      reason: 'expanded campaign cannot use PENDING_IMPLEMENTATION root status',
+    }
+  }
+  if (!expansionAuthority.expanded && status.value === 'PENDING_EXPANDED_IMPLEMENTATION') {
+    return {
+      valid: false,
+      code: AUTHORITY_DIAGNOSTIC_CODES.ROOT_SCRIPT_MAP_STATUS_INVALID,
+      reason: 'PENDING_EXPANDED_IMPLEMENTATION requires an authority-backed expanded range',
+    }
+  }
   return {
     valid: true,
     root_script_map: {
@@ -304,8 +361,8 @@ export function validateCampaignEvidence(campaign, evidence = null) {
   }
 
   const slices = campaign.slices
-  if (slices && typeof slices === 'object') {
-    for (const key of SLICE_KEYS) {
+  if (slices && typeof slices === 'object' && Object.hasOwn(evidence, 'approvedBaseMergedCommits')) {
+    for (const key of Object.keys(slices).sort((left, right) => Number(left) - Number(right))) {
       const slice = slices[key]
       if (!slice || slice.status !== 'DONE') continue
       const proof = evidence.approvedBaseMergedCommits?.[slice.merged_commit]
@@ -370,14 +427,37 @@ export function validateCampaign(campaign, options = {}) {
   const authority = validateArchitectureAuthority(campaign.architecture_authority)
   if (!authority.valid) return { valid: false, reason: authority.reason, campaign: null }
 
+  const expansionAuthority = validateCampaignExpansionAuthority(campaign.campaign_expansion_authority, options.evidence ?? null)
+  if (!expansionAuthority.valid) {
+    return {
+      valid: false,
+      code: expansionAuthority.code,
+      reason: expansionAuthority.reason,
+      classification: expansionAuthority.classification,
+      campaign: null,
+    }
+  }
+
   const blockers = validateCampaignBlockers(campaign.campaign_blockers)
   if (!blockers.valid) return { valid: false, reason: blockers.reason, campaign: null }
 
-  const slices = validateSlices(campaign.slices, blockers.ids)
-  if (!slices.valid) return { valid: false, reason: slices.reason, campaign: null }
+  const slices = validateSlices(campaign.slices, blockers.ids, expansionAuthority)
+  if (!slices.valid) return {
+    valid: false,
+    code: slices.code,
+    reason: slices.reason,
+    classification: slices.classification ?? 'STATE_CONFLICT',
+    campaign: null,
+  }
 
-  const rootScriptMap = validateRootScriptMap(campaign.root_script_map)
-  if (!rootScriptMap.valid) return { valid: false, reason: rootScriptMap.reason, campaign: null }
+  const rootScriptMap = validateRootScriptMap(campaign.root_script_map, expansionAuthority)
+  if (!rootScriptMap.valid) return {
+    valid: false,
+    code: rootScriptMap.code,
+    reason: rootScriptMap.reason,
+    classification: rootScriptMap.classification ?? 'STATE_CONFLICT',
+    campaign: null,
+  }
 
   const normalized = {
     ...campaign,

@@ -7,6 +7,10 @@ import yaml from 'yaml'
 
 import { parseMissionControlState, renderMissionControlState } from '../../scripts/mission-control-state.mjs'
 import { sameCampaignValue } from '../../scripts/mission-control/domain/campaign-equality.mjs'
+import {
+  selectNextCampaignAction,
+  validateCampaignTransition,
+} from '../../scripts/mission-control/domain/campaign-authority.mjs'
 import { parseCampaign } from '../../scripts/mission-control/domain/campaign-parser.mjs'
 import { renderCampaign, replaceCampaignBlock } from '../../scripts/mission-control/domain/campaign-renderer.mjs'
 import { validateCampaign } from '../../scripts/mission-control/domain/campaign-validator.mjs'
@@ -36,7 +40,7 @@ function listRootScripts() {
     .sort()
 }
 
-function loadExactCampaignFixture(overrides: Record<string, unknown> = {}) {
+function loadExactCampaignFixture(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   const raw = readFixtureText('issue-215-campaign-fixture.exact.yaml')
   const parsed = yaml.parse(raw) as Record<string, unknown>
   return {
@@ -44,6 +48,57 @@ function loadExactCampaignFixture(overrides: Record<string, unknown> = {}) {
     updated_at: '2026-08-02T05:30:00.000Z',
     ...overrides,
   }
+}
+
+function loadExpandedCampaignFixture(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  const raw = readFixtureText('issue-215-campaign-expanded-fixture.exact.yaml')
+  const parsed = yaml.parse(raw) as Record<string, unknown>
+  return {
+    ...parsed,
+    updated_at: '2026-08-03T04:18:59.703Z',
+    ...overrides,
+  }
+}
+
+function campaignAuthorityEvidence(overrides: Record<string, unknown> = {}) {
+  const issueUrl = 'https://api.github.com/repos/boat1994/bemoat-web-starter/issues/215'
+  return {
+    campaignExpansionAuthority: {
+      comments: [
+        {
+          id: '5158200377',
+          body: readFixtureText('issue-215-expansion-authority.exact.md').replace(/\n$/, ''),
+          issue_url: issueUrl,
+          user: { login: 'boat1994' },
+        },
+        {
+          id: '5158205807',
+          body: '## FOUNDER_DIRECTIVE — scripts root architecture invariant',
+          issue_url: issueUrl,
+          user: { login: 'boat1994' },
+        },
+        {
+          id: '5158212142',
+          body: '## FOUNDER_ARCHITECTURE_DIRECTIVE',
+          issue_url: issueUrl,
+          user: { login: 'boat1994' },
+        },
+      ],
+      trustedFounderLogins: ['boat1994'],
+      currentProtectedBaseSha: 'd6e99c350f8d92e536fe97f81bd6507f6cdaa686',
+      ...overrides,
+    },
+  }
+}
+
+function wrapCampaignYaml(raw: string) {
+  return [
+    '<!-- bemoat-mission-control-campaign:start -->',
+    '```yaml',
+    raw.trim(),
+    '```',
+    '<!-- bemoat-mission-control-campaign:end -->',
+  ].join('\n')
 }
 
 describe('campaign schema characterization (Issue #243)', () => {
@@ -150,6 +205,17 @@ describe('campaign schema v1 domain', () => {
     expect(validated.classification).toBe('STATE_MIGRATION_REQUIRED')
   })
 
+  it('rejects a legacy campaign that shrinks below the exact seven-slice contract', () => {
+    const campaign = loadExactCampaignFixture()
+    delete (campaign.slices as Record<string, unknown>)['7']
+
+    expect(validateCampaign(campaign)).toMatchObject({
+      valid: false,
+      code: 'CAMPAIGN_SLICE_RANGE_SHRINK',
+      classification: 'STATE_CONFLICT',
+    })
+  })
+
   it('fails closed on stale or contradictory evidence', () => {
     const campaign = loadExactCampaignFixture()
     expect(validateCampaign(campaign, { evidence: { stale: true } }).classification).toBe('STATE_CONFLICT')
@@ -237,5 +303,209 @@ describe('campaign projection workflow boundary', () => {
       /<!--\s*bemoat-mission-control-state:start\s*-->[\s\S]*?<!--\s*bemoat-mission-control-state:end\s*-->/,
     )?.[0]
     expect(sha256(task ?? '')).toBe('ceb4969293d9b46995cdcec8ce67762da1452706e6c90708c28ce771c4f7cfa8')
+  })
+})
+
+describe('authority-backed campaign schema expansion (Issue #254)', () => {
+  it('parses and renders the exact eleven-slice fixture only with verified authority evidence', () => {
+    const campaign = loadExpandedCampaignFixture()
+    const evidence = campaignAuthorityEvidence()
+
+    const unavailable = parseCampaign(`${renderCampaign(campaign)}\n`)
+    expect(unavailable).toMatchObject({
+      present: true,
+      valid: false,
+      classification: 'BLOCKED_EXTERNAL',
+      code: 'CAMPAIGN_AUTHORITY_UNAVAILABLE',
+      campaign: null,
+    })
+
+    const validated = validateCampaign(campaign, { evidence })
+    expect(validated).toMatchObject({ valid: true })
+    expect(Object.keys(validated.campaign?.slices ?? {})).toEqual(
+      Array.from({ length: 11 }, (_, index) => String(index + 1)),
+    )
+    expect(validated.campaign?.root_script_map).toMatchObject({
+      validation_status: 'PENDING_EXPANDED_IMPLEMENTATION',
+    })
+
+    const rendered = renderCampaign(validated.campaign as Record<string, unknown>)
+    const reparsed = parseCampaign(`${rendered}\n`, { evidence })
+    expect(reparsed.valid).toBe(true)
+    expect(sameCampaignValue(reparsed.campaign, validated.campaign)).toBe(true)
+    expect(renderCampaign(reparsed.campaign as Record<string, unknown>)).toBe(rendered)
+  })
+
+  it.each([
+    ['unauthorized extra slice', () => {
+      const legacy = loadExactCampaignFixture()
+      const expanded = loadExpandedCampaignFixture()
+      return {
+        ...legacy,
+        slices: {
+          ...(legacy.slices as Record<string, unknown>),
+          '8': structuredClone((expanded.slices as Record<string, unknown>)['8']),
+        },
+      }
+    }, undefined, 'CAMPAIGN_SLICE_RANGE_UNAUTHORIZED'],
+    ['gap in expanded range', () => {
+      const campaign = loadExpandedCampaignFixture()
+      const slices = structuredClone(campaign.slices) as Record<string, unknown>
+      delete slices['8']
+      return { ...campaign, slices }
+    }, campaignAuthorityEvidence(), 'CAMPAIGN_SLICE_KEYS_NOT_CONTIGUOUS'],
+    ['malformed authority lineage', () => {
+      const campaign = loadExpandedCampaignFixture()
+      return {
+        ...campaign,
+        campaign_expansion_authority: {
+          ...(campaign.campaign_expansion_authority as Record<string, unknown>),
+          source: {
+            ...((campaign.campaign_expansion_authority as Record<string, unknown>).source as Record<string, unknown>),
+            comment_id: 'not-a-comment-id',
+          },
+        },
+      }
+    }, campaignAuthorityEvidence(), 'CAMPAIGN_AUTHORITY_INVALID'],
+    ['unknown root status', () => {
+      const campaign = loadExpandedCampaignFixture()
+      return {
+        ...campaign,
+        root_script_map: { ...(campaign.root_script_map as Record<string, unknown>), validation_status: 'UNKNOWN' },
+      }
+    }, campaignAuthorityEvidence(), 'CAMPAIGN_ROOT_SCRIPT_MAP_STATUS_INVALID'],
+    ['range beyond the authority maximum', () => {
+      const campaign = loadExpandedCampaignFixture()
+      const slices = structuredClone(campaign.slices) as Record<string, unknown>
+      slices['12'] = structuredClone(slices['11'])
+      return { ...campaign, slices }
+    }, campaignAuthorityEvidence(), 'CAMPAIGN_SLICE_RANGE_UNAUTHORIZED'],
+  ])('fails closed on %s', (_label, buildCampaign, evidence, code) => {
+    const result = validateCampaign(buildCampaign(), evidence ? { evidence } : undefined)
+    expect(result).toMatchObject({ valid: false, code, classification: 'STATE_CONFLICT' })
+  })
+
+  it('detects duplicate slice keys before YAML object normalization', () => {
+    const campaign = loadExpandedCampaignFixture()
+    const raw = yaml.stringify(campaign)
+    const duplicate = raw.replace(
+      '  "9":',
+      '  8:\n    status: NOT_STARTED\n    issue: null\n    pr: null\n    reviewed_head: null\n    merged_commit: null\n    authority_comment_ids: []\n    blocker_ids: []\n  "9":',
+    )
+
+    const result = parseCampaign(wrapCampaignYaml(duplicate), { evidence: campaignAuthorityEvidence() })
+    expect(result).toMatchObject({
+      valid: false,
+      code: 'CAMPAIGN_YAML_DUPLICATE_KEY',
+      classification: 'STATE_CONFLICT',
+      campaign: null,
+    })
+  })
+
+  it('accepts only authority-backed append transitions and rejects shrinkage, renumbering, and completed mutation', () => {
+    const expanded = loadExpandedCampaignFixture()
+    const prior = structuredClone(expanded) as Record<string, unknown>
+    delete prior.campaign_expansion_authority
+    for (const key of ['8', '9', '10', '11']) delete (prior.slices as Record<string, unknown>)[key]
+    const priorRootScriptMap = prior.root_script_map as Record<string, unknown>
+    priorRootScriptMap.validation_status = 'PENDING_IMPLEMENTATION'
+    const evidence = campaignAuthorityEvidence()
+
+    expect(validateCampaignTransition(prior, expanded, { mode: 'append', evidence })).toMatchObject({ valid: true })
+
+    expect(validateCampaignTransition(expanded, prior, { mode: 'lifecycle', targetSlice: '7', evidence })).toMatchObject({
+      valid: false,
+      code: 'CAMPAIGN_SLICE_RANGE_SHRINK',
+      classification: 'STATE_CONFLICT',
+    })
+
+    const renumbered = structuredClone(expanded) as Record<string, unknown>
+    const renumberedSlices = renumbered.slices as Record<string, unknown>
+    delete renumberedSlices['7']
+    renumberedSlices['12'] = structuredClone(renumberedSlices['11'])
+    expect(validateCampaignTransition(expanded, renumbered, { mode: 'lifecycle', targetSlice: '7', evidence })).toMatchObject({
+      valid: false,
+      code: 'CAMPAIGN_SLICE_RANGE_RENUMBERED',
+      classification: 'STATE_CONFLICT',
+    })
+
+    const completedMutation = structuredClone(expanded) as Record<string, unknown>
+    const completedSlice = (completedMutation.slices as Record<string, Record<string, unknown>>)['1']
+    completedSlice.authority_comment_ids = []
+    expect(validateCampaignTransition(expanded, completedMutation, { mode: 'lifecycle', targetSlice: '1', evidence })).toMatchObject({
+      valid: false,
+      code: 'CAMPAIGN_COMPLETED_SLICE_MUTATION',
+      classification: 'STATE_CONFLICT',
+    })
+
+    const invalidNewRow = structuredClone(expanded) as Record<string, unknown>
+    const invalidNewRowSlices = invalidNewRow.slices as Record<string, Record<string, unknown>>
+    invalidNewRowSlices['8'].issue = '#999'
+    expect(validateCampaignTransition(prior, invalidNewRow, { mode: 'append', evidence })).toMatchObject({
+      valid: false,
+      code: 'CAMPAIGN_EXPANSION_ROW_INVALID',
+      classification: 'STATE_CONFLICT',
+    })
+  })
+
+  it('rejects stale authority evidence and selects the first future slice without starting it', () => {
+    const campaign = loadExpandedCampaignFixture()
+    const staleEvidence = campaignAuthorityEvidence({
+      comments: [
+        {
+          id: '5158200377',
+          body: 'edited authority',
+          issue_url: 'https://api.github.com/repos/boat1994/bemoat-web-starter/issues/215',
+          user: { login: 'boat1994' },
+        },
+      ],
+    })
+    expect(validateCampaign(campaign, { evidence: staleEvidence })).toMatchObject({
+      valid: false,
+      code: 'CAMPAIGN_AUTHORITY_STALE',
+      classification: 'STATE_CONFLICT',
+    })
+
+    expect(validateCampaign(campaign, {
+      evidence: campaignAuthorityEvidence({ contradictory: true }),
+    })).toMatchObject({
+      valid: false,
+      code: 'CAMPAIGN_AUTHORITY_INVALID',
+      classification: 'STATE_CONFLICT',
+    })
+
+    expect(selectNextCampaignAction(campaign)).toMatchObject({ slice: '5', started: false })
+  })
+
+  it('validates append and lifecycle transitions before campaign projection rendering', () => {
+    const expanded = loadExpandedCampaignFixture()
+    const prior = structuredClone(expanded) as Record<string, unknown>
+    delete prior.campaign_expansion_authority
+    for (const key of ['8', '9', '10', '11']) delete (prior.slices as Record<string, unknown>)[key]
+    const priorRootScriptMap = prior.root_script_map as Record<string, unknown>
+    priorRootScriptMap.validation_status = 'PENDING_IMPLEMENTATION'
+    const evidence = campaignAuthorityEvidence()
+
+    const appended = projectCampaign({
+      body: `${renderCampaign(prior)}\n`,
+      campaign: expanded,
+      mode: 'dry-run',
+      evidence,
+      transition: { mode: 'append' },
+    })
+    expect(appended).toMatchObject({ ok: true, replaced: true })
+
+    const shrunk = projectCampaign({
+      body: `${renderCampaign(expanded)}\n`,
+      campaign: prior,
+      mode: 'dry-run',
+      evidence,
+      transition: { mode: 'lifecycle', targetSlice: '7' },
+    })
+    expect(shrunk).toMatchObject({
+      ok: false,
+      code: 'CAMPAIGN_SLICE_RANGE_SHRINK',
+      classification: 'STATE_CONFLICT',
+    })
   })
 })

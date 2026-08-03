@@ -104,7 +104,7 @@ export function normalizeRootScriptMapValidationStatus(value) {
   if (typeof value !== 'string' || !ROOT_SCRIPT_MAP_VALIDATION_STATUSES.has(value)) {
     return {
       ok: false,
-      reason: 'root_script_map.validation_status must be PENDING_IMPLEMENTATION, VALID, or INVALID',
+      reason: 'root_script_map.validation_status must be PENDING_IMPLEMENTATION, PENDING_EXPANDED_IMPLEMENTATION, VALID, or INVALID',
     }
   }
   return { ok: true, value }

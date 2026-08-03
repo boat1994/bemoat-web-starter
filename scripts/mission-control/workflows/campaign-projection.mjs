@@ -5,6 +5,7 @@
  */
 
 import { sameCampaignValue } from '../domain/campaign-equality.mjs'
+import { validateCampaignTransition } from '../domain/campaign-authority.mjs'
 import { parseCampaign } from '../domain/campaign-parser.mjs'
 import { renderCampaign, replaceCampaignBlock } from '../domain/campaign-renderer.mjs'
 import { validateCampaign } from '../domain/campaign-validator.mjs'
@@ -15,6 +16,7 @@ import { validateCampaign } from '../domain/campaign-validator.mjs'
  *   campaign: Record<string, unknown>,
  *   mode?: 'render-only' | 'dry-run',
  *   evidence?: object,
+ *   transition?: { mode: 'append' | 'lifecycle', targetSlice?: string | number },
  * }} input
  */
 export function projectCampaign(input) {
@@ -31,8 +33,33 @@ export function projectCampaign(input) {
   if (!validated.valid) {
     return {
       ok: false,
+      code: validated.code,
       classification: validated.classification ?? 'STATE_CONFLICT',
       reason: validated.reason,
+    }
+  }
+
+  if (input.transition) {
+    const prior = parseCampaign(input.body, { evidence: input.evidence })
+    if (!prior.present || !prior.valid) {
+      return {
+        ok: false,
+        code: prior.code,
+        classification: prior.classification ?? 'STATE_CONFLICT',
+        reason: prior.reason ?? 'campaign transition requires a valid prior campaign',
+      }
+    }
+    const transition = validateCampaignTransition(prior.campaign, validated.campaign, {
+      ...input.transition,
+      evidence: input.evidence,
+    })
+    if (!transition.valid) {
+      return {
+        ok: false,
+        code: transition.code,
+        classification: transition.classification ?? 'STATE_CONFLICT',
+        reason: transition.reason,
+      }
     }
   }
 
@@ -48,7 +75,7 @@ export function projectCampaign(input) {
   }
 
   const priorTask = extractTaskBlock(input.body)
-  const replacement = replaceCampaignBlock(input.body, validated.campaign)
+  const replacement = replaceCampaignBlock(input.body, validated.campaign, { evidence: input.evidence })
   const afterTask = extractTaskBlock(replacement.body)
   if (priorTask !== afterTask) {
     return {
@@ -62,6 +89,7 @@ export function projectCampaign(input) {
   if (!reparsed.present || !reparsed.valid) {
     return {
       ok: false,
+      code: reparsed.code,
       classification: reparsed.classification ?? 'STATE_CONFLICT',
       reason: reparsed.reason ?? 'projected campaign failed reparse',
     }
