@@ -66,7 +66,25 @@ running a transport.
 
 Examples of accepted bodies:
 - [HANDOFF](handoff-template.md)
-- `REVIEW_VERDICT`: Use a minimal structurally complete canonical template containing all required role-comment fields (e.g., identity, exact head, target state). Do not describe `result-template.md` as a complete accepted body unless it actually contains all required role-comment fields.
+- `REVIEW_VERDICT`: Use a minimal structurally complete canonical template containing all required role-comment fields. Do not describe `result-template.md` as a complete accepted body unless it actually contains all required role-comment fields.
+
+Example canonical `REVIEW_VERDICT` body (all values are fake):
+
+```markdown
+## REVIEW_VERDICT
+
+### Task log
+- Timestamp: `2026-08-01T12:00:00+00:00`
+- Task / Issue: #9999
+- Phase: Reviewer
+- Executing role: Reviewer
+
+**PR / base / head:** https://github.com/fake/repo/pull/9999 · `main` · `1111111111111111111111111111111111111111`
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+**Findings:** Critical: None · Important: None
+**Gates:** exact-head CI pass
+**Next:** Founder review
+```
 
 ## Dispatch
 
@@ -126,7 +144,7 @@ For an eligible review state, reconcile selects exactly one active live
 `REVIEW_VERDICT` for that Task Issue, then requires its PR number, base branch,
 and exact head to match the live PR and state. For other states it evaluates
 live Issue, PR, comment, campaign, and protected-base evidence before proposing
-an allowed deterministic repair. Valid NO_OP behavior means the state is already completely aligned. Routing-only repair behavior safely advances the state graph to resolve a missing transition.
+an allowed deterministic repair. Valid NO_OP behavior means the state is already completely aligned. Routing-only repair behavior repairs routing lineage while preserving domain state, review cycle, counters, PR/head bindings, RESULT lineage, and verdict. It cannot bootstrap a missing managed-state block.
 
 Fetch active review verdicts: `gh issue view 123 --json comments`
 
@@ -176,7 +194,7 @@ pnpm run bemoat:mission-control:review -- 123 --body-file .tmp/verdict.md --expe
 
 Missing required flags, a malformed verdict, stale state, wrong review type,
 or any PR/base/head mismatch fails closed as `STATE_CONFLICT`. Unavailable
-GitHub or CI evidence is `BLOCKED_EXTERNAL`. Note that GitHub evidence that cannot be read is `BLOCKED_EXTERNAL`, while CI that is present but not verified is treated as a validation failure. Exact-head CI must match the
+GitHub or CI evidence is `BLOCKED_EXTERNAL`. Note that GitHub evidence that cannot be read is `BLOCKED_EXTERNAL`, while CI that is present but not verified is treated as a runtime validation failure (e.g., `STATE_CONFLICT` during review). Exact-head CI must match the
 current PR head, not merely an earlier reviewed commit. Do not use a manually
 edited Issue body, direct `gh issue edit`, manual YAML, or an ad hoc verdict
 script as a substitute.
@@ -227,7 +245,7 @@ transition scripts are prohibited substitutes.
 | success | The operation completed fully and state was advanced. No retry needed. |
 | NO_OP | The state is already correctly aligned with live evidence. No retry needed. |
 | RECOVERABLE_ROUTING_DRIFT | The `REVIEW_VERDICT` comment was posted but state projection failed. Rerun the same canonical review command. Do not post another verdict manually. Do not edit Issue YAML. |
-| STATE_CONFLICT | State, PR, or comment evidence disagreed. Stop, refresh live context, and manually resolve before retrying. |
+| STATE_CONFLICT | State, PR, or comment evidence disagreed. Stop, refresh live context, and require live evidence reconstruction and the approved canonical reconcile/correction path. Require Founder decision when no canonical repair path exists. Preserve the prohibition on direct `gh issue edit`, manual YAML, and ad hoc transition scripts. |
 | BLOCKED_EXTERNAL | A GitHub or CI API read failed. Can safely retry after verifying external availability. |
 | AUTHORIZATION_VALIDATION_FAILURE | Do not edit the immutable authorization comment. Stop merge. Require a new Founder-authored immutable authorization record when the prior record is malformed or mismatched. Record supersession where required. |
 
