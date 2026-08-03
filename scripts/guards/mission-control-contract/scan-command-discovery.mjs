@@ -11,10 +11,10 @@ export const UNMANAGED_GENESIS_REVIEW_FLAG = '--founder-authorization-comment-id
  * managed-state counters.
  */
 export function scanCommandDiscovery({
-  packageJson = null,
-  commandReference = null,
-  readme = null,
-  loader = null,
+  packageJson = '',
+  commandReference = '',
+  readme = '',
+  loader = '',
 } = {}) {
   const violations = []
 

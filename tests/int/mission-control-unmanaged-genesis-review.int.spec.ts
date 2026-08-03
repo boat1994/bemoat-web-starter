@@ -385,7 +385,7 @@ describe('unmanaged-genesis Full/Delta transport', () => {
       full: { reviewed_old_head: OLD_HEAD, findings_sha256: createHash('sha256').update('[]').digest('hex') },
       workflow: { file: 'x', ref: 'refs/heads/main', sha: MAIN_SHA, runId: '1' },
       signingKeyId: 'k',
-    })
+    } as any)
     const first = signUnmanagedGenesisReviewRecord({
       ...base,
       founder_authorization: { ...base.founder_authorization, comment_id: 1 },
