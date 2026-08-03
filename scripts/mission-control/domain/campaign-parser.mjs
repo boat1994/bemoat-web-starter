@@ -11,11 +11,12 @@ import {
   TASK_MARKER_END_RE,
   TASK_MARKER_START_RE,
 } from './campaign-enums.mjs'
+import { CAMPAIGN_DIAGNOSTIC_CODES } from './campaign-authority.mjs'
 import { validateCampaign } from './campaign-validator.mjs'
 
 /**
  * @param {string} body
- * @returns {{ present: boolean, valid: boolean, reason?: string, classification?: string, campaign: Record<string, unknown> | null }}
+ * @returns {{ present: boolean, valid: boolean, reason?: string, code?: string, classification?: string, campaign: Record<string, unknown> | null }}
  */
 export function parseCampaign(body = '', options = {}) {
   const text = String(body ?? '')
@@ -90,20 +91,47 @@ export function parseCampaign(body = '', options = {}) {
     .slice(start.index + start[0].length, end.index)
     .replace(/```yaml\s*|```/g, '')
 
-  let parsed
+  let document
   try {
-    parsed = yaml.parse(raw, { uniqueKeys: true })
+    document = yaml.parseDocument(raw, { uniqueKeys: false })
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    if (message.includes('Map keys must be unique')) {
-      return {
-        present: true,
-        valid: false,
-        reason: `duplicate campaign key: ${message}`,
-        classification: 'STATE_CONFLICT',
-        campaign: null,
-      }
+    return {
+      present: true,
+      valid: false,
+      reason: `unreadable campaign document: ${message}`,
+      classification: 'STATE_CONFLICT',
+      campaign: null,
     }
+  }
+
+  const duplicate = findDuplicateYamlKey(document.contents)
+  if (duplicate != null) {
+    return {
+      present: true,
+      valid: false,
+      reason: `duplicate campaign key: ${duplicate}`,
+      code: CAMPAIGN_DIAGNOSTIC_CODES.DUPLICATE_KEY,
+      classification: 'STATE_CONFLICT',
+      campaign: null,
+    }
+  }
+  if (document.errors.length > 0) {
+    const message = document.errors[0]?.message ?? String(document.errors[0])
+    return {
+      present: true,
+      valid: false,
+      reason: `unreadable campaign document: ${message}`,
+      classification: 'STATE_CONFLICT',
+      campaign: null,
+    }
+  }
+
+  let parsed
+  try {
+    parsed = document.toJS()
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
     return {
       present: true,
       valid: false,
@@ -119,10 +147,43 @@ export function parseCampaign(body = '', options = {}) {
       present: true,
       valid: false,
       reason: validated.reason,
+      code: validated.code,
       classification: validated.classification,
       campaign: null,
     }
   }
 
   return { present: true, valid: true, campaign: validated.campaign }
+}
+
+function isMappingNode(node) {
+  return Boolean(node) && Array.isArray(node.items) && node.items.every((item) => item && Object.hasOwn(item, 'key'))
+}
+
+function scalarKey(node) {
+  if (!node || !Object.hasOwn(node, 'value')) return null
+  return String(node.value)
+}
+
+function findDuplicateYamlKey(node) {
+  if (isMappingNode(node)) {
+    const seen = new Set()
+    for (const pair of node.items) {
+      const key = scalarKey(pair.key)
+      if (key != null) {
+        if (seen.has(key)) return key
+        seen.add(key)
+      }
+      const nested = findDuplicateYamlKey(pair.value)
+      if (nested != null) return nested
+    }
+    return null
+  }
+  if (node && Array.isArray(node.items)) {
+    for (const child of node.items) {
+      const nested = findDuplicateYamlKey(child)
+      if (nested != null) return nested
+    }
+  }
+  return null
 }

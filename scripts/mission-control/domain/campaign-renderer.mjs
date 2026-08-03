@@ -5,7 +5,8 @@
 
 import yaml from 'yaml'
 
-import { CAMPAIGN_MARKER_END, CAMPAIGN_MARKER_START, SLICE_KEYS } from './campaign-enums.mjs'
+import { CAMPAIGN_MARKER_END, CAMPAIGN_MARKER_START } from './campaign-enums.mjs'
+import { sortedSliceKeys } from './campaign-authority.mjs'
 import { sameCampaignValue } from './campaign-equality.mjs'
 import { parseCampaign } from './campaign-parser.mjs'
 
@@ -23,6 +24,7 @@ export function renderCampaign(campaign) {
     'campaign_issue',
     'campaign_lifecycle',
     'approved_base',
+    'campaign_expansion_authority',
     'architecture_authority',
     'slices',
     'root_script_map',
@@ -37,7 +39,7 @@ export function renderCampaign(campaign) {
     if (!Object.hasOwn(campaign, key)) continue
     if (key === 'slices' && campaign.slices && typeof campaign.slices === 'object') {
       const orderedSlices = {}
-      for (const sliceKey of SLICE_KEYS) {
+      for (const sliceKey of sortedSliceKeys(campaign.slices)) {
         if (Object.hasOwn(campaign.slices, sliceKey)) {
           orderedSlices[sliceKey] = campaign.slices[sliceKey]
         }
@@ -74,10 +76,10 @@ export function renderCampaign(campaign) {
  * @param {Record<string, unknown>} campaign
  * @returns {{ body: string, replaced: boolean, appended: boolean, unchanged: boolean }}
  */
-export function replaceCampaignBlock(body, campaign) {
+export function replaceCampaignBlock(body, campaign, options = {}) {
   const nextBlock = renderCampaign(campaign)
   const text = String(body ?? '')
-  const existing = parseCampaign(text)
+  const existing = parseCampaign(text, options)
 
   if (existing.present && !existing.valid) {
     throw new Error(`cannot replace invalid campaign block: ${existing.reason ?? 'invalid'}`)

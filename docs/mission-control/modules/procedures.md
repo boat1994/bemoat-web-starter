@@ -258,6 +258,13 @@ it must never emit a blank `ERROR:` diagnostic.
 
 ### Atomic implementation dispatch
 
+Campaign slice-range authority is independent from the root-script migration
+map. The root-script ownership contract remains bounded to slices `1`–`7`;
+an authority-backed campaign projection may append contiguous campaign rows
+beyond `7` without authorizing scripts-root refactoring or implementation of
+those future slices. Such projections must preserve the existing rows and
+append empty `NOT_STARTED` rows only.
+
 Use the managed dispatch action for a bounded implementation handoff:
 
 ```bash

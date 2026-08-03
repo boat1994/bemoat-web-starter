@@ -1,0 +1,131 @@
+schema_version: 1
+campaign_issue: "#215"
+campaign_lifecycle: BLOCKED
+approved_base: main
+campaign_expansion_authority:
+  schema_version: 1
+  decision: APPROVED
+  scope: campaign_slice_range
+  action: append_only_expand
+  source:
+    kind: github_issue_comment
+    repository: boat1994/bemoat-web-starter
+    issue: "#215"
+    comment_id: "5158200377"
+    author_login: boat1994
+    body_sha256: 8c6ff27eebbcc6ffce84227effad8e99f625e1ac1e2f4fdec93c92c0718516d2
+  approved_base: main
+  protected_base_sha: d6e99c350f8d92e536fe97f81bd6507f6cdaa686
+  policy_version: "1.3.0"
+  legacy_max_slice: 7
+  authorized_max_slice: 11
+  authorized_append_keys: ["8", "9", "10", "11"]
+  append_only: true
+  related_authority_comment_ids: ["5158205807", "5158212142"]
+architecture_authority:
+  issue: "#224"
+  comment_id: "5150196877"
+  target_contract_path: scripts/architecture-contract.json
+slices:
+  "1":
+    status: DONE
+    issue: "#215"
+    pr: "#239"
+    reviewed_head: dc4d575003adbe34b0653d2f057bf0f350c9663a
+    merged_commit: 5d04124cb135ffc66642dc4a168c58062af384ed
+    authority_comment_ids: ["5152207152"]
+    blocker_ids: []
+  "2":
+    status: DONE
+    issue: "#240"
+    pr: "#241"
+    reviewed_head: 551ee73c30c87c9ef1bb904043ee032943f84d9f
+    merged_commit: fbb587f883e10a4b7f2c21d2af80da84b2f95084
+    authority_comment_ids: ["5155953855", "5155987521", "5156004101"]
+    blocker_ids: []
+  "3":
+    status: DONE
+    issue: "#248"
+    pr: "#251"
+    reviewed_head: 7d4375514db797eb9733f26d2857bf1ac5f9737b
+    merged_commit: 5dc5e96c377ca82f74c567b6da5b41ab306acb62
+    authority_comment_ids: ["5156043845", "5157449879"]
+    blocker_ids: []
+  "4":
+    status: DONE
+    issue: "#252"
+    pr: "#253"
+    reviewed_head: e12e16445d6119979cec0e292e2ffb6ffab18e53
+    merged_commit: 2031e394e0ab912cdfb1e53f01df81990ac3196a
+    authority_comment_ids: ["5158178460", "5158147227"]
+    blocker_ids: []
+  "5":
+    status: NOT_STARTED
+    issue: null
+    pr: null
+    reviewed_head: null
+    merged_commit: null
+    authority_comment_ids: []
+    blocker_ids: []
+  "6":
+    status: NOT_STARTED
+    issue: null
+    pr: null
+    reviewed_head: null
+    merged_commit: null
+    authority_comment_ids: []
+    blocker_ids: []
+  "7":
+    status: NOT_STARTED
+    issue: null
+    pr: null
+    reviewed_head: null
+    merged_commit: null
+    authority_comment_ids: []
+    blocker_ids: []
+  "8":
+    status: NOT_STARTED
+    issue: null
+    pr: null
+    reviewed_head: null
+    merged_commit: null
+    authority_comment_ids: []
+    blocker_ids: []
+  "9":
+    status: NOT_STARTED
+    issue: null
+    pr: null
+    reviewed_head: null
+    merged_commit: null
+    authority_comment_ids: []
+    blocker_ids: []
+  "10":
+    status: NOT_STARTED
+    issue: null
+    pr: null
+    reviewed_head: null
+    merged_commit: null
+    authority_comment_ids: []
+    blocker_ids: []
+  "11":
+    status: NOT_STARTED
+    issue: null
+    pr: null
+    reviewed_head: null
+    merged_commit: null
+    authority_comment_ids: []
+    blocker_ids: []
+root_script_map:
+  contract_path: scripts/architecture-contract.json
+  validation_status: PENDING_EXPANDED_IMPLEMENTATION
+campaign_blockers:
+  - id: pr-241-merge-transport-contradiction
+    summary: "PR #241 body uses Closes #240 while merged-main transport requires Refs #240"
+    evidence:
+      issue: "#240"
+      pr: "#241"
+      comment_ids: []
+    resolution_scope: "Separate bounded transition; prohibited in this task"
+next_permitted_action: "Resolve the PR #241 merge-transport contradiction in a separate bounded transition without changing its reviewed head"
+updated_at: "2026-08-03T04:18:59.703Z"
+updated_by: "Mission Control"
