@@ -97,16 +97,30 @@ function createGhHarness({
   state = initialState(),
   comments = [{ id: verdictCommentId, body: verdictBody(), user: { login: 'boat1994' }, author_association: 'OWNER' }],
   prHead = reviewedHead,
+  prState = 'OPEN',
+  prBase = 'main',
+  prNumberOverride = Number(prNumber),
+  containedHeads = [reviewedHead],
 }: {
   state?: Record<string, unknown>
   comments?: Array<Record<string, unknown>>
   prHead?: string
+  prState?: 'OPEN' | 'MERGED' | 'CLOSED'
+  prBase?: string
+  prNumberOverride?: number
+  containedHeads?: string[]
 } = {}) {
   const root = mkdtempSync('/tmp/bemoat-review-verdict-reconcile-')
   tempRoots.push(root)
   writeFileSync(join(root, 'issue.md'), issueBody(state))
   writeFileSync(join(root, 'comments.json'), JSON.stringify(comments))
-  writeFileSync(join(root, 'pr.json'), JSON.stringify({ number: Number(prNumber), headRefOid: prHead, baseRefName: 'main', state: 'OPEN' }))
+  writeFileSync(join(root, 'pr.json'), JSON.stringify({
+    number: prNumberOverride,
+    headRefOid: prHead,
+    baseRefName: prBase,
+    state: prState,
+  }))
+  writeFileSync(join(root, 'contained.json'), JSON.stringify(containedHeads))
   writeFileSync(join(root, 'lease.json'), JSON.stringify({ sha: 'lease-0', content: { status: 'released' } }))
   writeFileSync(join(root, 'metrics.json'), JSON.stringify({ issueEdits: 0, leaseWrites: 0 }))
 
@@ -120,6 +134,7 @@ const args = process.argv.slice(2)
 const issuePath = join(root, 'issue.md')
 const commentsPath = join(root, 'comments.json')
 const prPath = join(root, 'pr.json')
+const containedPath = join(root, 'contained.json')
 const leasePath = join(root, 'lease.json')
 const metricsPath = join(root, 'metrics.json')
 const readJson = (path) => JSON.parse(readFileSync(path, 'utf8'))
@@ -158,6 +173,20 @@ if (args[0] === 'api') {
   const target = args.find((value) => value.includes('repos/${repo}/')) ?? ''
   if (target.includes('/issues/${issueNumber}/comments')) {
     process.stdout.write(JSON.stringify(readJson(commentsPath)))
+    process.exit(0)
+  }
+  const compareMatch = target.match(/\\/compare\\/([0-9a-f]{7,40})\\.\\.\\.([^/?]+)/)
+  if (compareMatch) {
+    const commit = compareMatch[1]
+    const base = compareMatch[2]
+    const contained = readJson(containedPath)
+    const onBase = Array.isArray(contained) && contained.includes(commit)
+    process.stdout.write(JSON.stringify({
+      status: onBase ? (base === 'main' ? 'ahead' : 'behind') : 'diverged',
+      ahead_by: onBase ? 3 : 0,
+      behind_by: onBase ? 0 : 3,
+      total_commits: onBase ? 3 : 0,
+    }))
     process.exit(0)
   }
   if (target.includes('/git/ref/heads/bemoat/mission-control-leases')) {
@@ -335,5 +364,162 @@ describe('Review-verdict identity normalization', () => {
       projectReview: (prior: Record<string, unknown>) => ({ ...prior, state: 'CORRECTION_REQUIRED_1' }),
     })).rejects.toThrow(/routing-only.*state/i)
     expect(state.state).toBe('ELIGIBLE_FOR_FOUNDER_REVIEW')
+  })
+})
+
+describe('merged managed active PR Review-verdict lineage reconciliation', () => {
+  it('reconciles routing lineage when the managed active PR is merged and contained in protected main', () => {
+    const harness = createGhHarness({
+      prState: 'MERGED',
+      containedHeads: [reviewedHead],
+      state: initialState({ latest_transition_identity: resultIdentity() }),
+    })
+    const result = runReconcile(harness)
+
+    expect(result.status, result.stderr || result.stdout).toBe(0)
+    expect(result.stdout).toContain('RECONCILED')
+    const parsed = readHarnessState(harness)
+    expect(parsed).toMatchObject({
+      state: 'ELIGIBLE_FOR_FOUNDER_REVIEW',
+      review_cycle: 1,
+      full_review_count: 1,
+      current_head: reviewedHead,
+      last_reviewed_head: reviewedHead,
+      latest_result_comment_id: resultCommentId,
+      latest_review_verdict_comment_id: verdictCommentId,
+      founder_decision: initialState().founder_decision,
+      guide_version: '1.3.0',
+      guide_source_sha: '18640666402ade75003cbf0a3556eef6ad63d536',
+    })
+    expect(JSON.parse(String(parsed.latest_transition_identity))).toMatchObject({
+      taskId: issueNumber,
+      role: 'REVIEW_VERDICT',
+    })
+  })
+
+  it('returns true NO_OP on identical merged-PR retry after lineage is canonical', () => {
+    const harness = createGhHarness({ prState: 'MERGED', containedHeads: [reviewedHead] })
+    const first = runReconcile(harness)
+    expect(first.status, first.stderr || first.stdout).toBe(0)
+    expect(first.stdout).toContain('RECONCILED')
+    const edits = readMetrics(harness).issueEdits
+    const second = runReconcile(harness)
+    expect(second.status, second.stderr || second.stdout).toBe(0)
+    expect(second.stdout).toContain('NO_OP')
+    expect(readMetrics(harness).issueEdits).toBe(edits)
+  })
+
+  it('preserves existing OPEN-PR reconciliation when the PR remains open', () => {
+    const harness = createGhHarness({ prState: 'OPEN' })
+    const result = runReconcile(harness)
+    expect(result.status, result.stderr || result.stdout).toBe(0)
+    expect(result.stdout).toContain('RECONCILED')
+    expect(readHarnessState(harness).latest_review_verdict_comment_id).toBe(verdictCommentId)
+  })
+
+  it.each([
+    ['closed but unmerged PR', { prState: 'CLOSED' as const }, /STATE_CONFLICT/],
+    ['merged PR head differing from managed reviewed head', {
+      prState: 'MERGED' as const,
+      prHead: staleHead,
+      state: initialState({ current_head: reviewedHead, last_reviewed_head: reviewedHead }),
+    }, /STATE_CONFLICT.*exact head/i],
+    ['merged head not contained in protected main', {
+      prState: 'MERGED' as const,
+      containedHeads: [] as string[],
+    }, /STATE_CONFLICT.*protected main/i],
+    ['protected main advancing without containing the reviewed head', {
+      prState: 'MERGED' as const,
+      containedHeads: [staleHead],
+    }, /STATE_CONFLICT.*protected main/i],
+    ['verdict binding a different PR', {
+      prState: 'MERGED' as const,
+      comments: [{
+        id: verdictCommentId,
+        body: verdictBody().replace('pull/260', 'pull/999').replace('Issue #259', 'Issue #259'),
+        user: { login: 'boat1994' },
+        author_association: 'OWNER',
+      }],
+    }, /STATE_CONFLICT.*PR/i],
+    ['verdict binding a different head', {
+      prState: 'MERGED' as const,
+      comments: [{
+        id: verdictCommentId,
+        body: verdictBody(staleHead),
+        user: { login: 'boat1994' },
+        author_association: 'OWNER',
+      }],
+    }, /STATE_CONFLICT/],
+    ['verdict binding a different base', {
+      prState: 'MERGED' as const,
+      comments: [{
+        id: verdictCommentId,
+        body: verdictBody().replace('`main`', '`dev`'),
+        user: { login: 'boat1994' },
+        author_association: 'OWNER',
+      }],
+    }, /STATE_CONFLICT.*base/i],
+    ['multiple competing active verdicts', {
+      prState: 'MERGED' as const,
+      comments: [
+        { id: '5163387315', body: verdictBody(), user: { login: 'boat1994' }, author_association: 'OWNER' },
+        { id: '5163387316', body: verdictBody(), user: { login: 'boat1994' }, author_association: 'OWNER' },
+      ],
+    }, /STATE_CONFLICT.*competing/i],
+  ])('rejects %s without writing managed state', (_label, overrides, expected) => {
+    const harness = createGhHarness(overrides)
+    const result = runReconcile(harness)
+    expect(result.status).toBe(1)
+    expect(result.stderr).toMatch(expected)
+    expect(readMetrics(harness).issueEdits).toBe(0)
+    expect(readHarnessState(harness).latest_review_verdict_comment_id).toBeUndefined()
+  })
+
+  it('rejects when semantic counters would need mutation and writes nothing', async () => {
+    let state: Record<string, unknown> = initialState({ review_cycle: 1, full_review_count: 1 })
+    const coordinator = new Coordinator({
+      readState: async () => structuredClone(state),
+      writeState: async (next) => {
+        state = structuredClone(next)
+        return structuredClone(state)
+      },
+      listComments: async () => [{
+        id: verdictCommentId,
+        body: verdictBody(),
+        author: 'boat1994',
+        author_association: 'OWNER',
+      }],
+      postComment: async () => { throw new Error('must not post a verdict') },
+      trustedAuthors: ['boat1994'],
+      requireTrustedAuthor: true,
+      trustedAssociations: ['OWNER'],
+    })
+
+    await expect(coordinator.reconcileReviewVerdict({
+      verdictBody: verdictBody(),
+      routingOnly: true,
+      projectReview: (prior: Record<string, unknown>) => ({
+        ...prior,
+        review_cycle: 2,
+        full_review_count: 2,
+      }),
+    })).rejects.toThrow(/routing-only.*review_cycle|routing-only.*full_review_count/i)
+    expect(state.review_cycle).toBe(1)
+    expect(state.full_review_count).toBe(1)
+  })
+
+  it('treats already-correct merged routing lineage as NO_OP without a durable write', () => {
+    const harness = createGhHarness({
+      prState: 'MERGED',
+      containedHeads: [reviewedHead],
+      state: initialState({
+        latest_review_verdict_comment_id: verdictCommentId,
+        latest_transition_identity: verdictIdentity(),
+      }),
+    })
+    const result = runReconcile(harness)
+    expect(result.status, result.stderr || result.stdout).toBe(0)
+    expect(result.stdout).toContain('NO_OP')
+    expect(readMetrics(harness).issueEdits).toBe(0)
   })
 })
