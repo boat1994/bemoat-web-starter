@@ -766,6 +766,20 @@ describe('Founder-authorized Mission Control merge transport', () => {
         latest_result_comment_id: '6000000003',
         open_blockers: [],
         next_permitted_action: 'none on this task',
+        blocker_resolution_postconditions: {
+          task: {
+            state: 'DONE',
+            open_blockers: [],
+            next_permitted_action: 'none on this task',
+          },
+          campaign: {
+            lifecycle: 'ACTIVE',
+            blocker_ids: [],
+            slice_keys: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11'],
+            slice5_status: 'NOT_STARTED',
+            next_action: { slice: 5, started: false },
+          },
+        },
       },
       authorization: {
         projection_kind: 'blocker-resolution',
@@ -804,7 +818,7 @@ describe('Founder-authorized Mission Control merge transport', () => {
   it.each([
     ['partial campaign range', { campaign: { slice_keys: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'] } }],
     ['conflicting blocker state', { campaign: { blocker_ids: ['issue-254-planning-correction-1'] } }],
-    ['missing campaign postconditions', {}],
+    ['missing campaign postconditions', { campaign: null }],
     ['reordered campaign range', { campaign: { slice_keys: ['1', '2', '3', '4', '6', '5', '7', '8', '9', '10', '11'] } }],
     ['over-advanced Slice 5', { campaign: { slice5_status: 'IN_PROGRESS' } }],
     ['Task still has an open blocker', { task: { open_blockers: ['issue-254-planning-correction-1'] } }],
@@ -841,14 +855,16 @@ describe('Founder-authorized Mission Control merge transport', () => {
           next_permitted_action: 'none on this task',
           ...overrides.task,
         },
-        campaign: {
-          lifecycle: 'ACTIVE',
-          blocker_ids: [],
-          slice_keys: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11'],
-          slice5_status: 'NOT_STARTED',
-          next_action: { slice: 5, started: false },
-          ...overrides.campaign,
-        },
+        campaign: overrides.campaign === null
+          ? undefined
+          : {
+              lifecycle: 'ACTIVE',
+              blocker_ids: [],
+              slice_keys: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11'],
+              slice5_status: 'NOT_STARTED',
+              next_action: { slice: 5, started: false },
+              ...overrides.campaign,
+            },
       },
     })
     harness.deps.selectNextCampaignAction = async () => ({

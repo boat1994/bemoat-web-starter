@@ -258,6 +258,7 @@ function sameAuthority(left, right) {
 function sameBlockerResolutionRoot(left, right) {
   const leftRoot = copyWithout(left, [
     'campaign_blockers',
+    'campaign_lifecycle',
     'campaign_expansion_authority',
     'root_script_map',
     'slices',
@@ -266,6 +267,7 @@ function sameBlockerResolutionRoot(left, right) {
   ])
   const rightRoot = copyWithout(right, [
     'campaign_blockers',
+    'campaign_lifecycle',
     'campaign_expansion_authority',
     'root_script_map',
     'slices',
@@ -377,6 +379,12 @@ export function validateCampaignBlockerResolutionTransition(previous, next, opti
 
   if (!sameBlockerResolutionRoot(previous, next)) {
     return invalid(CAMPAIGN_DIAGNOSTIC_CODES.EXPANSION_ROOT_MUTATION, 'blocker-resolution may not mutate unrelated campaign root fields')
+  }
+  if (
+    previous.campaign_lifecycle !== next.campaign_lifecycle &&
+    !(previous.campaign_lifecycle === 'BLOCKED' && next.campaign_lifecycle === 'ACTIVE')
+  ) {
+    return invalid(CAMPAIGN_DIAGNOSTIC_CODES.EXPANSION_ROOT_MUTATION, 'blocker-resolution may only clear the blocking campaign lifecycle')
   }
 
   const missingPriorKeys = priorRange.keys.filter((key) => !Object.hasOwn(next.slices, key))
