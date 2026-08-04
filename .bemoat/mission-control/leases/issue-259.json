@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "issue": "259",
+  "transition_identity": "{\"taskId\":\"259\",\"phase\":\"\",\"role\":\"REVIEW_VERDICT\",\"contentHash\":\"5501df2a717edf6568013b2fac89bb570b034c29d96cd3a08be87e17024cb09e\"}",
+  "observed_body_sha256": "ce32176a516fc2ece6cc237b015c04f8b8f162cb78b6b4da5036445c7a071358",
+  "holder": "mission-control-reconcile-review-verdict",
+  "status": "held",
+  "updated_at": "2026-08-04T06:13:49.870Z"
+}
