@@ -1886,9 +1886,113 @@ function parseCanonicalReviewTarget(body = '') {
   return match ? { base: match[1], head: match[2] } : null
 }
 
+function hasCanonicalReviewTargetLine(body = '') {
+  return /^\*\*PR\s*\/\s*base\s*\/\s*head:\*\*/im.test(body)
+}
+
 function parseTaskIssueNumber(body = '') {
   return body.match(/\*\*Task(?:\s*\/\s*Issue)?:\*\*\s*(?:Issue\s*)?#?(\d+)/i)?.[1] ??
     body.match(/Task\s*\/\s*Issue:\s*(?:Issue\s*)?#?(\d+)/i)?.[1] ?? null
+}
+
+/**
+ * Narrow legacy REVIEW_VERDICT binding for historical comments that use
+ * explicit line-anchored `**Task:**` / `**PR:**` / `**Base:**` / `**Head:**`
+ * fields instead of canonical `**PR / base / head:**`.
+ *
+ * This is not a general parser: incidental prose, bare `PR #N`, pull URLs, or
+ * branch/SHA mentions outside these recognized fields are never sufficient.
+ *
+ * @param {string} [body]
+ * @returns {{
+ *   kind: 'legacy',
+ *   issueNumber: string,
+ *   prNumber: string,
+ *   base: string,
+ *   head: string,
+ * } | null}
+ */
+export function parseLegacyReviewVerdictBinding(body = '') {
+  if (hasCanonicalReviewTargetLine(body)) return null
+
+  const taskMatches = [...body.matchAll(/^\*\*Task:\*\*\s*(?:Issue\s*)?#(\d+)\s*$/gim)]
+  const prMatches = [...body.matchAll(/^\*\*PR:\*\*\s*#(\d+)\s*$/gim)]
+  const baseMatches = [...body.matchAll(
+    /^\*\*Base:\*\*\s*`([^`]+)`(?:\s*\(`[0-9a-f]{7,40}`\))?\s*$/gim,
+  )]
+  const headMatches = [...body.matchAll(/^\*\*Head:\*\*\s*`([0-9a-f]{40})`\s*$/gim)]
+
+  const counts = [
+    taskMatches.length,
+    prMatches.length,
+    baseMatches.length,
+    headMatches.length,
+  ]
+  const presentCount = counts.filter((count) => count > 0).length
+  if (presentCount === 0) return null
+  if (counts.some((count) => count === 0)) {
+    throw new Error('STATE_CONFLICT: legacy REVIEW_VERDICT binding is missing a required field')
+  }
+  if (counts.some((count) => count > 1)) {
+    throw new Error('STATE_CONFLICT: legacy REVIEW_VERDICT binding fields are duplicated or ambiguous')
+  }
+
+  return {
+    kind: 'legacy',
+    issueNumber: taskMatches[0][1],
+    prNumber: prMatches[0][1],
+    base: baseMatches[0][1],
+    head: headMatches[0][1],
+  }
+}
+
+/**
+ * Resolve REVIEW_VERDICT PR/base/head binding from canonical evidence, or from
+ * the narrow legacy field set when the canonical line is entirely absent.
+ *
+ * @param {string} body
+ * @param {{ issueNumber: string | number }} options
+ * @returns {{
+ *   kind: 'canonical' | 'legacy',
+ *   prNumber: string,
+ *   base: string,
+ *   head: string,
+ *   headSha: string,
+ *   verdict: string | null,
+ * }}
+ */
+function resolveReviewVerdictBinding(body, { issueNumber }) {
+  const parsed = parseRoleCommentBody(body)
+  if (hasCanonicalReviewTargetLine(body)) {
+    const target = parseCanonicalReviewTarget(body)
+    if (!parsed.prNumber || !parsed.headSha || !target) {
+      throw new Error('STATE_CONFLICT: live REVIEW_VERDICT is missing canonical PR/base/head evidence')
+    }
+    return {
+      kind: 'canonical',
+      prNumber: String(parsed.prNumber),
+      base: target.base,
+      head: target.head,
+      headSha: parsed.headSha,
+      verdict: parsed.verdict,
+    }
+  }
+
+  const legacy = parseLegacyReviewVerdictBinding(body)
+  if (!legacy) {
+    throw new Error('STATE_CONFLICT: live REVIEW_VERDICT is missing canonical PR/base/head evidence')
+  }
+  if (String(legacy.issueNumber) !== String(issueNumber)) {
+    throw new Error('STATE_CONFLICT: REVIEW_VERDICT Task Issue does not match the managed Issue')
+  }
+  return {
+    kind: 'legacy',
+    prNumber: legacy.prNumber,
+    base: legacy.base,
+    head: legacy.head,
+    headSha: legacy.head,
+    verdict: parsed.verdict,
+  }
 }
 
 /**
@@ -1929,21 +2033,17 @@ function selectLiveReviewVerdictComment({ comments, issueNumber, livePr }) {
   }
 
   const comment = relevant[0]
-  const parsed = parseRoleCommentBody(comment.body ?? '')
-  const target = parseCanonicalReviewTarget(comment.body ?? '')
-  if (!parsed.prNumber || !parsed.headSha || !target) {
-    throw new Error('STATE_CONFLICT: live REVIEW_VERDICT is missing canonical PR/base/head evidence')
-  }
-  if (String(parsed.prNumber) !== String(livePr.number)) {
+  const binding = resolveReviewVerdictBinding(comment.body ?? '', { issueNumber })
+  if (String(binding.prNumber) !== String(livePr.number)) {
     throw new Error('STATE_CONFLICT: REVIEW_VERDICT PR does not match the live PR')
   }
-  if (target.base !== livePr.baseRefName) {
+  if (binding.base !== livePr.baseRefName) {
     throw new Error('STATE_CONFLICT: REVIEW_VERDICT base does not match the live PR')
   }
-  if (target.head !== livePr.headRefOid || parsed.headSha !== livePr.headRefOid) {
+  if (binding.head !== livePr.headRefOid || binding.headSha !== livePr.headRefOid) {
     throw new Error('STATE_CONFLICT: REVIEW_VERDICT exact head does not match the live PR')
   }
-  if (parsed.verdict !== 'ELIGIBLE FOR FOUNDER REVIEW') {
+  if (binding.verdict !== 'ELIGIBLE FOR FOUNDER REVIEW') {
     throw new Error('STATE_CONFLICT: eligible managed state requires an eligible REVIEW_VERDICT')
   }
   return comment

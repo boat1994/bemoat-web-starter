@@ -564,3 +564,207 @@ describe('merged managed active PR Review-verdict lineage reconciliation', () =>
     expect(readMetrics(harness).issueEdits).toBe(0)
   })
 })
+
+/** Exact live shape of historical verdict comment 5163387315 (no canonical PR/base/head line). */
+const legacyVerdictBody = (
+  overrides: {
+    task?: string
+    pr?: string
+    base?: string
+    head?: string
+    omit?: Array<'task' | 'pr' | 'base' | 'head'>
+    extra?: string
+  } = {},
+) => {
+  const omit = new Set(overrides.omit ?? [])
+  const lines = [
+    '## REVIEW_VERDICT',
+    '',
+    '**Verdict:** ELIGIBLE FOR FOUNDER REVIEW',
+  ]
+  if (!omit.has('task')) {
+    lines.push(`**Task:** ${overrides.task ?? 'Issue #259'}`)
+  }
+  if (!omit.has('pr')) {
+    lines.push(`**PR:** ${overrides.pr ?? '#260'}`)
+  }
+  if (!omit.has('base')) {
+    lines.push(
+      overrides.base
+        ?? '**Base:** `main` (`18640666402ade75003cbf0a3556eef6ad63d536`)',
+    )
+  }
+  if (!omit.has('head')) {
+    lines.push(`**Head:** \`${overrides.head ?? reviewedHead}\``)
+  }
+  lines.push(
+    '**Review cycle:** 1',
+    '',
+    '### Findings',
+    '- **Critical/Important:** None.',
+    overrides.extra ?? '',
+    '',
+    '### Next Action',
+    'Founder reviews and approves the bounded correction PR #260 for merge.',
+  )
+  return lines.filter((line, index, all) => !(line === '' && all[index - 1] === '')).join('\n')
+}
+
+const historicalTransportVerdict267 = `## REVIEW_VERDICT
+
+### Task log
+- Timestamp: 2026-08-04T09:54:00+07:00
+- Task / Issue: #259
+- Phase: Full Review 1
+- Executing role: Reviewer (Independent)
+
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/267 · \`main\` · \`34918d4cb75369778ade13fcc0cc3abcd6cb5f8b\`
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+**Findings:** Critical: None · Important: None
+**Next:** Founder reviews PR #267
+`
+
+describe('legacy REVIEW_VERDICT binding (option 2)', () => {
+  it('accepts the exact historical legacy verdict shape for managed PR #260', () => {
+    const harness = createGhHarness({
+      prState: 'MERGED',
+      containedHeads: [reviewedHead],
+      comments: [
+        {
+          id: verdictCommentId,
+          body: legacyVerdictBody(),
+          user: { login: 'boat1994' },
+          author_association: 'OWNER',
+        },
+        {
+          id: '5174083215',
+          body: historicalTransportVerdict267,
+          user: { login: 'boat1994' },
+          author_association: 'OWNER',
+        },
+      ],
+    })
+    const result = runReconcile(harness)
+    expect(result.status, result.stderr || result.stdout).toBe(0)
+    expect(result.stdout).toContain('RECONCILED')
+    const parsed = readHarnessState(harness)
+    expect(parsed).toMatchObject({
+      state: 'ELIGIBLE_FOR_FOUNDER_REVIEW',
+      review_cycle: 1,
+      full_review_count: 1,
+      active_pr: '#260',
+      current_head: reviewedHead,
+      last_reviewed_head: reviewedHead,
+      latest_result_comment_id: resultCommentId,
+      latest_review_verdict_comment_id: verdictCommentId,
+    })
+    expect(readMetrics(harness).issueEdits).toBe(1)
+  })
+
+  it('preserves canonical new-verdict behavior unchanged', () => {
+    const harness = createGhHarness({
+      prState: 'MERGED',
+      containedHeads: [reviewedHead],
+      comments: [{
+        id: verdictCommentId,
+        body: verdictBody(),
+        user: { login: 'boat1994' },
+        author_association: 'OWNER',
+      }],
+    })
+    const result = runReconcile(harness)
+    expect(result.status, result.stderr || result.stdout).toBe(0)
+    expect(result.stdout).toContain('RECONCILED')
+    expect(readHarnessState(harness).latest_review_verdict_comment_id).toBe(verdictCommentId)
+  })
+
+  it.each([
+    ['wrong Issue', {
+      comments: [{
+        id: verdictCommentId,
+        body: legacyVerdictBody({ task: 'Issue #999' }),
+        user: { login: 'boat1994' },
+        author_association: 'OWNER',
+      }],
+    }, /BLOCKED_EXTERNAL|STATE_CONFLICT/],
+    ['wrong PR', {
+      comments: [{
+        id: verdictCommentId,
+        body: legacyVerdictBody({ pr: '#999' }),
+        user: { login: 'boat1994' },
+        author_association: 'OWNER',
+      }],
+    }, /BLOCKED_EXTERNAL|STATE_CONFLICT/],
+    ['wrong base', {
+      comments: [{
+        id: verdictCommentId,
+        body: legacyVerdictBody({ base: '**Base:** `dev` (`18640666402ade75003cbf0a3556eef6ad63d536`)' }),
+        user: { login: 'boat1994' },
+        author_association: 'OWNER',
+      }],
+    }, /STATE_CONFLICT.*base/i],
+    ['wrong head', {
+      comments: [{
+        id: verdictCommentId,
+        body: legacyVerdictBody({ head: staleHead }),
+        user: { login: 'boat1994' },
+        author_association: 'OWNER',
+      }],
+    }, /STATE_CONFLICT/],
+    ['missing field', {
+      comments: [{
+        id: verdictCommentId,
+        body: legacyVerdictBody({ omit: ['head'] }),
+        user: { login: 'boat1994' },
+        author_association: 'OWNER',
+      }],
+    }, /STATE_CONFLICT: legacy REVIEW_VERDICT binding is missing a required field/],
+    ['incidental prose and URL rejection', {
+      comments: [{
+        id: verdictCommentId,
+        body: `## REVIEW_VERDICT
+
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+See also PR #260 and https://github.com/boat1994/bemoat-web-starter/pull/260 on main at \`${reviewedHead}\`.
+`,
+        user: { login: 'boat1994' },
+        author_association: 'OWNER',
+      }],
+    }, /STATE_CONFLICT: live REVIEW_VERDICT is missing canonical PR\/base\/head evidence/],
+    ['duplicate or ambiguous binding rejection', {
+      comments: [{
+        id: verdictCommentId,
+        body: `${legacyVerdictBody()}\n**PR:** #260\n`,
+        user: { login: 'boat1994' },
+        author_association: 'OWNER',
+      }],
+    }, /STATE_CONFLICT: legacy REVIEW_VERDICT binding fields are duplicated or ambiguous/],
+    ['same-PR competitor remains fail-closed', {
+      comments: [
+        {
+          id: verdictCommentId,
+          body: legacyVerdictBody(),
+          user: { login: 'boat1994' },
+          author_association: 'OWNER',
+        },
+        {
+          id: '5163387316',
+          body: legacyVerdictBody({ extra: '**Note:** competing same-lineage verdict' }),
+          user: { login: 'boat1994' },
+          author_association: 'OWNER',
+        },
+      ],
+    }, /STATE_CONFLICT.*competing/i],
+  ])('rejects %s without writing managed state', (_label, overrides, expected) => {
+    const harness = createGhHarness({
+      prState: 'MERGED',
+      containedHeads: [reviewedHead],
+      ...overrides,
+    })
+    const result = runReconcile(harness)
+    expect(result.status).toBe(1)
+    expect(result.stderr).toMatch(expected)
+    expect(readMetrics(harness).issueEdits).toBe(0)
+    expect(readHarnessState(harness).latest_review_verdict_comment_id).toBeUndefined()
+  })
+})
