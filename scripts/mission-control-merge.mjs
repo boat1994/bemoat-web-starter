@@ -331,6 +331,134 @@ export function validateMergeReviewVerdict({ reviewVerdict, expected }) {
   return true
 }
 
+const MERGE_VERDICT_FIELD_SPACING = '[ \\t]*'
+const MERGE_VERDICT_FULL_SHA = '([0-9a-f]{40})'
+
+/**
+ * Resolve production merge-transport REVIEW_VERDICT PR/base/head binding.
+ *
+ * Preserves canonical `**PR / base / head:**` and `/pull/N` behavior, and adds
+ * one fail-closed historical compatibility path for unique line-anchored
+ * `**PR:** PR #N` plus `**Exact reviewed head:**` / existing
+ * `**Exact head reviewed:**` fields. Duplicate, conflicting, partial,
+ * multiline, malformed, or short-SHA evidence fails closed.
+ *
+ * @param {string} [body]
+ * @returns {{
+ *   verdict: string | null,
+ *   pr: string | null,
+ *   base: string | null,
+ *   reviewed_head: string | null,
+ *   non_superseded: boolean,
+ * }}
+ */
+export function resolveMergeReviewVerdictBinding(body = '') {
+  const text = String(body ?? '')
+  const verdict = text.match(/^\*\*Verdict:\*\*\s*(.+?)\s*$/m)?.[1]?.trim() ?? null
+
+  const pr = resolveMergeReviewVerdictPr(text)
+  const reviewedHead = resolveMergeReviewVerdictHead(text)
+  const base = text.match(/^\*\*Approved base:\*\*\s*`?([^@\s`]+?)(?:@[^`\s]+)?`?\s*$/m)?.[1] ??
+    text.match(/^\*\*PR \/ base \/ head:\*\*.*?·\s*`([^`]+)`\s*·/m)?.[1] ?? null
+
+  return {
+    verdict,
+    pr,
+    base,
+    reviewed_head: reviewedHead,
+    non_superseded: !/superseded|not authoritative/i.test(text),
+  }
+}
+
+/**
+ * Parse a production merge-transport REVIEW_VERDICT comment body.
+ *
+ * @param {string} body
+ * @param {string | number} commentId
+ */
+export function parseProductionMergeReviewVerdict(body, commentId) {
+  const binding = resolveMergeReviewVerdictBinding(body)
+  return {
+    comment_id: String(commentId),
+    verdict: binding.verdict,
+    pr: binding.pr,
+    base: binding.base,
+    reviewed_head: binding.reviewed_head,
+    non_superseded: binding.non_superseded,
+  }
+}
+
+function resolveUniqueRecognizedValues(values, label) {
+  if (values.length === 0) return null
+  const unique = [...new Set(values.map(String))]
+  if (unique.length !== 1) {
+    throw stateConflict(`REVIEW_VERDICT ${label} evidence is duplicated or ambiguous`)
+  }
+  return unique[0]
+}
+
+function resolveMergeReviewVerdictPr(body) {
+  const historicalMatches = [...body.matchAll(
+    new RegExp(`^\\*\\*PR:\\*\\*${MERGE_VERDICT_FIELD_SPACING}PR #(\\d+)${MERGE_VERDICT_FIELD_SPACING}$`, 'gm'),
+  )]
+  if (historicalMatches.length > 1) {
+    throw stateConflict('REVIEW_VERDICT PR field is duplicated or ambiguous')
+  }
+
+  const recognized = []
+  if (historicalMatches.length === 1) {
+    recognized.push(historicalMatches[0][1])
+  }
+
+  const pullMatches = [...body.matchAll(/\/pull\/(\d+)/g)].map((match) => match[1])
+  if (pullMatches.length > 0) {
+    const uniquePull = [...new Set(pullMatches)]
+    if (uniquePull.length !== 1) {
+      throw stateConflict('REVIEW_VERDICT PR evidence is duplicated or ambiguous')
+    }
+    // Preserve single-/agreeing-/pull/N behavior while failing closed on
+    // conflicting recognized values across historical and URL forms.
+    recognized.push(uniquePull[0])
+  }
+
+  return resolveUniqueRecognizedValues(recognized, 'PR')
+}
+
+function matchUniqueExactHeadField(body, label, { caseInsensitive = false } = {}) {
+  const flags = caseInsensitive ? 'gim' : 'gm'
+  const labelMatches = [...body.matchAll(new RegExp(`^\\*\\*${label}:\\*\\*(.*)$`, flags))]
+  if (labelMatches.length === 0) return null
+  if (labelMatches.length > 1) {
+    throw stateConflict(`REVIEW_VERDICT ${label} field is duplicated or ambiguous`)
+  }
+
+  const rest = labelMatches[0][1] ?? ''
+  const valueMatch = rest.match(new RegExp(
+    `^${MERGE_VERDICT_FIELD_SPACING}\`?${MERGE_VERDICT_FULL_SHA}\`?${MERGE_VERDICT_FIELD_SPACING}$`,
+    caseInsensitive ? 'i' : undefined,
+  ))
+  if (!valueMatch) {
+    throw stateConflict(`REVIEW_VERDICT ${label} field is malformed, partial, multiline, or not a full 40-character SHA`)
+  }
+  return valueMatch[1]
+}
+
+function resolveMergeReviewVerdictHead(body) {
+  const recognized = []
+
+  const exactHeadReviewed = matchUniqueExactHeadField(body, 'Exact head reviewed', { caseInsensitive: true })
+  if (exactHeadReviewed) recognized.push(exactHeadReviewed)
+
+  const exactReviewedHead = matchUniqueExactHeadField(body, 'Exact reviewed head')
+  if (exactReviewedHead) recognized.push(exactReviewedHead)
+
+  const canonicalHead = body.match(/^\*\*PR \/ base \/ head:\*\*.*?·\s*`[0-9a-f]{40}`\s*$/m)?.[0]
+    ?.match(/[0-9a-f]{40}/i)?.[0] ?? null
+  if (canonicalHead) recognized.push(canonicalHead)
+
+  return resolveUniqueRecognizedValues(recognized, 'exact reviewed head')
+}
+
 function verifyRequiredExactHeadCi(pr, repo) {
   const analysis = analyzeExactHeadCi(pr)
   if (!analysis.exactHeadVerified) {
@@ -1024,21 +1152,7 @@ function createProductionDeps() {
     },
     readReviewVerdict: async (repo, issueNumber, commentId) => {
       const comment = readIssueComment(repo, issueNumber, commentId)
-      const body = String(comment.body ?? '')
-      const verdict = body.match(/^\*\*Verdict:\*\*\s*(.+?)\s*$/m)?.[1]?.trim() ?? null
-      const pr = body.match(/\/pull\/(\d+)/)?.[1] ?? null
-      const base = body.match(/^\*\*Approved base:\*\*\s*`?([^@\s`]+?)(?:@[^`\s]+)?`?\s*$/m)?.[1] ??
-        body.match(/^\*\*PR \/ base \/ head:\*\*.*?·\s*`([^`]+)`\s*·/m)?.[1] ?? null
-      const reviewedHead = body.match(/^\*\*Exact head reviewed:\*\*\s*`?([0-9a-f]{40})`?\s*$/im)?.[1] ??
-        body.match(/^\*\*PR \/ base \/ head:\*\*.*?·\s*`[0-9a-f]{40}`\s*$/m)?.[0]?.match(/[0-9a-f]{40}/i)?.[0] ?? null
-      return {
-        comment_id: String(comment.id),
-        verdict,
-        pr,
-        base,
-        reviewed_head: reviewedHead,
-        non_superseded: !/superseded|not authoritative/i.test(body),
-      }
+      return parseProductionMergeReviewVerdict(comment.body, comment.id)
     },
     readTrustedFounderLogins,
     readCampaignAuthorityEvidence,

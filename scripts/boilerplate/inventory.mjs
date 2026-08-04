@@ -70,7 +70,7 @@ export const managedPaths = [
   'tests/int/command-runner.int.spec.ts',
   'tests/int/scripts-architecture.int.spec.ts', 'tests/int/campaign-schema.int.spec.ts',
   'tests/int/scripts-entrypoints-contract.int.spec.ts', 'tests/int/mission-control-review.int.spec.ts',
-  'tests/int/mission-control-merge.int.spec.ts', 'tests/int/mission-control-issue-body-cas.int.spec.ts',
+  'tests/int/mission-control-merge.int.spec.ts', 'tests/int/mission-control-merge-verdict-binding-entrypoint.int.spec.ts', 'tests/int/mission-control-issue-body-cas.int.spec.ts',
   'tests/int/mission-control-correction-entrypoints.int.spec.ts',
   'tests/int/mission-control-characterization.int.spec.ts', 'tests/int/mission-control-task-bootstrap-contract.int.spec.ts', 'tests/int/mission-control-task-initialization.int.spec.ts',
   'tests/int/mission-control-child-portability.int.spec.ts',
