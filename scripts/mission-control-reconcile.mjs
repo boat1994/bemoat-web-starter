@@ -1891,11 +1891,35 @@ function parseTaskIssueNumber(body = '') {
     body.match(/Task\s*\/\s*Issue:\s*(?:Issue\s*)?#?(\d+)/i)?.[1] ?? null
 }
 
+/**
+ * Bound PR identity for managed-lineage selection. Prefer the canonical
+ * REVIEW_VERDICT target, then fall back to common historical PR fields so a
+ * transport review for another PR can be excluded without rewriting it.
+ *
+ * @param {string} [body]
+ * @returns {string | null}
+ */
+function parseReviewVerdictBoundPrNumber(body = '') {
+  const parsed = parseRoleCommentBody(body)
+  if (parsed.prNumber) return String(parsed.prNumber)
+  return body.match(/\*\*PR:\*\*\s*#?(\d+)/i)?.[1]
+    ?? body.match(/https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/(\d+)/)?.[1]
+    ?? body.match(/\bPR\s*#(\d+)\b/i)?.[1]
+    ?? null
+}
+
 function selectLiveReviewVerdictComment({ comments, issueNumber, livePr }) {
   const active = selectActiveRoleComments(comments, 'REVIEW_VERDICT')
-  const relevant = active.filter((comment) => {
+  const issueRelevant = active.filter((comment) => {
     const taskIssue = parseTaskIssueNumber(comment.body ?? '')
     return taskIssue == null || String(taskIssue) === String(issueNumber)
+  })
+  // Historical transport reviews for a different PR remain visible but must not
+  // compete for the managed active_pr / live PR routing lineage.
+  const relevant = issueRelevant.filter((comment) => {
+    const boundPr = parseReviewVerdictBoundPrNumber(comment.body ?? '')
+    if (boundPr == null) return true
+    return String(boundPr) === String(livePr.number)
   })
   if (relevant.length === 0) {
     throw new Error('BLOCKED_EXTERNAL: no active REVIEW_VERDICT evidence for the managed Issue')
