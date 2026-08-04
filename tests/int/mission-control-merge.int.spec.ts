@@ -848,6 +848,8 @@ describe('Founder-authorized Mission Control merge transport', () => {
     })
     harness.deps.projectCampaignBlockerResolved = async () => ({
       status: 'RESOLVED',
+      campaignIssue: 215,
+      campaignBlockerId: 'issue-254-planning-correction-1',
       postconditions: {
         task: {
           state: 'DONE',
