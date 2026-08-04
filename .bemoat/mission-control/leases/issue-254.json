@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "issue": "254",
-  "transition_identity": "{\"taskId\":\"254\",\"phase\":\"Reviewer\",\"role\":\"REVIEW_VERDICT\",\"contentHash\":\"447cc678db4f81442ec9b1cd73934383af5b9eb50c08337f7014925cc1ae4369\"}",
+  "transition_identity": "merge-completion:254:258:31afbb8619c58877109a2448e2388a3bb16727d6:18640666402ade75003cbf0a3556eef6ad63d536",
   "observed_body_sha256": "66eba5878422ba9ab61a062c609ead5c00c97db7b3dd955c396f53f8f87d890e",
-  "holder": "mission-control-reconcile",
-  "status": "released",
-  "updated_at": "2026-08-03T05:53:38.133Z"
+  "holder": "mission-control-merge",
+  "status": "held",
+  "updated_at": "2026-08-04T16:16:39.708Z"
 }
