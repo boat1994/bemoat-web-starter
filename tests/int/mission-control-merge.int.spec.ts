@@ -1,5 +1,9 @@
+import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { parse as parseYaml } from 'yaml'
+import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- deterministic .mjs transport boundary */
 import { getDefaultRepo } from '../../scripts/agent-issue/local-git-evidence.mjs'
@@ -1284,5 +1288,447 @@ describe('bounded Founder Markdown authorization transport', () => {
       trustedFounderLogins: ['boat1994'],
       expected: expectedAuthorization(),
     })).toThrow(/AUTHORIZATION_VALIDATION_FAILURE/)
+  })
+})
+
+const blockerResolutionId = 'issue-254-planning-correction-1'
+const terminalSliceKeys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11']
+
+function completeTerminalSlices(): Record<string, any> {
+  return Object.fromEntries(terminalSliceKeys.map((key) => {
+    if (Number(key) <= 4) {
+      return [key, {
+        status: 'DONE',
+        issue: `#${Number(key) + 200}`,
+        pr: `#${Number(key) + 204}`,
+        reviewed_head: `completed-slice-${key}-reviewed-head`,
+        merged_commit: `completed-slice-${key}-merge-commit`,
+        authority_comment_ids: [`completed-slice-${key}-authority`],
+        blocker_ids: [] as string[],
+      }]
+    }
+    return [key, {
+      status: 'NOT_STARTED',
+      issue: null,
+      pr: null,
+      reviewed_head: null,
+      merged_commit: null,
+      authority_comment_ids: [],
+      blocker_ids: [],
+    }]
+  }))
+}
+
+function completeBlockerResolutionPostconditions(overrides: any = {}) {
+  const base: Record<string, any> = {
+    task: {
+      state: 'DONE',
+      canonical_pr: '#258',
+      reviewed_head: reviewedHead,
+      merge_commit: mergeCommit,
+      final_result_comment_id: '6000000003',
+      open_blockers: [],
+      next_permitted_action: 'none on this task',
+    },
+    campaign: {
+      lifecycle: 'ACTIVE',
+      blocker_ids: [],
+      unrelated_blockers: ['campaign-unrelated-blocker'],
+      slice_keys: terminalSliceKeys,
+      slice5_status: 'NOT_STARTED',
+      slices: completeTerminalSlices(),
+      next_action: {
+        slice: 5,
+        action: 'Plan Slice 5',
+        started: false,
+      },
+      durable_next_action: {
+        slice: 5,
+        action: 'Plan Slice 5',
+        started: false,
+      },
+    },
+  }
+  return {
+    task: { ...base.task, ...(overrides.task ?? {}) },
+    campaign: {
+      ...base.campaign,
+      ...(overrides.campaign ?? {}),
+      slices: {
+        ...base.campaign.slices,
+        ...(overrides.campaign?.slices ?? {}),
+      },
+    },
+  }
+}
+
+function completedBlockerResolutionHarness(overrides: any = {}) {
+  return createHarness({
+    taskIssue: 254,
+    prNumber: 258,
+    issueState: 'CLOSED',
+    prState: 'MERGED',
+    isDraft: false,
+    managedState: {
+      state: 'DONE',
+      campaign_issue: '#215',
+      campaign_slice: null,
+      merged_commit_sha: mergeCommit,
+      latest_result_comment_id: '6000000003',
+      open_blockers: [],
+      next_permitted_action: 'none on this task',
+      blocker_resolution_postconditions: completeBlockerResolutionPostconditions(overrides),
+    },
+    authorization: {
+      projection_kind: 'blocker-resolution',
+      campaign_issue: 215,
+      campaign_blocker_id: blockerResolutionId,
+    },
+  })
+}
+
+function mutationOperations(operations: string[]) {
+  return operations.filter((operation) =>
+    operation === 'mark-ready' ||
+    operation.startsWith('merge:') ||
+    operation.startsWith('result:') ||
+    operation.startsWith('close:') ||
+    operation.startsWith('task-done:') ||
+    operation.startsWith('campaign-') ||
+    operation === 'select-next' ||
+    operation.startsWith('reconcile:'),
+  )
+}
+
+function phase1FounderMarkdown(author = 'boat1994') {
+  return [
+    '## FOUNDER_DECISION',
+    '',
+    '**Decision:** APPROVE MERGE COMPLETION',
+    '**Authority:** Founder',
+    `**Author:** @${author}`,
+    '**Repository:** `boat1994/bemoat-web-starter`',
+    '**Task / Issue:** #254',
+    '**PR:** PR #258',
+    '**Approved base:** `main`',
+    '**Exact reviewed head:** `31afbb8619c58877109a2448e2388a3bb16727d6`',
+    '**REVIEW_VERDICT comment ID:** 5162624753',
+    '**Action:** merge',
+    '**Scope:** merge',
+    `**Policy source SHA:** \`${'1'.repeat(40)}\``,
+    `**Protected base SHA:** \`${'2'.repeat(40)}\``,
+    '**Non-superseded:** true',
+  ].join('\n')
+}
+
+function runFounderMergeCliWithFakeGithub({ authorizationBody }: { authorizationBody: string }) {
+  const directory = mkdtempSync(join(tmpdir(), 'bemoat-254-phase1-'))
+  const fakeGhPath = join(directory, 'gh')
+  const logPath = join(directory, 'calls.log')
+  const exactHead = '31afbb8619c58877109a2448e2388a3bb16727d6'
+  const policySourceSha = '1'.repeat(40)
+  const protectedBaseSha = '2'.repeat(40)
+  const managedState: Record<string, any> = {
+    schema_version: 1,
+    state: 'ELIGIBLE_FOR_FOUNDER_REVIEW',
+    review_cycle: 2,
+    full_review_count: 1,
+    active_task_issue: '#254',
+    active_pr: '#258',
+    current_head: exactHead,
+    last_reviewed_head: exactHead,
+    approved_base: 'main',
+    guide_version: '1.3.0',
+    guide_source_ref: 'main',
+    guide_source_sha: policySourceSha,
+    latest_review_verdict_comment_id: '5162624753',
+    campaign_issue: '#215',
+    campaign_slice: null,
+    open_blockers: [],
+    follow_up_issues: [],
+    next_permitted_action: 'Founder merge authorization required',
+    material_change_status: 'none',
+    updated_at: null,
+    updated_by: null,
+  }
+  const issue: Record<string, any> = {
+    number: 254,
+    id: 'I_kwDO254',
+    title: 'bounded merge transport task',
+    body: `<!-- bemoat-mission-control-state:start -->\n\`\`\`yaml\n${stringifyYaml(managedState)}\`\`\`\n<!-- bemoat-mission-control-state:end -->`,
+    state: 'OPEN',
+    stateReason: null,
+  }
+  const pull: Record<string, any> = {
+    number: 258,
+    id: 'P_kwDO258',
+    state: 'OPEN',
+    isDraft: false,
+    mergeable: 'MERGEABLE',
+    headRefOid: exactHead,
+    baseRefName: 'main',
+    baseRefOid: protectedBaseSha,
+    statusCheckRollup: [
+      { name: 'ci', conclusion: 'SUCCESS', status: 'COMPLETED' },
+      { name: 'starter-ci', conclusion: 'SUCCESS', status: 'COMPLETED' },
+    ],
+    mergeCommit: null,
+    title: 'bounded merge transport',
+    body: 'Refs #254',
+    closingIssuesReferences: [],
+  }
+  const authorizationComment = {
+    id: 5179000001,
+    issue_url: 'https://api.github.com/repos/boat1994/bemoat-web-starter/issues/254',
+    user: { login: 'boat1994' },
+    body: authorizationBody,
+  }
+  const reviewComment = {
+    id: 5162624753,
+    issue_url: 'https://api.github.com/repos/boat1994/bemoat-web-starter/issues/254',
+    user: { login: 'boat1994' },
+    body: [
+      '## REVIEW_VERDICT',
+      '',
+      '**Verdict:** ELIGIBLE FOR FOUNDER REVIEW',
+      `**PR / base / head:** PR #258 · \`main\` · \`${exactHead}\``,
+    ].join('\n'),
+  }
+  const fakeData = {
+    issue,
+    pull,
+    commits: [[{ commit: { message: 'bounded merge transport' } }]],
+    authorizationComment,
+    reviewComment,
+    issueComments: [authorizationComment, reviewComment],
+    founderLogins: { value: 'boat1994' },
+  }
+  writeFileSync(fakeGhPath, `#!/usr/bin/env node
+import { appendFileSync } from 'node:fs'
+const args = process.argv.slice(2)
+const joined = args.join(' ')
+const data = ${JSON.stringify(fakeData)}
+appendFileSync(process.env.FAKE_GH_LOG, JSON.stringify(args) + '\\n')
+let output = {}
+if (args[0] === 'issue' && args[1] === 'view') output = data.issue
+else if (args[0] === 'pr' && args[1] === 'view') output = data.pull
+else if (args[0] === 'api' && joined.includes('/pulls/258/commits')) output = data.commits
+else if (args[0] === 'api' && joined.includes('/issues/comments/5179000001')) output = data.authorizationComment
+else if (args[0] === 'api' && joined.includes('/issues/comments/5162624753')) output = data.reviewComment
+else if (args[0] === 'api' && joined.includes('/issues/254/comments')) output = data.issueComments
+else if (args[0] === 'api' && joined.includes('/actions/variables/BEMOAT_FOUNDER_LOGINS')) output = data.founderLogins
+process.stdout.write(JSON.stringify(output))
+`)
+  chmodSync(fakeGhPath, 0o755)
+
+  try {
+    const result = spawnSync(
+      process.execPath,
+      ['scripts/mission-control-merge.mjs', '254', '--repo', 'boat1994/bemoat-web-starter', '--authorization-comment', '5179000001'],
+      {
+        cwd: process.cwd(),
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          PATH: `${directory}:${process.env.PATH}`,
+          FAKE_GH_LOG: logPath,
+        },
+      },
+    )
+    const calls = readFileSync(logPath, 'utf8')
+      .trim()
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => JSON.parse(line) as string[])
+    return { result, calls }
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
+}
+
+describe('Phase 1 Finding A: complete blocker-resolution terminal projection', () => {
+  it('accepts the complete Task, Campaign, slice lineage, and durable next-action projection', async () => {
+    const harness = completedBlockerResolutionHarness()
+
+    await expect(execute({
+      issueNumber: 254,
+      repo: 'boat1994/bemoat-web-starter',
+      authorizationCommentId: '6000000001',
+      deps: harness.deps,
+    })).resolves.toMatchObject({ outcome: 'NO_OP', issueNumber: 254, prNumber: 258 })
+
+    expect(harness.operations).toEqual([
+      'authorization:254',
+      `review-verdict:${reviewCommentId}`,
+      `verify-base:${mergeCommit}:main`,
+    ])
+  })
+
+  it.each([
+    ['missing Task canonical PR lineage', { task: { canonical_pr: undefined } }],
+    ['stale Task reviewed head lineage', { task: { reviewed_head: 'stale-reviewed-head' } }],
+    ['partial Task final RESULT lineage', { task: { final_result_comment_id: null } }],
+    ['reordered slices', { campaign: { slice_keys: ['1', '2', '3', '4', '6', '5', '7', '8', '9', '10', '11'] } }],
+    ['non-contiguous slices', { campaign: { slice_keys: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '11'] } }],
+    ['changed unrelated blockers', { campaign: { unrelated_blockers: ['changed-unrelated-blocker'] } }],
+    ['remaining target blocker', { campaign: { blocker_ids: [blockerResolutionId] } }],
+    ['wrong lifecycle', { campaign: { lifecycle: 'BLOCKED' } }],
+    ['over-advanced Slice 5', { campaign: { slices: { '5': { status: 'IN_PROGRESS' } } } }],
+    ['over-advanced Slice 6', { campaign: { slices: { '6': { status: 'DONE' } } } }],
+    ['non-null Slice 5 lineage', { campaign: { slices: { '5': { issue: '#259' } } } }],
+    ['non-null Slice 11 lineage', { campaign: { slices: { '11': { merged_commit: 'unexpected-merge' } } } }],
+    ['missing durable next action', { campaign: { next_action: undefined } }],
+    ['synthesized next action disagrees with durable state', {
+      campaign: { durable_next_action: { slice: 6, action: 'Plan Slice 6', started: false } },
+    }],
+    ['durable action starts Slice 5', {
+      campaign: { durable_next_action: { slice: 5, action: 'Start Slice 5', started: true } },
+    }],
+  ])('rejects %s before returning NO_OP', async (_label, overrides) => {
+    const harness = completedBlockerResolutionHarness(overrides)
+
+    await expect(execute({
+      issueNumber: 254,
+      repo: 'boat1994/bemoat-web-starter',
+      authorizationCommentId: '6000000001',
+      deps: harness.deps,
+    })).rejects.toThrow(/STATE_CONFLICT/)
+  })
+
+  it('reads the complete live postcondition object before returning deterministic NO_OP', async () => {
+    const harness = completedBlockerResolutionHarness()
+    delete harness.issues.get(254).managedState.blocker_resolution_postconditions
+    let readerCalls = 0
+    ;(harness.deps as Record<string, any>).readCampaignBlockerResolutionPostconditions = async () => {
+      readerCalls += 1
+      return completeBlockerResolutionPostconditions()
+    }
+    harness.deps.selectNextCampaignAction = async () => {
+      throw new Error('next action must come from the verified live terminal projection')
+    }
+
+    await expect(execute({
+      issueNumber: 254,
+      repo: 'boat1994/bemoat-web-starter',
+      authorizationCommentId: '6000000001',
+      deps: harness.deps,
+    })).resolves.toMatchObject({ outcome: 'NO_OP' })
+
+    expect(readerCalls).toBe(1)
+  })
+})
+
+describe('Phase 1 Finding B: structured Markdown author binding', () => {
+  it('preserves explicit Markdown author evidence and accepts matching authenticated author evidence', async () => {
+    const mergeTransport = await import('../../scripts/mission-control-merge.mjs')
+    const parsed = mergeTransport.parseFounderMergeAuthorization(phase1FounderMarkdown())
+
+    expect(parsed.author_login).toBe('boat1994')
+    expect(mergeTransport.validateFounderAuthorizationRecord({
+      authorization: {
+        ...parsed,
+        comment_id: '5179000001',
+        immutable_comment_reference: true,
+        comment_sha256: 'a'.repeat(64),
+      },
+      authorizationCommentId: '5179000001',
+      trustedFounderLogins: ['boat1994'],
+      expected: {
+        repository: 'boat1994/bemoat-web-starter',
+        taskIssue: 254,
+        pr: 258,
+        exactHead: '31afbb8619c58877109a2448e2388a3bb16727d6',
+        base: 'main',
+        bundleKind: 'merge-completion',
+        policySourceSha: '1'.repeat(40),
+        protectedBaseSha: '2'.repeat(40),
+        policyVersion: '1.3.0',
+        reviewCommentId: '5162624753',
+        scope: 'merge',
+        action: 'merge',
+      },
+    })).toMatchObject({ author_login: 'boat1994' })
+  })
+
+  it('fails closed when live comment metadata conflicts with explicit Markdown Author before any GitHub mutation', () => {
+    const { result, calls } = runFounderMergeCliWithFakeGithub({
+      authorizationBody: phase1FounderMarkdown('attacker'),
+    })
+
+    expect(result.status).not.toBe(0)
+    expect({
+      stderr: result.stderr,
+      mutationCalls: calls.filter(([command, subcommand]) =>
+        command === 'pr' && ['ready', 'merge'].includes(subcommand),
+      ),
+    }).toMatchObject({
+      stderr: expect.stringMatching(/AUTHORIZATION_VALIDATION_FAILURE.*author/i),
+      mutationCalls: [],
+    })
+  })
+})
+
+describe('Phase 1 Finding C: rejection before mutation', () => {
+  it.each([
+    ['invalid authority', { authorization: { authority: 'Reviewer' } }, /AUTHORIZATION_VALIDATION_FAILURE/],
+    ['untrusted Founder', { trustedFounderLogins: ['different-founder'] }, /AUTHORIZATION_VALIDATION_FAILURE.*Founder identity/],
+    ['stale Task binding', { managedState: { active_pr: '#999' } }, /STATE_CONFLICT.*active PR/],
+    ['stale PR head', { pull: { headRefOid: 'b'.repeat(40) } }, /STATE_CONFLICT.*heads must match exactly/],
+    ['stale base', { pull: { baseRefName: 'dev' } }, /STATE_CONFLICT.*base/],
+    ['stale REVIEW_VERDICT', { reviewVerdict: 'CORRECTION REQUIRED' }, /STATE_CONFLICT/],
+    ['stale policy binding', { managedState: { guide_source_sha: 'c'.repeat(40) } }, /AUTHORIZATION_VALIDATION_FAILURE/],
+    ['superseded authority', { authorization: { non_superseded: false } }, /AUTHORIZATION_VALIDATION_FAILURE/],
+  ])('rejects %s before any mutation', async (_label, options, expectedError) => {
+    const harness = createHarness(options)
+
+    await expect(execute({
+      issueNumber: 222,
+      repo: 'boat1994/bemoat-web-starter',
+      authorizationCommentId: '6000000001',
+      deps: harness.deps,
+    })).rejects.toThrow(expectedError)
+
+    expect(mutationOperations(harness.operations)).toEqual([])
+  })
+
+  it('rejects conflicting already-DONE terminal state before any mutation', async () => {
+    const harness = createHarness({
+      issueState: 'OPEN',
+      prState: 'MERGED',
+      isDraft: false,
+      managedState: { state: 'DONE', merged_commit_sha: mergeCommit, latest_result_comment_id: '6000000003' },
+    })
+
+    await expect(execute({
+      issueNumber: 222,
+      repo: 'boat1994/bemoat-web-starter',
+      authorizationCommentId: '6000000001',
+      deps: harness.deps,
+    })).rejects.toThrow(/STATE_CONFLICT/)
+
+    expect(mutationOperations(harness.operations)).toEqual([])
+  })
+
+  it('rejects an invalid durable next action before selecting it or calling any mutation', async () => {
+    const harness = createHarness({
+      taskIssue: 254,
+      prNumber: 258,
+      managedState: { campaign_issue: '#215', campaign_slice: null },
+      authorization: {
+        projection_kind: 'blocker-resolution',
+        campaign_issue: 215,
+        campaign_blocker_id: blockerResolutionId,
+      },
+      nextStarted: true,
+    })
+
+    await expect(execute({
+      issueNumber: 254,
+      repo: 'boat1994/bemoat-web-starter',
+      authorizationCommentId: '6000000001',
+      deps: harness.deps,
+    })).rejects.toThrow(/STATE_CONFLICT.*next campaign action/)
+
+    expect(mutationOperations(harness.operations)).toEqual([])
   })
 })
