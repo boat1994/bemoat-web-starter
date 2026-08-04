@@ -13,6 +13,7 @@ import {
   selectNextCampaignAction,
   validateCampaignTransition,
 } from './mission-control/domain/campaign-authority.mjs'
+import { sameCampaignValue } from './mission-control/domain/campaign-equality.mjs'
 import { parseCampaign } from './mission-control/domain/campaign-parser.mjs'
 import { replaceCampaignBlock } from './mission-control/domain/campaign-renderer.mjs'
 import { preflightCanonicalBootstrapTask } from './mission-control/domain/task-bootstrap-preflight.mjs'
@@ -172,23 +173,85 @@ function validateBlockerResolutionBindings({ authorization, state }) {
 
 export function parseFounderMergeAuthorization(body = '') {
   if (typeof body !== 'string') {
-    throw authorizationValidationFailure('Founder merge authorization evidence must be raw JSON text')
+    throw authorizationValidationFailure('Founder merge authorization evidence must be raw JSON text or canonical Markdown')
   }
   const source = body.trim()
-  if (!source || source.startsWith('```') || source.endsWith('```')) {
-    throw authorizationValidationFailure('Founder merge authorization evidence must contain exactly one raw JSON object')
+  if (!source) {
+    throw authorizationValidationFailure('Founder merge authorization evidence must contain exactly one raw JSON object or canonical Markdown decision')
   }
 
-  let parsed
-  try {
-    parsed = JSON.parse(source)
-  } catch {
-    throw authorizationValidationFailure('Founder merge authorization comment does not contain valid raw JSON evidence')
+  if (source.startsWith('{')) {
+    if (source.startsWith('```') || source.endsWith('```')) {
+      throw authorizationValidationFailure('Founder merge authorization evidence must contain exactly one raw JSON object')
+    }
+
+    let parsed
+    try {
+      parsed = JSON.parse(source)
+    } catch {
+      throw authorizationValidationFailure('Founder merge authorization comment does not contain valid raw JSON evidence')
+    }
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw authorizationValidationFailure('Founder merge authorization evidence must decode to one JSON object, not a string or array')
+    }
+    return parsed
   }
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw authorizationValidationFailure('Founder merge authorization evidence must decode to one JSON object, not a string or array')
+
+  const lines = source.split('\n')
+  const fields = [
+    [/^## FOUNDER_DECISION$/, 'header'],
+    [/^$/, 'separator'],
+    [/^\*\*Decision:\*\* APPROVE MERGE COMPLETION$/, 'decision'],
+    [/^\*\*Authority:\*\* Founder$/, 'authority'],
+    [/^\*\*Author:\*\* @([A-Za-z0-9](?:[A-Za-z0-9-]{0,38}[A-Za-z0-9])?)$/, 'author'],
+    [/^\*\*Repository:\*\* `([^`\r\n]+)`$/, 'repository'],
+    [/^\*\*Task \/ Issue:\*\* #([1-9]\d*)$/, 'task'],
+    [/^\*\*PR:\*\* PR #([1-9]\d*)$/, 'pr'],
+    [/^\*\*Approved base:\*\* `([^`\s]+)`$/, 'base'],
+    [/^\*\*Exact reviewed head:\*\* `([0-9a-f]{40})`$/i, 'head'],
+    [/^\*\*REVIEW_VERDICT comment ID:\*\* ([1-9]\d*)$/, 'reviewComment'],
+    [/^\*\*Action:\*\* merge$/, 'action'],
+    [/^\*\*Scope:\*\* merge$/, 'scope'],
+    [/^\*\*Policy source SHA:\*\* `([0-9a-f]{40})`$/i, 'policySourceSha'],
+    [/^\*\*Protected base SHA:\*\* `([0-9a-f]{40})`$/i, 'protectedBaseSha'],
+    [/^\*\*Non-superseded:\*\* (true|false)$/, 'nonSuperseded'],
+  ]
+  if (lines.length !== fields.length) {
+    throw authorizationValidationFailure('Founder merge authorization Markdown must match the canonical structured decision shape exactly')
   }
-  return parsed
+
+  const values = {}
+  for (const [index, [pattern, name]] of fields.entries()) {
+    const match = lines[index].match(pattern)
+    if (!match) {
+      throw authorizationValidationFailure('Founder merge authorization Markdown is incomplete, duplicated, conflicting, or non-canonical')
+    }
+    if (match[1] != null) values[name] = match[1]
+  }
+
+  const nonSuperseded = values.nonSuperseded === 'true'
+  const head = values.head.toLowerCase()
+  return {
+    schema_version: 1,
+    status: 'approved',
+    authority: 'Founder',
+    author_login: values.author,
+    repository: values.repository,
+    task_issue: Number(values.task),
+    pr: Number(values.pr),
+    base: values.base,
+    exact_head: head,
+    reviewed_head: head,
+    review_verdict_comment_id: values.reviewComment,
+    policy_source_sha: values.policySourceSha.toLowerCase(),
+    protected_base_sha: values.protectedBaseSha.toLowerCase(),
+    policy_version: '1.3.0',
+    bundle_kind: MERGE_COMPLETION_BUNDLE_KIND,
+    scope: 'merge',
+    action: 'merge',
+    non_superseded: nonSuperseded,
+    superseded_by: null,
+  }
 }
 
 export function generateFounderMergeAuthorization(authorization) {
@@ -684,6 +747,7 @@ async function completeTerminalCampaignProjection({
   authorization,
   state,
   authorizationCommentId,
+  nextAction,
 }) {
   const campaignIssue = normalizeIssueNumber(authorization.campaign_issue ?? state.campaign_issue)
   const campaignSlice = Number(authorization.campaign_slice ?? state.campaign_slice)
@@ -703,12 +767,6 @@ async function completeTerminalCampaignProjection({
   })
   if (campaignProjection?.status !== 'DONE') throw stateConflict('campaign slice DONE projection was not confirmed')
 
-  const nextAction = await deps.selectNextCampaignAction({
-    repo,
-    campaignIssue,
-    completedSlice: campaignSlice,
-    taskIssue: issueNumber,
-  })
   if (!nextAction || nextAction.started !== false || typeof nextAction.action !== 'string' || nextAction.action.length === 0) {
     throw stateConflict('merge completion must select the next campaign action without starting it')
   }
@@ -726,6 +784,7 @@ async function completeTerminalBlockerProjection({
   campaignIssue,
   campaignBlockerId,
   authorizationCommentId,
+  nextAction,
 }) {
   const campaignProjection = await deps.projectCampaignBlockerResolved({
     repo,
@@ -736,21 +795,136 @@ async function completeTerminalBlockerProjection({
     reviewedHead,
     mergeCommit,
     authorizationCommentId: String(authorizationCommentId),
+    nextAction,
   })
   if (campaignProjection?.status !== 'RESOLVED') {
     throw stateConflict('campaign blocker resolution projection was not confirmed')
   }
 
-  const nextAction = await deps.selectNextCampaignAction({
-    repo,
-    campaignIssue,
-    taskIssue: issueNumber,
-  })
   if (!nextAction || nextAction.started !== false || typeof nextAction.action !== 'string' || nextAction.action.length === 0) {
     throw stateConflict('blocker resolution must select the next campaign action without starting it')
   }
+  if (campaignProjection.postconditions != null) {
+    validateBlockerResolutionPostconditions(campaignProjection.postconditions, {
+      nextAction,
+      requireTask: false,
+      expected: { campaignIssue, campaignBlockerId },
+    })
+  }
 
-  return { campaignIssue, campaignBlockerId, nextAction }
+  return { campaignIssue, campaignBlockerId, nextAction, postconditions: campaignProjection.postconditions }
+}
+
+function validateNextAction(nextAction, { requiredSlice = null } = {}) {
+  const slice = nextAction?.slice == null ? null : Number(nextAction.slice)
+  const valid =
+    nextAction &&
+    typeof nextAction === 'object' &&
+    !Array.isArray(nextAction) &&
+    nextAction.started === false &&
+    typeof nextAction.action === 'string' &&
+    nextAction.action.trim().length > 0 &&
+    !/^\s*start\b/i.test(nextAction.action) &&
+    (requiredSlice == null || slice === requiredSlice)
+  if (!valid) {
+    throw stateConflict('merge completion next campaign action is missing, conflicting, or would start the next Slice')
+  }
+  return { ...nextAction, ...(slice == null ? {} : { slice }) }
+}
+
+function validateBlockerResolutionPostconditions(
+  postconditions,
+  { nextAction, expected = {}, requireTask = true } = {},
+) {
+  const task = postconditions?.task
+  const campaign = postconditions?.campaign
+  const expectedSliceKeys = expectedSliceKeysForBlockerResolution()
+  const validTask = !requireTask || (
+    task?.state === 'DONE' &&
+    normalizeIssueNumber(task.task_issue) === expected.taskIssue &&
+    normalizePrNumber(task.canonical_pr) === expected.prNumber &&
+    task.reviewed_head === expected.reviewedHead &&
+    task.merge_commit === expected.mergeCommit &&
+    /^[1-9]\d*$/.test(String(task.final_result_comment_id ?? '')) &&
+    (!expected.finalResultCommentId || String(task.final_result_comment_id) === String(expected.finalResultCommentId)) &&
+    Array.isArray(task.open_blockers) &&
+    task.open_blockers.length === 0 &&
+    task.next_permitted_action === 'none on this task'
+  )
+  const slices = campaign?.slices
+  const validSlices = slices && typeof slices === 'object' && !Array.isArray(slices) &&
+    sameArray(Object.keys(slices), expectedSliceKeys) &&
+    expectedSliceKeys.slice(0, 4).every((key) => {
+      const slice = slices[key]
+      return (
+        slice?.status === 'DONE' &&
+        slice.issue != null &&
+        slice.pr != null &&
+        typeof slice.reviewed_head === 'string' &&
+        typeof slice.merged_commit === 'string' &&
+        Array.isArray(slice.authority_comment_ids) &&
+        slice.authority_comment_ids.length > 0 &&
+        Array.isArray(slice.blocker_ids) &&
+        !slice.blocker_ids.includes(expected.campaignBlockerId)
+      )
+    }) &&
+    expectedSliceKeys.slice(4).every((key) => {
+      const slice = slices[key]
+      return (
+        slice?.status === 'NOT_STARTED' &&
+        slice.issue == null &&
+        slice.pr == null &&
+        slice.reviewed_head == null &&
+        slice.merged_commit == null &&
+        Array.isArray(slice.authority_comment_ids) &&
+        slice.authority_comment_ids.length === 0 &&
+        Array.isArray(slice.blocker_ids) &&
+        slice.blocker_ids.length === 0
+      )
+    })
+  const durableNextAction = campaign?.durable_next_action
+  const validCampaign =
+    campaign?.lifecycle === 'ACTIVE' &&
+    normalizeIssueNumber(campaign.campaign_issue) === expected.campaignIssue &&
+    Array.isArray(campaign.blocker_ids) &&
+    !campaign.blocker_ids.includes(expected.campaignBlockerId) &&
+    Array.isArray(campaign.unrelated_blockers) &&
+    sameArray(campaign.slice_keys, expectedSliceKeys) &&
+    campaign.slice5_status === 'NOT_STARTED' &&
+    validSlices &&
+    sameCampaignValue(campaign.next_action, durableNextAction) &&
+    validateNextAction(durableNextAction, { requiredSlice: 5 }).slice === 5
+  const validSelectedAction = nextAction == null || sameCampaignValue(
+    validateNextAction(nextAction, { requiredSlice: 5 }),
+    validateNextAction(durableNextAction, { requiredSlice: 5 }),
+  )
+  if (!validTask || !validCampaign || !validSelectedAction) {
+    throw stateConflict('blocker-resolution completion postconditions are incomplete, conflicting, reordered, or over-advanced')
+  }
+  return true
+}
+
+function blockerResolutionCampaignPostconditions(campaign, campaignBlockerId, durableNextAction) {
+  const blockerIds = [
+    ...(campaign?.campaign_blockers ?? []).map((blocker) => blocker?.id),
+    ...Object.values(campaign?.slices ?? {})
+      .flatMap((slice) => Array.isArray(slice?.blocker_ids) ? slice.blocker_ids : []),
+  ].filter(Boolean)
+  return {
+    campaign_issue: campaign?.campaign_issue,
+    lifecycle: campaign?.campaign_lifecycle,
+    blocker_ids: blockerIds.filter((id) => id === campaignBlockerId),
+    unrelated_blockers: blockerIds.filter((id) => id !== campaignBlockerId),
+    slice_keys: Object.keys(campaign?.slices ?? {}),
+    slices: structuredClone(campaign?.slices ?? {}),
+    slice5_status: campaign?.slices?.['5']?.status,
+    next_action: durableNextAction,
+    durable_next_action: durableNextAction,
+  }
+}
+
+function expectedSliceKeysForBlockerResolution() {
+  return expectedSliceKeys(BLOCKER_RESOLUTION_MAX_SLICE)
 }
 
 async function reconcileAfterFailure({ deps, issueNumber, repo, error }) {
@@ -845,7 +1019,6 @@ export async function runFounderAuthorizedMerge({
     projectionKind === CAMPAIGN_PROJECTION_KINDS.BLOCKER_RESOLUTION
       ? 'projectCampaignBlockerResolved'
       : 'projectCampaignSliceDone',
-    'selectNextCampaignAction',
   ]
   if (!alreadyDone) {
     requiredProjectionDeps.unshift(
@@ -860,6 +1033,23 @@ export async function runFounderAuthorizedMerge({
   const missingProjectionDeps = requiredProjectionDeps.filter((name) => typeof deps[name] !== 'function')
   if (missingProjectionDeps.length > 0) {
     throw blockedExternal(`merge completion projection dependencies are unavailable: ${missingProjectionDeps.join(', ')}`)
+  }
+
+  const campaignIssueForNextAction = blockerBinding?.campaignIssue ??
+    normalizeIssueNumber(authorization.campaign_issue ?? state.campaign_issue)
+  let nextAction = null
+  const readNextActionBeforeMutation = async () => {
+    if (typeof deps.readNextCampaignAction !== 'function') {
+      throw blockedExternal('merge completion next campaign action evidence is unavailable')
+    }
+    if (!campaignIssueForNextAction) {
+      throw stateConflict('merge completion requires an exact campaign Issue binding before selecting the next action')
+    }
+    nextAction = validateNextAction(
+      await deps.readNextCampaignAction({ repo, campaignIssue: campaignIssueForNextAction }),
+      { requiredSlice: projectionKind === CAMPAIGN_PROJECTION_KINDS.BLOCKER_RESOLUTION ? 5 : null },
+    )
+    return nextAction
   }
 
   let mutationStarted = false
@@ -879,30 +1069,124 @@ export async function runFounderAuthorizedMerge({
       }
       const onBase = await deps.verifyCommitOnProtectedBase({ repo, base: state.approved_base, commit })
       if (!onBase) throw stateConflict('verified merge commit has not reached the protected base')
-      mutationStarted = true
-      const terminal = projectionKind === CAMPAIGN_PROJECTION_KINDS.BLOCKER_RESOLUTION
-        ? await completeTerminalBlockerProjection({
-            deps,
-            repo,
-            issueNumber,
+      if (projectionKind !== CAMPAIGN_PROJECTION_KINDS.BLOCKER_RESOLUTION) {
+        if (typeof deps.readNextCampaignAction !== 'function') {
+          throw blockedExternal('merge completion next campaign action evidence is unavailable')
+        }
+        if (!campaignIssueForNextAction) {
+          throw stateConflict('merge completion requires an exact campaign Issue binding before selecting the next action')
+        }
+        nextAction = validateNextAction(
+          await deps.readNextCampaignAction({ repo, campaignIssue: campaignIssueForNextAction }),
+        )
+      }
+      const storedBlockerPostconditions = projectionKind === CAMPAIGN_PROJECTION_KINDS.BLOCKER_RESOLUTION
+        ? state.blocker_resolution_postconditions ?? state.campaign_postconditions
+        : null
+      if (projectionKind === CAMPAIGN_PROJECTION_KINDS.BLOCKER_RESOLUTION) {
+        if (typeof deps.readCampaignBlockerResolutionPostconditions !== 'function') {
+          throw stateConflict('DONE blocker-resolution requires a complete live terminal projection reader')
+        }
+        const livePostconditions = await deps.readCampaignBlockerResolutionPostconditions({
+          repo,
+          campaignIssue: blockerBinding.campaignIssue,
+          campaignBlockerId: blockerBinding.campaignBlockerId,
+          taskIssue: issueNumber,
+          prNumber,
+          reviewedHead,
+          mergeCommit: commit,
+          finalResultCommentId: state.latest_result_comment_id,
+        })
+        validateBlockerResolutionPostconditions(livePostconditions, {
+          expected: {
+            taskIssue: issueNumber,
             prNumber,
             reviewedHead,
             mergeCommit: commit,
+            finalResultCommentId: state.latest_result_comment_id,
             campaignIssue: blockerBinding.campaignIssue,
             campaignBlockerId: blockerBinding.campaignBlockerId,
-            authorizationCommentId,
+          },
+        })
+        if (storedBlockerPostconditions != null) {
+          validateBlockerResolutionPostconditions(storedBlockerPostconditions, {
+            expected: {
+              taskIssue: issueNumber,
+              prNumber,
+              reviewedHead,
+              mergeCommit: commit,
+              finalResultCommentId: state.latest_result_comment_id,
+              campaignIssue: blockerBinding.campaignIssue,
+              campaignBlockerId: blockerBinding.campaignBlockerId,
+            },
           })
-        : await completeTerminalCampaignProjection({
-            deps,
-            repo,
-            issueNumber,
-            prNumber,
-            reviewedHead,
-            mergeCommit: commit,
-            authorization,
-            state,
-            authorizationCommentId,
-          })
+          if (!sameCampaignValue(storedBlockerPostconditions, livePostconditions)) {
+            throw stateConflict('stored and live blocker-resolution terminal projections differ')
+          }
+        }
+        return {
+          outcome: 'NO_OP',
+          issueNumber,
+          prNumber,
+          reviewedHead,
+          mergeCommit: commit,
+          finalResultCommentId: String(state.latest_result_comment_id),
+          nextAction: 'already selected; do not start it',
+        }
+      }
+      mutationStarted = true
+      let terminal
+      try {
+        terminal = projectionKind === CAMPAIGN_PROJECTION_KINDS.BLOCKER_RESOLUTION
+          ? await completeTerminalBlockerProjection({
+              deps,
+              repo,
+              issueNumber,
+              prNumber,
+              reviewedHead,
+              mergeCommit: commit,
+              campaignIssue: blockerBinding.campaignIssue,
+              campaignBlockerId: blockerBinding.campaignBlockerId,
+              authorizationCommentId,
+              nextAction,
+            })
+          : await completeTerminalCampaignProjection({
+              deps,
+              repo,
+              issueNumber,
+              prNumber,
+              reviewedHead,
+              mergeCommit: commit,
+              authorization,
+              state,
+              authorizationCommentId,
+              nextAction,
+            })
+        if (
+          projectionKind === CAMPAIGN_PROJECTION_KINDS.BLOCKER_RESOLUTION &&
+          terminal.postconditions == null
+        ) {
+          throw stateConflict('blocker-resolution completion postconditions are missing')
+        }
+      } catch (error) {
+        if (
+          projectionKind === CAMPAIGN_PROJECTION_KINDS.BLOCKER_RESOLUTION &&
+          /completion postconditions/.test(error instanceof Error ? error.message : String(error))
+        ) {
+          const reconciliation = await reconcileAfterFailure({ deps, issueNumber, repo, error })
+          if (reconciliation?.finalOutcome === 'NO_OP') {
+            return {
+              outcome: 'NO_OP',
+              issueNumber,
+              prNumber,
+              reviewedHead,
+              mergeCommit: commit,
+              finalResultCommentId: String(state.latest_result_comment_id),
+            }
+          }
+        }
+        throw error
+      }
       return {
         outcome: 'NO_OP',
         issueNumber,
@@ -918,6 +1202,7 @@ export async function runFounderAuthorizedMerge({
       if (normalizeIssueState(issue) !== 'OPEN') throw stateConflict('an unmerged PR cannot belong to an already-closed managed Issue')
       if (String(pr.state).toUpperCase() !== 'OPEN') throw stateConflict('PR must be open before merge')
       verifyMergeability(pr)
+      await readNextActionBeforeMutation()
       if (pr.isDraft) {
         mutationStarted = true
         await deps.markReadyForReview(prNumber, repo)
@@ -946,6 +1231,7 @@ export async function runFounderAuthorizedMerge({
     if (!commit) throw stateConflict('merged PR does not expose a merge commit')
     const onBase = await deps.verifyCommitOnProtectedBase({ repo, base: state.approved_base, commit })
     if (!onBase) throw stateConflict('verified merge commit has not reached the protected base')
+    if (nextAction == null) await readNextActionBeforeMutation()
 
     const finalResult = await deps.postFinalResult({
       repo,
@@ -1003,6 +1289,7 @@ export async function runFounderAuthorizedMerge({
           campaignIssue: blockerBinding.campaignIssue,
           campaignBlockerId: blockerBinding.campaignBlockerId,
           authorizationCommentId,
+          nextAction,
         })
       : await completeTerminalCampaignProjection({
           deps,
@@ -1014,6 +1301,7 @@ export async function runFounderAuthorizedMerge({
           authorization,
           state,
           authorizationCommentId,
+          nextAction,
         })
 
     return {
@@ -1226,6 +1514,55 @@ function createProductionDeps() {
     }
   }
 
+  const readCampaignIssue = async (repo, campaignIssue) => {
+    const issue = JSON.parse(runGh(['issue', 'view', String(campaignIssue), '--repo', repo, '--json', 'body']))
+    const evidence = await readCampaignAuthorityEvidence(repo, campaignIssue)
+    const parsed = parseCampaign(issue.body, { evidence })
+    if (!parsed.present || !parsed.valid) {
+      campaignParseFailure(parsed, `campaign Issue #${campaignIssue} has invalid blocker-resolution completion evidence`)
+    }
+    if (normalizeIssueNumber(parsed.campaign?.campaign_issue) !== campaignIssue) {
+      throw stateConflict(`campaign completion evidence is not bound to Campaign Issue #${campaignIssue}`)
+    }
+    return parsed
+  }
+
+  const readNextCampaignAction = async ({ repo, campaignIssue }) => {
+    const parsed = await readCampaignIssue(repo, campaignIssue)
+    return selectNextCampaignAction(parsed.campaign)
+  }
+
+  const readCampaignBlockerResolutionPostconditions = async ({
+    repo,
+    campaignIssue,
+    campaignBlockerId,
+    taskIssue,
+    prNumber,
+    reviewedHead,
+    mergeCommit,
+    finalResultCommentId,
+  }) => {
+    const parsed = await readCampaignIssue(repo, campaignIssue)
+    const durableNextAction = selectNextCampaignAction(parsed.campaign)
+    return {
+      task: {
+        state: 'DONE',
+        task_issue: `#${taskIssue}`,
+        canonical_pr: `#${prNumber}`,
+        reviewed_head: reviewedHead,
+        merge_commit: mergeCommit,
+        final_result_comment_id: String(finalResultCommentId),
+        open_blockers: [],
+        next_permitted_action: 'none on this task',
+      },
+      campaign: blockerResolutionCampaignPostconditions(
+        parsed.campaign,
+        campaignBlockerId,
+        durableNextAction,
+      ),
+    }
+  }
+
   const emptyCampaignSlice = () => ({
     status: 'NOT_STARTED',
     issue: null,
@@ -1242,19 +1579,23 @@ function createProductionDeps() {
     readFounderAuthorization: async (repo, issueNumber, commentId) => {
       const comment = readIssueComment(repo, issueNumber, commentId)
       const parsed = parseFounderMergeAuthorization(comment.body)
+      if (parsed.author_login !== comment.user.login) {
+        throw authorizationValidationFailure('Founder authorization Markdown author does not match the authenticated live GitHub comment author')
+      }
       const superseded = readIssueComments(repo, issueNumber).some((entry) => {
         return String(entry.id) !== String(comment.id) && commentSupersedesId(entry.body, comment.id)
       })
       return {
         ...parsed,
         comment_id: String(comment.id),
-        author_login: comment.user.login,
         immutable_comment_reference: true,
         comment_sha256: createHash('sha256').update(String(comment.body ?? ''), 'utf8').digest('hex'),
         non_superseded: parsed.non_superseded === true && !superseded,
         superseded_by: superseded ? 'live-issue-comment-evidence' : (parsed.superseded_by ?? null),
       }
     },
+    readCampaignBlockerResolutionPostconditions,
+    readNextCampaignAction,
     readReviewVerdict: async (repo, issueNumber, commentId) => {
       const comment = readIssueComment(repo, issueNumber, commentId)
       return parseProductionMergeReviewVerdict(comment.body, comment.id)
@@ -1368,7 +1709,17 @@ function createProductionDeps() {
       }
       return { status: 'DONE', campaignIssue, campaignSlice }
     },
-    projectCampaignBlockerResolved: async ({ repo, campaignIssue, campaignBlockerId, taskIssue, prNumber: _prNumber, reviewedHead: _reviewedHead, mergeCommit, authorizationCommentId: _authorizationCommentId }) => {
+    projectCampaignBlockerResolved: async ({
+      repo,
+      campaignIssue,
+      campaignBlockerId,
+      taskIssue,
+      prNumber: _prNumber,
+      reviewedHead: _reviewedHead,
+      mergeCommit,
+      authorizationCommentId: _authorizationCommentId,
+      nextAction,
+    }) => {
       const issue = JSON.parse(runGh(['issue', 'view', String(campaignIssue), '--repo', repo, '--json', 'body,state']))
       const hasExpansionAuthority = /campaign_expansion_authority\s*:/.test(String(issue.body ?? ''))
       const evidence = await readCampaignAuthorityEvidence(repo, campaignIssue)
@@ -1382,6 +1733,11 @@ function createProductionDeps() {
       if (authorizedMaxSlice !== BLOCKER_RESOLUTION_MAX_SLICE) {
         throw stateConflict('blocker-resolution is bounded to the Founder-approved campaign range through Slice 11')
       }
+      for (const key of expectedSliceKeys(LEGACY_MAX_SLICE - 3)) {
+        if (priorCampaign.slices[key]?.blocker_ids?.includes(campaignBlockerId)) {
+          throw stateConflict(`blocker-resolution may not mutate untouched campaign Slice ${key}`)
+        }
+      }
       const nextSlices = structuredClone(priorCampaign.slices)
       for (const key of expectedSliceKeys(authorizedMaxSlice).slice(currentMaxSlice)) {
         nextSlices[key] = emptyCampaignSlice()
@@ -1391,6 +1747,7 @@ function createProductionDeps() {
       }
       const nextCampaign = {
         ...priorCampaign,
+        campaign_lifecycle: 'ACTIVE',
         campaign_expansion_authority: authority,
         slices: nextSlices,
         root_script_map: {
@@ -1402,6 +1759,11 @@ function createProductionDeps() {
         campaign_blockers: priorCampaign.campaign_blockers.filter((blocker) => blocker.id !== campaignBlockerId),
         updated_at: new Date().toISOString(),
         updated_by: 'Founder-authorized merge transport',
+      }
+      const untouchedSlices = expectedSliceKeys(LEGACY_MAX_SLICE - 3)
+        .every((key) => JSON.stringify(priorCampaign.slices[key]) === JSON.stringify(nextCampaign.slices[key]))
+      if (!untouchedSlices) {
+        throw stateConflict('blocker-resolution changed one or more protected campaign Slices 1–4')
       }
       const transition = validateCampaignTransition(priorCampaign, nextCampaign, {
         mode: 'blocker-resolution',
@@ -1434,7 +1796,18 @@ function createProductionDeps() {
       if (verifiedSlice?.status !== 'NOT_STARTED' || verifiedSlice.blocker_ids.includes(campaignBlockerId)) {
         throw stateConflict('blocker-resolution changed or failed to preserve Slice 5 NOT_STARTED state')
       }
-      return { status: 'RESOLVED', campaignIssue, campaignBlockerId }
+      return {
+        status: 'RESOLVED',
+        campaignIssue,
+        campaignBlockerId,
+        postconditions: {
+          campaign: blockerResolutionCampaignPostconditions(
+            verifiedCampaign.campaign,
+            campaignBlockerId,
+            nextAction,
+          ),
+        },
+      }
     },
     selectNextCampaignAction: async ({ repo, campaignIssue }) => {
       const issue = JSON.parse(runGh(['issue', 'view', String(campaignIssue), '--repo', repo, '--json', 'body']))
