@@ -1925,6 +1925,60 @@ function selectLiveReviewVerdictComment({ comments, issueNumber, livePr }) {
   return comment
 }
 
+/**
+ * Prove the reviewed head is contained in the current protected base.
+ * Mirrors merge-transport containment: compare(commit...base) is ahead|identical.
+ */
+export function assertReviewedHeadContainedInProtectedMain({
+  repo,
+  base,
+  commit,
+  runGh = (args, options) => run('gh', args, options),
+}) {
+  if (!repo || !base || !commit) {
+    throw new Error('STATE_CONFLICT: protected main containment proof is missing repo/base/commit')
+  }
+  const comparison = JSON.parse(runGh(['api', `repos/${repo}/compare/${commit}...${base}`]))
+  if (comparison?.status !== 'ahead' && comparison?.status !== 'identical') {
+    throw new Error(
+      `STATE_CONFLICT: reviewed head ${commit} is not contained in protected ${base}`,
+    )
+  }
+  return true
+}
+
+/**
+ * Accept OPEN PRs unchanged, or MERGED PRs only when exact managed heads match
+ * and the reviewed head is contained in protected main. Fail closed otherwise.
+ */
+export function assertManagedActivePrForReviewVerdictReconciliation({
+  state,
+  pr,
+  repo,
+  runGh = (args, options) => run('gh', args, options),
+}) {
+  const prNumber = String(state.active_pr).replace(/^#/, '')
+  if (String(pr.number) !== prNumber || pr.baseRefName !== state.approved_base) {
+    throw new Error('STATE_CONFLICT: managed active PR or approved base does not match live PR')
+  }
+  if (pr.headRefOid !== state.current_head || pr.headRefOid !== state.last_reviewed_head) {
+    throw new Error('STATE_CONFLICT: managed exact head does not match live PR head')
+  }
+
+  const prState = String(pr.state).toUpperCase()
+  if (prState === 'OPEN') return { mode: 'open' }
+  if (prState === 'MERGED') {
+    assertReviewedHeadContainedInProtectedMain({
+      repo,
+      base: state.approved_base,
+      commit: pr.headRefOid,
+      runGh,
+    })
+    return { mode: 'merged' }
+  }
+  throw new Error('STATE_CONFLICT: managed active PR or approved base does not match live PR')
+}
+
 async function runProductionReviewVerdictReconciliation(options) {
   const repoArgs = options.repo ? ['--repo', options.repo] : []
   const issueArgs = ['issue', 'view', options.issue, '--json', 'body,state', ...repoArgs]
@@ -1940,17 +1994,17 @@ async function runProductionReviewVerdictReconciliation(options) {
   }
 
   const prNumber = String(state.active_pr).replace(/^#/, '')
+  const repo = options.repo || run('gh', ['repo', 'view', '--json', 'nameWithOwner', '--jq', '.nameWithOwner'])
   const pr = JSON.parse(run('gh', [
     'pr', 'view', prNumber, '--json', 'number,headRefOid,baseRefName,state', ...repoArgs,
   ]))
-  if (String(pr.number) !== prNumber || pr.baseRefName !== state.approved_base || String(pr.state).toUpperCase() !== 'OPEN') {
-    throw new Error('STATE_CONFLICT: managed active PR or approved base does not match live PR')
-  }
-  if (pr.headRefOid !== state.current_head || pr.headRefOid !== state.last_reviewed_head) {
-    throw new Error('STATE_CONFLICT: managed exact head does not match live PR head')
-  }
+  assertManagedActivePrForReviewVerdictReconciliation({
+    state,
+    pr,
+    repo,
+    runGh: (args, ghOptions) => run('gh', args, ghOptions),
+  })
 
-  const repo = options.repo || run('gh', ['repo', 'view', '--json', 'nameWithOwner', '--jq', '.nameWithOwner'])
   const comments = normalizeIssueComments(parsePaginatedGhApiJson(
     run('gh', ['api', '--paginate', `repos/${repo}/issues/${options.issue}/comments`]),
   ))
