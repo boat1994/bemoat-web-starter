@@ -2,8 +2,8 @@
   "schema_version": 1,
   "issue": "215",
   "transition_identity": "{\"schema_version\":1,\"kind\":\"campaign-routing-reconciliation\",\"campaign_issue\":\"#215\",\"recovery_result\":\"5181747710\",\"stale_handoff\":\"5162206148\",\"old_routing\":\"Dev / Builder executes HANDOFF 5162206148 against exact live base d6e99c350f8d92e536fe97f81bd6507f6cdaa686.\",\"new_routing\":\"Campaign Slice 5 planning is selected for a future Founder-gated bounded action; Slice 5 is not started.\"}",
-  "observed_body_sha256": "605dbff08c209ba27062f2714adf36fdb466be162c8ae898a8f618a16e39cedb",
+  "observed_body_sha256": "c3e476f0892d5061723cf2e7faee97a5ef7904d37ed2dffe83cff23fc565385c",
   "holder": "mission-control-campaign-routing-reconcile",
-  "status": "held",
-  "updated_at": "2026-08-04T16:32:33.063Z"
+  "status": "released",
+  "updated_at": "2026-08-04T16:32:37.660Z"
 }
