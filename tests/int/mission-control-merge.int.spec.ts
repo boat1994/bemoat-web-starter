@@ -140,7 +140,7 @@ function createHarness(options: Record<string, any> = {}) {
   let campaignProjectionFailures = options.campaignProjectionFailures ?? 0
   let campaignBlockerProjectionFailures = options.campaignBlockerProjectionFailures ?? 0
 
-  const deps = {
+  const deps: Record<string, any> = {
     readManagedIssue: async (issueNumber: number) => structuredClone(issues.get(issueNumber)),
     readPullRequest: async () => structuredClone(pull),
     readFounderAuthorization: async (_repo: string, issueNumber: number) => {
@@ -223,6 +223,11 @@ function createHarness(options: Record<string, any> = {}) {
       }
       return { status: 'RESOLVED', campaignIssue, campaignBlockerId }
     },
+    readNextCampaignAction: async () => ({
+      slice: 5,
+      action: 'Plan Slice 5',
+      started: options.nextStarted === true,
+    }),
     selectNextCampaignAction: async () => {
       operations.push('select-next')
       return { action: 'Resolve the next campaign blocker', started: options.nextStarted === true }
@@ -282,7 +287,6 @@ describe('Founder-authorized Mission Control merge transport', () => {
       'close:222',
       'task-done:222',
       'campaign-done:215:3',
-      'select-next',
     ])
     expect(harness.issues.get(222)).toMatchObject({ state: 'CLOSED', stateReason: 'COMPLETED', managedState: { state: 'DONE' } })
     expect(harness.operations).not.toContain('reconcile:222')
@@ -319,7 +323,6 @@ describe('Founder-authorized Mission Control merge transport', () => {
       'close:254',
       'task-done:254',
       'campaign-blocker-resolved:215:issue-254-planning-correction-1',
-      'select-next',
     ])
     expect(harness.operations).not.toContain('campaign-done:215:5')
   })
@@ -386,6 +389,8 @@ describe('Founder-authorized Mission Control merge transport', () => {
       campaignBlockerProjectionFailures: 1,
       reconcileOutcomes: ['DONE'],
     })
+    harness.deps.readCampaignBlockerResolutionPostconditions = async () =>
+      completeBlockerResolutionPostconditions()
     const input = {
       issueNumber: 254,
       repo: 'boat1994/bemoat-web-starter',
@@ -398,8 +403,8 @@ describe('Founder-authorized Mission Control merge transport', () => {
 
     expect(harness.operations.filter((entry) => entry.startsWith('merge:'))).toHaveLength(1)
     expect(harness.operations.filter((entry) => entry === 'close:254')).toHaveLength(1)
-    expect(harness.operations.filter((entry) => entry === 'campaign-blocker-resolved:215:issue-254-planning-correction-1')).toHaveLength(2)
-    expect(harness.operations.filter((entry) => entry === 'select-next')).toHaveLength(1)
+    expect(harness.operations.filter((entry) => entry === 'campaign-blocker-resolved:215:issue-254-planning-correction-1')).toHaveLength(1)
+    expect(harness.operations.filter((entry) => entry === 'select-next')).toHaveLength(0)
   })
 
   it('fails closed when merge completion would start the selected next campaign action', async () => {
@@ -412,8 +417,8 @@ describe('Founder-authorized Mission Control merge transport', () => {
       deps: harness.deps,
     })).rejects.toThrow(/STATE_CONFLICT.*next campaign action/)
 
-    expect(harness.operations).toContain('select-next')
-    expect(harness.operations).toContain('reconcile:222')
+    expect(harness.operations).not.toContain('select-next')
+    expect(harness.operations).not.toContain('reconcile:222')
   })
 
   it.each([
@@ -599,7 +604,7 @@ describe('Founder-authorized Mission Control merge transport', () => {
 
     expect(harness.operations.filter((entry) => entry.startsWith('merge:'))).toHaveLength(1)
     expect(harness.operations.filter((entry) => entry === 'campaign-done:215:3')).toHaveLength(2)
-    expect(harness.operations.filter((entry) => entry === 'select-next')).toHaveLength(1)
+    expect(harness.operations.filter((entry) => entry === 'select-next')).toHaveLength(0)
   })
 
   it('fails closed instead of returning NO_OP when terminal RESULT evidence is missing', async () => {
@@ -770,20 +775,7 @@ describe('Founder-authorized Mission Control merge transport', () => {
         latest_result_comment_id: '6000000003',
         open_blockers: [],
         next_permitted_action: 'none on this task',
-        blocker_resolution_postconditions: {
-          task: {
-            state: 'DONE',
-            open_blockers: [],
-            next_permitted_action: 'none on this task',
-          },
-          campaign: {
-            lifecycle: 'ACTIVE',
-            blocker_ids: [],
-            slice_keys: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11'],
-            slice5_status: 'NOT_STARTED',
-            next_action: { slice: 5, started: false },
-          },
-        },
+        blocker_resolution_postconditions: completeBlockerResolutionPostconditions(),
       },
       authorization: {
         projection_kind: 'blocker-resolution',
@@ -791,6 +783,8 @@ describe('Founder-authorized Mission Control merge transport', () => {
         campaign_blocker_id: 'issue-254-planning-correction-1',
       },
     })
+    harness.deps.readCampaignBlockerResolutionPostconditions = async () =>
+      completeBlockerResolutionPostconditions()
     const writes: string[] = []
     harness.deps.projectCampaignBlockerResolved = async () => {
       writes.push('projectCampaignBlockerResolved')
@@ -1323,6 +1317,7 @@ function completeBlockerResolutionPostconditions(overrides: any = {}) {
   const base: Record<string, any> = {
     task: {
       state: 'DONE',
+      task_issue: '#254',
       canonical_pr: '#258',
       reviewed_head: reviewedHead,
       merge_commit: mergeCommit,
@@ -1331,6 +1326,7 @@ function completeBlockerResolutionPostconditions(overrides: any = {}) {
       next_permitted_action: 'none on this task',
     },
     campaign: {
+      campaign_issue: '#215',
       lifecycle: 'ACTIVE',
       blocker_ids: [],
       unrelated_blockers: ['campaign-unrelated-blocker'],
@@ -1363,7 +1359,7 @@ function completeBlockerResolutionPostconditions(overrides: any = {}) {
 }
 
 function completedBlockerResolutionHarness(overrides: any = {}) {
-  return createHarness({
+  const harness = createHarness({
     taskIssue: 254,
     prNumber: 258,
     issueState: 'CLOSED',
@@ -1385,6 +1381,9 @@ function completedBlockerResolutionHarness(overrides: any = {}) {
       campaign_blocker_id: blockerResolutionId,
     },
   })
+  harness.deps.readCampaignBlockerResolutionPostconditions = async () =>
+    completeBlockerResolutionPostconditions()
+  return harness
 }
 
 function mutationOperations(operations: string[]) {
