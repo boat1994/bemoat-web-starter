@@ -58,7 +58,7 @@ Keep these values distinct in every handoff and invocation:
 | Protected-base SHA | The live commit SHA of the protected base branch (`baseRefOid` / current protected ref), used for ancestry and exact-base checks; do not copy an older approved SHA from chat. |
 | Exact PR head SHA | The live PR `headRefOid` at the moment of the command. Must be the complete 40-character SHA. CI and every review/merge authorization must match this exact SHA. |
 | Role comment ID | The immutable GitHub Issue comment ID returned by the live API: HANDOFF for dispatch, active `REVIEW_VERDICT` for reconcile/merge, and Founder authorization for merge. |
-| Verdict body / verdict file | The complete `## REVIEW_VERDICT` body supplied by `--body-file` to review, or the live role comment body selected by reconcile/merge. A file path is only transport; the body must contain canonical PR/base/head/verdict evidence. |
+| Verdict body / verdict file | The complete `## REVIEW_VERDICT` body supplied by `--body-file` to review, or the live role comment body selected by reconcile/merge. A file path is only transport. New verdicts must contain canonical PR/base/head/verdict evidence. Reconcile/merge may accept only the explicitly documented bounded historical legacy `**Task:**` / `**PR:**` / `**Base:**` / `**Head:**` shape when that complete unique binding is present and the canonical line is absent; partial, ambiguous, or malformed legacy evidence fails closed. |
 
 Do not infer any supplied value from a chat transcript. Re-read the Task Issue,
 campaign authorization, PR, comments, protected base, and exact head live before
@@ -144,9 +144,20 @@ For an eligible review state, reconcile selects exactly one active live
 `REVIEW_VERDICT` for that Task Issue whose bound PR matches the managed
 `active_pr` / live PR (historical transport reviews for a different PR remain
 preserved but non-competing), then requires its PR number, base branch,
-and exact head to match the live PR and state. For other states it evaluates
-live Issue, PR, comment, campaign, and protected-base evidence before proposing
-an allowed deterministic repair. Valid NO_OP behavior means the state is already completely aligned. Routing-only repair behavior repairs routing lineage while preserving domain state, review cycle, counters, PR/head bindings, RESULT lineage, and verdict. It cannot bootstrap a missing managed-state block.
+and exact head to match the live PR and state. New verdicts must use the
+canonical `**PR / base / head:**` field. The only exception is the explicitly
+documented bounded historical legacy shape: single-line
+`**Task:**` / `**PR:**` / `**Base:**` / `**Head:**` fields with a full 40-character
+head SHA when the canonical line is entirely absent. Incidental prose, bare
+`PR #N`, pull URLs, multiline field values, or incomplete/duplicated/ambiguous
+legacy fields fail closed and must not be treated as different-PR historical
+authority. Same-PR competing active verdicts remain `STATE_CONFLICT`. For other
+states it evaluates live Issue, PR, comment, campaign, and protected-base
+evidence before proposing an allowed deterministic repair. Valid NO_OP behavior
+means the state is already completely aligned. Routing-only repair behavior
+repairs routing lineage while preserving domain state, review cycle, counters,
+PR/head bindings, RESULT lineage, and verdict. It cannot bootstrap a missing
+managed-state block.
 
 Fetch active review verdicts: `gh issue view 123 --json comments`
 
