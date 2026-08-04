@@ -1896,6 +1896,57 @@ function parseTaskIssueNumber(body = '') {
 }
 
 /**
+ * Collect every recognized authoritative Task Issue number from a REVIEW_VERDICT
+ * body. Incidental prose and bare Issue references are not Task authority.
+ *
+ * Recognized forms mirror `parseTaskIssueNumber`:
+ * - bold `**Task:**` / `**Task / Issue:**` fields
+ * - task-log `- Task / Issue:` lines
+ *
+ * @param {string} [body]
+ * @returns {string[]}
+ */
+function collectRecognizedTaskIssueNumbers(body = '') {
+  /** @type {string[]} */
+  const values = []
+  for (const match of body.matchAll(/\*\*Task(?:\s*\/\s*Issue)?:\*\*\s*(?:Issue\s*)?#?(\d+)/gi)) {
+    values.push(match[1])
+  }
+  for (const match of body.matchAll(/(?:^|\n)[ \t]*-[ \t]*Task\s*\/\s*Issue:\s*(?:Issue\s*)?#?(\d+)/gim)) {
+    values.push(match[1])
+  }
+  return values
+}
+
+/**
+ * Resolve the single Issue-scoping Task binding for a REVIEW_VERDICT, or null
+ * when no recognized Task evidence is present. Duplicated or conflicting
+ * recognized Task fields fail closed before any Issue-based exclusion.
+ *
+ * @param {string} [body]
+ * @returns {string | null}
+ */
+function resolveIssueScopingTaskNumber(body = '') {
+  const values = collectRecognizedTaskIssueNumbers(body)
+  if (values.length === 0) {
+    // Preserve broader single-match recognition (non-bullet Task / Issue:) when
+    // no bold/task-log authoritative fields were collected.
+    return parseTaskIssueNumber(body)
+  }
+
+  const boldFieldCount = [...body.matchAll(/\*\*Task(?:\s*\/\s*Issue)?:\*\*\s*(?:Issue\s*)?#?(\d+)/gi)].length
+  if (boldFieldCount > 1) {
+    throw new Error('STATE_CONFLICT: REVIEW_VERDICT Task Issue bindings are duplicated or ambiguous')
+  }
+
+  const unique = [...new Set(values.map(String))]
+  if (unique.length > 1) {
+    throw new Error('STATE_CONFLICT: REVIEW_VERDICT Task Issue bindings are duplicated or ambiguous')
+  }
+  return unique[0]
+}
+
+/**
  * Narrow legacy REVIEW_VERDICT binding for historical comments that use
  * explicit single-line `**Task:**` / `**PR:**` / `**Base:**` / `**Head:**`
  * fields instead of canonical `**PR / base / head:**`.
@@ -2072,8 +2123,12 @@ function resolveReviewVerdictBinding(body, { issueNumber }) {
 
 function selectLiveReviewVerdictComment({ comments, issueNumber, livePr }) {
   const active = selectActiveRoleComments(comments, 'REVIEW_VERDICT')
+
+  // Validate every active verdict's recognized Task bindings before Issue
+  // filtering so wrong-first / conflicting / duplicated Task evidence cannot be
+  // excluded as another-Issue history before ambiguity is detected.
   const issueRelevant = active.filter((comment) => {
-    const taskIssue = parseTaskIssueNumber(comment.body ?? '')
+    const taskIssue = resolveIssueScopingTaskNumber(comment.body ?? '')
     return taskIssue == null || String(taskIssue) === String(issueNumber)
   })
 

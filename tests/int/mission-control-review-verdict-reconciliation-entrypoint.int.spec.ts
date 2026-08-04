@@ -674,6 +674,49 @@ const conflictingDuplicatedFieldsCompetitor = `## REVIEW_VERDICT
 **Head:** \`${reviewedHead}\`
 `
 
+/** Conflicting Task fields: wrong Issue first, then current Issue. */
+const wrongFirstConflictingTaskCompetitor = `## REVIEW_VERDICT
+
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+**Task:** Issue #999
+**Task:** Issue #259
+**PR:** #267
+**Base:** \`main\` (\`18640666402ade75003cbf0a3556eef6ad63d536\`)
+**Head:** \`${reviewedHead}\`
+`
+
+/** Conflicting Task fields: current Issue first, then wrong Issue. */
+const currentFirstConflictingTaskCompetitor = `## REVIEW_VERDICT
+
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+**Task:** Issue #259
+**Task:** Issue #999
+**PR:** #267
+**Base:** \`main\` (\`18640666402ade75003cbf0a3556eef6ad63d536\`)
+**Head:** \`${reviewedHead}\`
+`
+
+/** Duplicated same-value Task fields must not silently use the first value. */
+const duplicatedSameTaskCompetitor = `## REVIEW_VERDICT
+
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+**Task:** Issue #259
+**Task:** Issue #259
+**PR:** #267
+**Base:** \`main\` (\`18640666402ade75003cbf0a3556eef6ad63d536\`)
+**Head:** \`${reviewedHead}\`
+`
+
+/** Single unique Task binding to a different Issue — correctly out of scope. */
+const uniqueDifferentIssueLegacyVerdict = `## REVIEW_VERDICT
+
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+**Task:** Issue #999
+**PR:** #267
+**Base:** \`main\` (\`18640666402ade75003cbf0a3556eef6ad63d536\`)
+**Head:** \`${reviewedHead}\`
+`
+
 describe('legacy REVIEW_VERDICT binding (option 2)', () => {
   it('accepts the byte-faithful live comment 5163387315 binding for managed PR #260', () => {
     const liveBody = readLiveLegacyVerdictFixture()
@@ -890,6 +933,54 @@ Issue #259
         },
       ],
     }, /STATE_CONFLICT/],
+    ['wrong-first conflicting Tasks alongside valid #260', {
+      comments: [
+        {
+          id: verdictCommentId,
+          body: legacyVerdictBody(),
+          user: { login: 'boat1994' },
+          author_association: 'OWNER',
+        },
+        {
+          id: '5163387405',
+          body: wrongFirstConflictingTaskCompetitor,
+          user: { login: 'boat1994' },
+          author_association: 'OWNER',
+        },
+      ],
+    }, /STATE_CONFLICT/],
+    ['current-Issue-first conflicting Tasks alongside valid #260', {
+      comments: [
+        {
+          id: verdictCommentId,
+          body: legacyVerdictBody(),
+          user: { login: 'boat1994' },
+          author_association: 'OWNER',
+        },
+        {
+          id: '5163387406',
+          body: currentFirstConflictingTaskCompetitor,
+          user: { login: 'boat1994' },
+          author_association: 'OWNER',
+        },
+      ],
+    }, /STATE_CONFLICT/],
+    ['duplicated recognized Task fields do not silently use first value', {
+      comments: [
+        {
+          id: verdictCommentId,
+          body: legacyVerdictBody(),
+          user: { login: 'boat1994' },
+          author_association: 'OWNER',
+        },
+        {
+          id: '5163387407',
+          body: duplicatedSameTaskCompetitor,
+          user: { login: 'boat1994' },
+          author_association: 'OWNER',
+        },
+      ],
+    }, /STATE_CONFLICT/],
   ])('rejects %s without writing managed state', (_label, overrides, expected) => {
     const harness = createGhHarness({
       prState: 'MERGED',
@@ -901,6 +992,32 @@ Issue #259
     expect(result.stderr).toMatch(expected)
     expect(readMetrics(harness).issueEdits).toBe(0)
     expect(readHarnessState(harness).latest_review_verdict_comment_id).toBeUndefined()
+  })
+
+  it('keeps one valid unique Task binding to a different Issue correctly out of scope', () => {
+    const harness = createGhHarness({
+      prState: 'MERGED',
+      containedHeads: [reviewedHead],
+      comments: [
+        {
+          id: verdictCommentId,
+          body: legacyVerdictBody(),
+          user: { login: 'boat1994' },
+          author_association: 'OWNER',
+        },
+        {
+          id: '5163387408',
+          body: uniqueDifferentIssueLegacyVerdict,
+          user: { login: 'boat1994' },
+          author_association: 'OWNER',
+        },
+      ],
+    })
+    const result = runReconcile(harness)
+    expect(result.status, result.stderr || result.stdout).toBe(0)
+    expect(result.stdout).toContain('RECONCILED')
+    expect(readHarnessState(harness).latest_review_verdict_comment_id).toBe(verdictCommentId)
+    expect(readMetrics(harness).issueEdits).toBe(1)
   })
 
   it.each([
