@@ -331,9 +331,6 @@ export function validateMergeReviewVerdict({ reviewVerdict, expected }) {
   return true
 }
 
-const MERGE_VERDICT_FIELD_SPACING = '[ \\t]*'
-const MERGE_VERDICT_FULL_SHA = '([0-9a-f]{40})'
-
 /**
  * Resolve production merge-transport REVIEW_VERDICT PR/base/head binding.
  *
@@ -366,10 +363,11 @@ export function resolveMergeReviewVerdictBinding(body = '') {
   const text = String(body ?? '')
   const verdict = text.match(/^\*\*Verdict:\*\*\s*(.+?)\s*$/m)?.[1]?.trim() ?? null
   const canonicalLines = collectCanonicalReviewTargetLines(text)
+  const canonicalBinding = parseCanonicalReviewTarget(canonicalLines)
 
-  const pr = resolveMergeReviewVerdictPr(text, canonicalLines)
-  const reviewedHead = resolveMergeReviewVerdictHead(text, canonicalLines)
-  const base = resolveMergeReviewVerdictBase(text, canonicalLines)
+  const pr = resolveMergeReviewVerdictPr(text, canonicalBinding)
+  const reviewedHead = resolveMergeReviewVerdictHead(text, canonicalBinding)
+  const base = resolveMergeReviewVerdictBase(text, canonicalBinding)
   assertCompleteHistoricalPair({ text, pr, reviewedHead })
 
   return {
@@ -416,49 +414,79 @@ function collectCanonicalReviewTargetLines(body) {
   return lines
 }
 
+function parseCanonicalReviewTarget(canonicalLines) {
+  if (canonicalLines.length === 0) return null
+
+  const rest = canonicalLines[0][1] ?? ''
+  const match = rest.match(/^[ \t]*([^\r\n]*?)\s*·\s*`([^`\r\n]+)`\s*·\s*`([^`\r\n]+)`[ \t]*$/)
+  if (!match) {
+    throw stateConflict('REVIEW_VERDICT canonical PR / base / head field is malformed, partial, or ambiguous')
+  }
+
+  const [, prPart, base, reviewedHead] = match
+  const pr = extractCanonicalPr(prPart)
+  if (!base.trim() || !FULL_SHA_RE.test(reviewedHead)) {
+    throw stateConflict('REVIEW_VERDICT canonical PR / base / head field is malformed, partial, or ambiguous')
+  }
+
+  return {
+    pr,
+    base,
+    reviewedHead: reviewedHead.toLowerCase(),
+  }
+}
+
 function extractCanonicalPr(rest) {
-  const pull = rest.match(/\/pull\/(\d+)/)?.[1] ?? null
-  const labeled = rest.match(/\bPR #(\d+)\b/i)?.[1] ?? null
+  const candidate = rest.trim()
+  const pullMatches = [...candidate.matchAll(/\/pull\/(\d+)/gi)]
+  const labeledMatches = [...candidate.matchAll(/\bPR #(\d+)\b/gi)]
+  if (pullMatches.length > 1 || labeledMatches.length > 1) {
+    throw stateConflict('REVIEW_VERDICT canonical PR evidence is duplicated or ambiguous')
+  }
+
+  const pull = pullMatches[0]?.[1] ?? null
+  const labeled = labeledMatches[0]?.[1] ?? null
+  if (!pull && !labeled) {
+    throw stateConflict('REVIEW_VERDICT canonical PR / base / head field is malformed, partial, or ambiguous')
+  }
   if (pull && labeled && pull !== labeled) {
     throw stateConflict('REVIEW_VERDICT canonical PR evidence is duplicated or ambiguous')
   }
-  return pull ?? labeled ?? null
+
+  const pr = pull ?? labeled
+  const validLabeledForm = labeled && candidate === labeledMatches[0][0]
+  const validPullForm = pull && !/\s/.test(candidate) && candidate.endsWith(`/pull/${pr}`)
+  if (!validLabeledForm && !validPullForm) {
+    throw stateConflict('REVIEW_VERDICT canonical PR / base / head field is malformed, partial, or ambiguous')
+  }
+  return pr
 }
 
-function extractCanonicalBase(rest) {
-  return rest.match(/·\s*`([^`]+)`\s*·/)?.[1] ?? null
-}
-
-function extractCanonicalHead(rest) {
-  const match = rest.match(/·\s*`([0-9a-f]{40})`\s*$/i)
-  return match?.[1]?.toLowerCase() ?? null
-}
-
-function resolveMergeReviewVerdictPr(body, canonicalLines = collectCanonicalReviewTargetLines(body)) {
+function resolveMergeReviewVerdictPr(body, canonicalBinding) {
   const recognized = []
 
-  if (canonicalLines.length === 1) {
-    const canonicalPr = extractCanonicalPr(canonicalLines[0][1] ?? '')
-    if (canonicalPr) recognized.push(canonicalPr)
+  if (canonicalBinding) {
+    recognized.push(canonicalBinding.pr)
   }
 
-  const historicalMatches = [...body.matchAll(
-    new RegExp(`^\\*\\*PR:\\*\\*${MERGE_VERDICT_FIELD_SPACING}PR #(\\d+)${MERGE_VERDICT_FIELD_SPACING}$`, 'gm'),
-  )]
-  if (historicalMatches.length > 1) {
+  const historicalFieldMatches = [...body.matchAll(/^\*\*PR:\*\*(.*)$/gm)]
+  if (historicalFieldMatches.length > 1) {
     throw stateConflict('REVIEW_VERDICT PR field is duplicated or ambiguous')
   }
-  if (historicalMatches.length === 1) {
-    recognized.push(historicalMatches[0][1])
+  if (historicalFieldMatches.length === 1) {
+    const historicalPr = historicalFieldMatches[0][1].match(/^[ \t]*PR #(\d+)[ \t]*$/i)?.[1]
+    if (!historicalPr) {
+      throw stateConflict('REVIEW_VERDICT PR field is malformed, partial, or ambiguous')
+    }
+    recognized.push(historicalPr)
   }
 
   const pullMatches = [...body.matchAll(/\/pull\/(\d+)/g)].map((match) => match[1])
-  if (pullMatches.length > 0) {
-    const uniquePull = [...new Set(pullMatches)]
-    if (uniquePull.length !== 1) {
-      throw stateConflict('REVIEW_VERDICT PR evidence is duplicated or ambiguous')
-    }
-    recognized.push(uniquePull[0])
+  if (pullMatches.length > 1) {
+    throw stateConflict('REVIEW_VERDICT PR evidence is duplicated or ambiguous')
+  }
+  if (pullMatches.length === 1) {
+    recognized.push(pullMatches[0])
   }
 
   return resolveUniqueRecognizedValues(recognized, 'PR')
@@ -473,60 +501,59 @@ function matchUniqueExactHeadField(body, label, { caseInsensitive = false } = {}
   }
 
   const rest = labelMatches[0][1] ?? ''
-  const valueMatch = rest.match(new RegExp(
-    `^${MERGE_VERDICT_FIELD_SPACING}\`?${MERGE_VERDICT_FULL_SHA}\`?${MERGE_VERDICT_FIELD_SPACING}$`,
-    caseInsensitive ? 'i' : undefined,
-  ))
+  const valueMatch = rest.match(/^[ \t]*(?:`([0-9a-f]{40})`|([0-9a-f]{40}))[ \t]*$/i)
   if (!valueMatch) {
     throw stateConflict(`REVIEW_VERDICT ${label} field is malformed, partial, multiline, or not a full 40-character SHA`)
   }
-  return valueMatch[1].toLowerCase()
+  return (valueMatch[1] ?? valueMatch[2]).toLowerCase()
 }
 
-function resolveMergeReviewVerdictHead(body, canonicalLines = collectCanonicalReviewTargetLines(body)) {
+function resolveMergeReviewVerdictHead(body, canonicalBinding) {
   const recognized = []
 
   const exactHeadReviewed = matchUniqueExactHeadField(body, 'Exact head reviewed', { caseInsensitive: true })
   if (exactHeadReviewed) recognized.push(exactHeadReviewed)
 
-  const exactReviewedHead = matchUniqueExactHeadField(body, 'Exact reviewed head')
+  const exactReviewedHead = matchUniqueExactHeadField(body, 'Exact reviewed head', { caseInsensitive: true })
   if (exactReviewedHead) recognized.push(exactReviewedHead)
 
-  if (canonicalLines.length === 1) {
-    const canonicalHead = extractCanonicalHead(canonicalLines[0][1] ?? '')
-    if (canonicalHead) recognized.push(canonicalHead)
+  if (canonicalBinding) {
+    recognized.push(canonicalBinding.reviewedHead)
   }
 
   return resolveUniqueRecognizedValues(recognized, 'exact reviewed head')
 }
 
-function resolveMergeReviewVerdictBase(body, canonicalLines = collectCanonicalReviewTargetLines(body)) {
+function resolveMergeReviewVerdictBase(body, canonicalBinding) {
   const recognized = []
 
-  const approvedMatches = [...body.matchAll(
-    new RegExp(`^\\*\\*Approved base:\\*\\*${MERGE_VERDICT_FIELD_SPACING}\`?([^@\\s\`]+?)(?:@[^\`\\s]+)?\`?${MERGE_VERDICT_FIELD_SPACING}$`, 'gm'),
-  )]
-  if (approvedMatches.length > 1) {
+  const approvedFieldMatches = [...body.matchAll(/^\*\*Approved base:\*\*(.*)$/gm)]
+  if (approvedFieldMatches.length > 1) {
     throw stateConflict('REVIEW_VERDICT Approved base field is duplicated or ambiguous')
   }
-  if (approvedMatches.length === 1) {
-    recognized.push(approvedMatches[0][1])
+  if (approvedFieldMatches.length === 1) {
+    const approvedBase = approvedFieldMatches[0][1].match(
+      /^[ \t]*(?:`([^`\s@]+)(?:@[^`\s]+)?`|([^`\s@]+)(?:@[^`\s]+)?)[ \t]*$/,
+    )
+    if (!approvedBase) {
+      throw stateConflict('REVIEW_VERDICT Approved base field is malformed, partial, or ambiguous')
+    }
+    recognized.push(approvedBase[1] ?? approvedBase[2])
   }
 
-  if (canonicalLines.length === 1) {
-    const canonicalBase = extractCanonicalBase(canonicalLines[0][1] ?? '')
-    if (canonicalBase) recognized.push(canonicalBase)
+  if (canonicalBinding) {
+    recognized.push(canonicalBinding.base)
   }
 
   return resolveUniqueRecognizedValues(recognized, 'base')
 }
 
 function hasHistoricalPrField(body) {
-  return new RegExp(`^\\*\\*PR:\\*\\*${MERGE_VERDICT_FIELD_SPACING}PR #\\d+${MERGE_VERDICT_FIELD_SPACING}$`, 'm').test(body)
+  return /^\*\*PR:\*\*/m.test(body)
 }
 
 function hasHistoricalExactReviewedHeadField(body) {
-  return /^\*\*Exact reviewed head:\*\*/m.test(body)
+  return /^\*\*Exact reviewed head:\*\*/im.test(body)
 }
 
 function assertCompleteHistoricalPair({ text, pr, reviewedHead }) {

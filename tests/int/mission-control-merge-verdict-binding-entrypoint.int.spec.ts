@@ -77,16 +77,32 @@ function historicalFieldBody({
 ${extra}`
 }
 
+function malformedHistoricalPrBody({ malformedFirst = false } = {}) {
+  const malformed = '**PR:** PR #999 trailing\n'
+  const body = historicalFieldBody({ extra: malformedFirst ? '' : malformed })
+  return malformedFirst
+    ? body.replace('**PR:** PR #258\n', `${malformed}**PR:** PR #258\n`)
+    : body
+}
+
+function malformedCanonicalBody({ canonicalFirst = false } = {}) {
+  const malformed = '**PR / base / head:** malformed\n'
+  const body = historicalFieldBody()
+  return canonicalFirst
+    ? body.replace('## REVIEW_VERDICT\n\n', `## REVIEW_VERDICT\n\n${malformed}`)
+    : `${body}${malformed}`
+}
+
 const WRITE_KEYS = [
-  'mark-ready',
-  'merge',
-  'result',
-  'close',
-  'task-done',
-  'campaign-blocker',
-  'campaign-slice',
-  'select-next',
-  'reconcile',
+  'markReadyForReview',
+  'mergePullRequest',
+  'postFinalResult',
+  'closeIssueCompleted',
+  'writeTaskDone',
+  'projectCampaignBlockerResolved',
+  'projectCampaignSliceDone',
+  'selectNextCampaignAction',
+  'reconcileAfterFailure',
 ] as const
 
 function createZeroWriteDeps(options: {
@@ -97,7 +113,9 @@ function createZeroWriteDeps(options: {
 }) {
   const writes: string[] = []
   const operations: string[] = []
+  const calls: Record<string, number> = Object.fromEntries(WRITE_KEYS.map((key) => [key, 0]))
   const recordWrite = (key: string) => {
+    calls[key] = (calls[key] ?? 0) + 1
     writes.push(key)
     throw new Error(`unexpected write: ${key}`)
   }
@@ -177,25 +195,25 @@ function createZeroWriteDeps(options: {
       return parseProductionMergeReviewVerdict(options.verdictBody, historicalCommentId)
     },
     readTrustedFounderLogins: async () => ['boat1994'],
-    markReadyForReview: async () => recordWrite('mark-ready'),
-    mergePullRequest: async () => recordWrite('merge'),
+    markReadyForReview: async () => recordWrite('markReadyForReview'),
+    mergePullRequest: async () => recordWrite('mergePullRequest'),
     verifyCommitOnProtectedBase: async ({ commit, base }: { commit: string, base: string }) => {
       operations.push(`verify-base:${commit}:${base}`)
       return false
     },
-    postFinalResult: async () => recordWrite('result'),
-    closeIssueCompleted: async () => recordWrite('close'),
-    writeTaskDone: async () => recordWrite('task-done'),
-    projectCampaignBlockerResolved: async () => recordWrite('campaign-blocker'),
-    projectCampaignSliceDone: async () => recordWrite('campaign-slice'),
-    selectNextCampaignAction: async () => recordWrite('select-next'),
+    postFinalResult: async () => recordWrite('postFinalResult'),
+    closeIssueCompleted: async () => recordWrite('closeIssueCompleted'),
+    writeTaskDone: async () => recordWrite('writeTaskDone'),
+    projectCampaignBlockerResolved: async () => recordWrite('projectCampaignBlockerResolved'),
+    projectCampaignSliceDone: async () => recordWrite('projectCampaignSliceDone'),
+    selectNextCampaignAction: async () => recordWrite('selectNextCampaignAction'),
   }
 
   if (options.includeReconcile !== false) {
-    deps.reconcile = async () => recordWrite('reconcile')
+    deps.reconcile = async () => recordWrite('reconcileAfterFailure')
   }
 
-  return { deps, writes, operations }
+  return { deps, writes, operations, calls }
 }
 
 describe('production merge REVIEW_VERDICT binding', () => {
@@ -411,6 +429,15 @@ See https://github.com/boat1994/bemoat-web-starter/pull/999
     expect(() => resolveMergeReviewVerdictBinding(duplicateCanonical)).toThrow(/STATE_CONFLICT/i)
   })
 
+  it('fails closed for repeated identical pull URL evidence', async () => {
+    const { resolveMergeReviewVerdictBinding } = await mergeTransport()
+    const repeatedUrl = `${historicalFieldBody()}
+See https://github.com/boat1994/bemoat-web-starter/pull/${historicalPr}
+See https://github.com/boat1994/bemoat-web-starter/pull/${historicalPr}
+`
+    expect(() => resolveMergeReviewVerdictBinding(repeatedUrl)).toThrow(/STATE_CONFLICT.*PR/i)
+  })
+
   it('fails closed for existing Exact head reviewed vs Exact reviewed head conflicts', async () => {
     const { resolveMergeReviewVerdictBinding } = await mergeTransport()
     const conflicting = historicalFieldBody({
@@ -518,6 +545,108 @@ describe('production-entrypoint zero-write fail-closed matrix', () => {
       body: `${historicalFieldBody()}\n**PR:** PR #258\n`,
     },
     {
+      name: 'malformed trailing-token historical PR after valid binding (MC-R1-001/003)',
+      body: malformedHistoricalPrBody(),
+    },
+    {
+      name: 'malformed trailing-token historical PR before valid binding (MC-R1-001/003)',
+      body: malformedHistoricalPrBody({ malformedFirst: true }),
+    },
+    {
+      name: 'malformed canonical PR/base/head after valid historical binding (MC-R1-001/003)',
+      body: malformedCanonicalBody(),
+    },
+    {
+      name: 'malformed canonical PR/base/head before valid historical binding (MC-R1-001/003)',
+      body: malformedCanonicalBody({ canonicalFirst: true }),
+    },
+    {
+      name: 'malformed historical PR plus valid pull URL',
+      body: `## REVIEW_VERDICT
+
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+**PR:** PR #999 trailing
+**Exact reviewed head:** \`${historicalHead}\`
+**Approved base:** \`${historicalBase}@${policySourceSha}\`
+See https://github.com/boat1994/bemoat-web-starter/pull/${historicalPr}
+`,
+    },
+    {
+      name: 'valid head plus malformed repeated head',
+      body: historicalFieldBody({
+        extra: `**Exact reviewed head:** \`${historicalHead}\` trailing
+`,
+      }),
+    },
+    {
+      name: 'valid canonical binding plus malformed legacy field',
+      body: `${canonicalPullBody()}**PR:** PR #999 trailing
+`,
+    },
+    {
+      name: 'duplicate recognized label with blank value',
+      body: `${historicalFieldBody()}**PR:**
+`,
+    },
+    {
+      name: 'duplicate recognized label with multiline continuation',
+      body: `${historicalFieldBody()}**Exact reviewed head:**
+${historicalHead}
+`,
+    },
+    {
+      name: 'malformed-first / valid-second recognized PR fields',
+      body: `## REVIEW_VERDICT
+
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+**PR:** PR #999 trailing
+**PR:** PR #258
+**Exact reviewed head:** \`${historicalHead}\`
+**Approved base:** \`${historicalBase}@${policySourceSha}\`
+`,
+    },
+    {
+      name: 'valid-first / malformed-second recognized PR fields',
+      body: `## REVIEW_VERDICT
+
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+**PR:** PR #258
+**PR:** PR #999 trailing
+**Exact reviewed head:** \`${historicalHead}\`
+**Approved base:** \`${historicalBase}@${policySourceSha}\`
+`,
+    },
+    {
+      name: 'near-valid recognized PR syntax is not prose',
+      body: `## REVIEW_VERDICT
+
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+**PR:** PR #258 trailing
+**Exact reviewed head:** \`${historicalHead}\`
+**Approved base:** \`${historicalBase}@${policySourceSha}\`
+`,
+    },
+    {
+      name: 'exact omitted case: malformed historical then malformed canonical',
+      body: historicalFieldBody({
+        extra: `**PR:** PR #999 trailing
+**PR / base / head:** malformed
+`,
+      }),
+    },
+    {
+      name: 'exact omitted case: malformed canonical then malformed historical',
+      body: `${malformedCanonicalBody({ canonicalFirst: true })}**PR:** PR #999 trailing
+`,
+    },
+    {
+      name: 'repeated identical pull URL evidence',
+      body: `${historicalFieldBody()}
+See https://github.com/boat1994/bemoat-web-starter/pull/${historicalPr}
+See https://github.com/boat1994/bemoat-web-starter/pull/${historicalPr}
+`,
+    },
+    {
       name: 'duplicate identical historical head',
       body: `${historicalFieldBody()}\n**Exact reviewed head:** \`${historicalHead}\`\n`,
     },
@@ -585,7 +714,7 @@ See https://github.com/boat1994/bemoat-web-starter/pull/999
 
   it.each(cases)('$name stops before mutation with zero writes', async ({ body }) => {
     const { runFounderAuthorizedMerge } = await mergeTransport()
-    const { deps, writes, operations } = createZeroWriteDeps({ verdictBody: body })
+    const { deps, writes, operations, calls } = createZeroWriteDeps({ verdictBody: body })
 
     await expect(runFounderAuthorizedMerge({
       issueNumber: historicalTask,
@@ -600,6 +729,7 @@ See https://github.com/boat1994/bemoat-web-starter/pull/999
     ])
     expect(writes).toEqual([])
     for (const key of WRITE_KEYS) {
+      expect(calls[key], `${key} should remain unused`).toBe(0)
       expect(writes).not.toContain(key)
     }
   })
