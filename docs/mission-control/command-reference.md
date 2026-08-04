@@ -58,7 +58,7 @@ Keep these values distinct in every handoff and invocation:
 | Protected-base SHA | The live commit SHA of the protected base branch (`baseRefOid` / current protected ref), used for ancestry and exact-base checks; do not copy an older approved SHA from chat. |
 | Exact PR head SHA | The live PR `headRefOid` at the moment of the command. Must be the complete 40-character SHA. CI and every review/merge authorization must match this exact SHA. |
 | Role comment ID | The immutable GitHub Issue comment ID returned by the live API: HANDOFF for dispatch, active `REVIEW_VERDICT` for reconcile/merge, and Founder authorization for merge. |
-| Verdict body / verdict file | The complete `## REVIEW_VERDICT` body supplied by `--body-file` to review, or the live role comment body selected by reconcile/merge. A file path is only transport. New verdicts must contain canonical PR/base/head/verdict evidence. Reconcile may accept only the explicitly documented bounded historical legacy `**Task:**` / `**PR:**` / `**Base:**` / `**Head:**` shape when that complete unique binding is present and the canonical line is absent. Merge transport additionally accepts one unique line-anchored historical pair `**PR:** PR #N` plus `**Exact reviewed head:**` / existing `**Exact head reviewed:**` (full 40-character SHA) while preserving canonical `**PR / base / head:**` and `/pull/N` behavior; partial, ambiguous, duplicate, conflicting, multiline, short-SHA, or malformed evidence fails closed. |
+| Verdict body / verdict file | The complete `## REVIEW_VERDICT` body supplied by `--body-file` to review, or the live role comment body selected by reconcile/merge. A file path is only transport. New verdicts must contain canonical PR/base/head/verdict evidence. Reconcile may accept only the explicitly documented bounded historical legacy `**Task:**` / `**PR:**` / `**Base:**` / `**Head:**` shape when that complete unique binding is present and the canonical line is absent. Merge transport collects every recognized PR/base/head source before selection and fails closed on duplicate fields, conflicting values, partial historical pairs, multiline, short-SHA, or malformed evidence. Recognized merge sources are one canonical `**PR / base / head:**` line (`/pull/N` or `PR #N`), `/pull/N` URL form, one historical `**PR:** PR #N`, one `**Exact head reviewed:**` and/or one `**Exact reviewed head:**`, and one `**Approved base:**`. A complete unique semantically identical binding across those permitted source forms is accepted only when each form appears at most once and all recognized values agree; first-match preference is prohibited. |
 
 Do not infer any supplied value from a chat transcript. Re-read the Task Issue,
 campaign authorization, PR, comments, protected base, and exact head live before
@@ -233,10 +233,14 @@ be exactly one raw JSON object; Markdown fences, prose wrappers, strings, and ar
 bind the Task Issue, PR number, approved base, exact reviewed head, review
 verdict comment ID, policy source, and merge scope (e.g., `bundle_kind`, `scope`, `action`). The parent/campaign Issue
 and any blocker/slice binding come only from that live authorization. The active
-`REVIEW_VERDICT` must resolve a unique PR/base/exact-head binding via canonical
-`**PR / base / head:**`, `/pull/N` plus `**Exact head reviewed:**`, or the bounded
-historical merge fields `**PR:** PR #N` and `**Exact reviewed head:**` / existing
-`**Exact head reviewed:**`. The PR must be open/mergeable (or already verifiably
+`REVIEW_VERDICT` must resolve a unique PR/base/exact-head binding by collecting
+every recognized source before selection: one canonical `**PR / base / head:**`
+line (`/pull/N` or `PR #N`), `/pull/N` plus `**Exact head reviewed:**`, and/or the
+bounded historical merge fields `**PR:** PR #N` and `**Exact reviewed head:**` /
+existing `**Exact head reviewed:**`, with `**Approved base:**` when present.
+Agreeing unique cross-source forms are accepted; conflicting, duplicate, partial,
+multiline, short-SHA, or malformed evidence fails closed. The PR must be
+open/mergeable (or already verifiably
 merged), and the authorized head must be passed to GitHub's exact-head merge
 operation.
 

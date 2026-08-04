@@ -23,4 +23,3 @@
 ### Next permitted action
 
 Founder merge approval and completion.
-

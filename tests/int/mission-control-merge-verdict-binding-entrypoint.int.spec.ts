@@ -17,14 +17,22 @@ const historicalBase = 'main'
 const mergeCommit = '18640666402ade75003cbf0a3556eef6ad63d536'
 const policySourceSha = 'd6e99c350f8d92e536fe97f81bd6507f6cdaa686'
 const protectedBaseSha = 'b998c4a4ed30658c3f64e85c5b84e00035b5f8be'
-const fixtureSha256 = '933ffdf92448b4cb8ebcde96941fcf98036fb1e46fe9eb4db10b5112ddc728fc'
+/** Frozen live Issue comment 5162624753 body SHA-256 (UTF-8 bytes, no normalization). */
+const liveFixtureSha256 = 'ca3d14b365f768ec1cab6fe339f3f008bbfdb624a82670c6705faf381e20c83f'
+const liveFixtureByteLength = 1788
+const otherHead = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+const thirdHead = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 
 async function mergeTransport() {
   return import('../../scripts/mission-control-merge.mjs')
 }
 
+function historicalFixtureBytes() {
+  return readFileSync(fixturePath)
+}
+
 function historicalFixtureBody() {
-  return readFileSync(fixturePath, 'utf8')
+  return historicalFixtureBytes().toString('utf8')
 }
 
 function canonicalBody(pr = historicalPr, head = historicalHead, base = historicalBase) {
@@ -32,6 +40,14 @@ function canonicalBody(pr = historicalPr, head = historicalHead, base = historic
 
 **Verdict:** ELIGIBLE FOR FOUNDER REVIEW
 **PR / base / head:** PR #${pr} · \`${base}\` · \`${head}\`
+`
+}
+
+function canonicalPullBody(pr = historicalPr, head = historicalHead, base = historicalBase) {
+  return `## REVIEW_VERDICT
+
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/${pr} · \`${base}\` · \`${head}\`
 `
 }
 
@@ -61,10 +77,136 @@ function historicalFieldBody({
 ${extra}`
 }
 
+const WRITE_KEYS = [
+  'mark-ready',
+  'merge',
+  'result',
+  'close',
+  'task-done',
+  'campaign-blocker',
+  'campaign-slice',
+  'select-next',
+  'reconcile',
+] as const
+
+function createZeroWriteDeps(options: {
+  verdictBody: string
+  prState?: string
+  isDraft?: boolean
+  includeReconcile?: boolean
+}) {
+  const writes: string[] = []
+  const operations: string[] = []
+  const recordWrite = (key: string) => {
+    writes.push(key)
+    throw new Error(`unexpected write: ${key}`)
+  }
+
+  const deps: Record<string, unknown> = {
+    readManagedIssue: async () => ({
+      number: historicalTask,
+      state: 'OPEN',
+      stateReason: null as string | null,
+      body: 'Mission Control mode: required',
+      managedState: {
+        state: 'ELIGIBLE_FOR_FOUNDER_REVIEW',
+        review_cycle: 1,
+        full_review_count: 1,
+        active_task_issue: `#${historicalTask}`,
+        active_pr: `#${historicalPr}`,
+        current_head: historicalHead,
+        last_reviewed_head: historicalHead,
+        approved_base: historicalBase,
+        guide_source_sha: policySourceSha,
+        guide_version: '1.3.0',
+        latest_review_verdict_comment_id: historicalCommentId,
+        campaign_issue: '#215',
+        campaign_slice: null as number | null,
+      },
+    }),
+    readPullRequest: async () => ({
+      number: historicalPr,
+      state: options.prState ?? 'OPEN',
+      isDraft: options.isDraft ?? false,
+      mergeable: 'MERGEABLE',
+      headRefOid: historicalHead,
+      baseRefName: historicalBase,
+      baseRefOid: protectedBaseSha,
+      statusCheckRollup: [
+        { name: 'ci', conclusion: 'SUCCESS', status: 'COMPLETED' },
+        { name: 'starter-ci', conclusion: 'SUCCESS', status: 'COMPLETED' },
+      ],
+      mergeCommit: options.prState === 'MERGED' ? { oid: mergeCommit } : null,
+      body: 'Refs #254',
+    }),
+    readFounderAuthorization: async () => {
+      operations.push('authorization')
+      return {
+        schema_version: 1,
+        status: 'approved',
+        authority: 'Founder',
+        author_login: 'boat1994',
+        immutable_comment_reference: true,
+        comment_sha256: 'a'.repeat(64),
+        non_superseded: true,
+        superseded_by: null as string | null,
+        repository: 'boat1994/bemoat-web-starter',
+        bundle_kind: 'merge-completion',
+        scope: 'merge',
+        task_issue: historicalTask,
+        pr: historicalPr,
+        exact_head: historicalHead,
+        reviewed_head: historicalHead,
+        base: historicalBase,
+        policy_source_sha: policySourceSha,
+        protected_base_sha: protectedBaseSha,
+        policy_version: '1.3.0',
+        review_verdict_comment_id: historicalCommentId,
+        review_verdict: 'ELIGIBLE FOR FOUNDER REVIEW',
+        action: 'merge',
+        comment_id: '5175340336',
+        projection_kind: 'blocker-resolution',
+        campaign_issue: 215,
+        campaign_blocker_id: 'issue-254-planning-correction-1',
+      }
+    },
+    readReviewVerdict: async () => {
+      operations.push(`review-verdict:${historicalCommentId}`)
+      const { parseProductionMergeReviewVerdict } = await mergeTransport()
+      // Production dependency path: parse the live body before validation.
+      return parseProductionMergeReviewVerdict(options.verdictBody, historicalCommentId)
+    },
+    readTrustedFounderLogins: async () => ['boat1994'],
+    markReadyForReview: async () => recordWrite('mark-ready'),
+    mergePullRequest: async () => recordWrite('merge'),
+    verifyCommitOnProtectedBase: async ({ commit, base }: { commit: string, base: string }) => {
+      operations.push(`verify-base:${commit}:${base}`)
+      return false
+    },
+    postFinalResult: async () => recordWrite('result'),
+    closeIssueCompleted: async () => recordWrite('close'),
+    writeTaskDone: async () => recordWrite('task-done'),
+    projectCampaignBlockerResolved: async () => recordWrite('campaign-blocker'),
+    projectCampaignSliceDone: async () => recordWrite('campaign-slice'),
+    selectNextCampaignAction: async () => recordWrite('select-next'),
+  }
+
+  if (options.includeReconcile !== false) {
+    deps.reconcile = async () => recordWrite('reconcile')
+  }
+
+  return { deps, writes, operations }
+}
+
 describe('production merge REVIEW_VERDICT binding', () => {
-  it('byte-faithful fixture matches live comment 5162624753', () => {
-    const body = historicalFixtureBody()
-    expect(createHash('sha256').update(body, 'utf8').digest('hex')).toBe(fixtureSha256)
+  it('byte-faithful fixture matches live comment 5162624753 bytes and SHA-256', () => {
+    const bytes = historicalFixtureBytes()
+    expect(bytes.byteLength).toBe(liveFixtureByteLength)
+    expect(bytes.subarray(-1)[0]).toBe(0x0a)
+    expect(bytes.subarray(-2)[0]).not.toBe(0x0a)
+    expect(createHash('sha256').update(bytes).digest('hex')).toBe(liveFixtureSha256)
+
+    const body = bytes.toString('utf8')
     expect(body).toContain('**PR:** PR #258')
     expect(body).toContain('**Exact reviewed head:** `31afbb8619c58877109a2448e2388a3bb16727d6`')
   })
@@ -103,21 +245,15 @@ describe('production merge REVIEW_VERDICT binding', () => {
     expect(resolveMergeReviewVerdictBinding(historicalFieldBody()).reviewed_head).toBe(historicalHead)
   })
 
-  it('preserves canonical **PR / base / head:** binding', async () => {
+  it('preserves canonical **PR / base / head:** binding including PR #N form', async () => {
     const { resolveMergeReviewVerdictBinding } = await mergeTransport()
-    // Canonical shorthand without /pull/ still resolves head/base; PR requires /pull/ or historical field.
-    const withPull = `## REVIEW_VERDICT
-
-**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
-**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/${historicalPr} · \`${historicalBase}\` · \`${historicalHead}\`
-`
-    expect(resolveMergeReviewVerdictBinding(withPull)).toMatchObject({
+    expect(resolveMergeReviewVerdictBinding(canonicalPullBody())).toMatchObject({
       pr: String(historicalPr),
       base: historicalBase,
       reviewed_head: historicalHead,
     })
     expect(resolveMergeReviewVerdictBinding(canonicalBody())).toMatchObject({
-      pr: null,
+      pr: String(historicalPr),
       base: historicalBase,
       reviewed_head: historicalHead,
     })
@@ -126,6 +262,32 @@ describe('production merge REVIEW_VERDICT binding', () => {
   it('preserves /pull/N plus existing Exact head reviewed form', async () => {
     const { resolveMergeReviewVerdictBinding } = await mergeTransport()
     expect(resolveMergeReviewVerdictBinding(pullUrlBody())).toMatchObject({
+      pr: String(historicalPr),
+      base: historicalBase,
+      reviewed_head: historicalHead,
+    })
+  })
+
+  it('accepts agreeing cross-source PR/head/base forms when each form is unique', async () => {
+    const { resolveMergeReviewVerdictBinding } = await mergeTransport()
+    // Contract: one unique occurrence of each permitted source form may agree.
+    const body = `${historicalFieldBody()}
+Reviewed again at https://github.com/boat1994/bemoat-web-starter/pull/${historicalPr}.
+`
+    expect(resolveMergeReviewVerdictBinding(body)).toMatchObject({
+      pr: String(historicalPr),
+      base: historicalBase,
+      reviewed_head: historicalHead,
+    })
+
+    const agreeingCanonical = `## REVIEW_VERDICT
+
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+**Approved base:** \`${historicalBase}@${policySourceSha}\`
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/${historicalPr} · \`${historicalBase}\` · \`${historicalHead}\`
+**Exact head reviewed:** \`${historicalHead}\`
+`
+    expect(resolveMergeReviewVerdictBinding(agreeingCanonical)).toMatchObject({
       pr: String(historicalPr),
       base: historicalBase,
       reviewed_head: historicalHead,
@@ -151,9 +313,8 @@ describe('production merge REVIEW_VERDICT binding', () => {
 
   it('fails closed for wrong head against managed binding', async () => {
     const { parseProductionMergeReviewVerdict, validateMergeReviewVerdict } = await mergeTransport()
-    const wrongHead = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
     const reviewVerdict = parseProductionMergeReviewVerdict(
-      historicalFieldBody({ head: `\`${wrongHead}\`` }),
+      historicalFieldBody({ head: `\`${otherHead}\`` }),
       historicalCommentId,
     )
     expect(() => validateMergeReviewVerdict({
@@ -167,30 +328,98 @@ describe('production merge REVIEW_VERDICT binding', () => {
     })).toThrow(/STATE_CONFLICT/)
   })
 
-  it('fails closed for duplicate identical historical PR fields', async () => {
+  it('fails closed for conflicting Approved base and canonical base regardless of order', async () => {
     const { resolveMergeReviewVerdictBinding } = await mergeTransport()
-    const body = `${historicalFieldBody()}\n**PR:** PR #258\n`
-    expect(() => resolveMergeReviewVerdictBinding(body)).toThrow(/STATE_CONFLICT.*PR/i)
+    const approvedFirst = `## REVIEW_VERDICT
+
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+**Approved base:** \`main@${policySourceSha}\`
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/${historicalPr} · \`dev\` · \`${historicalHead}\`
+`
+    const canonicalFirst = `## REVIEW_VERDICT
+
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/${historicalPr} · \`dev\` · \`${historicalHead}\`
+**Approved base:** \`main@${policySourceSha}\`
+`
+    expect(() => resolveMergeReviewVerdictBinding(approvedFirst)).toThrow(/STATE_CONFLICT.*base/i)
+    expect(() => resolveMergeReviewVerdictBinding(canonicalFirst)).toThrow(/STATE_CONFLICT.*base/i)
   })
 
-  it('fails closed for conflicting PR fields', async () => {
+  it('fails closed for conflicting canonical PR #N and /pull/N in either order', async () => {
     const { resolveMergeReviewVerdictBinding } = await mergeTransport()
-    const body = `${historicalFieldBody()}\nSee https://github.com/boat1994/bemoat-web-starter/pull/999\n`
-    expect(() => resolveMergeReviewVerdictBinding(body)).toThrow(/STATE_CONFLICT.*PR/i)
+    const canonicalThenUrl = `${canonicalBody(258)}
+See https://github.com/boat1994/bemoat-web-starter/pull/999
+`
+    const urlThenCanonical = `## REVIEW_VERDICT
+
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+See https://github.com/boat1994/bemoat-web-starter/pull/999
+**PR / base / head:** PR #258 · \`${historicalBase}\` · \`${historicalHead}\`
+`
+    expect(() => resolveMergeReviewVerdictBinding(canonicalThenUrl)).toThrow(/STATE_CONFLICT.*PR/i)
+    expect(() => resolveMergeReviewVerdictBinding(urlThenCanonical)).toThrow(/STATE_CONFLICT.*PR/i)
   })
 
-  it('fails closed for duplicate or conflicting head fields', async () => {
+  it('fails closed for conflicting URL and historical PR in either order', async () => {
     const { resolveMergeReviewVerdictBinding } = await mergeTransport()
-    const duplicate = `${historicalFieldBody()}\n**Exact reviewed head:** \`${historicalHead}\`\n`
-    expect(() => resolveMergeReviewVerdictBinding(duplicate)).toThrow(/STATE_CONFLICT.*Exact reviewed head/i)
+    const wrongFirst = `## REVIEW_VERDICT
 
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+See https://github.com/boat1994/bemoat-web-starter/pull/999
+**PR:** PR #258
+**Exact reviewed head:** \`${historicalHead}\`
+**Approved base:** \`${historicalBase}@${policySourceSha}\`
+`
+    const correctFirst = `${historicalFieldBody()}
+See https://github.com/boat1994/bemoat-web-starter/pull/999
+`
+    expect(() => resolveMergeReviewVerdictBinding(wrongFirst)).toThrow(/STATE_CONFLICT.*PR/i)
+    expect(() => resolveMergeReviewVerdictBinding(correctFirst)).toThrow(/STATE_CONFLICT.*PR/i)
+  })
+
+  it('fails closed for conflicting canonical and historical heads in either order', async () => {
+    const { resolveMergeReviewVerdictBinding } = await mergeTransport()
+    const wrongFirst = `## REVIEW_VERDICT
+
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+**Exact reviewed head:** \`${otherHead}\`
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/${historicalPr} · \`${historicalBase}\` · \`${historicalHead}\`
+`
+    const correctFirst = `## REVIEW_VERDICT
+
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/${historicalPr} · \`${historicalBase}\` · \`${historicalHead}\`
+**Exact reviewed head:** \`${otherHead}\`
+`
+    expect(() => resolveMergeReviewVerdictBinding(wrongFirst)).toThrow(/STATE_CONFLICT.*exact reviewed head/i)
+    expect(() => resolveMergeReviewVerdictBinding(correctFirst)).toThrow(/STATE_CONFLICT.*exact reviewed head/i)
+  })
+
+  it('fails closed for duplicate identical historical PR and head fields', async () => {
+    const { resolveMergeReviewVerdictBinding } = await mergeTransport()
+    const duplicatePr = `${historicalFieldBody()}\n**PR:** PR #258\n`
+    expect(() => resolveMergeReviewVerdictBinding(duplicatePr)).toThrow(/STATE_CONFLICT.*PR/i)
+
+    const duplicateHead = `${historicalFieldBody()}\n**Exact reviewed head:** \`${historicalHead}\`\n`
+    expect(() => resolveMergeReviewVerdictBinding(duplicateHead)).toThrow(/STATE_CONFLICT.*Exact reviewed head/i)
+  })
+
+  it('fails closed for duplicate canonical lines even when values agree', async () => {
+    const { resolveMergeReviewVerdictBinding } = await mergeTransport()
+    const duplicateCanonical = `${canonicalPullBody()}${canonicalPullBody()}`
+    expect(() => resolveMergeReviewVerdictBinding(duplicateCanonical)).toThrow(/STATE_CONFLICT/i)
+  })
+
+  it('fails closed for existing Exact head reviewed vs Exact reviewed head conflicts', async () => {
+    const { resolveMergeReviewVerdictBinding } = await mergeTransport()
     const conflicting = historicalFieldBody({
-      extra: `**Exact head reviewed:** \`bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\`\n`,
+      extra: `**Exact head reviewed:** \`${thirdHead}\`\n`,
     })
     expect(() => resolveMergeReviewVerdictBinding(conflicting)).toThrow(/STATE_CONFLICT.*exact reviewed head/i)
   })
 
-  it('fails closed for multiline and short-SHA Exact reviewed head forms', async () => {
+  it('fails closed for multiline, short-SHA, and partial historical bindings', async () => {
     const { resolveMergeReviewVerdictBinding } = await mergeTransport()
     const multiline = `## REVIEW_VERDICT
 
@@ -204,6 +433,22 @@ describe('production merge REVIEW_VERDICT binding', () => {
 
     const shortSha = historicalFieldBody({ head: '`31afbb8`' })
     expect(() => resolveMergeReviewVerdictBinding(shortSha)).toThrow(/STATE_CONFLICT.*Exact reviewed head/i)
+
+    const prOnly = `## REVIEW_VERDICT
+
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+**PR:** PR #258
+**Approved base:** \`main@${policySourceSha}\`
+`
+    expect(() => resolveMergeReviewVerdictBinding(prOnly)).toThrow(/STATE_CONFLICT.*partial/i)
+
+    const headOnly = `## REVIEW_VERDICT
+
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+**Exact reviewed head:** \`${historicalHead}\`
+**Approved base:** \`main@${policySourceSha}\`
+`
+    expect(() => resolveMergeReviewVerdictBinding(headOnly)).toThrow(/STATE_CONFLICT.*partial/i)
   })
 
   it('does not treat incidental PR #258 prose as authority', async () => {
@@ -211,7 +456,7 @@ describe('production merge REVIEW_VERDICT binding', () => {
     const body = `## REVIEW_VERDICT
 
 **Verdict:** ELIGIBLE FOR FOUNDER REVIEW
-**Exact reviewed head:** \`${historicalHead}\`
+**Exact head reviewed:** \`${historicalHead}\`
 **Approved base:** \`main@${policySourceSha}\`
 
 Incidental prose mentions PR #258 without a recognized field.
@@ -224,121 +469,14 @@ Incidental prose mentions PR #258 without a recognized field.
   })
 
   it('completion-recovery preflight reaches the next gate with zero writes', async () => {
-    const {
-      runFounderAuthorizedMerge,
-      parseProductionMergeReviewVerdict,
-    } = await mergeTransport()
-
-    const writes: string[] = []
-    const operations: string[] = []
-    const reviewVerdict = parseProductionMergeReviewVerdict(historicalFixtureBody(), historicalCommentId)
-
-    const deps = {
-      readManagedIssue: async () => ({
-        number: historicalTask,
-        state: 'OPEN',
-        stateReason: null as string | null,
-        body: 'Mission Control mode: required',
-        managedState: {
-          state: 'ELIGIBLE_FOR_FOUNDER_REVIEW',
-          review_cycle: 1,
-          full_review_count: 1,
-          active_task_issue: `#${historicalTask}`,
-          active_pr: `#${historicalPr}`,
-          current_head: historicalHead,
-          last_reviewed_head: historicalHead,
-          approved_base: historicalBase,
-          guide_source_sha: policySourceSha,
-          guide_version: '1.3.0',
-          latest_review_verdict_comment_id: historicalCommentId,
-          campaign_issue: '#215',
-          campaign_slice: null as number | null,
-        },
-      }),
-      readPullRequest: async () => ({
-        number: historicalPr,
-        state: 'MERGED',
-        isDraft: false,
-        mergeable: 'MERGEABLE',
-        headRefOid: historicalHead,
-        baseRefName: historicalBase,
-        baseRefOid: protectedBaseSha,
-        statusCheckRollup: [
-          { name: 'ci', conclusion: 'SUCCESS', status: 'COMPLETED' },
-          { name: 'starter-ci', conclusion: 'SUCCESS', status: 'COMPLETED' },
-        ],
-        mergeCommit: { oid: mergeCommit },
-        body: 'Refs #254',
-      }),
-      readFounderAuthorization: async () => {
-        operations.push('authorization')
-        return {
-          schema_version: 1,
-          status: 'approved',
-          authority: 'Founder',
-          author_login: 'boat1994',
-          immutable_comment_reference: true,
-          comment_sha256: 'a'.repeat(64),
-          non_superseded: true,
-          superseded_by: null as string | null,
-          repository: 'boat1994/bemoat-web-starter',
-          bundle_kind: 'merge-completion',
-          scope: 'merge',
-          task_issue: historicalTask,
-          pr: historicalPr,
-          exact_head: historicalHead,
-          reviewed_head: historicalHead,
-          base: historicalBase,
-          policy_source_sha: policySourceSha,
-          protected_base_sha: protectedBaseSha,
-          policy_version: '1.3.0',
-          review_verdict_comment_id: historicalCommentId,
-          review_verdict: 'ELIGIBLE FOR FOUNDER REVIEW',
-          action: 'merge',
-          comment_id: '5175340336',
-          projection_kind: 'blocker-resolution',
-          campaign_issue: 215,
-          campaign_blocker_id: 'issue-254-planning-correction-1',
-        }
-      },
-      readReviewVerdict: async () => {
-        operations.push(`review-verdict:${historicalCommentId}`)
-        return reviewVerdict
-      },
-      readTrustedFounderLogins: async () => ['boat1994'],
-      markReadyForReview: async () => {
-        writes.push('mark-ready')
-        throw new Error('unexpected write: mark-ready')
-      },
-      mergePullRequest: async () => {
-        writes.push('merge')
-        throw new Error('unexpected write: merge')
-      },
-      verifyCommitOnProtectedBase: async ({ commit, base }: { commit: string, base: string }) => {
-        operations.push(`verify-base:${commit}:${base}`)
-        return false
-      },
-      postFinalResult: async () => {
-        writes.push('result')
-        throw new Error('unexpected write: result')
-      },
-      closeIssueCompleted: async () => {
-        writes.push('close')
-        throw new Error('unexpected write: close')
-      },
-      writeTaskDone: async () => {
-        writes.push('task-done')
-        throw new Error('unexpected write: task-done')
-      },
-      projectCampaignBlockerResolved: async () => {
-        writes.push('campaign-blocker')
-        throw new Error('unexpected write: campaign-blocker')
-      },
-      selectNextCampaignAction: async () => {
-        writes.push('select-next')
-        throw new Error('unexpected write: select-next')
-      },
-    }
+    const { runFounderAuthorizedMerge } = await mergeTransport()
+    const { deps, writes, operations } = createZeroWriteDeps({
+      verdictBody: historicalFixtureBody(),
+      prState: 'MERGED',
+      // Already-merged recovery reaches verify-base after mutationStarted; omit
+      // reconcile so this probe stays focused on pre-RESULT write absence.
+      includeReconcile: false,
+    })
 
     await expect(runFounderAuthorizedMerge({
       issueNumber: historicalTask,
@@ -353,5 +491,116 @@ Incidental prose mentions PR #258 without a recognized field.
       `verify-base:${mergeCommit}:${historicalBase}`,
     ])
     expect(writes).toEqual([])
+  })
+})
+
+describe('production-entrypoint zero-write fail-closed matrix', () => {
+  const cases: Array<{ name: string, body: string }> = [
+    {
+      name: 'conflicting canonical PR #N and URL PR',
+      body: `${canonicalBody(258)}\nSee https://github.com/boat1994/bemoat-web-starter/pull/999\n`,
+    },
+    {
+      name: 'conflicting URL and historical PR',
+      body: `${historicalFieldBody()}\nSee https://github.com/boat1994/bemoat-web-starter/pull/999\n`,
+    },
+    {
+      name: 'conflicting canonical and historical head',
+      body: `## REVIEW_VERDICT
+
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/${historicalPr} · \`${historicalBase}\` · \`${historicalHead}\`
+**Exact reviewed head:** \`${otherHead}\`
+`,
+    },
+    {
+      name: 'duplicate identical historical PR',
+      body: `${historicalFieldBody()}\n**PR:** PR #258\n`,
+    },
+    {
+      name: 'duplicate identical historical head',
+      body: `${historicalFieldBody()}\n**Exact reviewed head:** \`${historicalHead}\`\n`,
+    },
+    {
+      name: 'partial historical binding (PR without head)',
+      body: `## REVIEW_VERDICT
+
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+**PR:** PR #258
+**Approved base:** \`main@${policySourceSha}\`
+`,
+    },
+    {
+      name: 'multiline Exact reviewed head',
+      body: `## REVIEW_VERDICT
+
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+**PR:** PR #258
+**Exact reviewed head:**
+\`${historicalHead}\`
+**Approved base:** \`main@${policySourceSha}\`
+`,
+    },
+    {
+      name: 'short SHA Exact reviewed head',
+      body: historicalFieldBody({ head: '`31afbb8`' }),
+    },
+    {
+      name: 'incidental prose only',
+      body: `## REVIEW_VERDICT
+
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+**Approved base:** \`main@${policySourceSha}\`
+
+Incidental prose mentions PR #258 and head ${historicalHead} without recognized fields.
+`,
+    },
+    {
+      name: 'wrong-first URL then correct historical PR',
+      body: `## REVIEW_VERDICT
+
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+See https://github.com/boat1994/bemoat-web-starter/pull/999
+**PR:** PR #258
+**Exact reviewed head:** \`${historicalHead}\`
+**Approved base:** \`${historicalBase}@${policySourceSha}\`
+`,
+    },
+    {
+      name: 'correct-first historical PR then wrong URL',
+      body: `${historicalFieldBody()}
+See https://github.com/boat1994/bemoat-web-starter/pull/999
+`,
+    },
+    {
+      name: 'conflicting Approved base and canonical base',
+      body: `## REVIEW_VERDICT
+
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+**Approved base:** \`main@${policySourceSha}\`
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/${historicalPr} · \`dev\` · \`${historicalHead}\`
+`,
+    },
+  ]
+
+  it.each(cases)('$name stops before mutation with zero writes', async ({ body }) => {
+    const { runFounderAuthorizedMerge } = await mergeTransport()
+    const { deps, writes, operations } = createZeroWriteDeps({ verdictBody: body })
+
+    await expect(runFounderAuthorizedMerge({
+      issueNumber: historicalTask,
+      repo: 'boat1994/bemoat-web-starter',
+      authorizationCommentId: '5175340336',
+      deps,
+    } as any)).rejects.toThrow(/STATE_CONFLICT/)
+
+    expect(operations).toEqual([
+      'authorization',
+      `review-verdict:${historicalCommentId}`,
+    ])
+    expect(writes).toEqual([])
+    for (const key of WRITE_KEYS) {
+      expect(writes).not.toContain(key)
+    }
   })
 })
