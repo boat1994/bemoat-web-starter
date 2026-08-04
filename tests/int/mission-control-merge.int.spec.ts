@@ -750,6 +750,123 @@ describe('Founder-authorized Mission Control merge transport', () => {
       expect(harness.operations.some((entry) => entry.startsWith('merge:'))).toBe(false)
     })
   })
+
+  it('returns deterministic NO_OP for an exactly completed blocker resolution without re-projecting it', async () => {
+    const harness = createHarness({
+      taskIssue: 254,
+      prNumber: 258,
+      issueState: 'CLOSED',
+      prState: 'MERGED',
+      isDraft: false,
+      managedState: {
+        state: 'DONE',
+        campaign_issue: '#215',
+        campaign_slice: null,
+        merged_commit_sha: mergeCommit,
+        latest_result_comment_id: '6000000003',
+        open_blockers: [],
+        next_permitted_action: 'none on this task',
+      },
+      authorization: {
+        projection_kind: 'blocker-resolution',
+        campaign_issue: 215,
+        campaign_blocker_id: 'issue-254-planning-correction-1',
+      },
+    })
+    const writes: string[] = []
+    harness.deps.projectCampaignBlockerResolved = async () => {
+      writes.push('projectCampaignBlockerResolved')
+      throw new Error('identical retry must not write the campaign')
+    }
+    harness.deps.selectNextCampaignAction = async () => {
+      writes.push('selectNextCampaignAction')
+      throw new Error('identical retry must not re-select or start the next action')
+    }
+
+    await expect(execute({
+      issueNumber: 254,
+      repo: 'boat1994/bemoat-web-starter',
+      authorizationCommentId: '6000000001',
+      deps: harness.deps,
+    })).resolves.toMatchObject({
+      outcome: 'NO_OP',
+      issueNumber: 254,
+      prNumber: 258,
+      mergeCommit,
+    })
+
+    expect(writes).toEqual([])
+    expect(harness.operations).not.toContain('close:254')
+    expect(harness.operations).not.toContain('task-done:254')
+    expect(harness.operations.some((entry) => entry.startsWith('merge:'))).toBe(false)
+  })
+
+  it.each([
+    ['partial campaign range', { campaign: { slice_keys: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'] } }],
+    ['conflicting blocker state', { campaign: { blocker_ids: ['issue-254-planning-correction-1'] } }],
+    ['missing campaign postconditions', {}],
+    ['reordered campaign range', { campaign: { slice_keys: ['1', '2', '3', '4', '6', '5', '7', '8', '9', '10', '11'] } }],
+    ['over-advanced Slice 5', { campaign: { slice5_status: 'IN_PROGRESS' } }],
+    ['Task still has an open blocker', { task: { open_blockers: ['issue-254-planning-correction-1'] } }],
+    ['Task permits another action', { task: { next_permitted_action: 'start Slice 5' } }],
+  ])('fails closed when blocker-resolution completion postconditions are %s', async (_label, overrides: any) => {
+    const harness = createHarness({
+      taskIssue: 254,
+      prNumber: 258,
+      issueState: 'CLOSED',
+      prState: 'MERGED',
+      isDraft: false,
+      managedState: {
+        state: 'DONE',
+        campaign_issue: '#215',
+        campaign_slice: null,
+        merged_commit_sha: mergeCommit,
+        latest_result_comment_id: '6000000003',
+        open_blockers: [],
+        next_permitted_action: 'none on this task',
+        ...(overrides.task ?? {}),
+      },
+      authorization: {
+        projection_kind: 'blocker-resolution',
+        campaign_issue: 215,
+        campaign_blocker_id: 'issue-254-planning-correction-1',
+      },
+    })
+    harness.deps.projectCampaignBlockerResolved = async () => ({
+      status: 'RESOLVED',
+      postconditions: {
+        task: {
+          state: 'DONE',
+          open_blockers: [],
+          next_permitted_action: 'none on this task',
+          ...overrides.task,
+        },
+        campaign: {
+          lifecycle: 'ACTIVE',
+          blocker_ids: [],
+          slice_keys: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11'],
+          slice5_status: 'NOT_STARTED',
+          next_action: { slice: 5, started: false },
+          ...overrides.campaign,
+        },
+      },
+    })
+    harness.deps.selectNextCampaignAction = async () => ({
+      action: 'Plan Slice 5',
+      started: false,
+    })
+
+    await expect(execute({
+      issueNumber: 254,
+      repo: 'boat1994/bemoat-web-starter',
+      authorizationCommentId: '6000000001',
+      deps: harness.deps,
+    })).rejects.toThrow(/STATE_CONFLICT/)
+
+    expect(harness.operations).not.toContain('close:254')
+    expect(harness.operations).not.toContain('task-done:254')
+    expect(harness.operations.some((entry) => entry.startsWith('merge:'))).toBe(false)
+  })
 })
 
 describe('Mission Control safe bundle and Founder authorization contracts', () => {
@@ -975,6 +1092,177 @@ describe('canonical Founder merge-authorization JSON transport', () => {
     expect(() => mergeTransport.validateFounderMergeAuthorizationEvidence({
       body,
       authorizationCommentId: '6000000001',
+      trustedFounderLogins: ['boat1994'],
+      expected: expectedAuthorization(),
+    })).toThrow(/AUTHORIZATION_VALIDATION_FAILURE/)
+  })
+})
+
+describe('bounded Founder Markdown authorization transport', () => {
+  const taskIssue = 254
+  const prNumber = 258
+  const exactHead = '31afbb8619c58877109a2448e2388a3bb16727d6'
+  const base = 'main'
+  const policySourceSha = '1'.repeat(40)
+  const protectedBaseSha = '2'.repeat(40)
+  const reviewVerdictCommentId = '5162624753'
+  const authorizationCommentId = '5179000001'
+
+  type MarkdownOverrides = Partial<{
+    author: string
+    repository: string
+    task: number
+    pr: number
+    approvedBase: string
+    reviewedHead: string
+    reviewComment: string
+    policySha: string
+    protectedSha: string
+    action: string
+    scope: string
+    nonSuperseded: boolean
+    omit: string
+  }>
+
+  function canonicalMarkdown(overrides: MarkdownOverrides = {}) {
+    const values = {
+      author: 'boat1994',
+      repository: 'boat1994/bemoat-web-starter',
+      task: taskIssue,
+      pr: prNumber,
+      approvedBase: base,
+      reviewedHead: exactHead,
+      reviewComment: reviewVerdictCommentId,
+      policySha: policySourceSha,
+      protectedSha: protectedBaseSha,
+      action: 'merge',
+      scope: 'merge',
+      nonSuperseded: true,
+      ...overrides,
+    }
+    const fields = [
+      '## FOUNDER_DECISION',
+      '',
+      '**Decision:** APPROVE MERGE COMPLETION',
+      '**Authority:** Founder',
+      `**Author:** @${values.author}`,
+      `**Repository:** \`${values.repository}\``,
+      `**Task / Issue:** #${values.task}`,
+      `**PR:** PR #${values.pr}`,
+      `**Approved base:** \`${values.approvedBase}\``,
+      `**Exact reviewed head:** \`${values.reviewedHead}\``,
+      `**REVIEW_VERDICT comment ID:** ${values.reviewComment}`,
+      `**Action:** ${values.action}`,
+      `**Scope:** ${values.scope}`,
+      `**Policy source SHA:** \`${values.policySha}\``,
+      `**Protected base SHA:** \`${values.protectedSha}\``,
+      `**Non-superseded:** ${values.nonSuperseded}`,
+    ]
+    return fields.filter((field) => !overrides.omit || !field.toLowerCase().includes(overrides.omit.toLowerCase())).join('\n')
+  }
+
+  function expectedAuthorization() {
+    return {
+      repository: 'boat1994/bemoat-web-starter',
+      taskIssue,
+      pr: prNumber,
+      exactHead,
+      base,
+      bundleKind: 'merge-completion',
+      policySourceSha,
+      protectedBaseSha,
+      policyVersion: '1.3.0',
+      reviewCommentId: reviewVerdictCommentId,
+      scope: 'merge',
+      action: 'merge',
+    }
+  }
+
+  function enrichParsed(parsed: Record<string, unknown>, overrides: Record<string, unknown> = {}) {
+    return {
+      ...parsed,
+      comment_id: authorizationCommentId,
+      immutable_comment_reference: true,
+      comment_sha256: 'a'.repeat(64),
+      ...overrides,
+    }
+  }
+
+  it('accepts canonical structured Markdown and preserves raw JSON through the same validator', async () => {
+    const mergeTransport = await import('../../scripts/mission-control-merge.mjs')
+    const parsedMarkdown = mergeTransport.parseFounderMergeAuthorization(canonicalMarkdown())
+
+    expect(parsedMarkdown).toMatchObject({
+      schema_version: 1,
+      status: 'approved',
+      authority: 'Founder',
+      author_login: 'boat1994',
+      repository: 'boat1994/bemoat-web-starter',
+      task_issue: taskIssue,
+      pr: prNumber,
+      base,
+      exact_head: exactHead,
+      reviewed_head: exactHead,
+      review_verdict_comment_id: reviewVerdictCommentId,
+      policy_source_sha: policySourceSha,
+      protected_base_sha: protectedBaseSha,
+      bundle_kind: 'merge-completion',
+      scope: 'merge',
+      action: 'merge',
+      non_superseded: true,
+      superseded_by: null,
+    })
+    expect(mergeTransport.validateFounderAuthorizationRecord({
+      authorization: enrichParsed(parsedMarkdown),
+      authorizationCommentId,
+      trustedFounderLogins: ['boat1994'],
+      expected: expectedAuthorization(),
+    })).toMatchObject({ non_superseded: true })
+
+    const rawRecord = {
+      ...enrichParsed(parsedMarkdown),
+      comment_id: authorizationCommentId,
+    }
+    const raw = JSON.stringify(rawRecord)
+    expect(mergeTransport.validateFounderMergeAuthorizationEvidence({
+      body: raw,
+      authorizationCommentId,
+      trustedFounderLogins: ['boat1994'],
+      expected: expectedAuthorization(),
+    })).toMatchObject({ repository: 'boat1994/bemoat-web-starter', non_superseded: true })
+  })
+
+  it.each([
+    ['prose-only approval', 'I approve the merge of Issue #254 and PR #258.'],
+    ['incomplete repository binding', canonicalMarkdown({ omit: 'repository' })],
+    ['incomplete REVIEW_VERDICT binding', canonicalMarkdown({ omit: 'review_verdict comment id' })],
+    ['incomplete policy binding', canonicalMarkdown({ omit: 'policy source sha' })],
+    ['duplicate PR field', `${canonicalMarkdown()}\n**PR:** PR #258`],
+    ['conflicting PR field', `${canonicalMarkdown()}\n**PR:** PR #999`],
+  ])('rejects %s as non-canonical authorization evidence', async (_label, body) => {
+    const mergeTransport = await import('../../scripts/mission-control-merge.mjs')
+
+    expect(() => mergeTransport.parseFounderMergeAuthorization(body))
+      .toThrow(/AUTHORIZATION_VALIDATION_FAILURE/)
+  })
+
+  it.each([
+    ['stale exact head', { reviewedHead: 'a'.repeat(40) }],
+    ['mismatched task', { task: 999 }],
+    ['mismatched PR', { pr: 999 }],
+    ['mismatched base', { approvedBase: 'dev' }],
+    ['stale REVIEW_VERDICT comment', { reviewComment: '5162624999' }],
+    ['stale policy source', { policySha: '3'.repeat(40) }],
+    ['stale protected base', { protectedSha: '4'.repeat(40) }],
+    ['untrusted author', { author: 'attacker' }],
+    ['superseded evidence', { nonSuperseded: false }],
+  ])('rejects %s after canonical parsing without weakening shared binding validation', async (_label, overrides) => {
+    const mergeTransport = await import('../../scripts/mission-control-merge.mjs')
+    const parsed = mergeTransport.parseFounderMergeAuthorization(canonicalMarkdown(overrides))
+
+    expect(() => mergeTransport.validateFounderAuthorizationRecord({
+      authorization: enrichParsed(parsed),
+      authorizationCommentId,
       trustedFounderLogins: ['boat1994'],
       expected: expectedAuthorization(),
     })).toThrow(/AUTHORIZATION_VALIDATION_FAILURE/)
