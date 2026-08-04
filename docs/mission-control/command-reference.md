@@ -141,7 +141,9 @@ Positional arguments and flags:
 Preconditions and sources: the live Task Issue must contain a valid managed
 state block. Reconcile cannot create or initialize a managed task. Reconcile does not post or replay role comments and does not increment review counters.
 For an eligible review state, reconcile selects exactly one active live
-`REVIEW_VERDICT` for that Task Issue, then requires its PR number, base branch,
+`REVIEW_VERDICT` for that Task Issue whose bound PR matches the managed
+`active_pr` / live PR (historical transport reviews for a different PR remain
+preserved but non-competing), then requires its PR number, base branch,
 and exact head to match the live PR and state. For other states it evaluates
 live Issue, PR, comment, campaign, and protected-base evidence before proposing
 an allowed deterministic repair. Valid NO_OP behavior means the state is already completely aligned. Routing-only repair behavior repairs routing lineage while preserving domain state, review cycle, counters, PR/head bindings, RESULT lineage, and verdict. It cannot bootstrap a missing managed-state block.

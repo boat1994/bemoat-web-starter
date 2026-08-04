@@ -417,6 +417,47 @@ describe('merged managed active PR Review-verdict lineage reconciliation', () =>
     expect(readHarnessState(harness).latest_review_verdict_comment_id).toBe(verdictCommentId)
   })
 
+  it('treats a historical transport REVIEW_VERDICT for a different PR as non-competing for managed lineage', () => {
+    const transportHead = '34918d4cb75369778ade13fcc0cc3abcd6cb5f8b'
+    const historicalTransportVerdict = `## REVIEW_VERDICT
+
+### Task log
+- Timestamp: 2026-08-04T09:54:00+07:00
+- Task / Issue: #259
+- Phase: Full Review 1
+- Executing role: Reviewer (Independent)
+
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/267 · \`main\` · \`${transportHead}\`
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+**Managed state:** ELIGIBLE_FOR_FOUNDER_REVIEW · cycle 1 · full_review_count 1 · last_reviewed_head \`${transportHead}\`
+**Findings:** Critical: None · Important: None
+**Next:** Founder reviews PR #267
+`
+    const harness = createGhHarness({
+      prState: 'MERGED',
+      containedHeads: [reviewedHead],
+      comments: [
+        {
+          id: verdictCommentId,
+          body: verdictBody(),
+          user: { login: 'boat1994' },
+          author_association: 'OWNER',
+        },
+        {
+          id: '5174083215',
+          body: historicalTransportVerdict,
+          user: { login: 'boat1994' },
+          author_association: 'OWNER',
+        },
+      ],
+    })
+    const result = runReconcile(harness)
+    expect(result.status, result.stderr || result.stdout).toBe(0)
+    expect(result.stdout).toContain('RECONCILED')
+    expect(readHarnessState(harness).latest_review_verdict_comment_id).toBe(verdictCommentId)
+    expect(readMetrics(harness).issueEdits).toBe(1)
+  })
+
   it.each([
     ['closed but unmerged PR', { prState: 'CLOSED' as const }, /STATE_CONFLICT/],
     ['merged PR head differing from managed reviewed head', {
@@ -440,7 +481,7 @@ describe('merged managed active PR Review-verdict lineage reconciliation', () =>
         user: { login: 'boat1994' },
         author_association: 'OWNER',
       }],
-    }, /STATE_CONFLICT.*PR/i],
+    }, /BLOCKED_EXTERNAL: no active REVIEW_VERDICT evidence for the managed Issue/],
     ['verdict binding a different head', {
       prState: 'MERGED' as const,
       comments: [{
