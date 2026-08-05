@@ -85,8 +85,8 @@ run the recovery transport against live GitHub.
 | Task | Owner | Status | Required evidence before marking complete |
 | --- | --- | --- | --- |
 | 1. Characterize impossible binding | Dev | complete / review-passed | Focused test fails at the current one-field equality with no production change; independent review passed. |
-| 2. Separate recovery bindings | Dev | in_progress | Domain/receipt/parser/validator/identity tests prove both fields are required and independently serialized. |
-| 3. Load policy from execution SHA | Dev | NOT STARTED | Workflow uses exact execution SHA; stale base, wrong ref, and wrong guide evidence fail closed. |
+| 2. Separate recovery bindings | Dev | complete / review-passed | Domain/receipt/parser/validator/identity tests prove both fields are required and independently serialized. |
+| 3. Load policy from execution SHA | Dev | in_progress | Workflow uses exact execution SHA; stale base, wrong ref, and wrong guide evidence fail closed. |
 | 4. Pinned integration/idempotency regression | Dev | NOT STARTED | Simulated #274/#275 success, retry `NO_OP`, ambiguous POST recovery, and no duplicate/source mutation. |
 | 5. Docs/transport contract | Dev | NOT STARTED | Command reference distinguishes incident base, execution policy commit, and policy-content identity. |
 | 6. Whole-branch verification | Reviewer only | NOT STARTED | Independent review plus focused suite, contract guard, safety guard, full check, and diff check. |
@@ -194,3 +194,73 @@ run the recovery transport against live GitHub.
 - Task 2 remains `in_progress` pending independent review. No live recovery,
   GitHub artifact mutation, child sync, deployment, migration, production, or
   retained-data operation was performed.
+
+### 2026-08-05 — Task 2 review
+
+- Reconfirmed the exact review range from
+  `b0a35215b3e33d08d2217c64739e1a5e879f0aa5` through
+  `d840bc3f7bef0a1ff2fea82ff68cc69328900917` on clean branch
+  `hotfix/incident-vs-execution-policy-base`.
+- Reviewed the recovery domain and focused integration test delta. The domain
+  now requires independent `incident_base_sha` and `execution_policy_sha`
+  bindings, preserves `policy_source_sha`, includes both bases in canonical
+  serialization and transition identity, and rejects ambiguous legacy
+  `protected_base_sha` records/receipts.
+- Review verdict: `PASS`; no blocking findings. Task 2 is now
+  `complete / review-passed`.
+- Independently ran
+  `pnpm exec vitest run tests/int/mission-control-recover-review.int.spec.ts -t "round-trips|rejects missing|quarantines"`:
+  3 passed.
+- Independently ran the complete focused recovery file: 8 passed and 1
+  expected Task 3 failure at the unchanged workflow protected-base equality
+  guard (`STATE_CONFLICT: protected base SHA differs from the recovery
+  record`).
+- `pnpm exec eslint scripts/mission-control/domain/review-recovery.mjs tests/int/mission-control-recover-review.int.spec.ts --max-warnings 0`,
+  `pnpm run guard:safety`, `pnpm run guard:mission-control-contract`, and
+  `git diff --check` all passed. `ReadLints` reported no errors.
+- Review artifacts:
+  `sdd/task-02-review-package.md` and `sdd/task-02-review.md`.
+- Remaining risks are deferred Task 3 workflow binding/policy loading and the
+  absence of a dedicated short-SHA rejection assertion. No live recovery,
+  GitHub artifact mutation, child sync, deployment, migration, production, or
+  retained-data operation was performed.
+
+### 2026-08-05 — Task 3 dispatched
+
+- Confirmed branch `hotfix/incident-vs-execution-policy-base` and the retained
+  Task 2 review artifacts in the isolated worktree.
+- Wrote the Task 3 brief to
+  `sdd/task-03-brief.md` with the required task-identity markers.
+- Task 3 is now `in_progress`.
+- Scope is limited to execution-policy loading/verification, focused negative
+  tests, and the Task 3 SDD handoff. The historical `incident_base_sha` remains
+  lineage-only; the canonical policy source must be loaded at the verified
+  `execution_policy_sha`.
+- No live recovery, GitHub artifact mutation, child sync, deployment,
+  migration, production, or retained-data operation was performed.
+
+### 2026-08-05 — Task 3 implementation
+
+- Added the test-first Task 3 policy evidence contract. Before the workflow
+  change, the focused file reported 7 failures, including the former expected
+  `STATE_CONFLICT: protected base SHA differs from the recovery record` on the
+  divergent-base success assertion.
+- Split the workflow checks so PR `baseRefOid` is compared only with
+  `incident_base_sha`, the live protected `main` tip only with
+  `execution_policy_sha`, and policy loading occurs only after that protected
+  execution check at the exact execution SHA.
+- Protected policy evidence now verifies the current guide/version/source
+  identity, recovery facade, recovery workflow, transport-registry entry,
+  executing checkout binding, and child-override invariant restrictions at
+  that execution SHA. Historical incident-base data is not used as policy
+  content or an equality target.
+- Focused recovery suite: 15 passed. Directly affected Issue-body CAS and
+  reconciliation transition suites: 83 passed.
+- Full validation with
+  `PAYLOAD_SECRET=ci-validation-placeholder pnpm run check`: 54 test files and
+  1,142 tests passed; lint, typecheck, safety guard, Mission Control contract
+  guard, branch check, and `git diff --check` passed. `ReadLints` reported no
+  errors.
+- Task 3 remains `in_progress` and awaits independent reviewer verification.
+  No live recovery, GitHub artifact mutation, child sync, deployment,
+  migration, production, or retained-data operation was performed.

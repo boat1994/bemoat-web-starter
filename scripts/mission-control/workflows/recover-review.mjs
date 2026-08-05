@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto'
 
 import { analyzeExactHeadCi } from '../../agent-issue/exact-head-ci.mjs'
 import { parseCorrectionContract, parseCorrectionEvidenceMap, validateFindingIdentity } from '../../correction-contract.mjs'
+import { scanGuideContent } from '../../guards/mission-control-contract/scan-guide.mjs'
 import { parseMissionControlState, projectMissionControlStateBlock } from '../../mission-control-state.mjs'
 import {
   Coordinator,
@@ -23,6 +24,12 @@ import {
 const FULL_SHA_RE = /^[0-9a-f]{40}$/i
 const POSITIVE_ID_RE = /^[1-9]\d*$/
 const STARTER_REPOSITORY = 'boat1994/bemoat-web-starter'
+const CURRENT_MISSION_CONTROL_GUIDE_VERSION = '1.3.0'
+const GUIDE_PATH = 'docs/mission-control/mission-control-guide.md'
+const RECOVERY_FACADE_PATH = 'scripts/mission-control-recover-review.mjs'
+const RECOVERY_WORKFLOW_PATH = 'scripts/mission-control/workflows/recover-review.mjs'
+const TRANSPORT_REGISTRY_PATH = 'scripts/mission-control/transport-registry.mjs'
+const CHILD_OVERRIDE_PATH = '.bemoat/mission-control-overrides.md'
 export const RECOVERY_USAGE =
   'Usage: pnpm run bemoat:mission-control:recover-review -- 274 --repo boat1994/bemoat-web-starter --expected-pr 275 --expected-base main --expected-state AWAITING_REVIEW_2 --expected-head <full-sha> --expected-review-cycle 1 --expected-full-review-count 1 --review-type delta --issue-source-comment 5187836238 --pr-source-comment 5187837555 --original-review-comment <id> --correction-result-comment <id> --body-file <file>'
 
@@ -42,6 +49,114 @@ function flattenPages(value) {
 
 function bodySha256(body) {
   return createHash('sha256').update(String(body ?? ''), 'utf8').digest('hex')
+}
+
+function textContent(entry) {
+  if (typeof entry === 'string') return entry
+  if (!entry || typeof entry !== 'object') return ''
+  return typeof entry.content === 'string' ? entry.content : ''
+}
+
+function parseGuideFrontmatter(content) {
+  if (!content.startsWith('---\n')) return null
+  const end = content.indexOf('\n---\n', 4)
+  if (end === -1) return null
+  const frontmatter = {}
+  for (const line of content.slice(4, end).split('\n')) {
+    const match = line.match(/^([a-z_]+):\s*(.+)$/)
+    if (match) frontmatter[match[1]] = match[2].trim()
+  }
+  return frontmatter
+}
+
+function assertExecutionSource(policy, key, expectedPath, requiredText, label) {
+  const source = policy?.[key]
+  if (!source || source.path !== expectedPath || !textContent(source).trim()) {
+    throw stateConflict(`${label} is missing from the execution policy commit`)
+  }
+  if (!textContent(source).includes(requiredText)) {
+    throw stateConflict(`${label} does not match the reviewed execution implementation`)
+  }
+}
+
+function childOverrideRelaxesSharedInvariants(content) {
+  return [
+    /\bmax_review_cycles\s*:\s*(?:[4-9]|\d{2,})\b/i,
+    /\b(?:allow|permit|enable)[^\n]*(?:auto[- ]merge|automatic merge)/i,
+    /\b(?:remove|skip|disable|bypass|omit)[^\n]*(?:exact[- ]head|exact head)/i,
+    /\b(?:minor\/nit|minor|nit)[^\n]*(?:block|blocking|blocker)/i,
+    /\b(?:allow|permit|enable)[^\n]*(?:destructive migration|production deploy)/i,
+    /\b(?:chat history|conversation)[^\n]*(?:authoritative|authority)/i,
+    /\b(?:allow|permit|enable)[^\n]*(?:silent state reset|reset state silently)/i,
+  ].some((pattern) => pattern.test(content))
+}
+
+function assertExecutionPolicyEvidence({ policy, record, state, executionPolicySha }) {
+  if (!policy || typeof policy !== 'object') {
+    throw stateConflict('execution policy evidence is missing')
+  }
+  if (!FULL_SHA_RE.test(executionPolicySha) ||
+      policy.source_commit !== executionPolicySha ||
+      policy.executing_checkout?.sha !== executionPolicySha ||
+      policy.executing_checkout?.based_on_sha !== executionPolicySha ||
+      !['main', 'refs/heads/main'].includes(policy.executing_checkout?.ref)) {
+    throw stateConflict('Mission Control policy was not loaded from the execution policy SHA')
+  }
+  if (policy.path !== GUIDE_PATH) {
+    throw stateConflict('Mission Control policy guide path is not canonical')
+  }
+  if (policy.sha !== record.policy_source_sha || state.guide_source_sha !== record.policy_source_sha) {
+    throw stateConflict('merged Mission Control policy source differs from the recovery record')
+  }
+  if (policy.version !== CURRENT_MISSION_CONTROL_GUIDE_VERSION || state.guide_version !== CURRENT_MISSION_CONTROL_GUIDE_VERSION) {
+    throw stateConflict('current Mission Control guide version is not accepted')
+  }
+  const frontmatter = parseGuideFrontmatter(textContent(policy))
+  if (textContent(policy).trim() && (!frontmatter || (
+    frontmatter.policy_id !== 'bemoat-mission-control' ||
+    frontmatter.version !== CURRENT_MISSION_CONTROL_GUIDE_VERSION ||
+    frontmatter.canonical_repository !== STARTER_REPOSITORY
+  ))) {
+    throw stateConflict('current Mission Control guide frontmatter is not accepted')
+  }
+  if (textContent(policy).trim()) {
+    const guideViolations = scanGuideContent(GUIDE_PATH, textContent(policy))
+    if (guideViolations.length > 0) {
+      throw stateConflict(`current Mission Control guide invariants are not accepted: ${guideViolations[0].message}`)
+    }
+  }
+  assertExecutionSource(
+    policy,
+    'recovery_facade',
+    RECOVERY_FACADE_PATH,
+    "mission-control/workflows/recover-review.mjs",
+    'recovery facade',
+  )
+  assertExecutionSource(
+    policy,
+    'recovery_workflow',
+    RECOVERY_WORKFLOW_PATH,
+    'export async function runReviewRecovery',
+    'recovery workflow',
+  )
+  assertExecutionSource(
+    policy,
+    'transport_registry',
+    TRANSPORT_REGISTRY_PATH,
+    'bemoat:mission-control:recover-review',
+    'recovery transport registry entry',
+  )
+  if (policy.child_override != null) {
+    if (policy.child_override.path !== CHILD_OVERRIDE_PATH) {
+      throw stateConflict('child Mission Control override path is not canonical')
+    }
+    if (!textContent(policy.child_override).trim()) {
+      throw stateConflict('child Mission Control override could not be verified')
+    }
+    if (childOverrideRelaxesSharedInvariants(textContent(policy.child_override))) {
+      throw stateConflict('child Mission Control override relaxes shared invariants')
+    }
+  }
 }
 
 function requireValue(options, key) {
@@ -288,12 +403,11 @@ async function verifyRecoveryEvidence({ options, body, deps }) {
     throw stateConflict('live PR #275 does not match the expected open main/exact-head binding')
   }
 
-  const [issueComments, prComments, checks, protectedBase, policy] = await Promise.all([
+  const [issueComments, prComments, checks, protectedBase] = await Promise.all([
     deps.readIssueComments(options.repo, options.issueNumber),
     deps.readIssueComments(options.repo, options.expectedPr),
     deps.readExactHeadChecks(options.repo, options.expectedPr, options.expectedHead),
     deps.readProtectedBase(options.repo, 'main'),
-    deps.readPolicySource(options.repo, 'main'),
   ])
   const normalizedIssueComments = normalizeIssueComments(issueComments)
   const normalizedPrComments = normalizeIssueComments(prComments)
@@ -339,12 +453,20 @@ async function verifyRecoveryEvidence({ options, body, deps }) {
   const originalReview = await deps.readComment(options.repo, options.originalReviewComment)
   const correctionResult = await deps.readComment(options.repo, options.correctionResultComment)
   assertFindingLineage(originalReview, correctionResult, options.expectedHead)
-  if (String(protectedBase.sha ?? protectedBase.object?.sha) !== record.protected_base_sha || pr.baseRefOid !== record.protected_base_sha) {
-    throw stateConflict('protected base SHA differs from the recovery record')
+  const liveExecutionPolicySha = String(protectedBase.sha ?? protectedBase.object?.sha ?? '')
+  if (pr.baseRefOid !== record.incident_base_sha) {
+    throw stateConflict('incident base SHA differs from the recovery record')
   }
-  if (String(policy.sha) !== record.policy_source_sha || state.guide_source_sha !== record.policy_source_sha) {
-    throw stateConflict('merged Mission Control policy source differs from the recovery record')
+  if (liveExecutionPolicySha !== record.execution_policy_sha) {
+    throw stateConflict('execution policy SHA differs from the recovery record')
   }
+  const policy = await deps.readPolicySource(options.repo, liveExecutionPolicySha)
+  assertExecutionPolicyEvidence({
+    policy,
+    record,
+    state,
+    executionPolicySha: liveExecutionPolicySha,
+  })
   assertExactChecks(pr, checks, record)
 
   const knownIncidentIds = new Set([
@@ -472,6 +594,9 @@ function defaultRunGh(args, options = {}) {
     env: options.env ?? process.env,
   })
   if (result.error || result.status !== 0) {
+    if (options.allowNotFound && /\b404\b|not found/i.test(`${result.stderr ?? ''}\n${result.stdout ?? ''}`)) {
+      return null
+    }
     throw blockedExternal(result.stderr || result.stdout || result.error?.message || 'GitHub CLI failed')
   }
   return result.stdout.trim()
@@ -479,6 +604,22 @@ function defaultRunGh(args, options = {}) {
 
 function createProductionDeps() {
   const runGh = defaultRunGh
+  const readFileAtRef = async (repo, path, ref, { optional = false } = {}) => {
+    const raw = runGh([
+      'api',
+      `repos/${repo}/contents/${path}?ref=${encodeURIComponent(ref)}`,
+    ], optional ? { allowNotFound: true } : {})
+    if (!raw) return null
+    const file = JSON.parse(raw)
+    const content = file.encoding === 'base64'
+      ? Buffer.from(String(file.content ?? '').replace(/\s/g, ''), 'base64').toString('utf8')
+      : String(file.content ?? '')
+    return {
+      path: file.path ?? path,
+      sha: file.sha,
+      content,
+    }
+  }
   const readManagedIssue = async (issueNumber, repo) => {
     const issue = JSON.parse(runGh(['issue', 'view', String(issueNumber), '--repo', repo, '--json', 'number,id,title,body,state,stateReason']))
     const parsed = parseMissionControlState(issue.body)
@@ -508,9 +649,37 @@ function createProductionDeps() {
   }
   const readProtectedBase = async (repo, base) => JSON.parse(runGh(['api', `repos/${repo}/git/ref/heads/${base}`]))
     .object ?? {}
-  const readPolicySource = async (repo, ref) => JSON.parse(runGh([
-    'api', `repos/${repo}/contents/docs/mission-control/mission-control-guide.md?ref=${ref}`,
-  ]))
+  const readPolicySource = async (repo, ref) => {
+    const guide = JSON.parse(runGh([
+      'api', `repos/${repo}/contents/${GUIDE_PATH}?ref=${encodeURIComponent(ref)}`,
+    ]))
+    const guideContent = guide.encoding === 'base64'
+      ? Buffer.from(String(guide.content ?? '').replace(/\s/g, ''), 'base64').toString('utf8')
+      : String(guide.content ?? '')
+    const [recoveryFacade, recoveryWorkflow, transportRegistry, childOverride] = await Promise.all([
+      readFileAtRef(repo, RECOVERY_FACADE_PATH, ref),
+      readFileAtRef(repo, RECOVERY_WORKFLOW_PATH, ref),
+      readFileAtRef(repo, TRANSPORT_REGISTRY_PATH, ref),
+      readFileAtRef(repo, CHILD_OVERRIDE_PATH, ref, { optional: true }),
+    ])
+    const frontmatter = parseGuideFrontmatter(guideContent)
+    return {
+      path: guide.path ?? GUIDE_PATH,
+      sha: guide.sha,
+      content: guideContent,
+      source_commit: ref,
+      version: frontmatter?.version,
+      recovery_facade: recoveryFacade,
+      recovery_workflow: recoveryWorkflow,
+      transport_registry: transportRegistry,
+      child_override: childOverride,
+      executing_checkout: {
+        ref: 'refs/heads/main',
+        sha: ref,
+        based_on_sha: ref,
+      },
+    }
+  }
   const postComment = async (repo, issueNumber, body) => JSON.parse(runGh([
     'api', '--method', 'POST', `repos/${repo}/issues/${issueNumber}/comments`, '--input', '-',
   ], { input: JSON.stringify({ body }) }))
