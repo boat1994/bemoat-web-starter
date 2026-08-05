@@ -167,12 +167,77 @@ describe('mission-control review transition', () => {
 
     const first = await coordinator.integrateReviewVerdict({ verdictBody, projectState: project })
     expect(first.outcome).toBe('REVIEWED')
-    expect(state).toMatchObject({ state: 'CORRECTION_REQUIRED_1', review_cycle: 1, full_review_count: 1, latest_review_verdict_comment_id: '9001', open_blockers: ['MC-R1-231-001'] })
+    expect(state).toMatchObject({ state: 'CORRECTION_REQUIRED_1', review_cycle: 1, full_review_count: 1, last_reviewed_head: 'deadbeef', current_head: 'deadbeef', latest_review_verdict_comment_id: '9001', open_blockers: ['MC-R1-231-001'] })
 
     const replay = await coordinator.integrateReviewVerdict({ verdictBody, projectState: project })
     expect(replay.outcome).toBe('REVIEWED')
     expect(postCount).toBe(1)
     expect(state.review_cycle).toBe(1)
+    expect(state.last_reviewed_head).toBe('deadbeef')
+  })
+
+  it('projects last_reviewed_head to exact reviewed head on successful Review 1', async () => {
+    const verdictBody = `## REVIEW_VERDICT
+
+### Task log
+- Timestamp: 2026-08-05T14:02:00+07:00
+- Task / Issue: #277
+- Phase: Review 1
+- Executing role: Reviewer
+
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/278 · \`main\` · \`c16803a679ff0ba9d0d094ecb0c42dc40952ac94\`
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+**Review type:** full
+**Findings:** Critical: None · Important: None
+**Gates:** exact-head CI and CI (starter strict) passed. Local checks passed (with PAYLOAD_SECRET).
+**Next:** Founder merge authorization
+`
+    let state: any = {
+      schema_version: 1,
+      state: 'AWAITING_REVIEW_1',
+      review_cycle: 0,
+      full_review_count: 0,
+      approved_base: 'main',
+      active_task_issue: '#277',
+      active_pr: '#278',
+      current_head: 'c16803a679ff0ba9d0d094ecb0c42dc40952ac94',
+      last_reviewed_head: null,
+      open_blockers: [],
+      next_permitted_action: 'Review 1',
+    }
+    const comments: any[] = []
+    const coordinator = new Coordinator({
+      readState: async () => structuredClone(state),
+      writeState: async (next: any) => {
+        state = structuredClone(next)
+        return structuredClone(state)
+      },
+      listComments: async () => comments,
+      postComment: async (body: string) => {
+        const comment = { id: '5188628594', body }
+        comments.push(comment)
+        return comment
+      },
+    })
+    const project = (prior: any, comment: any, identity: any) => projectReviewVerdictState({
+      prior,
+      verdict: 'ELIGIBLE FOR FOUNDER REVIEW',
+      reviewType: 'full',
+      reviewedHead: 'c16803a679ff0ba9d0d094ecb0c42dc40952ac94',
+      commentId: comment.id,
+      transitionIdentity: JSON.stringify(identity),
+      findings: [],
+      updatedAt: 'now',
+      updatedBy: 'Reviewer',
+    })
+
+    const result = await coordinator.integrateReviewVerdict({ verdictBody, projectState: project })
+    expect(result.outcome).toBe('REVIEWED')
+    expect(state.state).toBe('ELIGIBLE_FOR_FOUNDER_REVIEW')
+    expect(state.review_cycle).toBe(1)
+    expect(state.full_review_count).toBe(1)
+    expect(state.last_reviewed_head).toBe('c16803a679ff0ba9d0d094ecb0c42dc40952ac94')
+    expect(state.current_head).toBe('c16803a679ff0ba9d0d094ecb0c42dc40952ac94')
   })
 
   it('keeps the review CLI as a sync-managed facade', async () => {

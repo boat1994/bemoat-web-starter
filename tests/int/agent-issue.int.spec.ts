@@ -5231,4 +5231,132 @@ esac
       expect(analysis.report.currentStageSummary.activePr).toBe('#999')
     })
   })
+
+  describe('readback enforcement for last_reviewed_head', () => {
+    it('verifyPlanningNoPrDurableProofs rejects null or stale last_reviewed_head when contractReviewedHead is present', async () => {
+      const { verifyPlanningNoPrDurableProofs } = await import('../../scripts/agent-issue/planning-no-pr-lineage.mjs')
+      const { execSync } = await import('node:child_process')
+      const headSha = execSync('git rev-parse HEAD', { encoding: 'utf8' }).trim()
+
+      const issueBodyNull = `Mission Control mode: required
+
+${renderMissionControlState({
+  schema_version: 1,
+  state: 'BLOCKED_FOR_FOUNDER_DECISION',
+  review_cycle: 0,
+  full_review_count: 0,
+  approved_base: 'main',
+  active_task_issue: '#277',
+  active_pr: null,
+  current_head: null,
+  last_reviewed_head: null,
+  workflow_mode: 'planning_no_pr',
+  planning_authorization_base_sha: headSha,
+  latest_result_comment_id: '5153076506',
+  latest_transition_identity: JSON.stringify({ taskId: '277', phase: 'Diagnostic', role: 'RESULT', contentHash: 'b'.repeat(64) }),
+  guide_version: '1.3.0',
+  guide_source_ref: 'main',
+  guide_source_sha: headSha,
+  open_blockers: [],
+  follow_up_issues: [],
+  next_permitted_action: 'Founder decision.',
+  material_change_status: 'none',
+  updated_at: '2026-08-05T07:02:48.356Z',
+  updated_by: 'Reviewer',
+})}`
+
+      const resultNull = verifyPlanningNoPrDurableProofs({
+        cwd: process.cwd(),
+        env: process.env,
+        issueBody: issueBodyNull,
+        issueNumber: 277,
+        contractReviewedHead: headSha,
+        branchName: 'feature/277-test',
+        verdictBase: 'main',
+      })
+      expect(resultNull.ok).toBe(false)
+      expect(resultNull.errors).toContain('STATE CONFLICT: state last_reviewed_head does not match the immutable contract reviewed_head')
+
+      const issueBodyStale = `Mission Control mode: required
+
+${renderMissionControlState({
+  schema_version: 1,
+  state: 'BLOCKED_FOR_FOUNDER_DECISION',
+  review_cycle: 1,
+  full_review_count: 1,
+  approved_base: 'main',
+  active_task_issue: '#277',
+  active_pr: null,
+  current_head: null,
+  last_reviewed_head: 'c'.repeat(40),
+  workflow_mode: 'planning_no_pr',
+  planning_authorization_base_sha: headSha,
+  guide_version: '1.3.0',
+  guide_source_ref: 'main',
+  guide_source_sha: headSha,
+  open_blockers: [],
+  follow_up_issues: [],
+  next_permitted_action: 'Founder decision.',
+  material_change_status: 'none',
+  updated_at: '2026-08-05T07:02:48.356Z',
+  updated_by: 'Reviewer',
+})}`
+      const resultStale = verifyPlanningNoPrDurableProofs({
+        cwd: process.cwd(),
+        env: process.env,
+        issueBody: issueBodyStale,
+        issueNumber: 277,
+        contractReviewedHead: headSha,
+        branchName: 'feature/277-test',
+        verdictBase: 'main',
+      })
+      expect(resultStale.ok).toBe(false)
+      expect(resultStale.errors).toContain('STATE CONFLICT: state last_reviewed_head does not match the immutable contract reviewed_head')
+    })
+
+    it('reconcileCorrectionPrEvidence rejects null or stale last_reviewed_head when contractReviewedHead is present', async () => {
+      const { reconcileCorrectionPrEvidence } = await import('../../scripts/agent-issue/correction-pr-reconciliation.mjs')
+
+      const issueBodyNull = `Mission Control mode: required
+
+<!-- bemoat-mission-control-state:start -->
+\`\`\`yaml
+schema_version: 1
+state: ELIGIBLE_FOR_FOUNDER_REVIEW
+review_cycle: 1
+full_review_count: 1
+approved_base: main
+active_task_issue: "#277"
+active_pr: "#278"
+current_head: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+last_reviewed_head: null
+guide_version: 1.3.0
+guide_source_ref: main
+guide_source_sha: 88b306c7e055751f78b9ced5922607eee2d1037f
+open_blockers: []
+follow_up_issues: []
+next_permitted_action: Founder merge authorization required before merge.
+material_change_status: none
+updated_at: 2026-08-05T07:02:48.356Z
+updated_by: Reviewer
+\`\`\`
+<!-- bemoat-mission-control-state:end -->
+`
+      const verdictBody = `## REVIEW_VERDICT
+
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/278 · \`main\` · \`${'b'.repeat(40)}\`
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+`
+      const resultNull = reconcileCorrectionPrEvidence({
+        cwd: process.cwd(),
+        env: process.env,
+        verdictBody,
+        issueNumber: 277,
+        issueBody: issueBodyNull,
+        contractReviewedHead: 'b'.repeat(40),
+      })
+      expect(resultNull.ok).toBe(false)
+      expect(resultNull.errors).toContain('STATE CONFLICT: canonical REVIEW_VERDICT reviewed_head does not match managed-state last_reviewed_head')
+    })
+  })
 })

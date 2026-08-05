@@ -85,9 +85,8 @@ export function reconcileCorrectionPrEvidence({
     }
   }
   if (
-    managedState?.last_reviewed_head &&
     contractReviewedHead &&
-    String(managedState.last_reviewed_head) !== String(contractReviewedHead)
+    (!managedState?.last_reviewed_head || String(managedState.last_reviewed_head) !== String(contractReviewedHead))
   ) {
     return {
       ok: false,

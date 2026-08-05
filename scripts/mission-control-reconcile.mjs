@@ -780,8 +780,11 @@ function coordinatorOwnedProjection({ prior = {}, base = {}, identity, comment, 
         owned[key] = prior[key]
       }
     }
-    for (const key of ['current_head', 'last_reviewed_head']) {
-      if (Object.hasOwn(prior ?? {}, key)) owned[key] = prior[key]
+    const commentHead = parseRoleCommentBody(comment?.body ?? '').headSha
+    const reviewedHead = commentHead ?? base?.last_reviewed_head ?? base?.current_head ?? null
+    if (reviewedHead) {
+      owned.current_head = reviewedHead
+      owned.last_reviewed_head = reviewedHead
     }
   }
 
