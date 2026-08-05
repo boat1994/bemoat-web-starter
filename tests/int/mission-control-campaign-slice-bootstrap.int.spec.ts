@@ -577,7 +577,7 @@ function createProductionAdapterWorld(world: ReturnType<typeof createWorld>) {
     }
   }
 
-  const notFound = (message = '404 Not Found') => {
+  const notFound = (message = '404 Not Found'): never => {
     const error = Object.assign(new Error(message), { code: 'NOT_FOUND' })
     throw error
   }
