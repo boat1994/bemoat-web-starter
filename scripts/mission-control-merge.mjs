@@ -132,9 +132,14 @@ function normalizePrNumber(value) {
   return resolvePrNumber(value)
 }
 
+function hasMeaningfulBindingValue(value) {
+  return value !== null && value !== undefined &&
+    !(typeof value === 'string' && value.trim().length === 0)
+}
+
 function resolveCampaignProjectionKind(authorization = {}) {
   const explicitKind = authorization.projection_kind
-  const hasBlockerBinding = Object.hasOwn(authorization, 'campaign_blocker_id')
+  const hasBlockerBinding = hasMeaningfulBindingValue(authorization.campaign_blocker_id)
 
   if (explicitKind == null) {
     if (hasBlockerBinding) {
@@ -151,7 +156,7 @@ function resolveCampaignProjectionKind(authorization = {}) {
   if (explicitKind !== CAMPAIGN_PROJECTION_KINDS.BLOCKER_RESOLUTION) {
     throw stateConflict(`unsupported campaign projection_kind: ${String(explicitKind)}`)
   }
-  if (Object.hasOwn(authorization, 'campaign_slice')) {
+  if (hasMeaningfulBindingValue(authorization.campaign_slice)) {
     throw stateConflict('blocker-resolution projection prohibits campaign_slice')
   }
   return explicitKind
@@ -173,6 +178,98 @@ function validateBlockerResolutionBindings({ authorization, state }) {
     throw stateConflict('blocker-resolution requires an exact campaign blocker binding')
   }
   return { campaignIssue, campaignBlockerId }
+}
+
+function validateCampaignOwnershipEvidence({ ownership, route, issueNumber, prNumber }) {
+  if (!ownership || typeof ownership !== 'object' || Array.isArray(ownership) || ownership.verified !== true) {
+    throw stateConflict('campaign merge route requires verified durable ownership evidence')
+  }
+  const ownershipKind = ownership.projectionKind ?? ownership.projection_kind
+  if (ownershipKind !== route.projectionKind) {
+    throw stateConflict('campaign ownership evidence projection kind differs from authorization')
+  }
+  if (normalizeIssueNumber(ownership.campaignIssue) !== route.campaignIssue) {
+    throw stateConflict('campaign ownership evidence campaign Issue differs from managed state')
+  }
+  if (normalizeIssueNumber(ownership.taskIssue) !== issueNumber ||
+    normalizePrNumber(ownership.prNumber ?? ownership.pr) !== prNumber) {
+    throw stateConflict('campaign ownership evidence does not bind the exact task and PR')
+  }
+  if (ownershipKind === CAMPAIGN_PROJECTION_KINDS.SLICE) {
+    if (Number(ownership.campaignSlice) !== route.campaignSlice) {
+      throw stateConflict('campaign ownership evidence slice differs from managed state')
+    }
+  } else if (ownership.campaignBlockerId !== route.blockerBinding.campaignBlockerId) {
+    throw stateConflict('campaign ownership evidence blocker differs from authorization')
+  }
+  if (!['campaign-projection', 'task-ownership-registry'].includes(ownership.evidence_kind)) {
+    throw stateConflict('campaign merge route requires canonical allocation or ownership-registry evidence')
+  }
+  return ownership
+}
+
+async function resolveCampaignMergeRoute({
+  deps,
+  repo,
+  issueNumber,
+  prNumber,
+  authorization,
+  state,
+}) {
+  const managedCampaignIssue = normalizeIssueNumber(state?.campaign_issue)
+  const hasManagedCampaignClaim = hasMeaningfulBindingValue(state?.campaign_issue) ||
+    hasMeaningfulBindingValue(state?.campaign_slice)
+
+  if (!hasManagedCampaignClaim) return null
+  if (!managedCampaignIssue) {
+    throw stateConflict('managed campaign binding has an invalid campaign Issue')
+  }
+
+  const managedCampaignSlice = state?.campaign_slice == null ? null : Number(state.campaign_slice)
+  const projectionKind = resolveCampaignProjectionKind(authorization)
+  let blockerBinding = null
+
+  if (managedCampaignSlice != null) {
+    if (!Number.isInteger(managedCampaignSlice) || managedCampaignSlice <= 0) {
+      throw stateConflict('managed campaign binding has an invalid campaign slice')
+    }
+    if (projectionKind !== CAMPAIGN_PROJECTION_KINDS.SLICE) {
+      throw stateConflict('campaign projection kind differs from managed campaign slice binding')
+    }
+    if (normalizeIssueNumber(authorization.campaign_issue) !== managedCampaignIssue ||
+      Number(authorization.campaign_slice) !== managedCampaignSlice) {
+      throw stateConflict('campaign authorization tuple differs from managed state')
+    }
+  } else {
+    if (projectionKind !== CAMPAIGN_PROJECTION_KINDS.BLOCKER_RESOLUTION) {
+      throw stateConflict('managed campaign binding requires an exact slice or blocker-resolution tuple')
+    }
+    blockerBinding = validateBlockerResolutionBindings({ authorization, state })
+    if (blockerBinding.campaignIssue !== managedCampaignIssue) {
+      throw stateConflict('blocker-resolution campaign Issue binding differs from managed state')
+    }
+  }
+
+  if (typeof deps.readCampaignOwnership !== 'function') {
+    throw blockedExternal('verified durable campaign ownership evidence is unavailable')
+  }
+  const route = {
+    projectionKind,
+    campaignIssue: managedCampaignIssue,
+    campaignSlice: managedCampaignSlice,
+    blockerBinding,
+  }
+  const ownership = await deps.readCampaignOwnership({
+    repo,
+    taskIssue: issueNumber,
+    prNumber,
+    campaignIssue: route.campaignIssue,
+    campaignSlice: route.campaignSlice,
+    campaignBlockerId: route.blockerBinding?.campaignBlockerId ?? null,
+    projectionKind: route.projectionKind,
+  })
+  validateCampaignOwnershipEvidence({ ownership, route, issueNumber, prNumber })
+  return route
 }
 
 export function parseFounderMergeAuthorization(body = '') {
@@ -998,10 +1095,6 @@ export async function runFounderAuthorizedMerge({
 
   const authorization = await deps.readFounderAuthorization(repo, issueNumber, authorizationCommentId)
   const trustedFounderLogins = await deps.readTrustedFounderLogins(repo)
-  const projectionKind = resolveCampaignProjectionKind(authorization)
-  const blockerBinding = projectionKind === CAMPAIGN_PROJECTION_KINDS.BLOCKER_RESOLUTION
-    ? validateBlockerResolutionBindings({ authorization, state })
-    : null
   const reviewedHead = state.last_reviewed_head
   const reviewCommentId = authorization?.review_verdict_comment_id ?? state.latest_review_verdict_comment_id
   validateFounderMergeAuthorization({
@@ -1018,6 +1111,16 @@ export async function runFounderAuthorizedMerge({
     protectedBaseSha: pr.baseRefOid,
     trustedFounderLogins,
   })
+  const campaignRoute = await resolveCampaignMergeRoute({
+    deps,
+    repo,
+    issueNumber,
+    prNumber,
+    authorization,
+    state,
+  })
+  const projectionKind = campaignRoute?.projectionKind ?? null
+  const blockerBinding = campaignRoute?.blockerBinding ?? null
   if (typeof deps.readReviewVerdict !== 'function') {
     throw blockedExternal('exact reviewed verdict evidence is unavailable')
   }
@@ -1039,11 +1142,13 @@ export async function runFounderAuthorizedMerge({
     throw stateConflict(`managed task state ${state.state ?? 'unknown'} is not eligible for Founder-authorized merge`)
   }
 
-  const requiredProjectionDeps = [
-    projectionKind === CAMPAIGN_PROJECTION_KINDS.BLOCKER_RESOLUTION
-      ? 'projectCampaignBlockerResolved'
-      : 'projectCampaignSliceDone',
-  ]
+  const requiredProjectionDeps = campaignRoute
+    ? [
+        projectionKind === CAMPAIGN_PROJECTION_KINDS.BLOCKER_RESOLUTION
+          ? 'projectCampaignBlockerResolved'
+          : 'projectCampaignSliceDone',
+      ]
+    : []
   if (!alreadyDone) {
     requiredProjectionDeps.unshift(
       'markReadyForReview',
@@ -1059,10 +1164,13 @@ export async function runFounderAuthorizedMerge({
     throw blockedExternal(`merge completion projection dependencies are unavailable: ${missingProjectionDeps.join(', ')}`)
   }
 
-  const campaignIssueForNextAction = blockerBinding?.campaignIssue ??
-    normalizeIssueNumber(authorization.campaign_issue ?? state.campaign_issue)
+  const campaignIssueForNextAction = campaignRoute?.campaignIssue ?? null
   let nextAction = null
   const readNextActionBeforeMutation = async () => {
+    if (!campaignRoute) {
+      nextAction = { action: 'none on this task', started: false }
+      return nextAction
+    }
     if (typeof deps.readNextCampaignAction !== 'function') {
       throw blockedExternal('merge completion next campaign action evidence is unavailable')
     }
@@ -1093,7 +1201,7 @@ export async function runFounderAuthorizedMerge({
       }
       const onBase = await deps.verifyCommitOnProtectedBase({ repo, base: state.approved_base, commit })
       if (!onBase) throw stateConflict('verified merge commit has not reached the protected base')
-      if (projectionKind !== CAMPAIGN_PROJECTION_KINDS.BLOCKER_RESOLUTION) {
+      if (campaignRoute && projectionKind !== CAMPAIGN_PROJECTION_KINDS.BLOCKER_RESOLUTION) {
         if (typeof deps.readNextCampaignAction !== 'function') {
           throw blockedExternal('merge completion next campaign action evidence is unavailable')
         }
@@ -1103,6 +1211,17 @@ export async function runFounderAuthorizedMerge({
         nextAction = validateNextAction(
           await deps.readNextCampaignAction({ repo, campaignIssue: campaignIssueForNextAction }),
         )
+      }
+      if (!campaignRoute) {
+        return {
+          outcome: 'NO_OP',
+          issueNumber,
+          prNumber,
+          reviewedHead,
+          mergeCommit: commit,
+          finalResultCommentId: String(state.latest_result_comment_id),
+          nextAction: 'none on this task',
+        }
       }
       const storedBlockerPostconditions = projectionKind === CAMPAIGN_PROJECTION_KINDS.BLOCKER_RESOLUTION
         ? state.blocker_resolution_postconditions ?? state.campaign_postconditions
@@ -1161,7 +1280,9 @@ export async function runFounderAuthorizedMerge({
       mutationStarted = true
       let terminal
       try {
-        terminal = projectionKind === CAMPAIGN_PROJECTION_KINDS.BLOCKER_RESOLUTION
+        terminal = !campaignRoute
+          ? { nextAction }
+          : projectionKind === CAMPAIGN_PROJECTION_KINDS.BLOCKER_RESOLUTION
           ? await completeTerminalBlockerProjection({
               deps,
               repo,
@@ -1273,6 +1394,7 @@ export async function runFounderAuthorizedMerge({
         base: state.approved_base,
         policyVersion: state.guide_version,
         projectionKind,
+        nextAction: nextAction?.action,
         campaignIssue: blockerBinding?.campaignIssue,
         campaignBlockerId: blockerBinding?.campaignBlockerId,
       }),
@@ -1302,7 +1424,9 @@ export async function runFounderAuthorizedMerge({
     })
     if (taskProjection?.state !== 'DONE') throw stateConflict('direct deterministic Task DONE projection was not confirmed')
 
-    const terminal = projectionKind === CAMPAIGN_PROJECTION_KINDS.BLOCKER_RESOLUTION
+    const terminal = !campaignRoute
+      ? { nextAction }
+      : projectionKind === CAMPAIGN_PROJECTION_KINDS.BLOCKER_RESOLUTION
       ? await completeTerminalBlockerProjection({
           deps,
           repo,
@@ -1551,6 +1675,52 @@ function createProductionDeps() {
     return parsed
   }
 
+  const readCampaignOwnership = async ({
+    repo,
+    taskIssue,
+    prNumber,
+    campaignIssue,
+    campaignSlice,
+    campaignBlockerId,
+    projectionKind,
+  }) => {
+    const parsed = await readCampaignIssue(repo, campaignIssue)
+    if (projectionKind === CAMPAIGN_PROJECTION_KINDS.SLICE) {
+      const slice = parsed.campaign?.slices?.[String(campaignSlice)]
+      if (!slice ||
+        normalizeIssueNumber(slice.issue) !== taskIssue ||
+        normalizePrNumber(slice.pr) !== prNumber) {
+        throw stateConflict(`campaign Slice ${campaignSlice} is not durably allocated to Task Issue #${taskIssue} and PR #${prNumber}`)
+      }
+      return {
+        verified: true,
+        evidence_kind: 'campaign-projection',
+        projectionKind,
+        campaignIssue,
+        campaignSlice,
+        taskIssue,
+        prNumber,
+      }
+    }
+
+    const blocker = (parsed.campaign?.campaign_blockers ?? [])
+      .find((candidate) => candidate?.id === campaignBlockerId)
+    if (!blocker ||
+      normalizeIssueNumber(blocker.evidence?.issue) !== taskIssue ||
+      normalizePrNumber(blocker.evidence?.pr) !== prNumber) {
+      throw stateConflict(`campaign blocker ${campaignBlockerId} is not durably allocated to Task Issue #${taskIssue} and PR #${prNumber}`)
+    }
+    return {
+      verified: true,
+      evidence_kind: 'campaign-projection',
+      projectionKind,
+      campaignIssue,
+      campaignBlockerId,
+      taskIssue,
+      prNumber,
+    }
+  }
+
   const readNextCampaignAction = async ({ repo, campaignIssue }) => {
     const parsed = await readCampaignIssue(repo, campaignIssue)
     return selectNextCampaignAction(parsed.campaign)
@@ -1620,6 +1790,7 @@ function createProductionDeps() {
       }
     },
     readCampaignBlockerResolutionPostconditions,
+    readCampaignOwnership,
     readNextCampaignAction,
     readReviewVerdict: async (repo, issueNumber, commentId) => {
       const comment = readIssueComment(repo, issueNumber, commentId)

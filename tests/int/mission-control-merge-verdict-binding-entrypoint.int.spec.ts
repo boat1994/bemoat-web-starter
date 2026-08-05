@@ -188,6 +188,15 @@ function createZeroWriteDeps(options: {
         campaign_blocker_id: 'issue-254-planning-correction-1',
       }
     },
+    readCampaignOwnership: async (ownership: Record<string, any>) => ({
+      verified: true,
+      evidence_kind: 'campaign-projection',
+      projectionKind: ownership.projectionKind,
+      campaignIssue: ownership.campaignIssue,
+      campaignBlockerId: ownership.campaignBlockerId,
+      taskIssue: historicalTask,
+      prNumber: historicalPr,
+    }),
     readReviewVerdict: async () => {
       operations.push(`review-verdict:${historicalCommentId}`)
       const { parseProductionMergeReviewVerdict } = await mergeTransport()
