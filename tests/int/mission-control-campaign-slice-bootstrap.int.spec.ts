@@ -577,10 +577,8 @@ function createProductionAdapterWorld(world: ReturnType<typeof createWorld>) {
     }
   }
 
-  const notFound = (message = '404 Not Found'): never => {
-    const error = Object.assign(new Error(message), { code: 'NOT_FOUND' })
-    throw error
-  }
+  const notFoundError = (message = '404 Not Found') =>
+    Object.assign(new Error(message), { code: 'NOT_FOUND' })
 
   const restIssue = (issue: AnyRecord) => ({
     ...clone(issue),
@@ -653,7 +651,7 @@ function createProductionAdapterWorld(world: ReturnType<typeof createWorld>) {
     }
     if (method === 'PATCH' && issueMatch) {
       const issue = world.issues.get(Number(issueMatch[1]))
-      if (!issue) notFound(`404 Issue #${issueMatch[1]}`)
+      if (!issue) throw notFoundError(`404 Issue #${issueMatch[1]}`)
       issue.body = input.body
       world.calls.updateIssueBody += 1
       if (Number(issueMatch[1]) === CAMPAIGN_ISSUE) world.calls.campaignProjection += 1
@@ -683,7 +681,7 @@ function createProductionAdapterWorld(world: ReturnType<typeof createWorld>) {
     if (leaseMatch && leaseMatch[1].startsWith('.bemoat/mission-control/leases/')) {
       const leasePath = decodeURIComponent(leaseMatch[1])
       const current = contentsLeaseStore._dump().get(leasePath)
-      if (!current) notFound(`404 lease ${leasePath}`)
+      if (!current) throw notFoundError(`404 lease ${leasePath}`)
       return JSON.stringify({
         content: {
           content: Buffer.from(`${JSON.stringify(current.content)}\n`, 'utf8').toString('base64'),
@@ -703,7 +701,7 @@ function createProductionAdapterWorld(world: ReturnType<typeof createWorld>) {
         const comment = entries.find((entry) => String(entry.id) === commentId)
         if (comment) return JSON.stringify(restComment(comment))
       }
-      notFound(`404 comment ${commentId}`)
+      throw notFoundError(`404 comment ${commentId}`)
     }
     if (commentsMatch) {
       const comments = world.comments.get(Number(commentsMatch[1])) ?? []
@@ -711,7 +709,7 @@ function createProductionAdapterWorld(world: ReturnType<typeof createWorld>) {
     }
     if (issueMatch) {
       const issue = world.issues.get(Number(issueMatch[1]))
-      if (!issue) notFound(`404 Issue #${issueMatch[1]}`)
+      if (!issue) throw notFoundError(`404 Issue #${issueMatch[1]}`)
       return JSON.stringify(restIssue(issue))
     }
     if (path === `repos/${REPOSITORY}/issues`) {
