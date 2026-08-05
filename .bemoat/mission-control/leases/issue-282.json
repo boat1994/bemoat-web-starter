@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "issue": "282",
-  "transition_identity": "{\"taskId\":\"282\",\"phase\":\"\",\"role\":\"RESULT\",\"contentHash\":\"6fad6b9ffbf6fd5dadf77c3c404ec3ec14e5ff0978f746998b5f24d4459932d8\"}",
+  "transition_identity": "{\"taskId\":\"282\",\"phase\":\"Review\",\"role\":\"REVIEW_VERDICT\",\"contentHash\":\"3a3eb700c4b979d5e7dcbd872fce00c46c4f511197e45aca3440c18fdb3ff088\"}",
   "observed_body_sha256": "44dac3b53146cbc6b8923e2534e00c7d6885bbaea9a2488f9ad9dc45e15b9fae",
-  "holder": "agent-delivery",
-  "status": "released",
-  "updated_at": "2026-08-05T13:45:52.908Z"
+  "holder": "mission-control-review",
+  "status": "held",
+  "updated_at": "2026-08-05T13:55:48.000Z"
 }
