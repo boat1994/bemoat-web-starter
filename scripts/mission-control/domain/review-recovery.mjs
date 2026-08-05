@@ -1,5 +1,18 @@
 import { createHash } from 'node:crypto'
 
+/**
+ * The v2 recovery receipt binds one exact incident-class transport:
+ *
+ * - incident_base_sha is the immutable historical PR #275 baseRefOid and
+ *   managed-state lineage. It is history only, not the current policy source.
+ * - execution_policy_sha is the live protected main tip from which trusted
+ *   recovery loads policy. It is serialized into the receipt and transition
+ *   identity, then reverified before mutation.
+ * - policy_source_sha remains the separate merged-guide content identity.
+ *
+ * The two base SHAs are independent and need not be equal. A v1 receipt or
+ * record containing only protected_base_sha is ambiguous and fails closed.
+ */
 export const RECOVERY_SCHEMA_VERSION = 2
 export const RECOVERY_RECORD_KIND = 'review_recovery'
 export const RECOVERY_COMMAND = 'bemoat:mission-control:recover-review'

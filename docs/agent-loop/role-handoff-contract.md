@@ -215,6 +215,38 @@ Separate evidence clearly in every `RESULT` and `REVIEW_VERDICT`:
 
 Do not present local-only evidence as GitHub-verified. Do not infer founder approval from CI green or a reviewer `ELIGIBLE FOR FOUNDER REVIEW`.
 
+## Pinned review-recovery receipt contract
+
+The exceptional `bemoat:mission-control:recover-review` route uses the
+existing `## REVIEW_VERDICT` comment shape and a typed v2 receipt. It is
+restricted to the approved #274/#275 incident class; this section does not
+create a new comment type or a generic recovery API.
+
+The receipt has three non-interchangeable identities:
+
+- `incident_base_sha`: PR #275 `baseRefOid` and immutable managed-state
+  incident lineage. It is historical binding only, never the current policy
+  source.
+- `execution_policy_sha`: the live protected `main` tip used to load the
+  canonical Mission Control guide and trusted recovery implementation. It is
+  part of the receipt and transition identity, and must be re-read and
+  verified before mutation.
+- `policy_source_sha`: the separately verified merged-guide content/blob
+  identity. It is not either base commit or the policy execution ref.
+
+The two base fields are independently validated and may differ;
+`incident_base_sha === execution_policy_sha` must not be required. Policy
+loading uses `execution_policy_sha` only, never the historical incident base or
+a moving `main` ref after the execution SHA is established.
+
+A valid recovery body contains exactly one v2 receipt marker pair. The
+canonical record includes both base fields and `policy_source_sha`, so changing
+either base changes the transition identity. A legacy v1 receipt or recovery
+record containing only the ambiguous `protected_base_sha` field fails closed;
+agents must not guess which base that field meant. This recovery-specific rule
+does not redefine the separately owned `protected_base_sha` field in unrelated
+Founder merge authorization records.
+
 ## Execution audit fields
 
 Every `HANDOFF`, `RESULT`, and `REVIEW_VERDICT` records a compact **Task log** so Mission Control can reconstruct who ran which phase and when. Keep this short—do not paste full command logs or review transcripts.

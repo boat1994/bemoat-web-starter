@@ -87,8 +87,8 @@ run the recovery transport against live GitHub.
 | 1. Characterize impossible binding | Dev | complete / review-passed | Focused test fails at the current one-field equality with no production change; independent review passed. |
 | 2. Separate recovery bindings | Dev | complete / review-passed | Domain/receipt/parser/validator/identity tests prove both fields are required and independently serialized. |
 | 3. Load policy from execution SHA | Dev | complete / review-passed | Workflow uses exact execution SHA; stale base, wrong ref, guide evidence, and malformed array-typed child overrides fail closed. |
-| 4. Pinned integration/idempotency regression | Dev | in_progress | Simulated #274/#275 success, retry `NO_OP`, ambiguous POST recovery, and no duplicate/source mutation. |
-| 5. Docs/transport contract | Dev | NOT STARTED | Command reference distinguishes incident base, execution policy commit, and policy-content identity. |
+| 4. Pinned integration/idempotency regression | Dev | complete / review-passed | Simulated #274/#275 success, retry `NO_OP`, ambiguous POST recovery, and no duplicate/source mutation. |
+| 5. Docs/transport contract | Dev | in_progress | Command reference distinguishes incident base, execution policy commit, and policy-content identity. |
 | 6. Whole-branch verification | Reviewer only | NOT STARTED | Independent review plus focused suite, contract guard, safety guard, full check, and diff check. |
 
 ## Durable Run Rules
@@ -349,3 +349,55 @@ run the recovery transport against live GitHub.
   - safety guard, Mission Control contract guard, and branch guard: passed.
 - No production recovery, CAS, or reconciliation implementation changed.
   Task 4 remains `in_progress` pending independent review.
+
+### 2026-08-05 — Task 4 review
+
+- Reconfirmed the exact Task 4 review range from
+  `35b13b026df182725db2e8d428d35ed5891c6f6f` through
+  `d3a2edf83f8fa1480f29b0f62b062a5481b4f188` on the clean
+  `hotfix/incident-vs-execution-policy-base` branch.
+- Confirmed the pinned historical incident base
+  `88b306c7e055751f78b9ced5922607eee2d1037f` and trusted execution-policy SHA
+  `ce8d67b19c6c5d210024434f532dcc32ebdc6daf` remain distinct, and that
+  `origin/main`, local `main`, and the expected execution-policy object resolve
+  to the latter SHA.
+- Reviewed the exact recovery fixture delta. It proves divergent-base success,
+  receipt preservation, deterministic retry `NO_OP`, single-winner ambiguous
+  POST recovery, unchanged source comments, unchanged lease/CAS behavior, and
+  competing-evidence fail-closed behavior. No production file changed.
+- Review verdict: `PASS`; no blocking findings. Task 4 is now
+  `complete / review-passed`.
+- Non-blocking note: the auxiliary `recoveryComments` return list uses the
+  pre-post evidence snapshot on the first recovery, while the durable `comment`,
+  receipt, and projected state are correct. No current consumer depends on that
+  auxiliary list for correctness.
+- Independent validation:
+  - `pnpm exec vitest run tests/int/mission-control-recover-review.int.spec.ts`
+    — 22 passed;
+  - `pnpm exec vitest run tests/int/mission-control-issue-body-cas.int.spec.ts tests/int/mission-control-reconcile.int.spec.ts`
+    — 83 passed;
+  - targeted ESLint with `--max-warnings 0` — passed;
+  - `ReadLints` — no errors;
+  - `pnpm run guard:safety` — passed;
+  - `pnpm run guard:mission-control-contract` — passed;
+  - `pnpm run branch:check` — passed;
+  - `git diff --check` — passed.
+- Review artifacts:
+  `sdd/task-04-review-package.md` and `sdd/task-04-review.md`.
+- No live recovery, GitHub artifact mutation, child sync, deployment,
+  migration, production, or retained-data operation was performed.
+
+### 2026-08-05 — Task 5 dispatched
+
+- Confirmed branch `hotfix/incident-vs-execution-policy-base` at
+  `d3a2edf83f8fa1480f29b0f62b062a5481b4f188`.
+- Wrote `sdd/task-05-brief.md` with the required task-identity markers.
+- Task 5 is now `in_progress`; scope is limited to the existing recovery
+  transport registry, command reference, receipt documentation, and
+  agent-facing contract.
+- The documentation must distinguish historical `incident_base_sha`,
+  trusted `execution_policy_sha`, and separate `policy_source_sha`; it must
+  reject ambiguous legacy `protected_base_sha` semantics and preserve the
+  exact #274/#275 incident boundary.
+- No live recovery, GitHub artifact mutation, child sync, deployment,
+  migration, production, or retained-data operation was performed.
