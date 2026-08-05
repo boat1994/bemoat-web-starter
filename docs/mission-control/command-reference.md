@@ -156,6 +156,34 @@ exact-head `CI` and `CI (starter strict)`, source-comment locations and hashes,
 reviewer identity, original finding contract, correction RESULT evidence, and
 later role evidence. The two raw source comments remain unchanged.
 
+### Recovery identity contract
+
+The recovery receipt carries three distinct identities:
+
+- `incident_base_sha` is the historical incident binding: PR #275
+  `baseRefOid`, preserved as immutable managed-state/incident lineage. It is
+  history only and is **not** the current policy source.
+- `execution_policy_sha` is the live protected `main` tip used for this
+  trusted recovery transport and for canonical Mission Control policy/guide
+  loading. It is included in the typed receipt and transition identity, and
+  must be re-read and verified immediately before any mutation.
+- `policy_source_sha` remains the separate merged-guide content/blob identity.
+  It does not replace either base commit, and a content/blob SHA must not be
+  treated as the policy execution ref.
+
+`incident_base_sha` and `execution_policy_sha` are independent bindings.
+`incident_base_sha === execution_policy_sha` is neither required nor a
+validation condition. Policy is loaded from `execution_policy_sha` only—not
+from the historical incident base and not from a moving `main` ref after the
+execution SHA has been established.
+
+The body must contain exactly one v2 typed recovery receipt marker pair. Its
+canonical serialized record includes both base bindings and
+`policy_source_sha`; changing either base changes the transition identity. A
+legacy v1 receipt or record with the ambiguous single field
+`protected_base_sha` is rejected fail-closed rather than silently
+reinterpreted.
+
 The body must contain one canonical `REVIEW_VERDICT` plus exactly one typed
 recovery receipt. Recovery consumes the exact `AWAITING_REVIEW_2` `1/1`
 pre-state and projects `ELIGIBLE_FOR_FOUNDER_REVIEW`; resulting counters `2/1`, preserving
@@ -168,8 +196,10 @@ Before recovery, review, reconcile, and merge fail closed with
 `NONCANONICAL_ROLE_EVIDENCE` while relevant raw evidence is unaccounted for.
 After recovery, only the matching receipt's exact source IDs and hashes are
 quarantined. Any later, competing, or malformed role evidence remains a
-stop condition. Do not run this transport during implementation of another
-task or use it to repair arbitrary comments.
+stop condition. This is the exceptional #274/#275 incident-class transport
+only; it is not a generic recovery API or arbitrary comment-repair transport.
+Do not run it during implementation of another task or against live historical
+artifacts in the hotfix setup.
 
 ## Reconcile
 

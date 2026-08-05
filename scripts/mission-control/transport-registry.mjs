@@ -4,6 +4,13 @@
  * Durable writers must consult this registry before choosing a transport. The
  * recovery route is exceptional and quarantines existing evidence; it does not
  * grant ordinary REVIEW_VERDICT publication authority.
+ *
+ * The recovery route's receipt contract keeps three identities separate:
+ * incident_base_sha is immutable PR #275 incident lineage, execution_policy_sha
+ * is the live protected policy commit used for trusted recovery, and
+ * policy_source_sha is the separately verified guide-content identity. The two
+ * base SHAs may differ. A legacy recovery receipt that supplies only the
+ * ambiguous protected_base_sha field must fail closed.
  */
 export const CANONICAL_TRANSPORTS = Object.freeze([
   Object.freeze({
@@ -32,7 +39,7 @@ export const CANONICAL_TRANSPORTS = Object.freeze([
     role: 'REVIEW_VERDICT',
     owner: 'Mission Control Recovery Transport',
     ordinary_owner: 'bemoat:mission-control:review',
-    purpose: 'quarantine the exact approved raw-review incident and project its proven Review 2 result',
+    purpose: 'quarantine the exact approved #274/#275 raw-review incident and project its proven Review 2 result',
     exceptional: true,
   }),
   Object.freeze({
