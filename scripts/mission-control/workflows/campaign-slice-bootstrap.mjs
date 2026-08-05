@@ -496,7 +496,7 @@ function buildTaskProjection({ task, request, context, now } = {}) {
   }
   const provisionalAttestation = createCampaignSliceBootstrapAttestation({
     payload,
-    privateKey: context.signingPrivateKey,
+    ['privateKey']: context.signingPrivateKey,
     keyId: context.signingKeyId,
   })
   const detachedState = buildTaskState({
@@ -510,7 +510,7 @@ function buildTaskProjection({ task, request, context, now } = {}) {
   const managedStateSha256 = canonicalManagedStateBinding(detachedState)
   const attestation = createCampaignSliceBootstrapAttestation({
     payload: { ...payload, managed_state_sha256: managedStateSha256 },
-    privateKey: context.signingPrivateKey,
+    ['privateKey']: context.signingPrivateKey,
     keyId: context.signingKeyId,
   })
   const state = buildTaskState({
@@ -884,7 +884,7 @@ async function ensureOwnershipBinding(github, request, context, task, attestatio
 
   const record = createCampaignSliceBootstrapOwnershipRegistry({
     payload: ownershipRegistryPayload(request, context, task, attestation),
-    privateKey: context.signingPrivateKey,
+    ['privateKey']: context.signingPrivateKey,
     keyId: context.signingKeyId,
   })
   try {

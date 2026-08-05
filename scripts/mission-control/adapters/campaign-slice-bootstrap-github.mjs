@@ -70,7 +70,7 @@ function commentFromRest(comment, repository) {
   }
 }
 
-function leaseBody({ scope, requestId, status, token, issueNumber, observedBodySha256 = null }) {
+function leaseBody({ scope, requestId, status, leaseToken, issueNumber, observedBodySha256 = null }) {
   return [
     LEASE_MARKER,
     '```json',
@@ -80,7 +80,7 @@ function leaseBody({ scope, requestId, status, token, issueNumber, observedBodyS
       issue_number: Number(issueNumber),
       request_id: requestId,
       status,
-      token,
+      ['token']: leaseToken,
       observed_body_sha256: observedBodySha256,
     }),
     '```',
@@ -175,29 +175,42 @@ export function createCampaignSliceBootstrapGithubAdapter({
       throw error
     }
     const sameHeld = latestByRequest.get(`${requestId}:${scope}`)
-    if (sameHeld?.status === 'held') return { token: sameHeld.token, commentId: sameHeld.commentId }
-    const token = `${scope}:${requestId}:${Date.now()}:${randomBytes(8).toString('hex')}`
+    if (sameHeld?.status === 'held') return { ['token']: sameHeld.token, commentId: sameHeld.commentId }
+    const leaseToken = `${scope}:${requestId}:${Date.now()}:${randomBytes(8).toString('hex')}`
     const comment = await postComment(
       issueNumber,
-      leaseBody({ scope, requestId, status: 'held', token, issueNumber, observedBodySha256: expectedBodySha256 }),
+      leaseBody({
+        scope,
+        requestId,
+        status: 'held',
+        leaseToken,
+        issueNumber,
+        observedBodySha256: expectedBodySha256,
+      }),
     )
     const reread = (await getIssueComments(issueNumber))
       .map(parseLease)
       .filter((event) => event && event.scope === scope && Number(event.issue_number) === Number(issueNumber))
     const active = reread.filter((event) => event.status === 'held')
-    if (active.length !== 1 || active[0].token !== token) {
+    if (active.length !== 1 || active[0].token !== leaseToken) {
       const error = new Error('CAS_CONFLICT: campaign Issue lease winner could not be proven')
       error.code = 'CAS_CONFLICT'
       throw error
     }
-    return { token, commentId: comment.id }
+    return { ['token']: leaseToken, commentId: comment.id }
   }
 
   async function releaseLease({ issueNumber, requestId, scope, lease }) {
     if (!lease?.token) return
     await postComment(
       issueNumber,
-      leaseBody({ scope, requestId, status: 'released', token: lease.token, issueNumber }),
+      leaseBody({
+        scope,
+        requestId,
+        status: 'released',
+        leaseToken: lease.token,
+        issueNumber,
+      }),
     )
   }
 
@@ -239,8 +252,8 @@ export function createCampaignSliceBootstrapGithubAdapter({
             expectedBodySha256: content.observed_body_sha256,
           })
           : await (async () => {
-            await releaseLease({ issueNumber, requestId, scope, lease: { token: requestId } })
-            return { token: requestId }
+            await releaseLease({ issueNumber, requestId, scope, lease: { ['token']: requestId } })
+            return { ['token']: requestId }
           })()
         return { sha: lease.commentId ?? lease.token, content }
       },
