@@ -88,8 +88,8 @@ run the recovery transport against live GitHub.
 | 2. Separate recovery bindings | Dev | complete / review-passed | Domain/receipt/parser/validator/identity tests prove both fields are required and independently serialized. |
 | 3. Load policy from execution SHA | Dev | complete / review-passed | Workflow uses exact execution SHA; stale base, wrong ref, guide evidence, and malformed array-typed child overrides fail closed. |
 | 4. Pinned integration/idempotency regression | Dev | complete / review-passed | Simulated #274/#275 success, retry `NO_OP`, ambiguous POST recovery, and no duplicate/source mutation. |
-| 5. Docs/transport contract | Dev | in_progress | Command reference distinguishes incident base, execution policy commit, and policy-content identity. |
-| 6. Whole-branch verification | Reviewer only | NOT STARTED | Independent review plus focused suite, contract guard, safety guard, full check, and diff check. |
+| 5. Docs/transport contract | Dev | complete / review-passed | Command reference distinguishes incident base, execution policy commit, and policy-content identity; independent review passed. |
+| 6. Whole-branch verification | Reviewer only | correction_ready_for_rereview | MC-T6-001 was corrected in the focused test; required checks pass and one scoped re-review remains. |
 
 ## Durable Run Rules
 
@@ -401,3 +401,91 @@ run the recovery transport against live GitHub.
   exact #274/#275 incident boundary.
 - No live recovery, GitHub artifact mutation, child sync, deployment,
   migration, production, or retained-data operation was performed.
+
+### 2026-08-05 — Task 5 review
+
+- Reconfirmed the exact Task 5 review range from
+  `d3a2edf83f8fa1480f29b0f62b062a5481b4f188` through
+  `c7c247722413559b10f6f03d8cf70f2ae8d9da2c` on the expected
+  `hotfix/incident-vs-execution-policy-base` branch.
+- Confirmed the reviewed contract surfaces distinguish historical
+  `incident_base_sha`, trusted `execution_policy_sha`, and separate
+  `policy_source_sha`; explicitly allow divergent base SHAs; and document
+  fail-closed legacy `protected_base_sha` handling.
+- Confirmed the exact implementation behavior remains unchanged: the PR base
+  is checked against `incident_base_sha`, the protected policy ref is checked
+  against `execution_policy_sha`, and policy is loaded at the verified
+  execution SHA. The runtime delta contains comments and registry wording only.
+- Confirmed `recover-review` remains pinned to the #274/#275 incident, ordinary
+  `review` retains `REVIEW_VERDICT` ownership, and no generic recovery or
+  comment-repair API was introduced.
+- Review verdict: `PASS`; no blocking findings. Task 5 is now
+  `complete / review-passed`. Task 6 remains `NOT STARTED` and was not started
+  by this review.
+- Independent validation:
+  - `pnpm run guard:safety` — passed, including planning-contract markers;
+  - `pnpm run guard:mission-control-contract` — passed;
+  - `git diff --check` — passed for the reviewed Task 5 range.
+- Review artifacts:
+  `sdd/task-05-review-package.md` and `sdd/task-05-review.md`.
+- No live recovery, GitHub artifact mutation, child sync, deployment,
+  migration, production, or retained-data operation was performed.
+
+### 2026-08-05 — Task 6 whole-branch review
+
+- Reconfirmed branch
+  `hotfix/incident-vs-execution-policy-base` at exact head
+  `c7c247722413559b10f6f03d8cf70f2ae8d9da2c`, with protected starting SHA
+  `ce8d67b19c6c5d210024434f532dcc32ebdc6daf`.
+- The committed review range contains 32 paths and remains limited to the
+  approved recovery domain/workflow, transport and documentation contracts,
+  focused regression tests, and plan-owned SDD evidence. No forbidden scope
+  path or live mutation was found.
+- Confirmed the independent `incident_base_sha`,
+  `execution_policy_sha`, and `policy_source_sha` contract; exact execution
+  SHA policy loading; receipt/transition identity coverage; observed checkout,
+  evidence, lineage, exact-head CI, competing-evidence, malformed receipt,
+  and CAS/lease fail-closed boundaries.
+- Independent validation passed:
+  - focused recovery suite: 22 tests;
+  - Issue-body CAS and reconciliation suites: 83 tests;
+  - `PAYLOAD_SECRET=secret pnpm run test:int`: 54 files / 1,149 tests;
+  - `pnpm run guard:safety`;
+  - `pnpm run guard:mission-control-contract`;
+  - `pnpm run branch:check`;
+  - `git diff --check`.
+- Required `PAYLOAD_SECRET=secret pnpm run check` failed after guard and lint
+  at TypeScript checking. Five `TS2345` errors occur in
+  `tests/int/mission-control-recover-review.int.spec.ts` because new receipt
+  assertions pass `unknown` fixture comment bodies to
+  `parseRecoveryReceipt`.
+- Task 6 verdict: `FAIL — CORRECTION REQUIRED`; finding `MC-T6-001`.
+  Correct only the focused-test typing/conversion, rerun the required checks,
+  and perform the one permitted scoped re-review. Task 6 is not
+  review-passed.
+- Review artifacts:
+  `sdd/task-06-review-package.md` and `sdd/task-06-final-review.md`.
+- Review artifacts are intentionally uncommitted. No live recovery, GitHub
+  artifact mutation, child sync, deployment, migration, production, or
+  retained-data operation was performed.
+
+### 2026-08-05 — Task 6 final scoped correction
+
+- Reconfirmed branch `hotfix/incident-vs-execution-policy-base` and the
+  reviewed head `c7c247722413559b10f6f03d8cf70f2ae8d9da2c`.
+- Wrote
+  `sdd/task-06-final-correction-brief.md` with the required task-identity
+  markers and scope gate for `MC-T6-001`.
+- Corrected only the five focused-test calls to `parseRecoveryReceipt` by
+  converting fixture comment bodies to strings. No production recovery code or
+  semantics changed.
+- Validation passed:
+  `pnpm run guard:safety`, `PAYLOAD_SECRET=secret pnpm run check`
+  (54 files / 1,149 tests), focused recovery suite (22 tests), and
+  `git diff --check`.
+- Durable Task 5/6 review artifacts and the ledger are included in the
+  focused local correction delivery so the worktree can be left clean.
+- Task 6 status is `correction_ready_for_rereview`; the prior whole-branch
+  `FAIL — CORRECTION REQUIRED` review remains unchanged and Task 6 is not
+  final-complete. No live recovery, GitHub artifact mutation, child sync,
+  deployment, migration, production, or retained-data operation was performed.

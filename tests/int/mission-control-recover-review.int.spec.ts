@@ -636,9 +636,9 @@ The PR #275 is ready, but this is not a canonical binding.
     })
     expect(scenario.issueComments.find((comment) => comment.id === '5187836238')?.body).toBe(sourceIssueBody)
     expect(scenario.prComments.find((comment) => comment.id === '5187837555')?.body).toBe(sourcePrBody)
-    const receipts = scenario.issueComments.filter((comment) => parseRecoveryReceipt(comment.body).ok)
+    const receipts = scenario.issueComments.filter((comment) => parseRecoveryReceipt(String(comment.body ?? '')).ok)
     expect(receipts).toHaveLength(1)
-    expect(parseRecoveryReceipt(receipts[0].body)).toMatchObject({
+    expect(parseRecoveryReceipt(String(receipts[0].body ?? ''))).toMatchObject({
       ok: true,
       record: {
         incident_base_sha: INCIDENT_BASE_SHA,
@@ -657,7 +657,7 @@ The PR #275 is ready, but this is not a canonical binding.
 
     const first = await runReviewRecovery({ options, body, deps })
     const firstState = structuredClone(scenario.managedIssue.managedState)
-    const firstReceipt = scenario.issueComments.find((comment) => parseRecoveryReceipt(comment.body).ok)
+    const firstReceipt = scenario.issueComments.find((comment) => parseRecoveryReceipt(String(comment.body ?? '')).ok)
 
     const retry = await runReviewRecovery({ options, body, deps })
 
@@ -671,7 +671,7 @@ The PR #275 is ready, but this is not a canonical binding.
     expect(scenario.managedIssue.managedState).toEqual(firstState)
     expect(scenario.issueComments.find((comment) => comment.id === '5187836238')?.body).toBe(sourceIssueBody)
     expect(scenario.prComments.find((comment) => comment.id === '5187837555')?.body).toBe(sourcePrBody)
-    expect(scenario.issueComments.filter((comment) => parseRecoveryReceipt(comment.body).ok)).toEqual([firstReceipt])
+    expect(scenario.issueComments.filter((comment) => parseRecoveryReceipt(String(comment.body ?? '')).ok)).toEqual([firstReceipt])
   })
 
   it('rejects incident-base drift before any recovery mutation', async () => {
@@ -874,7 +874,7 @@ The PR #275 is ready, but this is not a canonical binding.
     }
 
     const result = await runReviewRecovery({ options, body, deps })
-    const receipts = scenario.issueComments.filter((comment) => parseRecoveryReceipt(comment.body).ok)
+    const receipts = scenario.issueComments.filter((comment) => parseRecoveryReceipt(String(comment.body ?? '')).ok)
 
     expect(result).toMatchObject({
       outcome: 'RECOVERED',
