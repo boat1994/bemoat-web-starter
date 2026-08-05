@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "issue": "277",
-  "transition_identity": "{\"taskId\":\"277\",\"phase\":\"Review 1\",\"role\":\"REVIEW_VERDICT\",\"contentHash\":\"f4d17e9a95a7c2f6085ac44cabaa8654bbdfd0d552841433b361f392179e8dcd\"}",
+  "transition_identity": "{\"taskId\":\"277\",\"phase\":\"Dev (implementation)\",\"role\":\"RESULT\",\"contentHash\":\"e97151a4b127b8fd5bf3b2021963573b886845cd553a7e29a8931ecd65eeb2d7\"}",
   "observed_body_sha256": "62379c44922756ee44abb62328e257c4937086626652c5193b54af79363a8111",
-  "holder": "mission-control-reconcile-bootstrap-repair",
-  "status": "released",
-  "updated_at": "2026-08-05T08:19:42.423Z"
+  "holder": "agent-delivery",
+  "status": "held",
+  "updated_at": "2026-08-05T08:23:55.821Z"
 }
