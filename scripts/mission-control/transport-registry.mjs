@@ -56,6 +56,13 @@ export const CANONICAL_TRANSPORTS = Object.freeze([
     purpose: 'execute an existing Founder-authorized merge completion bundle',
     exceptional: false,
   }),
+  Object.freeze({
+    command: 'bemoat:mission-control:reopen',
+    role: 'STATE_PROJECTION',
+    owner: 'Founder-authorized Reopen Transport',
+    purpose: 'project Founder-authorized PR head drift to FOUNDER_AUTHORIZED_CORRECTION',
+    exceptional: false,
+  }),
 ])
 
 const routeByCommand = new Map(CANONICAL_TRANSPORTS.map((route) => [route.command, route]))
