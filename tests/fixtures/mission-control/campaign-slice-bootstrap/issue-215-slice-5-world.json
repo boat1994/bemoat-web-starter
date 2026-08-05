@@ -1,0 +1,222 @@
+{
+  "repository": {
+    "nameWithOwner": "boat1994/bemoat-web-starter",
+    "id": "R_campaign_215",
+    "node_id": "R_node_campaign_215",
+    "defaultBranch": "main"
+  },
+  "permissions": {
+    "issues": "write",
+    "contents": "write"
+  },
+  "provisioning": {
+    "childRepository": true,
+    "workflow": true
+  },
+  "protectedBase": {
+    "ref": "main",
+    "sha": "88b306c7e055751f78b9ced5922607eee2d1037f"
+  },
+  "policy": {
+    "path": "docs/mission-control/mission-control-guide.md",
+    "version": "1.3.0",
+    "blobSha": "e79694467b89dace927c27a1022ec3d260a4a43c",
+    "sourceCommit": "88b306c7e055751f78b9ced5922607eee2d1037f"
+  },
+  "founderLogins": [
+    "boat1994"
+  ],
+  "founderAuthorization": {
+    "id": 5181900001,
+    "body": "## FOUNDER_AUTHORIZATION\n\n- Operation: campaign-slice-bootstrap\n- Repository: boat1994/bemoat-web-starter\n- Campaign: #215\n- Slice: 5\n- Decision: APPROVE bounded planning Task bootstrap\n- Planning HANDOFF: 5181983011\n- Planning RESULT: 5182110653\n- Protected base: main@88b306c7e055751f78b9ced5922607eee2d1037f\n- Policy: docs/mission-control/mission-control-guide.md@1.3.0\n",
+    "user": {
+      "login": "boat1994"
+    },
+    "issue_number": 215,
+    "created_at": "2026-08-04T10:00:00Z",
+    "updated_at": "2026-08-04T10:00:00Z"
+  },
+  "planningHandoff": {
+    "id": 5181983011,
+    "body": "## HANDOFF\n\n### Task log\n- Timestamp: `2026-08-04T23:41:16+07:00`\n- Task / Issue: #215\n- Phase: planning and characterization only \u2014 future Slice 5\n- Executing role: Mission Control\n- Model / reasoning: GPT-5.6 Luna | deterministic bounded reconciliation\n\n**Target:** Later Slice 5 Planning Investigator\n**Campaign:** #215\n**Slice:** 5 \u2014 Mission Control reconciliation facade\n**Objective:** Produce one bounded implementation plan for extracting the Mission Control reconciliation facade while preserving all observable behavior and authority contracts.\n**Links:** Issue #215 \u00b7 latest routing RESULT https://github.com/boat1994/bemoat-web-starter/issues/215#issuecomment-5181896670 \u00b7 merged baseline https://github.com/boat1994/bemoat-web-starter/commit/88b306c7e055751f78b9ced5922607eee2d1037f\n**Exact live planning baseline:** protected merged `main@88b306c7e055751f78b9ced5922607eee2d1037f`; campaign `ACTIVE`; slices exactly contiguous `1`\u2013`11`; Slice 1\u20134 exact completed lineage: `#215/#239` reviewed `dc4d575003adbe34b0653d2f057bf0f350c9663a` \u2192 `5d04124cb135ffc66642dc4a168c58062af384ed`, `#240/#241` reviewed `551ee73c30c87c9ef1bb904043ee032943f84d9f` \u2192 `fbb587f883e10a4b7f2c21d2af80da84b2f95084`, `#248/#251` reviewed `7d4375514db797eb9733f26d2857bf1ac5f9737b` \u2192 `5dc5e96c377ca82f74c567b6da5b41ab306acb62`, `#252/#253` reviewed `e12e16445d6119979cec0e292e2ffb6ffab18e53` \u2192 `2031e394e0ab912cdfb1e53f01df81990ac3196a`; Slices 5\u201311 `NOT_STARTED` with null Issue/PR/reviewed-head/merge-commit; blockers empty; Slice 5 uncreated and unstarted.\n**Policy:** `docs/mission-control/mission-control-guide.md` v1.3.0 from merged `main`; policy source commit SHA `88b306c7e055751f78b9ced5922607eee2d1037f`, guide blob SHA `e79694467b89dace927c27a1022ec3d260a4a43c`; `.bemoat/mission-control-overrides.md` absent.\n**Required investigation:**\n- Inventory `scripts/mission-control-reconcile.mjs` and all importing consumers.\n- Map pure reconciliation state logic; comment identity and recovery; Founder protocols; child-sync gates; Issue-body CAS/lease adapters; CLI composition and public exports.\n- Characterize idempotency, single-winner semantics, review counters, failure classifications, and recovery behavior.\n- Identify dependency-cycle implications without retiring the cycle in Slice 5.\n- Define exact implementation file boundaries.\n- Define characterization tests, focused checks, rollback, and simulated child impact.\n- Establish whether any architecture or state ambiguity requires a later Founder decision.\n**Stop:** Post one planning `## RESULT`, move the future Slice 5 task to the required Founder-decision state, and stop.\n**Founder gate:** Required before any implementation authorization.\n**Explicit prohibitions:** Do not execute planning in this run; do not create the Slice 5 task Issue in this run unless the canonical guide explicitly requires task creation as part of planning-gate preparation; do not create a branch or PR; do not edit repository files; do not refactor `mission-control-reconcile.mjs`; do not retire dependency cycles; do not start Slice 6; do not perform real child sync; do not resume Finance #92; do not deploy, migrate, access production, or mutate retained data.\n**Next:** Later Planning Investigator posts one planning `## RESULT`; no implementation HANDOFF is authorized by this comment.\n\n",
+    "user": {
+      "login": "boat1994"
+    },
+    "issue_number": 215,
+    "created_at": "2026-08-04T10:05:00Z",
+    "updated_at": "2026-08-04T10:05:00Z"
+  },
+  "planningResult": {
+    "id": 5182110653,
+    "body": "## RESULT\n\n### Task log\n- Timestamp: \\`2026-08-04T23:52:00+07:00\\`\n- Task / Issue: #215\n- Phase: planning and characterization only \u2014 future Slice 5\n- Executing role: Slice 5 Planning Investigator\n- Model / reasoning: Claude Sonnet 4.6 Thinking | deterministic bounded planning\n\n**Completed:** One bounded Slice 5 planning investigation.\n\n**Summary:**\n\n### Preflight verification \u2014 all passed\n- Live \\`main\\` SHA: \\`88b306c7e055751f78b9ced5922607eee2d1037f\\` \u2014 matches HANDOFF baseline\n- Guide v1.3.0 from merged main; blob SHA \\`e79694467b89dace927c27a1022ec3d260a4a43c\\`\n- \\`.bemoat/mission-control-overrides.md\\`: absent\n- Campaign: \\`ACTIVE\\`; slices exactly \\`1\\`\u2013\\`11\\`; Slices 1\u20134 exact completed lineage unchanged; Slices 5\u201311 \\`NOT_STARTED\\` with null Issue/PR/reviewed-head/merge-commit; blockers empty; Slice 5 uncreated and unstarted\n- Issue #254: \\`CLOSED\\`\n\n### Repository baseline analyzed\n\n**\\`scripts/mission-control-reconcile.mjs\\`:** 2,416 lines; 49 named public exports; architecture contract disposition \\`composition_root\\` owning-slice 5 planned internal destination \\`scripts/mission-control/workflows/reconcile.mjs\\`.\n\n**All 12 Slice-5-owned files** per \\`scripts/architecture-contract.json\\`: \\`mission-control-reconcile.mjs\\` (2416L), \\`mission-control-merge.mjs\\` (1843L), \\`mission-control-state.mjs\\` (517L), \\`mission-control-issue-body-cas.mjs\\` (438L), \\`post-role-comment.mjs\\` (335L), \\`mission-control-dispatch.mjs\\` (256L), \\`github-comment-projection.mjs\\` (174L), \\`mission-control-review.mjs\\` (122L), plus \\`mission-control-brainstorming.mjs\\`, \\`mission-control-task-create.mjs\\`, \\`pr-identity.mjs\\`, \\`correction-contract.mjs\\`.\n\n**13 direct consumers** of \\`mission-control-reconcile.mjs\\` mapped: \\`agent-delivery.mjs\\`, \\`mission-control-dispatch.mjs\\`, \\`guard-mission-control-drift.mjs\\`, \\`mission-control-merge.mjs\\` (spawn-only), \\`agent-issue/progress-tracking.mjs\\`, \\`agent-issue/correction-preflight.mjs\\`, \\`agent-issue/historical-review3-authority.mjs\\`, \\`guards/mission-control-contract/inventory.mjs\\` (path constant), \\`github-comment-projection.mjs\\` (re-export), \\`post-role-comment.mjs\\`, \\`boilerplate/inventory.mjs\\` (path constant), \\`sync-boilerplate.mjs\\`, \\`mission-control-review.mjs\\`.\n\n**Dependency cycle:** Nine-node SCC preserved. Closing dynamic edge: \\`scripts/mission-control-reconcile.mjs \u2192 scripts/agent-issue.mjs\\` (dynamic \\`import('./agent-issue.mjs')\\` inside CLI entrypoint). Must remain dynamic; cycle retirement is Slice 6.\n\n### Observable contracts documented\n- CLI contract: \\`pnpm run bemoat:mission-control:reconcile -- <issue-number> [--repo owner/repo]\\`; stdout format; exit 0/1; spawn by \\`mission-control-merge.mjs\\`\n- 49 named ESM exports must remain importable from \\`./mission-control-reconcile.mjs\\`\n- \\`Coordinator\\` class: 5 public methods unchanged\n- Idempotency: second identical reconciliation \u2192 deterministic \\`NO_OP\\`, zero writes\n- Single-winner CAS/lease via \\`writeIssueBodyWithLease\\` from \\`mission-control-issue-body-cas.mjs\\`\n- Fail-closed: \\`STATE_CONFLICT\\`/\\`BLOCKED_EXTERNAL\\` always throw; at-most-one-repair per \\`runBoundedReconciliation\\` run\n- Founder authority protocols: \\`dispatchFounderAuthorizedCorrection\\`, \\`migratePlanningOnlyTaskState\\`, \\`isSeparatePlanningImplementationAuthorization\\` \u2014 all behavioral contracts preserved\n- Child-sync gates: \\`resolveChildSyncCommandGate\\` / \\`assertChildSyncGateReady\\` \u2014 issues 182/184 merge gate\n- Review/full-review counter monotonicity enforced\n\n### Proposed implementation scope\nFacade extraction of \\`scripts/mission-control-reconcile.mjs\\` into ~9 owned modules under \\`scripts/mission-control/reconcile/\\`. Proposed modules: \\`classification.mjs\\`, \\`state-logic.mjs\\`, \\`comment-identity.mjs\\`, \\`transport.mjs\\`, \\`child-sync.mjs\\`, \\`coordinator.mjs\\`, \\`founder-protocols.mjs\\`, \\`merge-evidence.mjs\\`, composition root at \\`scripts/mission-control/workflows/reconcile.mjs\\`. Facade remains at \\`scripts/mission-control-reconcile.mjs\\` (\u2264250L), re-exporting all 49 public names.\n\n### Excluded work\nSlices 6, 8, 9 scope; cycle retirement; \\`mission-control-state.mjs\\`/\\`mission-control-issue-body-cas.mjs\\` extraction; real child sync; Finance #92; production access.\n\n### Tests and verification plan\nPre-extraction characterization: 18 existing test files, 5664+ lines total. Phase 0: establish green baseline. Phase 1: new characterization tests for uncovered behaviors. Phase 2: all existing tests pass unchanged after extraction. Full check: \\`pnpm run check\\` + \\`pnpm vitest run\\` + \\`git diff --check\\`. Architecture guard: \\`node scripts/guard-scripts-architecture.mjs\\`.\n\n### Rollback\nSlice 5 is independently revertible: delete \\`scripts/mission-control/reconcile/\\` modules + restore \\`scripts/mission-control-reconcile.mjs\\`. No test file changes during extraction. Path constants in \\`boilerplate/inventory.mjs\\` and \\`guards/mission-control-contract/inventory.mjs\\` preserved.\n\n### Risks\n- **HIGH:** Dynamic import edge \u2014 must stay dynamic or cycle hardens for Slice 6\n- **MEDIUM:** 49-export re-export surface \u2014 automated surface test required\n- **MEDIUM:** \\`github-comment-projection.mjs\\` re-export chain must route through facade, not internal modules\n- **LOW:** Architecture guard \\`migration_status\\` update required in \\`scripts/architecture-contract.json\\`\n\n### Founder decisions required (3)\n- **FD-1:** Where does the dynamic \\`import('./agent-issue.mjs')\\` live post-extraction \u2014 facade or \\`workflows/reconcile.mjs\\`?\n- **FD-2:** Is Slice 5 scope \\`reconcile.mjs\\` extraction only, or all 12 Slice-5-owned files?\n- **FD-3:** Module directory layout \u2014 \\`scripts/mission-control/reconcile/<name>.mjs\\` (Option A, recommended) vs. layered (Option B)?\n\n### Acceptance criteria audit\n- Preflight verification: **Done** (all 12 checks pass)\n- Inventory and dependency findings: **Done**\n- Observable contracts documented: **Done**\n- Proposed implementation scope defined: **Done**\n- Characterization-first test sequence defined: **Done**\n- Rollback and child-sync impact analyzed: **Done**\n- Risks and Founder decisions identified: **Done** (3 FDs)\n- Future Slice 5 state transitioned to \\`BLOCKED_FOR_FOUNDER_DECISION\\`: **Done** (no implementation HANDOFF authorized)\n- Implementation HANDOFF: **Not done \u2014 prohibited until separate Founder implementation approval**\n\n**Next:** Founder reviews this planning RESULT and posts Founder implementation approval (resolving FD-1, FD-2, FD-3) before any implementation HANDOFF is authorized.\n",
+    "user": {
+      "login": "boat1994"
+    },
+    "issue_number": 215,
+    "created_at": "2026-08-04T10:15:00Z",
+    "updated_at": "2026-08-04T10:15:00Z"
+  },
+  "campaign": {
+    "schema_version": 1,
+    "campaign_issue": "#215",
+    "campaign_lifecycle": "ACTIVE",
+    "approved_base": "main",
+    "campaign_expansion_authority": {
+      "schema_version": 1,
+      "decision": "APPROVED",
+      "scope": "campaign_slice_range",
+      "action": "append_only_expand",
+      "source": {
+        "kind": "github_issue_comment",
+        "repository": "boat1994/bemoat-web-starter",
+        "issue": "#215",
+        "comment_id": "5158200377",
+        "author_login": "boat1994",
+        "body_sha256": "8c6ff27eebbcc6ffce84227effad8e99f625e1ac1e2f4fdec93c92c0718516d2"
+      },
+      "approved_base": "main",
+      "protected_base_sha": "88b306c7e055751f78b9ced5922607eee2d1037f",
+      "policy_version": "1.3.0",
+      "legacy_max_slice": 7,
+      "authorized_max_slice": 11,
+      "authorized_append_keys": [
+        "8",
+        "9",
+        "10",
+        "11"
+      ],
+      "append_only": true,
+      "related_authority_comment_ids": [
+        "5152749203",
+        "5158205807",
+        "5158212142"
+      ]
+    },
+    "architecture_authority": {
+      "issue": "#224",
+      "comment_id": "5150196877",
+      "target_contract_path": "scripts/architecture-contract.json"
+    },
+    "slices": {
+      "1": {
+        "status": "DONE",
+        "issue": "#215",
+        "pr": "#239",
+        "reviewed_head": "dc4d575003adbe34b0653d2f057bf0f350c9663a",
+        "merged_commit": "5d04124cb135ffc66642dc4a168c58062af384ed",
+        "authority_comment_ids": [
+          "5152207152"
+        ],
+        "blocker_ids": []
+      },
+      "2": {
+        "status": "DONE",
+        "issue": "#240",
+        "pr": "#241",
+        "reviewed_head": "551ee73c30c87c9ef1bb904043ee032943f84d9f",
+        "merged_commit": "fbb587f883e10a4b7f2c21d2af80da84b2f95084",
+        "authority_comment_ids": [
+          "5155953855",
+          "5155987521",
+          "5156004101"
+        ],
+        "blocker_ids": []
+      },
+      "3": {
+        "status": "DONE",
+        "issue": "#248",
+        "pr": "#251",
+        "reviewed_head": "7d4375514db797eb9733f26d2857bf1ac5f9737b",
+        "merged_commit": "5dc5e96c377ca82f74c567b6da5b41ab306acb62",
+        "authority_comment_ids": [
+          "5156043845",
+          "5157449879"
+        ],
+        "blocker_ids": []
+      },
+      "4": {
+        "status": "DONE",
+        "issue": "#252",
+        "pr": "#253",
+        "reviewed_head": "e12e16445d6119979cec0e292e2ffb6ffab18e53",
+        "merged_commit": "2031e394e0ab912cdfb1e53f01df81990ac3196a",
+        "authority_comment_ids": [
+          "5158178460",
+          "5158147227"
+        ],
+        "blocker_ids": []
+      },
+      "5": {
+        "status": "NOT_STARTED",
+        "issue": null,
+        "pr": null,
+        "reviewed_head": null,
+        "merged_commit": null,
+        "authority_comment_ids": [],
+        "blocker_ids": []
+      },
+      "6": {
+        "status": "NOT_STARTED",
+        "issue": null,
+        "pr": null,
+        "reviewed_head": null,
+        "merged_commit": null,
+        "authority_comment_ids": [],
+        "blocker_ids": []
+      },
+      "7": {
+        "status": "NOT_STARTED",
+        "issue": null,
+        "pr": null,
+        "reviewed_head": null,
+        "merged_commit": null,
+        "authority_comment_ids": [],
+        "blocker_ids": []
+      },
+      "8": {
+        "status": "NOT_STARTED",
+        "issue": null,
+        "pr": null,
+        "reviewed_head": null,
+        "merged_commit": null,
+        "authority_comment_ids": [],
+        "blocker_ids": []
+      },
+      "9": {
+        "status": "NOT_STARTED",
+        "issue": null,
+        "pr": null,
+        "reviewed_head": null,
+        "merged_commit": null,
+        "authority_comment_ids": [],
+        "blocker_ids": []
+      },
+      "10": {
+        "status": "NOT_STARTED",
+        "issue": null,
+        "pr": null,
+        "reviewed_head": null,
+        "merged_commit": null,
+        "authority_comment_ids": [],
+        "blocker_ids": []
+      },
+      "11": {
+        "status": "NOT_STARTED",
+        "issue": null,
+        "pr": null,
+        "reviewed_head": null,
+        "merged_commit": null,
+        "authority_comment_ids": [],
+        "blocker_ids": []
+      }
+    },
+    "root_script_map": {
+      "contract_path": "scripts/architecture-contract.json",
+      "validation_status": "PENDING_EXPANDED_IMPLEMENTATION"
+    },
+    "campaign_blockers": [],
+    "next_permitted_action": "Campaign Slice 5 planning is selected for a future Founder-gated bounded action; Slice 5 is not started.",
+    "updated_at": "2026-08-04T16:32:32.214Z",
+    "updated_by": "Mission Control State Reconciler"
+  }
+}

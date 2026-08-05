@@ -25,6 +25,7 @@
   "scripts/guard-toolchain-contract.mjs",
   "scripts/install-git-hooks.mjs",
   "scripts/mission-control-brainstorming.mjs",
+  "scripts/mission-control-campaign-slice-bootstrap.mjs",
   "scripts/mission-control-dispatch.mjs",
   "scripts/mission-control-issue-body-cas.mjs",
   "scripts/mission-control-merge.mjs",
