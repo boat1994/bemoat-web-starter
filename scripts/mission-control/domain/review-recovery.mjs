@@ -328,6 +328,28 @@ function sourceMatchesReceipt(source, comment, location) {
   )
 }
 
+/**
+ * @typedef {{
+ *   id?: string | number,
+ *   databaseId?: string | number,
+ *   body?: string,
+ *   createdAt?: string,
+ *   created_at?: string,
+ *   author?: string,
+ *   author_association?: string,
+ * }} ReviewEvidenceComment
+ */
+
+/**
+ * @param {{
+ *   repository?: string,
+ *   taskIssue?: string | number,
+ *   activePr?: string | number,
+ *   managedState?: Record<string, unknown>,
+ *   issueComments?: ReviewEvidenceComment[],
+ *   prComments?: ReviewEvidenceComment[],
+ * }} [input]
+ */
 export function detectUnaccountedReviewEvidence({
   repository = 'boat1994/bemoat-web-starter',
   taskIssue,
