@@ -128,6 +128,12 @@ function assertChildOverride(content) {
     if (!ALLOWED_CHILD_OVERRIDE_KEYS.has(key)) {
       throw stateConflict('child Mission Control override relaxes shared invariants')
     }
+    if (
+      CHILD_OVERRIDE_ARRAY_KEYS.has(key) &&
+      (!Array.isArray(value) || value.some((entry) => typeof entry !== 'string'))
+    ) {
+      throw stateConflict('child Mission Control override relaxes shared invariants')
+    }
     if (value !== null && typeof value === 'object') {
       if (!CHILD_OVERRIDE_ARRAY_KEYS.has(key) ||
           !Array.isArray(value) ||

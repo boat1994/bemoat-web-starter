@@ -772,6 +772,10 @@ The PR #275 is ready, but this is not a canonical binding.
       'allow_destructive_migrations: true',
       'chat_history_authoritative: true',
       'allow_silent_state_reset: true',
+      'required_checks: null',
+      'required_checks: true',
+      'manual_qa: {}',
+      'protected_paths: [true]',
       'unknown_policy_key: [',
     ]) {
       const { body, deps, options, scenario } = await createPinnedRecoveryScenario()

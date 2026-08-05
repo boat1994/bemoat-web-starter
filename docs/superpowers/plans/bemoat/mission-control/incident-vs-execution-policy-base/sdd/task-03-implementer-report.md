@@ -161,3 +161,27 @@ Fix-round validation:
 
 Fix-round correction commit: pending. Task 3 remains `in_progress`; no live
 recovery or external mutation was performed.
+
+## Fix round 2 — residual array-value typing
+
+Task 3 re-review round 1 left P1-2 open because scalar and `null` values for
+the array-typed keys `required_checks`, `manual_qa`, and `protected_paths`
+could bypass the object-branch validation.
+
+The validator now checks array-key shape before all other value handling:
+each such key must be a non-null array whose every element is a string.
+Scalars, `null`, objects, and arrays containing non-string elements fail closed
+with zero comment posts and zero Issue-body writes. Focused tests cover scalar,
+`null`, object, and wrong-element-shape values.
+
+Fix-round 2 validation:
+
+- `pnpm exec vitest run tests/int/mission-control-recover-review.int.spec.ts`
+  - 19 passed.
+- Targeted ESLint, `pnpm run guard:safety`, `ReadLints`, and
+  `git diff --check`
+  - Passed.
+
+Fix-round 2 correction commit: pending. Task 3 remains `in_progress`; P1-1
+checkout identity was not changed or reopened. No live recovery or external
+mutation was performed.

@@ -284,3 +284,17 @@ run the recovery transport against live GitHub.
 - Task 3 remains `in_progress` pending independent re-review. No live recovery,
   GitHub artifact mutation, child sync, deployment, migration, production, or
   retained-data operation was performed.
+
+### 2026-08-05 — Task 3 fix round 2
+
+- Re-review round 1 left P1-2 open because scalar and `null` values bypassed
+  validation for array-typed child override keys.
+- Wrote `sdd/task-03-fix-round-2-brief.md` for this residual finding only.
+- Enforced non-null arrays of strings for `required_checks`, `manual_qa`, and
+  `protected_paths`; scalar, null, object, and wrong-element-shape values now
+  fail closed.
+- Focused recovery suite: 19 passed. Targeted ESLint, safety guard,
+  `ReadLints`, and `git diff --check` passed.
+- Task 3 remains `in_progress`; P1-1 was not changed or reopened. No live
+  recovery, GitHub artifact mutation, child sync, deployment, migration,
+  production, or retained-data operation was performed.
