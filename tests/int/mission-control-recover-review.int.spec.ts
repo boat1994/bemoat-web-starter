@@ -341,6 +341,7 @@ async function createPinnedRecoveryScenario() {
         id: 'recovery-1',
         body: commentBody,
         author: 'boat1994',
+        user: { login: 'boat1994' },
         author_association: 'OWNER',
         createdAt: '2026-08-05T13:00:00+07:00',
       }
@@ -580,8 +581,11 @@ The PR #275 is ready, but this is not a canonical binding.
   })
 
   it('accepts divergent incident and execution bases', async () => {
+    const { parseRecoveryReceipt } = await recoveryModulePromise
     const { runReviewRecovery } = await workflowModulePromise
     const { body, deps, options, record, scenario } = await createPinnedRecoveryScenario()
+    const sourceIssueBody = scenario.issueComments[0].body
+    const sourcePrBody = scenario.prComments[0].body
 
     expect(record).toMatchObject({
       expected_prior_state: 'AWAITING_REVIEW_2',
@@ -630,6 +634,44 @@ The PR #275 is ready, but this is not a canonical binding.
       current_head: INCIDENT_HEAD,
       last_reviewed_head: INCIDENT_HEAD,
     })
+    expect(scenario.issueComments.find((comment) => comment.id === '5187836238')?.body).toBe(sourceIssueBody)
+    expect(scenario.prComments.find((comment) => comment.id === '5187837555')?.body).toBe(sourcePrBody)
+    const receipts = scenario.issueComments.filter((comment) => parseRecoveryReceipt(comment.body).ok)
+    expect(receipts).toHaveLength(1)
+    expect(parseRecoveryReceipt(receipts[0].body)).toMatchObject({
+      ok: true,
+      record: {
+        incident_base_sha: INCIDENT_BASE_SHA,
+        execution_policy_sha: EXECUTION_POLICY_SHA,
+        transition_identity_sha256: record.transition_identity_sha256,
+      },
+    })
+  })
+
+  it('returns a deterministic NO_OP on retry without a second winner or source mutation', async () => {
+    const { parseRecoveryReceipt } = await recoveryModulePromise
+    const { runReviewRecovery } = await workflowModulePromise
+    const { body, deps, options, scenario } = await createPinnedRecoveryScenario()
+    const sourceIssueBody = scenario.issueComments[0].body
+    const sourcePrBody = scenario.prComments[0].body
+
+    const first = await runReviewRecovery({ options, body, deps })
+    const firstState = structuredClone(scenario.managedIssue.managedState)
+    const firstReceipt = scenario.issueComments.find((comment) => parseRecoveryReceipt(comment.body).ok)
+
+    const retry = await runReviewRecovery({ options, body, deps })
+
+    expect(first).toMatchObject({ outcome: 'RECOVERED', comment: { id: 'recovery-1' } })
+    expect(retry).toMatchObject({ outcome: 'NO_OP', comment: { id: 'recovery-1' } })
+    expect(retry.comment?.id).toBe(first.comment?.id)
+    expect(retry.recoveryComments).toHaveLength(1)
+    expect(scenario.policyRefs).toEqual([EXECUTION_POLICY_SHA, EXECUTION_POLICY_SHA])
+    expect(scenario.postCount).toBe(1)
+    expect(scenario.writeCount).toBe(1)
+    expect(scenario.managedIssue.managedState).toEqual(firstState)
+    expect(scenario.issueComments.find((comment) => comment.id === '5187836238')?.body).toBe(sourceIssueBody)
+    expect(scenario.prComments.find((comment) => comment.id === '5187837555')?.body).toBe(sourcePrBody)
+    expect(scenario.issueComments.filter((comment) => parseRecoveryReceipt(comment.body).ok)).toEqual([firstReceipt])
   })
 
   it('rejects incident-base drift before any recovery mutation', async () => {
@@ -792,6 +834,62 @@ The PR #275 is ready, but this is not a canonical binding.
       expect(scenario.postCount).toBe(0)
       expect(scenario.writeCount).toBe(0)
     }
+  })
+
+  it('fails closed when competing canonical evidence appears before recovery projection', async () => {
+    const { runReviewRecovery } = await workflowModulePromise
+    const { body, deps, options, scenario } = await createPinnedRecoveryScenario()
+    scenario.issueComments = [
+      ...scenario.issueComments,
+      {
+        id: 'later-canonical-review',
+        body: `## REVIEW_VERDICT
+
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/275 · \`main\` · \`${INCIDENT_HEAD}\`
+`,
+        author: 'boat1994',
+        author_association: 'OWNER',
+      },
+    ]
+
+    await expect(runReviewRecovery({ options, body, deps })).rejects.toThrow(
+      'STATE_CONFLICT: later canonical role evidence later-canonical-review blocks recovery',
+    )
+    expect(scenario.policyRefs).toEqual([EXECUTION_POLICY_SHA])
+    expect(scenario.postCount).toBe(0)
+    expect(scenario.writeCount).toBe(0)
+    expect(scenario.issueComments).toHaveLength(2)
+  })
+
+  it('recovers an ambiguous pinned comment POST without creating a duplicate winner', async () => {
+    const { parseRecoveryReceipt } = await recoveryModulePromise
+    const { runReviewRecovery } = await workflowModulePromise
+    const { body, deps, options, scenario } = await createPinnedRecoveryScenario()
+    const postComment = deps.postComment
+    let postAttempts = 0
+    deps.postComment = async (repo: string, issueNumber: string, commentBody: string) => {
+      postAttempts += 1
+      await postComment(repo, issueNumber, commentBody)
+      throw new Error('ambiguous network response after pinned recovery comment POST')
+    }
+
+    const result = await runReviewRecovery({ options, body, deps })
+    const receipts = scenario.issueComments.filter((comment) => parseRecoveryReceipt(comment.body).ok)
+
+    expect(result).toMatchObject({
+      outcome: 'RECOVERED',
+      comment: { id: 'recovery-1' },
+    })
+    expect(postAttempts).toBe(1)
+    expect(scenario.postCount).toBe(1)
+    expect(scenario.writeCount).toBe(1)
+    expect(receipts).toHaveLength(1)
+    expect(scenario.managedIssue.managedState).toMatchObject({
+      state: 'ELIGIBLE_FOR_FOUNDER_REVIEW',
+      review_cycle: 2,
+      full_review_count: 1,
+      latest_review_verdict_comment_id: 'recovery-1',
+    })
   })
 
   it('resumes an ambiguous recovery comment POST without posting a duplicate', async () => {

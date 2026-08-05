@@ -86,8 +86,8 @@ run the recovery transport against live GitHub.
 | --- | --- | --- | --- |
 | 1. Characterize impossible binding | Dev | complete / review-passed | Focused test fails at the current one-field equality with no production change; independent review passed. |
 | 2. Separate recovery bindings | Dev | complete / review-passed | Domain/receipt/parser/validator/identity tests prove both fields are required and independently serialized. |
-| 3. Load policy from execution SHA | Dev | in_progress | Workflow uses exact execution SHA; stale base, wrong ref, and wrong guide evidence fail closed. |
-| 4. Pinned integration/idempotency regression | Dev | NOT STARTED | Simulated #274/#275 success, retry `NO_OP`, ambiguous POST recovery, and no duplicate/source mutation. |
+| 3. Load policy from execution SHA | Dev | complete / review-passed | Workflow uses exact execution SHA; stale base, wrong ref, guide evidence, and malformed array-typed child overrides fail closed. |
+| 4. Pinned integration/idempotency regression | Dev | in_progress | Simulated #274/#275 success, retry `NO_OP`, ambiguous POST recovery, and no duplicate/source mutation. |
 | 5. Docs/transport contract | Dev | NOT STARTED | Command reference distinguishes incident base, execution policy commit, and policy-content identity. |
 | 6. Whole-branch verification | Reviewer only | NOT STARTED | Independent review plus focused suite, contract guard, safety guard, full check, and diff check. |
 
@@ -298,3 +298,54 @@ run the recovery transport against live GitHub.
 - Task 3 remains `in_progress`; P1-1 was not changed or reopened. No live
   recovery, GitHub artifact mutation, child sync, deployment, migration,
   production, or retained-data operation was performed.
+
+### 2026-08-05 — Task 3 re-review round 2
+
+- Reviewed the exact correction delta from
+  `31a4eec08e9cd04dbbe91f9e2b900e4264289c2c` through
+  `35b13b026df182725db2e8d428d35ed5891c6f6f`.
+- P1-1 observed checkout identity remains `CLOSED`; the correction delta does
+  not change that contract.
+- P1-2 array-value typing is `CLOSED`: `required_checks`, `manual_qa`, and
+  `protected_paths` require non-null arrays containing only strings. Scalar,
+  `null`, object, and wrong-element-shape values fail closed before mutation.
+- Focused recovery suite: 19 passed. Targeted ESLint, safety guard,
+  `ReadLints`, and round-2 `git diff --check` passed.
+- Task 3 is now `complete / review-passed`; Task 4 remains `NOT STARTED`.
+- No live recovery, GitHub artifact mutation, child sync, deployment,
+  migration, production, or retained-data operation was performed.
+
+### 2026-08-05 — Task 4 dispatched
+
+- Confirmed branch `hotfix/incident-vs-execution-policy-base` and the expected
+  retained Task 3 review/rereview artifacts in the isolated worktree.
+- Re-pinned the simulated recovery tuple:
+  `incident_base_sha=88b306c7e055751f78b9ced5922607eee2d1037f` and
+  `execution_policy_sha=ce8d67b19c6c5d210024434f532dcc32ebdc6daf`.
+- Wrote the Task 4 brief with the required task-identity markers.
+- Task 4 is now `in_progress`; scope is limited to extending the existing
+  injected #274/#275 integration fixture for divergent-base success,
+  deterministic `NO_OP`, single-winner/lease/CAS behavior, ambiguous POST
+  recovery, and competing-evidence fail-closed coverage.
+- No live recovery, GitHub artifact mutation, child sync, deployment,
+  migration, production, or retained-data operation was performed.
+
+### 2026-08-05 — Task 4 implementation evidence
+
+- Extended the existing injected #274/#275 recovery fixture with receipt
+  lineage/source immutability assertions, deterministic retry `NO_OP`,
+  single-winner ambiguous POST recovery, and competing canonical evidence
+  fail-closed coverage.
+- Reverified the fixture execution-policy tip against `origin/main`:
+  `ce8d67b19c6c5d210024434f532dcc32ebdc6daf`; the historical incident base
+  remains `88b306c7e055751f78b9ced5922607eee2d1037f`, and the tests explicitly
+  assert the two values differ.
+- Validation evidence:
+  - focused recovery suite: 22 passed;
+  - issue-body CAS suite: 7 passed;
+  - reconciliation transition suite: 76 passed;
+  - targeted ESLint with zero warnings, `ReadLints`, and `git diff --check`:
+    passed;
+  - safety guard, Mission Control contract guard, and branch guard: passed.
+- No production recovery, CAS, or reconciliation implementation changed.
+  Task 4 remains `in_progress` pending independent review.
