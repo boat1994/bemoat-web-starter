@@ -3,7 +3,7 @@
   "issue": "280",
   "transition_identity": "{\"taskId\":\"280\",\"phase\":\"Dev (implementation)\",\"role\":\"RESULT\",\"contentHash\":\"0c22e96eb07eb21f11880fb8763b7a4507d776c469eb6d62b5b3723e5fa1d455\"}",
   "observed_body_sha256": "f0877b29efd9040e6dd1a3e20c1cb92e032059798f40f4c4e53bbb3c67ac5efb",
-  "holder": "agent-delivery-reconciliation",
-  "status": "released",
-  "updated_at": "2026-08-05T12:45:03.718Z"
+  "holder": "agent-delivery",
+  "status": "held",
+  "updated_at": "2026-08-05T12:45:28.166Z"
 }
