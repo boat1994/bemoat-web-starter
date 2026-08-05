@@ -720,7 +720,8 @@ describe('campaign-slice bootstrap Design B contract', () => {
     const handoff = world.comments.get(CAMPAIGN_ISSUE)?.find(
       (comment) => String(comment.id) === PLANNING_HANDOFF_COMMENT_ID,
     )
-    handoff.body = handoff.body.replace(PLANNING_BASELINE_SHA, 'aa'.repeat(20))
+    expect(handoff).toBeDefined()
+    handoff!.body = handoff!.body.replace(PLANNING_BASELINE_SHA, 'aa'.repeat(20))
 
     const result = await invoke(world)
 
@@ -748,7 +749,8 @@ describe('campaign-slice bootstrap Design B contract', () => {
     const resultComment = world.comments.get(CAMPAIGN_ISSUE)?.find(
       (comment) => String(comment.id) === PLANNING_RESULT_COMMENT_ID,
     )
-    resultComment.body = resultComment.body.replace(PLANNING_BASELINE_SHA, 'bb'.repeat(20))
+    expect(resultComment).toBeDefined()
+    resultComment!.body = resultComment!.body.replace(PLANNING_BASELINE_SHA, 'bb'.repeat(20))
 
     const result = await invoke(world)
 
@@ -776,7 +778,8 @@ describe('campaign-slice bootstrap Design B contract', () => {
     const authorization = world.comments.get(CAMPAIGN_ISSUE)?.find(
       (comment) => String(comment.id) === FOUNDER_AUTHORIZATION_COMMENT_ID,
     )
-    authorization.user.login = 'untrusted-user'
+    expect(authorization).toBeDefined()
+    authorization!.user.login = 'untrusted-user'
 
     const result = await invoke(world)
 
@@ -789,8 +792,9 @@ describe('campaign-slice bootstrap Design B contract', () => {
     const authorization = world.comments.get(CAMPAIGN_ISSUE)?.find(
       (comment) => String(comment.id) === FOUNDER_AUTHORIZATION_COMMENT_ID,
     )
-    authorization.user = { login: 'github-actions[bot]' }
-    authorization.body = `${authorization.body}\nForged founder provenance.\n`
+    expect(authorization).toBeDefined()
+    authorization!.user = { login: 'github-actions[bot]' }
+    authorization!.body = `${authorization!.body}\nForged founder provenance.\n`
 
     const result = await invoke(world)
 
@@ -874,13 +878,13 @@ describe('campaign-slice bootstrap Design B contract', () => {
 
   it('requires both a lease adapter and expected-body CAS for Campaign projection', async () => {
     const noLease = createWorld()
-    noLease.acquireCampaignLease = undefined
+    ;(noLease as AnyRecord).acquireCampaignLease = undefined
     ;(noLease as AnyRecord).acquireIssueLease = undefined
     const noLeaseResult = await invoke(noLease)
     expectOutcome(noLeaseResult, 'BLOCKED_EXTERNAL')
 
     const noCas = createWorld()
-    noCas.compareAndSwapIssueBody = undefined
+    ;(noCas as AnyRecord).compareAndSwapIssueBody = undefined
     const noCasResult = await invoke(noCas)
     expectOutcome(noCasResult, 'BLOCKED_EXTERNAL')
   })
