@@ -3,7 +3,7 @@
   "issue": "274",
   "transition_identity": "{\"taskId\":\"274\",\"phase\":\"Reviewer\",\"role\":\"REVIEW_VERDICT\",\"contentHash\":\"4fd10614f5d24c444c6f43e12c8794347307d082209415e68a01c8605cc5be6e\"}",
   "observed_body_sha256": "22841f93468bd39a34bc48bcdec93fc70eb52b712f54f47872e5c3aded16a112",
-  "holder": "mission-control-review",
-  "status": "released",
-  "updated_at": "2026-08-05T04:19:06.762Z"
+  "holder": "mission-control-reconcile",
+  "status": "held",
+  "updated_at": "2026-08-05T04:26:51.802Z"
 }
