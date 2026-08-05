@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "issue": "277",
-  "transition_identity": "{\"taskId\":\"277\",\"phase\":\"Dev (implementation)\",\"role\":\"RESULT\",\"contentHash\":\"e97151a4b127b8fd5bf3b2021963573b886845cd553a7e29a8931ecd65eeb2d7\"}",
+  "transition_identity": "{\"taskId\":\"277\",\"phase\":\"Delta Review\",\"role\":\"REVIEW_VERDICT\",\"contentHash\":\"612db7bffe37efb0cd6a574220ab801e409f8ea266cc4ffc3022688d22a90b09\"}",
   "observed_body_sha256": "0af5d7711cc6718205a64fa7da2a64bd9a1cd9165ba29eaed8facb948b6bd9a4",
-  "holder": "mission-control-reconcile-awaiting-review-2",
-  "status": "released",
-  "updated_at": "2026-08-05T08:24:29.757Z"
+  "holder": "mission-control-review",
+  "status": "held",
+  "updated_at": "2026-08-05T09:11:20.524Z"
 }
