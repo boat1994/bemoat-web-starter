@@ -16,6 +16,19 @@ import { getDefaultRepo } from './local-git-evidence.mjs'
  * identity, head, base, state, or unavailable required evidence.
  * GitHub orchestration stays here — the correction-contract module remains pure.
  */
+/**
+ * @param {{
+ *   cwd: string,
+ *   env: NodeJS.ProcessEnv,
+ *   verdictBody: string,
+ *   contractReviewedHead: string,
+ *   mode?: 'implementation_pr' | 'planning_no_pr',
+ *   branchName?: string | null,
+ *   issueNumber?: number | string | null,
+ *   contract?: Record<string, unknown> | null,
+ *   issueBody?: string | null,
+ * }} options
+ */
 export function reconcileCorrectionPrEvidence({
   cwd,
   env,
@@ -85,6 +98,7 @@ export function reconcileCorrectionPrEvidence({
     }
   }
   if (
+    managedState &&
     contractReviewedHead &&
     (!managedState?.last_reviewed_head || String(managedState.last_reviewed_head) !== String(contractReviewedHead))
   ) {

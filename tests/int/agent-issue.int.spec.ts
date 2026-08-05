@@ -5322,9 +5322,9 @@ ${renderMissionControlState({
 <!-- bemoat-mission-control-state:start -->
 \`\`\`yaml
 schema_version: 1
-state: ELIGIBLE_FOR_FOUNDER_REVIEW
-review_cycle: 1
-full_review_count: 1
+state: AWAITING_REVIEW_1
+review_cycle: 0
+full_review_count: 0
 approved_base: main
 active_task_issue: "#277"
 active_pr: "#278"
