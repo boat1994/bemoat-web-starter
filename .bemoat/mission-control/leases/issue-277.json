@@ -2,8 +2,8 @@
   "schema_version": 1,
   "issue": "277",
   "transition_identity": "{\"taskId\":\"277\",\"phase\":\"Review 1\",\"role\":\"REVIEW_VERDICT\",\"contentHash\":\"f4d17e9a95a7c2f6085ac44cabaa8654bbdfd0d552841433b361f392179e8dcd\"}",
-  "observed_body_sha256": "5feb1301292485722056d2004ded3c169e58d7d0048dfb2ae26e0007c75d6a09",
+  "observed_body_sha256": "d35913761cd3e7f1fc739309c490fcc4faa2689790519f0a65bd2e417b6fc481",
   "holder": "mission-control-review",
-  "status": "held",
-  "updated_at": "2026-08-05T07:02:49.797Z"
+  "status": "released",
+  "updated_at": "2026-08-05T07:02:53.211Z"
 }
