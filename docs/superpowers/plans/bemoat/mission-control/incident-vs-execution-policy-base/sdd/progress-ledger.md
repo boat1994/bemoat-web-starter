@@ -89,7 +89,7 @@ run the recovery transport against live GitHub.
 | 3. Load policy from execution SHA | Dev | complete / review-passed | Workflow uses exact execution SHA; stale base, wrong ref, guide evidence, and malformed array-typed child overrides fail closed. |
 | 4. Pinned integration/idempotency regression | Dev | complete / review-passed | Simulated #274/#275 success, retry `NO_OP`, ambiguous POST recovery, and no duplicate/source mutation. |
 | 5. Docs/transport contract | Dev | complete / review-passed | Command reference distinguishes incident base, execution policy commit, and policy-content identity; independent review passed. |
-| 6. Whole-branch verification | Reviewer only | correction_ready_for_rereview | MC-T6-001 was corrected in the focused test; required checks pass and one scoped re-review remains. |
+| 6. Whole-branch verification | Reviewer only | complete / review-passed | MC-T6-001 is closed; the scoped re-review passed and the required checks pass. |
 
 ## Durable Run Rules
 
@@ -489,3 +489,27 @@ run the recovery transport against live GitHub.
   `FAIL — CORRECTION REQUIRED` review remains unchanged and Task 6 is not
   final-complete. No live recovery, GitHub artifact mutation, child sync,
   deployment, migration, production, or retained-data operation was performed.
+
+### 2026-08-05 — Task 6 scoped re-review
+
+- Reconfirmed branch `hotfix/incident-vs-execution-policy-base` at exact head
+  `4c31576386096ce6d716d9d4b04681cd456493b8`; the correction delta is
+  `c7c247722413559b10f6f03d8cf70f2ae8d9da2c..4c31576386096ce6d716d9d4b04681cd456493b8`.
+- Scoped review covered only `MC-T6-001`: the five focused
+  `parseRecoveryReceipt` calls now normalize unknown fixture bodies with
+  `String(comment.body ?? '')`, including the `receipts[0].body` assertion.
+  No production recovery file, authority boundary, or recovery semantic
+  changed.
+- `MC-T6-001` is `CLOSED`; no new load-bearing blocker or regression was found.
+- Independent validation passed:
+  - `pnpm run guard:safety`;
+  - `PAYLOAD_SECRET=secret pnpm run check` — 54 files / 1,149 tests;
+  - `pnpm exec vitest run tests/int/mission-control-recover-review.int.spec.ts`
+    — 22 tests;
+  - `git diff --check`, including the correction range;
+  - `ReadLints` on the corrected test — no errors.
+- Task 6 is now `complete / review-passed`. The exact correction head was clean
+  before these docs-only review artifacts were written; the review package,
+  review verdict, and this ledger update remain intentionally uncommitted.
+- No live recovery, GitHub artifact mutation, push, PR, deployment, migration,
+  child sync, production, or retained-data operation was performed.
