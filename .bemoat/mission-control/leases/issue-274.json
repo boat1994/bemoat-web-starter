@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "issue": "274",
-  "transition_identity": "{\"taskId\":\"274\",\"phase\":\"Reviewer\",\"role\":\"REVIEW_VERDICT\",\"contentHash\":\"4fd10614f5d24c444c6f43e12c8794347307d082209415e68a01c8605cc5be6e\"}",
+  "transition_identity": "{\"taskId\":\"274\",\"phase\":\"Dev (correction)\",\"role\":\"RESULT\",\"contentHash\":\"1f9f54dfeb0f34db725b94d6399cf99de0f5cc2e8f8ca586446bef8a40c548db\"}",
   "observed_body_sha256": "51638a43526adddae956767e63c6251b3da0bd8c1003bbdf4dce24b05c86350b",
-  "holder": "mission-control-reconcile",
-  "status": "released",
-  "updated_at": "2026-08-05T04:26:55.816Z"
+  "holder": "agent-delivery",
+  "status": "held",
+  "updated_at": "2026-08-05T05:09:51.943Z"
 }
