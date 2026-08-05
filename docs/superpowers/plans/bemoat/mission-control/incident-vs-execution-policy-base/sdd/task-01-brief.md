@@ -1,5 +1,21 @@
 # Task 1 Brief — Characterize the Impossible One-Field Binding
 
+<!-- bemoat-task-identity:start -->
+```yaml
+schema_version: 1
+main_issue: null
+task_key: "hotfix-incident-vs-execution-policy-base"
+task_issue_strategy: "create_before_execution"
+active_task_issue: null
+branch_template: "hotfix/incident-vs-execution-policy-base"
+transition_target: "AWAITING_REVIEW_1"
+planning_base_sha: "ce8d67b19c6c5d210024434f532dcc32ebdc6daf"
+execution_base_rule: "resolve_live_protected_base_at_dispatch"
+paired_spec: null
+paired_plan: "docs/superpowers/plans/bemoat/mission-control/incident-vs-execution-policy-base/implementation-plan.md"
+```
+<!-- bemoat-task-identity:end -->
+
 ## Task identity
 
 - Plan: `docs/superpowers/plans/bemoat/mission-control/incident-vs-execution-policy-base/implementation-plan.md`

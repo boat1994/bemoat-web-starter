@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 
-export const RECOVERY_SCHEMA_VERSION = 1
+export const RECOVERY_SCHEMA_VERSION = 2
 export const RECOVERY_RECORD_KIND = 'review_recovery'
 export const RECOVERY_COMMAND = 'bemoat:mission-control:recover-review'
 export const RECOVERY_SOURCE_COMMENT_IDS = Object.freeze({
@@ -10,8 +10,9 @@ export const RECOVERY_SOURCE_COMMENT_IDS = Object.freeze({
 export const RECOVERY_FINDING_IDS = Object.freeze(
   Array.from({ length: 7 }, (_, index) => `MC-R1-00${index + 1}`),
 )
-export const RECOVERY_MARKER_START = '<!-- bemoat:review-recovery:v1 -->'
-export const RECOVERY_MARKER_END = '<!-- /bemoat:review-recovery:v1 -->'
+export const RECOVERY_MARKER_START = '<!-- bemoat:review-recovery:v2 -->'
+export const RECOVERY_MARKER_END = '<!-- /bemoat:review-recovery:v2 -->'
+const LEGACY_RECOVERY_MARKER_START = '<!-- bemoat:review-recovery:v1 -->'
 
 export function isReviewRecoveryIncident({ taskIssue, activePr } = {}) {
   return String(taskIssue).replace(/^#/, '') === '274' &&
@@ -111,7 +112,7 @@ export function validateRecoveryRecord(record = {}) {
   if (!record || typeof record !== 'object' || Array.isArray(record)) {
     return { ok: false, errors: ['recovery record must be a mapping'] }
   }
-  if (record.schema_version !== RECOVERY_SCHEMA_VERSION) errors.push('schema_version must be 1')
+  if (record.schema_version !== RECOVERY_SCHEMA_VERSION) errors.push('schema_version must be 2')
   if (record.record_kind !== RECOVERY_RECORD_KIND) errors.push('record_kind must be review_recovery')
   if (record.repository !== 'boat1994/bemoat-web-starter') {
     errors.push('repository must be boat1994/bemoat-web-starter')
@@ -164,8 +165,14 @@ export function validateRecoveryRecord(record = {}) {
       errors.push('reviewer_identity.trust_source must name the repository-owned reviewer trust policy')
     }
   }
-  if (!FULL_SHA_RE.test(String(record.protected_base_sha ?? ''))) {
-    errors.push('protected_base_sha must be a full SHA')
+  if (Object.hasOwn(record, 'protected_base_sha')) {
+    errors.push('protected_base_sha is an ambiguous legacy recovery binding')
+  }
+  if (!FULL_SHA_RE.test(String(record.incident_base_sha ?? ''))) {
+    errors.push('incident_base_sha must be a full SHA')
+  }
+  if (!FULL_SHA_RE.test(String(record.execution_policy_sha ?? ''))) {
+    errors.push('execution_policy_sha must be a full SHA')
   }
   if (!FULL_SHA_RE.test(String(record.policy_source_sha ?? ''))) {
     errors.push('policy_source_sha must be a full SHA')
@@ -206,6 +213,9 @@ export function validateRecoveryRecord(record = {}) {
 
 export function buildRecoveryRecord(input = {}) {
   const provided = { ...input }
+  if (Object.hasOwn(provided, 'protected_base_sha')) {
+    throw new Error('STATE_CONFLICT: protected_base_sha is an ambiguous legacy recovery binding')
+  }
   delete provided.transition_identity_sha256
   delete provided.schema_version
   delete provided.record_kind
@@ -249,7 +259,8 @@ export function buildRecoveryRecord(input = {}) {
           head_sha: check.head_sha ?? provided.exact_head,
         }))
         : provided.ci),
-    protected_base_sha: String(provided.protected_base_sha ?? '').toLowerCase(),
+    incident_base_sha: String(provided.incident_base_sha ?? '').toLowerCase(),
+    execution_policy_sha: String(provided.execution_policy_sha ?? '').toLowerCase(),
     policy_source_sha: String(provided.policy_source_sha ?? '').toLowerCase(),
   }
   const preliminary = validateRecoveryRecord({
@@ -276,10 +287,17 @@ export function renderRecoveryReceipt(record) {
 }
 
 export function parseRecoveryReceipt(body = '') {
-  const starts = body.match(new RegExp(RECOVERY_MARKER_START.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) ?? []
-  const ends = body.match(new RegExp(RECOVERY_MARKER_END.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) ?? []
+  const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const markerStart = escapeRegExp(RECOVERY_MARKER_START)
+  const markerEnd = escapeRegExp(RECOVERY_MARKER_END)
+  const starts = body.match(new RegExp(markerStart, 'g')) ?? []
+  const ends = body.match(new RegExp(markerEnd, 'g')) ?? []
   if (starts.length !== 1 || ends.length !== 1) return { ok: false, errors: ['exactly one recovery receipt marker pair is required'] }
-  const match = body.match(/<!-- bemoat:review-recovery:v1 -->\s*```json\s*\n([\s\S]*?)\n```\s*<!-- \/bemoat:review-recovery:v1 -->/)
+  const match = body.match(new RegExp(
+    `${markerStart}\\s*` +
+    '```json\\s*\\n([\\s\\S]*?)\\n```\\s*' +
+    markerEnd,
+  ))
   if (!match) return { ok: false, errors: ['recovery receipt must contain one JSON fence'] }
   try {
     const record = JSON.parse(match[1])
@@ -362,7 +380,10 @@ export function detectUnaccountedReviewEvidence({
   for (const comment of issueComments) {
     const parsed = isRecoveryReceipt(comment)
     if (parsed.ok) receipts.push({ comment, record: parsed.record })
-    else if (String(comment?.body ?? '').includes(RECOVERY_MARKER_START)) {
+    else if (
+      String(comment?.body ?? '').includes(RECOVERY_MARKER_START) ||
+      String(comment?.body ?? '').includes(LEGACY_RECOVERY_MARKER_START)
+    ) {
       return {
         ok: false,
         code: 'STATE_CONFLICT',

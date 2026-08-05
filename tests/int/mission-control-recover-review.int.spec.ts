@@ -34,6 +34,13 @@ function buildIncidentRecord(
   buildRecoveryRecord: (input: Record<string, unknown>) => Record<string, unknown>,
   issueBody: string,
   prBody: string,
+  {
+    incidentBaseSha = INCIDENT_BASE_SHA,
+    executionPolicySha = EXECUTION_POLICY_SHA,
+  }: {
+    incidentBaseSha?: string
+    executionPolicySha?: string
+  } = {},
 ) {
   return buildRecoveryRecord({
     repository: 'boat1994/bemoat-web-starter',
@@ -76,7 +83,8 @@ function buildIncidentRecord(
       { name: 'ci', check_run_id: 92212805944, conclusion: 'success', head_sha: INCIDENT_HEAD },
       { name: 'starter-ci', check_run_id: 92212805950, conclusion: 'success', head_sha: INCIDENT_HEAD },
     ],
-    protected_base_sha: INCIDENT_BASE_SHA,
+    incident_base_sha: incidentBaseSha,
+    execution_policy_sha: executionPolicySha,
     policy_source_sha: POLICY_SOURCE_SHA,
   })
 }
@@ -231,6 +239,89 @@ describe('Mission Control review recovery transport', () => {
     })
   })
 
+  it('round-trips divergent recovery bindings and changes identity independently', async () => {
+    const {
+      buildRecoveryRecord,
+      parseRecoveryReceipt,
+      renderRecoveryReceipt,
+      validateRecoveryRecord,
+    } = await recoveryModulePromise
+    const issueBody = rawIncidentBody()
+    const record = buildIncidentRecord(buildRecoveryRecord, issueBody, issueBody, {
+      incidentBaseSha: INCIDENT_BASE_SHA.toUpperCase(),
+      executionPolicySha: EXECUTION_POLICY_SHA.toUpperCase(),
+    })
+
+    expect(record).toMatchObject({
+      schema_version: 2,
+      incident_base_sha: INCIDENT_BASE_SHA,
+      execution_policy_sha: EXECUTION_POLICY_SHA,
+      policy_source_sha: POLICY_SOURCE_SHA,
+    })
+    expect(record).not.toHaveProperty('protected_base_sha')
+    expect(INCIDENT_BASE_SHA).not.toBe(EXECUTION_POLICY_SHA)
+    expect(validateRecoveryRecord(record)).toMatchObject({ ok: true })
+
+    const parsed = parseRecoveryReceipt(renderRecoveryReceipt(record))
+    expect(parsed).toMatchObject({ ok: true, record })
+
+    const incidentChanged = buildIncidentRecord(buildRecoveryRecord, issueBody, issueBody, {
+      incidentBaseSha: '1'.repeat(40),
+    })
+    const executionChanged = buildIncidentRecord(buildRecoveryRecord, issueBody, issueBody, {
+      executionPolicySha: '2'.repeat(40),
+    })
+    expect(incidentChanged.transition_identity_sha256).not.toBe(record.transition_identity_sha256)
+    expect(executionChanged.transition_identity_sha256).not.toBe(record.transition_identity_sha256)
+  })
+
+  it('rejects missing and legacy single-field recovery bindings', async () => {
+    const { buildRecoveryRecord, parseRecoveryReceipt, validateRecoveryRecord } =
+      await recoveryModulePromise
+    const issueBody = rawIncidentBody()
+    const record = buildIncidentRecord(buildRecoveryRecord, issueBody, issueBody)
+
+    const missingIncident = { ...record }
+    delete missingIncident.incident_base_sha
+    expect(validateRecoveryRecord(missingIncident)).toMatchObject({
+      ok: false,
+      errors: expect.arrayContaining(['incident_base_sha must be a full SHA']),
+    })
+
+    const missingExecution = { ...record }
+    delete missingExecution.execution_policy_sha
+    expect(validateRecoveryRecord(missingExecution)).toMatchObject({
+      ok: false,
+      errors: expect.arrayContaining(['execution_policy_sha must be a full SHA']),
+    })
+
+    const legacyRecord: Record<string, unknown> = {
+      ...record,
+      schema_version: 1,
+      protected_base_sha: INCIDENT_BASE_SHA,
+    }
+    delete legacyRecord.incident_base_sha
+    delete legacyRecord.execution_policy_sha
+    expect(validateRecoveryRecord(legacyRecord)).toMatchObject({
+      ok: false,
+      errors: expect.arrayContaining([
+        'schema_version must be 2',
+        'protected_base_sha is an ambiguous legacy recovery binding',
+      ]),
+    })
+
+    const legacyReceipt = [
+      '<!-- bemoat:review-recovery:v1 -->',
+      '```json',
+      JSON.stringify(legacyRecord),
+      '```',
+      '<!-- /bemoat:review-recovery:v1 -->',
+    ].join('\n')
+    expect(parseRecoveryReceipt(legacyReceipt)).toMatchObject({
+      ok: false,
+    })
+  })
+
   it('quarantines the two raw incident comments only after a matching typed receipt exists', async () => {
     const { buildRecoveryRecord, detectUnaccountedReviewEvidence, renderRecoveryReceipt } =
       await recoveryModulePromise
@@ -370,7 +461,7 @@ The PR #275 is ready, but this is not a canonical binding.
       user: { login: 'boat1994' },
       author_association: 'OWNER',
     }
-    const commentsById = new Map([
+    const commentsById = new Map<string, Record<string, unknown>>([
       [issueSource.id, issueSource],
       [prSource.id, prSource],
       [ORIGINAL_REVIEW_COMMENT, { id: ORIGINAL_REVIEW_COMMENT, body: originalReview }],
@@ -393,8 +484,8 @@ The PR #275 is ready, but this is not a canonical binding.
       body: `Mission Control mode: required\n\n${renderMissionControlState(initialState)}`,
       managedState: initialState,
     }
-    let issueComments = [issueSource]
-    const prComments = [prSource]
+    let issueComments: Array<Record<string, unknown>> = [issueSource]
+    const prComments: Array<Record<string, unknown>> = [prSource]
     let postCount = 0
 
     const deps = {
@@ -437,7 +528,8 @@ The PR #275 is ready, but this is not a canonical binding.
     expect(record).toMatchObject({
       expected_prior_state: 'AWAITING_REVIEW_2',
       expected_prior_counters: { review_cycle: 1, full_review_count: 1 },
-      protected_base_sha: INCIDENT_BASE_SHA,
+      incident_base_sha: INCIDENT_BASE_SHA,
+      execution_policy_sha: EXECUTION_POLICY_SHA,
       policy_source_sha: POLICY_SOURCE_SHA,
       exact_head: INCIDENT_HEAD,
       prior_last_reviewed_head: PREVIOUS_REVIEW_HEAD,

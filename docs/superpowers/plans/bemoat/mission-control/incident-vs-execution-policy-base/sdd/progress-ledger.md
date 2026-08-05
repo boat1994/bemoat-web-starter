@@ -84,8 +84,8 @@ run the recovery transport against live GitHub.
 
 | Task | Owner | Status | Required evidence before marking complete |
 | --- | --- | --- | --- |
-| 1. Characterize impossible binding | Dev | in_progress | A focused test fails against the current one-field equality with no production change. |
-| 2. Separate recovery bindings | Dev | NOT STARTED | Domain/receipt/parser/validator/identity tests prove both fields are required and independently serialized. |
+| 1. Characterize impossible binding | Dev | complete / review-passed | Focused test fails at the current one-field equality with no production change; independent review passed. |
+| 2. Separate recovery bindings | Dev | in_progress | Domain/receipt/parser/validator/identity tests prove both fields are required and independently serialized. |
 | 3. Load policy from execution SHA | Dev | NOT STARTED | Workflow uses exact execution SHA; stale base, wrong ref, and wrong guide evidence fail closed. |
 | 4. Pinned integration/idempotency regression | Dev | NOT STARTED | Simulated #274/#275 success, retry `NO_OP`, ambiguous POST recovery, and no duplicate/source mutation. |
 | 5. Docs/transport contract | Dev | NOT STARTED | Command reference distinguishes incident base, execution policy commit, and policy-content identity. |
@@ -134,3 +134,63 @@ run the recovery transport against live GitHub.
   passes.
 - No production code, live recovery command, GitHub artifact, child project,
   deployment, migration, or retained data was changed.
+
+### 2026-08-05 — Task 1 review
+
+- Reconfirmed branch `hotfix/incident-vs-execution-policy-base` at head
+  `b0a35215b3e33d08d2217c64739e1a5e879f0aa5` with review base
+  `e42a3e9d062ef31c72d41c859821cc6dd70ef2e9`.
+- Independently ran the focused divergent-base characterization. It produced
+  the expected red failure at the unchanged protected-base equality:
+  `STATE_CONFLICT: protected base SHA differs from the recovery record`.
+- The six existing focused recovery tests passed; the changed test passed
+  ESLint with zero warnings; `git diff --check` passed.
+- `pnpm run guard:safety` was also run; it failed only in the planning-contract
+  guard because the modified Task 1 brief and untracked implementer report
+  lack the repository-required task-identity marker blocks. This documentation
+  concern is recorded for reconciliation before final branch delivery and does
+  not alter the Task 1 characterization verdict.
+- Confirmed the base-to-head diff is limited to the Task 1 test and SDD
+  documents. Production code, live recovery, Issue/PR mutation, child sync,
+  deployment, migration, and retained-data operations were not performed.
+- Task 1 review verdict: `PASS`; status advanced to `complete / review-passed`.
+- Task 2 dispatched; status advanced to `in_progress`.
+
+### 2026-08-05 — Task 2 dispatch
+
+- Confirmed the isolated worktree and branch remain
+  `hotfix/incident-vs-execution-policy-base`.
+- Wrote the complete Task 2 brief to
+  `sdd/task-02-brief.md`, including the two-binding contract, fail-closed
+  legacy receipt handling, test-first scope, and Task 3 boundary.
+- Existing Task 1 implementer/reviewer artifacts are present as uncommitted SDD
+  evidence and will be reconciled into the focused local Task 2 delivery if
+  safety validation requires their identity markers.
+- Task 2 production scope is limited to
+  `scripts/mission-control/domain/review-recovery.mjs`; focused contract tests
+  remain in `tests/int/mission-control-recover-review.int.spec.ts`.
+- No live recovery, GitHub artifact mutation, child sync, deployment,
+  migration, production, or retained-data operation is permitted.
+
+### 2026-08-05 — Task 2 implementation
+
+- Added recovery schema/receipt version 2 with required independent
+  `incident_base_sha` and `execution_policy_sha` fields.
+- Preserved `policy_source_sha` as a separate guide-source identity and included
+  both base bindings in canonical serialization and transition identity.
+- Added focused round-trip, normalization, independent-identity,
+  missing-binding, quarantine, and legacy-rejection tests.
+- Legacy v1 `protected_base_sha` receipts/records fail closed; no implicit
+  reinterpretation or migration is implemented.
+- Validation evidence:
+  - Task 2 focused selector: 3 passed.
+  - Full focused recovery file: 8 passed, 1 expected Task 3 workflow failure at
+    the unchanged protected-base equality guard.
+  - Full lint, typecheck, Mission Control contract guard, safety guard, and
+    `git diff --check`: passed.
+  - `ReadLints`: no errors on changed files.
+- Added the complete Task 2 implementer report at
+  `sdd/task-02-implementer-report.md`.
+- Task 2 remains `in_progress` pending independent review. No live recovery,
+  GitHub artifact mutation, child sync, deployment, migration, production, or
+  retained-data operation was performed.
