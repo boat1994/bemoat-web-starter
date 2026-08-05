@@ -190,7 +190,9 @@ function createHarness(overrides: HarnessOverrides = {}) {
       if (overrides.writeError) throw overrides.writeError
       if (overrides.skipWriteProjection) return undefined
       issue.body = nextBody
-      issue.managedState = parseMissionControlState(nextBody).state
+      const parsed = parseMissionControlState(nextBody)
+      if (!parsed.state) throw new Error('test harness failed to parse projected state')
+      issue.managedState = parsed.state
       if (overrides.afterWrite) overrides.afterWrite(issue)
       return { accepted: true }
     },
@@ -431,7 +433,7 @@ describe('runReopen', () => {
 
   it.each(['--help', '-h'])('main %s performs no dependency reads or writes', async (flag) => {
     const calls: string[] = []
-    const deps = new Proxy({} as Parameters<typeof main>[1], {
+    const deps = new Proxy({} as NonNullable<Parameters<typeof main>[1]>, {
       get() {
         return async () => {
           calls.push('mutation-or-read')
