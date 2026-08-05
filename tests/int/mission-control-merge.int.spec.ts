@@ -93,19 +93,24 @@ function createHarness(options: Record<string, any> = {}) {
   const taskMergeCommit = options.mergeCommit ?? mergeCommit
   const taskBase = options.base ?? 'main'
   const taskProtectedBaseSha = options.protectedBaseSha ?? protectedBaseSha
+  const taskState = managedState({
+    active_task_issue: `#${taskIssue}`,
+    active_pr: `#${prNumber}`,
+    current_head: taskReviewedHead,
+    last_reviewed_head: taskReviewedHead,
+    approved_base: taskBase,
+    ...options.managedState,
+    ...(options.standalone ? {
+      campaign_issue: undefined,
+      campaign_slice: undefined,
+    } : {}),
+  })
   const issues = new Map<number, any>([
     [taskIssue, {
       number: taskIssue,
       state: options.issueState ?? 'OPEN',
       stateReason: options.issueState === 'CLOSED' ? 'COMPLETED' : null,
-      managedState: managedState({
-        active_task_issue: `#${taskIssue}`,
-        active_pr: `#${prNumber}`,
-        current_head: taskReviewedHead,
-        last_reviewed_head: taskReviewedHead,
-        approved_base: taskBase,
-        ...options.managedState,
-      }),
+      managedState: taskState,
     }],
     [219, {
       number: 219,
@@ -152,6 +157,12 @@ function createHarness(options: Record<string, any> = {}) {
         reviewed_head: taskReviewedHead,
         base: taskBase,
         protected_base_sha: taskProtectedBaseSha,
+        ...(options.standalone ? {
+          campaign_issue: undefined,
+          campaign_slice: undefined,
+          projection_kind: undefined,
+          campaign_blocker_id: undefined,
+        } : {}),
         ...options.authorization,
       })
     },
@@ -223,6 +234,24 @@ function createHarness(options: Record<string, any> = {}) {
       }
       return { status: 'RESOLVED', campaignIssue, campaignBlockerId }
     },
+    readCampaignOwnership: async (ownership: Record<string, unknown>) => {
+      if (options.recordCampaignOwnership) {
+        operations.push(
+          `campaign-ownership:${ownership.projectionKind ?? 'campaign-slice'}:${ownership.campaignIssue}:${ownership.campaignSlice ?? ownership.campaignBlockerId}:${ownership.taskIssue}:${ownership.prNumber}`,
+        )
+      }
+      if (options.campaignOwnershipError) throw options.campaignOwnershipError
+      return options.campaignOwnership ?? {
+        verified: true,
+        evidence_kind: 'campaign-projection',
+        projectionKind: ownership.projectionKind ?? 'campaign-slice',
+        campaignIssue: ownership.campaignIssue,
+        campaignSlice: ownership.campaignSlice ?? null,
+        campaignBlockerId: ownership.campaignBlockerId ?? null,
+        taskIssue,
+        prNumber,
+      }
+    },
     readNextCampaignAction: async () => ({
       slice: 5,
       action: 'Plan Slice 5',
@@ -244,6 +273,117 @@ function createHarness(options: Record<string, any> = {}) {
 }
 
 describe('Founder-authorized Mission Control merge transport', () => {
+  it('uses the standalone merge path for a Task #280-shaped route without campaign reads or writes', async () => {
+    const harness = createHarness({
+      taskIssue: 280,
+      prNumber: 281,
+      standalone: true,
+      recordCampaignOwnership: true,
+      pull: {
+        title: 'Standalone hotfix: preserve historical Campaign #215 context',
+        body: 'References Campaign #215 and future Slice 5 only as historical context.',
+      },
+      authorization: {
+        campaign_issue: 215,
+        campaign_slice: 5,
+      },
+    })
+
+    await expect(execute({
+      issueNumber: 280,
+      repo: 'boat1994/bemoat-web-starter',
+      authorizationCommentId: '6000000001',
+      deps: harness.deps,
+    })).resolves.toMatchObject({ outcome: 'DONE', issueNumber: 280, prNumber: 281 })
+
+    expect(harness.operations).toEqual([
+      'authorization:280',
+      `review-verdict:${reviewCommentId}`,
+      'mark-ready',
+      `review-verdict:${reviewCommentId}`,
+      `merge:${reviewedHead}`,
+      `verify-base:${mergeCommit}:main`,
+      'result:6000000003',
+      'close:280',
+      'task-done:280',
+    ])
+    expect(harness.operations.some((entry) => entry.startsWith('campaign-'))).toBe(false)
+    expect(harness.operations).not.toContain(expect.stringContaining('campaign-ownership'))
+  })
+
+  it('does not derive campaign ownership from prose references alone', async () => {
+    const harness = createHarness({
+      taskIssue: 280,
+      prNumber: 281,
+      standalone: true,
+      recordCampaignOwnership: true,
+      pull: {
+        isDraft: false,
+        title: 'Standalone hotfix for Campaign #215 Slice 5 incident context',
+        body: 'This text references #215 and Slice 5 but does not bind the Task.',
+        commits: [{ messageHeadline: 'Historical context', messageBody: 'Campaign #215 / Slice 5' }],
+      },
+    })
+
+    await expect(execute({
+      issueNumber: 280,
+      repo: 'boat1994/bemoat-web-starter',
+      authorizationCommentId: '6000000001',
+      deps: harness.deps,
+    })).resolves.toMatchObject({ outcome: 'DONE', issueNumber: 280, prNumber: 281 })
+
+    expect(harness.operations.some((entry) => entry.startsWith('campaign-'))).toBe(false)
+  })
+
+  it('fails closed when the campaign projection does not bind the exact task tuple', async () => {
+    const harness = createHarness({
+      recordCampaignOwnership: true,
+      campaignOwnership: {
+        verified: true,
+        evidence_kind: 'campaign-projection',
+        projectionKind: 'campaign-slice',
+        campaignIssue: 215,
+        campaignSlice: 3,
+        taskIssue: 999,
+        prNumber: 223,
+      },
+    })
+
+    await expect(execute({
+      issueNumber: 222,
+      repo: 'boat1994/bemoat-web-starter',
+      authorizationCommentId: '6000000001',
+      deps: harness.deps,
+    })).rejects.toThrow(/STATE_CONFLICT.*exact task and PR/)
+
+    expect(harness.operations).toEqual([
+      'authorization:222',
+      `campaign-ownership:campaign-slice:215:3:222:223`,
+    ])
+    expect(harness.operations.some((entry) => entry.startsWith('merge:'))).toBe(false)
+  })
+
+  it('fails closed for a genuinely bound campaign route when ownership evidence is stale', async () => {
+    const harness = createHarness({
+      recordCampaignOwnership: true,
+      campaignOwnershipError: new Error('STATE_CONFLICT: campaign expansion authority protected base is no longer current'),
+    })
+
+    await expect(execute({
+      issueNumber: 222,
+      repo: 'boat1994/bemoat-web-starter',
+      authorizationCommentId: '6000000001',
+      deps: harness.deps,
+    })).rejects.toThrow(/STATE_CONFLICT.*protected base.*current/)
+
+    expect(harness.operations).toEqual([
+      'authorization:222',
+      `campaign-ownership:campaign-slice:215:3:222:223`,
+    ])
+    expect(harness.operations.some((entry) => entry.startsWith('merge:'))).toBe(false)
+    expect(harness.operations.some((entry) => entry.startsWith('campaign-done:'))).toBe(false)
+  })
+
   it('rejects a delivery bundle at the merge boundary before mutation', async () => {
     const harness = createHarness()
     const mergeTransport = await import('../../scripts/mission-control-merge.mjs')
@@ -266,7 +406,7 @@ describe('Founder-authorized Mission Control merge transport', () => {
   })
 
   it('executes the complete merge bundle in order without reconciliation or starting the next task', async () => {
-    const harness = createHarness()
+    const harness = createHarness({ recordCampaignOwnership: true })
 
     const result = await execute({
       issueNumber: 222,
@@ -278,6 +418,7 @@ describe('Founder-authorized Mission Control merge transport', () => {
     expect(result).toMatchObject({ outcome: 'DONE', mergeCommit, issueNumber: 222, prNumber: 223 })
     expect(harness.operations).toEqual([
       'authorization:222',
+      'campaign-ownership:campaign-slice:215:3:222:223',
       `review-verdict:${reviewCommentId}`,
       'mark-ready',
       `review-verdict:${reviewCommentId}`,
