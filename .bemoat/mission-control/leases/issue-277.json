@@ -2,8 +2,8 @@
   "schema_version": 1,
   "issue": "277",
   "transition_identity": "{\"taskId\":\"277\",\"phase\":\"Dev (implementation)\",\"role\":\"HANDOFF\",\"contentHash\":\"6a9da8e76b109cb3ebaece37f7ef666e3c009115a650df27801bd1c60a6746ac\"}",
-  "observed_body_sha256": "f2a44528de61be3e45d7d7b88cd271a8955ada8ed904a9e9a8c3079e8226ba08",
+  "observed_body_sha256": "5a3434dabc2d38915f168b75a758dbac6018da70898084d6d94c9f7ab264934e",
   "holder": "mission-control-state-migration",
-  "status": "held",
-  "updated_at": "2026-08-05T06:10:12.238Z"
+  "status": "released",
+  "updated_at": "2026-08-05T06:10:15.969Z"
 }
