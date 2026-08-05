@@ -167,30 +167,35 @@ function validateBoundCorrectionAuthorization(authorization, latestReview) {
   return { valid: true }
 }
 
-function validateReviewThreeCorrectionAuthorization(authorization, state, expectedStatus) {
+function validateFounderCorrectionAuthorization(authorization, state, expectedStatus, expectedCycle) {
   if (!authorization || typeof authorization !== 'object' || Array.isArray(authorization) ||
       authorization.authority !== 'Founder' || authorization.scope !== 'correction' ||
-      authorization.for_review_number !== 3 || typeof authorization.action !== 'string' || !authorization.action ||
+      authorization.for_review_number !== expectedCycle || typeof authorization.action !== 'string' || !authorization.action ||
       typeof authorization.authorized_at !== 'string' || !authorization.authorized_at) {
-    return { valid: false, reason: 'Review 3 Founder correction authorization is required' }
+    return { valid: false, reason: `Review ${expectedCycle} Founder correction authorization is required` }
   }
   if (![1, 2].includes(authorization.schema_version) || typeof authorization.authorization_id !== 'string' || !authorization.authorization_id) {
-    return { valid: false, reason: 'Review 3 Founder correction authorization requires schema_version and authorization_id' }
+    return { valid: false, reason: `Review ${expectedCycle} Founder correction authorization requires schema_version and authorization_id` }
   }
-  if (authorization.status !== expectedStatus || authorization.reviewed_head !== state.last_reviewed_head ||
-      authorization.reviewed_head !== state.current_head || !Array.isArray(authorization.finding_ids) ||
+  // A founder correction can either bind an exact reviewed head (for identical retries/reopens where no unreviewed work exists),
+  // OR it can authorize a drifted live head by binding current_head, while last_reviewed_head remains the old one.
+  // It always requires a last_reviewed_head (must happen after a review).
+  if (authorization.status !== expectedStatus || !state.last_reviewed_head ||
+      (authorization.reviewed_head !== state.last_reviewed_head && authorization.reviewed_head !== state.current_head) ||
+      (state.current_head !== authorization.reviewed_head) ||
+      !Array.isArray(authorization.finding_ids) ||
       authorization.finding_ids.length === 0 || authorization.finding_ids.some((id) => typeof id !== 'string' || !id)) {
-    return { valid: false, reason: 'Review 3 Founder correction authorization binding is invalid' }
+    return { valid: false, reason: `Review ${expectedCycle} Founder correction authorization binding is invalid` }
   }
   if (expectedStatus === 'consumed' && (typeof authorization.handoff_comment_id !== 'string' || !authorization.handoff_comment_id)) {
-    return { valid: false, reason: 'consumed Review 3 Founder correction authorization requires handoff_comment_id' }
+    return { valid: false, reason: `consumed Review ${expectedCycle} Founder correction authorization requires handoff_comment_id` }
   }
   if (expectedStatus === 'consumed' && authorization.schema_version === 2) {
     const binding = authorization.handoff_binding
     if (!binding || binding.schema_version !== 1 ||
         typeof binding.content_sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(binding.content_sha256) ||
         typeof binding.binding_sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(binding.binding_sha256)) {
-      return { valid: false, reason: 'consumed Review 3 Founder correction authorization requires an immutable HANDOFF binding' }
+      return { valid: false, reason: `consumed Review ${expectedCycle} Founder correction authorization requires an immutable HANDOFF binding` }
     }
   }
   return { valid: true }
@@ -400,18 +405,22 @@ export function parseMissionControlState(body = '') {
     }
   }
 
-  const reviewThreeCorrection = state.founder_correction_authorization
+  const founderCorrection = state.founder_correction_authorization
   if (state.state === 'FOUNDER_AUTHORIZED_CORRECTION') {
-    if (hasPostBudgetReviews || state.review_cycle !== 3 || state.full_review_count !== 1 ||
+    if (hasPostBudgetReviews || (state.review_cycle !== 1 && state.review_cycle !== 3) || state.full_review_count !== 1 ||
         typeof state.active_pr !== 'string' || typeof state.current_head !== 'string') {
-      return { present: true, valid: false, reason: 'Founder-authorized Review 3 correction requires active PR and normal counters at 3/1' }
+      return { present: true, valid: false, reason: 'Founder-authorized correction requires active PR and normal counters at 1/1 or 3/1' }
     }
-    const authorization = validateReviewThreeCorrectionAuthorization(reviewThreeCorrection, state, 'authorized')
+    const authorization = validateFounderCorrectionAuthorization(founderCorrection, state, 'authorized', state.review_cycle)
     if (!authorization.valid) return { present: true, valid: false, reason: authorization.reason }
   }
-  if (state.state === 'IN_PROGRESS' && !hasPostBudgetReviews && state.review_cycle === 3) {
-    const authorization = validateReviewThreeCorrectionAuthorization(reviewThreeCorrection, state, 'consumed')
-    if (!authorization.valid) return { present: true, valid: false, reason: authorization.reason }
+  if (state.state === 'IN_PROGRESS' && !hasPostBudgetReviews) {
+    if (state.review_cycle === 1 || state.review_cycle === 3) {
+      const authorization = validateFounderCorrectionAuthorization(founderCorrection, state, 'consumed', state.review_cycle)
+      if (!authorization.valid) return { present: true, valid: false, reason: authorization.reason }
+    } else if (state.review_cycle !== 0) {
+      return { present: true, valid: false, reason: 'state and review_cycle are inconsistent' }
+    }
   }
 
   const expectedCycles = {
@@ -423,9 +432,6 @@ export function parseMissionControlState(body = '') {
     AWAITING_REVIEW_3: 2,
   }
   if (Object.hasOwn(expectedCycles, state.state) && state.review_cycle !== expectedCycles[state.state]) {
-    return { present: true, valid: false, reason: 'state and review_cycle are inconsistent' }
-  }
-  if (state.state === 'IN_PROGRESS' && !hasPostBudgetReviews && state.review_cycle !== 0 && state.review_cycle !== 3) {
     return { present: true, valid: false, reason: 'state and review_cycle are inconsistent' }
   }
   const expectedFullReviewCounts = {
