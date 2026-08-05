@@ -264,3 +264,23 @@ run the recovery transport against live GitHub.
 - Task 3 remains `in_progress` and awaits independent reviewer verification.
   No live recovery, GitHub artifact mutation, child sync, deployment,
   migration, production, or retained-data operation was performed.
+
+### 2026-08-05 — Task 3 fix round 1
+
+- Reviewer verdict `FAIL` identified two P1 blockers: synthesized executing
+  checkout identity and bypassable structured child overrides.
+- Wrote `sdd/task-03-fix-round-1-brief.md` with scope limited to those two
+  findings.
+- Added observed checkout validation using actual HEAD, branch, clean status,
+  merge-base ancestry, and required recovery implementation paths. The exact
+  `hotfix/incident-vs-execution-policy-base` branch is the only authorized
+  hotfix exception; unrelated or mismatched checkouts fail closed.
+- Replaced regex-only child override checks with closed-world YAML parsing and
+  documented-key/value validation. Structured relaxing forms and malformed
+  content fail closed.
+- Fix-round focused recovery suite: 19 passed. Directly affected transition
+  suites: 83 passed. Targeted lint, typecheck, safety/contract guards,
+  `ReadLints`, and `git diff --check` passed.
+- Task 3 remains `in_progress` pending independent re-review. No live recovery,
+  GitHub artifact mutation, child sync, deployment, migration, production, or
+  retained-data operation was performed.

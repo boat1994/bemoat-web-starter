@@ -11,6 +11,7 @@ const GUIDE_PATH = 'docs/mission-control/mission-control-guide.md'
 const RECOVERY_FACADE_PATH = 'scripts/mission-control-recover-review.mjs'
 const RECOVERY_WORKFLOW_PATH = 'scripts/mission-control/workflows/recover-review.mjs'
 const TRANSPORT_REGISTRY_PATH = 'scripts/mission-control/transport-registry.mjs'
+const AUTHORIZED_HOTFIX_BRANCH = 'hotfix/incident-vs-execution-policy-base'
 const ORIGINAL_REVIEW_COMMENT = '5187488219'
 const CORRECTION_RESULT_COMMENT = '5187802812'
 const FINDING_IDS = Array.from({ length: 7 }, (_, index) => `MC-R1-00${index + 1}`)
@@ -226,11 +227,6 @@ function executionPolicyEvidence(
       content: "command: 'bemoat:mission-control:recover-review'",
     },
     child_override: null,
-    executing_checkout: {
-      ref: 'refs/heads/main',
-      sha: EXECUTION_POLICY_SHA,
-      based_on_sha: EXECUTION_POLICY_SHA,
-    },
     ...overrides,
   }
 }
@@ -305,6 +301,14 @@ async function createPinnedRecoveryScenario() {
     prComments: [prSource] as Array<Record<string, unknown>>,
     policy: executionPolicyEvidence(),
     protectedSha: EXECUTION_POLICY_SHA,
+    executingCheckout: {
+      ref: 'refs/heads/main',
+      head_sha: EXECUTION_POLICY_SHA,
+      base_sha: EXECUTION_POLICY_SHA,
+      ancestor_verified: true,
+      clean: true,
+      implementation_paths: [RECOVERY_FACADE_PATH, RECOVERY_WORKFLOW_PATH, TRANSPORT_REGISTRY_PATH],
+    },
     policyRefs: [] as string[],
     postCount: 0,
     writeCount: 0,
@@ -326,6 +330,7 @@ async function createPinnedRecoveryScenario() {
     },
     readExactHeadChecks: async () => structuredClone(checks),
     readProtectedBase: async () => ({ sha: scenario.protectedSha }),
+    readExecutingCheckout: async () => structuredClone(scenario.executingCheckout),
     readPolicySource: async (_repo: string, ref: string) => {
       scenario.policyRefs.push(ref)
       return structuredClone(scenario.policy)
@@ -694,6 +699,53 @@ The PR #275 is ready, but this is not a canonical binding.
     expect(scenario.writeCount).toBe(0)
   })
 
+  it('rejects self-declared policy identity when the observed checkout does not match', async () => {
+    const { runReviewRecovery } = await workflowModulePromise
+    const { body, deps, options, scenario } = await createPinnedRecoveryScenario()
+    scenario.executingCheckout.head_sha = '1'.repeat(40)
+
+    await expect(runReviewRecovery({ options, body, deps })).rejects.toThrow(
+      'STATE_CONFLICT: executing recovery checkout does not match trusted policy implementation',
+    )
+    expect(scenario.postCount).toBe(0)
+    expect(scenario.writeCount).toBe(0)
+  })
+
+  it('rejects an unrelated hotfix checkout', async () => {
+    const { runReviewRecovery } = await workflowModulePromise
+    const { body, deps, options, scenario } = await createPinnedRecoveryScenario()
+    scenario.executingCheckout = {
+      ...scenario.executingCheckout,
+      ref: 'hotfix/unrelated-recovery',
+      head_sha: '2'.repeat(40),
+      base_sha: EXECUTION_POLICY_SHA,
+      ancestor_verified: true,
+    }
+
+    await expect(runReviewRecovery({ options, body, deps })).rejects.toThrow(
+      'STATE_CONFLICT: executing recovery checkout does not match trusted policy implementation',
+    )
+    expect(scenario.postCount).toBe(0)
+    expect(scenario.writeCount).toBe(0)
+  })
+
+  it('accepts only the explicitly authorized hotfix based on the trusted policy tip', async () => {
+    const { runReviewRecovery } = await workflowModulePromise
+    const { body, deps, options, scenario } = await createPinnedRecoveryScenario()
+    scenario.executingCheckout = {
+      ...scenario.executingCheckout,
+      ref: AUTHORIZED_HOTFIX_BRANCH,
+      head_sha: '3'.repeat(40),
+      base_sha: EXECUTION_POLICY_SHA,
+      ancestor_verified: true,
+    }
+
+    await expect(runReviewRecovery({ options, body, deps })).resolves.toMatchObject({
+      outcome: 'RECOVERED',
+    })
+    expect(scenario.postCount).toBe(1)
+  })
+
   it('rejects a child override that relaxes shared invariants', async () => {
     const { runReviewRecovery } = await workflowModulePromise
     const { body, deps, options, scenario } = await createPinnedRecoveryScenario()
@@ -709,6 +761,33 @@ The PR #275 is ready, but this is not a canonical binding.
     )
     expect(scenario.postCount).toBe(0)
     expect(scenario.writeCount).toBe(0)
+  })
+
+  it('rejects structured, unsupported, and malformed child overrides', async () => {
+    const { runReviewRecovery } = await workflowModulePromise
+    for (const content of [
+      'allow_auto_merge: true',
+      'remove_exact_head_checks: true',
+      'minor_nit_blocking: true',
+      'allow_destructive_migrations: true',
+      'chat_history_authoritative: true',
+      'allow_silent_state_reset: true',
+      'unknown_policy_key: [',
+    ]) {
+      const { body, deps, options, scenario } = await createPinnedRecoveryScenario()
+      scenario.policy = executionPolicyEvidence({
+        child_override: {
+          path: '.bemoat/mission-control-overrides.md',
+          content,
+        },
+      })
+
+      await expect(runReviewRecovery({ options, body, deps })).rejects.toThrow(
+        'STATE_CONFLICT: child Mission Control override relaxes shared invariants',
+      )
+      expect(scenario.postCount).toBe(0)
+      expect(scenario.writeCount).toBe(0)
+    }
   })
 
   it('resumes an ambiguous recovery comment POST without posting a duplicate', async () => {

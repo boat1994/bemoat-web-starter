@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 
+import yaml from 'yaml'
+
 import { analyzeExactHeadCi } from '../../agent-issue/exact-head-ci.mjs'
 import { parseCorrectionContract, parseCorrectionEvidenceMap, validateFindingIdentity } from '../../correction-contract.mjs'
 import { scanGuideContent } from '../../guards/mission-control-contract/scan-guide.mjs'
@@ -30,6 +32,31 @@ const RECOVERY_FACADE_PATH = 'scripts/mission-control-recover-review.mjs'
 const RECOVERY_WORKFLOW_PATH = 'scripts/mission-control/workflows/recover-review.mjs'
 const TRANSPORT_REGISTRY_PATH = 'scripts/mission-control/transport-registry.mjs'
 const CHILD_OVERRIDE_PATH = '.bemoat/mission-control-overrides.md'
+const AUTHORIZED_HOTFIX_BRANCH = 'hotfix/incident-vs-execution-policy-base'
+const REQUIRED_EXECUTION_PATHS = [
+  RECOVERY_FACADE_PATH,
+  RECOVERY_WORKFLOW_PATH,
+  TRANSPORT_REGISTRY_PATH,
+]
+const ALLOWED_CHILD_OVERRIDE_KEYS = new Set([
+  'approved_base',
+  'implementation_plan_root',
+  'required_checks',
+  'manual_qa',
+  'protected_paths',
+  'founder_contact',
+  'require_deploy_approval_after_merge',
+])
+const CHILD_OVERRIDE_STRING_KEYS = new Set([
+  'approved_base',
+  'implementation_plan_root',
+  'founder_contact',
+])
+const CHILD_OVERRIDE_ARRAY_KEYS = new Set([
+  'required_checks',
+  'manual_qa',
+  'protected_paths',
+])
 export const RECOVERY_USAGE =
   'Usage: pnpm run bemoat:mission-control:recover-review -- 274 --repo boat1994/bemoat-web-starter --expected-pr 275 --expected-base main --expected-state AWAITING_REVIEW_2 --expected-head <full-sha> --expected-review-cycle 1 --expected-full-review-count 1 --review-type delta --issue-source-comment 5187836238 --pr-source-comment 5187837555 --original-review-comment <id> --correction-result-comment <id> --body-file <file>'
 
@@ -79,29 +106,76 @@ function assertExecutionSource(policy, key, expectedPath, requiredText, label) {
   }
 }
 
-function childOverrideRelaxesSharedInvariants(content) {
-  return [
-    /\bmax_review_cycles\s*:\s*(?:[4-9]|\d{2,})\b/i,
-    /\b(?:allow|permit|enable)[^\n]*(?:auto[- ]merge|automatic merge)/i,
-    /\b(?:remove|skip|disable|bypass|omit)[^\n]*(?:exact[- ]head|exact head)/i,
-    /\b(?:minor\/nit|minor|nit)[^\n]*(?:block|blocking|blocker)/i,
-    /\b(?:allow|permit|enable)[^\n]*(?:destructive migration|production deploy)/i,
-    /\b(?:chat history|conversation)[^\n]*(?:authoritative|authority)/i,
-    /\b(?:allow|permit|enable)[^\n]*(?:silent state reset|reset state silently)/i,
-  ].some((pattern) => pattern.test(content))
+function parseChildOverride(content) {
+  const yamlBlocks = [...content.matchAll(/```yaml\s*([\s\S]*?)```/gi)]
+  if (yamlBlocks.length > 1) throw new Error('multiple YAML override blocks')
+  const raw = yamlBlocks[0]?.[1] ?? content
+  const parsed = yaml.parse(raw, { uniqueKeys: true })
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('override must be a YAML mapping')
+  }
+  return parsed
 }
 
-function assertExecutionPolicyEvidence({ policy, record, state, executionPolicySha }) {
+function assertChildOverride(content) {
+  let override
+  try {
+    override = parseChildOverride(content)
+  } catch {
+    throw stateConflict('child Mission Control override relaxes shared invariants')
+  }
+  for (const [key, value] of Object.entries(override)) {
+    if (!ALLOWED_CHILD_OVERRIDE_KEYS.has(key)) {
+      throw stateConflict('child Mission Control override relaxes shared invariants')
+    }
+    if (value !== null && typeof value === 'object') {
+      if (!CHILD_OVERRIDE_ARRAY_KEYS.has(key) ||
+          !Array.isArray(value) ||
+          value.some((entry) => typeof entry !== 'string')) {
+        throw stateConflict('child Mission Control override relaxes shared invariants')
+      }
+    } else if (CHILD_OVERRIDE_STRING_KEYS.has(key) && typeof value !== 'string') {
+      throw stateConflict('child Mission Control override relaxes shared invariants')
+    } else if (key === 'require_deploy_approval_after_merge' && typeof value !== 'boolean') {
+      throw stateConflict('child Mission Control override relaxes shared invariants')
+    }
+  }
+}
+
+function assertExecutingCheckout(checkout, executionPolicySha) {
+  if (
+    !checkout ||
+    checkout.clean !== true ||
+    !FULL_SHA_RE.test(String(checkout.head_sha ?? '')) ||
+    !FULL_SHA_RE.test(String(checkout.base_sha ?? '')) ||
+    !Array.isArray(checkout.implementation_paths) ||
+    REQUIRED_EXECUTION_PATHS.some((path) => !checkout.implementation_paths.includes(path))
+  ) {
+    throw stateConflict('executing recovery checkout does not match trusted policy implementation')
+  }
+  const protectedCheckout =
+    ['main', 'refs/heads/main'].includes(checkout.ref) &&
+    checkout.head_sha === executionPolicySha &&
+    checkout.base_sha === executionPolicySha &&
+    checkout.ancestor_verified === true
+  const authorizedHotfix =
+    checkout.ref === AUTHORIZED_HOTFIX_BRANCH &&
+    checkout.base_sha === executionPolicySha &&
+    checkout.ancestor_verified === true
+  if (!protectedCheckout && !authorizedHotfix) {
+    throw stateConflict('executing recovery checkout does not match trusted policy implementation')
+  }
+}
+
+function assertExecutionPolicyEvidence({ policy, record, state, executionPolicySha, executingCheckout }) {
   if (!policy || typeof policy !== 'object') {
     throw stateConflict('execution policy evidence is missing')
   }
   if (!FULL_SHA_RE.test(executionPolicySha) ||
-      policy.source_commit !== executionPolicySha ||
-      policy.executing_checkout?.sha !== executionPolicySha ||
-      policy.executing_checkout?.based_on_sha !== executionPolicySha ||
-      !['main', 'refs/heads/main'].includes(policy.executing_checkout?.ref)) {
+      policy.source_commit !== executionPolicySha) {
     throw stateConflict('Mission Control policy was not loaded from the execution policy SHA')
   }
+  assertExecutingCheckout(executingCheckout, executionPolicySha)
   if (policy.path !== GUIDE_PATH) {
     throw stateConflict('Mission Control policy guide path is not canonical')
   }
@@ -153,9 +227,7 @@ function assertExecutionPolicyEvidence({ policy, record, state, executionPolicyS
     if (!textContent(policy.child_override).trim()) {
       throw stateConflict('child Mission Control override could not be verified')
     }
-    if (childOverrideRelaxesSharedInvariants(textContent(policy.child_override))) {
-      throw stateConflict('child Mission Control override relaxes shared invariants')
-    }
+    assertChildOverride(textContent(policy.child_override))
   }
 }
 
@@ -460,12 +532,17 @@ async function verifyRecoveryEvidence({ options, body, deps }) {
   if (liveExecutionPolicySha !== record.execution_policy_sha) {
     throw stateConflict('execution policy SHA differs from the recovery record')
   }
+  if (typeof deps.readExecutingCheckout !== 'function') {
+    throw stateConflict('executing recovery checkout identity is unavailable')
+  }
+  const executingCheckout = await deps.readExecutingCheckout(options.repo, liveExecutionPolicySha)
   const policy = await deps.readPolicySource(options.repo, liveExecutionPolicySha)
   assertExecutionPolicyEvidence({
     policy,
     record,
     state,
     executionPolicySha: liveExecutionPolicySha,
+    executingCheckout,
   })
   assertExactChecks(pr, checks, record)
 
@@ -604,6 +681,33 @@ function defaultRunGh(args, options = {}) {
 
 function createProductionDeps() {
   const runGh = defaultRunGh
+  const readGitOutput = (args) => {
+    const result = spawnSync('git', args, {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+    })
+    if (result.error || result.status !== 0) {
+      throw blockedExternal(result.stderr || result.stdout || result.error?.message || 'Git checkout inspection failed')
+    }
+    return result.stdout.trim()
+  }
+  const readExecutingCheckout = async (_repo, trustedSha) => {
+    const headSha = readGitOutput(['rev-parse', 'HEAD'])
+    const ref = readGitOutput(['symbolic-ref', '--short', 'HEAD'])
+    const status = readGitOutput(['status', '--porcelain', '--untracked-files=all'])
+    const baseSha = readGitOutput(['merge-base', trustedSha, headSha])
+    const implementationPaths = readGitOutput(['ls-tree', '-r', '--name-only', headSha])
+      .split('\n')
+      .filter(Boolean)
+    return {
+      ref,
+      head_sha: headSha,
+      base_sha: baseSha,
+      ancestor_verified: baseSha === trustedSha,
+      clean: status === '',
+      implementation_paths: implementationPaths,
+    }
+  }
   const readFileAtRef = async (repo, path, ref, { optional = false } = {}) => {
     const raw = runGh([
       'api',
@@ -701,6 +805,7 @@ function createProductionDeps() {
     readComment,
     readExactHeadChecks,
     readProtectedBase,
+    readExecutingCheckout,
     readPolicySource,
     postComment,
     writeIssueBody,

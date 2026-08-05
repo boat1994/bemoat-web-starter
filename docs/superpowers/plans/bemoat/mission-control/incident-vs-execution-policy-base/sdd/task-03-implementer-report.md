@@ -114,7 +114,50 @@ production, or retained data was mutated. Task 4 was not started.
 - The accepted guide version is intentionally pinned to `1.3.0`; a future
   policy version or execution transport change should fail closed until
   reviewed.
-- The current transport models execution on protected `main`; no new hotfix
-  execution branch route was introduced.
+- The only authorized hotfix execution branch is the exact
+  `hotfix/incident-vs-execution-policy-base` branch, and it must have observed
+  ancestry from the trusted protected execution SHA.
 
 Independent review is required before Task 3 can advance in the ledger.
+
+## Fix round 1 — reviewer P1 corrections
+
+The Task 3 reviewer reported two blocking findings against commit
+`d5238c4bdfc84b76fb82bdaf95c3ed5958da2e55`:
+
+1. Checkout identity was synthesized from the requested policy SHA rather than
+   observed from the executing checkout.
+2. Child overrides were checked with bypassable prose regexes.
+
+P1-1 is corrected by requiring an injected `readExecutingCheckout` evidence
+source. The production dependency now observes `git rev-parse HEAD`, the
+symbolic branch, clean working-tree status, `git merge-base` ancestry, and
+required recovery implementation paths. The workflow accepts either exact
+protected `main@execution_policy_sha` or only the explicitly authorized
+`hotfix/incident-vs-execution-policy-base` branch whose observed merge base is
+the trusted execution SHA. Self-declared policy metadata is no longer used as
+checkout authority. Tests cover mismatched HEAD, unrelated hotfix rejection,
+and the authorized hotfix success case.
+
+P1-2 is corrected with a closed-world YAML override parser. Only the documented
+project-specific override keys and value shapes are accepted; duplicate,
+malformed, unknown, nested unsupported, and structured relaxing declarations
+fail closed. Tests cover `allow_auto_merge: true`,
+`remove_exact_head_checks: true`, `minor_nit_blocking: true`,
+`allow_destructive_migrations: true`, `chat_history_authoritative: true`, and
+`allow_silent_state_reset: true`, plus malformed YAML. Every negative case
+asserts zero comment posts and zero Issue-body writes.
+
+Fix-round validation:
+
+- `pnpm exec vitest run tests/int/mission-control-recover-review.int.spec.ts`
+  - 19 passed, including the former divergent-base success and both P1
+    matrices.
+- `pnpm exec vitest run tests/int/mission-control-issue-body-cas.int.spec.ts tests/int/mission-control-reconcile.int.spec.ts`
+  - 83 passed.
+- Targeted ESLint, typecheck, `pnpm run guard:safety`,
+  `pnpm run guard:mission-control-contract`, `ReadLints`, and `git diff --check`
+  - Passed with no linter errors.
+
+Fix-round correction commit: pending. Task 3 remains `in_progress`; no live
+recovery or external mutation was performed.
