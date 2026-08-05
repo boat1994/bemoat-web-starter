@@ -1,3 +1,4 @@
+import { generateKeyPairSync } from 'node:crypto'
 import { createHash } from 'node:crypto'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
@@ -6,6 +7,19 @@ import { describe, expect, it } from 'vitest'
 import yaml from 'yaml'
 
 import { parseMissionControlState, renderMissionControlState } from '../../scripts/mission-control-state.mjs'
+import { buildInitialTaskState } from '../../scripts/mission-control/workflows/task-bootstrap.mjs'
+import {
+  canonicalManagedStateBinding,
+  renderCanonicalBootstrapTaskBody,
+} from '../../scripts/mission-control/domain/task-bootstrap-preflight.mjs'
+import { BOOTSTRAP_CONTRACT } from '../../scripts/mission-control/domain/task-bootstrap-authorization.mjs'
+import { buildTaskBootstrapRequestIdentity } from '../../scripts/mission-control/domain/task-bootstrap-request.mjs'
+import {
+  TASK_ATTESTATION_OPERATION,
+  TASK_ATTESTATION_OPERATION_VERSION,
+  TASK_ATTESTATION_SCHEMA,
+  createSignedEnvelope,
+} from '../../scripts/mission-control/domain/task-attestation.mjs'
 import { sameCampaignValue } from '../../scripts/mission-control/domain/campaign-equality.mjs'
 import {
   selectNextCampaignAction,
@@ -17,6 +31,14 @@ import { validateCampaign } from '../../scripts/mission-control/domain/campaign-
 import { projectCampaign } from '../../scripts/mission-control/workflows/campaign-projection.mjs'
 
 const fixtureRoot = 'tests/fixtures/mission-control/campaign'
+
+const buildInitialTaskStateForGenesis = buildInitialTaskState as unknown as (input: {
+  issueNumber: number
+  requestId: string
+  attestation: Record<string, unknown>
+  managedStateSha256?: string | null
+  now?: string | null
+}) => Record<string, unknown>
 
 function readFixture(name: string) {
   return readFileSync(join(fixtureRoot, name))
@@ -101,6 +123,99 @@ function wrapCampaignYaml(raw: string) {
   ].join('\n')
 }
 
+function createCanonicalGenesisTaskBody() {
+  const pair = generateKeyPairSync('ed25519')
+  const privateKey = pair.privateKey.export({ type: 'pkcs8', format: 'pem' }).toString()
+  const request = buildTaskBootstrapRequestIdentity({
+    repository: BOOTSTRAP_CONTRACT.repository,
+    authorizationCommentId: '9001',
+    authorizationBodySha256: 'a'.repeat(64),
+    parentIssue: BOOTSTRAP_CONTRACT.parentIssue,
+    pullRequest: BOOTSTRAP_CONTRACT.pullRequest,
+    base: BOOTSTRAP_CONTRACT.base,
+    head: BOOTSTRAP_CONTRACT.head,
+    protectedBaseSha: BOOTSTRAP_CONTRACT.protectedBaseSha,
+    policyPath: BOOTSTRAP_CONTRACT.policySource,
+    policyVersion: BOOTSTRAP_CONTRACT.policyVersion,
+    policySha: BOOTSTRAP_CONTRACT.policySha,
+  })
+  const task = {
+    number: 300,
+    id: 'I_task_300',
+    node_id: 'MDU6SXNzdWV300',
+  }
+  const parent = {
+    number: BOOTSTRAP_CONTRACT.parentIssue,
+    id: 'I_parent',
+    node_id: 'MDU6SXNzdWV1',
+  }
+  const pullRequest = {
+    number: BOOTSTRAP_CONTRACT.pullRequest,
+    id: 'PR_263',
+    node_id: 'PR_node_263',
+  }
+  const signingKeyId = 'genesis-test-key-1'
+  const payload: Record<string, unknown> = {
+    attestation_schema: TASK_ATTESTATION_SCHEMA,
+    operation: TASK_ATTESTATION_OPERATION,
+    operation_version: TASK_ATTESTATION_OPERATION_VERSION,
+    managed_state_sha256: null,
+    repository: BOOTSTRAP_CONTRACT.repository,
+    repository_id: 'R_repo',
+    repository_node_id: 'R_node',
+    protected_base_sha: BOOTSTRAP_CONTRACT.protectedBaseSha,
+    founder_login: 'boat1994',
+    authorization_comment_id: '9001',
+    authorization_body_sha256: 'a'.repeat(64),
+    parent_issue_number: parent.number,
+    parent_issue_id: parent.id,
+    parent_issue_node_id: parent.node_id,
+    task_issue_number: task.number,
+    task_issue_id: task.id,
+    task_issue_node_id: task.node_id,
+    pr_number: pullRequest.number,
+    pr_id: pullRequest.id,
+    pr_node_id: pullRequest.node_id,
+    base: BOOTSTRAP_CONTRACT.base,
+    head: BOOTSTRAP_CONTRACT.head,
+    policy_path: BOOTSTRAP_CONTRACT.policySource,
+    policy_version: BOOTSTRAP_CONTRACT.policyVersion,
+    policy_source_commit: BOOTSTRAP_CONTRACT.protectedBaseSha,
+    policy_blob_sha: BOOTSTRAP_CONTRACT.policySha,
+    request_id: request.requestId,
+    workflow_file: BOOTSTRAP_CONTRACT.workflowFile,
+    workflow_ref: 'refs/heads/main',
+    workflow_sha: BOOTSTRAP_CONTRACT.protectedBaseSha,
+    workflow_run_id: '1',
+    signing_key_id: signingKeyId,
+  }
+  const unsignedAttestation = createSignedEnvelope({
+    keyId: signingKeyId,
+    payload,
+    privateKey,
+  })
+  const detachedState = buildInitialTaskStateForGenesis({
+    issueNumber: task.number,
+    requestId: request.requestId,
+    attestation: unsignedAttestation,
+    now: null,
+  })
+  const managedStateSha256 = canonicalManagedStateBinding(detachedState)
+  const attestation = createSignedEnvelope({
+    keyId: signingKeyId,
+    payload: { ...payload, managed_state_sha256: managedStateSha256 },
+    privateKey,
+  })
+  const state = buildInitialTaskStateForGenesis({
+    issueNumber: task.number,
+    requestId: request.requestId,
+    attestation,
+    managedStateSha256,
+    now: null,
+  })
+  return renderCanonicalBootstrapTaskBody(state, attestation)
+}
+
 const issue254BlockerId = 'issue-254-planning-correction-1'
 
 function withIssue254Blocker(campaign: Record<string, unknown>): Record<string, unknown> {
@@ -162,7 +277,7 @@ describe('campaign schema characterization (Issue #243)', () => {
     const actual = listRootScripts()
     expect(actual).toEqual(inventory)
     expect(new Set(actual).size).toBe(actual.length)
-    expect(actual).toHaveLength(36)
+    expect(actual).toHaveLength(37)
   })
 
   it.each([
@@ -258,6 +373,30 @@ describe('campaign schema v1 domain', () => {
 })
 
 describe('campaign projection workflow boundary', () => {
+  it('preserves the signed genesis Task body byte-for-byte when appending campaign data', () => {
+    const taskBody = createCanonicalGenesisTaskBody()
+    const campaign = loadExactCampaignFixture()
+    const evidence = {
+      approvedBaseMergedCommits: {
+        '5d04124cb135ffc66642dc4a168c58062af384ed': true,
+      },
+    }
+
+    const projected = projectCampaign({
+      body: taskBody,
+      campaign,
+      mode: 'dry-run',
+      evidence,
+    })
+
+    expect(projected.ok).toBe(true)
+    expect(String(projected.body).startsWith(taskBody)).toBe(true)
+    expect(String(projected.body).slice(0, taskBody.length)).toBe(taskBody)
+    expect(String(projected.body).slice(taskBody.length)).toContain(
+      '<!-- bemoat-mission-control-campaign:start -->',
+    )
+  })
+
   it('supports render-only and dry-run evidence without writing live Issue #215', () => {
     const body = readFixtureText('issue-215-body.exact.txt')
     const taskBefore = readFixtureText('issue-215-task-schema-v1.exact.txt')

@@ -242,6 +242,7 @@ describe('canonical Mission Control Task bootstrap', () => {
     const result = await service.bootstrap({ founderAuthorizationCommentId: '9001' })
 
     expect(result.ok).toBe(true)
+    expect(result.outcome).toBe('CREATED')
     expect(result.issue.number).toBe(300)
     const parsed = parseMissionControlState(result.issue.body)
     expect(parsed).toMatchObject({ valid: true, state: {
@@ -270,12 +271,43 @@ describe('canonical Mission Control Task bootstrap', () => {
     expect(attestationCheck.ok).toBe(true)
   })
 
+  it('passes the signed canonical Task through the generic bootstrap preflight reader', async () => {
+    const world = createWorld()
+    const { service, keys } = serviceFor(world)
+    const result = await service.bootstrap({ founderAuthorizationCommentId: '9001' })
+
+    const preflight = preflightCanonicalBootstrapTask({
+      issue: result.issue,
+      pullRequest: await world.getPullRequest(263),
+      repository: REPO,
+      publicKey: keys.publicKey,
+      signingKeyId: 'genesis-test-key-1',
+    })
+
+    expect(preflight).toMatchObject({
+      ok: true,
+      evidence: {
+        legacy: false,
+        state: {
+          state: 'AWAITING_REVIEW_1',
+          review_cycle: 0,
+          full_review_count: 0,
+          active_task_issue: '#300',
+          active_pr: '#263',
+          current_head: HEAD_SHA,
+          parent_issue: '#262',
+        },
+      },
+    })
+  })
+
   it('is idempotent for identical retry and concurrent duplicate invocation', async () => {
     const world = createWorld()
     const { service } = serviceFor(world)
     const first = await service.bootstrap({ founderAuthorizationCommentId: '9001' })
     const retry = await service.bootstrap({ founderAuthorizationCommentId: '9001' })
     expect(retry.ok).toBe(true)
+    expect(retry.outcome).toBe('RECOVERED')
     expect(retry.issue.number).toBe(first.issue.number)
     expect(world.calls.createIssue).toBe(1)
 
@@ -286,6 +318,7 @@ describe('canonical Mission Control Task bootstrap', () => {
       concurrent.bootstrap({ founderAuthorizationCommentId: '9001' }),
     ])
     expect(results.every((entry) => entry.ok)).toBe(true)
+    expect(results.map((entry) => entry.outcome)).toEqual(expect.arrayContaining(['CREATED', 'RECOVERED']))
     expect(new Set(results.map((entry) => entry.issue.number)).size).toBe(1)
     expect(concurrentWorld.calls.createIssue).toBe(1)
   })
@@ -297,8 +330,25 @@ describe('canonical Mission Control Task bootstrap', () => {
     expect(world.calls.createIssue).toBe(1)
     const recovered = await service.bootstrap({ founderAuthorizationCommentId: '9001' })
     expect(recovered.ok).toBe(true)
+    expect(recovered.outcome).toBe('RECOVERED')
     expect(recovered.issue.number).toBe(300)
     expect(world.calls.createIssue).toBe(1)
+  })
+
+  it('recovers from a signed Task when the parent registry comment is unavailable', async () => {
+    const world = createWorld()
+    const { service } = serviceFor(world)
+    const first = await service.bootstrap({ founderAuthorizationCommentId: '9001' })
+    const authorization = world.comments.get(262)?.[0]
+    world.comments.set(262, authorization ? [authorization] : [])
+
+    const recovered = await service.bootstrap({ founderAuthorizationCommentId: '9001' })
+
+    expect(recovered.ok).toBe(true)
+    expect(recovered.outcome).toBe('IDEMPOTENT')
+    expect(recovered.issue.number).toBe(first.issue.number)
+    expect(world.calls.createIssue).toBe(1)
+    expect(world.calls.postComment).toBe(2)
   })
 
   it.each([

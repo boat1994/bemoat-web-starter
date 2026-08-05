@@ -1,0 +1,102 @@
+name: Mission Control Campaign Slice Bootstrap
+
+on:
+  workflow_dispatch:
+    inputs:
+      founder_authorization_comment_id:
+        description: Immutable Founder authorization comment ID on the Campaign Issue
+        required: true
+        type: string
+      campaign_issue_number:
+        description: Approved Campaign Issue number
+        required: true
+        type: string
+      slice_id:
+        description: Approved Campaign slice ID
+        required: true
+        type: string
+      planning_handoff_comment_id:
+        description: Immutable planning HANDOFF comment ID
+        required: true
+        type: string
+      planning_result_comment_id:
+        description: Immutable planning RESULT comment ID
+        required: true
+        type: string
+      planning_baseline_sha:
+        description: Exact protected-main planning baseline SHA
+        required: true
+        type: string
+
+# Issue writes are the only write capability. Contents is intentionally
+# read-only. Reuse mission-control-task-creation so existing protected
+# environment reviewer configuration also protects this separate operation.
+permissions:
+  actions: read
+  checks: read
+  contents: read
+  issues: write
+  metadata: read
+  pull-requests: read
+  statuses: read
+
+concurrency:
+  group: mission-control-campaign-slice-bootstrap-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    environment:
+      name: mission-control-task-creation
+    steps:
+      - name: Require the protected main dispatch ref
+        env:
+          EXPECTED_REF: refs/heads/main
+        run: |
+          set -eu
+          test "${GITHUB_REF}" = "${EXPECTED_REF}"
+
+      - name: Load implementation from protected main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify checkout is the dispatched protected ref
+        run: |
+          set -eu
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.15.0
+          cache: pnpm
+
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Execute canonical Campaign Slice bootstrap
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BEMOAT_FOUNDER_LOGINS: ${{ vars.BEMOAT_FOUNDER_LOGINS }}
+          BEMOAT_CAMPAIGN_SLICE_BOOTSTRAP_SIGNING_KEY_ID: ${{ vars.BEMOAT_CAMPAIGN_SLICE_BOOTSTRAP_SIGNING_KEY_ID }}
+          BEMOAT_CAMPAIGN_SLICE_BOOTSTRAP_SIGNING_PRIVATE_KEY: ${{ secrets.BEMOAT_CAMPAIGN_SLICE_BOOTSTRAP_SIGNING_PRIVATE_KEY }}
+          BEMOAT_TASK_BOOTSTRAP_SIGNING_KEY_ID: ${{ vars.BEMOAT_TASK_BOOTSTRAP_SIGNING_KEY_ID }}
+          BEMOAT_TASK_BOOTSTRAP_SIGNING_PRIVATE_KEY: ${{ secrets.BEMOAT_TASK_BOOTSTRAP_SIGNING_PRIVATE_KEY }}
+        run: |
+          set -eu
+          pnpm run bemoat:mission-control:campaign-slice-bootstrap -- \
+            --founder-authorization-comment-id "${{ inputs.founder_authorization_comment_id }}" \
+            --campaign-issue-number "${{ inputs.campaign_issue_number }}" \
+            --slice-id "${{ inputs.slice_id }}" \
+            --planning-handoff-comment-id "${{ inputs.planning_handoff_comment_id }}" \
+            --planning-result-comment-id "${{ inputs.planning_result_comment_id }}" \
+            --planning-baseline-sha "${{ inputs.planning_baseline_sha }}"
