@@ -4,6 +4,10 @@ import { createHash } from 'node:crypto'
 import { parseCorrectionContract } from './correction-contract.mjs'
 import { writeIssueBodyWithLease } from './mission-control-issue-body-cas.mjs'
 import { parseMissionControlState, populateOrPreservePlanningAuthorizationBaseSha, projectMissionControlStateBlock } from './mission-control-state.mjs'
+import {
+  detectUnaccountedReviewEvidence,
+  isReviewRecoveryIncident,
+} from './mission-control/domain/review-recovery.mjs'
 
 const PRE_DELIVERY_STATES = new Set(['READY', 'IN_PROGRESS', 'CORRECTION_REQUIRED_1', 'CORRECTION_REQUIRED_2'])
 const CORE_VERDICTS = new Set([
@@ -2261,6 +2265,22 @@ async function runProductionReviewVerdictReconciliation(options) {
   const comments = normalizeIssueComments(parsePaginatedGhApiJson(
     run('gh', ['api', '--paginate', `repos/${repo}/issues/${options.issue}/comments`]),
   ))
+  if (isReviewRecoveryIncident({ taskIssue: options.issue, activePr: prNumber })) {
+    const prComments = normalizeIssueComments(parsePaginatedGhApiJson(
+      run('gh', ['api', '--paginate', `repos/${repo}/issues/${prNumber}/comments`]),
+    ))
+    const rawEvidence = detectUnaccountedReviewEvidence({
+      repository: repo,
+      taskIssue: options.issue,
+      activePr: prNumber,
+      managedState: state,
+      issueComments: comments,
+      prComments,
+    })
+    if (!rawEvidence.ok) {
+      throw new Error(`${rawEvidence.code}: ${rawEvidence.reason}. Use ${rawEvidence.recoveryCommand}.`)
+    }
+  }
   const verdictComment = selectLiveReviewVerdictComment({
     comments,
     issueNumber: options.issue,
@@ -2347,6 +2367,27 @@ async function runProductionBoundedReconciliation() {
     const state = parseMissionControlState(issue.body)
     if (!state.present || !state.valid) throw new Error(`invalid managed state: ${state.reason ?? 'missing state block'}`)
     expectedBody = issue.body
+    const activePr = String(state.state.active_pr ?? '').replace(/^#/, '')
+    if (activePr && isReviewRecoveryIncident({ taskIssue: options.issue, activePr })) {
+      const repository = options.repo || run('gh', ['repo', 'view', '--json', 'nameWithOwner', '--jq', '.nameWithOwner'])
+      const issueComments = normalizeIssueComments(parsePaginatedGhApiJson(
+        run('gh', ['api', '--paginate', `repos/${repository}/issues/${options.issue}/comments`]),
+      ))
+      const prComments = normalizeIssueComments(parsePaginatedGhApiJson(
+        run('gh', ['api', '--paginate', `repos/${repository}/issues/${activePr}/comments`]),
+      ))
+      const rawEvidence = detectUnaccountedReviewEvidence({
+        repository,
+        taskIssue: options.issue,
+        activePr,
+        managedState: state.state,
+        issueComments,
+        prComments,
+      })
+      if (!rawEvidence.ok) {
+        throw new Error(`${rawEvidence.code}: ${rawEvidence.reason}. Use ${rawEvidence.recoveryCommand}.`)
+      }
+    }
     const analysis = analyzeProgressTracking({
       activeIssueBody: issue.body,
       activeIssueNumber: options.issue,

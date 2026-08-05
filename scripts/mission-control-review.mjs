@@ -16,6 +16,10 @@ import {
   resolveProductionCommentTrust,
 } from './mission-control-reconcile.mjs'
 import { writeIssueBodyWithLease } from './mission-control-issue-body-cas.mjs'
+import {
+  detectUnaccountedReviewEvidence,
+  isReviewRecoveryIncident,
+} from './mission-control/domain/review-recovery.mjs'
 
 function parseArgs(argv) {
   const options = { issue: null, repo: null, bodyFile: null, expectedState: null, reviewType: null, expectedHead: null }
@@ -78,6 +82,10 @@ async function main() {
   if (!analyzeExactHeadCi(pr).exactHeadVerified) throw new Error('STATE_CONFLICT: exact-head CI is not verified')
 
   const listComments = () => normalizeIssueComments(parsePaginatedGhApiJson(run('gh', ['api', '--paginate', `repos/${repo}/issues/${options.issue}/comments`])))
+  const listPrComments = () =>
+    isReviewRecoveryIncident({ taskIssue: options.issue, activePr: parsedVerdict.prNumber })
+      ? normalizeIssueComments(parsePaginatedGhApiJson(run('gh', ['api', '--paginate', `repos/${repo}/issues/${parsedVerdict.prNumber}/comments`])))
+      : []
   const postComment = (commentBody) => {
     const temp = mkdtempSync(join(tmpdir(), 'bemoat-review-comment-'))
     const payload = join(temp, 'payload.json')
@@ -100,6 +108,17 @@ async function main() {
     return verifiedState.state
   }
   const original = readIssue()
+  const rawEvidence = detectUnaccountedReviewEvidence({
+    repository: repo,
+    taskIssue: options.issue,
+    activePr: parsedVerdict.prNumber,
+    managedState: original,
+    issueComments: listComments(),
+    prComments: listPrComments(),
+  })
+  if (!rawEvidence.ok) {
+    throw new Error(`${rawEvidence.code}: ${rawEvidence.reason}. Use ${rawEvidence.recoveryCommand}.`)
+  }
   const bootstrapPreflight = preflightCanonicalBootstrapTask({
     issue: liveIssue,
     pullRequest: pr,

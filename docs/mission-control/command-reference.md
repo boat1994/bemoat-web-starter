@@ -11,6 +11,7 @@ overrides chat, copied handoffs, local notes, or stale values.
 | `dispatch` | Start work on a Task Issue, claim `IN_PROGRESS` only. Dispatch does not own `AWAITING_REVIEW_1` transitions. |
 | `delivery` | Owns the transition of a successful implementation to `AWAITING_REVIEW_1`. (Note: Delivery is a workflow boundary, not a standalone CLI script in this reference). |
 | `review` | Submit a Full Review 1 or Delta Review verdict, update counters and target states. |
+| `recover-review` | Exceptional, exact-incident transport for the approved #274/#275 raw-review quarantine; it is not ordinary review. |
 | `reconcile` | Repair state routing mismatch. Requires an existing valid managed-state block. Cannot initialize state, replay reviews, post verdicts, or increment counters. |
 | `merge` | Finalize Founder-authorized merge. Uses the live PR head and an existing Founder JSON authorization comment. |
 | (none) | Stop and request human review if evidence disagrees, authentication fails, or preconditions mismatch. Never mutate state YAML directly. |
@@ -18,6 +19,11 @@ overrides chat, copied handoffs, local notes, or stale values.
 ## Preflight checklist
 
 Before invoking a command, manually verify these specific values to avoid `STATE_CONFLICT` or `BLOCKED_EXTERNAL`.
+Consult the machine-readable `scripts/mission-control/transport-registry.mjs`
+before any durable write. It is the ownership map: ordinary
+`REVIEW_VERDICT` publication belongs only to `review`; `recover-review` is an
+exceptional quarantine/projector for its pinned incident and cannot be used as
+a generic comment-repair API.
 
 ### Shared checks (all commands)
 - [ ] Active repository matches command target.
@@ -124,6 +130,46 @@ duplicate or malformed positional arguments, or a mismatched authorization;
 unavailable GitHub/comment/ref operations classify as `BLOCKED_EXTERNAL`.
 Never replace dispatch with a direct `gh issue edit`, manual YAML edit, or ad hoc
 transition script.
+
+## Review recovery
+
+Exact syntax:
+
+```text
+pnpm run bemoat:mission-control:recover-review -- 274 \
+  --repo boat1994/bemoat-web-starter \
+  --expected-pr 275 --expected-base main \
+  --expected-state AWAITING_REVIEW_2 \
+  --expected-head <full-40-character-sha> \
+  --expected-review-cycle 1 --expected-full-review-count 1 \
+  --review-type delta \
+  --issue-source-comment 5187836238 \
+  --pr-source-comment 5187837555 \
+  --original-review-comment <immutable-comment-id> \
+  --correction-result-comment <immutable-comment-id> \
+  --body-file <canonical-recovery-verdict.md>
+```
+
+This command is restricted to the approved Issue #274 / PR #275 incident. It
+re-reads the live Task state, PR/base/head, protected base, merged policy,
+exact-head `CI` and `CI (starter strict)`, source-comment locations and hashes,
+reviewer identity, original finding contract, correction RESULT evidence, and
+later role evidence. The two raw source comments remain unchanged.
+
+The body must contain one canonical `REVIEW_VERDICT` plus exactly one typed
+recovery receipt. Recovery consumes the exact `AWAITING_REVIEW_2` `1/1`
+pre-state and projects `ELIGIBLE_FOR_FOUNDER_REVIEW`; resulting counters `2/1`, preserving
+the original Review 1 and correction RESULT lineage. It posts only to the
+Task Issue, uses the repository-wide fenced lease and expected-body CAS, and
+returns `NO_OP` for an identical retry. An uncertain comment POST is resumed
+by matching the same typed receipt; it never creates a duplicate.
+
+Before recovery, review, reconcile, and merge fail closed with
+`NONCANONICAL_ROLE_EVIDENCE` while relevant raw evidence is unaccounted for.
+After recovery, only the matching receipt's exact source IDs and hashes are
+quarantined. Any later, competing, or malformed role evidence remains a
+stop condition. Do not run this transport during implementation of another
+task or use it to repair arbitrary comments.
 
 ## Reconcile
 

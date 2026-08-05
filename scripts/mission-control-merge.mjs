@@ -17,6 +17,10 @@ import { sameCampaignValue } from './mission-control/domain/campaign-equality.mj
 import { parseCampaign } from './mission-control/domain/campaign-parser.mjs'
 import { replaceCampaignBlock } from './mission-control/domain/campaign-renderer.mjs'
 import { preflightCanonicalBootstrapTask } from './mission-control/domain/task-bootstrap-preflight.mjs'
+import {
+  detectUnaccountedReviewEvidence,
+  isReviewRecoveryIncident,
+} from './mission-control/domain/review-recovery.mjs'
 
 const STARTER_REPOSITORY = 'boat1994/bemoat-web-starter'
 const FULL_SHA_RE = /^[0-9a-f]{40}$/i
@@ -965,6 +969,26 @@ export async function runFounderAuthorizedMerge({
   if (!prNumber) throw stateConflict('directly managed task has no active PR terminal ownership')
   let pr = await deps.readPullRequest(prNumber, repo)
   verifyDirectOwnership(issueNumber, issue, pr)
+  if (
+    typeof deps.readIssueComments === 'function' &&
+    isReviewRecoveryIncident({ taskIssue: issueNumber, activePr: prNumber })
+  ) {
+    const [issueComments, prComments] = await Promise.all([
+      deps.readIssueComments(repo, issueNumber),
+      deps.readIssueComments(repo, prNumber),
+    ])
+    const rawEvidence = detectUnaccountedReviewEvidence({
+      repository: repo,
+      taskIssue: issueNumber,
+      activePr: prNumber,
+      managedState: state,
+      issueComments,
+      prComments,
+    })
+    if (!rawEvidence.ok) {
+      throw stateConflict(`${rawEvidence.code}: ${rawEvidence.reason}. Use ${rawEvidence.recoveryCommand}.`)
+    }
+  }
   const bootstrapPreflight = preflightCanonicalBootstrapTask({
     issue,
     pullRequest: pr,
@@ -1576,6 +1600,7 @@ function createProductionDeps() {
   return {
     readManagedIssue,
     readPullRequest,
+    readIssueComments,
     readFounderAuthorization: async (repo, issueNumber, commentId) => {
       const comment = readIssueComment(repo, issueNumber, commentId)
       const parsed = parseFounderMergeAuthorization(comment.body)

@@ -249,6 +249,13 @@
       "migration_status": "planned"
     },
     {
+      "path": "scripts/mission-control-recover-review.mjs",
+      "facade_disposition": "composition_root",
+      "internal_destination": "scripts/mission-control/workflows/recover-review.mjs",
+      "owning_slice": 5,
+      "migration_status": "planned"
+    },
+    {
       "path": "scripts/mission-control-review.mjs",
       "facade_disposition": "composition_root",
       "internal_destination": "scripts/mission-control/workflows/review.mjs",
