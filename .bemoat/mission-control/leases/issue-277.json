@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "issue": "277",
-  "transition_identity": "{\"taskId\":\"277\",\"phase\":\"Dev (implementation)\",\"role\":\"HANDOFF\",\"contentHash\":\"6a9da8e76b109cb3ebaece37f7ef666e3c009115a650df27801bd1c60a6746ac\"}",
+  "transition_identity": "{\"taskId\":\"277\",\"phase\":\"Dev (implementation)\",\"role\":\"RESULT\",\"contentHash\":\"8a1f5f029d86226b394eb867ca65f66474fd392cc03881eac473f79d0624c415\"}",
   "observed_body_sha256": "5a3434dabc2d38915f168b75a758dbac6018da70898084d6d94c9f7ab264934e",
-  "holder": "mission-control-state-migration",
-  "status": "released",
-  "updated_at": "2026-08-05T06:10:15.969Z"
+  "holder": "agent-delivery",
+  "status": "held",
+  "updated_at": "2026-08-05T06:47:38.877Z"
 }
