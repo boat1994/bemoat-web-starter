@@ -100,11 +100,11 @@ function createHarness(options: Record<string, any> = {}) {
     last_reviewed_head: taskReviewedHead,
     approved_base: taskBase,
     ...options.managedState,
+    ...(options.standalone ? {
+      campaign_issue: undefined,
+      campaign_slice: undefined,
+    } : {}),
   })
-  if (options.standalone) {
-    delete taskState.campaign_issue
-    delete taskState.campaign_slice
-  }
   const issues = new Map<number, any>([
     [taskIssue, {
       number: taskIssue,
