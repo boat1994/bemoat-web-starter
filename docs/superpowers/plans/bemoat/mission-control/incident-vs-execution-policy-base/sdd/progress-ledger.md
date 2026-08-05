@@ -84,7 +84,7 @@ run the recovery transport against live GitHub.
 
 | Task | Owner | Status | Required evidence before marking complete |
 | --- | --- | --- | --- |
-| 1. Characterize impossible binding | Dev | NOT STARTED | A focused test fails against the current one-field equality with no production change. |
+| 1. Characterize impossible binding | Dev | in_progress | A focused test fails against the current one-field equality with no production change. |
 | 2. Separate recovery bindings | Dev | NOT STARTED | Domain/receipt/parser/validator/identity tests prove both fields are required and independently serialized. |
 | 3. Load policy from execution SHA | Dev | NOT STARTED | Workflow uses exact execution SHA; stale base, wrong ref, and wrong guide evidence fail closed. |
 | 4. Pinned integration/idempotency regression | Dev | NOT STARTED | Simulated #274/#275 success, retry `NO_OP`, ambiguous POST recovery, and no duplicate/source mutation. |
@@ -117,3 +117,20 @@ run the recovery transport against live GitHub.
   retained-data operation performed.
 - Next permitted action: Mission Control dispatches Task 1 to write and run the
   failing characterization test only.
+
+### 2026-08-05 — Task 1 dispatched
+
+- Confirmed clean worktree on branch
+  `hotfix/incident-vs-execution-policy-base` at the existing docs/setup
+  commit.
+- Wrote the complete Task 1 brief to
+  `sdd/task-01-brief.md`.
+- Task 1 remains `in_progress`; the focused characterization test now fails at
+  the current one-field protected-base equality with
+  `STATE_CONFLICT: protected base SHA differs from the recovery record`.
+- The full recovery fixture file reports 1 expected characterization failure
+  and 6 passing existing tests. The existing six-test selector passes all 6.
+- `ReadLints` reports no errors for the changed test, and `git diff --check`
+  passes.
+- No production code, live recovery command, GitHub artifact, child project,
+  deployment, migration, or retained data was changed.

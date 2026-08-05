@@ -4,12 +4,18 @@ import { describe, expect, it } from 'vitest'
 
 const INCIDENT_HEAD = 'c44bf1bc379fe4160946dce96e5a4d7abae7b5b0'
 const PREVIOUS_REVIEW_HEAD = '301ae166052af036ce4d727be59d8d20cc8c02d1'
+const INCIDENT_BASE_SHA = '88b306c7e055751f78b9ced5922607eee2d1037f'
+const EXECUTION_POLICY_SHA = 'ce8d67b19c6c5d210024434f532dcc32ebdc6daf'
+const POLICY_SOURCE_SHA = 'e'.repeat(40)
+const ORIGINAL_REVIEW_COMMENT = '5187488219'
+const CORRECTION_RESULT_COMMENT = '5187802812'
 const FINDING_IDS = Array.from({ length: 7 }, (_, index) => `MC-R1-00${index + 1}`)
 
 const recoveryModulePromise = import('../../scripts/mission-control/domain/review-recovery.mjs')
 const registryModulePromise = import('../../scripts/mission-control/transport-registry.mjs')
 const workflowModulePromise = import('../../scripts/mission-control/workflows/recover-review.mjs')
 const reconcileModulePromise = import('../../scripts/mission-control-reconcile.mjs')
+const stateModulePromise = import('../../scripts/mission-control-state.mjs')
 
 function sha256(value: string): string {
   return createHash('sha256').update(value, 'utf8').digest('hex')
@@ -20,7 +26,7 @@ function rawIncidentBody(): string {
 
 **Verdict:** ELIGIBLE FOR FOUNDER REVIEW
 **State:** head \`${INCIDENT_HEAD}\`
-**Findings:** Critical: None · Important: MC-R1-001..MC-R1-007 resolved
+**Findings:** Critical: None · Important: ${FINDING_IDS.join(', ')} resolved
 `
 }
 
@@ -70,9 +76,121 @@ function buildIncidentRecord(
       { name: 'ci', check_run_id: 92212805944, conclusion: 'success', head_sha: INCIDENT_HEAD },
       { name: 'starter-ci', check_run_id: 92212805950, conclusion: 'success', head_sha: INCIDENT_HEAD },
     ],
-    protected_base_sha: '8'.repeat(40),
-    policy_source_sha: 'e'.repeat(40),
+    protected_base_sha: INCIDENT_BASE_SHA,
+    policy_source_sha: POLICY_SOURCE_SHA,
   })
+}
+
+function correctionFindingContract() {
+  return FINDING_IDS.map((id) => ({
+    id,
+    canonical_summary: `${id} immutable pinned recovery finding`,
+    source_thread: `https://github.com/boat1994/bemoat-web-starter/pull/275#discussion_${id}`,
+    required_evidence: ['exact pinned recovery fixture'],
+    expected_areas: ['tests/int'],
+    prohibited_areas: ['scripts/mission-control'],
+  }))
+}
+
+function originalReviewBody(): string {
+  return `## REVIEW_VERDICT
+
+### Task log
+- Timestamp: 2026-08-05T10:00:00+07:00
+- Task / Issue: #274
+- Phase: Review 1
+- Executing role: Reviewer
+
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/275 · \`main\` · \`${PREVIOUS_REVIEW_HEAD}\`
+**Verdict:** CORRECTION REQUIRED
+**Findings:** Critical: None · Important: ${FINDING_IDS.join(', ')}
+
+\`\`\`json
+${JSON.stringify({
+  schema_version: 1,
+  reviewed_head: PREVIOUS_REVIEW_HEAD,
+  findings: correctionFindingContract(),
+}, null, 2)}
+\`\`\`
+`
+}
+
+function correctionResultBody(): string {
+  return `## RESULT
+
+### Task log
+- Timestamp: 2026-08-05T11:00:00+07:00
+- Task / Issue: #274
+- Phase: Dev (correction)
+- Executing role: Dev
+
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/275 · \`main\` · \`${INCIDENT_HEAD}\`
+**Findings:** Critical: None · Important: ${FINDING_IDS.join(', ')} resolved
+
+\`\`\`json
+${JSON.stringify({
+  schema_version: 2,
+  correction_base: PREVIOUS_REVIEW_HEAD,
+  finding_results: Object.fromEntries(FINDING_IDS.map((id) => [
+    id,
+    {
+      changed_files: ['tests/int/mission-control-recover-review.int.spec.ts'],
+      tests: ['pnpm exec vitest run tests/int/mission-control-recover-review.int.spec.ts'],
+      status: 'CLAIMED_RESOLVED',
+    },
+  ])),
+}, null, 2)}
+\`\`\`
+`
+}
+
+function initialManagedState(): Record<string, unknown> {
+  return {
+    schema_version: 1,
+    state: 'AWAITING_REVIEW_2',
+    review_cycle: 1,
+    full_review_count: 1,
+    approved_base: 'main',
+    active_task_issue: '#274',
+    active_pr: '#275',
+    current_head: INCIDENT_HEAD,
+    last_reviewed_head: PREVIOUS_REVIEW_HEAD,
+    guide_version: '1.3.0',
+    guide_source_ref: 'main',
+    guide_source_sha: POLICY_SOURCE_SHA,
+    open_blockers: [...FINDING_IDS],
+    follow_up_issues: [],
+    next_permitted_action: 'Review 2 on the corrected exact head.',
+    material_change_status: 'none',
+    updated_at: '2026-08-05T11:00:00+07:00',
+    updated_by: 'Mission Control',
+    latest_result_comment_id: CORRECTION_RESULT_COMMENT,
+    latest_review_verdict_comment_id: ORIGINAL_REVIEW_COMMENT,
+  }
+}
+
+function recoveryBody(
+  record: Record<string, unknown>,
+  renderRecoveryReceipt: (value: Record<string, unknown>) => string,
+): string {
+  return `## REVIEW_VERDICT
+
+### Task log
+- Timestamp: 2026-08-05T13:00:00+07:00
+**Task / Issue:** #274
+- Phase: Review Recovery
+- Executing role: Mission Control Recovery Transport
+
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/275 · \`main\` · \`${INCIDENT_HEAD}\`
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+**Review type:** delta
+**Resulting counters:** 2 / 1
+**Findings:** Critical: None · Important: None
+**Gates:** exact-head CI pass
+**Next:** Founder merge authorization
+
+${renderRecoveryReceipt(record)}
+`
 }
 
 describe('Mission Control review recovery transport', () => {
@@ -207,6 +325,167 @@ The PR #275 is ready, but this is not a canonical binding.
     expect(() => parseRecoveryArgs(['274', '--repo', 'other/repo'])).toThrow(
       /--expected-pr is required/,
     )
+  })
+
+  it('accepts divergent incident and execution bases', async () => {
+    const { buildRecoveryRecord, renderRecoveryReceipt, validateRecoveryRecord } =
+      await recoveryModulePromise
+    const { parseRecoveryArgs, runReviewRecovery } = await workflowModulePromise
+    const { parseMissionControlState, renderMissionControlState } = await stateModulePromise
+
+    const sourceBody = rawIncidentBody()
+    const originalReview = originalReviewBody()
+    const correctionResult = correctionResultBody()
+    const record = buildIncidentRecord(buildRecoveryRecord, sourceBody, sourceBody)
+    const body = recoveryBody(record, renderRecoveryReceipt)
+    const options = parseRecoveryArgs([
+      '274',
+      '--repo', 'boat1994/bemoat-web-starter',
+      '--expected-pr', '275',
+      '--expected-base', 'main',
+      '--expected-state', 'AWAITING_REVIEW_2',
+      '--expected-head', INCIDENT_HEAD,
+      '--expected-review-cycle', '1',
+      '--expected-full-review-count', '1',
+      '--review-type', 'delta',
+      '--issue-source-comment', '5187836238',
+      '--pr-source-comment', '5187837555',
+      '--original-review-comment', ORIGINAL_REVIEW_COMMENT,
+      '--correction-result-comment', CORRECTION_RESULT_COMMENT,
+      '--body-file', 'pinned-recovery.md',
+    ])
+
+    const initialState = initialManagedState()
+    const issueSource = {
+      id: '5187836238',
+      body: sourceBody,
+      issue_url: 'https://api.github.com/repos/boat1994/bemoat-web-starter/issues/274',
+      user: { login: 'boat1994' },
+      author_association: 'OWNER',
+    }
+    const prSource = {
+      id: '5187837555',
+      body: sourceBody,
+      issue_url: 'https://api.github.com/repos/boat1994/bemoat-web-starter/issues/275',
+      user: { login: 'boat1994' },
+      author_association: 'OWNER',
+    }
+    const commentsById = new Map([
+      [issueSource.id, issueSource],
+      [prSource.id, prSource],
+      [ORIGINAL_REVIEW_COMMENT, { id: ORIGINAL_REVIEW_COMMENT, body: originalReview }],
+      [CORRECTION_RESULT_COMMENT, { id: CORRECTION_RESULT_COMMENT, body: correctionResult }],
+    ])
+    const pullRequest = {
+      number: 275,
+      baseRefName: 'main',
+      baseRefOid: INCIDENT_BASE_SHA,
+      headRefOid: INCIDENT_HEAD,
+      state: 'OPEN',
+      isDraft: false,
+    }
+    const checks = [
+      { id: 92212805944, name: 'CI', conclusion: 'success', head_sha: INCIDENT_HEAD },
+      { id: 92212805950, name: 'CI (starter strict)', conclusion: 'success', head_sha: INCIDENT_HEAD },
+    ]
+    let managedIssue = {
+      number: 274,
+      body: `Mission Control mode: required\n\n${renderMissionControlState(initialState)}`,
+      managedState: initialState,
+    }
+    let issueComments = [issueSource]
+    const prComments = [prSource]
+    let postCount = 0
+
+    const deps = {
+      readManagedIssue: async () => structuredClone(managedIssue),
+      readPullRequest: async () => structuredClone(pullRequest),
+      readIssueComments: async (_repo: string, issueNumber: string) =>
+        structuredClone(issueNumber === '274' ? issueComments : prComments),
+      readComment: async (_repo: string, commentId: string) => {
+        const comment = commentsById.get(String(commentId))
+        if (!comment) throw new Error(`missing pinned comment ${commentId}`)
+        return structuredClone(comment)
+      },
+      readExactHeadChecks: async () => structuredClone(checks),
+      readProtectedBase: async () => ({ sha: EXECUTION_POLICY_SHA }),
+      readPolicySource: async () => ({ sha: POLICY_SOURCE_SHA }),
+      postComment: async (_repo: string, _issueNumber: string, commentBody: string) => {
+        postCount += 1
+        const comment = {
+          id: 'recovery-1',
+          body: commentBody,
+          author: 'boat1994',
+          author_association: 'OWNER',
+          createdAt: '2026-08-05T13:00:00+07:00',
+        }
+        issueComments = [...issueComments, comment]
+        return comment
+      },
+      writeIssueBody: async ({ nextBody }: { nextBody: string }) => {
+        const parsed = parseMissionControlState(nextBody)
+        if (!parsed.valid || !parsed.state) throw new Error(`invalid projected fixture state: ${parsed.reason}`)
+        managedIssue = {
+          ...managedIssue,
+          body: nextBody,
+          managedState: parsed.state,
+        }
+      },
+    }
+
+    expect(validateRecoveryRecord(record)).toMatchObject({ ok: true })
+    expect(record).toMatchObject({
+      expected_prior_state: 'AWAITING_REVIEW_2',
+      expected_prior_counters: { review_cycle: 1, full_review_count: 1 },
+      protected_base_sha: INCIDENT_BASE_SHA,
+      policy_source_sha: POLICY_SOURCE_SHA,
+      exact_head: INCIDENT_HEAD,
+      prior_last_reviewed_head: PREVIOUS_REVIEW_HEAD,
+      lineage: {
+        original_review_comment_id: 5187488219,
+        correction_result_comment_id: 5187802812,
+      },
+      resolved_findings: FINDING_IDS,
+      ci: [
+        { name: 'ci', conclusion: 'success', head_sha: INCIDENT_HEAD },
+        { name: 'starter-ci', conclusion: 'success', head_sha: INCIDENT_HEAD },
+      ],
+    })
+    expect(initialState).toMatchObject({
+      state: 'AWAITING_REVIEW_2',
+      review_cycle: 1,
+      full_review_count: 1,
+      active_pr: '#275',
+      current_head: INCIDENT_HEAD,
+      last_reviewed_head: PREVIOUS_REVIEW_HEAD,
+      latest_result_comment_id: CORRECTION_RESULT_COMMENT,
+      latest_review_verdict_comment_id: ORIGINAL_REVIEW_COMMENT,
+      open_blockers: FINDING_IDS,
+    })
+    expect(pullRequest).toMatchObject({
+      baseRefOid: INCIDENT_BASE_SHA,
+      headRefOid: INCIDENT_HEAD,
+      state: 'OPEN',
+    })
+    expect(checks).toEqual([
+      { id: 92212805944, name: 'CI', conclusion: 'success', head_sha: INCIDENT_HEAD },
+      { id: 92212805950, name: 'CI (starter strict)', conclusion: 'success', head_sha: INCIDENT_HEAD },
+    ])
+    expect(sourceBody).toEqual(rawIncidentBody())
+    expect(originalReview).toContain(PREVIOUS_REVIEW_HEAD)
+    expect(correctionResult).toContain(PREVIOUS_REVIEW_HEAD)
+
+    await expect(runReviewRecovery({ options, body, deps })).resolves.toMatchObject({
+      outcome: 'RECOVERED',
+    })
+    expect(postCount).toBe(1)
+    expect(managedIssue.managedState).toMatchObject({
+      state: 'ELIGIBLE_FOR_FOUNDER_REVIEW',
+      review_cycle: 2,
+      full_review_count: 1,
+      current_head: INCIDENT_HEAD,
+      last_reviewed_head: INCIDENT_HEAD,
+    })
   })
 
   it('resumes an ambiguous recovery comment POST without posting a duplicate', async () => {
