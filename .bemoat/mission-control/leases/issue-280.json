@@ -2,8 +2,8 @@
   "schema_version": 1,
   "issue": "280",
   "transition_identity": "{\"taskId\":\"280\",\"phase\":\"Dev (implementation)\",\"role\":\"RESULT\",\"contentHash\":\"0c22e96eb07eb21f11880fb8763b7a4507d776c469eb6d62b5b3723e5fa1d455\"}",
-  "observed_body_sha256": "517b3e54ef4230dfc8338154b24de159bfc840d157b433001ec66ecf54a0771d",
+  "observed_body_sha256": "2e13cde39e3c12c31a6fc27f6bc61e8466a40c9be5a84e4267cfb74e71ff87aa",
   "holder": "agent-delivery",
-  "status": "held",
-  "updated_at": "2026-08-05T12:43:24.744Z"
+  "status": "released",
+  "updated_at": "2026-08-05T12:43:28.671Z"
 }
