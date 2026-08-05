@@ -43,6 +43,7 @@
     "bemoat:mission-control:dispatch": "node scripts/mission-control-dispatch.mjs",
     "bemoat:mission-control:task-bootstrap": "node scripts/mission-control-task-create.mjs",
     "bemoat:mission-control:merge": "node scripts/mission-control-merge.mjs",
+    "bemoat:mission-control:recover-review": "node scripts/mission-control-recover-review.mjs",
     "bemoat:mission-control:reconcile": "node scripts/mission-control-reconcile.mjs",
     "bemoat:mission-control:review": "node scripts/mission-control-review.mjs",
     "bemoat:issue:comment": "node scripts/post-role-comment.mjs",

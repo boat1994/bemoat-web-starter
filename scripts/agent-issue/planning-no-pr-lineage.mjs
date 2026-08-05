@@ -94,7 +94,7 @@ export function verifyPlanningNoPrDurableProofs({
     )
   }
 
-  if (state.last_reviewed_head && state.last_reviewed_head !== contractReviewedHead) {
+  if (contractReviewedHead && (!state.last_reviewed_head || state.last_reviewed_head !== contractReviewedHead)) {
     errors.push('STATE CONFLICT: state last_reviewed_head does not match the immutable contract reviewed_head')
   }
 

@@ -29,6 +29,7 @@
   "scripts/mission-control-issue-body-cas.mjs",
   "scripts/mission-control-merge.mjs",
   "scripts/mission-control-reconcile.mjs",
+  "scripts/mission-control-recover-review.mjs",
   "scripts/mission-control-review.mjs",
   "scripts/mission-control-state.mjs",
   "scripts/mission-control-task-create.mjs",
