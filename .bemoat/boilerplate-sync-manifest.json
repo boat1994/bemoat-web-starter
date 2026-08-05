@@ -139,6 +139,7 @@
     "tests/int/mission-control-task-bootstrap-contract.int.spec.ts",
     "tests/int/mission-control-task-initialization.int.spec.ts",
     "tests/int/mission-control-campaign-slice-bootstrap.int.spec.ts",
+    "tests/int/mission-control-campaign-slice-bootstrap-signing.int.spec.ts",
     "tests/int/mission-control-child-portability.int.spec.ts",
     "tests/int/mission-control-brainstorming.int.spec.ts",
     "tests/int/toolchain-contract.int.spec.ts",

@@ -26,6 +26,7 @@ import {
   CAMPAIGN_SLICE_BOOTSTRAP_PROVISIONAL_MARKER_END,
   CAMPAIGN_SLICE_BOOTSTRAP_PROVISIONAL_MARKER_START,
   CAMPAIGN_SLICE_BOOTSTRAP_REQUEST_ID_PREFIX,
+  renderCampaignSliceBootstrapProvisionalTaskBody,
 } from '../../scripts/mission-control/domain/campaign-slice-bootstrap-request.mjs'
 import {
   BOOTSTRAP_CONTRACT,
@@ -35,6 +36,13 @@ import {
   PROVISIONAL_TASK_MARKER,
 } from '../../scripts/mission-control/domain/task-bootstrap-request.mjs'
 import * as campaignSliceBootstrapWorkflowModule from '../../scripts/mission-control/workflows/campaign-slice-bootstrap.mjs'
+import { createCampaignSliceBootstrapGithubAdapter } from '../../scripts/mission-control/adapters/campaign-slice-bootstrap-github.mjs'
+import {
+  compareAndSwapIssueBody,
+  createMemoryLeaseStore,
+  hashIssueBody,
+  leasePathForIssue,
+} from '../../scripts/mission-control-issue-body-cas.mjs'
 
 type AnyRecord = Record<string, any>
 
@@ -61,6 +69,14 @@ const POLICY_BLOB_SHA = 'e79694467b89dace927c27a1022ec3d260a4a43c'
 const FIXTURE_PATH = resolve(
   process.cwd(),
   'tests/fixtures/mission-control/campaign-slice-bootstrap/issue-215-slice-5-world.json',
+)
+const EXACT_HANDOFF_BODY_PATH = resolve(
+  process.cwd(),
+  'tests/fixtures/mission-control/campaign-slice-bootstrap/planning-handoff-5181983011.exact.md',
+)
+const EXACT_RESULT_BODY_PATH = resolve(
+  process.cwd(),
+  'tests/fixtures/mission-control/campaign-slice-bootstrap/planning-result-5182110653.exact.md',
 )
 
 const fixture = JSON.parse(readFileSync(FIXTURE_PATH, 'utf8')) as AnyRecord
@@ -104,6 +120,10 @@ const campaignEvidence = {
 
 type FailureMode =
   | 'ambiguous-issue-create'
+  | 'after-campaign-before-completion'
+  | 'after-final-task-body-before-campaign'
+  | 'after-ownership-registry'
+  | 'after-provisional-allocation'
   | 'after-task-allocation'
   | 'after-task-initialization'
   | 'before-campaign-projection'
@@ -233,9 +253,14 @@ function createWorld(options: WorldOptions = {}) {
   const registryOwners = new Map<string, string>()
   const registryRecords = new Map<string, AnyRecord>()
 
-  const writeIssueBody = async (number: number, body: string) => {
+  const writeIssueBody = async (number: number, body: string, expectedBody?: string) => {
     const issue = issues.get(Number(number))
     if (!issue) throw Object.assign(new Error('issue disappeared'), { code: 'NOT_FOUND' })
+    if (expectedBody !== undefined && issue.body !== expectedBody) {
+      throw Object.assign(new Error('issue body compare-and-swap expectedBody mismatch'), {
+        code: 'CAS_CONFLICT',
+      })
+    }
     if (Number(number) === CAMPAIGN_ISSUE) {
       calls.campaignProjection += 1
       if (failure.mode === 'campaign-cas-conflict' && !failure.consumed) {
@@ -339,7 +364,7 @@ function createWorld(options: WorldOptions = {}) {
       return getIssue(number)
     },
     async listIssues() {
-      return [...issues.values()].map(clone)
+      return [...issues.values()].map((value) => clone(value))
     },
     async getIssueComments(number: number) {
       return clone(comments.get(Number(number)) ?? [])
@@ -367,19 +392,23 @@ function createWorld(options: WorldOptions = {}) {
         title: input.title,
         body: input.body,
       }
-      issues.set(number, issue)
-      comments.set(number, [])
       if (failure.mode === 'ambiguous-issue-create' && !failure.consumed) {
         failure.consumed = true
         throw Object.assign(new Error('Issue create response lost'), { code: 'API_AMBIGUITY' })
       }
+      issues.set(number, issue)
+      comments.set(number, [])
       return clone(issue)
     },
     async updateIssueBody(number: number, body: string) {
       return writeIssueBody(number, body)
     },
-    async compareAndSwapIssueBody(input: { number: number; body: string }) {
-      return writeIssueBody(input.number, input.body)
+    async compareAndSwapIssueBody(input: {
+      number: number
+      expectedBody: string
+      body: string
+    }) {
+      return writeIssueBody(input.number, input.body, input.expectedBody)
     },
     async postIssueComment(number: number, body: string) {
       calls.postIssueComment += 1
@@ -441,11 +470,20 @@ function createWorld(options: WorldOptions = {}) {
     },
     async injectFailure(checkpoint: string) {
       const expected = {
-        'after-task-allocation': 'after-task-allocation',
-        'after-task-initialization': 'after-task-initialization',
-        'before-campaign-projection': 'before-campaign-projection',
-      }[checkpoint]
-      if (failure.mode === expected && !failure.consumed) {
+        'after-task-allocation': ['after-task-allocation', 'after-provisional-allocation'],
+        'after-task-initialization': [
+          'after-task-initialization',
+          'after-final-task-body-before-campaign',
+        ],
+        'after-ownership-before-final-body': [
+          'after-ownership-before-final-body',
+          'after-ownership-registry',
+        ],
+        'before-campaign-projection': ['before-campaign-projection'],
+        'after-ownership-registry': ['after-ownership-registry'],
+        'after-campaign-before-completion': ['after-campaign-before-completion'],
+      }[checkpoint] ?? [checkpoint]
+      if (expected.includes(String(failure.mode ?? '')) && failure.consumed !== true) {
         failure.consumed = true
         throw Object.assign(new Error(`injected failure at ${checkpoint}`), {
           code: 'PROJECTION_FAILED',
@@ -518,6 +556,234 @@ function depsFor(world: ReturnType<typeof createWorld>) {
   }
 }
 
+function createProductionAdapterWorld(world: ReturnType<typeof createWorld>) {
+  const contentsLeaseStore = createMemoryLeaseStore()
+  const ghCalls: string[][] = []
+  const policyContent = readFileSync(POLICY_PATH, 'utf8')
+  let nextTaskIssue = 500
+  const campaignComments = world.comments.get(CAMPAIGN_ISSUE) ?? []
+  campaignComments.find((comment) => String(comment.id) === PLANNING_HANDOFF_COMMENT_ID)!.body =
+    readFileSync(EXACT_HANDOFF_BODY_PATH, 'utf8')
+  const planningResult = campaignComments.find(
+    (comment) => String(comment.id) === PLANNING_RESULT_COMMENT_ID,
+  )!
+  planningResult.body = readFileSync(EXACT_RESULT_BODY_PATH, 'utf8')
+  if (!planningResult.body.includes('**Slice:** 5')) {
+    planningResult.body = `${planningResult.body}\n**Slice:** 5\n`
+  }
+  for (const authorityComment of campaignEvidence.campaignExpansionAuthority.comments) {
+    if (!campaignComments.some((comment) => String(comment.id) === String(authorityComment.id))) {
+      campaignComments.push(clone(authorityComment))
+    }
+  }
+
+  const notFound = (message = '404 Not Found') => {
+    const error = Object.assign(new Error(message), { code: 'NOT_FOUND' })
+    throw error
+  }
+
+  const restIssue = (issue: AnyRecord) => ({
+    ...clone(issue),
+    html_url: issue.url,
+  })
+
+  const restComment = (comment: AnyRecord) => ({
+    ...clone(comment),
+    issue_url: comment.issue_url ?? `https://api.github.com/repos/${REPOSITORY}/issues/${comment.issue_number}`,
+  })
+
+  const createComment = (issueNumber: number, body: string) => {
+    world.calls.postIssueComment += 1
+    if (/FOUNDER_AUTHORIZATION|Founder authority/i.test(body)) {
+      world.calls.founderAuthorityCommentsPosted += 1
+    }
+    const comment = {
+      id: String(9000000000 + world.calls.postIssueComment),
+      body,
+      user: { login: 'github-actions[bot]' },
+      issue_number: issueNumber,
+      issue_url: `https://api.github.com/repos/${REPOSITORY}/issues/${issueNumber}`,
+      created_at: '2026-08-05T00:00:00Z',
+      updated_at: '2026-08-05T00:00:00Z',
+    }
+    const entries = world.comments.get(issueNumber) ?? []
+    entries.push(comment)
+    world.comments.set(issueNumber, entries)
+    return comment
+  }
+
+  const createIssue = (input: AnyRecord) => {
+    world.calls.createIssue += 1
+    const number = nextTaskIssue
+    nextTaskIssue += 1
+    const issue = {
+      number,
+      id: `I_task_${number}`,
+      node_id: `MDU6SXNzdWV${number}`,
+      url: `https://github.com/${REPOSITORY}/issues/${number}`,
+      state: 'open',
+      title: input.title,
+      body: input.body,
+    }
+    world.issues.set(number, issue)
+    world.comments.set(number, [])
+    return issue
+  }
+
+  const runGh = (args: string[], options: AnyRecord = {}) => {
+    ghCalls.push([...args])
+    if (args[0] !== 'api') throw new Error(`unexpected gh command: ${args.join(' ')}`)
+    const route = args.find((argument) => argument.startsWith('repos/'))
+    if (!route) throw new Error(`missing GitHub API route: ${args.join(' ')}`)
+    const path = route.split('?')[0]
+    const methodIndex = args.findIndex((argument) => argument === '--method' || argument === '-X')
+    const method = methodIndex >= 0 ? String(args[methodIndex + 1]).toUpperCase() : 'GET'
+    const input = options.input ? JSON.parse(options.input) : null
+    const issueMatch = path.match(/^repos\/[^/]+\/[^/]+\/issues\/(\d+)$/)
+    const commentsMatch = path.match(/^repos\/[^/]+\/[^/]+\/issues\/(\d+)\/comments$/)
+    const commentMatch = path.match(/^repos\/[^/]+\/[^/]+\/issues\/comments\/(\d+)$/)
+    const leaseMatch = path.match(/^repos\/[^/]+\/[^/]+\/contents\/(.+)$/)
+    const branchMatch = path.match(/^repos\/[^/]+\/[^/]+\/git\/ref\/heads\/(.+)$/)
+
+    if (method === 'POST' && commentsMatch) {
+      return JSON.stringify(restComment(createComment(Number(commentsMatch[1]), input.body)))
+    }
+    if (method === 'POST' && path === `repos/${REPOSITORY}/issues`) {
+      return JSON.stringify(restIssue(createIssue(input)))
+    }
+    if (method === 'PATCH' && issueMatch) {
+      const issue = world.issues.get(Number(issueMatch[1]))
+      if (!issue) notFound(`404 Issue #${issueMatch[1]}`)
+      issue.body = input.body
+      world.calls.updateIssueBody += 1
+      if (Number(issueMatch[1]) === CAMPAIGN_ISSUE) world.calls.campaignProjection += 1
+      return JSON.stringify(restIssue(issue))
+    }
+    if (method === 'PUT' && leaseMatch) {
+      const leasePath = decodeURIComponent(leaseMatch[1])
+      const content = JSON.parse(Buffer.from(String(input.content), 'base64').toString('utf8'))
+      try {
+        const result = awaitableContentsWrite(contentsLeaseStore, {
+          path: leasePath,
+          content,
+          sha: input.sha,
+        })
+        return JSON.stringify({
+          content: { sha: result.sha },
+          commit: { sha: `lease-commit-${result.sha}` },
+        })
+      } catch (error) {
+        const typedError = error as AnyRecord
+        const conflict = Object.assign(new Error('422 sha mismatch'), {
+          code: typedError.code ?? 'CAS_CONFLICT',
+        })
+        throw conflict
+      }
+    }
+    if (leaseMatch && leaseMatch[1].startsWith('.bemoat/mission-control/leases/')) {
+      const leasePath = decodeURIComponent(leaseMatch[1])
+      const current = contentsLeaseStore._dump().get(leasePath)
+      if (!current) notFound(`404 lease ${leasePath}`)
+      return JSON.stringify({
+        content: {
+          content: Buffer.from(`${JSON.stringify(current.content)}\n`, 'utf8').toString('base64'),
+          sha: current.sha,
+        },
+      })
+    }
+    if (branchMatch) {
+      if (decodeURIComponent(branchMatch[1]) === 'main') {
+        return JSON.stringify({ object: { sha: fixture.protectedBase.sha } })
+      }
+      return JSON.stringify({ object: { sha: 'lease-branch-tip' } })
+    }
+    if (commentMatch) {
+      const commentId = String(commentMatch[1])
+      for (const entries of world.comments.values()) {
+        const comment = entries.find((entry) => String(entry.id) === commentId)
+        if (comment) return JSON.stringify(restComment(comment))
+      }
+      notFound(`404 comment ${commentId}`)
+    }
+    if (commentsMatch) {
+      const comments = world.comments.get(Number(commentsMatch[1])) ?? []
+      return JSON.stringify(comments.map(restComment))
+    }
+    if (issueMatch) {
+      const issue = world.issues.get(Number(issueMatch[1]))
+      if (!issue) notFound(`404 Issue #${issueMatch[1]}`)
+      return JSON.stringify(restIssue(issue))
+    }
+    if (path === `repos/${REPOSITORY}/issues`) {
+      return JSON.stringify([...world.issues.values()].map(restIssue))
+    }
+    if (path === `repos/${REPOSITORY}`) {
+      return JSON.stringify({
+        full_name: REPOSITORY,
+        id: 'R_repository',
+        node_id: 'R_node_repository',
+        default_branch: 'main',
+      })
+    }
+    if (path === `repos/${REPOSITORY}/contents/.github/workflows/mission-control-campaign-slice-bootstrap.yml`) {
+      return JSON.stringify({
+        content: Buffer.from('permissions:\n  issues: write\n  contents: write\n', 'utf8').toString('base64'),
+        sha: 'workflow-sha',
+      })
+    }
+    if (path === `repos/${REPOSITORY}/contents/${POLICY_PATH}`) {
+      return JSON.stringify({
+        content: Buffer.from(policyContent, 'utf8').toString('base64'),
+        sha: POLICY_BLOB_SHA,
+      })
+    }
+    throw new Error(`unexpected GitHub API request: ${args.join(' ')}`)
+  }
+
+  const createAdapter = createCampaignSliceBootstrapGithubAdapter as unknown as (
+    input: AnyRecord,
+  ) => AnyRecord
+  const github = createAdapter({
+    repository: REPOSITORY,
+    env: { BEMOAT_FOUNDER_LOGINS: 'boat1994' } as unknown as NodeJS.ProcessEnv,
+    runGh,
+    leaseStore: contentsLeaseStore,
+  })
+
+  const projectionCalls = { directUpdate: 0, compareAndSwap: [] as number[] }
+  const originalUpdateIssueBody = github.updateIssueBody
+  const originalCompareAndSwapIssueBody = github.compareAndSwapIssueBody
+  github.updateIssueBody = async (number: number, body: string) => {
+    projectionCalls.directUpdate += 1
+    return originalUpdateIssueBody(number, body)
+  }
+  github.compareAndSwapIssueBody = async (input: AnyRecord) => {
+    projectionCalls.compareAndSwap.push(Number(input.number))
+    return originalCompareAndSwapIssueBody.call(github, input)
+  }
+
+  return { github, contentsLeaseStore, ghCalls, projectionCalls }
+}
+
+function awaitableContentsWrite(
+  store: ReturnType<typeof createMemoryLeaseStore>,
+  input: { path: string; content: AnyRecord; sha?: string },
+) {
+  const current = store._dump().get(input.path)
+  if (current && input.sha !== current.sha) {
+    throw Object.assign(new Error('CAS_CONFLICT: lease blob sha mismatch'), { code: 'CAS_CONFLICT' })
+  }
+  if (!current && input.sha) {
+    throw Object.assign(new Error('CAS_CONFLICT: lease blob missing for provided sha'), { code: 'CAS_CONFLICT' })
+  }
+  const next = {
+    sha: hashIssueBody(`${input.path}:${JSON.stringify(input.content)}:${Math.random()}`),
+    content: clone(input.content),
+  }
+  store._dump().set(input.path, next)
+  return next
+}
+
 async function invoke(
   world: ReturnType<typeof createWorld>,
   input: AnyRecord = callerAllowlist(),
@@ -532,6 +798,56 @@ async function invoke(
       error,
     }
   }
+}
+
+function campaignSliceProvisionalBody(
+  task: AnyRecord,
+  signed = true,
+  signingPrivateKey = keyMaterial().privateKey,
+) {
+  const request = buildCampaignSliceBootstrapRequestIdentity(trustedIdentityInput())
+  const boundTask = signed
+    ? task
+    : { number: 498, id: 'I_source', node_id: 'N_source' }
+  return renderCampaignSliceBootstrapProvisionalTaskBody({
+    requestId: request.requestId,
+    repository: REPOSITORY,
+    campaignIssueNumber: CAMPAIGN_ISSUE,
+    sliceId: SLICE_ID,
+    founderAuthorizationCommentId: FOUNDER_AUTHORIZATION_COMMENT_ID,
+    planningHandoffCommentId: PLANNING_HANDOFF_COMMENT_ID,
+    planningResultCommentId: PLANNING_RESULT_COMMENT_ID,
+    planningBaselineSha: PLANNING_BASELINE_SHA,
+    protectedBaseSha: PLANNING_BASELINE_SHA,
+    policyPath: POLICY_PATH,
+    policyVersion: POLICY_VERSION,
+    policySha: POLICY_BLOB_SHA,
+    taskIssue: boundTask,
+    privateKey: signingPrivateKey,
+    keyId: 'campaign-slice-bootstrap-test-key',
+  })
+}
+
+function provisionalIssue(task: AnyRecord, body: string) {
+  return {
+    number: Number(task.number),
+    id: String(task.id),
+    node_id: String(task.node_id),
+    url: `https://github.com/${REPOSITORY}/issues/${task.number}`,
+    state: 'open',
+    title: '[Mission Control][Provisional] Campaign Slice 5 planning Task bootstrap',
+    body,
+  }
+}
+
+function expectIncompleteTask(world: ReturnType<typeof createWorld>) {
+  const tasks = world.taskIssues()
+  expect(tasks).toHaveLength(1)
+  const state = parseMissionControlState(String(tasks[0].body))
+  expect(state).toMatchObject({
+    valid: false,
+  })
+  return tasks[0]
 }
 
 function expectOutcome(result: AnyRecord, outcome: string) {
@@ -595,6 +911,63 @@ describe('campaign-slice bootstrap Design B contract', () => {
     expectSuccessfulProjection(world, result)
   })
 
+  it('accepts exact live HANDOFF and RESULT bodies with numeric REST IDs', async () => {
+    expect(fixture.planningHandoff.id).toBe(5181983011)
+    expect(fixture.planningResult.id).toBe(5182110653)
+    expect(fixture.planningHandoff.body).toBe(readFileSync(EXACT_HANDOFF_BODY_PATH, 'utf8'))
+    expect(fixture.planningResult.body).toBe(readFileSync(EXACT_RESULT_BODY_PATH, 'utf8'))
+
+    const world = createWorld()
+    const comments = world.comments.get(CAMPAIGN_ISSUE) ?? []
+    expect(comments.find((comment) => comment.id === 5181983011)?.body).toBe(
+      readFileSync(EXACT_HANDOFF_BODY_PATH, 'utf8'),
+    )
+    expect(comments.find((comment) => comment.id === 5182110653)?.body).toBe(
+      readFileSync(EXACT_RESULT_BODY_PATH, 'utf8'),
+    )
+
+    const result = await invoke(world)
+
+    expectSuccessfulProjection(world, result)
+  })
+
+  it('normalizes numeric REST IDs to string identities in projection and readback', async () => {
+    const world = createWorld()
+    const first = await invoke(world, callerAllowlist({
+      founder_authorization_comment_id: String(fixture.founderAuthorization.id),
+      planning_handoff_comment_id: String(fixture.planningHandoff.id),
+      planning_result_comment_id: String(fixture.planningResult.id),
+    }))
+    const task = expectSuccessfulProjection(world, first)
+    const state = parseMissionControlState(String(task.body))
+    const record = [...world.ownershipRecords.values()][0]
+
+    expect(state.state?.latest_result_comment_id).toMatch(/^[1-9]\d*$/)
+    expect(state.state?.latest_result_comment_id).not.toBe(PLANNING_RESULT_COMMENT_ID)
+    expect(state.state?.planning_result_comment_id).toBe(PLANNING_RESULT_COMMENT_ID)
+    expect(state.state?.planning_handoff_comment_id).toBe(PLANNING_HANDOFF_COMMENT_ID)
+    expect(record.payload.authority_comment_ids).toEqual([
+      FOUNDER_AUTHORIZATION_COMMENT_ID,
+      PLANNING_HANDOFF_COMMENT_ID,
+      PLANNING_RESULT_COMMENT_ID,
+    ])
+    expect(record.payload.authority_comment_ids.every((id: unknown) => typeof id === 'string')).toBe(true)
+
+    const retry = await invoke(world)
+
+    expect(retry).toMatchObject({
+      ok: true,
+      outcome: 'NO_OP',
+      requestId: first.requestId,
+    })
+    expect(retry.attestation.payload.planning_handoff_comment_id).toBe(
+      PLANNING_HANDOFF_COMMENT_ID,
+    )
+    expect(retry.attestation.payload.planning_result_comment_id).toBe(
+      PLANNING_RESULT_COMMENT_ID,
+    )
+  })
+
   it('returns NO_OP for an identical completed retry with the same Task', async () => {
     const world = createWorld()
     const first = await invoke(world)
@@ -639,7 +1012,7 @@ describe('campaign-slice bootstrap Design B contract', () => {
       (comment) => /FOUNDER_AUTHORIZATION/.test(String(comment.body)),
     )
     expect(authorityComments).toHaveLength(1)
-    expect(authorityComments?.[0].id).toBe(FOUNDER_AUTHORIZATION_COMMENT_ID)
+    expect(String(authorityComments?.[0].id)).toBe(FOUNDER_AUTHORIZATION_COMMENT_ID)
     expect(world.calls.founderAuthorityCommentsPosted).toBe(0)
   })
 
@@ -691,15 +1064,19 @@ describe('campaign-slice bootstrap Design B contract', () => {
     expect(world.calls.createIssue).toBe(0)
   })
 
-  it('rejects a changed or stale protected base before mutation', async () => {
+  it('MC-R1-001 allows protected execution base to advance beyond historical planning baseline', async () => {
+    const executionSha = '99'.repeat(20)
     const world = createWorld({
-      protectedBaseSha: '99'.repeat(20),
+      protectedBaseSha: executionSha,
     })
+    world.campaignEvidence.campaignExpansionAuthority.currentProtectedBaseSha = PLANNING_BASELINE_SHA
 
     const result = await invoke(world)
 
-    expectOutcome(result, 'STATE_CONFLICT')
-    expect(world.calls.createIssue).toBe(0)
+    expectSuccessfulProjection(world, result)
+    expect(result.attestation.payload.planning_baseline_sha).toBe(PLANNING_BASELINE_SHA)
+    expect(result.attestation.payload.protected_base_sha).toBe(executionSha)
+    expect(result.attestation.payload.planning_baseline_sha).not.toBe(result.attestation.payload.protected_base_sha)
   })
 
   it('rejects a changed policy identity before mutation', async () => {
@@ -721,7 +1098,7 @@ describe('campaign-slice bootstrap Design B contract', () => {
       (comment) => String(comment.id) === PLANNING_HANDOFF_COMMENT_ID,
     )
     expect(handoff).toBeDefined()
-    handoff!.body = handoff!.body.replace(PLANNING_BASELINE_SHA, 'aa'.repeat(20))
+    handoff!.body = handoff!.body.replaceAll(PLANNING_BASELINE_SHA, 'aa'.repeat(20))
 
     const result = await invoke(world)
 
@@ -750,7 +1127,7 @@ describe('campaign-slice bootstrap Design B contract', () => {
       (comment) => String(comment.id) === PLANNING_RESULT_COMMENT_ID,
     )
     expect(resultComment).toBeDefined()
-    resultComment!.body = resultComment!.body.replace(PLANNING_BASELINE_SHA, 'bb'.repeat(20))
+    resultComment!.body = resultComment!.body.replaceAll(PLANNING_BASELINE_SHA, 'bb'.repeat(20))
 
     const result = await invoke(world)
 
@@ -802,14 +1179,15 @@ describe('campaign-slice bootstrap Design B contract', () => {
     expect(world.calls.createIssue).toBe(0)
   })
 
-  it('rejects a raw Issue created without accepted Founder provenance', async () => {
+  it('ignores a raw Issue without campaign-slice markers and allocates a trusted Task', async () => {
     const world = createWorld({ seedRawTask: true })
 
     const result = await invoke(world)
 
-    expectOutcome(result, 'STATE_CONFLICT')
-    expect(world.calls.createIssue).toBe(0)
-    expect(world.taskIssues()).toHaveLength(1)
+    expect(result).toMatchObject({ ok: true, outcome: 'SUCCESS' })
+    expect(world.calls.createIssue).toBe(1)
+    expect(world.taskIssues().some((issue) => issue.number === 499)).toBe(true)
+    expect(world.taskIssues().some((issue) => issue.number === 500)).toBe(true)
   })
 
   it.each(['hash-only', 'wrong-key'] as const)(
@@ -848,6 +1226,97 @@ describe('campaign-slice bootstrap Design B contract', () => {
     expectOutcome(retry, 'STATE_CONFLICT')
   })
 
+  it('MC-R1-003 rejects a copied matching provisional marker without blocking fresh allocation', async () => {
+    const world = createWorld()
+    const forgedIdentity = { number: 499, id: 'I_forged', node_id: 'N_forged' }
+    const forged = provisionalIssue(
+      forgedIdentity,
+      campaignSliceProvisionalBody(forgedIdentity, false),
+    )
+    world.issues.set(forged.number, forged)
+    world.comments.set(forged.number, [])
+
+    const result = await invoke(world)
+
+    expect(result).toMatchObject({ ok: true, outcome: 'SUCCESS' })
+    expect(world.calls.createIssue).toBe(1)
+    expect(world.issues.get(forged.number)?.body).toBe(forged.body)
+    expect(world.campaignIssue().body).toContain('#500')
+    expect(world.taskIssues().some((issue) => issue.number === 499)).toBe(true)
+    expect(world.taskIssues().some((issue) => issue.number === 500)).toBe(true)
+
+    const retry = await invoke(world)
+    expect(retry).toMatchObject({ ok: true, outcome: 'NO_OP' })
+    expect(world.calls.createIssue).toBe(1)
+  })
+
+  it('MC-R1-003 ignores unrelated Task-like Issues such as live Issue #274', async () => {
+    const world = createWorld()
+    const unrelated = {
+      number: 274,
+      id: 'I_issue_274',
+      node_id: 'MDU6SXNzdWV274',
+      url: `https://github.com/${REPOSITORY}/issues/274`,
+      state: 'open',
+      title: 'feat: add protected campaign-slice managed Task bootstrap',
+      body: 'This ordinary implementation Task contains the word task but no campaign-slice bootstrap namespace.\n',
+    }
+    world.issues.set(unrelated.number, unrelated)
+    world.comments.set(unrelated.number, [])
+
+    const result = await invoke(world)
+
+    expect(result).toMatchObject({ ok: true, outcome: 'SUCCESS' })
+    expect(world.calls.createIssue).toBe(1)
+    expect(world.campaignIssue().body).toContain('#500')
+    expect(world.issues.get(unrelated.number)?.body).toBe(unrelated.body)
+  })
+
+  it('MC-R1-003 fails closed for multiple valid signed and issue-bound provisional candidates', async () => {
+    const world = createWorld()
+    const firstIdentity = { number: 498, id: 'I_owned_498', node_id: 'N_owned_498' }
+    const secondIdentity = { number: 499, id: 'I_owned_499', node_id: 'N_owned_499' }
+    const first = provisionalIssue(
+      firstIdentity,
+      campaignSliceProvisionalBody(firstIdentity, true, world.signingKeys.privateKey),
+    )
+    const second = provisionalIssue(
+      secondIdentity,
+      campaignSliceProvisionalBody(secondIdentity, true, world.signingKeys.privateKey),
+    )
+    world.issues.set(first.number, first)
+    world.issues.set(second.number, second)
+    world.comments.set(first.number, [])
+    world.comments.set(second.number, [])
+
+    const result = await invoke(world)
+
+    expectOutcome(result, 'STATE_CONFLICT')
+    expect(world.calls.createIssue).toBe(0)
+    expect(world.taskIssues()).toHaveLength(2)
+  })
+
+  it('MC-R1-003 recovers only a signed provisional tied to the allocated Issue identity', async () => {
+    const world = createWorld()
+    const ownedIdentity = { number: 499, id: 'I_owned_499', node_id: 'N_owned_499' }
+    const owned = provisionalIssue(
+      ownedIdentity,
+      campaignSliceProvisionalBody(ownedIdentity, true, world.signingKeys.privateKey),
+    )
+    world.issues.set(owned.number, owned)
+    world.comments.set(owned.number, [])
+
+    const result = await invoke(world)
+
+    expect(result).toMatchObject({ ok: true, outcome: 'SUCCESS' })
+    expect(world.calls.createIssue).toBe(0)
+    expect(world.taskIssues()).toHaveLength(1)
+    expect(world.taskIssues()[0].number).toBe(499)
+    expect(world.campaignIssue().body).toContain('#499')
+    const state = parseMissionControlState(String(world.taskIssues()[0].body))
+    expect(state).toMatchObject({ present: true, valid: true })
+  })
+
   it('returns BLOCKED_EXTERNAL for an unprovisioned child repository', async () => {
     const world = createWorld({ provisioned: false })
 
@@ -857,8 +1326,8 @@ describe('campaign-slice bootstrap Design B contract', () => {
     expect(world.calls.createIssue).toBe(0)
   })
 
-  it('requires exact read-only Contents permission', async () => {
-    const world = createWorld({ permissions: { issues: 'write', contents: 'write' } })
+  it('requires Contents write for shared lease CAS', async () => {
+    const world = createWorld({ permissions: { issues: 'write', contents: 'read' } })
 
     const result = await invoke(world)
 
@@ -889,6 +1358,22 @@ describe('campaign-slice bootstrap Design B contract', () => {
     expectOutcome(noCasResult, 'BLOCKED_EXTERNAL')
   })
 
+  it('rejects a mock-world CAS write when expectedBody is stale', async () => {
+    const world = createWorld()
+    const expectedBody = world.campaignIssue().body
+    const liveBody = `${expectedBody}\nexternal mutation`
+    await world.updateIssueBody(CAMPAIGN_ISSUE, liveBody)
+
+    await expect(world.compareAndSwapIssueBody({
+      number: CAMPAIGN_ISSUE,
+      expectedBody,
+      body: 'stale writer must not land',
+    })).rejects.toMatchObject({
+      code: 'CAS_CONFLICT',
+    })
+    expect(world.campaignIssue().body).toBe(liveBody)
+  })
+
   it('classifies an ambiguous Issue-create response as BLOCKED_EXTERNAL', async () => {
     const world = createWorld({ failure: 'ambiguous-issue-create' })
 
@@ -896,20 +1381,18 @@ describe('campaign-slice bootstrap Design B contract', () => {
 
     expectOutcome(result, 'BLOCKED_EXTERNAL')
     expect(world.calls.createIssue).toBe(1)
-    expect(world.taskIssues()).toHaveLength(1)
+    expect(world.taskIssues()).toHaveLength(0)
   })
 
-  it('recovers a provisional allocation without creating a duplicate Task', async () => {
+  it('retries an ambiguous Issue-create without adopting unsigned orphans', async () => {
     const world = createWorld({ failure: 'ambiguous-issue-create' })
     const first = await invoke(world)
-    const taskNumber = expectSingleTaskNumber(world)
     const recovered = await invoke(world)
 
     expectOutcome(first, 'BLOCKED_EXTERNAL')
     expect(recovered).toMatchObject({ ok: true, outcome: 'SUCCESS' })
-    expect(world.calls.createIssue).toBe(1)
+    expect(world.calls.createIssue).toBe(2)
     expect(world.taskIssues()).toHaveLength(1)
-    expect(world.taskIssues()[0].number).toBe(taskNumber)
   })
 
   it('recovers after failure immediately following Task allocation', async () => {
@@ -986,6 +1469,41 @@ describe('campaign-slice bootstrap Design B contract', () => {
   })
 
   it.each([
+    ['after provisional allocation', 'after-provisional-allocation', 'provisional'],
+    ['after ownership registry', 'after-ownership-registry', 'provisional'],
+    ['after final Task body before Campaign projection', 'after-final-task-body-before-campaign', 'task-final'],
+    ['after Campaign before completion', 'after-campaign-before-completion', 'campaign-final'],
+  ] as Array<[string, FailureMode, 'provisional' | 'task-final' | 'campaign-final']>)(
+    'MC-R1-006 rejects an incomplete Task at the %s boundary and retries it as SUCCESS',
+    async (_label, failureMode, phase) => {
+      const world = createWorld({ failure: failureMode })
+      const first = await invoke(world)
+
+      expect(['BLOCKED_EXTERNAL', 'PROJECTION_FAILED']).toContain(first.outcome)
+      if (phase === 'provisional') {
+        expectIncompleteTask(world)
+      } else if (phase === 'task-final') {
+        const task = world.taskIssues()[0]
+        expect(parseMissionControlState(String(task.body))).toMatchObject({ present: true, valid: true })
+        const campaign = parseCampaign(String(world.campaignIssue().body), {
+          evidence: world.campaignEvidence,
+        })
+        expect((campaign.campaign?.slices as AnyRecord | undefined)?.['5']?.status).toBe('NOT_STARTED')
+      } else {
+        const task = world.taskIssues()[0]
+        expect(parseMissionControlState(String(task.body))).toMatchObject({ present: true, valid: true })
+        expect(String(world.campaignIssue().body)).toContain(`#${task.number}`)
+      }
+
+      const recovered = await invoke(world)
+
+      expect(recovered).toMatchObject({ ok: true, outcome: expect.stringMatching(/^(SUCCESS|NO_OP)$/) })
+      expect(world.calls.createIssue).toBe(1)
+      expect(world.taskIssues()).toHaveLength(1)
+    },
+  )
+
+  it.each([
     ['ambiguous Issue-create response', 'ambiguous-issue-create', 'BLOCKED_EXTERNAL'],
     ['after Task allocation', 'after-task-allocation', 'PROJECTION_FAILED'],
     ['after Task initialization', 'after-task-initialization', 'PROJECTION_FAILED'],
@@ -1005,7 +1523,11 @@ describe('campaign-slice bootstrap Design B contract', () => {
 
       expectOutcome(first, firstOutcome)
       expect(recovered).toMatchObject({ ok: true, outcome: 'SUCCESS' })
-      expect(world.calls.createIssue).toBe(1)
+      if (failureMode === 'ambiguous-issue-create') {
+        expect(world.calls.createIssue).toBe(2)
+      } else {
+        expect(world.calls.createIssue).toBe(1)
+      }
       expect(world.taskIssues()).toHaveLength(1)
     },
   )
@@ -1102,10 +1624,15 @@ describe('campaign-slice bootstrap request identity contract', () => {
       'node scripts/mission-control-campaign-slice-bootstrap.mjs',
     )
     expect(cli).toContain('.bemoat/mission-control/task-bootstrap-public-key.pem')
-    expect(cli).toContain('BEMOAT_CAMPAIGN_SLICE_BOOTSTRAP_SIGNING_PRIVATE_KEY')
-    expect(cli).toContain('BEMOAT_TASK_BOOTSTRAP_SIGNING_PRIVATE_KEY')
-    expect(cli).toContain('BEMOAT_CAMPAIGN_SLICE_BOOTSTRAP_SIGNING_KEY_ID')
-    expect(cli).toContain('BEMOAT_TASK_BOOTSTRAP_SIGNING_KEY_ID')
+    expect(cli).toContain('resolveCampaignSliceBootstrapSigningIdentity')
+    const signingHelper = readFileSync(
+      'scripts/mission-control/domain/campaign-slice-bootstrap-signing.mjs',
+      'utf8',
+    )
+    expect(signingHelper).toContain('BEMOAT_CAMPAIGN_SLICE_BOOTSTRAP_SIGNING_PRIVATE_KEY')
+    expect(signingHelper).toContain('BEMOAT_TASK_BOOTSTRAP_SIGNING_PRIVATE_KEY')
+    expect(signingHelper).toContain('BEMOAT_CAMPAIGN_SLICE_BOOTSTRAP_SIGNING_KEY_ID')
+    expect(signingHelper).toContain('BEMOAT_TASK_BOOTSTRAP_SIGNING_KEY_ID')
     for (const flag of [
       '--founder-authorization-comment-id',
       '--campaign-issue-number',
@@ -1122,8 +1649,7 @@ describe('campaign-slice bootstrap request identity contract', () => {
     )
     expect(workflow).toContain('environment:\n      name: mission-control-task-creation')
     expect(workflow).toContain('issues: write')
-    expect(workflow).toContain('contents: read')
-    expect(workflow).not.toContain('contents: write')
+    expect(workflow).toContain('contents: write')
     expect(adapter).toContain('compareAndSwapIssueBody')
     expect(adapter).toContain('acquireCampaignLease')
     expect(adapter).not.toContain('method: \'PUT\'')
@@ -1222,5 +1748,218 @@ describe('campaign-slice bootstrap request identity contract', () => {
 
     expectOutcome(result, 'STATE_CONFLICT')
     expect(world.calls.createIssue).toBe(0)
+  })
+})
+
+describe('campaign-slice production adapter CAS and lease races', () => {
+  const casRepository = REPOSITORY
+  const casIssueNumber = 274
+
+  it('gives competing production-shaped CAS workers one winner and one conflict', async () => {
+    let body = 'campaign-body-v1'
+    const leaseStore = createMemoryLeaseStore()
+    const writes: string[] = []
+    let contenderReady!: () => void
+    const contenderSignal = new Promise<void>((resolve) => {
+      contenderReady = resolve
+    })
+    let releaseWinner!: () => void
+    const winnerPause = new Promise<void>((resolve) => {
+      releaseWinner = resolve
+    })
+
+    const winner = compareAndSwapIssueBody({
+      repo: casRepository,
+      issueNumber: casIssueNumber,
+      expectedBody: body,
+      nextBody: 'campaign-body-winner',
+      transitionIdentity: 'campaign-worker-a',
+      holder: 'campaign-slice-bootstrap',
+      deps: {
+        leaseStore,
+        readIssueBody: async () => body,
+        writeIssueBody: async ({ body: next }: { body: string }) => {
+          writes.push(next)
+          body = next
+        },
+        beforeIssueUpdate: async () => {
+          contenderReady()
+          await winnerPause
+        },
+      },
+    })
+
+    await contenderSignal
+    const loser = compareAndSwapIssueBody({
+      repo: casRepository,
+      issueNumber: casIssueNumber,
+      expectedBody: 'campaign-body-v1',
+      nextBody: 'campaign-body-loser',
+      transitionIdentity: 'campaign-worker-b',
+      holder: 'campaign-slice-bootstrap',
+      deps: {
+        leaseStore,
+        readIssueBody: async () => body,
+        writeIssueBody: async ({ body: next }: { body: string }) => {
+          writes.push(next)
+          body = next
+        },
+      },
+    })
+
+    const loserResult = await Promise.race([
+      loser.then(() => 'fulfilled', () => 'rejected'),
+      new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), 100)),
+    ])
+    expect(loserResult).toBe('rejected')
+    releaseWinner()
+
+    const results = await Promise.allSettled([winner, loser])
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1)
+    expect(results.filter((result) => result.status === 'rejected')).toHaveLength(1)
+    expect(results.find((result) => result.status === 'rejected')).toEqual(expect.objectContaining({
+      reason: expect.objectContaining({
+        message: expect.stringMatching(/(?:STATE_CONFLICT|CAS_CONFLICT)/),
+      }),
+    }))
+    expect(writes).toEqual(['campaign-body-winner'])
+    expect(body).toBe('campaign-body-winner')
+  })
+
+  it('prevents a stale lease holder from writing after ownership is replaced', async () => {
+    let body = 'campaign-body-v1'
+    const leaseStore = createMemoryLeaseStore()
+    const writes: string[] = []
+    const path = leasePathForIssue(casIssueNumber)
+    let ownershipReplaced!: () => void
+    const ownershipSignal = new Promise<void>((resolve) => {
+      ownershipReplaced = resolve
+    })
+    let releaseStaleHolder!: () => void
+    const staleHolderPause = new Promise<void>((resolve) => {
+      releaseStaleHolder = resolve
+    })
+
+    const staleHolder = compareAndSwapIssueBody({
+      repo: casRepository,
+      issueNumber: casIssueNumber,
+      expectedBody: body,
+      nextBody: 'stale-body-must-not-land',
+      transitionIdentity: 'stale-campaign-worker',
+      holder: 'campaign-slice-bootstrap',
+      deps: {
+        leaseStore,
+        readIssueBody: async () => body,
+        writeIssueBody: async ({ body: next }: { body: string }) => {
+          writes.push(next)
+          body = next
+        },
+        beforeIssueUpdate: async () => {
+          const current = leaseStore._dump().get(path)
+          expect(current?.content?.status).toBe('held')
+          leaseStore._dump().set(path, {
+            sha: 'replacement-lease-sha',
+            content: {
+              ...clone(current?.content),
+              transition_identity: 'replacement-campaign-worker',
+              status: 'held',
+            },
+          })
+          ownershipReplaced()
+          await staleHolderPause
+        },
+      },
+    })
+
+    await ownershipSignal
+    releaseStaleHolder()
+
+    await expect(staleHolder).rejects.toThrow(/(?:STATE_CONFLICT|CAS_CONFLICT)/)
+    expect(writes).toEqual([])
+    expect(body).toBe('campaign-body-v1')
+  })
+
+  it('rejects a compare-and-swap when expectedBody differs from the live Issue body', async () => {
+    let body = 'campaign-body-live'
+    const leaseStore = createMemoryLeaseStore()
+    const writes: string[] = []
+
+    await expect(compareAndSwapIssueBody({
+      repo: casRepository,
+      issueNumber: casIssueNumber,
+      expectedBody: 'campaign-body-stale',
+      nextBody: 'campaign-body-must-not-land',
+      transitionIdentity: 'stale-body-worker',
+      holder: 'campaign-slice-bootstrap',
+      deps: {
+        leaseStore,
+        readIssueBody: async () => body,
+        writeIssueBody: async ({ body: next }: { body: string }) => {
+          writes.push(next)
+          body = next
+        },
+      },
+    })).rejects.toThrow(/STATE_CONFLICT: concurrent Issue body change detected/)
+
+    expect(writes).toEqual([])
+    expect(body).toBe('campaign-body-live')
+    expect(hashIssueBody(body)).not.toBe(hashIssueBody('campaign-body-stale'))
+  })
+
+  it('makes the production adapter reject a stale expected Issue body', async () => {
+    const world = createWorld()
+    const production = createProductionAdapterWorld(world)
+    const expectedBody = world.campaignIssue().body
+    await world.updateIssueBody(CAMPAIGN_ISSUE, `${expectedBody}\nexternal mutation`)
+
+    await expect(production.github.compareAndSwapIssueBody({
+      number: CAMPAIGN_ISSUE,
+      expectedBody,
+      body: 'stale adapter writer must not land',
+      requestId: 'stale-adapter-worker',
+    })).rejects.toThrow(/STATE_CONFLICT: concurrent Issue body change detected/)
+    expect(world.campaignIssue().body).toBe(`${expectedBody}\nexternal mutation`)
+  })
+
+  it('runs simultaneous identical bootstrap requests through adapter lease/CAS state', async () => {
+    const world = createWorld()
+    const production = createProductionAdapterWorld(world)
+    const deps = {
+      github: production.github,
+      publicKey: world.signingKeys.publicKey,
+      signingPrivateKey: world.signingKeys.privateKey,
+      signingKeyId: 'campaign-slice-bootstrap-test-key',
+      now: () => '2026-08-05T00:00:00.000Z',
+    }
+
+    const firstWave = await Promise.allSettled([
+      runCampaignSliceBootstrap(callerAllowlist(), deps),
+      runCampaignSliceBootstrap(callerAllowlist(), deps),
+    ])
+    const firstOutcomes = firstWave.map((result) =>
+      result.status === 'fulfilled' ? result.value.outcome : result.reason?.code,
+    )
+    expect(firstOutcomes).toContain('SUCCESS')
+    expect(firstOutcomes).toEqual(expect.arrayContaining([
+      expect.stringMatching(/(?:NO_OP|STATE_CONFLICT|CAS_CONFLICT)/),
+    ]))
+
+    const conflict = firstWave.find(
+      (result) => result.status === 'rejected' &&
+        /STATE_CONFLICT|CAS_CONFLICT/.test(String(result.reason?.code ?? result.reason?.message)),
+    )
+    if (conflict) {
+      await expect(runCampaignSliceBootstrap(callerAllowlist(), deps)).resolves.toMatchObject({
+        ok: true,
+        outcome: 'NO_OP',
+      })
+    }
+
+    expect(world.calls.createIssue).toBe(1)
+    expect(world.taskIssues()).toHaveLength(1)
+    expect(production.contentsLeaseStore._dump().size).toBeGreaterThan(0)
+    expect(production.projectionCalls.directUpdate).toBe(0)
+    expect(production.projectionCalls.compareAndSwap).toContain(CAMPAIGN_ISSUE)
+    expect(production.projectionCalls.compareAndSwap).toContain(world.taskIssues()[0].number)
   })
 })

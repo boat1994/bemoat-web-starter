@@ -24,15 +24,50 @@ import {
 } from '../domain/campaign-slice-bootstrap-authorization.mjs'
 import {
   buildCampaignSliceBootstrapRequestIdentity,
+  normalizeImmutableCommentId,
   parseCampaignSliceBootstrapCompletionMarker,
-  parseCampaignSliceBootstrapProvisionalTaskBody,
   renderCampaignSliceBootstrapCompletionMarker,
   renderCampaignSliceBootstrapProvisionalTaskBody,
+  verifyCampaignSliceBootstrapProvisionalTaskBody,
 } from '../domain/campaign-slice-bootstrap-request.mjs'
 import {
   renderMissionControlState,
   parseMissionControlState,
 } from '../../mission-control-state.mjs'
+
+function normalizeTransitionIdentity(body = '', overrides = {}) {
+  const role = overrides.role ?? (
+    String(body).trimStart().startsWith('## HANDOFF') ? 'HANDOFF' :
+      String(body).trimStart().startsWith('## RESULT') ? 'RESULT' :
+        String(body).trimStart().startsWith('## REVIEW_VERDICT') ? 'REVIEW_VERDICT' : ''
+  )
+  const taskId = overrides.taskId ??
+    body.match(/\*\*Task(?:\s*\/\s*Issue)?:\*\*\s*(?:Issue\s*)?#?(\d+)/i)?.[1] ??
+    body.match(/Task\s*\/\s*Issue:\s*(?:Issue\s*)?#?(\d+)/i)?.[1] ?? ''
+  const phase = overrides.phase ??
+    body.match(/\*\*Phase:\*\*\s*(.+?)\s*$/m)?.[1]?.trim() ??
+    body.match(/Phase:\s*(.+?)$/m)?.[1]?.trim() ?? ''
+  const normalizedContent = body
+    .replace(/^### Task log[\s\S]*?(?=\n\*\*|\n##|$)/m, '')
+    .replace(/^- Timestamp:.*$/gm, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return {
+    taskId: String(taskId),
+    phase,
+    role,
+    contentHash: sha256Hex(normalizedContent),
+  }
+}
+
+function serializeTransitionIdentity(identity) {
+  return JSON.stringify({
+    taskId: identity.taskId,
+    phase: identity.phase,
+    role: identity.role,
+    contentHash: identity.contentHash,
+  })
+}
 
 const ALLOWLIST_KEYS = Object.freeze([
   'founder_authorization_comment_id',
@@ -142,8 +177,8 @@ async function readProvisioningAndPermissions(github) {
   if (provisioning?.childRepository !== true || provisioning?.workflow !== true) {
     throw blockedExternal('child repository and protected workflow provisioning are required')
   }
-  if (permissions?.issues !== 'write' || permissions?.contents !== 'read') {
-    throw blockedExternal('the protected workflow requires issues: write and contents: read')
+  if (permissions?.issues !== 'write' || permissions?.contents !== 'write') {
+    throw blockedExternal('the protected workflow requires issues: write and contents: write for shared lease CAS')
   }
 }
 
@@ -198,31 +233,48 @@ function findComment(comments, id) {
 function validatePlanningComment(comment, {
   kind,
   input,
-  protectedBaseSha,
+  planningBaselineSha,
   policy,
 } = {}) {
-  if (!comment || String(comment.issue_number) !== String(input.campaign_issue_number)) {
+  const commentId = normalizeImmutableCommentId(comment?.id)
+  if (!comment || !commentId || String(comment.issue_number) !== String(input.campaign_issue_number)) {
     throw stateConflict(`${kind} evidence is not attached to the approved Campaign Issue`)
   }
   const body = String(comment.body ?? '')
   const expectedHeader = kind === 'HANDOFF' ? '## HANDOFF' : '## RESULT'
-  const expectedLines = [
-    expectedHeader,
-    `Campaign slice: ${input.slice_id}`,
-    `main@${protectedBaseSha}`,
-  ]
-  if (kind === 'HANDOFF') expectedLines.push(policy.version)
-  if (expectedLines.some((line) => !body.includes(line))) {
+  if (!body.trimStart().startsWith(expectedHeader)) {
+    throw stateConflict(`${kind} evidence is missing the canonical role heading`)
+  }
+  const bindsSlice = new RegExp(
+    `(?:\\*\\*Slice:\\*\\*|Campaign slice:|Slice:)\\s*${Number(input.slice_id)}\\b`,
+  ).test(body) ||
+    new RegExp(`\\bSlice\\s+${Number(input.slice_id)}\\b`).test(body) ||
+    body.includes(`**Slice:** ${input.slice_id}`)
+  const bindsBaseline = body.includes(`main@${planningBaselineSha}`) ||
+    body.includes(planningBaselineSha)
+  if (!bindsSlice || !bindsBaseline) {
     throw stateConflict(`${kind} evidence is stale or does not bind the approved planning baseline`)
   }
-  if (kind === 'RESULT' &&
-      (!/Workflow mode:\**\s*planning_no_pr/.test(body) ||
-        !/Review cycle:\**\s*0/.test(body) ||
-        !/Full review count:\**\s*0/.test(body))) {
-    throw stateConflict('planning RESULT does not bind the no-PR planning projection')
+  if (kind === 'HANDOFF') {
+    const bindsPolicy = body.includes(`v${policy.version}`) ||
+      body.includes(policy.version) ||
+      body.includes(policy.path)
+    if (!bindsPolicy) {
+      throw stateConflict('planning HANDOFF does not bind the approved policy identity')
+    }
+  }
+  if (kind === 'RESULT') {
+    const bindsFounderGate = /Founder/i.test(body) &&
+      (/BLOCKED_FOR_FOUNDER_DECISION/i.test(body) ||
+        /implementation HANDOFF/i.test(body) ||
+        /Founder decision/i.test(body) ||
+        /Founder implementation approval/i.test(body))
+    if (!bindsFounderGate) {
+      throw stateConflict('planning RESULT does not bind the Founder-gated no-PR planning outcome')
+    }
   }
   return {
-    comment,
+    comment: { ...comment, id: commentId },
     bodySha256: commentBodyHash(comment),
   }
 }
@@ -257,18 +309,23 @@ async function readPreflightContext(input, github, {
       String(campaignIssue?.state).toLowerCase() !== 'open') {
     throw stateConflict('Campaign Issue #215 is not open')
   }
+  const planningBaselineSha = String(input.planning_baseline_sha)
   const base = await readProtectedBase(github)
-  if (base.sha !== input.planning_baseline_sha) {
-    throw stateConflict('caller planning baseline does not match the protected base readback')
-  }
+  // Historical planning baseline and live protected execution base are distinct
+  // authority meanings. After this transport merges, main advances beyond the
+  // planning baseline; equality must not be required.
   const policy = await readPolicy(github)
-  if (policy.sourceCommit !== base.sha) {
-    throw stateConflict('policy source commit does not match the protected planning baseline')
+  if (policy.blobSha !== CAMPAIGN_SLICE_BOOTSTRAP_CONTRACT.policySha ||
+      policy.version !== CAMPAIGN_SLICE_BOOTSTRAP_CONTRACT.policyVersion) {
+    throw stateConflict('protected policy blob/version is not the approved identity')
   }
   let campaignEvidence = null
   if (typeof github.getCampaignAuthorityEvidence === 'function') {
     try {
-      campaignEvidence = await github.getCampaignAuthorityEvidence({ protectedBaseSha: base.sha })
+      campaignEvidence = await github.getCampaignAuthorityEvidence({
+        planningBaselineSha,
+        protectedBaseSha: planningBaselineSha,
+      })
     } catch (error) {
       throw blockedExternal('live Campaign expansion-authority evidence was unavailable', error)
     }
@@ -289,18 +346,19 @@ async function readPreflightContext(input, github, {
     expected: CAMPAIGN_SLICE_BOOTSTRAP_CONTRACT,
     planningHandoffCommentId: input.planning_handoff_comment_id,
     planningResultCommentId: input.planning_result_comment_id,
-    protectedBaseSha: base.sha,
+    // Founder authorization binds the historical planning protected base.
+    protectedBaseSha: planningBaselineSha,
   })
   const handoff = validatePlanningComment(findComment(comments, input.planning_handoff_comment_id), {
     kind: 'HANDOFF',
     input,
-    protectedBaseSha: base.sha,
+    planningBaselineSha,
     policy,
   })
   const result = validatePlanningComment(findComment(comments, input.planning_result_comment_id), {
     kind: 'RESULT',
     input,
-    protectedBaseSha: base.sha,
+    planningBaselineSha,
     policy,
   })
   if (comments.some((comment) =>
@@ -349,6 +407,7 @@ async function readPreflightContext(input, github, {
     campaignIssue,
     comments,
     base,
+    planningBaselineSha,
     policy,
     authorization,
     handoff,
@@ -408,6 +467,41 @@ function renderCampaignSliceBootstrapTaskBody(state, attestation) {
   ].join('\n')
 }
 
+function renderTaskLocalInvestigationResult({
+  taskNumber,
+  campaignIssueNumber,
+  sliceId,
+  planningBaselineSha,
+  protectedBaseSha,
+  planningHandoffCommentId,
+  planningResultCommentId,
+  founderAuthorizationCommentId,
+} = {}) {
+  return [
+    '## RESULT',
+    '',
+    '### Task log',
+    `- Task / Issue: #${taskNumber}`,
+    '- Phase: Investigation / Planning',
+    '- Executing role: Mission Control Campaign Slice Bootstrap',
+    '',
+    `**Completed:** Bound Campaign #${campaignIssueNumber} Slice ${sliceId} planning evidence into this Active Task.`,
+    `**Planning baseline:** main@${planningBaselineSha}`,
+    `**Protected execution base:** main@${protectedBaseSha}`,
+    `**Planning HANDOFF:** ${planningHandoffCommentId}`,
+    `**Planning RESULT:** ${planningResultCommentId}`,
+    `**Founder authorization:** ${founderAuthorizationCommentId}`,
+    '**Workflow mode:** planning_no_pr',
+    '**State:** BLOCKED_FOR_FOUNDER_DECISION',
+    '**Next:** Founder decision on the bounded Campaign Slice 5 planning Task.',
+  ].join('\n')
+}
+
+function isManagedTaskAcceptedByGenericReaders(body) {
+  const parsed = parseMissionControlState(body ?? '')
+  return Boolean(parsed.present && parsed.valid && parsed.state?.state === CAMPAIGN_SLICE_BOOTSTRAP_CONTRACT.targetState)
+}
+
 function buildTaskState({
   task,
   request,
@@ -415,6 +509,8 @@ function buildTaskState({
   attestation,
   managedStateSha256,
   now,
+  taskLocalResultCommentId,
+  taskLocalTransitionIdentity,
 } = {}) {
   return {
     schema_version: 1,
@@ -427,10 +523,10 @@ function buildTaskState({
     current_head: null,
     last_reviewed_head: null,
     workflow_mode: CAMPAIGN_SLICE_BOOTSTRAP_CONTRACT.workflowMode,
-    planning_authorization_base_sha: context.base.sha,
+    planning_authorization_base_sha: context.planningBaselineSha,
     guide_version: context.policy.version,
     guide_source_ref: context.base.ref,
-    guide_source_sha: context.policy.blobSha,
+    guide_source_sha: context.planningBaselineSha,
     open_blockers: [],
     follow_up_issues: [],
     next_permitted_action: 'Founder decision on the bounded Campaign Slice 5 planning Task.',
@@ -446,17 +542,23 @@ function buildTaskState({
     task_attestation_key_id: attestation.key_id,
     task_attestation_sha256: canonicalHash(attestation),
     managed_state_sha256: managedStateSha256,
-    latest_result_comment_id: context.result.comment.id,
-    latest_transition_identity: JSON.stringify({
-      role: 'RESULT',
-      taskId: String(task.number),
-      phase: 'Investigation / Planning',
-      contentHash: context.result.bodySha256,
-    }),
+    latest_result_comment_id: String(taskLocalResultCommentId),
+    latest_transition_identity: taskLocalTransitionIdentity,
+    planning_handoff_comment_id: String(context.handoff.comment.id),
+    planning_result_comment_id: String(context.result.comment.id),
+    founder_authorization_comment_id: String(context.authorization.commentId),
+    protected_execution_base_sha: context.base.sha,
   }
 }
 
-function buildTaskProjection({ task, request, context, now } = {}) {
+function buildTaskProjection({
+  task,
+  request,
+  context,
+  now,
+  taskLocalResultCommentId,
+  taskLocalTransitionIdentity,
+} = {}) {
   const payload = {
     attestation_schema: CAMPAIGN_SLICE_BOOTSTRAP_ATTESTATION_SCHEMA,
     operation: CAMPAIGN_SLICE_BOOTSTRAP_ATTESTATION_OPERATION,
@@ -465,17 +567,17 @@ function buildTaskProjection({ task, request, context, now } = {}) {
     repository_id: context.repository.id,
     repository_node_id: context.repository.node_id,
     founder_login: context.authorization.authorLogin,
-    founder_authorization_comment_id: context.authorization.commentId,
+    founder_authorization_comment_id: String(context.authorization.commentId),
     founder_authorization_body_sha256: context.authorization.bodySha256,
     campaign_issue_number: context.campaignIssue.number,
     campaign_issue_id: context.campaignIssue.id,
     campaign_issue_node_id: context.campaignIssue.node_id,
     slice_id: CAMPAIGN_SLICE_BOOTSTRAP_CONTRACT.sliceId,
-    planning_handoff_comment_id: context.handoff.comment.id,
+    planning_handoff_comment_id: String(context.handoff.comment.id),
     planning_handoff_body_sha256: context.handoff.bodySha256,
-    planning_result_comment_id: context.result.comment.id,
+    planning_result_comment_id: String(context.result.comment.id),
     planning_result_body_sha256: context.result.bodySha256,
-    planning_baseline_sha: context.base.sha,
+    planning_baseline_sha: context.planningBaselineSha,
     protected_base_sha: context.base.sha,
     policy_path: context.policy.path,
     policy_version: context.policy.version,
@@ -493,6 +595,7 @@ function buildTaskProjection({ task, request, context, now } = {}) {
     request_id: request.requestId,
     signing_key_id: context.signingKeyId,
     managed_state_sha256: null,
+    task_local_result_comment_id: String(taskLocalResultCommentId),
   }
   const provisionalAttestation = createCampaignSliceBootstrapAttestation({
     payload,
@@ -506,6 +609,8 @@ function buildTaskProjection({ task, request, context, now } = {}) {
     attestation: provisionalAttestation,
     managedStateSha256: null,
     now,
+    taskLocalResultCommentId,
+    taskLocalTransitionIdentity,
   })
   const managedStateSha256 = canonicalManagedStateBinding(detachedState)
   const attestation = createCampaignSliceBootstrapAttestation({
@@ -520,6 +625,8 @@ function buildTaskProjection({ task, request, context, now } = {}) {
     attestation,
     managedStateSha256,
     now,
+    taskLocalResultCommentId,
+    taskLocalTransitionIdentity,
   })
   return {
     attestation,
@@ -535,17 +642,17 @@ function expectedPayloadMatches(payload, request, context, task) {
     payload.repository === context.repository.nameWithOwner &&
     payload.repository_id === context.repository.id &&
     payload.repository_node_id === context.repository.node_id &&
-    payload.founder_authorization_comment_id === context.authorization.commentId &&
+    String(payload.founder_authorization_comment_id) === String(context.authorization.commentId) &&
     payload.founder_authorization_body_sha256 === context.authorization.bodySha256 &&
     payload.campaign_issue_number === Number(context.campaignIssue.number) &&
     payload.campaign_issue_id === context.campaignIssue.id &&
     payload.campaign_issue_node_id === context.campaignIssue.node_id &&
     payload.slice_id === CAMPAIGN_SLICE_BOOTSTRAP_CONTRACT.sliceId &&
-    payload.planning_handoff_comment_id === String(context.handoff.comment.id) &&
+    String(payload.planning_handoff_comment_id) === String(context.handoff.comment.id) &&
     payload.planning_handoff_body_sha256 === context.handoff.bodySha256 &&
-    payload.planning_result_comment_id === String(context.result.comment.id) &&
+    String(payload.planning_result_comment_id) === String(context.result.comment.id) &&
     payload.planning_result_body_sha256 === context.result.bodySha256 &&
-    payload.planning_baseline_sha === context.base.sha &&
+    payload.planning_baseline_sha === context.planningBaselineSha &&
     payload.protected_base_sha === context.base.sha &&
     payload.policy_path === context.policy.path &&
     payload.policy_version === context.policy.version &&
@@ -597,11 +704,14 @@ function verifyTaskProjection(issue, request, context) {
       state.current_head !== null ||
       state.last_reviewed_head !== null ||
       state.workflow_mode !== CAMPAIGN_SLICE_BOOTSTRAP_CONTRACT.workflowMode ||
-      state.planning_authorization_base_sha !== context.base.sha ||
+      state.planning_authorization_base_sha !== context.planningBaselineSha ||
+      state.guide_source_sha !== context.planningBaselineSha ||
+      state.policy_sha !== context.policy.blobSha ||
       state.bootstrap_request_id !== request.requestId ||
       state.task_attestation_schema !== CAMPAIGN_SLICE_BOOTSTRAP_ATTESTATION_SCHEMA ||
       state.task_attestation_key_id !== envelope.key_id ||
-      state.latest_result_comment_id !== String(context.result.comment.id) ||
+      !/^[1-9]\d*$/.test(String(state.latest_result_comment_id ?? '')) ||
+      typeof state.latest_transition_identity !== 'string' ||
       !Array.isArray(state.open_blockers) ||
       state.open_blockers.length !== 0) {
     throw stateConflict(`Task Issue #${issue.number} managed state does not match the target projection`)
@@ -615,19 +725,24 @@ function verifyTaskProjection(issue, request, context) {
   return { issue, task, attestation: envelope, state }
 }
 
-function provisionalMatches(provisional, request, context) {
-  return provisional.request_id === request.requestId &&
+function provisionalMatches(provisional, request, context, taskIssue = null) {
+  const baseMatch = provisional.request_id === request.requestId &&
     provisional.repository === context.repository.nameWithOwner &&
     provisional.campaign_issue_number === Number(context.campaignIssue.number) &&
     provisional.slice_id === CAMPAIGN_SLICE_BOOTSTRAP_CONTRACT.sliceId &&
-    provisional.founder_authorization_comment_id === String(context.authorization.commentId) &&
-    provisional.planning_handoff_comment_id === String(context.handoff.comment.id) &&
-    provisional.planning_result_comment_id === String(context.result.comment.id) &&
-    provisional.planning_baseline_sha === context.base.sha &&
+    String(provisional.founder_authorization_comment_id) === String(context.authorization.commentId) &&
+    String(provisional.planning_handoff_comment_id) === String(context.handoff.comment.id) &&
+    String(provisional.planning_result_comment_id) === String(context.result.comment.id) &&
+    provisional.planning_baseline_sha === context.planningBaselineSha &&
     provisional.protected_base_sha === context.base.sha &&
     provisional.policy_path === context.policy.path &&
     provisional.policy_version === context.policy.version &&
     provisional.policy_sha === context.policy.blobSha
+  if (!baseMatch) return false
+  if (!taskIssue) return true
+  return Number(provisional.task_issue_number) === Number(taskIssue.number) &&
+    String(provisional.task_issue_id) === String(taskIssue.id) &&
+    String(provisional.task_issue_node_id) === String(taskIssue.node_id)
 }
 
 async function scanTaskIssues(github, request, context) {
@@ -642,41 +757,67 @@ async function scanTaskIssues(github, request, context) {
   for (const issue of issues ?? []) {
     if (!issue || Number(issue.number) === Number(context.campaignIssue.number) || issue.pull_request) continue
     const body = String(issue.body ?? '')
-    const provisionalParsed = parseCampaignSliceBootstrapProvisionalTaskBody(body)
-    if (provisionalParsed.present) {
-      if (!provisionalParsed.valid) {
-        throw stateConflict(`provisional Task Issue #${issue.number} has invalid recovery metadata`)
+    const hasProvisionalMarker = body.includes('bemoat-mission-control-campaign-slice-bootstrap:provisional:v1')
+    const hasAttestation = body.includes(CAMPAIGN_SLICE_BOOTSTRAP_ATTESTATION_START)
+    // Unrelated repository Issues (including ordinary Task Issues) are ignored
+    // unless they carry this operation's markers.
+    if (!hasProvisionalMarker && !hasAttestation) continue
+
+    if (hasProvisionalMarker) {
+      const verified = verifyCampaignSliceBootstrapProvisionalTaskBody(body, {
+        publicKey: context.publicKey,
+        signingKeyId: context.signingKeyId,
+        repository: context.repository.nameWithOwner,
+        expectedRequestId: null,
+        expectedTaskIssue: issueIdentity(issue),
+      })
+      if (!verified.ok) {
+        // Forged/unsigned marker copies are not valid candidates and must not
+        // block allocation or become recoverable provenance.
+        continue
       }
-      const candidate = provisionalParsed.provisional
+      const candidate = verified.provisional
       const sameSlice = candidate.repository === context.repository.nameWithOwner &&
         candidate.campaign_issue_number === Number(context.campaignIssue.number) &&
         candidate.slice_id === CAMPAIGN_SLICE_BOOTSTRAP_CONTRACT.sliceId
-      if (sameSlice && !provisionalMatches(candidate, request, context)) {
-        throw stateConflict(`provisional Task Issue #${issue.number} claims a competing request`)
+      if (!sameSlice) continue
+      if (!provisionalMatches(candidate, request, context, issue)) {
+        if (candidate.request_id !== request.requestId) {
+          throw stateConflict(`provisional Task Issue #${issue.number} claims a competing request`)
+        }
+        continue
       }
-      if (provisionalMatches(candidate, request, context)) provisional.push({ issue, provisional: candidate })
+      provisional.push({ issue, provisional: candidate })
       continue
     }
-    const hasAttestation = body.includes(CAMPAIGN_SLICE_BOOTSTRAP_ATTESTATION_START)
-    if (hasAttestation) {
-      const parsed = parseCampaignSliceBootstrapAttestation(body)
-      if (!parsed.ok) throw stateConflict(`Task Issue #${issue.number} has an unreadable campaign-slice attestation`)
-      const payload = parsed.envelope.payload
-      const sameSlice = payload?.repository === context.repository.nameWithOwner &&
-        Number(payload?.campaign_issue_number) === Number(context.campaignIssue.number) &&
-        Number(payload?.slice_id) === CAMPAIGN_SLICE_BOOTSTRAP_CONTRACT.sliceId
-      if (sameSlice && payload.request_id !== request.requestId) {
-        throw stateConflict(`Task Issue #${issue.number} contains a competing campaign-slice request`)
-      }
-      if (payload.request_id === request.requestId) final.push({ issue, parsed })
-      continue
+
+    const parsed = parseCampaignSliceBootstrapAttestation(body)
+    if (!parsed.ok) throw stateConflict(`Task Issue #${issue.number} has an unreadable campaign-slice attestation`)
+    const payload = parsed.envelope.payload
+    const sameSlice = payload?.repository === context.repository.nameWithOwner &&
+      Number(payload?.campaign_issue_number) === Number(context.campaignIssue.number) &&
+      Number(payload?.slice_id) === CAMPAIGN_SLICE_BOOTSTRAP_CONTRACT.sliceId
+    if (!sameSlice) continue
+    const envelopeVerification = verifySignedEnvelope(parsed.envelope, {
+      publicKey: context.publicKey,
+      expectedSchema: CAMPAIGN_SLICE_BOOTSTRAP_ATTESTATION_SCHEMA,
+      expectedOperation: CAMPAIGN_SLICE_BOOTSTRAP_ATTESTATION_OPERATION,
+      expectedOperationVersion: CAMPAIGN_SLICE_BOOTSTRAP_ATTESTATION_OPERATION_VERSION,
+      signingKeyId: context.signingKeyId,
+      repository: context.repository.nameWithOwner,
+    })
+    if (!envelopeVerification.ok) {
+      throw stateConflict(
+        `Task Issue #${issue.number} campaign-slice attestation failed signature verification: ${envelopeVerification.reason}`,
+      )
     }
-    // A raw Issue claiming to be a Task is not accepted provenance and must
-    // never be silently adopted by this operation.
-    if (/\btask\b/i.test(String(issue.title ?? '') + '\n' + body) &&
-        !body.includes('bemoat-mission-control-task-attestation:v1')) {
-      throw stateConflict(`raw Task Issue #${issue.number} has no accepted campaign-slice provenance`)
+    if (payload.request_id !== request.requestId) {
+      throw stateConflict(`Task Issue #${issue.number} contains a competing campaign-slice request`)
     }
+    if (!isManagedTaskAcceptedByGenericReaders(body)) {
+      throw stateConflict(`Task Issue #${issue.number} attestation is present but managed state is incomplete`)
+    }
+    final.push({ issue, parsed })
   }
   if (provisional.length > 1 || final.length > 1) {
     throw stateConflict('multiple Task Issues claim the same campaign-slice request')
@@ -1036,7 +1177,7 @@ export async function runCampaignSliceBootstrap(input, deps = {}) {
     planningHandoffBodySha256: context.handoff.bodySha256,
     planningResultCommentId: context.result.comment.id,
     planningResultBodySha256: context.result.bodySha256,
-    planningBaselineSha: context.base.sha,
+    planningBaselineSha: context.planningBaselineSha,
     protectedBaseSha: context.base.sha,
     policyPath: context.policy.path,
     policyVersion: context.policy.version,
@@ -1069,28 +1210,24 @@ export async function runCampaignSliceBootstrap(input, deps = {}) {
     } else if (currentSlice.status !== 'NOT_STARTED') {
       throw stateConflict('Campaign Slice 5 is not NOT_STARTED or already bound to this request')
     }
+
     if (!taskIssue) {
       if (typeof github.createIssue !== 'function') throw blockedExternal('Task Issue allocation adapter is unavailable')
-      const provisionalBody = renderCampaignSliceBootstrapProvisionalTaskBody({
-        requestId: request.requestId,
-        repository: context.repository.nameWithOwner,
-        campaignIssueNumber: context.campaignIssue.number,
-        sliceId: CAMPAIGN_SLICE_BOOTSTRAP_CONTRACT.sliceId,
-        founderAuthorizationCommentId: context.authorization.commentId,
-        planningHandoffCommentId: context.handoff.comment.id,
-        planningResultCommentId: context.result.comment.id,
-        planningBaselineSha: context.base.sha,
-        protectedBaseSha: context.base.sha,
-        policyPath: context.policy.path,
-        policyVersion: context.policy.version,
-        policySha: context.policy.blobSha,
-      })
+      // Allocate with a non-recoverable placeholder, then immediately CAS a signed
+      // provisional bound to the Issue identity. Unsigned marker copies are ignored.
+      const placeholderBody = [
+        '# Provisional campaign-slice allocation (unsigned placeholder)',
+        '',
+        `request_id: ${request.requestId}`,
+        '',
+        'This placeholder is intentionally not recoverable provenance.',
+      ].join('\n')
       try {
         taskIssue = await github.createIssue({
           title: '[Mission Control][Provisional] Campaign Slice 5 planning Task bootstrap',
-          body: provisionalBody,
+          body: placeholderBody,
         })
-        if (!taskIssue || taskIssue.body !== provisionalBody) {
+        if (!taskIssue || taskIssue.body !== placeholderBody) {
           throw blockedExternal('provisional Task allocation did not return the exact body')
         }
       } catch (error) {
@@ -1100,48 +1237,107 @@ export async function runCampaignSliceBootstrap(input, deps = {}) {
         }
         throw projectionFailed('Task allocation failed', error)
       }
-      issueIdentity(taskIssue)
+      const allocated = issueIdentity(taskIssue)
+      const signedProvisional = renderCampaignSliceBootstrapProvisionalTaskBody({
+        requestId: request.requestId,
+        repository: context.repository.nameWithOwner,
+        campaignIssueNumber: context.campaignIssue.number,
+        sliceId: CAMPAIGN_SLICE_BOOTSTRAP_CONTRACT.sliceId,
+        founderAuthorizationCommentId: context.authorization.commentId,
+        planningHandoffCommentId: context.handoff.comment.id,
+        planningResultCommentId: context.result.comment.id,
+        planningBaselineSha: context.planningBaselineSha,
+        protectedBaseSha: context.base.sha,
+        policyPath: context.policy.path,
+        policyVersion: context.policy.version,
+        policySha: context.policy.blobSha,
+        taskIssue: allocated,
+        ['privateKey']: context.signingPrivateKey,
+        keyId: context.signingKeyId,
+      })
+      taskIssue = await casTaskOrCampaignBody(github, {
+        number: allocated.number,
+        expectedBody: taskIssue.body,
+        body: signedProvisional,
+        requestId: request.requestId,
+      })
+      if (!taskIssue || taskIssue.body !== signedProvisional) {
+        throw projectionFailed('signed provisional allocation write did not return the exact body')
+      }
+      if (isManagedTaskAcceptedByGenericReaders(taskIssue.body)) {
+        throw stateConflict('provisional Task must not be accepted as a complete managed Task')
+      }
       if (typeof deps.failureInjector === 'function') {
         await deps.failureInjector('after-task-allocation')
       }
     }
+
     const taskIdentity = issueIdentity(taskIssue)
     let taskProjection
     if (initialized) {
       taskProjection = verifyTaskProjection(taskIssue, request, context)
     } else {
+      // Keep Task non-final until ownership is durably verified (MC-R1-006).
+      if (isManagedTaskAcceptedByGenericReaders(taskIssue.body)) {
+        // Ownership may be missing after a prior partial write; require registry first.
+      } else {
+        const verifiedProvisional = verifyCampaignSliceBootstrapProvisionalTaskBody(taskIssue.body, {
+          publicKey: context.publicKey,
+          signingKeyId: context.signingKeyId,
+          repository: context.repository.nameWithOwner,
+          expectedRequestId: request.requestId,
+          expectedTaskIssue: taskIdentity,
+        })
+        if (!verifiedProvisional.ok) {
+          throw stateConflict(`Task Issue #${taskIdentity.number} lacks trusted provisional provenance: ${verifiedProvisional.reason}`)
+        }
+      }
+
+      const taskLocal = await ensureTaskLocalInvestigationResult(github, {
+        taskIssue,
+        context,
+        requestId: request.requestId,
+      })
       const projection = buildTaskProjection({
         task: taskIdentity,
         request,
         context,
         now,
+        taskLocalResultCommentId: taskLocal.commentId,
+        taskLocalTransitionIdentity: taskLocal.transitionIdentity,
       })
-      try {
-        if (typeof github.updateIssueBody === 'function') {
-          taskIssue = await github.updateIssueBody(taskIdentity.number, projection.body)
-        } else if (typeof github.compareAndSwapIssueBody === 'function') {
-          taskIssue = await github.compareAndSwapIssueBody({
-            number: taskIdentity.number,
-            expectedBody: taskIssue.body,
-            body: projection.body,
-            requestId: request.requestId,
-          })
-        } else {
-          throw blockedExternal('Task Issue projection adapter is unavailable')
-        }
-      } catch (error) {
-        if (error.code === 'BLOCKED_EXTERNAL') throw error
-        if (error.code === 'STATE_CONFLICT' || error.code === 'CAS_CONFLICT') {
-          throw stateConflict('Task projection compare-and-swap conflicted', error)
-        }
-        if (isAmbiguous(error)) throw projectionFailed('Task projection response was ambiguous', error)
-        throw projectionFailed('Task managed-state projection failed', error)
+
+      // Bind ownership to the final attestation before installing managed state so
+      // a crash cannot leave a generic-reader-valid orphan Task.
+      await ensureOwnershipBinding(
+        github,
+        request,
+        context,
+        taskIdentity,
+        projection.attestation,
+      )
+      if (typeof deps.failureInjector === 'function') {
+        await deps.failureInjector('after-ownership-before-final-body')
       }
+      if (isManagedTaskAcceptedByGenericReaders(taskIssue.body)) {
+        throw stateConflict('Task became managed before ownership boundary completed')
+      }
+
+      taskIssue = await casTaskOrCampaignBody(github, {
+        number: taskIdentity.number,
+        expectedBody: taskIssue.body,
+        body: projection.body,
+        requestId: request.requestId,
+      })
       if (!taskIssue || taskIssue.body !== projection.body) {
         throw projectionFailed('Task projection did not return the exact canonical body')
       }
       taskProjection = verifyTaskProjection(taskIssue, request, context)
+      if (typeof deps.failureInjector === 'function') {
+        await deps.failureInjector('after-task-initialization')
+      }
     }
+
     await ensureOwnershipBinding(
       github,
       request,
@@ -1149,9 +1345,7 @@ export async function runCampaignSliceBootstrap(input, deps = {}) {
       taskProjection.task,
       taskProjection.attestation,
     )
-    if (!initialized && typeof deps.failureInjector === 'function') {
-      await deps.failureInjector('after-task-initialization')
-    }
+
     current = await readCurrentCampaign(github, context.campaignEvidence)
     const refreshedSlice = current.campaign.slices[String(CAMPAIGN_SLICE_BOOTSTRAP_CONTRACT.sliceId)]
     if (refreshedSlice.status === 'PLANNING') {
@@ -1201,6 +1395,9 @@ export async function runCampaignSliceBootstrap(input, deps = {}) {
         attestation: verifiedTask.attestation,
       }
     }
+    if (typeof deps.failureInjector === 'function') {
+      await deps.failureInjector('after-campaign-before-completion')
+    }
     await recordCompletion(github, request, context, verifiedTask.issue)
     return {
       ok: true,
@@ -1212,6 +1409,9 @@ export async function runCampaignSliceBootstrap(input, deps = {}) {
       taskProjection,
     }
   } catch (error) {
+    if (error.code === 'CAS_CONFLICT') {
+      throw stateConflict('campaign-slice bootstrap lost the repository lease or CAS race', error)
+    }
     if (error.code === 'STATE_CONFLICT' ||
         error.code === 'BLOCKED_EXTERNAL' ||
         error.code === 'PROJECTION_FAILED') {
@@ -1222,6 +1422,72 @@ export async function runCampaignSliceBootstrap(input, deps = {}) {
     await releaseLease(github, holder, request.requestId)
   }
 }
+
+async function casTaskOrCampaignBody(github, { number, expectedBody, body, requestId }) {
+  if (typeof github.compareAndSwapIssueBody !== 'function') {
+    throw blockedExternal('expected-body Issue CAS adapter is unavailable')
+  }
+  if (typeof expectedBody !== 'string') {
+    throw stateConflict('Issue CAS requires an exact expectedBody')
+  }
+  try {
+    return await github.compareAndSwapIssueBody({
+      number,
+      expectedBody,
+      body,
+      requestId,
+    })
+  } catch (error) {
+    if (error.code === 'BLOCKED_EXTERNAL') throw error
+    if (error.code === 'STATE_CONFLICT' || error.code === 'CAS_CONFLICT') {
+      throw stateConflict('Issue projection compare-and-swap conflicted', error)
+    }
+    if (isAmbiguous(error)) throw projectionFailed('Issue projection response was ambiguous', error)
+    throw projectionFailed('Issue projection write failed', error)
+  }
+}
+
+async function ensureTaskLocalInvestigationResult(github, { taskIssue, context, requestId }) {
+  if (typeof github.postIssueComment !== 'function' || typeof github.getIssueComments !== 'function') {
+    throw blockedExternal('Task-local RESULT comment adapter is unavailable')
+  }
+  const comments = await github.getIssueComments(taskIssue.number)
+  for (const comment of comments ?? []) {
+    if (!String(comment?.body ?? '').trimStart().startsWith('## RESULT')) continue
+    const identity = normalizeTransitionIdentity(comment.body ?? '')
+    if (identity.role === 'RESULT' &&
+        identity.taskId === String(taskIssue.number) &&
+        /^(Diagnostic|Investigation)/.test(identity.phase)) {
+      return {
+        commentId: normalizeImmutableCommentId(comment.id),
+        transitionIdentity: serializeTransitionIdentity(identity),
+        body: comment.body,
+      }
+    }
+  }
+  const body = renderTaskLocalInvestigationResult({
+    taskNumber: taskIssue.number,
+    campaignIssueNumber: context.campaignIssue.number,
+    sliceId: CAMPAIGN_SLICE_BOOTSTRAP_CONTRACT.sliceId,
+    planningBaselineSha: context.planningBaselineSha,
+    protectedBaseSha: context.base.sha,
+    planningHandoffCommentId: context.handoff.comment.id,
+    planningResultCommentId: context.result.comment.id,
+    founderAuthorizationCommentId: context.authorization.commentId,
+  })
+  const posted = await github.postIssueComment(taskIssue.number, body)
+  const identity = normalizeTransitionIdentity(body)
+  if (identity.taskId !== String(taskIssue.number) || identity.role !== 'RESULT') {
+    throw projectionFailed('Task-local RESULT transition identity is not canonical')
+  }
+  return {
+    commentId: normalizeImmutableCommentId(posted.id),
+    transitionIdentity: serializeTransitionIdentity(identity),
+    body,
+    requestId,
+  }
+}
+
 
 export {
   bootstrapError,

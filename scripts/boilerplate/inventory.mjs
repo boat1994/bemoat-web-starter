@@ -73,6 +73,7 @@ export const managedPaths = [
   'tests/int/mission-control-merge.int.spec.ts', 'tests/int/mission-control-merge-verdict-binding-entrypoint.int.spec.ts', 'tests/int/mission-control-issue-body-cas.int.spec.ts',
   'tests/int/mission-control-correction-entrypoints.int.spec.ts',
   'tests/int/mission-control-characterization.int.spec.ts', 'tests/int/mission-control-task-bootstrap-contract.int.spec.ts', 'tests/int/mission-control-task-initialization.int.spec.ts', 'tests/int/mission-control-campaign-slice-bootstrap.int.spec.ts',
+  'tests/int/mission-control-campaign-slice-bootstrap-signing.int.spec.ts',
   'tests/int/mission-control-child-portability.int.spec.ts',
   'tests/int/mission-control-brainstorming.int.spec.ts', 'tests/int/toolchain-contract.int.spec.ts',
   'tests/int/vitest-process-lock.int.spec.ts', 'tests/int/starter-acceptance.int.spec.ts',

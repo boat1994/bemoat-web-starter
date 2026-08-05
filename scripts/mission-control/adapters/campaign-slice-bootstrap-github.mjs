@@ -1,13 +1,20 @@
-import { randomBytes } from 'node:crypto'
+import { createHash } from 'node:crypto'
 
 import { runCommand } from '../../adapters/command-runner.mjs'
-import { compareAndSwapIssueBody } from '../../mission-control-issue-body-cas.mjs'
+import {
+  compareAndSwapIssueBody,
+  createGhContentsLeaseStore,
+  hashIssueBody,
+  leasePathForIssue,
+} from '../../mission-control-issue-body-cas.mjs'
 import {
   CAMPAIGN_SLICE_BOOTSTRAP_CONTRACT,
   CAMPAIGN_SLICE_BOOTSTRAP_REGISTRY_SCHEMA,
 } from '../domain/campaign-slice-bootstrap-authorization.mjs'
+import { normalizeImmutableCommentId } from '../domain/campaign-slice-bootstrap-request.mjs'
 
-const LEASE_MARKER = '<!-- bemoat-mission-control-campaign-slice-bootstrap-lease:v1 -->'
+const OPERATION_LEASE_PATH =
+  `.bemoat/mission-control/leases/campaign-slice-bootstrap-${CAMPAIGN_SLICE_BOOTSTRAP_CONTRACT.campaignIssueNumber}-${CAMPAIGN_SLICE_BOOTSTRAP_CONTRACT.sliceId}.json`
 
 function parseJson(value, label) {
   try {
@@ -59,7 +66,7 @@ function issueFromRest(issue, repository) {
 function commentFromRest(comment, repository) {
   const issueNumber = String(comment.issue_url ?? '').match(/\/issues\/(\d+)$/)?.[1] ?? null
   return {
-    id: comment.id,
+    id: normalizeImmutableCommentId(comment.id) ?? comment.id,
     body: comment.body ?? '',
     user: comment.user ?? null,
     author: comment.user ?? null,
@@ -70,53 +77,15 @@ function commentFromRest(comment, repository) {
   }
 }
 
-function leaseBody({ scope, requestId, status, leaseToken, issueNumber, observedBodySha256 = null }) {
-  return [
-    LEASE_MARKER,
-    '```json',
-    JSON.stringify({
-      schema_version: 1,
-      scope,
-      issue_number: Number(issueNumber),
-      request_id: requestId,
-      status,
-      ['token']: leaseToken,
-      observed_body_sha256: observedBodySha256,
-    }),
-    '```',
-    LEASE_MARKER.replace(':v1', ':end'),
-  ].join('\n')
-}
-
-function parseLease(comment) {
-  if (!String(comment?.body ?? '').includes(LEASE_MARKER)) return null
-  const raw = String(comment.body)
-    .replace(LEASE_MARKER, '')
-    .replace(LEASE_MARKER.replace(':v1', ':end'), '')
-    .replace(/```json\s*|```/g, '')
-    .trim()
-  try {
-    const parsed = JSON.parse(raw)
-    return parsed?.schema_version === 1 &&
-      parsed.scope &&
-      parsed.issue_number &&
-      parsed.request_id &&
-      parsed.status &&
-      parsed.token
-      ? { ...parsed, commentId: comment.id }
-      : null
-  } catch {
-    return null
-  }
-}
-
 export function createCampaignSliceBootstrapGithubAdapter({
   repository,
   env = process.env,
   runGh = null,
+  leaseStore = null,
 } = {}) {
   if (!repository) throw new Error('campaign slice bootstrap GitHub adapter requires repository')
   const gh = runGh ?? ((args, options = {}) => runCommand('gh', args, { env, ...options }))
+  const contentsLeaseStore = leaseStore ?? createGhContentsLeaseStore({ runGh: gh })
   const api = (path, options = {}) => {
     const args = ['api']
     if (options.method) args.push('--method', options.method)
@@ -159,105 +128,92 @@ export function createCampaignSliceBootstrapGithubAdapter({
       repository,
     )
 
-  async function acquireLease({ issueNumber, requestId, scope, expectedBodySha256 = null }) {
-    const comments = await getIssueComments(issueNumber)
-    const events = comments
-      .map(parseLease)
-      .filter((event) => event && event.scope === scope && Number(event.issue_number) === Number(issueNumber))
-    const latestByRequest = new Map()
-    for (const event of events) latestByRequest.set(`${event.request_id}:${event.scope}`, event)
-    const heldByOther = [...latestByRequest.values()].find(
-      (event) => event.status === 'held' && event.request_id !== requestId,
+  const patchIssueBody = async (number, body) =>
+    issueFromRest(
+      api(
+        `repos/${repository}/issues/${number}`,
+        {
+          method: 'PATCH',
+          input: JSON.stringify({ body }),
+          label: `Issue #${number} body projection`,
+        },
+      ),
+      repository,
+    )
+
+  async function acquireContentsFence({ path, requestId, observedBodySha256 = null }) {
+    const existing = await contentsLeaseStore.read({ repo: repository, path })
+    const identityKey = String(requestId)
+    const sameIdentity = Boolean(
+      existing?.content &&
+      existing.content.transition_identity === identityKey,
+    )
+    const heldByOther = Boolean(
+      existing?.content &&
+      existing.content.status === 'held' &&
+      !sameIdentity,
     )
     if (heldByOther) {
-      const error = new Error('CAS_CONFLICT: another campaign bootstrap writer holds the Issue lease')
+      const error = new Error('CAS_CONFLICT: another campaign bootstrap writer holds the repository lease')
       error.code = 'CAS_CONFLICT'
       throw error
     }
-    const sameHeld = latestByRequest.get(`${requestId}:${scope}`)
-    if (sameHeld?.status === 'held') return { ['token']: sameHeld.token, commentId: sameHeld.commentId }
-    const leaseToken = `${scope}:${requestId}:${Date.now()}:${randomBytes(8).toString('hex')}`
-    const comment = await postComment(
-      issueNumber,
-      leaseBody({
-        scope,
-        requestId,
-        status: 'held',
-        leaseToken,
-        issueNumber,
-        observedBodySha256: expectedBodySha256,
-      }),
-    )
-    const reread = (await getIssueComments(issueNumber))
-      .map(parseLease)
-      .filter((event) => event && event.scope === scope && Number(event.issue_number) === Number(issueNumber))
-    const active = reread.filter((event) => event.status === 'held')
-    if (active.length !== 1 || active[0].token !== leaseToken) {
-      const error = new Error('CAS_CONFLICT: campaign Issue lease winner could not be proven')
-      error.code = 'CAS_CONFLICT'
+    if (existing?.content?.status === 'held' && sameIdentity) {
+      return {
+        ['token']: identityKey,
+        path,
+        sha: existing.sha,
+        adopted: true,
+      }
+    }
+    const content = {
+      schema_version: 1,
+      issue: String(CAMPAIGN_SLICE_BOOTSTRAP_CONTRACT.campaignIssueNumber),
+      transition_identity: identityKey,
+      observed_body_sha256: observedBodySha256,
+      holder: 'mission-control-campaign-slice-bootstrap',
+      status: 'held',
+      updated_at: new Date().toISOString(),
+    }
+    try {
+      const written = await contentsLeaseStore.write({
+        repo: repository,
+        path,
+        content,
+        sha: existing?.sha,
+      })
+      return {
+        ['token']: identityKey,
+        path,
+        sha: written?.sha ?? null,
+        adopted: false,
+      }
+    } catch (error) {
+      if (error?.code === 'CAS_CONFLICT' || /CAS_CONFLICT|409|422/i.test(error?.message ?? '')) {
+        const conflict = new Error('CAS_CONFLICT: campaign bootstrap repository lease winner could not be proven')
+        conflict.code = 'CAS_CONFLICT'
+        conflict.cause = error
+        throw conflict
+      }
       throw error
     }
-    return { ['token']: leaseToken, commentId: comment.id }
   }
 
-  async function releaseLease({ issueNumber, requestId, scope, lease }) {
-    if (!lease?.token) return
-    await postComment(
-      issueNumber,
-      leaseBody({
-        scope,
-        requestId,
+  async function releaseContentsFence({ path, lease }) {
+    if (!lease?.token || !path) return
+    const current = await contentsLeaseStore.read({ repo: repository, path })
+    if (!current?.content || current.content.status !== 'held') return
+    if (current.content.transition_identity !== lease.token) return
+    await contentsLeaseStore.write({
+      repo: repository,
+      path,
+      content: {
+        ...current.content,
         status: 'released',
-        leaseToken: lease.token,
-        issueNumber,
-      }),
-    )
-  }
-
-  const issueBodyLeaseStore = async ({ issueNumber }) => {
-    const scope = 'campaign-slice-bootstrap-projection'
-    return {
-      async read() {
-        const events = (await getIssueComments(issueNumber))
-          .map(parseLease)
-          .filter((event) => event && event.scope === scope && Number(event.issue_number) === Number(issueNumber))
-        const event = events.at(-1)
-        if (!event) return null
-        return {
-          sha: String(event.commentId),
-          content: {
-            schema_version: 1,
-            issue: String(issueNumber),
-            transition_identity: event.request_id,
-            observed_body_sha256: event.observed_body_sha256,
-            holder: 'mission-control-campaign-slice-bootstrap',
-            status: event.status,
-            updated_at: null,
-          },
-        }
+        updated_at: new Date().toISOString(),
       },
-      async write({ content, sha }) {
-        const current = await this.read({})
-        if (sha && String(current?.sha) !== String(sha)) {
-          const error = new Error('CAS_CONFLICT: campaign Issue lease comment changed')
-          error.code = 'CAS_CONFLICT'
-          throw error
-        }
-        const requestId = content.transition_identity
-        const lease = content.status === 'held'
-          ? await acquireLease({
-            issueNumber,
-            requestId,
-            scope,
-            expectedBodySha256: content.observed_body_sha256,
-          })
-          : await (async () => {
-            await releaseLease({ issueNumber, requestId, scope, lease: { ['token']: requestId } })
-            return { ['token']: requestId }
-          })()
-        return { sha: lease.commentId ?? lease.token, content }
-      },
-    }
+      sha: current.sha,
+    })
   }
 
   return {
@@ -345,24 +301,29 @@ export function createCampaignSliceBootstrapGithubAdapter({
         { label: `policy ${path}` },
       )
       const content = Buffer.from(String(data.content ?? '').replace(/\n/g, ''), 'base64').toString('utf8')
-      const base = await this.getProtectedBase()
+      // Policy blob identity is authoritative; sourceCommit is the ref tip used to read it
+      // and may advance beyond the historical planning baseline after merge.
+      const tip = await this.getBranchCommit(ref)
       const version = content.match(/(?:^|\n)version:\s*([0-9]+\.[0-9]+\.[0-9]+)/)?.[1] ?? null
       return {
         path,
         version,
         blobSha: data.sha,
-        sourceCommit: base.sha,
+        sourceCommit: tip.sha,
         content,
       }
     },
-    async getCampaignAuthorityEvidence() {
+    async getCampaignAuthorityEvidence({ planningBaselineSha = null, protectedBaseSha = null } = {}) {
       const comments = await getIssueComments(CAMPAIGN_SLICE_BOOTSTRAP_CONTRACT.campaignIssueNumber)
       const base = await this.getProtectedBase()
+      // Expansion-authority currency is evaluated against the historical planning
+      // baseline. The live protected execution tip is bound separately and may
+      // advance after this transport merges.
       return {
         campaignExpansionAuthority: {
           comments,
           trustedFounderLogins: await this.getTrustedFounderLogins(),
-          currentProtectedBaseSha: base.sha,
+          currentProtectedBaseSha: planningBaselineSha ?? protectedBaseSha ?? base.sha,
         },
       }
     },
@@ -379,20 +340,19 @@ export function createCampaignSliceBootstrapGithubAdapter({
         repository,
       )
     },
+    /**
+     * Low-level Issue PATCH used only as the write callback inside expected-body CAS.
+     * Callers must not use this to bypass compareAndSwapIssueBody.
+     */
     async updateIssueBody(number, body) {
-      return issueFromRest(
-        api(
-          `repos/${repository}/issues/${number}`,
-          {
-            method: 'PATCH',
-            input: JSON.stringify({ body }),
-            label: `Issue #${number} body projection`,
-          },
-        ),
-        repository,
-      )
+      return patchIssueBody(number, body)
     },
     async compareAndSwapIssueBody({ number, expectedBody, body, requestId }) {
+      if (typeof expectedBody !== 'string') {
+        throw Object.assign(new Error('compareAndSwapIssueBody requires expectedBody'), {
+          code: 'STATE_CONFLICT',
+        })
+      }
       await compareAndSwapIssueBody({
         repo: repository,
         issueNumber: number,
@@ -401,9 +361,11 @@ export function createCampaignSliceBootstrapGithubAdapter({
         transitionIdentity: requestId,
         holder: 'mission-control-campaign-slice-bootstrap',
         deps: {
-          leaseStore: await issueBodyLeaseStore({ issueNumber: number }),
+          leaseStore: contentsLeaseStore,
           readIssueBody: async () => (await this.getIssue(number)).body,
-          writeIssueBody: async ({ body: nextBody }) => this.updateIssueBody(number, nextBody),
+          writeIssueBody: async ({ body: nextBody }) => {
+            await patchIssueBody(number, nextBody)
+          },
         },
       })
       return this.getIssue(number)
@@ -424,29 +386,34 @@ export function createCampaignSliceBootstrapGithubAdapter({
       return getIssueComments(CAMPAIGN_SLICE_BOOTSTRAP_CONTRACT.campaignIssueNumber)
     },
     async acquireCampaignLease({ requestId }) {
-      return acquireLease({
-        issueNumber: CAMPAIGN_SLICE_BOOTSTRAP_CONTRACT.campaignIssueNumber,
+      return acquireContentsFence({
+        path: OPERATION_LEASE_PATH,
         requestId,
-        scope: 'campaign-slice-bootstrap',
+        observedBodySha256: hashIssueBody(requestId),
       })
     },
     async releaseCampaignLease({ requestId, lease }) {
-      return releaseLease({
-        issueNumber: CAMPAIGN_SLICE_BOOTSTRAP_CONTRACT.campaignIssueNumber,
-        requestId,
-        scope: 'campaign-slice-bootstrap',
-        lease,
+      return releaseContentsFence({
+        path: lease?.path ?? OPERATION_LEASE_PATH,
+        lease: lease ?? { ['token']: requestId },
       })
     },
-    async acquireIssueLease({ issueNumber, requestId, scope, expectedBodySha256 }) {
-      return acquireLease({ issueNumber, requestId, scope, expectedBodySha256 })
+    async acquireIssueLease({ issueNumber, requestId, expectedBodySha256 }) {
+      return acquireContentsFence({
+        path: leasePathForIssue(issueNumber),
+        requestId,
+        observedBodySha256: expectedBodySha256 ?? createHash('sha256').update(String(requestId)).digest('hex'),
+      })
     },
-    async releaseIssueLease({ issueNumber, requestId, scope, lease }) {
-      return releaseLease({ issueNumber, requestId, scope, lease })
+    async releaseIssueLease({ issueNumber, requestId, lease }) {
+      return releaseContentsFence({
+        path: lease?.path ?? leasePathForIssue(issueNumber),
+        lease: lease ?? { ['token']: requestId },
+      })
     },
-    issueBodyLeaseStore,
+    issueBodyLeaseStore: contentsLeaseStore,
     postIssueComment: postComment,
   }
 }
 
-export { LEASE_MARKER }
+export { OPERATION_LEASE_PATH }

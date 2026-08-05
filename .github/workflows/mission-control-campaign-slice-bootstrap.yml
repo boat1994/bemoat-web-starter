@@ -28,13 +28,15 @@ on:
         required: true
         type: string
 
-# Issue writes are the only write capability. Contents is intentionally
-# read-only. Reuse mission-control-task-creation so existing protected
-# environment reviewer configuration also protects this separate operation.
+# Issues are the durable Task/Campaign projection surface. Contents write is
+# required only for the shared repository-wide Mission Control lease branch
+# (bemoat/mission-control-leases). Reuse mission-control-task-creation so
+# existing protected environment reviewer configuration also protects this
+# separate operation.
 permissions:
   actions: read
   checks: read
-  contents: read
+  contents: write
   issues: write
   metadata: read
   pull-requests: read

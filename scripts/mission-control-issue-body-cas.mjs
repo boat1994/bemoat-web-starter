@@ -342,6 +342,17 @@ export async function compareAndSwapIssueBody({
       observedBodyHash,
       transitionIdentity: identityKey,
     })
+
+    // Re-validate lease ownership after the TOCTOU seam so a stale worker that
+    // lost the Contents lease cannot continue to the Issue body write.
+    const leaseAfterSeam = await leaseStore.read({ repo, path })
+    if (
+      !leaseAfterSeam?.content ||
+      leaseAfterSeam.content.status !== 'held' ||
+      leaseAfterSeam.content.transition_identity !== identityKey
+    ) {
+      throw new Error('STATE_CONFLICT: issue-body lease CAS lost; concurrent writer holds the lease')
+    }
   }
 
   const liveBody = await deps.readIssueBody({ repo, issueNumber })

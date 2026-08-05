@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 import { createCampaignSliceBootstrapGithubAdapter } from './mission-control/adapters/campaign-slice-bootstrap-github.mjs'
+import { resolveCampaignSliceBootstrapSigningIdentity } from './mission-control/domain/campaign-slice-bootstrap-signing.mjs'
 import { runCampaignSliceBootstrap } from './mission-control/workflows/campaign-slice-bootstrap.mjs'
 
 const FLAG_TO_INPUT = Object.freeze({
@@ -49,15 +50,12 @@ async function main() {
   const env = process.env
   const repository = env.GITHUB_REPOSITORY ?? ''
   const github = createCampaignSliceBootstrapGithubAdapter({ repository, env })
+  const signing = resolveCampaignSliceBootstrapSigningIdentity(env)
   const result = await runCampaignSliceBootstrap(input, {
     github,
     publicKey: protectedPublicKey(),
-    signingPrivateKey: env.BEMOAT_CAMPAIGN_SLICE_BOOTSTRAP_SIGNING_PRIVATE_KEY ??
-      env.BEMOAT_TASK_BOOTSTRAP_SIGNING_PRIVATE_KEY ??
-      null,
-    signingKeyId: env.BEMOAT_CAMPAIGN_SLICE_BOOTSTRAP_SIGNING_KEY_ID ??
-      env.BEMOAT_TASK_BOOTSTRAP_SIGNING_KEY_ID ??
-      null,
+    signingPrivateKey: signing.signingPrivateKey,
+    signingKeyId: signing.signingKeyId,
   })
   process.stdout.write(`${JSON.stringify({
     ok: true,
@@ -69,6 +67,7 @@ async function main() {
     slice_id: 5,
     attestation_schema: result.attestation.attestation_schema,
     signing_key_id: result.attestation.key_id,
+    signing_identity_source: signing.source,
   })}\n`)
 }
 
