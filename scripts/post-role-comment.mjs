@@ -22,7 +22,13 @@ import {
   classificationExitCode,
   createResultEnvelopeV1,
 } from './cli/command-result.mjs'
-import { findLatestRoleComment, parseRoleCommentBody } from './mission-control-reconcile.mjs'
+import {
+  findLatestRoleComment,
+  normalizeIssueComments,
+  parsePaginatedGhApiJson,
+  parseRoleCommentBody,
+  verifyPostedCommentReadback,
+} from './mission-control-reconcile.mjs'
 import { projectComments } from './github-comment-projection.mjs'
 
 const ROLE_HEADINGS = ['HANDOFF', 'RESULT', 'REVIEW_VERDICT']
@@ -196,6 +202,7 @@ function renderResult({
   legacyOutput,
   mutationPerformed,
   parsedBody,
+  commentId = null,
 }) {
   const exactHead = /^[0-9a-f]{40}$/i.test(parsedBody.headSha ?? '')
     ? parsedBody.headSha.toLowerCase()
@@ -219,6 +226,7 @@ function renderResult({
       ...(legacyClassification ? { legacy_classification: legacyClassification } : {}),
       ...(legacyOutput.length > 0 ? { legacy_output: legacyOutput } : {}),
       ...(options.check ? { check: true } : {}),
+      ...(commentId != null ? { comment_id: String(commentId) } : {}),
     },
   })
 
@@ -402,6 +410,21 @@ function createBodyFile(body) {
   return { directory, path }
 }
 
+function readLiveRoleComments({ issue, repo }) {
+  const args = ['issue', 'view', issue, '--json', 'comments']
+  if (repo) args.push('--repo', repo)
+  const result = spawnSync('gh', args, { encoding: 'utf8' })
+  if (result.error || result.status !== 0) {
+    throw new Error(
+      result.stderr || result.stdout || result.error?.message || 'live role-comment readback failed',
+    )
+  }
+  const payload = JSON.parse(result.stdout)
+  if (Array.isArray(payload)) return normalizeIssueComments(payload)
+  if (Array.isArray(payload?.comments)) return normalizeIssueComments(payload.comments)
+  return parsePaginatedGhApiJson(result.stdout)
+}
+
 function main() {
   let command = null
   let invocation = null
@@ -511,6 +534,26 @@ function main() {
       )
     }
 
+    let durableComment
+    try {
+      durableComment = verifyPostedCommentReadback({
+        comments: readLiveRoleComments(options),
+        body,
+        role,
+      })
+    } catch (error) {
+      throw runtimeError(
+        'AMBIGUOUS_RESULT',
+        `posted ${role} comment could not be confirmed by live readback: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        {
+          mutationPerformed: true,
+          legacyClassification: 'POSTED',
+        },
+      )
+    }
+
     renderResult({
       command,
       format: invocation.format,
@@ -520,6 +563,7 @@ function main() {
       legacyOutput,
       mutationPerformed: true,
       parsedBody,
+      commentId: durableComment.id,
     })
   } catch (error) {
     const format = invocation?.format ?? (process.argv.includes('--json') ? 'json' : 'text')

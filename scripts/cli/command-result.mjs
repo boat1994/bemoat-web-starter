@@ -44,6 +44,32 @@ const REPOSITORY_RE = /^[^/\s:]+\/[^/\s:]+$/
 const FULL_SHA_RE = /^[0-9a-f]{40}$/
 const FULL_SHA_INPUT_RE = /^[0-9a-f]{40}$/i
 
+/**
+ * Preserve a canonical classification emitted by a delegated CLI, while
+ * keeping unclassified local failures distinct from external failures.
+ *
+ * @param {{
+ *   command?: string,
+ *   stdout?: string,
+ *   stderr?: string,
+ *   error?: { message?: string } | null,
+ * }} input
+ * @returns {string}
+ */
+export function classifyDelegatedFailure({
+  command = '',
+  stdout = '',
+  stderr = '',
+  error = null,
+} = {}) {
+  const output = [stderr, stdout, error?.message]
+    .filter((value) => value)
+    .join('\n')
+  const match = output.match(/(?:^|\n)\s*(?:ERROR:\s*)?([A-Z_]+):/)
+  if (match && Object.hasOwn(CLI_EXIT_CODES, match[1])) return match[1]
+  return command === 'gh' ? 'BLOCKED_EXTERNAL' : 'INTERNAL_ERROR'
+}
+
 function isRecord(value) {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
   const prototype = Object.getPrototypeOf(value)

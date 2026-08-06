@@ -11,10 +11,9 @@ import {
   Coordinator,
   normalizeIssueComments,
   parsePaginatedGhApiJson,
-  findMatchingComments,
-  normalizeTransitionIdentity,
   verifyStatePostcondition,
   resolveProductionCommentTrust,
+  verifyPostedCommentReadback,
 } from './mission-control-reconcile.mjs'
 import { writeIssueBodyWithLease } from './mission-control-issue-body-cas.mjs'
 import {
@@ -29,6 +28,7 @@ import {
 import {
   CLI_EXIT_CODES,
   classificationExitCode,
+  classifyDelegatedFailure,
   createResultEnvelopeV1,
 } from './cli/command-result.mjs'
 
@@ -491,7 +491,16 @@ async function mainAsync() {
           env: { ...process.env, npm_lifecycle_event: undefined },
         })
         if (checkResult.status !== 0) {
-          throw new Error(`STATE_CONFLICT: Failed to validate RESULT comment\n${checkResult.stderr || checkResult.stdout || ''}`)
+          const reason = checkResult.stderr || checkResult.stdout || checkResult.error?.message || 'delegated role-comment validation failed'
+          throw runtimeError(
+            classifyDelegatedFailure({
+              command: 'node',
+              stdout: checkResult.stdout,
+              stderr: checkResult.stderr,
+              error: checkResult.error,
+            }),
+            `Failed to validate RESULT comment\n${reason}`,
+          )
         }
         writeFileSync(payloadFile, JSON.stringify({ body: commentBody }))
         const postResult = tryRun('gh', [
@@ -527,29 +536,25 @@ async function mainAsync() {
             },
           )
         }
-        if (posted?.id == null) {
-          const identity = normalizeTransitionIdentity(commentBody, { role: 'RESULT' })
-          const recovered = findMatchingComments(listLiveComments(), identity, {
-            activeOnly: true,
-            ...commentTrust,
+        try {
+          return verifyPostedCommentReadback({
+            comments: listLiveComments(),
+            body: commentBody,
+            role: 'RESULT',
+            postedId: posted?.id ?? null,
+            matchOptions: commentTrust,
           })
-          if (recovered.length === 1) return recovered[0]
+        } catch (error) {
           throw runtimeError(
             'AMBIGUOUS_RESULT',
-            'posted RESULT did not return a durable comment identifier',
+            `posted RESULT comment could not be confirmed by live readback: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
             {
               mutationPerformed: true,
               legacyClassification: 'STATE_CONFLICT',
             },
           )
-        }
-        return {
-          id: posted.id,
-          body: posted.body ?? commentBody,
-          author: posted.user?.login ?? null,
-          author_association: posted.author_association ?? null,
-          url: posted.html_url ?? posted.url ?? null,
-          createdAt: posted.created_at ?? null,
         }
       } finally {
         rmSync(tmpDir, { recursive: true, force: true })

@@ -25,6 +25,7 @@ import {
 import {
   CLI_EXIT_CODES,
   classificationExitCode,
+  classifyDelegatedFailure,
   createResultEnvelopeV1,
 } from './cli/command-result.mjs'
 import { parseMissionControlState, projectMissionControlStateBlock } from './mission-control-state.mjs'
@@ -49,9 +50,15 @@ function run(command, args, options = {}) {
     env: options.env,
   })
   if (result.error || result.status !== 0) {
+    const reason = result.stderr || result.stdout || result.error?.message || `${command} failed`
     throw runtimeError(
-      command === 'gh' ? 'BLOCKED_EXTERNAL' : 'EVIDENCE_CONFLICT',
-      result.stderr || result.stdout || result.error?.message || `${command} failed`,
+      classifyDelegatedFailure({
+        command,
+        stdout: result.stdout,
+        stderr: result.stderr,
+        error: result.error,
+      }),
+      reason,
     )
   }
   return result.stdout.trim()
