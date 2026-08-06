@@ -644,6 +644,9 @@ const commands = {
           'one_next_permitted_action',
           'stop_conditions'
         ],
+        compatibility_shapes: [
+          ['### Task log', 'Timestamp:', 'Task / Issue:', 'Phase:', 'Executing role:', '**Target:**', '**Objective:**', '**Links:**', '**Next:**']
+        ],
         required_sections: [],
         allowed_verdicts: []
       },
@@ -656,6 +659,12 @@ const commands = {
           'exact_head_when_code',
           'pr_binding_when_applicable',
           'predecessor_evidence_when_correction'
+        ],
+        compatibility_shapes: [
+          ['### Task log', 'Timestamp:', 'Task / Issue:', 'Phase:', 'Executing role:', '**Completed:**', '**Summary:**', '**Next:**'],
+          ['### Task log', 'Timestamp:', 'Task / Issue:', 'Phase:', 'Executing role:', '**Role / phase completed:**', '### Summary', '### Files or artifacts changed', '### Commands run', '### Next handoff'],
+          ['**Profile:**', '**Task:**', '**PR:**', '**Completed:**', '**Evidence:**', '**AC audit:**', '**Risks / escalation:**', '**Next:**'],
+          ['### Task log', 'Task / Issue:', 'Executing role:', 'Branch:', 'Head:', 'PR:', '### Summary', '### Evidence', 'Commands:', 'Tests:', 'CI:', '### Acceptance criteria', '### Risks / blockers', '### Next permitted action']
         ],
         required_sections: [
           'Task log',
@@ -679,6 +688,10 @@ const commands = {
           'reviewer_identity',
           'predecessor_evidence_when_correction'
         ],
+        compatibility_shapes: [
+          ['### Task log', 'Timestamp:', 'Task / Issue:', 'Phase:', 'Executing role:', '**PR / base / head:**', '**Verdict:**', '**Findings:**', '**Gates:**', '**Next:**'],
+          ['### Task log', 'Timestamp:', 'Task / Issue:', 'Phase:', 'Executing role:', '**Reviewed PR:**', '**Approved base:**', '**Exact head reviewed:**', '**Verdict:**', '### Critical / Important findings summary', '### Gate status', '### Next handoff']
+        ],
         required_sections: [
           'Review identity',
           'Immutable finding disposition',
@@ -694,7 +707,18 @@ const commands = {
           'BLOCKED FOR FOUNDER DECISION',
           'BLOCKED EXTERNAL',
           'STATE CONFLICT'
-        ]
+        ],
+        correction_contract: {
+          condition: 'Verdict is CORRECTION REQUIRED',
+          schema_version: 1,
+          modes: ['implementation_pr', 'planning_no_pr'],
+          required_finding_fields: [
+            'id',
+            'canonical_summary',
+            'source_thread',
+            'required_evidence'
+          ]
+        }
       }
     },
     next_action_rules: [
@@ -708,11 +732,23 @@ const commands = {
         description: 'Validate a role comment before a transport posts it.',
         argv: ['284', '--repo', 'boat1994/bemoat-web-starter', '--body-file', './comment.md', '--check'],
       },
+      {
+        description: 'Publish a HANDOFF comment.',
+        argv: ['284', '--body-file', './handoff.md'],
+      },
+      {
+        description: 'Publish a RESULT comment.',
+        argv: ['284', '--body-file', './result.md'],
+      },
+      {
+        description: 'Publish a REVIEW_VERDICT comment.',
+        argv: ['284', '--body-file', './review.md'],
+      }
     ],
     parser_owner: 'scripts/post-role-comment.mjs',
     safe_help_invocation: 'pnpm run bemoat:issue:comment -- --help --json',
     last_validation_before_mutation: 'Validate the role body, Issue binding, and correction evidence immediately before posting.',
-    post_write_readback: 'Read the live Issue comments and confirm the posted role/comment identity.',
+    post_write_readback: 'Verify mutation via returned comment ID; if absent or unpropagated, retry readback with bounded delay before asserting AMBIGUOUS_RESULT: POSTED.',
     legacy_classification_map: {
       POSTED: 'SUCCESS',
       NO_OP: 'NO_OP_IDENTICAL_RETRY',

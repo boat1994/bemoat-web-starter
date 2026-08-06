@@ -32,30 +32,7 @@ import {
 } from './mission-control-reconcile.mjs'
 import { projectComments } from './github-comment-projection.mjs'
 
-const ROLE_HEADINGS = ['HANDOFF', 'RESULT', 'REVIEW_VERDICT']
-const CORE_VERDICTS = [
-  'CORRECTION REQUIRED',
-  'ELIGIBLE FOR FOUNDER REVIEW',
-  'BLOCKED FOR FOUNDER DECISION',
-  'BLOCKED EXTERNAL',
-  'STATE CONFLICT',
-]
-const TASK_LOG_FIELDS = ['### Task log', 'Timestamp:', 'Task / Issue:', 'Phase:', 'Executing role:']
-const REQUIRED_FIELD_SHAPES = {
-  HANDOFF: [
-    [...TASK_LOG_FIELDS, '**Target:**', '**Objective:**', '**Links:**', '**Next:**'],
-  ],
-  RESULT: [
-    [...TASK_LOG_FIELDS, '**Completed:**', '**Summary:**', '**Next:**'],
-    [...TASK_LOG_FIELDS, '**Role / phase completed:**', '### Summary', '### Files or artifacts changed', '### Commands run', '### Next handoff'],
-    ['**Profile:**', '**Task:**', '**PR:**', '**Completed:**', '**Evidence:**', '**AC audit:**', '**Risks / escalation:**', '**Next:**'],
-    ['### Task log', 'Task / Issue:', 'Executing role:', 'Branch:', 'Head:', 'PR:', '### Summary', '### Evidence', 'Commands:', 'Tests:', 'CI:', '### Acceptance criteria', '### Risks / blockers', '### Next permitted action']
-  ],
-  REVIEW_VERDICT: [
-    [...TASK_LOG_FIELDS, '**PR / base / head:**', '**Verdict:**', '**Findings:**', '**Gates:**', '**Next:**'],
-    [...TASK_LOG_FIELDS, '**Reviewed PR:**', '**Approved base:**', '**Exact head reviewed:**', '**Verdict:**', '### Critical / Important findings summary', '### Gate status', '### Next handoff'],
-  ],
-}
+
 const MAX_COMPACT_LENGTH = 6_000
 const DOUBLE_LOOP_FIELDS = [
   '**Loop gate:**',
@@ -269,7 +246,7 @@ function readBody(bodyFile) {
   return stdin
 }
 
-function validationErrors(body) {
+function validationErrors(body, contract) {
   const errors = []
   if (/\\n/.test(body)) errors.push('literal \\n sequences are not allowed')
   if (/\$\([^)]*\)/.test(body)) errors.push('unresolved $(...) shell substitutions are not allowed')
@@ -278,18 +255,27 @@ function validationErrors(body) {
   if (/^\s*Command:\s*\S+/im.test(body)) errors.push('command-labelled transcripts are not allowed')
   if (/^ {4,}(?:(?:PASS|FAIL|RUN)\b|(?:Error|Warning):)/m.test(body)) errors.push('indented command transcripts are not allowed')
 
+  const roleContracts = contract?.role_contracts || {}
+  const validHeadings = Object.keys(roleContracts)
+
   const headings = [...body.matchAll(/^##\s+([^\n#]+)\s*$/gm)].map((match) => match[1].trim())
-  const recognized = headings.filter((heading) => ROLE_HEADINGS.includes(heading))
+  const recognized = headings.filter((heading) => validHeadings.includes(heading))
   if (headings.length !== 1 || recognized.length !== 1) {
     errors.push('body must contain exactly one recognized role heading and no other ## headings')
     return { errors, role: null }
   }
 
   const role = recognized[0]
-  const matchedShape = REQUIRED_FIELD_SHAPES[role].find((shape) => shape.every((field) => hasNonEmptyField(body, field)))
-  if (!matchedShape) {
-    errors.push(`${role} is missing required operational fields or values`)
+  const roleContract = roleContracts[role]
+
+  const shapes = roleContract?.compatibility_shapes || []
+  if (shapes.length > 0) {
+    const matchedShape = shapes.find((shape) => shape.every((field) => hasNonEmptyField(body, field)))
+    if (!matchedShape) {
+      errors.push(`${role} is missing required operational fields or values`)
+    }
   }
+
   if (role === 'RESULT' && /^\*\*Profile:\*\*/m.test(body) && !/^\*\*Profile:\*\*\s*FAST\s*$/m.test(body)) {
     errors.push('RESULT profile transport is only supported for FAST')
   }
@@ -315,7 +301,10 @@ function validationErrors(body) {
   }
   if (role === 'REVIEW_VERDICT') {
     const verdict = body.match(/^\*\*Verdict:\*\*\s*(.+?)\s*$/m)?.[1]?.trim()
-    if (!CORE_VERDICTS.includes(verdict)) errors.push('Verdict must use the Core review verdict enum')
+    const allowedVerdicts = roleContract?.allowed_verdicts || []
+    if (allowedVerdicts.length > 0 && !allowedVerdicts.includes(verdict)) {
+      errors.push('Verdict must use the Core review verdict enum')
+    }
   }
   return { errors, role }
 }
@@ -463,7 +452,7 @@ function main() {
     }
 
     const body = readBody(options.bodyFile)
-    const { errors, role } = validationErrors(body)
+    const { errors, role } = validationErrors(body, invocation.contract)
     if (errors.length) {
       throw runtimeError('EVIDENCE_CONFLICT', errors.join('; '), { errors })
     }
@@ -565,24 +554,38 @@ function main() {
     try {
       const postedId = extractPostedCommentId(postResult.stdout)
       readbackId = postedId
-      const liveComments = readLiveRoleComments(options)
-      const priorIds = new Set(
-        priorComments
-          .map((comment) => comment.id)
-          .filter((id) => id != null)
-          .map((id) => String(id)),
-      )
-      const newComments = liveComments.filter(
-        (comment) => comment.id != null && !priorIds.has(String(comment.id)),
-      )
-      readbackId = postedId ?? (newComments.length === 1 ? newComments[0].id : null)
-      durableComment = verifyPostedCommentReadback({
-        comments: liveComments,
-        body,
-        role,
-        postedId: readbackId,
-        matchOptions: resolveProductionCommentTrust(),
-      })
+      let liveComments
+      let attempts = 0
+      const maxAttempts = 3
+      while (attempts < maxAttempts) {
+        liveComments = readLiveRoleComments(options)
+        const priorIds = new Set(
+          priorComments
+            .map((comment) => comment.id)
+            .filter((id) => id != null)
+            .map((id) => String(id)),
+        )
+        const newComments = liveComments.filter(
+          (comment) => comment.id != null && !priorIds.has(String(comment.id)),
+        )
+        readbackId = postedId ?? (newComments.length === 1 ? newComments[0].id : null)
+        try {
+          durableComment = verifyPostedCommentReadback({
+            comments: liveComments,
+            body,
+            role,
+            postedId: readbackId,
+            matchOptions: resolveProductionCommentTrust(),
+          })
+          break // Success
+        } catch (error) {
+          attempts++
+          if (attempts >= maxAttempts) {
+            throw error
+          }
+          Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1000 * attempts)
+        }
+      }
     } catch (error) {
       throw runtimeError(
         'AMBIGUOUS_RESULT',
