@@ -1265,40 +1265,6 @@ const TASK_6_CASES_BY_COMMAND = Object.fromEntries(
   TASK_6_BOUNDARY_CASES.map((entry) => [entry.command, entry]),
 ) as Record<string, (typeof TASK_6_BOUNDARY_CASES)[number]>
 
-const RECOVERY_INCIDENT_HEAD = 'c44bf1bc379fe4160946dce96e5a4d7abae7b5b0'
-const REOPEN_OLD_HEAD = RECOVERY_INCIDENT_HEAD
-const REOPEN_NEW_HEAD = '88b306c7e055751f78b9ced5922607eee2d1037f'
-
-const RECOVERY_RUNTIME_ARGS = [
-  '274',
-  '--repo', 'boat1994/bemoat-web-starter',
-  '--expected-pr', '275',
-  '--expected-base', 'main',
-  '--expected-state', 'AWAITING_REVIEW_2',
-  '--expected-head', RECOVERY_INCIDENT_HEAD,
-  '--expected-review-cycle', '1',
-  '--expected-full-review-count', '1',
-  '--review-type', 'delta',
-  '--issue-source-comment', '5187836238',
-  '--pr-source-comment', '5187837555',
-  '--original-review-comment', '5187488219',
-  '--correction-result-comment', '5187802812',
-  '--body-file', 'recovery.md',
-] as const
-
-const REOPEN_RUNTIME_ARGS = [
-  '284',
-  '--repo', 'boat1994/bemoat-web-starter',
-  '--expected-pr', '285',
-  '--expected-base', 'main',
-  '--expected-state', 'ELIGIBLE_FOR_FOUNDER_REVIEW',
-  '--expected-old-head', REOPEN_OLD_HEAD,
-  '--expected-new-head', REOPEN_NEW_HEAD,
-  '--expected-review-cycle', '1',
-  '--expected-full-review-count', '1',
-  '--authorization-comment', '5193626365',
-] as const
-
 function runTask6Boundary(
   entry: (typeof TASK_6_BOUNDARY_CASES)[number],
   argv: readonly string[],

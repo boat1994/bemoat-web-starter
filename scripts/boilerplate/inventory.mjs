@@ -82,6 +82,7 @@ export const managedPaths = [
   'tests/int/mission-control-correction-entrypoints.int.spec.ts',
   'tests/int/mission-control-characterization.int.spec.ts', 'tests/int/mission-control-task-bootstrap-contract.int.spec.ts', 'tests/int/mission-control-task-initialization.int.spec.ts',
   'tests/int/mission-control-child-portability.int.spec.ts',
+  'tests/int/mission-control-productive-policy.int.spec.ts',
   'tests/int/mission-control-brainstorming.int.spec.ts', 'tests/int/toolchain-contract.int.spec.ts',
   'tests/int/vitest-process-lock.int.spec.ts', 'tests/int/starter-acceptance.int.spec.ts',
   'tests/int/open-next-config.int.spec.ts', 'tests/int/payload-build-context.int.spec.ts',

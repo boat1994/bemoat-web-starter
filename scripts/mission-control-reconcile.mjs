@@ -438,8 +438,8 @@ export async function dispatchManagedTask({ readState, writeState, postHandoff, 
   if (original?.state !== 'READY') {
     throw new Error(`dispatch requires READY, received ${original?.state ?? 'missing state'}`)
   }
-  if (!/^## HANDOFF\s*$/m.test(handoffBody ?? '')) {
-    throw new Error('dispatch requires one HANDOFF role comment')
+  if (!/^## (?:HANDOFF|AUTHORIZATION)\s*$/m.test(handoffBody ?? '')) {
+    throw new Error('dispatch requires one HANDOFF or AUTHORIZATION role comment')
   }
 
   const defaultTransition = (state) => ({ ...structuredClone(state), state: 'IN_PROGRESS' })
@@ -487,8 +487,9 @@ const ROLE_MARKERS = new Set(['HANDOFF', 'RESULT', 'REVIEW_VERDICT'])
  * @returns {'HANDOFF' | 'RESULT' | 'REVIEW_VERDICT' | null}
  */
 export function parseCommentMarker(body = '') {
-  const match = body.match(/^##\s+(HANDOFF|RESULT|REVIEW_VERDICT)\s*$/m)
-  const marker = match?.[1] ?? null
+  const match = body.match(/^##\s+(HANDOFF|RESULT|REVIEW_VERDICT|AUTHORIZATION)\s*$/m)
+  let marker = match?.[1] ?? null
+  if (marker === 'AUTHORIZATION') marker = 'HANDOFF'
   return marker && ROLE_MARKERS.has(marker) ? marker : null
 }
 
@@ -1180,8 +1181,8 @@ export class Coordinator {
    * Comment-first READY -> IN_PROGRESS HANDOFF integration.
    */
   async integrateHandoff({ handoffBody, transitionState, updatedAt, updatedBy, planningAuthorizationBaseSha }) {
-    if (!/^## HANDOFF\s*$/m.test(handoffBody ?? '')) {
-      throw new Error('integrateHandoff requires one HANDOFF role comment')
+    if (!/^## (?:HANDOFF|AUTHORIZATION)\s*$/m.test(handoffBody ?? '')) {
+      throw new Error('integrateHandoff requires one HANDOFF or AUTHORIZATION role comment')
     }
     const original = await this.readState()
     const planningCorrectionInitialization = original?.state === 'BLOCKED_FOR_FOUNDER_DECISION' &&
@@ -1574,7 +1575,7 @@ export async function dispatchFounderAuthorizedCorrection({
   if (original?.state !== 'FOUNDER_AUTHORIZED_CORRECTION' || authorization?.status !== 'authorized') {
     throw new Error('dispatch requires an unconsumed Founder correction authorization')
   }
-  if (!/^## HANDOFF\s*$/m.test(handoffBody ?? '') || !handoffBody.includes(authorization.authorization_id)) {
+  if (!/^## (?:HANDOFF|AUTHORIZATION)\s*$/m.test(handoffBody ?? '') || !handoffBody.includes(authorization.authorization_id)) {
     throw new Error('correction HANDOFF must bind the Founder correction authorization identity')
   }
   if (typeof reserveAuthorization !== 'function' || typeof releaseAuthorization !== 'function') {
