@@ -644,32 +644,34 @@ Tier totals are exactly A=11, B=8, C=3. Any package change that alters the 22-co
 - Consumes: Task 2 invocation/result functions.
 - Produces: Tier A help/JSON envelope integration for `boilerplate:sync` and `hooks:install`; existing workflow functions return structured domain results to the facade instead of owning stdout.
 
-- [ ] **Step 1: Write failing child-process and injected-runtime cases**
+- [x] **Step 1: Write failing child-process and injected-runtime cases**
 
   Add exact tests named `boilerplate sync and hooks expose equivalent text help`, `boilerplate sync and hooks normalize all JSON-help permutations`, `boilerplate sync and hooks help and invalid syntax perform zero I/O`, `boilerplate sync JSON writes only the documented allowlist`, `hooks install JSON changes only hook modes and core.hooksPath`, and `repository mutation begins only after the final preflight`. Preserve existing plain-text fixture assertions with canonical prefixes.
 
-- [ ] **Step 2: Run and verify failure**
+- [x] **Step 2: Run and verify failure**
 
   Run: `pnpm exec vitest run --config ./vitest.config.mts tests/int/cli-tier-a-boundaries.int.spec.ts -t "boilerplate sync|hooks install"`
 
   Expected: FAIL because both commands lack common JSON help/result behavior and construct mutation paths before shared validation.
 
-- [ ] **Step 3: Implement thin facade adaptation**
+- [x] **Step 3: Implement thin facade adaptation**
 
   Parse before creating `workflow` or calling `chmodSync`/`git config`. Return a domain result from the existing sync workflow; map it in the facade. Do not change stash, commit, gate, or managed-path semantics.
 
-- [ ] **Step 4: Run focused and regression tests**
+- [x] **Step 4: Run focused and regression tests**
 
   Run: `pnpm exec vitest run --config ./vitest.config.mts tests/int/cli-tier-a-boundaries.int.spec.ts tests/int/boilerplate-sync-workflow.int.spec.ts tests/int/boilerplate-sync-filesystem.int.spec.ts tests/int/boilerplate-sync-git.int.spec.ts tests/int/branch-safety.int.spec.ts`
 
   Expected: PASS; valid fixture writes remain exactly allowlisted, and help/invalid rows perform none.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
   ```bash
   git add scripts/sync-boilerplate.mjs scripts/boilerplate/config.mjs scripts/boilerplate/workflow.mjs scripts/install-git-hooks.mjs tests/int/cli-tier-a-boundaries.int.spec.ts tests/int/boilerplate-sync-workflow.int.spec.ts tests/int/boilerplate-sync-filesystem.int.spec.ts tests/int/boilerplate-sync-git.int.spec.ts tests/int/branch-safety.int.spec.ts
   git commit -m "feat: contract durable repository setup commands"
   ```
+
+- [x] **Lead acceptance:** `TASK ACCEPTED` at exact head `fbdf7792b3b0b063b16fe803d6f5d9e96cc8fdb0`; sequential focused suites passed with 106 tests and the reported full check passed with 59 test files and 1,264 tests.
 
 ### Task 5: Normalize role comment, dispatch, delivery, and ordinary review transports
 
