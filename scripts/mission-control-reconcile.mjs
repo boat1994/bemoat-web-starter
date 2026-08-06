@@ -568,6 +568,26 @@ function headsAlign(left, right) {
   return left === right || left.startsWith(right.slice(0, 7)) || right.startsWith(left.slice(0, 7))
 }
 
+function bindDeliveryHead(resultHead, liveHead) {
+  const normalizedResult = String(resultHead ?? '').trim().toLowerCase()
+  const normalizedLive = String(liveHead ?? '').trim().toLowerCase()
+  if (!normalizedResult || !normalizedLive) {
+    const error = new Error('EVIDENCE_CONFLICT: RESULT and live PR must both provide a head')
+    error.classification = 'EVIDENCE_CONFLICT'
+    throw error
+  }
+
+  const matches = normalizedResult === normalizedLive ||
+    (normalizedResult.length >= 7 && normalizedLive.startsWith(normalizedResult)) ||
+    (normalizedLive.length >= 7 && normalizedResult.startsWith(normalizedLive))
+  if (!matches) {
+    const error = new Error('EVIDENCE_CONFLICT: RESULT head does not match verified live PR head')
+    error.classification = 'EVIDENCE_CONFLICT'
+    throw error
+  }
+  return normalizedLive
+}
+
 export const DEFAULT_MC_TRUSTED_ASSOCIATIONS = Object.freeze([
   'OWNER',
   'MEMBER',
@@ -721,6 +741,12 @@ export function recoverAmbiguousPost({ comments = [], identity, ambiguousPost = 
   }
   if (classification === 'STATE_CONFLICT') {
     return { classification, error: new Error('ambiguous POST resolved to competing matches') }
+  }
+  if (ambiguousPost) {
+    return {
+      classification: 'AMBIGUOUS_RESULT',
+      error: new Error('ambiguous POST has no provable match'),
+    }
   }
   return { classification, error: new Error('ambiguous POST has no provable match') }
 }
@@ -907,19 +933,29 @@ export class Coordinator {
         }
         return { identity, comment: posted, created: true }
       } catch (error) {
+        const possibleMutation = error?.mutationPerformed === true
         const recovery = recoverAmbiguousPost({
           comments: await this.listComments(),
           identity,
-          ambiguousPost: true,
+          ambiguousPost: possibleMutation,
           matchOptions: options,
         })
         if (recovery.classification === 'RESUME_PROJECTION' && recovery.comment) {
           return { identity, comment: recovery.comment, created: false, recovered: true }
         }
-        if (recovery.classification === 'STATE_CONFLICT') {
-          throw new Error('STATE_CONFLICT: ambiguous POST resolved to competing matches', { cause: error })
+        if (recovery.classification === 'AMBIGUOUS_RESULT') {
+          const ambiguous = recovery.error ?? new Error('ambiguous POST has no provable match')
+          ambiguous.classification = 'AMBIGUOUS_RESULT'
+          ambiguous.mutationPerformed = true
+          throw ambiguous
         }
-        throw new Error('BLOCKED_EXTERNAL: ambiguous POST has no provable match', { cause: error })
+        if (recovery.classification === 'STATE_CONFLICT') {
+          const conflict = new Error('STATE_CONFLICT: ambiguous POST resolved to competing matches', { cause: error })
+          conflict.classification = 'STATE_CONFLICT'
+          conflict.mutationPerformed = possibleMutation
+          throw conflict
+        }
+        throw error
       }
     }
     if (matches.length > 1) {
@@ -1562,7 +1598,7 @@ export function isGenuineStateConflict(evidence = {}) {
 
 export function proposeDeliveryReconciliation(evidence) {
   const prNumber = String(evidence.livePr.number)
-  const head = evidence.latestResult?.parsed?.headSha || evidence.livePr.headRefOid
+  const head = bindDeliveryHead(evidence.latestResult?.parsed?.headSha, evidence.livePr.headRefOid)
   const approvedBase = evidence.approvedBase || evidence.livePr.baseRefName || 'main'
   const updatedAt = evidence.updatedAt ?? new Date().toISOString()
   const updatedBy = evidence.updatedBy ?? 'Mission Control'

@@ -22,7 +22,7 @@ import {
   classificationExitCode,
   createResultEnvelopeV1,
 } from './cli/command-result.mjs'
-import { findLatestRoleComment } from './mission-control-reconcile.mjs'
+import { findLatestRoleComment, parseRoleCommentBody } from './mission-control-reconcile.mjs'
 import { projectComments } from './github-comment-projection.mjs'
 
 const ROLE_HEADINGS = ['HANDOFF', 'RESULT', 'REVIEW_VERDICT']
@@ -184,13 +184,7 @@ function renderRuntimeError({ command, format, error, values = {} }) {
     for (const line of details.legacy_output ?? []) process.stderr.write(`${line}\n`)
   }
 
-  const legacyCheckExit =
-    format === 'text' &&
-    values.check === true &&
-    classification === 'EVIDENCE_CONFLICT'
-      ? 1
-      : classificationExitCode(classification)
-  process.exitCode = legacyCheckExit
+  process.exitCode = classificationExitCode(classification)
 }
 
 function renderResult({
@@ -484,13 +478,7 @@ function main() {
       legacyOutput.push(`WARNING: posting acknowledged long ${role} comment.`)
     }
 
-    const parsedBody = {
-      role,
-      prNumber: body.match(/https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/(\d+)/)?.[1] ??
-        body.match(/\bPR\s*#(\d+)\b/i)?.[1] ??
-        null,
-      headSha: body.match(/head\s+`([0-9a-f]{7,40})`/i)?.[1] ?? null,
-    }
+    const parsedBody = parseRoleCommentBody(body)
 
     if (options.check) {
       renderResult({

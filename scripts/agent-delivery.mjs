@@ -200,7 +200,7 @@ function renderResult({
   if (format === 'json') {
     process.stdout.write(`${JSON.stringify(envelope)}\n`)
   } else {
-    process.stdout.write(`${output}\n`)
+    process.stdout.write(`SUCCESS: ${output}\n`)
   }
 
   process.exitCode = classificationExitCode('SUCCESS')

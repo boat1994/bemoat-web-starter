@@ -1300,6 +1300,17 @@ Bounded implementation work.
     expect(recovery.recovered).toBe(true)
   })
 
+  it('keeps a possible post with no live match as AMBIGUOUS_RESULT', () => {
+    const identity = normalizeTransitionIdentity(handoffBody, { role: 'HANDOFF' })
+    const recovery = recoverAmbiguousPost({
+      comments: [],
+      identity,
+      ambiguousPost: true,
+    })
+
+    expect(recovery.classification).toBe('AMBIGUOUS_RESULT')
+  })
+
   it('recovers from comment-success/state-update-failure plus rerun', async () => {
     let state: any = { state: 'READY', review_cycle: 0, full_review_count: 0 }
     const comments = [{ id: 'posted-1', body: handoffBody }]

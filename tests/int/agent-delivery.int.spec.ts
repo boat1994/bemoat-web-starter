@@ -20,7 +20,7 @@ function stubGhAndGit(
   lsRemoteOutput: string,
   currentBranch: string = 'main',
   localCommit: string = 'abc1234',
-  options: { failEdit?: boolean } = {},
+  options: { failEdit?: boolean; failPost?: boolean } = {},
 ) {
   const directory = mkdtempSync(join(tmpdir(), 'bemoat-agent-delivery-bin-'))
   tempPaths.push(directory)
@@ -40,6 +40,7 @@ function stubGhAndGit(
     commentsStore,
     editedBody,
     failEdit: options.failEdit ?? false,
+    failPost: options.failPost ?? false,
   }))
 
   const ghJs = join(directory, 'gh-stub.mjs')
@@ -82,6 +83,10 @@ if (args[0] === 'api') {
     process.exit(0)
   }
   if (args.includes('POST')) {
+    if (fixture.failPost) {
+      console.error('Simulated comment POST timeout')
+      process.exit(1)
+    }
     const input = args[args.indexOf('--input') + 1]
     const payload = JSON.parse(readFileSync(input, 'utf8'))
     const comments = JSON.parse(readFileSync(fixture.commentsStore, 'utf8'))
@@ -176,6 +181,7 @@ afterEach(() => {
 })
 
 describe('bemoat:agent:delivery', () => {
+  const FULL_HEAD = 'abc1234'.padEnd(40, '0')
   const validResultBody = `## RESULT
 **Profile:** FAST
 **Task:** #154 · \`feature/154\` → \`main\` · head \`abc1234\`
@@ -290,7 +296,60 @@ describe('bemoat:agent:delivery', () => {
       console.log('STDOUT:', result.stdout)
     }
     expect(result.status).toBe(0)
-    expect(result.stdout).toMatch(/Delivery reconciliation successful\. RESULT comment \d+ posted/)
+    expect(result.stdout).toMatch(/^SUCCESS: Delivery reconciliation successful\. RESULT comment \d+ posted/)
+  }, 10000)
+
+  it('binds current_head to the verified PR head when RESULT metadata is short', async () => {
+    const { readFileSync } = await import('node:fs')
+    const prData = {
+      headRefOid: FULL_HEAD,
+      headRefName: 'main',
+      baseRefName: 'main',
+      statusCheckRollup: [{ conclusion: 'SUCCESS', targetUrl: `https://ci/${FULL_HEAD}` }],
+    }
+    const stub = stubGhAndGit(
+      prData,
+      { body: validIssueBody },
+      `${FULL_HEAD} refs/heads/main`,
+      'main',
+      FULL_HEAD,
+    )
+
+    const result = run(['154'], { input: validResultBody, env: { PATH: stub.PATH } })
+
+    expect(result.status, result.stderr || result.stdout).toBe(0)
+    const editedBody = readFileSync(stub.editedBody, 'utf8')
+    expect(editedBody).toContain(`current_head: ${FULL_HEAD}`)
+    expect(editedBody).not.toMatch(/^current_head: abc1234$/m)
+  }, 10000)
+
+  it('rejects a RESULT head that conflicts with verified local and PR evidence', () => {
+    const prData = {
+      headRefOid: FULL_HEAD,
+      headRefName: 'main',
+      baseRefName: 'main',
+      statusCheckRollup: [{ conclusion: 'SUCCESS', targetUrl: `https://ci/${FULL_HEAD}` }],
+    }
+    const stub = stubGhAndGit(
+      prData,
+      { body: validIssueBody },
+      `${FULL_HEAD} refs/heads/main`,
+      'main',
+      FULL_HEAD,
+    )
+    const result = run(['154', '--json'], {
+      input: validResultBody.replace('abc1234', 'deadbeef'),
+      env: { PATH: stub.PATH },
+    })
+
+    expect(result.status).toBe(3)
+    expect(result.stderr).toBe('')
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      classification: 'EVIDENCE_CONFLICT',
+      mutation_performed: false,
+    })
+    expect(existsSync(stub.editedBody)).toBe(false)
+    expect(JSON.parse(readFileSync(stub.commentsStore, 'utf8'))).toHaveLength(0)
   }, 10000)
 
   it('persists fresh Mission Control audit provenance for Correction 2 delivery', async () => {
@@ -337,6 +396,35 @@ describe('bemoat:agent:delivery', () => {
     })
     expect(result.status).toBe(3)
     expect(result.stderr).toMatch(/ambiguous POST has no provable match|Failed to validate RESULT comment|Failed to post RESULT comment/)
+    expect(existsSync(stub.editedBody)).toBe(false)
+  }, 10000)
+
+  it('keeps an unknown comment POST outcome ambiguous after possible mutation', () => {
+    const prData = {
+      headRefOid: 'abc1234',
+      headRefName: 'main',
+      baseRefName: 'main',
+      statusCheckRollup: [{ conclusion: 'SUCCESS', targetUrl: 'https://ci/abc1234' }],
+    }
+    const stub = stubGhAndGit(
+      prData,
+      { body: validIssueBody },
+      'abc1234 refs/heads/main',
+      'main',
+      'abc1234',
+      { failPost: true },
+    )
+    const result = run(['154', '--json'], {
+      input: validResultBody,
+      env: { PATH: stub.PATH },
+    })
+
+    expect(result.status).toBe(4)
+    expect(result.stderr).toBe('')
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      classification: 'AMBIGUOUS_RESULT',
+      mutation_performed: true,
+    })
     expect(existsSync(stub.editedBody)).toBe(false)
   }, 10000)
 

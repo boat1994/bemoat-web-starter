@@ -90,7 +90,7 @@ function runtimeClassification(error) {
   }
 
   const reason = error instanceof Error ? error.message : String(error)
-  const prefix = reason.match(/^([A-Z_]+):/)
+  const prefix = reason.match(/^(?:ERROR:\s*)?([A-Z_]+):/)
   if (prefix && Object.hasOwn(CLI_EXIT_CODES, prefix[1])) return prefix[1]
   if (/\b(?:gh|GitHub|network|remote)\b/i.test(reason)) return 'BLOCKED_EXTERNAL'
   return 'INTERNAL_ERROR'
@@ -193,7 +193,7 @@ function renderResult({ command, format, options, result, repository, observedPr
   if (format === 'json') {
     process.stdout.write(`${JSON.stringify(envelope)}\n`)
   } else {
-    process.stdout.write(`${output}\n`)
+    process.stdout.write(`SUCCESS: ${output}\n`)
   }
 
   process.exitCode = classificationExitCode('SUCCESS')
@@ -368,7 +368,7 @@ async function main() {
       repository: repo,
     })
     if (!bootstrapPreflight.ok) throw new Error(`${bootstrapPreflight.classification ?? 'STATE_CONFLICT'}: ${bootstrapPreflight.reason}`)
-    if (original.state !== options.expectedState) throw new Error(`STATE_CONFLICT: expected ${options.expectedState}, received ${original.state}`)
+    if (original.state !== options.expectedState) throw new Error(`UNSUPPORTED_PRE_STATE: expected ${options.expectedState}, received ${original.state}`)
     if (original.approved_base !== pr.baseRefName) throw new Error('STATE_CONFLICT: live PR base differs from approved base')
     if (String(original.current_head ?? '').toLowerCase() !== options.expectedHead.toLowerCase()) {
       throw new Error('STATE_CONFLICT: managed current head differs from reviewed head')

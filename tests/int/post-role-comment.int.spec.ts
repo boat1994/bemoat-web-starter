@@ -96,6 +96,7 @@ const documentedReviewVerdict = `## REVIEW_VERDICT
 ### Next handoff
 - Founder review
 `
+const FULL_HEAD = 'ABCDEF0123456789ABCDEF0123456789ABCDEF01'
 
 const fastResult = `## RESULT
 **Profile:** FAST
@@ -297,6 +298,33 @@ describe('bemoat:issue:comment', () => {
       exact_head: null,
     })
     expect(() => readFileSync(gh.capture, 'utf8')).toThrow()
+  })
+
+  it('shares EVIDENCE_CONFLICT classification and exit between text and JSON check modes', () => {
+    const invalidBody = bodies.RESULT.replace('**Summary:** Added the bounded change.\n', '')
+    const text = run(['115', '--check'], { input: invalidBody })
+    const json = run(['115', '--check', '--json'], { input: invalidBody })
+
+    expect(text.status).toBe(3)
+    expect(text.stderr).toContain('EVIDENCE_CONFLICT')
+    expect(json.status).toBe(3)
+    expect(json.stderr).toBe('')
+    expect(JSON.parse(json.stdout)).toMatchObject({
+      classification: 'EVIDENCE_CONFLICT',
+      outcome: 'ERROR',
+    })
+  })
+
+  it('extracts the exact head from canonical REVIEW_VERDICT metadata', () => {
+    const result = run(['115', '--check', '--json'], {
+      input: bodies.REVIEW_VERDICT.replaceAll('abc1234', FULL_HEAD),
+    })
+
+    expect(result.status, result.stderr).toBe(0)
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      classification: 'SUCCESS',
+      exact_head: FULL_HEAD.toLowerCase(),
+    })
   })
 
   it.each([
