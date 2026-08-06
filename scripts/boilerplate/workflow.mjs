@@ -180,6 +180,20 @@ export function createBoilerplateSyncWorkflow(overrides = {}) {
   const dependencies = { ...defaultDependencies, ...overrides }
 
   return {
+    /**
+     * @param {{
+     *   repo: string,
+     *   ref: string,
+     *   targetRoot: string,
+     *   tempRoot: string,
+     *   sourceRoot: string,
+     *   enforceChildSyncGate: () => unknown,
+     *   assertManagedRuntimeDeliveryClosure?: unknown,
+     *   syncMode?: string,
+     *   applyBuildContract?: boolean,
+     *   invocationValues?: string[] | Record<string, unknown>,
+     * }} options
+     */
     run({
       repo,
       ref,
