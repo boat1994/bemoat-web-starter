@@ -156,6 +156,44 @@ describe('mission-control contract guard', () => {
     expect(violations.some((v: { rule: string }) => v.rule === 'MC012')).toBe(true)
   })
 
+  it('fails when Ready-to-paste prompt CLI discovery routing is incomplete', async () => {
+    const mod = await import('../../scripts/guard-mission-control-contract.mjs')
+    const guide = readFileSync(resolve(process.cwd(), mod.GUIDE_PATH), 'utf8')
+    const loader = readFileSync(resolve(process.cwd(), mod.LOADER_PATH), 'utf8')
+
+    const operationCommands = [
+      'bemoat:mission-control:dispatch',
+      'bemoat:agent:delivery',
+      'bemoat:mission-control:review',
+      'bemoat:mission-control:reconcile',
+      'bemoat:mission-control:recover-review',
+      'bemoat:mission-control:reopen',
+      'bemoat:mission-control:merge',
+      'bemoat:issue:comment',
+    ]
+    for (const command of operationCommands) expect(guide).toContain(command)
+    expect(guide).toContain('pnpm run <command> -- --help --json')
+    expect(guide).toContain('CLI_DISCOVERY_DEFECT')
+    expect(guide).toContain('precise reason for every raw mutation exception')
+    expect(guide).toContain('Purely conversational Founder decisions')
+    expect(loader).toContain('public CLI routing section')
+
+    for (const [original, replacement] of [
+      ['pnpm run <command> -- --help --json', 'use the appropriate script'],
+      ['precise reason for every raw mutation exception', 'continue with GitHub CLI'],
+      ['Direct internal workflow imports are prohibited', 'Direct internal helpers are allowed'],
+    ]) {
+      const violations = mod.scanGuideContent(mod.GUIDE_PATH, guide.replace(original, replacement))
+      expect(violations.some((v: { rule: string }) => v.rule === 'MC012')).toBe(true)
+    }
+
+    const loaderViolations = mod.scanLoaderContent(
+      mod.LOADER_PATH,
+      loader.replace('public CLI routing section', 'appropriate script'),
+    )
+    expect(loaderViolations.some((v: { rule: string }) => v.rule === 'MC012')).toBe(true)
+  })
+
   it('passes on the current repository', async () => {
     const mod = await import('../../scripts/guard-mission-control-contract.mjs')
     const violations = mod.runMissionControlContractGuard()

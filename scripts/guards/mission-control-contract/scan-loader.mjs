@@ -4,6 +4,7 @@ import {
   LOADER_FORBIDDEN_TITLES,
   LOADER_MAX_LINES,
   REQUIRED_LEAN_FOUNDER_LOADER_PHRASES,
+  REQUIRED_CLI_PROMPT_LOADER_PHRASES,
   REQUIRED_SAFE_BUNDLE_LOADER_PHRASES,
 } from './inventory.mjs'
 import { violation } from './violation.mjs'
@@ -49,6 +50,13 @@ export function scanLoaderContent(relativePath, content) {
   for (const phrase of REQUIRED_SAFE_BUNDLE_LOADER_PHRASES) {
     if (!content.includes(phrase)) {
       violations.push(violation('MC012', relativePath, `Loader missing safe execution bundle invariant: ${phrase}`))
+    }
+  }
+  for (const phrase of REQUIRED_CLI_PROMPT_LOADER_PHRASES) {
+    if (!content.includes(phrase)) {
+      violations.push(
+        violation('MC012', relativePath, `Loader missing Ready-to-paste CLI routing invariant: ${phrase}`),
+      )
     }
   }
 

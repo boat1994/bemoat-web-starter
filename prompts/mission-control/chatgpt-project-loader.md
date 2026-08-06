@@ -61,6 +61,8 @@ exact-head CI evidence, review verdict, bounded objective, stop conditions for a
 and prohibited actions. Do not bundle across implementation, review, and merge
 gates.
 
+Every mutation-capable Ready-to-paste prompt must include the guide's mandatory public CLI routing section: name the canonical command or bounded candidate set, inspect each applicable command with `pnpm run <command> -- --help --json`, and fail as `CLI_DISCOVERY_DEFECT` when help is missing, unsafe, or contradictory. Generate this block inside the productive HANDOFF/correction prompt, never as a separate transition. Purely conversational Founder decisions with no agent or repository mutation are exempt.
+
 ## Prohibited / fail-closed
 
 Do not infer state from chat, reset review counts, trust stale CI, restart full

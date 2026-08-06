@@ -2948,20 +2948,21 @@ async function runProductionReviewVerdictReconciliation(options) {
 }
 
 async function runProductionBoundedReconciliation() {
-  const command = resolveCommandIdentity({
-    fallback: 'bemoat:mission-control:reconcile',
-    env: process.env,
-    entrypoint: 'scripts/mission-control-reconcile.mjs',
-  })
-  const invocation = parseCommandInvocation(command, process.argv.slice(2))
-  if (invocation.mode === 'help') {
+  const argv = process.argv.slice(2)
+  if (argv.includes('--help') || argv.includes('-h')) {
+    const command = resolveCommandIdentity({
+      fallback: 'bemoat:mission-control:reconcile',
+      env: process.env,
+      entrypoint: 'scripts/mission-control-reconcile.mjs',
+    })
+    const invocation = parseCommandInvocation(command, argv)
     const help = invocation.format === 'json'
       ? `${JSON.stringify(createHelpEnvelopeV1(invocation.contract))}\n`
       : formatTextHelp(invocation.contract)
     process.stdout.write(help)
     return
   }
-  const options = parseReconcileArgs(process.argv.slice(2))
+  const options = parseReconcileArgs(argv)
   const reviewVerdictResult = await runProductionReviewVerdictReconciliation(options)
   if (reviewVerdictResult) {
     process.stdout.write(

@@ -277,6 +277,36 @@ export const REQUIRED_SAFE_BUNDLE_LOADER_PHRASES = [
   'Do not bundle across implementation, review,',
 ]
 
+export const REQUIRED_CLI_PROMPT_GUIDE_PHRASES = [
+  '### Ready-to-paste prompt public CLI routing',
+  'pnpm run <command> -- --help --json',
+  'accepted pre-state, required evidence, mutation',
+  'retry contract, and next-action rules',
+  'Direct internal workflow imports are prohibited',
+  'Raw GitHub reads remain permitted',
+  'Raw GitHub mutation is prohibited when a',
+  'precise reason for every raw mutation exception',
+  'CLI_DISCOVERY_DEFECT',
+  'Purely conversational Founder decisions',
+  'bemoat:mission-control:dispatch',
+  'bemoat:agent:delivery',
+  'bemoat:mission-control:review',
+  'bemoat:mission-control:reconcile',
+  'bemoat:mission-control:recover-review',
+  'bemoat:mission-control:reopen',
+  'bemoat:mission-control:merge',
+  'bemoat:issue:comment',
+]
+
+export const REQUIRED_CLI_PROMPT_LOADER_PHRASES = [
+  'public CLI routing section',
+  'canonical command or bounded candidate set',
+  'pnpm run <command> -- --help --json',
+  'CLI_DISCOVERY_DEFECT',
+  'inside the productive HANDOFF/correction prompt',
+  'Purely conversational Founder decisions',
+]
+
 export const REQUIRED_SAFE_BUNDLE_PROCEDURE_PHRASES = [
   'verify exact Founder authorization/verdict/head/base/CI/mergeability',
   'merge the expected head',
