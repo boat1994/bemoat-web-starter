@@ -25,6 +25,7 @@ const COMMAND_FIELDS = [
   'stop_classifications',
   'stop_conditions',
   'retry_contract',
+  'role_contracts',
   'next_action_rules',
   'examples',
   'exceptional',
@@ -279,6 +280,10 @@ function validateCommandRecord(commandKey, record, packageScript, commands, erro
     ))],
   )) {
     errors.push(`${label}.trusted_derived_values contains inconsistent InputSpec sources`)
+  }
+
+  if (typeof record.role_contracts !== 'object' || record.role_contracts === null) {
+    errors.push(`${label}.role_contracts must be an object`)
   }
 
   if (!exactKeys(record.retry_contract, RETRY_FIELDS)) {

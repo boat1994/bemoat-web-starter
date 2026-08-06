@@ -49,6 +49,7 @@ const HELP_KEYS = [
   'reads',
   'writes',
   'retry_contract',
+  'role_contracts',
   'result_classifications',
   'next_action_rules',
   'stop_conditions',
@@ -395,6 +396,7 @@ describe('Task 2 CLI invocation and result contracts', () => {
       expect(Array.isArray(help[key]), key).toBe(true)
     }
     expect(typeof help.retry_contract).toBe('object')
+    expect(typeof help.role_contracts).toBe('object')
 
     const result = makeResultEnvelope() as JsonRecord
     expect(Object.keys(result).sort()).toEqual([...RESULT_KEYS].sort())

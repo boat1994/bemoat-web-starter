@@ -79,6 +79,7 @@ const HELP_KEYS = [
   'reads',
   'writes',
   'retry_contract',
+  'role_contracts',
   'result_classifications',
   'next_action_rules',
   'stop_conditions',

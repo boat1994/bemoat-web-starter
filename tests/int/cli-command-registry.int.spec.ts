@@ -121,6 +121,7 @@ const COMMAND_FIELDS = [
   'stop_classifications',
   'stop_conditions',
   'retry_contract',
+  'role_contracts',
   'next_action_rules',
   'examples',
   'exceptional',
@@ -327,6 +328,7 @@ describe('Task 1 command contract registry', () => {
 
       const retry = asRecord(contract.retry_contract, `${command}.retry_contract`)
       expect(Object.keys(retry).sort()).toEqual([...RETRY_FIELDS].sort())
+      expect(typeof contract.role_contracts).toBe('object')
       expect(['allowed', 'forbidden', 'conditional']).toContain(retry.identical_retry)
       expect(
         retry.classification === null ||

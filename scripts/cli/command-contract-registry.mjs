@@ -135,6 +135,7 @@ function contract({
     classification: null,
     condition: 'No durable retry distinction is defined for this command.',
   },
+  role_contracts = {},
   next_action_rules = [
     {
       classification: 'SUCCESS',
@@ -186,6 +187,7 @@ function contract({
     stop_classifications,
     stop_conditions,
     retry_contract,
+    role_contracts,
     next_action_rules,
     examples,
     exceptional: fields.exceptional,
@@ -241,6 +243,7 @@ function contract({
  * @property {string[]} stop_classifications
  * @property {string[]} stop_conditions
  * @property {{identical_retry: 'allowed'|'forbidden'|'conditional', classification: string|null, condition: string}} retry_contract
+ * @property {Record<string, any>} role_contracts
  * @property {{classification: string, next_action: NextAction}[]} next_action_rules
  * @property {{description: string, argv: string[]}[]} examples
  * @property {boolean} exceptional
@@ -626,6 +629,73 @@ const commands = {
       identical_retry: 'conditional',
       classification: 'NO_OP_IDENTICAL_RETRY',
       condition: 'A retry is identical only when the same validated role comment is already the live authoritative comment.',
+    },
+    role_contracts: {
+      HANDOFF: {
+        required_heading: '## HANDOFF',
+        required_bindings: [
+          'issue_number',
+          'bounded_objective',
+          'permitted_scope',
+          'prohibited_scope',
+          'approved_branch_or_target_when_applicable',
+          'authority_identity_when_required',
+          'exact_base_or_head_when_required',
+          'one_next_permitted_action',
+          'stop_conditions'
+        ],
+        required_sections: [],
+        allowed_verdicts: []
+      },
+      RESULT: {
+        required_heading: '## RESULT',
+        required_bindings: [
+          'issue_number',
+          'executing_role',
+          'branch',
+          'exact_head_when_code',
+          'pr_binding_when_applicable',
+          'predecessor_evidence_when_correction'
+        ],
+        required_sections: [
+          'Task log',
+          'Summary',
+          'Evidence',
+          'Acceptance criteria',
+          'Risks / blockers',
+          'Next permitted action'
+        ],
+        allowed_verdicts: []
+      },
+      REVIEW_VERDICT: {
+        required_heading: '## REVIEW_VERDICT',
+        required_bindings: [
+          'issue_number',
+          'pr_number',
+          'exact_reviewed_head',
+          'policy_sha_when_required',
+          'review_type',
+          'review_cycle',
+          'reviewer_identity',
+          'predecessor_evidence_when_correction'
+        ],
+        required_sections: [
+          'Review identity',
+          'Immutable finding disposition',
+          'Critical findings',
+          'Important findings',
+          'Minor / Nit findings',
+          'Evidence',
+          'Exact next permitted action'
+        ],
+        allowed_verdicts: [
+          'CORRECTION REQUIRED',
+          'ELIGIBLE FOR FOUNDER REVIEW',
+          'BLOCKED FOR FOUNDER DECISION',
+          'BLOCKED EXTERNAL',
+          'STATE CONFLICT'
+        ]
+      }
     },
     next_action_rules: [
       {

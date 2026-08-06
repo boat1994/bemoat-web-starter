@@ -74,6 +74,7 @@ export function createHelpEnvelopeV1(inputContract) {
     reads: copyArray(contract.reads),
     writes: copyArray(contract.writes),
     retry_contract: copyValue(contract.retry_contract ?? {}),
+    role_contracts: copyValue(contract.role_contracts ?? {}),
     result_classifications: resultClassifications(contract),
     next_action_rules: copyArray(contract.next_action_rules),
     stop_conditions: copyArray(contract.stop_conditions),
@@ -187,6 +188,11 @@ export function formatTextHelp(inputContract) {
   appendSection(lines, 'RETRY CONTRACT', [
     JSON.stringify(contract.retry_contract ?? {}),
   ])
+  if (contract.role_contracts && Object.keys(contract.role_contracts).length > 0) {
+    appendSection(lines, 'ROLE CONTRACTS', [
+      JSON.stringify(contract.role_contracts, null, 2),
+    ])
+  }
   appendListSection(lines, 'NEXT ACTIONS', contract.next_action_rules, formatNextAction)
   appendListSection(lines, 'STOP CONDITIONS', contract.stop_conditions)
   appendListSection(
