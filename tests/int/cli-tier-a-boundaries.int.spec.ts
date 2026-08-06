@@ -141,9 +141,9 @@ function runBoundary(
   argv: readonly string[],
   extraEnvironment: Record<string, string> = {},
 ): CliBoundaryResult {
-  const syncGateBypass = entry.command === 'bemoat:boilerplate:sync'
+  const syncGateBypass: Record<string, string> | undefined = entry.command === 'bemoat:boilerplate:sync'
     ? { BEMOAT_SKIP_MC_TRANSITION_CHILD_SYNC_GATE: '1' }
-    : {}
+    : undefined
 
   return runCliBoundaryCase({
     entrypoint: entry.entrypoint,
