@@ -405,6 +405,9 @@ async function main() {
     const result = await coordinator.integrateReviewVerdict({
       verdictBody: body,
       verifyPreconditions: async () => undefined,
+      policy: {
+        reviewType: options.reviewType,
+      },
       projectState: (prior, comment, identity) => projectReviewVerdictState({ prior, verdict: parsedVerdict.verdict, reviewType: options.reviewType, reviewedHead: options.expectedHead, commentId: comment.id, transitionIdentity: JSON.stringify(identity), findings: parseFindings(body, parsedVerdict.verdict) }),
     })
     if (result.outcome === 'RECOVERABLE_ROUTING_DRIFT') {

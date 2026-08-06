@@ -8,6 +8,15 @@ import {
   detectUnaccountedReviewEvidence,
   isReviewRecoveryIncident,
 } from './mission-control/domain/review-recovery.mjs'
+import {
+  isBlockerMaterial,
+  isTransitionProductive,
+  isFullReconstructionPermitted,
+  isDurableRoleCommentJustified,
+  requiresDeltaReview,
+  isFounderDispatchHandoffAuthority,
+  limitTransitions,
+} from './mission-control/domain/productive-policy.mjs'
 
 const PRE_DELIVERY_STATES = new Set(['READY', 'IN_PROGRESS', 'CORRECTION_REQUIRED_1', 'CORRECTION_REQUIRED_2'])
 const CORE_VERDICTS = new Set([
@@ -46,6 +55,83 @@ function sameValue(left, right) {
     return value
   }
   return JSON.stringify(canonicalize(left)) === JSON.stringify(canonicalize(right))
+}
+
+const COORDINATOR_ROLE_ACTIONS = {
+  HANDOFF: { isDispatch: true },
+  RESULT: { isDelivery: true },
+  REVIEW_VERDICT: { isIndependentReviewVerdict: true },
+}
+
+const ROUTING_ONLY_PROJECTION_KEYS = new Set([
+  'latest_review_verdict_comment_id',
+  'latest_transition_identity',
+  'updated_at',
+  'updated_by',
+])
+
+function policyObject(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {}
+}
+
+function resolveEvidenceHead({ verifiedHead, roleBody = '', comment = null }) {
+  return normalizeAuthorityHead(
+    verifiedHead ?? parseRoleCommentBody(comment?.body ?? roleBody).headSha,
+  )
+}
+
+function hasUnchangedReviewedHead({ prior, verifiedHead, roleBody = '', comment = null }) {
+  const liveHead = resolveEvidenceHead({ verifiedHead, roleBody, comment })
+  const reviewedHead = normalizeAuthorityHead(prior?.last_reviewed_head ?? prior?.current_head)
+  return Boolean(liveHead && reviewedHead && liveHead === reviewedHead)
+}
+
+function derivesResolvedMaterialBlocker({ prior = {}, projected = {} }) {
+  const priorReason = prior.materialBlockerReason ?? prior.material_blocker_reason ?? null
+  const projectedReason = projected?.materialBlockerReason ?? projected?.material_blocker_reason ?? null
+  if (priorReason && !projectedReason) return true
+
+  const priorBlockers = Array.isArray(prior.open_blockers) ? prior.open_blockers : []
+  const projectedBlockers = Array.isArray(projected?.open_blockers) ? projected.open_blockers : []
+  return priorBlockers.some((blocker) => !projectedBlockers.includes(blocker))
+}
+
+function deriveTransitionFacts({ role, roleBody = '', comment = null, prior = {}, projected = null, policy = {} }) {
+  const marker = parseCommentMarker(comment?.body ?? roleBody)
+  const evidenceProduced = Boolean(comment?.id != null || (marker && marker === role))
+  const stateChanged = projected != null && !sameValue(prior, projected)
+  const founderDispatch = policy.founderDispatch
+  const founderAuthority = founderDispatch && role === 'HANDOFF' &&
+    isFounderDispatchHandoffAuthority(founderDispatch)
+
+  return {
+    changesAuthoritativeState: stateChanged,
+    producesEvidence: evidenceProduced,
+    resolvesMaterialBlocker: projected != null && derivesResolvedMaterialBlocker({ prior, projected }),
+    authorizesIrreversibleTransition: Boolean(founderAuthority && policy.authorizesIrreversibleTransition === true),
+  }
+}
+
+function assertRoutingOnlyProjection({ prior = {}, projected = {}, reason = 'routing-only projection' }) {
+  const keys = new Set([...Object.keys(prior ?? {}), ...Object.keys(projected ?? {})])
+  for (const key of keys) {
+    if (!ROUTING_ONLY_PROJECTION_KEYS.has(key) && !sameValue(prior?.[key], projected?.[key])) {
+      throw new Error(`STATE_CONFLICT: ${reason} changed ${key}`)
+    }
+  }
+}
+
+function assertDeltaReviewHeadProjection({ role, prior = {}, projected = {}, reviewType, verifiedHead, roleBody = '', comment = null }) {
+  if (role !== 'REVIEW_VERDICT' || reviewType !== 'delta') return
+
+  const liveHead = resolveEvidenceHead({ verifiedHead, roleBody, comment })
+  const priorHead = normalizeAuthorityHead(prior.last_reviewed_head ?? prior.current_head)
+  if (!liveHead || !priorHead || headsAlign(liveHead, priorHead)) return
+
+  const projectedHead = normalizeAuthorityHead(projected.last_reviewed_head ?? projected.current_head)
+  if (!projectedHead || !headsAlign(projectedHead, liveHead) || headsAlign(projectedHead, priorHead)) {
+    throw new Error('STATE_CONFLICT: changed-head delta review must replace prior semantic review evidence')
+  }
 }
 
 function hasLegacyManagedState(state = {}) {
@@ -1040,6 +1126,125 @@ export class Coordinator {
     this.verifiedBase = transports.verifiedBase ?? null
   }
 
+  /**
+   * Authoritative Productive-Only gate for coordinator transitions. The
+   * result is ephemeral policy evidence; durable state remains owned by the
+   * existing projection and CAS transport.
+   */
+  authorizeTransition({ role = null, roleBody = '', comment = null, prior = {}, projected = null, policy: rawPolicy = {} } = {}) {
+    const policy = policyObject(rawPolicy)
+    const requested = policyObject(policy.transition)
+    const transitionWasProvided = Object.keys(requested).length > 0
+    const transition = deriveTransitionFacts({ role, roleBody, comment, prior, projected, policy })
+    if (transitionWasProvided && !isTransitionProductive(requested)) {
+      throw new Error('STATE_CONFLICT: proposed transition is non-productive')
+    }
+    if (projected != null && requested.changesAuthoritativeState === true && !transition.changesAuthoritativeState) {
+      throw new Error('STATE_CONFLICT: proposed state change was not observed in the authoritative projection')
+    }
+    if (requested.producesEvidence === true && !transition.producesEvidence) {
+      throw new Error('STATE_CONFLICT: proposed evidence was not bound to an authoritative role comment')
+    }
+    if (requested.resolvesMaterialBlocker === true && !transition.resolvesMaterialBlocker) {
+      throw new Error('STATE_CONFLICT: proposed material blocker resolution was not observed in the projection')
+    }
+
+    const materialBlockerReasons = [
+      policy.materialBlockerReason,
+      prior.materialBlockerReason,
+      prior.material_blocker_reason,
+      projected?.materialBlockerReason,
+      projected?.material_blocker_reason,
+      ...(Array.isArray(prior.open_blockers) ? prior.open_blockers : []),
+      ...(Array.isArray(projected?.open_blockers) ? projected.open_blockers : []),
+    ].filter((reason) => isBlockerMaterial(reason))
+    const blockerReason = materialBlockerReasons[0] ?? null
+    const materialRiskReason = policy.materialRiskReason ?? blockerReason ?? requested.materialRiskReason ?? null
+    if (blockerReason && !transition.resolvesMaterialBlocker) {
+      throw new Error(`STATE_CONFLICT: material blocker ${blockerReason} must remain blocking until resolved`)
+    }
+    const transitionHistory = prior.transition_history ?? prior.transitionHistory ?? policy.transitionHistory
+    if (
+      transitionHistory &&
+      !limitTransitions(transitionHistory) &&
+      !isBlockerMaterial(materialRiskReason)
+    ) {
+      throw new Error('STATE_CONFLICT: transition budget exceeded without a recognized material-risk reason')
+    }
+
+    const durableAction = policy.durableAction ?? COORDINATOR_ROLE_ACTIONS[role] ?? {}
+    const durableRoleCommentJustified = isDurableRoleCommentJustified(durableAction)
+    if (policy.requiresDurableRoleComment === true && !durableRoleCommentJustified) {
+      throw new Error('STATE_CONFLICT: durable role comment is not justified by a productive action')
+    }
+
+    const founderDispatch = policy.founderDispatch ?? null
+    let dispatchMode = null
+    if (founderDispatch) {
+      if (role !== 'HANDOFF' || !isFounderDispatchHandoffAuthority(founderDispatch)) {
+        throw new Error('STATE_CONFLICT: Founder dispatch must be a bounded HANDOFF authority')
+      }
+      dispatchMode = 'FOUNDER_BOUNDED_HANDOFF'
+    }
+
+    const correction = policy.correction ?? {}
+    const reviewType = policy.reviewType ?? (Number(prior?.review_cycle ?? 0) > 0 ? 'delta' : 'full')
+    const unchangedPrHead = hasUnchangedReviewedHead({
+      prior,
+      verifiedHead: this.verifiedHead,
+      roleBody,
+      comment,
+    })
+    const deltaReviewRequired = requiresDeltaReview(correction, { hasUnchangedPrHead: unchangedPrHead })
+    if (deltaReviewRequired && reviewType !== 'delta') {
+      throw new Error('STATE_CONFLICT: metadata-only correction requires delta verification')
+    }
+
+    const reconstructionContext = policy.reconstructionContext ?? {}
+    const fullReconstructionPermitted = isFullReconstructionPermitted(reconstructionContext)
+    if (policy.requiresFullReconstruction === true && !fullReconstructionPermitted) {
+      throw new Error('STATE_CONFLICT: full reconstruction requires a material coordination reason')
+    }
+    if (deltaReviewRequired && policy.requiresFullReconstruction === true) {
+      throw new Error('STATE_CONFLICT: metadata-only correction requires delta verification, not reconstruction')
+    }
+    if (deltaReviewRequired && role === 'HANDOFF') {
+      throw new Error('STATE_CONFLICT: metadata-only correction does not require a new HANDOFF')
+    }
+
+    if (!isTransitionProductive(transition)) {
+      throw new Error('STATE_CONFLICT: proposed transition is non-productive')
+    }
+
+    if (projected != null) {
+      assertDeltaReviewHeadProjection({
+        role,
+        prior,
+        projected,
+        reviewType,
+        verifiedHead: this.verifiedHead,
+        roleBody,
+        comment,
+      })
+    }
+
+    return {
+      productive: true,
+      transition,
+      verificationMode: reviewType === 'delta' ? 'delta' : 'full',
+      preserveSemanticEvidence: deltaReviewRequired,
+      fullReconstructionPermitted,
+      dispatchMode,
+      ...(dispatchMode
+        ? {
+          requiresPreparation: false,
+          requiresReadinessReview: false,
+          requiresSecondAuthorization: false,
+        }
+        : {}),
+    }
+  }
+
   _matchOptions(roleBody, role) {
     const parsed = parseRoleCommentBody(roleBody)
     const identity = normalizeTransitionIdentity(roleBody, { role })
@@ -1180,7 +1385,7 @@ export class Coordinator {
   /**
    * Comment-first READY -> IN_PROGRESS HANDOFF integration.
    */
-  async integrateHandoff({ handoffBody, transitionState, updatedAt, updatedBy, planningAuthorizationBaseSha }) {
+  async integrateHandoff({ handoffBody, transitionState, updatedAt, updatedBy, planningAuthorizationBaseSha, policy: rawPolicy = {} }) {
     if (!/^## (?:HANDOFF|AUTHORIZATION)\s*$/m.test(handoffBody ?? '')) {
       throw new Error('integrateHandoff requires one HANDOFF or AUTHORIZATION role comment')
     }
@@ -1197,6 +1402,7 @@ export class Coordinator {
     if (original?.state !== 'READY' && !planningCorrectionInitialization) {
       throw new Error(`integrateHandoff requires READY, received ${original?.state ?? 'missing state'}`)
     }
+    this.authorizeTransition({ role: 'HANDOFF', roleBody: handoffBody, prior: original, policy: rawPolicy })
     const { identity, comment, recovered } = await this._resolveComment(handoffBody, 'HANDOFF')
     const callerProjection = typeof transitionState === 'function'
       ? transitionState(original)
@@ -1212,6 +1418,14 @@ export class Coordinator {
       preserveState: planningCorrectionInitialization,
       planningAuthorizationBaseSha,
     })
+    const policy = this.authorizeTransition({
+      role: 'HANDOFF',
+      roleBody: handoffBody,
+      comment,
+      prior: original,
+      projected,
+      policy: rawPolicy,
+    })
     const written = await this.writeState(projected, original)
     verifyStatePostcondition(projected, written, [
       'state', 'latest_transition_identity', 'latest_handoff_comment_id', 'next_permitted_action',
@@ -1223,13 +1437,14 @@ export class Coordinator {
       comment,
       identity,
       recovered: Boolean(recovered),
+      policy,
     }
   }
 
   /**
    * Comment-first RESULT integration with precondition gating.
    */
-  async integrateResult({ resultBody, projectState, verifyPreconditions, updatedAt, updatedBy }) {
+  async integrateResult({ resultBody, projectState, verifyPreconditions, updatedAt, updatedBy, policy: rawPolicy = {} }) {
     if (parseCommentMarker(resultBody) !== 'RESULT') {
       throw new Error('integrateResult requires a RESULT role comment')
     }
@@ -1237,6 +1452,7 @@ export class Coordinator {
       await verifyPreconditions()
     }
     const original = await this.readState()
+    this.authorizeTransition({ role: 'RESULT', roleBody: resultBody, prior: original, policy: rawPolicy })
     const { identity, comment, created, recovered } = await this._resolveComment(resultBody, 'RESULT')
     const callerProjection = typeof projectState === 'function' ? projectState(original) : projectState
     const projected = this._coordinatorOwnedRouting({
@@ -1247,6 +1463,14 @@ export class Coordinator {
       updatedBy,
       base: callerProjection,
       prior: original,
+    })
+    const policy = this.authorizeTransition({
+      role: 'RESULT',
+      roleBody: resultBody,
+      comment,
+      prior: original,
+      projected,
+      policy: rawPolicy,
     })
     try {
       const written = await this.writeState(projected, original)
@@ -1259,6 +1483,7 @@ export class Coordinator {
         identity,
         created,
         recovered: Boolean(recovered),
+        policy,
       }
     } catch (error) {
       if (!created) throw error
@@ -1304,11 +1529,17 @@ export class Coordinator {
   /**
    * Routing-only REVIEW_VERDICT projection preserving counters and heads.
    */
-  async reconcileReviewVerdict({ verdictBody, projectReview, routingOnly = false }) {
+  async reconcileReviewVerdict({ verdictBody, projectReview, routingOnly = false, policy: rawPolicy = {} }) {
     if (parseCommentMarker(verdictBody) !== 'REVIEW_VERDICT') {
       throw new Error('reconcileReviewVerdict requires a REVIEW_VERDICT role comment')
     }
     const original = await this.readState()
+    const preflightPolicy = this.authorizeTransition({
+      role: 'REVIEW_VERDICT',
+      roleBody: verdictBody,
+      prior: original,
+      policy: rawPolicy,
+    })
     const { identity, options } = this._matchOptions(verdictBody, 'REVIEW_VERDICT')
     const comments = await this.listComments()
     const matches = findMatchingComments(comments, identity, options)
@@ -1326,19 +1557,21 @@ export class Coordinator {
       base: typeof projectReview === 'function' ? projectReview(original) : projectReview,
       prior: original,
     })
-    if (routingOnly) {
-      const allowedKeys = new Set([
-        'latest_review_verdict_comment_id',
-        'latest_transition_identity',
-        'updated_at',
-        'updated_by',
-      ])
-      const keys = new Set([...Object.keys(original ?? {}), ...Object.keys(projected ?? {})])
-      for (const key of keys) {
-        if (!allowedKeys.has(key) && !sameValue(original?.[key], projected?.[key])) {
-          throw new Error(`STATE_CONFLICT: routing-only REVIEW_VERDICT repair changed ${key}`)
-        }
-      }
+    const policy = this.authorizeTransition({
+      role: 'REVIEW_VERDICT',
+      roleBody: verdictBody,
+      comment: matches[0],
+      prior: original,
+      projected,
+      policy: rawPolicy,
+    })
+    const effectiveRoutingOnly = routingOnly || policy.preserveSemanticEvidence
+    if (effectiveRoutingOnly) {
+      assertRoutingOnlyProjection({
+        prior: original,
+        projected,
+        reason: 'routing-only REVIEW_VERDICT repair',
+      })
     }
     if (
       (projected.review_cycle ?? original.review_cycle) < (original.review_cycle ?? 0) ||
@@ -1375,6 +1608,7 @@ export class Coordinator {
         state: verified,
         comment: matches[0],
         identity,
+        policy: preflightPolicy,
       }
     }
     const written = await this.writeState(projected, original)
@@ -1399,34 +1633,90 @@ export class Coordinator {
       state: written,
       comment: matches[0],
       identity,
+      policy,
     }
   }
 
   /** Comment-first reviewer completion with a verified durable projection. */
-  async integrateReviewVerdict({ verdictBody, projectState, verifyPreconditions, updatedAt, updatedBy }) {
+  async integrateReviewVerdict({ verdictBody, projectState, verifyPreconditions, updatedAt, updatedBy, policy: rawPolicy = {} }) {
     if (parseCommentMarker(verdictBody) !== 'REVIEW_VERDICT') {
       throw new Error('integrateReviewVerdict requires a REVIEW_VERDICT role comment')
     }
     if (typeof verifyPreconditions === 'function') await verifyPreconditions()
     const original = await this.readState()
+    const preflightPolicy = this.authorizeTransition({
+      role: 'REVIEW_VERDICT',
+      roleBody: verdictBody,
+      prior: original,
+      policy: rawPolicy,
+    })
+
+    const { identity: requestedIdentity, options: matchOptions } = this._matchOptions(verdictBody, 'REVIEW_VERDICT')
+    const existingComments = await this.listComments()
+    const existingMatches = findMatchingComments(existingComments, requestedIdentity, matchOptions)
+    const replayCandidate = existingMatches.length === 1 &&
+      original?.latest_transition_identity === serializeTransitionIdentity(requestedIdentity) &&
+      String(original?.latest_review_verdict_comment_id ?? '') === String(existingMatches[0].id)
+
+    const projectForComment = (candidateComment) => {
+      const callerProjection = typeof projectState === 'function'
+        ? projectState(original, candidateComment, requestedIdentity)
+        : projectState
+      return this._coordinatorOwnedRouting({
+        identity: requestedIdentity,
+        comment: candidateComment,
+        role: 'REVIEW_VERDICT',
+        base: callerProjection,
+        prior: original,
+        updatedAt,
+        updatedBy: updatedBy ?? 'Reviewer',
+      })
+    }
+
+    if (!replayCandidate) {
+      const prospectiveComment = { id: '__prospective_review_verdict__', body: verdictBody }
+      const prospectiveProjected = projectForComment(prospectiveComment)
+      const prospectivePolicy = this.authorizeTransition({
+        role: 'REVIEW_VERDICT',
+        roleBody: verdictBody,
+        comment: prospectiveComment,
+        prior: original,
+        projected: prospectiveProjected,
+        policy: rawPolicy,
+      })
+      if (prospectivePolicy.preserveSemanticEvidence) {
+        assertRoutingOnlyProjection({
+          prior: original,
+          projected: prospectiveProjected,
+          reason: 'metadata-only REVIEW_VERDICT projection',
+        })
+      }
+    }
+
     const { identity, comment, created, recovered } = await this._resolveComment(verdictBody, 'REVIEW_VERDICT')
     const serializedIdentity = serializeTransitionIdentity(identity)
     if (
       original?.latest_transition_identity === serializedIdentity &&
       String(original?.latest_review_verdict_comment_id ?? '') === String(comment.id)
     ) {
-      return { outcome: 'REVIEWED', state: original, comment, identity, created: false, replayed: true }
+      return { outcome: 'REVIEWED', state: original, comment, identity, created: false, replayed: true, policy: preflightPolicy }
     }
-    const callerProjection = typeof projectState === 'function' ? projectState(original, comment, identity) : projectState
-    const projected = this._coordinatorOwnedRouting({
-      identity,
-      comment,
+    const projected = projectForComment(comment)
+    const policy = this.authorizeTransition({
       role: 'REVIEW_VERDICT',
-      base: callerProjection,
+      roleBody: verdictBody,
+      comment,
       prior: original,
-      updatedAt,
-      updatedBy: updatedBy ?? 'Reviewer',
+      projected,
+      policy: rawPolicy,
     })
+    if (policy.preserveSemanticEvidence) {
+      assertRoutingOnlyProjection({
+        prior: original,
+        projected,
+        reason: 'metadata-only REVIEW_VERDICT projection',
+      })
+    }
     try {
       const written = await this.writeState(projected, original)
       verifyStatePostcondition(projected, written, [
@@ -1441,6 +1731,7 @@ export class Coordinator {
         identity,
         created,
         recovered: Boolean(recovered),
+        policy,
       }
     } catch (error) {
       if (!created) throw error
@@ -1577,6 +1868,12 @@ export async function dispatchFounderAuthorizedCorrection({
   }
   if (!/^## (?:HANDOFF|AUTHORIZATION)\s*$/m.test(handoffBody ?? '') || !handoffBody.includes(authorization.authorization_id)) {
     throw new Error('correction HANDOFF must bind the Founder correction authorization identity')
+  }
+  if (!isFounderDispatchHandoffAuthority({
+    isFounderIssued: authorization.authority === 'Founder' && authorization.status === 'authorized',
+    isBoundedExecutionInstruction: true,
+  })) {
+    throw new Error('correction dispatch requires a Founder-issued bounded HANDOFF authority')
   }
   if (typeof reserveAuthorization !== 'function' || typeof releaseAuthorization !== 'function') {
     throw new Error('correction dispatch requires a race-safe authorization reservation')
