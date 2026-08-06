@@ -10,6 +10,11 @@ import { join, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { afterEach, describe, expect, it } from 'vitest'
 import { assertResultEnvelopeV1 } from '../../scripts/cli/command-result.mjs'
+import {
+  Coordinator,
+  normalizeTransitionIdentity,
+  serializeTransitionIdentity,
+} from '../../scripts/mission-control-reconcile.mjs'
 
 const scriptPath = resolve(process.cwd(), 'scripts/mission-control-review.mjs')
 const tempPaths: string[] = []
@@ -175,8 +180,8 @@ describe('scripts/mission-control-review.mjs CLI characterization', () => {
   const validState = `<!-- bemoat-mission-control-state:start -->
 \`\`\`yaml
 schema_version: 1
-state: AWAITING_REVIEW_2
-review_cycle: 1
+state: AWAITING_REVIEW_3
+review_cycle: 2
 full_review_count: 1
 approved_base: main
 active_task_issue: "#229"
@@ -198,15 +203,26 @@ updated_by: "Mission Control"
   it('case 1: invalid canonical REVIEW_VERDICT identity', () => {
     const bodyFile = tempFile('verdict.md', validVerdict.replace('## REVIEW_VERDICT', '## WRONG_ROLE'))
     const gh = createGhMock({ issueBody: validState, repo: 'acme/repo', prNumber: 230, prHead: FULL_HEAD })
-    const res = run(['229', '--body-file', bodyFile, '--expected-state', 'AWAITING_REVIEW_2', '--review-type', 'delta', '--expected-head', FULL_HEAD], { PATH: gh.path })
+    const res = run(['229', '--body-file', bodyFile, '--expected-state', 'AWAITING_REVIEW_3', '--review-type', 'delta', '--expected-head', FULL_HEAD], { PATH: gh.path })
     expect(res.status).not.toBe(0)
     expect(res.stderr).toMatch(/body must contain exactly one recognized role heading/i)
+  })
+
+  it('maps a delegated canonical evidence failure instead of treating it as internal', () => {
+    const bodyFile = tempFile('verdict.md', validVerdict.replace('**Findings:** Critical: None · Important: None\n', ''))
+    const gh = createGhMock({ issueBody: validState, repo: 'acme/repo', prNumber: 230, prHead: FULL_HEAD })
+    const res = run(['229', '--body-file', bodyFile, '--expected-state', 'AWAITING_REVIEW_3', '--review-type', 'delta', '--expected-head', FULL_HEAD], { PATH: gh.path })
+
+    expect(res.status).toBe(3)
+    expect(res.stderr).toContain('EVIDENCE_CONFLICT')
+    expect(res.stderr).not.toContain('INTERNAL_ERROR')
+    expect(readFileSync(gh.callsFile, 'utf8')).toBe('')
   })
 
   it('case 2: reviewed-head mismatch', () => {
     const bodyFile = tempFile('verdict.md', validVerdict)
     const gh = createGhMock({ issueBody: validState, repo: 'acme/repo', prNumber: 230, prHead: 'def5678' })
-    const res = run(['229', '--body-file', bodyFile, '--expected-state', 'AWAITING_REVIEW_2', '--review-type', 'delta', '--expected-head', FULL_HEAD], { PATH: gh.path })
+    const res = run(['229', '--body-file', bodyFile, '--expected-state', 'AWAITING_REVIEW_3', '--review-type', 'delta', '--expected-head', FULL_HEAD], { PATH: gh.path })
     expect(res.status).not.toBe(0)
     expect(res.stderr).toMatch(/STATE_CONFLICT: live PR head differs from reviewed head/i)
   })
@@ -214,7 +230,7 @@ updated_by: "Mission Control"
   it('case 3: exact-head CI failure', () => {
     const bodyFile = tempFile('verdict.md', validVerdict)
     const gh = createGhMock({ issueBody: validState, repo: 'acme/repo', prNumber: 230, prHead: FULL_HEAD, statusCheckRollup: [{ status: 'COMPLETED', conclusion: 'FAILURE', name: 'ci' }] })
-    const res = run(['229', '--body-file', bodyFile, '--expected-state', 'AWAITING_REVIEW_2', '--review-type', 'delta', '--expected-head', FULL_HEAD], { PATH: gh.path })
+    const res = run(['229', '--body-file', bodyFile, '--expected-state', 'AWAITING_REVIEW_3', '--review-type', 'delta', '--expected-head', FULL_HEAD], { PATH: gh.path })
     expect(res.status).not.toBe(0)
     expect(res.stderr).toMatch(/STATE_CONFLICT: exact-head CI is not verified/i)
   })
@@ -224,13 +240,13 @@ updated_by: "Mission Control"
     const gh = createGhMock({ issueBody: validState, repo: 'acme/repo', prNumber: 230, prHead: FULL_HEAD })
     const res = run(['229', '--body-file', bodyFile, '--expected-state', 'AWAITING_REVIEW_1', '--review-type', 'delta', '--expected-head', FULL_HEAD], { PATH: gh.path })
     expect(res.status).not.toBe(0)
-    expect(res.stderr).toMatch(/STATE_CONFLICT: expected AWAITING_REVIEW_1, received AWAITING_REVIEW_2/i)
+    expect(res.stderr).toMatch(/UNSUPPORTED_PRE_STATE: expected AWAITING_REVIEW_1, received AWAITING_REVIEW_3/i)
   })
 
   it('case 5: concurrent Issue-body mutation before CAS write', () => {
     const bodyFile = tempFile('verdict.md', validVerdict)
     const gh = createGhMock({ issueBody: validState.replace('17:00:00Z', '18:00:00Z'), repo: 'acme/repo', prNumber: 230, prHead: FULL_HEAD, concurrentBodyMutation: true, noLease: true })
-    const res = run(['229', '--body-file', bodyFile, '--expected-state', 'AWAITING_REVIEW_2', '--review-type', 'delta', '--expected-head', FULL_HEAD], { PATH: gh.path })
+    const res = run(['229', '--body-file', bodyFile, '--expected-state', 'AWAITING_REVIEW_3', '--review-type', 'delta', '--expected-head', FULL_HEAD], { PATH: gh.path })
     expect(res.status).not.toBe(0)
     expect(res.stderr).toMatch(/STATE_CONFLICT: concurrent Issue body change detected/i)
   })
@@ -238,7 +254,7 @@ updated_by: "Mission Control"
   it('case 6: comment posted but projection failed (RECOVERABLE_ROUTING_DRIFT)', () => {
     const bodyFile = tempFile('verdict.md', validVerdict)
     const gh = createGhMock({ issueBody: validState, repo: 'acme/repo', prNumber: 230, prHead: FULL_HEAD, simulateProjectionFailure: true, noLease: true })
-    const res = run(['229', '--body-file', bodyFile, '--expected-state', 'AWAITING_REVIEW_2', '--review-type', 'delta', '--expected-head', FULL_HEAD], { PATH: gh.path })
+    const res = run(['229', '--body-file', bodyFile, '--expected-state', 'AWAITING_REVIEW_3', '--review-type', 'delta', '--expected-head', FULL_HEAD], { PATH: gh.path })
     expect(res.status).not.toBe(0)
     expect(res.stderr).toMatch(/RECOVERABLE_ROUTING_DRIFT/i)
   })
@@ -257,7 +273,7 @@ updated_by: "Mission Control"
       '--body-file',
       bodyFile,
       '--expected-state',
-      'AWAITING_REVIEW_2',
+      'AWAITING_REVIEW_3',
       '--review-type',
       'delta',
       '--expected-head',
@@ -312,7 +328,7 @@ updated_by: "Mission Control"
       '--body-file',
       bodyFile,
       '--expected-state',
-      'AWAITING_REVIEW_2',
+      'AWAITING_REVIEW_3',
       '--review-type',
       'delta',
       '--expected-head',
@@ -345,21 +361,52 @@ updated_by: "Mission Control"
   it('case 7: successful verdict projection', () => {
     const bodyFile = tempFile('verdict.md', validVerdict)
     const gh = createGhMock({ issueBody: validState, repo: 'acme/repo', prNumber: 230, prHead: FULL_HEAD, noLease: true })
-    const res = run(['229', '--body-file', bodyFile, '--expected-state', 'AWAITING_REVIEW_2', '--review-type', 'delta', '--expected-head', FULL_HEAD], { PATH: gh.path })
+    const res = run(['229', '--body-file', bodyFile, '--expected-state', 'AWAITING_REVIEW_3', '--review-type', 'delta', '--expected-head', FULL_HEAD], { PATH: gh.path })
     expect(res.status).toBe(0)
-    expect(res.stdout).toMatch(/Mission Control review REVIEWED: BLOCKED_FOR_FOUNDER_DECISION.*comment 9001/i)
+    expect(res.stdout).toMatch(/^SUCCESS: Mission Control review REVIEWED: BLOCKED_FOR_FOUNDER_DECISION.*comment 9001/i)
   })
 
   it('case 8: duplicate rerun / idempotency behavior', () => {
-    const bodyFile = tempFile('verdict.md', validVerdict)
-    const idempotentState = validState.replace('last_reviewed_head: ABCDEF0123456789ABCDEF0123456789ABCDEF01', 'last_reviewed_head: ABCDEF0123456789ABCDEF0123456789ABCDEF01\nlatest_review_verdict_comment_id: 9001')
-    const gh = createGhMock({
-      issueBody: idempotentState, repo: 'acme/repo', prNumber: 230, prHead: FULL_HEAD, noLease: true,
-      comments: [{ id: '9001', body: validVerdict, createdAt: '2026-08-01T00:30:00Z' }]
+    const identity = normalizeTransitionIdentity(validVerdict, { role: 'REVIEW_VERDICT' })
+    const terminalState = {
+      state: 'BLOCKED_FOR_FOUNDER_DECISION',
+      review_cycle: 3,
+      full_review_count: 1,
+      current_head: FULL_HEAD,
+      last_reviewed_head: FULL_HEAD,
+      latest_review_verdict_comment_id: '9001',
+      latest_transition_identity: serializeTransitionIdentity(identity),
+    }
+    const comments = [{ id: '9001', body: validVerdict }]
+    let postCalls = 0
+    const coordinator = new Coordinator({
+      readState: async () => terminalState,
+      writeState: async () => {
+        throw new Error('terminal idempotency must not write state')
+      },
+      listComments: async () => comments,
+      postComment: async () => {
+        postCalls += 1
+        throw new Error('terminal idempotency must not post a comment')
+      },
     })
-    const res = run(['229', '--body-file', bodyFile, '--expected-state', 'AWAITING_REVIEW_2', '--review-type', 'delta', '--expected-head', FULL_HEAD], { PATH: gh.path })
-    if (res.status !== 0) console.log(res.stderr)
-    expect(res.status).toBe(0)
-    expect(res.stdout).toMatch(/Mission Control review REVIEWED: BLOCKED_FOR_FOUNDER_DECISION.*comment 9001/i)
+
+    return coordinator.integrateReviewVerdict({
+      verdictBody: validVerdict,
+      projectState: () => {
+        throw new Error('terminal idempotency must not project state')
+      },
+      verifyPreconditions: async () => {},
+      updatedAt: '2026-08-06T00:00:00.000Z',
+      updatedBy: 'Reviewer',
+    }).then((result) => {
+      expect(result).toMatchObject({
+        outcome: 'REVIEWED',
+        replayed: true,
+        state: terminalState,
+        comment: { id: '9001' },
+      })
+      expect(postCalls).toBe(0)
+    })
   })
 })
