@@ -1,9 +1,0 @@
-{
-  "schema_version": 1,
-  "issue": "321",
-  "transition_identity": "{\"taskId\":\"321\",\"phase\":\"Reviewer\",\"role\":\"REVIEW_VERDICT\",\"contentHash\":\"204836632d08d7b3a8b12da2488993eb7640eb74f2afc4b27815deb0978704d2\"}",
-  "observed_body_sha256": "3ee11c90cc07821340a4877cbfc2ba3e03afca39b431294e258d6e87ffdf6601",
-  "holder": "mission-control-review",
-  "status": "released",
-  "updated_at": "2026-08-06T18:57:57.035Z"
-}
