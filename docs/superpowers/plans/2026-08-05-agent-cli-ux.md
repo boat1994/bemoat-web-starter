@@ -549,32 +549,34 @@ Tier totals are exactly A=11, B=8, C=3. Any package change that alters the 22-co
 - Consumes: `getCommandContract(command)` from Task 1.
 - Produces: `resolveCommandIdentity`, `parseCommandInvocation`, `CliInvocationError`, `formatTextHelp`, `createHelpEnvelopeV1`, `createResultEnvelopeV1`, `assertResultEnvelopeV1`, `classificationExitCode`, direct `command-help.mjs`, and test helper `runCliBoundaryCase`.
 
-- [ ] **Step 1: Write the failing normalization/envelope tests**
+- [x] **Step 1: Write the failing normalization/envelope tests**
 
   Add exact Vitest cases named `normalizes all four Tier A JSON-help permutations`, `renders Tier A and Tier B sections in contract order`, `normalizes positive integers repositories and full lowercase SHAs without lossy coercion`, `rejects duplicate singleton unknown missing and conflicting inputs before execute`, `accepts npm_lifecycle_event only when its registry entrypoint matches`, `validates the exact v1 help and result key/type sets`, `rejects command data outside details`, `maps every canonical classification to one exit code`, and `emits one JSON object with plain-text classification parity`. The process helper creates an isolated cwd, installs poison `gh`/`git`/`pnpm` executables, snapshots all files/modes, spawns the real facade, and compares the snapshot after exit.
 
-- [ ] **Step 2: Run and verify failure**
+- [x] **Step 2: Run and verify failure**
 
   Run: `pnpm exec vitest run --config ./vitest.config.mts tests/int/cli-invocation-contract.int.spec.ts`
 
   Expected: FAIL with missing `command-invocation.mjs`, `command-result.mjs`, and `cli-boundary-harness.ts` exports.
 
-- [ ] **Step 3: Implement only parsing, formatting, validation, and test support**
+- [x] **Step 3: Implement only parsing, formatting, validation, and test support**
 
   Do not import GitHub adapters or execute domain work. Return values/errors; do not call `process.exit` inside library functions. Keep process exit decisions in thin facades so tests can exercise all terminal classes. `command-help.mjs` may set `process.exitCode` after rendering but must not import a Tier A/B facade.
 
-- [ ] **Step 4: Run and verify pass**
+- [x] **Step 4: Run and verify pass**
 
   Run: `pnpm exec vitest run --config ./vitest.config.mts tests/int/cli-invocation-contract.int.spec.ts`
 
   Expected: PASS for every normalization row, four help permutations, envelope mutation fixture, and exit mapping.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
   ```bash
   git add scripts/cli/command-invocation.mjs scripts/cli/command-help.mjs scripts/cli/command-result.mjs tests/helpers/cli-boundary-harness.ts tests/int/cli-invocation-contract.int.spec.ts
   git commit -m "feat: add bounded CLI invocation and result contracts"
   ```
+
+- [x] **Lead acceptance:** `TASK ACCEPTED` at exact head `fe743b0383a5ca7fbce1ec1dbc1469cef7a81c5c`; aggregate check passed with 57 test files and 1,222 tests.
 
 ### Task 3: Normalize all Tier B read-only entrypoints
 
