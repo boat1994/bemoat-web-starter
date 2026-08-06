@@ -155,6 +155,12 @@ function validateInput(input, label, errors) {
   ) {
     errors.push(`${label} has invalid InputSpec values`)
   }
+  if (
+    (['positional', 'flag', 'stdin'].includes(input.kind) && input.source !== 'caller') ||
+    (input.kind === 'environment' && input.source !== 'trusted_derived')
+  ) {
+    errors.push(`${label} source does not match its InputSpec kind`)
+  }
 }
 
 function validateNextAction(action, label, commands, errors) {

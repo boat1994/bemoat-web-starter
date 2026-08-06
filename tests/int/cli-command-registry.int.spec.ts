@@ -490,6 +490,109 @@ describe('Task 1 command contract registry', () => {
     expectRegistryValid()
   })
 
+  it('matches unchanged parser input boundaries and transition-gate compatibility', () => {
+    const merge = asRecord(getCommandContract('bemoat:mission-control:merge'), 'merge')
+    expect((merge.required_inputs as JsonRecord[]).map((input) => input.name)).toEqual([
+      'issue_number',
+      'repository',
+      'authorization_comment',
+    ])
+    expect(merge.optional_flags).toEqual([])
+
+    const recovery = asRecord(
+      getCommandContract('bemoat:mission-control:recover-review'),
+      'recover-review',
+    )
+    expect((recovery.required_inputs as JsonRecord[]).map((input) => input.name)).toEqual([
+      'issue_number',
+      'repository',
+      'expected_pr',
+      'expected_base',
+      'expected_state',
+      'expected_head',
+      'expected_review_cycle',
+      'expected_full_review_count',
+      'review_type',
+      'issue_source_comment',
+      'pr_source_comment',
+      'original_review_comment',
+      'correction_result_comment',
+      'body_file',
+    ])
+    expect(recovery.optional_flags).toEqual([])
+    expect((recovery.required_inputs as JsonRecord[]).every(
+      (input) => input.kind !== 'stdin' && input.required === true,
+    )).toBe(true)
+
+    const review = asRecord(getCommandContract('bemoat:mission-control:review'), 'review')
+    expect((review.required_inputs as JsonRecord[]).map((input) => input.name)).toEqual([
+      'issue_number',
+      'body_file',
+      'expected_state',
+      'review_type',
+      'expected_head',
+    ])
+    expect((review.optional_flags as JsonRecord[]).map((input) => input.name)).toEqual(['repository'])
+    expect((review.required_inputs as JsonRecord[]).some((input) => input.kind === 'stdin')).toBe(false)
+
+    const bootstrap = asRecord(
+      getCommandContract('bemoat:mission-control:task-bootstrap'),
+      'task-bootstrap',
+    )
+    const runId = (bootstrap.optional_flags as JsonRecord[]).find(
+      (input) => input.name === 'GITHUB_RUN_ID',
+    )
+    expect(runId).toMatchObject({
+      kind: 'environment',
+      value_type: 'positive_integer',
+      required: false,
+      source: 'trusted_derived',
+    })
+
+    const sync = asRecord(getCommandContract('bemoat:boilerplate:sync'), 'boilerplate:sync')
+    const syncInputs = sync.optional_flags as JsonRecord[]
+    expect(syncInputs.find((input) => input.name === 'skip_mc_transition_gate')).toMatchObject({
+      kind: 'flag',
+      syntax: '--skip-mc-transition-gate',
+      source: 'caller',
+    })
+    expect(syncInputs.find(
+      (input) => input.name === 'BEMOAT_SKIP_MC_TRANSITION_CHILD_SYNC_GATE',
+    )).toMatchObject({
+      kind: 'environment',
+      values: ['1'],
+      source: 'trusted_derived',
+    })
+    expect(syncInputs.find((input) => input.name === 'require_mc_transition_gate')).toMatchObject({
+      kind: 'flag',
+      syntax: '--require-mc-transition-gate',
+      source: 'caller',
+    })
+  })
+
+  it('maps every emitted legacy outcome for delivery and task bootstrap', () => {
+    const emittedOutcomes = {
+      'bemoat:agent:delivery': {
+        DELIVERED: 'SUCCESS',
+        RECOVERABLE_ROUTING_DRIFT: 'AMBIGUOUS_RESULT',
+      },
+      'bemoat:mission-control:task-bootstrap': {
+        CREATED: 'SUCCESS',
+        RECOVERED: 'SUCCESS',
+        IDEMPOTENT: 'NO_OP_IDENTICAL_RETRY',
+      },
+    } as const
+
+    for (const [command, expectedMap] of Object.entries(emittedOutcomes)) {
+      const contract = asRecord(getCommandContract(command), command)
+      const legacyMap = asRecord(contract.legacy_classification_map, `${command}.legacy_classification_map`)
+      expect(Object.keys(legacyMap).sort(), command).toEqual(Object.keys(expectedMap).sort())
+      for (const [outcome, classification] of Object.entries(expectedMap)) {
+        expect(legacyMap[outcome], `${command}.${outcome}`).toBe(classification)
+      }
+    }
+  })
+
   const registryRejectionCases: Array<[string, (registry: RegistryFixture) => void]> = [
     ['missing schema field', (registry) => {
       delete commandRecord(registry, 'bemoat:agent:delivery').purpose
@@ -549,5 +652,24 @@ describe('Task 1 command contract registry', () => {
     const stalePackage = clone(PACKAGE_JSON)
     stalePackage.scripts['bemoat:agent:delivery'] = 'node scripts/agent-issue.mjs'
     expectRegistryRejected(clone(COMMAND_CONTRACT_REGISTRY), stalePackage)
+  })
+
+  it('rejects caller input reclassified as trusted-derived', () => {
+    const registry = clone(COMMAND_CONTRACT_REGISTRY) as RegistryFixture
+    const delivery = commandRecord(registry, 'bemoat:agent:delivery')
+    const issueNumber = (delivery.required_inputs as JsonRecord[]).find(
+      (input) => input.name === 'issue_number',
+    )
+    if (!issueNumber) throw new Error('delivery issue_number fixture is missing')
+
+    issueNumber.source = 'trusted_derived'
+    delivery.caller_supplied_values = (delivery.caller_supplied_values as string[])
+      .filter((value) => value !== 'issue_number')
+    delivery.trusted_derived_values = [
+      'issue_number',
+      ...(delivery.trusted_derived_values as string[]),
+    ]
+
+    expectRegistryRejected(registry)
   })
 })
