@@ -169,7 +169,7 @@ const defaultDependencies = {
   commitValidatedSyncChanges,
   assertToolchainContract,
   restoreStashIfNeeded,
-  log: console.log,
+  log: () => {},
 }
 
 /**
@@ -188,11 +188,20 @@ export function createBoilerplateSyncWorkflow(overrides = {}) {
       sourceRoot,
       enforceChildSyncGate,
       assertManagedRuntimeDeliveryClosure = dependencies.assertManagedRuntimeDeliveryClosure,
+      syncMode: providedSyncMode = undefined,
+      applyBuildContract: providedApplyBuildContract = undefined,
+      invocationValues = undefined,
     }) {
       enforceChildSyncGate()
-      const syncMode = dependencies.parseSyncMode()
-      const applyBuildContract = dependencies.parseApplyBuildContract()
-      dependencies.log(`Syncing Bemoat boilerplate from ${repo}#${ref} (${syncMode} mode)`)
+      const syncMode = providedSyncMode ?? dependencies.parseSyncMode(invocationValues)
+      const applyBuildContract =
+        providedApplyBuildContract ?? dependencies.parseApplyBuildContract(invocationValues)
+      const logs = []
+      const log = (message) => {
+        logs.push(message)
+        dependencies.log(message)
+      }
+      log(`Syncing Bemoat boilerplate from ${repo}#${ref} (${syncMode} mode)`)
       const git = dependencies.createGitClient()
       let stashCreated = false
 
@@ -215,10 +224,10 @@ export function createBoilerplateSyncWorkflow(overrides = {}) {
         stashCreated = dependencies.stashWorkingTreeIfNeeded(targetRoot, git)
 
         if (applyBuildContract) {
-          dependencies.log(
+          log(
             `Applying build contract scripts: ${syncConfig.buildContractPackageScripts.join(', ')}`,
           )
-          dependencies.log(`Applying build contract files: ${syncConfig.buildContractFilePaths.join(', ')}`)
+          log(`Applying build contract files: ${syncConfig.buildContractFilePaths.join(', ')}`)
         }
 
         const {
@@ -249,30 +258,30 @@ export function createBoilerplateSyncWorkflow(overrides = {}) {
           : { applied: [], updated: [], skipped: [] }
 
         if (buildContractFiles.applied.length > 0) {
-          dependencies.log(`[sync] applied build contract files: ${buildContractFiles.applied.join(', ')}`)
+          log(`[sync] applied build contract files: ${buildContractFiles.applied.join(', ')}`)
         }
         if (buildContractFiles.updated.length > 0) {
-          dependencies.log(`[sync] updated build contract files: ${buildContractFiles.updated.join(', ')}`)
+          log(`[sync] updated build contract files: ${buildContractFiles.updated.join(', ')}`)
         }
 
         if (packageSync.packageChanged) {
           if (packageSync.addedScripts.length > 0) {
-            dependencies.log(`[sync] added missing bemoat:* scripts: ${packageSync.addedScripts.join(', ')}`)
+            log(`[sync] added missing bemoat:* scripts: ${packageSync.addedScripts.join(', ')}`)
           }
           if (packageSync.appliedBuildContractScripts?.length > 0) {
-            dependencies.log(
+            log(
               `[sync] added build contract scripts: ${packageSync.appliedBuildContractScripts.join(', ')}`,
             )
           }
           if (packageSync.updatedBuildContractScripts?.length > 0) {
-            dependencies.log(
+            log(
               `[sync] updated build contract scripts: ${packageSync.updatedBuildContractScripts.join(', ')}`,
             )
           }
         }
 
         if (packageSync.proposalPath) {
-          dependencies.log(`[sync] package sync proposal written to ${packageSync.proposalPath}`)
+          log(`[sync] package sync proposal written to ${packageSync.proposalPath}`)
         }
 
         dependencies.writeFileSync(
@@ -305,7 +314,7 @@ export function createBoilerplateSyncWorkflow(overrides = {}) {
           ...buildContractFiles.applied,
           ...buildContractFiles.updated,
         ]
-        if (dependencies.commitValidatedSyncChanges(
+        const committed = dependencies.commitValidatedSyncChanges(
           {
             repo,
             ref,
@@ -316,10 +325,11 @@ export function createBoilerplateSyncWorkflow(overrides = {}) {
             git,
             validate: () => dependencies.assertToolchainContract({ targetRootPath: targetRoot }),
           },
-        )) {
-          dependencies.log('[sync] committed sync changes')
+        )
+        if (committed) {
+          log('[sync] committed sync changes')
         } else {
-          dependencies.log('[sync] no sync changes to commit')
+          log('[sync] no sync changes to commit')
         }
 
         printSyncReport({
@@ -331,10 +341,27 @@ export function createBoilerplateSyncWorkflow(overrides = {}) {
           mergedFiles,
           packageSync,
           buildContractFiles,
-          log: dependencies.log,
+          log,
         })
 
-        printSuggestedNextCommands(syncMode, packageSync, applyBuildContract, dependencies.log)
+        printSuggestedNextCommands(syncMode, packageSync, applyBuildContract, log)
+
+        return {
+          repo,
+          ref,
+          syncMode,
+          applyBuildContract,
+          seedOnlyPathsSkipped,
+          syncedManaged,
+          seededFiles,
+          skippedSeedFiles,
+          mergedFiles,
+          packageSync,
+          buildContractFiles,
+          mutationPerformed: committed,
+          legacyClassification: committed ? 'SYNCED' : 'NO_OP',
+          legacyOutput: logs,
+        }
       } finally {
         dependencies.rmSync(tempRoot, { recursive: true, force: true })
         dependencies.restoreStashIfNeeded(targetRoot, stashCreated, git)

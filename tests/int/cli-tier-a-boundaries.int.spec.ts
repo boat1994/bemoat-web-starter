@@ -605,12 +605,16 @@ describe('Task 4 Tier A CLI boundaries: boilerplate sync and hooks install', () 
           addedScripts: [] as string[],
           appliedBuildContractScripts: [] as string[],
           updatedBuildContractScripts: [] as string[],
-          proposalPath: null,
+          proposalPath: null as string | null,
         }
       },
       applyBuildContractFiles() {
         calls.push('apply-build-files')
-        return { applied: [], updated: [], skipped: [] }
+        return {
+          applied: [] as string[],
+          updated: [] as string[],
+          skipped: [] as string[],
+        }
       },
       buildSyncMetadata() {
         calls.push('build-metadata')

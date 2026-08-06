@@ -71,7 +71,7 @@ export function parseSyncMode(argv = process.argv.slice(2), env = process.env) {
 
 export function parseApplyBuildContract(argv = process.argv.slice(2), env = /** @type {NodeJS.ProcessEnv} */ (process.env)) {
   const fromEnv = env.BEMOAT_APPLY_BUILD_CONTRACT === '1' || env.BEMOAT_APPLY_BUILD_CONTRACT === 'true'
-  const fromArgs = argv.includes('--apply-build-contract')
+  const fromArgs = hasSyncModeFlag(argv, 'apply_build_contract', '--apply-build-contract')
   if (fromArgs && env.BEMOAT_APPLY_BUILD_CONTRACT === '0') console.warn('[sync] BEMOAT_APPLY_BUILD_CONTRACT=0 ignored because --apply-build-contract was passed')
   return fromArgs || fromEnv
 }
