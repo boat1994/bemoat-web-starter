@@ -32,37 +32,56 @@ function getCommandStatus(command, args, options = {}) {
   })
 
   if (result.error) throw result.error
-  return result.status ?? 1
+  return {
+    status: result.status ?? 1,
+    stderr: result.stderr ?? '',
+  }
 }
 
 function getScopedGitPathArgs(paths) {
   return ['--', '.', ...paths.map((path) => `:(exclude)${path}`)]
 }
 
-export function createGitClient() {
+export function createGitClient({ suppressStdout = false } = {}) {
+  const runOptions = suppressStdout
+    ? { stdio: ['ignore', 2, 'inherit'] }
+    : {}
+
   return {
     hasWorkingTreeChanges(cwd, excludedPaths = []) {
       return getCommandOutput('git', ['status', '--short', ...getScopedGitPathArgs(excludedPaths)], { cwd }).trim().length > 0
     },
     stashPush(cwd, excludedPaths = []) {
-      run('git', ['stash', 'push', '--include-untracked', '-m', stashMessage, ...getScopedGitPathArgs(excludedPaths)], { cwd })
+      run('git', [
+        'stash',
+        'push',
+        '--include-untracked',
+        '-m',
+        stashMessage,
+        ...getScopedGitPathArgs(excludedPaths),
+      ], { cwd, ...runOptions })
     },
     addPaths(cwd, paths) {
-      run('git', ['add', '--', ...paths], { cwd })
+      run('git', ['add', '--', ...paths], { cwd, ...runOptions })
     },
     hasStagedChanges(cwd, paths) {
-      const status = getCommandStatus('git', ['diff', '--cached', '--quiet', '--', ...paths], { cwd })
+      const result = getCommandStatus('git', ['diff', '--cached', '--quiet', '--', ...paths], { cwd })
 
-      if (status === 0) return false
-      if (status === 1) return true
+      if (result.status === 0) return false
+      if (result.status === 1) return true
 
-      throw new Error('Unable to determine staged sync changes')
+      const diagnostic = String(result.stderr).trim()
+      throw new Error(
+        diagnostic
+          ? `Unable to determine staged sync changes: ${diagnostic}`
+          : 'Unable to determine staged sync changes',
+      )
     },
     commit(cwd, message) {
-      run('git', ['commit', '-m', message], { cwd })
+      run('git', ['commit', '-m', message], { cwd, ...runOptions })
     },
     stashPop(cwd) {
-      run('git', ['stash', 'pop'], { cwd })
+      run('git', ['stash', 'pop'], { cwd, ...runOptions })
     },
   }
 }
@@ -73,11 +92,16 @@ export function getSyncCommitPaths(pathsSynced = managedPaths, { includePackageJ
   return paths
 }
 
-export function stashWorkingTreeIfNeeded(cwd, git = createGitClient()) {
+export function stashWorkingTreeIfNeeded(
+  cwd,
+  git = createGitClient(),
+  { onMutation = () => {} } = {},
+) {
   const excludedPaths = getSyncCommitPaths()
 
   if (!git.hasWorkingTreeChanges(cwd, excludedPaths)) return false
 
+  onMutation()
   git.stashPush(cwd, excludedPaths)
   return true
 }

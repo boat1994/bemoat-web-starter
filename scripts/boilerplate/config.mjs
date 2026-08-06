@@ -39,11 +39,28 @@ export function getSourceSyncConfig(sourceRootPath) {
   }
 }
 
+function hasSyncModeFlag(values, name, syntax) {
+  if (Array.isArray(values)) return values.includes(syntax)
+  return values !== null && typeof values === 'object' && values[name] === true
+}
+
+/**
+ * @param {string[] | Record<string, unknown>} [argv]
+ * @param {NodeJS.ProcessEnv} [env]
+ */
 export function parseSyncMode(argv = process.argv.slice(2), env = process.env) {
   const fromEnv = env.BEMOAT_SYNC_MODE
-  let fromArgs = null
-  if (argv.includes('--harness-only')) fromArgs = SYNC_MODES.HARNESS_ONLY
-  if (argv.includes('--full')) fromArgs = SYNC_MODES.FULL
+  const harnessOnly = hasSyncModeFlag(argv, 'harness_only', '--harness-only')
+  const full = hasSyncModeFlag(argv, 'full', '--full')
+  if (harnessOnly && full) {
+    throw new Error('--harness-only and --full are mutually exclusive.')
+  }
+
+  const fromArgs = harnessOnly
+    ? SYNC_MODES.HARNESS_ONLY
+    : full
+      ? SYNC_MODES.FULL
+      : null
   if (fromArgs && fromEnv && fromArgs !== fromEnv) {
     console.warn(`[sync] BEMOAT_SYNC_MODE=${fromEnv} ignored because CLI flag sets mode to ${fromArgs}`)
   }
@@ -54,7 +71,7 @@ export function parseSyncMode(argv = process.argv.slice(2), env = process.env) {
 
 export function parseApplyBuildContract(argv = process.argv.slice(2), env = /** @type {NodeJS.ProcessEnv} */ (process.env)) {
   const fromEnv = env.BEMOAT_APPLY_BUILD_CONTRACT === '1' || env.BEMOAT_APPLY_BUILD_CONTRACT === 'true'
-  const fromArgs = argv.includes('--apply-build-contract')
+  const fromArgs = hasSyncModeFlag(argv, 'apply_build_contract', '--apply-build-contract')
   if (fromArgs && env.BEMOAT_APPLY_BUILD_CONTRACT === '0') console.warn('[sync] BEMOAT_APPLY_BUILD_CONTRACT=0 ignored because --apply-build-contract was passed')
   return fromArgs || fromEnv
 }

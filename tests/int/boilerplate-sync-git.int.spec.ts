@@ -1,3 +1,7 @@
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { delimiter, join } from 'node:path'
+
 import { describe, expect, it } from 'vitest'
 
 describe('boilerplate sync Git lifecycle', () => {
@@ -97,5 +101,33 @@ describe('boilerplate sync Git lifecycle', () => {
     )).toBe(false)
     expect(() => mod.restoreStashIfNeeded(targetRoot, true, git)).toThrow('stash conflict')
     expect(calls).toEqual(['status', 'add', 'staged'])
+  })
+
+  it('preserves staged-diff Git stderr for unexpected status', async () => {
+    const mod = await import('../../scripts/boilerplate/git.mjs')
+    const root = mkdtempSync(join(tmpdir(), 'bemoat-sync-git-diagnostic-'))
+    const git = join(root, 'git')
+    writeFileSync(
+      git,
+      `#!/usr/bin/env sh
+printf '%s\n' 'fake staged diff diagnostic' >&2
+exit 2
+`,
+      'utf8',
+    )
+    chmodSync(git, 0o755)
+
+    const previousPath = process.env.PATH
+    process.env.PATH = [root, previousPath].filter(Boolean).join(delimiter)
+
+    try {
+      expect(() => mod.createGitClient().hasStagedChanges(root, ['AGENTS.md'])).toThrow(
+        'Unable to determine staged sync changes: fake staged diff diagnostic',
+      )
+    } finally {
+      if (previousPath === undefined) delete process.env.PATH
+      else process.env.PATH = previousPath
+      rmSync(root, { recursive: true, force: true })
+    }
   })
 })

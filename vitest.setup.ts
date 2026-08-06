@@ -2,6 +2,11 @@
 
 process.env.WRANGLER_LOG_PATH ??= '.wrangler/logs'
 
+// Vitest is a test harness, not a CLI facade. Do not let its package lifecycle
+// identity leak into child facade invocations; tests that exercise lifecycle
+// routing provide an explicit npm_lifecycle_event in the child environment.
+delete process.env.npm_lifecycle_event
+
 // Load .env files
 import 'dotenv/config'
 

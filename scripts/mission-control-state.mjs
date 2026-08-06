@@ -1,6 +1,6 @@
 import yaml from 'yaml'
 
-const missionControlStates = new Set([
+export const MISSION_CONTROL_STATES = Object.freeze([
   'READY',
   'IN_PROGRESS',
   'AWAITING_REVIEW_1',
@@ -16,6 +16,7 @@ const missionControlStates = new Set([
   'STATE_CONFLICT',
   'STATE_MIGRATION_REQUIRED',
 ])
+const missionControlStates = new Set(MISSION_CONTROL_STATES)
 
 const missionControlRequiredKeys = [
   'schema_version', 'state', 'review_cycle', 'full_review_count', 'approved_base',

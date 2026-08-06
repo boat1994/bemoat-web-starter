@@ -1426,6 +1426,17 @@ describe('boilerplate sync modes', () => {
     ).toBe(mod.SYNC_MODES.FULL)
   })
 
+  it('rejects simultaneous normalized sync mode flags', async () => {
+    const mod = await import('../../scripts/sync-boilerplate.mjs')
+
+    expect(() =>
+      mod.parseSyncMode(
+        { harness_only: true, full: true },
+        {} as NodeJS.ProcessEnv,
+      ),
+    ).toThrow('--harness-only and --full are mutually exclusive.')
+  })
+
   it('does not copy seed-only paths in harness-only mode', async () => {
     const mod = await import('../../scripts/sync-boilerplate.mjs')
 

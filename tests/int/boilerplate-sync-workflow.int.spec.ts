@@ -234,6 +234,74 @@ describe('boilerplate sync workflow child portability', () => {
     expect(calls.slice(-3)).toEqual(['sync-failure', `rm:${tempRoot}`, 'restore-stash'])
   })
 
+  it('classifies post-mutation failures as ambiguous and preserves legacy diagnostics', async () => {
+    const workflowModule = await import('../../scripts/boilerplate/workflow.mjs')
+    const calls: string[] = []
+    const logs: string[] = []
+    const dependencies = makeWorkflowDependencies(calls, logs)
+    dependencies.commitValidatedSyncChanges = () => {
+      calls.push('commit-failure')
+      throw new Error('commit failed after copy')
+    }
+    const workflow = workflowModule.createBoilerplateSyncWorkflow(dependencies)
+
+    let thrown: unknown
+    try {
+      workflow.run({
+        repo: 'example/starter',
+        ref: 'slice-4',
+        targetRoot,
+        tempRoot,
+        sourceRoot,
+        enforceChildSyncGate: () => calls.push('child-gate'),
+      })
+    } catch (error) {
+      thrown = error
+    }
+
+    expect(thrown).toMatchObject({
+      message: 'commit failed after copy',
+      classification: 'AMBIGUOUS_RESULT',
+      mutationPerformed: true,
+      legacyOutput: expect.arrayContaining([
+        'Syncing Bemoat boilerplate from example/starter#slice-4 (harness-only mode)',
+        '[sync] package sync proposal written to .bemoat/package-sync-proposal.md',
+      ]),
+    })
+  })
+
+  it('keeps final preflight failures non-mutating', async () => {
+    const workflowModule = await import('../../scripts/boilerplate/workflow.mjs')
+    const calls: string[] = []
+    const dependencies = makeWorkflowDependencies(calls)
+    dependencies.runToolchainPreflight = () => {
+      calls.push('preflight-failure')
+      throw new Error('final preflight failed')
+    }
+    const workflow = workflowModule.createBoilerplateSyncWorkflow(dependencies)
+
+    let thrown: unknown
+    try {
+      workflow.run({
+        repo: 'example/starter',
+        ref: 'slice-4',
+        targetRoot,
+        tempRoot,
+        sourceRoot,
+        enforceChildSyncGate: () => calls.push('child-gate'),
+      })
+    } catch (error) {
+      thrown = error
+    }
+
+    expect(thrown).toMatchObject({
+      message: 'final preflight failed',
+      mutationPerformed: false,
+    })
+    expect((thrown as { classification?: string }).classification).not.toBe('AMBIGUOUS_RESULT')
+    expect(calls).not.toContain('stash')
+  })
+
   it('fails at the child-sync gate before mode parsing or child lifecycle work', async () => {
     const workflowModule = await import('../../scripts/boilerplate/workflow.mjs')
     const calls: string[] = []
