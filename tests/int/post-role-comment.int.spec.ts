@@ -128,7 +128,11 @@ function tempFile(name: string, content: string) {
   return path
 }
 
-function stubGh(options: { phantomPost?: boolean } = {}) {
+function stubGh(options: {
+  phantomPost?: boolean
+  duplicatePost?: boolean
+  olderOnly?: boolean
+} = {}) {
   const directory = mkdtempSync(join(tmpdir(), 'bemoat-role-comment-bin-'))
   tempPaths.push(directory)
   const capture = join(directory, 'arguments.txt')
@@ -141,20 +145,29 @@ const capture = process.env.BEMOAT_GH_CAPTURE;
 const postedPath = ${JSON.stringify(postedPath)};
 if (args[0] === 'issue' && args[1] === 'comment') {
   const bodyFile = args[args.indexOf('--body-file') + 1];
+  const postedId = ${options.duplicatePost === true || options.olderOnly === true ? '9002' : '9001'};
   const posted = {
-    id: 9001,
+    id: postedId,
     body: fs.readFileSync(bodyFile, 'utf8'),
     user: { login: 'boat1994' },
     author_association: 'OWNER',
   };
+  const older = { ...posted, id: 9001 };
   if (${options.phantomPost === true ? 'true' : 'false'} === false) {
-    fs.writeFileSync(postedPath, JSON.stringify(posted));
+    const persisted = ${options.duplicatePost === true
+      ? '[older, posted]'
+      : options.olderOnly === true
+        ? '[older]'
+        : 'posted'};
+    fs.writeFileSync(postedPath, JSON.stringify(persisted));
   }
   if (capture) fs.writeFileSync(capture, args.join('\\n') + '\\n');
+  process.stdout.write('https://github.com/acme/repo/issues/115#issuecomment-' + posted.id + '\\n');
   process.exit(0);
 }
 if (args[0] === 'issue' && args[1] === 'view' && args.includes('comments')) {
-  const comments = fs.existsSync(postedPath) ? [JSON.parse(fs.readFileSync(postedPath, 'utf8'))] : [];
+  const stored = fs.existsSync(postedPath) ? JSON.parse(fs.readFileSync(postedPath, 'utf8')) : [];
+  const comments = Array.isArray(stored) ? stored : [stored];
   process.stdout.write(JSON.stringify({ comments }));
   process.exit(0);
 }
@@ -289,6 +302,39 @@ describe('bemoat:issue:comment', () => {
       '--body-file',
       expect.stringMatching(/(?:^\/tmp\/|\/T\/bemoat-role-comment-)/),
     ])
+  })
+
+  it('uses the authoritative POST comment identity when identical bodies are duplicated', () => {
+    const gh = stubGh({ duplicatePost: true })
+    const result = run(['115', '--repo', 'acme/repo', '--json'], {
+      input: bodies.RESULT,
+      env: { PATH: gh.path, BEMOAT_GH_CAPTURE: gh.capture },
+    })
+
+    expect(result.status, result.stderr).toBe(0)
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      command: 'bemoat:issue:comment',
+      outcome: 'SUCCESS',
+      classification: 'SUCCESS',
+      details: { comment_id: '9002' },
+    })
+  })
+
+  it('keeps an older identical comment ambiguous when the POST identity is absent from readback', () => {
+    const gh = stubGh({ olderOnly: true })
+    const result = run(['115', '--repo', 'acme/repo', '--json'], {
+      input: bodies.RESULT,
+      env: { PATH: gh.path, BEMOAT_GH_CAPTURE: gh.capture },
+    })
+
+    expect(result.status).toBe(4)
+    expect(result.stderr).toBe('')
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      command: 'bemoat:issue:comment',
+      outcome: 'ERROR',
+      classification: 'AMBIGUOUS_RESULT',
+      mutation_performed: true,
+    })
   })
 
   it('fails closed when a successful POST is not durable in the live comment readback', () => {

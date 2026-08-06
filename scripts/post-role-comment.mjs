@@ -425,6 +425,18 @@ function readLiveRoleComments({ issue, repo }) {
   return parsePaginatedGhApiJson(result.stdout)
 }
 
+function extractPostedCommentId(stdout) {
+  const text = String(stdout ?? '').trim()
+  if (!text) return null
+  try {
+    const payload = JSON.parse(text)
+    if (payload?.id != null) return String(payload.id)
+  } catch {
+    // `gh issue comment` normally returns a URL rather than JSON.
+  }
+  return text.match(/(?:issuecomment-|comments\/)(\d+)/i)?.[1] ?? null
+}
+
 function main() {
   let command = null
   let invocation = null
@@ -517,6 +529,15 @@ function main() {
       return
     }
 
+    let priorComments
+    try {
+      priorComments = readLiveRoleComments(options)
+    } catch (error) {
+      throw runtimeError(
+        'BLOCKED_EXTERNAL',
+        error instanceof Error ? error.message : String(error),
+      )
+    }
     const temporary = createBodyFile(body)
     const args = ['issue', 'comment', options.issue]
     if (options.repo) args.push('--repo', options.repo)
@@ -536,10 +557,23 @@ function main() {
 
     let durableComment
     try {
+      const postedId = extractPostedCommentId(postResult.stdout)
+      const liveComments = readLiveRoleComments(options)
+      const priorIds = new Set(
+        priorComments
+          .map((comment) => comment.id)
+          .filter((id) => id != null)
+          .map((id) => String(id)),
+      )
+      const newComments = liveComments.filter(
+        (comment) => comment.id != null && !priorIds.has(String(comment.id)),
+      )
+      const readbackId = postedId ?? (newComments.length === 1 ? newComments[0].id : null)
       durableComment = verifyPostedCommentReadback({
-        comments: readLiveRoleComments(options),
+        comments: liveComments,
         body,
         role,
+        postedId: readbackId,
       })
     } catch (error) {
       throw runtimeError(
