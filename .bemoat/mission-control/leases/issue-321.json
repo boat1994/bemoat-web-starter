@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "issue": "321",
+  "transition_identity": "{\"taskId\":\"321\",\"phase\":\"Reviewer\",\"role\":\"REVIEW_VERDICT\",\"contentHash\":\"204836632d08d7b3a8b12da2488993eb7640eb74f2afc4b27815deb0978704d2\"}",
+  "observed_body_sha256": "43f4b36ba59da0ec498bcfdf32f53f5b99c94b5bd2e7153cb40c1897e8646a85",
+  "holder": "mission-control-review",
+  "status": "held",
+  "updated_at": "2026-08-06T18:57:52.390Z"
+}
