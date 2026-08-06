@@ -4,6 +4,7 @@ import { dirname, join, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 
 import { afterEach, describe, expect, it } from 'vitest'
+import { assertResultEnvelopeV1 } from '../../scripts/cli/command-result.mjs'
 
 const scriptPath = resolve(process.cwd(), 'scripts/post-role-comment.mjs')
 const tempPaths: string[] = []
@@ -95,6 +96,7 @@ const documentedReviewVerdict = `## REVIEW_VERDICT
 ### Next handoff
 - Founder review
 `
+const FULL_HEAD = 'ABCDEF0123456789ABCDEF0123456789ABCDEF01'
 
 const fastResult = `## RESULT
 **Profile:** FAST
@@ -126,12 +128,59 @@ function tempFile(name: string, content: string) {
   return path
 }
 
-function stubGh() {
+function stubGh(options: {
+  phantomPost?: boolean
+  duplicatePost?: boolean
+  olderOnly?: boolean
+  failPost?: boolean
+  omitPostedId?: boolean
+  untrustedPost?: boolean
+} = {}) {
   const directory = mkdtempSync(join(tmpdir(), 'bemoat-role-comment-bin-'))
   tempPaths.push(directory)
   const capture = join(directory, 'arguments.txt')
   const executable = join(directory, 'gh')
-  writeFileSync(executable, `#!/bin/sh\nprintf '%s\\n' "$@" > "$BEMOAT_GH_CAPTURE"\n`)
+  const postedPath = join(directory, 'posted.json')
+  writeFileSync(executable, `#!/usr/bin/env node
+const fs = require('fs');
+const args = process.argv.slice(2);
+const capture = process.env.BEMOAT_GH_CAPTURE;
+const postedPath = ${JSON.stringify(postedPath)};
+if (args[0] === 'issue' && args[1] === 'comment') {
+  const bodyFile = args[args.indexOf('--body-file') + 1];
+  if (${options.failPost === true ? 'true' : 'false'}) {
+    console.error('Simulated comment POST timeout');
+    process.exit(1);
+  }
+  const postedId = ${options.duplicatePost === true || options.olderOnly === true ? '9002' : '9001'};
+  const posted = {
+    id: postedId,
+    body: fs.readFileSync(bodyFile, 'utf8'),
+    user: { login: ${options.untrustedPost === true ? "'attacker'" : "'boat1994'"} },
+    author_association: ${options.untrustedPost === true ? "'NONE'" : "'OWNER'"},
+  };
+  const older = { ...posted, id: 9001 };
+  if (${options.phantomPost === true ? 'true' : 'false'} === false) {
+    const persisted = ${options.duplicatePost === true
+      ? '[older, posted]'
+      : options.olderOnly === true
+        ? '[older]'
+        : 'posted'};
+    fs.writeFileSync(postedPath, JSON.stringify(persisted));
+  }
+  if (capture) fs.writeFileSync(capture, args.join('\\n') + '\\n');
+  process.stdout.write(${options.omitPostedId === true ? "''" : "'https://github.com/acme/repo/issues/115#issuecomment-' + posted.id + '\\n'"});
+  process.exit(0);
+}
+if (args[0] === 'issue' && args[1] === 'view' && args.includes('comments')) {
+  const stored = fs.existsSync(postedPath) ? JSON.parse(fs.readFileSync(postedPath, 'utf8')) : [];
+  const comments = Array.isArray(stored) ? stored : [stored];
+  process.stdout.write(JSON.stringify({ comments }));
+  process.exit(0);
+}
+if (capture) fs.writeFileSync(capture, args.join('\\n') + '\\n');
+process.exit(0);
+`)
   chmodSync(executable, 0o755)
   return { capture, path: `${directory}:${process.env.PATH ?? ''}` }
 }
@@ -262,6 +311,89 @@ describe('bemoat:issue:comment', () => {
     ])
   })
 
+  it('uses the authoritative POST comment identity when identical bodies are duplicated', () => {
+    const gh = stubGh({ duplicatePost: true })
+    const result = run(['115', '--repo', 'acme/repo', '--json'], {
+      input: bodies.RESULT,
+      env: { PATH: gh.path, BEMOAT_GH_CAPTURE: gh.capture },
+    })
+
+    expect(result.status, result.stderr).toBe(0)
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      command: 'bemoat:issue:comment',
+      outcome: 'SUCCESS',
+      classification: 'SUCCESS',
+      details: { comment_id: '9002' },
+    })
+  })
+
+  it('keeps an older identical comment ambiguous when the POST identity is absent from readback', () => {
+    const gh = stubGh({ olderOnly: true })
+    const result = run(['115', '--repo', 'acme/repo', '--json'], {
+      input: bodies.RESULT,
+      env: { PATH: gh.path, BEMOAT_GH_CAPTURE: gh.capture },
+    })
+
+    expect(result.status).toBe(4)
+    expect(result.stderr).toBe('')
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      command: 'bemoat:issue:comment',
+      outcome: 'ERROR',
+      classification: 'AMBIGUOUS_RESULT',
+      mutation_performed: true,
+    })
+  })
+
+  it('maps a direct POST failure to AMBIGUOUS_RESULT with mutation performed', () => {
+    const gh = stubGh({ failPost: true })
+    const result = run(['115', '--repo', 'acme/repo', '--json'], {
+      input: bodies.RESULT,
+      env: { PATH: gh.path, BEMOAT_GH_CAPTURE: gh.capture },
+    })
+
+    expect(result.status).toBe(4)
+    expect(result.stderr).toBe('')
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      command: 'bemoat:issue:comment',
+      outcome: 'ERROR',
+      classification: 'AMBIGUOUS_RESULT',
+      mutation_performed: true,
+    })
+  })
+
+  it('rejects a body-only fallback when the new comment is not trusted', () => {
+    const gh = stubGh({ omitPostedId: true, untrustedPost: true })
+    const result = run(['115', '--repo', 'acme/repo', '--json'], {
+      input: bodies.RESULT,
+      env: { PATH: gh.path, BEMOAT_GH_CAPTURE: gh.capture },
+    })
+
+    expect(result.status).toBe(4)
+    expect(result.stderr).toBe('')
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      classification: 'AMBIGUOUS_RESULT',
+      mutation_performed: true,
+    })
+  })
+
+  it('fails closed when a successful POST is not durable in the live comment readback', () => {
+    const gh = stubGh({ phantomPost: true })
+    const result = run(['115', '--repo', 'acme/repo', '--json'], {
+      input: bodies.RESULT,
+      env: { PATH: gh.path, BEMOAT_GH_CAPTURE: gh.capture },
+    })
+
+    expect(result.status).toBe(4)
+    expect(result.stderr).toBe('')
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      command: 'bemoat:issue:comment',
+      outcome: 'ERROR',
+      classification: 'AMBIGUOUS_RESULT',
+      mutation_performed: true,
+      next_action: { type: 'STOP', command: null },
+    })
+  })
+
   it('never invokes gh in check mode', () => {
     const gh = stubGh()
     const result = run(['115', '--check'], {
@@ -270,6 +402,59 @@ describe('bemoat:issue:comment', () => {
     })
     expect(result.status, result.stderr).toBe(0)
     expect(() => readFileSync(gh.capture, 'utf8')).toThrow()
+  })
+
+  it('check mode emits one schema-v1 result envelope without posting', () => {
+    const gh = stubGh()
+    const result = run(['115', '--check', '--json'], {
+      input: bodies.RESULT,
+      env: { PATH: gh.path, BEMOAT_GH_CAPTURE: gh.capture },
+    })
+
+    expect(result.status, result.stderr).toBe(0)
+    expect(result.stderr).toBe('')
+    expect(result.stdout.trim().split(/\r?\n/)).toHaveLength(1)
+
+    const envelope = JSON.parse(result.stdout) as Record<string, unknown>
+    assertResultEnvelopeV1(envelope)
+    expect(envelope).toMatchObject({
+      command: 'bemoat:issue:comment',
+      mode: 'result',
+      outcome: 'SUCCESS',
+      classification: 'SUCCESS',
+      mutation_performed: false,
+      issue_number: '115',
+      pr_number: null,
+      exact_head: null,
+    })
+    expect(() => readFileSync(gh.capture, 'utf8')).toThrow()
+  })
+
+  it('shares EVIDENCE_CONFLICT classification and exit between text and JSON check modes', () => {
+    const invalidBody = bodies.RESULT.replace('**Summary:** Added the bounded change.\n', '')
+    const text = run(['115', '--check'], { input: invalidBody })
+    const json = run(['115', '--check', '--json'], { input: invalidBody })
+
+    expect(text.status).toBe(3)
+    expect(text.stderr).toContain('EVIDENCE_CONFLICT')
+    expect(json.status).toBe(3)
+    expect(json.stderr).toBe('')
+    expect(JSON.parse(json.stdout)).toMatchObject({
+      classification: 'EVIDENCE_CONFLICT',
+      outcome: 'ERROR',
+    })
+  })
+
+  it('extracts the exact head from canonical REVIEW_VERDICT metadata', () => {
+    const result = run(['115', '--check', '--json'], {
+      input: bodies.REVIEW_VERDICT.replaceAll('abc1234', FULL_HEAD),
+    })
+
+    expect(result.status, result.stderr).toBe(0)
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      classification: 'SUCCESS',
+      exact_head: FULL_HEAD.toLowerCase(),
+    })
   })
 
   it.each([

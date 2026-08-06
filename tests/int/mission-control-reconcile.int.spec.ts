@@ -83,6 +83,7 @@ const sampleVerdict = `## REVIEW_VERDICT
 **Gates:** exact-head CI pass
 **Next:** Founder merge authorization
 `
+const FULL_SAMPLE_HEAD = 'abc1234'.padEnd(40, '0')
 
 describe('mission-control reconcile classifiers', () => {
   it('projects a full correction-required verdict with immutable findings and canonical transition bindings', () => {
@@ -571,7 +572,7 @@ describe('mission-control reconcile classifiers', () => {
       managedState: prior,
       livePr: { number: '172', headRefOid: 'corrected-head', baseRefName: 'main' },
       activeTaskIssue: '171',
-      latestResult: { parsed: { headSha: 'corrected-head', prNumber: '172' } },
+      latestResult: { parsed: { headSha: 'corrected-head', base: 'main', prNumber: '172' } },
     })
 
     expect(proposal).toMatchObject({
@@ -595,7 +596,7 @@ describe('mission-control reconcile classifiers', () => {
       managedState: prior,
       livePr: { number: '174', headRefOid: 'corrected-head', baseRefName: 'main' },
       activeTaskIssue: '173',
-      latestResult: { parsed: { headSha: 'corrected-head', prNumber: '174' } },
+      latestResult: { parsed: { headSha: 'corrected-head', base: 'main', prNumber: '174' } },
     })
 
     expect(proposal).toMatchObject({
@@ -642,7 +643,7 @@ describe('mission-control reconcile classifiers', () => {
       managedState: prior,
       livePr: { number: '256', headRefOid: 'corrected-head', baseRefName: 'main' },
       activeTaskIssue: '255',
-      latestResult: { parsed: { headSha: 'corrected-head', prNumber: '256' } },
+      latestResult: { parsed: { headSha: 'corrected-head', base: 'main', prNumber: '256' } },
       updatedAt: '2026-08-02T22:50:00+07:00',
     })
 
@@ -991,9 +992,11 @@ describe('mission-control reconcile classifiers', () => {
 
     expect(result.role).toBe('RESULT')
     expect(result.prNumber).toBe('121')
+    expect(result.base).toBe('main')
     expect(result.headSha).toBe('abc1234')
 
     expect(verdict.role).toBe('REVIEW_VERDICT')
+    expect(verdict.base).toBe('main')
     expect(verdict.verdict).toBe('ELIGIBLE FOR FOUNDER REVIEW')
     expect(verdict.headSha).toBe('abc1234')
   })
@@ -1009,12 +1012,42 @@ describe('mission-control reconcile classifiers', () => {
     expect(verdict.prNumber).toBe('174')
   })
 
+  it('prefers the full canonical head and normalizes uppercase authority metadata', () => {
+    const fullHead = 'ABCDEF0123456789ABCDEF0123456789ABCDEF01'
+    const verdict = parseRoleCommentBody(`## REVIEW_VERDICT
+**State:** AWAITING_REVIEW_3 · head \`abcdef0\`
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/174 · \`main\` · \`${fullHead}\`
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+`)
+
+    expect(verdict.headSha).toBe(fullHead.toLowerCase())
+  })
+
+  it('persists lowercase authority heads through review projection', () => {
+    const fullHead = 'ABCDEF0123456789ABCDEF0123456789ABCDEF01'
+    const projected = projectReviewVerdictState({
+      prior: {
+        state: 'AWAITING_REVIEW_1',
+        review_cycle: 0,
+        full_review_count: 0,
+      },
+      verdict: 'ELIGIBLE FOR FOUNDER REVIEW',
+      reviewType: 'full',
+      reviewedHead: fullHead,
+      commentId: 'verdict-1',
+      transitionIdentity: 'review-identity',
+    })
+
+    expect(projected.current_head).toBe(fullHead.toLowerCase())
+    expect(projected.last_reviewed_head).toBe(fullHead.toLowerCase())
+  })
+
   it('scenario 1: valid delivery does not require conflict before Review 1', () => {
     const lag = classifyDeliveryLag(
       { state: 'IN_PROGRESS', active_pr: null, current_head: null },
-      { number: '121', headRefOid: 'abc1234' },
+      { number: '121', headRefOid: FULL_SAMPLE_HEAD },
       { exactHeadVerified: true },
-      { parsed: parseRoleCommentBody(sampleResult) },
+      { parsed: parseRoleCommentBody(sampleResult.replaceAll('abc1234', FULL_SAMPLE_HEAD)) },
     )
 
     expect(lag.kind).toBe('DETERMINISTIC_RECONCILIATION')
@@ -1051,15 +1084,15 @@ describe('mission-control reconcile classifiers', () => {
 
   it('scenario 3: stale post-RESULT state reconciles deterministically', () => {
     const proposal = proposeDeliveryReconciliation({
-      livePr: { number: '121', headRefOid: 'abc1234', baseRefName: 'main' },
+      livePr: { number: '121', headRefOid: FULL_SAMPLE_HEAD, baseRefName: 'main' },
       activeTaskIssue: '120',
-      latestResult: { parsed: parseRoleCommentBody(sampleResult) },
+      latestResult: { parsed: parseRoleCommentBody(sampleResult.replaceAll('abc1234', FULL_SAMPLE_HEAD)) },
     })
 
     expect(proposal).toMatchObject({
       state: 'AWAITING_REVIEW_1',
       active_pr: '#121',
-      current_head: 'abc1234',
+      current_head: FULL_SAMPLE_HEAD,
       review_cycle: 0,
       full_review_count: 0,
     })
@@ -1148,9 +1181,9 @@ describe('mission-control reconcile classifiers', () => {
 
   it('scenario 7: delivery reconciliation never increments review counters', () => {
     const proposal = proposeDeliveryReconciliation({
-      livePr: { number: '121', headRefOid: 'abc1234' },
+      livePr: { number: '121', headRefOid: FULL_SAMPLE_HEAD, baseRefName: 'main' },
       activeTaskIssue: '120',
-      latestResult: { parsed: parseRoleCommentBody(sampleResult) },
+      latestResult: { parsed: parseRoleCommentBody(sampleResult.replaceAll('abc1234', FULL_SAMPLE_HEAD)) },
     })
 
     expect(proposal.review_cycle).toBe(0)
@@ -1160,8 +1193,8 @@ describe('mission-control reconcile classifiers', () => {
   it('detects post-review bookkeeping lag from verdict evidence', () => {
     const lag = classifyReviewLag(
       { state: 'AWAITING_REVIEW_1', review_cycle: 0, last_reviewed_head: null },
-      { headRefOid: 'abc1234' },
-      { parsed: parseRoleCommentBody(sampleVerdict) },
+      { headRefOid: FULL_SAMPLE_HEAD },
+      { parsed: parseRoleCommentBody(sampleVerdict.replaceAll('abc1234', FULL_SAMPLE_HEAD)) },
     )
 
     expect(lag.kind).toBe('DETERMINISTIC_RECONCILIATION')
@@ -1177,9 +1210,9 @@ describe('mission-control reconcile classifiers', () => {
         review_cycle: 0,
         full_review_count: 0,
       },
-      livePr: { number: '121', headRefOid: 'abc1234', baseRefName: 'main' },
+      livePr: { number: '121', headRefOid: FULL_SAMPLE_HEAD, baseRefName: 'main' },
       exactHeadCi: { exactHeadVerified: true },
-      latestResult: { parsed: parseRoleCommentBody(sampleResult) },
+      latestResult: { parsed: parseRoleCommentBody(sampleResult.replaceAll('abc1234', FULL_SAMPLE_HEAD)) },
       latestVerdict: null,
       activeTaskIssue: '120',
       stateConflictBlockers: [],
@@ -1219,6 +1252,7 @@ describe('mission-control reconcile classifiers', () => {
 })
 
 describe('mission-control transition idempotency', () => {
+  const FULL_RESULT_HEAD = 'deadbeef'.padEnd(40, '0')
   const handoffBody = `## HANDOFF
 
 **Target:** Dev / Builder
@@ -1236,7 +1270,7 @@ Bounded implementation work.
 - Phase: Dev (implementation)
 
 **Completed:** Dev (implementation)
-**State:** branch \`feature/184\` · base \`main\` · head \`deadbeef\`
+**State:** branch \`feature/184\` · base \`main\` · head \`${FULL_RESULT_HEAD}\`
 **PR:** https://github.com/boat1994/bemoat-web-starter/pull/186
 **Summary:** Transition idempotency implementation
 `
@@ -1288,16 +1322,152 @@ Bounded implementation work.
     expect(comments).toHaveLength(1)
   })
 
-  it('recovers ambiguous POST with one live match', () => {
+  it('recovers an ambiguous POST only through its exact trusted live identity', () => {
     const identity = normalizeTransitionIdentity(handoffBody, { role: 'HANDOFF' })
     const recovery = recoverAmbiguousPost({
-      comments: [{ id: '99', body: handoffBody }],
+      comments: [{
+        id: '99',
+        body: handoffBody,
+        author: 'boat1994',
+        author_association: 'OWNER',
+      }],
       identity,
+      body: handoffBody,
+      role: 'HANDOFF',
+      postedId: '99',
       ambiguousPost: true,
+      matchOptions: {
+        trustedAuthors: ['boat1994'],
+        trustedAssociations: ['OWNER'],
+      },
     })
     expect(recovery.classification).toBe('RESUME_PROJECTION')
     expect(recovery.comment?.id).toBe('99')
     expect(recovery.recovered).toBe(true)
+  })
+
+  it('does not recover an older identical comment when the authoritative POST id differs', () => {
+    const identity = normalizeTransitionIdentity(handoffBody, { role: 'HANDOFF' })
+    const recovery = recoverAmbiguousPost({
+      comments: [{
+        id: '99',
+        body: handoffBody,
+        author: 'boat1994',
+        author_association: 'OWNER',
+      }],
+      identity,
+      body: handoffBody,
+      role: 'HANDOFF',
+      postedId: '100',
+      ambiguousPost: true,
+      matchOptions: {
+        trustedAuthors: ['boat1994'],
+        trustedAssociations: ['OWNER'],
+      },
+    })
+
+    expect(recovery.classification).toBe('AMBIGUOUS_RESULT')
+    expect(recovery.comment).toBeUndefined()
+  })
+
+  it('keeps a possible post with no live match as AMBIGUOUS_RESULT', () => {
+    const identity = normalizeTransitionIdentity(handoffBody, { role: 'HANDOFF' })
+    const recovery = recoverAmbiguousPost({
+      comments: [],
+      identity,
+      ambiguousPost: true,
+    })
+
+    expect(recovery.classification).toBe('AMBIGUOUS_RESULT')
+  })
+
+  it('preserves AMBIGUOUS_RESULT when the recovery comment read fails', async () => {
+    let recoveryReads = 0
+    const postError = Object.assign(new Error('comment POST response was lost'), {
+      classification: 'AMBIGUOUS_RESULT',
+      mutationPerformed: true,
+    })
+    const coordinator = new CoordinatorClass({
+      readState: async () => ({ state: 'IN_PROGRESS', review_cycle: 0, full_review_count: 0 }),
+      writeState: async () => {
+        throw new Error('ambiguous recovery must not write state')
+      },
+      listComments: async (): Promise<Array<Record<string, unknown>>> => {
+        recoveryReads += 1
+        if (recoveryReads === 1) return []
+        throw new Error('BLOCKED_EXTERNAL: live comment read failed')
+      },
+      postComment: async () => {
+        throw postError
+      },
+    })
+
+    await expect(coordinator.integrateResult({
+      resultBody,
+      projectState: (state: Record<string, unknown>) => state,
+    })).rejects.toMatchObject({
+      classification: 'AMBIGUOUS_RESULT',
+      mutationPerformed: true,
+    })
+    expect(recoveryReads).toBe(2)
+  })
+
+  it('maps a RESULT state-read failure after a possible state write to AMBIGUOUS_RESULT', async () => {
+    let stateReads = 0
+    const coordinator = new CoordinatorClass({
+      readState: async () => {
+        stateReads += 1
+        if (stateReads === 1) return { state: 'IN_PROGRESS', review_cycle: 0, full_review_count: 0 }
+        throw new Error('Issue state read timed out after the write')
+      },
+      writeState: async () => {
+        throw new Error('Issue state write response was lost')
+      },
+      listComments: async () => [] as any[],
+      postComment: async (body: string) => ({ id: 'result-state-read-timeout', body }),
+    })
+
+    await expect(coordinator.integrateResult({
+      resultBody,
+      projectState: (state: Record<string, unknown>) => state,
+    })).rejects.toMatchObject({
+      classification: 'AMBIGUOUS_RESULT',
+      mutationPerformed: true,
+    })
+  })
+
+  it('maps a REVIEW_VERDICT state-read failure after a possible state write to AMBIGUOUS_RESULT', async () => {
+    let stateReads = 0
+    const reviewBody = `## REVIEW_VERDICT
+
+### Task log
+- Task / Issue: #184
+- Phase: Reviewer
+
+**PR / base / head:** PR #186 · \`main\` · \`deadbeef\`
+**Verdict:** CORRECTION REQUIRED
+**Findings:** Important: bounded regression
+`
+    const coordinator = new CoordinatorClass({
+      readState: async () => {
+        stateReads += 1
+        if (stateReads === 1) return { state: 'AWAITING_REVIEW_1', review_cycle: 0, full_review_count: 0 }
+        throw new Error('Issue state read timed out after the write')
+      },
+      writeState: async () => {
+        throw new Error('Issue state write response was lost')
+      },
+      listComments: async () => [] as any[],
+      postComment: async (body: string) => ({ id: 'verdict-state-read-timeout', body }),
+    })
+
+    await expect((coordinator as any).integrateReviewVerdict({
+      verdictBody: reviewBody,
+      projectState: (state: Record<string, unknown>) => state,
+    })).rejects.toMatchObject({
+      classification: 'AMBIGUOUS_RESULT',
+      mutationPerformed: true,
+    })
   })
 
   it('recovers from comment-success/state-update-failure plus rerun', async () => {
@@ -1348,7 +1518,7 @@ Bounded implementation work.
     })
     await expect(coordinator.integrateResult({
       resultBody,
-      projectState: () => ({ ...state, state: 'AWAITING_REVIEW_1', active_pr: '"#186"', current_head: 'deadbeef' }),
+      projectState: () => ({ ...state, state: 'AWAITING_REVIEW_1', active_pr: '"#186"', current_head: FULL_RESULT_HEAD }),
     })).rejects.toThrow('STATE_CONFLICT: incompatible concurrent authority')
   })
 
@@ -1395,12 +1565,12 @@ Bounded implementation work.
     expect(findMatchingComments(
       [{ id: 'right', body: resultBody }],
       identity,
-      { activeOnly: true, bindings: { prNumber: '999', headSha: 'deadbeef', taskId: '184' } },
+      { activeOnly: true, bindings: { prNumber: '999', headSha: FULL_RESULT_HEAD, taskId: '184' } },
     )).toHaveLength(0)
     expect(findMatchingComments(
       [{ id: 'right', body: resultBody }],
       identity,
-      { activeOnly: true, bindings: { prNumber: '186', headSha: 'deadbeef', taskId: '184' } },
+      { activeOnly: true, bindings: { prNumber: '186', headSha: FULL_RESULT_HEAD, taskId: '184' } },
     ).map((comment: any) => comment.id)).toEqual(['right'])
   })
 
@@ -1502,13 +1672,13 @@ Bounded implementation work.
   it('preserves counters and last_reviewed_head during reconciliation', async () => {
     let state: any = {
       state: 'AWAITING_REVIEW_1', review_cycle: 1, full_review_count: 1,
-      last_reviewed_head: 'abc1234', active_pr: '#121', current_head: 'abc1234',
+      last_reviewed_head: FULL_SAMPLE_HEAD, active_pr: '#121', current_head: FULL_SAMPLE_HEAD,
     }
     const verdictBody = `## REVIEW_VERDICT
 
 **Task / Issue:** #120
 **Phase:** Reviewer
-**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/121 · \`main\` · \`abc1234\`
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/121 · \`main\` · \`${FULL_SAMPLE_HEAD}\`
 **Verdict:** ELIGIBLE FOR FOUNDER REVIEW
 `
     const comments = [{ id: 'verdict-1', body: verdictBody }]
@@ -1524,13 +1694,13 @@ Bounded implementation work.
         state: 'ELIGIBLE_FOR_FOUNDER_REVIEW',
         review_cycle: 1,
         full_review_count: 1,
-        last_reviewed_head: 'abc1234',
+        last_reviewed_head: FULL_SAMPLE_HEAD,
       }),
     })
     expect(result.outcome).toBe('RECONCILED')
     expect(state.review_cycle).toBe(1)
     expect(state.full_review_count).toBe(1)
-    expect(state.last_reviewed_head).toBe('abc1234')
+    expect(state.last_reviewed_head).toBe(FULL_SAMPLE_HEAD)
   })
 
   it('integrates RESULT with exact identity', async () => {
@@ -1552,7 +1722,7 @@ Bounded implementation work.
         ...state,
         state: 'AWAITING_REVIEW_1',
         active_pr: '"#186"',
-        current_head: 'deadbeef',
+        current_head: FULL_RESULT_HEAD,
         review_cycle: 0,
         full_review_count: 0,
       }),
@@ -1566,7 +1736,7 @@ Bounded implementation work.
 
   it('reconciles REVIEW_VERDICT external evidence', async () => {
     let state: any = { state: 'AWAITING_REVIEW_1', review_cycle: 0, full_review_count: 0, last_reviewed_head: null }
-    const verdictBody = sampleVerdict
+    const verdictBody = sampleVerdict.replaceAll('abc1234', FULL_SAMPLE_HEAD)
     const comments = [{ id: 'v1', body: verdictBody }]
     const coordinator = new CoordinatorClass({
       readState: async () => state,
@@ -1578,7 +1748,7 @@ Bounded implementation work.
       verdictBody,
       projectReview: () => proposeReviewReconciliation({
         verdict: 'ELIGIBLE FOR FOUNDER REVIEW',
-        reviewedHead: 'abc1234',
+        reviewedHead: FULL_SAMPLE_HEAD,
         reviewCycle: 0,
         fullReviewCount: 0,
       }),
@@ -1700,6 +1870,41 @@ Bounded implementation work.
   it('parses paginated live comment payloads and normalizes ids', () => {
     const parsed = parsePaginatedGhApiJson('[{"id":1,"body":"a"}][{"id":2,"body":"b"}]')
     expect(normalizeIssueComments(parsed).map((comment: any) => comment.id)).toEqual([1, 2])
+  })
+
+  it('rejects distinct full heads that collide at the seven-character prefix', () => {
+    const liveHead = `abcdef0${'1'.repeat(33)}`
+    const conflictingHead = `abcdef0${'2'.repeat(33)}`
+    const collisionBody = resultBody.replace(FULL_RESULT_HEAD, conflictingHead)
+    const identity = normalizeTransitionIdentity(collisionBody, { role: 'RESULT' })
+
+    expect(findMatchingComments(
+      [{ id: 'collision', body: collisionBody }],
+      identity,
+      { activeOnly: true, bindings: { headSha: liveHead } },
+    )).toHaveLength(0)
+
+    expect(classifyDeliveryLag(
+      { state: 'IN_PROGRESS', active_pr: null, current_head: null },
+      { number: '186', headRefOid: liveHead },
+      { exactHeadVerified: true },
+      { parsed: { headSha: conflictingHead, prNumber: '186' } },
+    )).toMatchObject({
+      kind: 'STATE_CONFLICT',
+      reason: 'RESULT head does not match live PR head',
+    })
+  })
+
+  it('does not treat equal abbreviated heads as authoritative without a full SHA', () => {
+    const shortHead = 'abcdef0'
+    const abbreviatedBody = resultBody.replace(FULL_RESULT_HEAD, shortHead)
+    const identity = normalizeTransitionIdentity(abbreviatedBody, { role: 'RESULT' })
+
+    expect(findMatchingComments(
+      [{ id: 'short', body: abbreviatedBody, author: 'boat1994', author_association: 'OWNER' }],
+      identity,
+      { activeOnly: true, bindings: { headSha: shortHead } },
+    )).toHaveLength(0)
   })
 })
 

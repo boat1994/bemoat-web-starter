@@ -61,6 +61,7 @@ describe('Mission Control command reference contract', () => {
     writeFileSync('.tmp-test-verdict-fail.md', match[1].replace('**Verdict:** ELIGIBLE FOR FOUNDER REVIEW', ''))
     const result = spawnSync('node', ['scripts/post-role-comment.mjs', '--', '123', '--body-file', '.tmp-test-verdict-fail.md', '--check'], { encoding: 'utf8' })
     unlinkSync('.tmp-test-verdict-fail.md')
-    expect(result.status).toBe(1)
+    expect(result.status).toBe(3)
+    expect(result.stderr).toContain('EVIDENCE_CONFLICT')
   })
 })

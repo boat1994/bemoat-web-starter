@@ -340,6 +340,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 const statePath = ${JSON.stringify(statePath)}
 const args = process.argv.slice(2)
 const state = JSON.parse(readFileSync(statePath, 'utf8'))
+const phantomHandoff = process.env.BEMOAT_PHANTOM_HANDOFF === '1'
 if (args[0] === 'repo' && args[1] === 'view') {
   console.log(JSON.stringify({ nameWithOwner: 'boat1994/test' }))
 } else if (args[0] === 'issue' && args[1] === 'view') {
@@ -348,13 +349,21 @@ if (args[0] === 'repo' && args[1] === 'view') {
   console.log(JSON.stringify(state.comments))
 } else if (args[0] === 'api' && args.some(a => a.includes('comments')) && args.includes('POST')) {
   const input = JSON.parse(readFileSync(args[args.indexOf('--input') + 1], 'utf8'))
-  const comment = { id: 100, body: input.body, user: { login: 'boat1994' } }
-  state.comments.push(comment)
-  writeFileSync(statePath, JSON.stringify(state))
+  const comment = {
+    id: 100,
+    body: input.body,
+    user: { login: 'boat1994' },
+    author_association: 'OWNER',
+    html_url: 'https://github.com/boat1994/test/issues/92#issuecomment-100',
+  }
+  if (!phantomHandoff) {
+    state.comments.push(comment)
+    writeFileSync(statePath, JSON.stringify(state))
+  }
   console.log(JSON.stringify(comment))
 } else if (args[0] === 'issue' && args[1] === 'comment') {
   const body = readFileSync(args[args.indexOf('--body-file') + 1], 'utf8')
-  const comment = { id: 100, body, user: { login: 'boat1994' } }
+  const comment = { id: 100, body, user: { login: 'boat1994' }, author_association: 'OWNER' }
   state.comments.push(comment)
   writeFileSync(statePath, JSON.stringify(state))
 } else if (args[0] === 'issue' && args[1] === 'edit') {
@@ -408,6 +417,21 @@ if (args[0] === 'repo' && args[1] === 'view') {
     expect(parsed.state.planning_authorization_base_sha).not.toBe(policyTip)
     expect(parsed.state.guide_source_sha).toBe(policyTip)
     expect(parsed.state.workflow_mode).toBe('planning_no_pr')
+
+    writeFileSync(statePath, JSON.stringify({ body: initialBody, comments: [] }))
+    const phantom = spawnSync(process.execPath, [dispatchScript, '92', '--repo', 'boat1994/test', '--body-file', handoffPath, '--workflow-mode', 'planning_no_pr', '--planning-base-sha', lineageBase], {
+      env: {
+        ...process.env,
+        PATH: `${root}:${process.env.PATH}`,
+        GITHUB_REPOSITORY_OWNER: 'boat1994',
+        BEMOAT_PHANTOM_HANDOFF: '1',
+      },
+      encoding: 'utf8',
+    })
+    expect(phantom.status, phantom.stderr || phantom.stdout).toBe(4)
+    const phantomState = JSON.parse(readFileSync(statePath, 'utf8'))
+    expect(parseMissionControlState(phantomState.body).state?.state).toBe('READY')
+    expect(phantomState.comments).toEqual([])
   })
 
   it('WF-02: planning branch created before protected policy advance', () => {
@@ -678,7 +702,7 @@ if (args[0] === 'repo' && args[1] === 'view') {
       livePr: { number: 230, headRefOid: head, baseRefName: 'main' },
       activeTaskIssue: '229',
       approvedBase: 'main',
-      latestResult: { parsed: { headSha: head, prNumber: '230' } },
+      latestResult: { parsed: { headSha: head, prNumber: '230', base: 'main' } },
       updatedAt: '2026-07-31T00:00:00.000Z',
       updatedBy: 'Mission Control',
     })

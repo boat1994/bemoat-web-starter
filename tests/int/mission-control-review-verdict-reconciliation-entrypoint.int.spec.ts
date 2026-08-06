@@ -787,6 +787,36 @@ describe('legacy REVIEW_VERDICT binding (option 2)', () => {
   })
 
   it.each([
+    ['uppercase full SHA', reviewedHead.toUpperCase(), reviewedHead],
+    ['uppercase abbreviated SHA', reviewedHead.slice(0, 7).toUpperCase(), reviewedHead.slice(0, 7)],
+  ])('accepts and lowercases valid legacy Head metadata: %s', (_label, head, normalizedHead) => {
+    const body = legacyVerdictBody({ head })
+    expect(parseLegacyReviewVerdictBinding(body)).toMatchObject({
+      kind: 'legacy',
+      head: normalizedHead,
+    })
+
+    const harness = createGhHarness({
+      prState: 'MERGED',
+      containedHeads: [reviewedHead],
+      comments: [{
+        id: verdictCommentId,
+        body,
+        user: { login: 'boat1994' },
+        author_association: 'OWNER',
+      }],
+    })
+    const result = runReconcile(harness)
+
+    expect(result.status, result.stderr || result.stdout).toBe(0)
+    expect(result.stdout).toContain('RECONCILED')
+    expect(readHarnessState(harness)).toMatchObject({
+      current_head: reviewedHead,
+      last_reviewed_head: reviewedHead,
+    })
+  })
+
+  it.each([
     ['wrong Issue', {
       comments: [{
         id: verdictCommentId,
@@ -1059,21 +1089,13 @@ branch\` (\`18640666402ade75003cbf0a3556eef6ad63d536\`)
 **Head:** \`b1ce5f58e7ffd0178d955ef7e9339520
 9a7c4d28\`
 `],
-    ['uppercase Head SHA rejected', `## REVIEW_VERDICT
+    ['too-short Head SHA rejected', `## REVIEW_VERDICT
 
 **Verdict:** ELIGIBLE FOR FOUNDER REVIEW
 **Task:** Issue #259
 **PR:** #260
 **Base:** \`main\` (\`18640666402ade75003cbf0a3556eef6ad63d536\`)
-**Head:** \`B1CE5F58E7FFD0178D955EF7E93395209A7C4D28\`
-`],
-    ['short Head SHA rejected', `## REVIEW_VERDICT
-
-**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
-**Task:** Issue #259
-**PR:** #260
-**Base:** \`main\` (\`18640666402ade75003cbf0a3556eef6ad63d536\`)
-**Head:** \`b1ce5f58e7ffd0178d955ef7e93395209a7c4d2\`
+**Head:** \`b1ce5f\`
 `],
     ['lowercase task label rejected', `## REVIEW_VERDICT
 

@@ -2199,7 +2199,7 @@ esac
       '## RESULT',
       '',
       '**Completed:** Dev (implementation)',
-      '**State:** branch `feature/120` · base `main` · head `abc1234`',
+      '**State:** branch `feature/120` · base `main` · head `abc1234000000000000000000000000000000000`',
       '**PR:** https://github.com/boat1994/bemoat-web-starter/pull/121',
       '**Summary:** delivery complete',
       '**Next:** Reviewer ## REVIEW_VERDICT',
@@ -2220,7 +2220,7 @@ ${managedState({ state: 'IN_PROGRESS', active_pr: 'null', current_head: 'null', 
           `#!/usr/bin/env sh
 case "$*" in
   *"issue view 120"*"comments"*) printf '%s' '${commentsPayload}' ;;
-  *"pr view 121"*) printf '%s' '{"title":"PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/121","headRefName":"feature/120","baseRefName":"main","headRefOid":"abc1234","state":"OPEN","statusCheckRollup":[{"__typename":"CheckRun","conclusion":"SUCCESS","status":"COMPLETED","name":"ci"}],"commits":[]}' ;;
+  *"pr view 121"*) printf '%s' '{"title":"PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/121","headRefName":"feature/120","baseRefName":"main","headRefOid":"abc1234000000000000000000000000000000000","state":"OPEN","statusCheckRollup":[{"__typename":"CheckRun","conclusion":"SUCCESS","status":"COMPLETED","name":"ci"}],"commits":[]}' ;;
   *) echo "unexpected gh call: $*" >&2; exit 1 ;;
 esac
 `,
@@ -2239,7 +2239,7 @@ esac
       '## RESULT',
       '',
       '**Completed:** Dev (implementation)',
-      '**State:** branch `feature/120` · base `main` · head `abc1234`',
+      '**State:** branch `feature/120` · base `main` · head `abc1234000000000000000000000000000000000`',
       '**PR:** https://github.com/boat1994/bemoat-web-starter/pull/121',
       '**Summary:** delivery complete',
       '**Next:** Reviewer ## REVIEW_VERDICT',
@@ -2260,7 +2260,7 @@ ${managedState({ state: 'IN_PROGRESS', active_pr: '"123"', current_head: 'null',
           `#!/usr/bin/env sh
 case "$*" in
   *"issue view 120"*"comments"*) printf '%s' '${commentsPayload}' ;;
-  *"pr view 123"*) printf '%s' '{"title":"PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/123","headRefName":"feature/120","baseRefName":"main","headRefOid":"abc1234","state":"OPEN","statusCheckRollup":[{"__typename":"CheckRun","conclusion":"SUCCESS","status":"COMPLETED","name":"ci"}],"commits":[]}' ;;
+  *"pr view 123"*) printf '%s' '{"title":"PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/123","headRefName":"feature/120","baseRefName":"main","headRefOid":"abc1234000000000000000000000000000000000","state":"OPEN","statusCheckRollup":[{"__typename":"CheckRun","conclusion":"SUCCESS","status":"COMPLETED","name":"ci"}],"commits":[]}' ;;
   *) echo "unexpected gh call: $*" >&2; exit 1 ;;
 esac
 `,
@@ -2278,7 +2278,7 @@ esac
       '## RESULT',
       '',
       '**Completed:** Dev (implementation)',
-      '**State:** branch `feature/120` · base `main` · head `abc1234`',
+      '**State:** branch `feature/120` · base `main` · head `abc1234000000000000000000000000000000000`',
       '**Summary:** delivery complete',
       '**Next:** Reviewer ## REVIEW_VERDICT',
     ].join('\n')
@@ -2298,7 +2298,7 @@ ${managedState({ state: 'IN_PROGRESS', active_pr: '"123"', current_head: 'null',
           `#!/usr/bin/env sh
 case "$*" in
   *"issue view 120"*"comments"*) printf '%s' '${commentsPayload}' ;;
-  *"pr view 123"*) printf '%s' '{"title":"PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/123","headRefName":"feature/120","baseRefName":"main","headRefOid":"abc1234","state":"OPEN","statusCheckRollup":[{"__typename":"CheckRun","conclusion":"SUCCESS","status":"COMPLETED","name":"ci"}],"commits":[]}' ;;
+  *"pr view 123"*) printf '%s' '{"title":"PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/123","headRefName":"feature/120","baseRefName":"main","headRefOid":"abc1234000000000000000000000000000000000","state":"OPEN","statusCheckRollup":[{"__typename":"CheckRun","conclusion":"SUCCESS","status":"COMPLETED","name":"ci"}],"commits":[]}' ;;
   *) echo "unexpected gh call: $*" >&2; exit 1 ;;
 esac
 `,
