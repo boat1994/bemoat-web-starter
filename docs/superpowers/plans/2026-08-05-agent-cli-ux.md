@@ -599,32 +599,34 @@ Tier totals are exactly A=11, B=8, C=3. Any package change that alters the 22-co
 - Consumes: Task 2 invocation/help functions.
 - Produces: early Tier B help and canonical invalid-invocation behavior; runtime outputs remain their current read-only formats unless the registry declares a domain JSON result.
 
-- [ ] **Step 1: Write the failing Tier B matrix**
+- [x] **Step 1: Write the failing Tier B matrix**
 
   Add parameterized exact tests named `Tier B %s --help and -h exit zero without I/O`, `Tier B %s rejects invalid invocation with exit two before I/O`, and `Tier B %s help names the exact lifecycle command and entrypoint` for all eight commands. Add `boilerplate check removes transient storage and preserves the target on success and clone failure`. Assert execution from repository root and isolated cwd; semantic equality; required sections; no poison executable call; no adapter factory; and no file/mode change.
 
-- [ ] **Step 2: Run and verify failure**
+- [x] **Step 2: Run and verify failure**
 
   Run: `pnpm exec vitest run --config ./vitest.config.mts tests/int/cli-tier-b-boundaries.int.spec.ts`
 
   Expected: FAIL because seven JS facades and the branch shell enter normal execution or reject help as an ordinary argument.
 
-- [ ] **Step 3: Add the smallest facade preflight**
+- [x] **Step 3: Add the smallest facade preflight**
 
   Each JS `main` resolves its validated command identity and calls `parseCommandInvocation` before any runtime reads. The shell facade recognizes only `--help`/`-h` and delegates rendering to `node scripts/cli/command-help.mjs bemoat:branch:check`; its normal branch logic remains byte-for-byte below that gate. `bemoat:agent:issue` retains its Issue positional and correction phase. Sync-mode parsing consumes normalized values and rejects simultaneous `--harness-only`/`--full` rather than last-wins.
 
-- [ ] **Step 4: Run focused and existing tests**
+- [x] **Step 4: Run focused and existing tests**
 
   Run: `pnpm exec vitest run --config ./vitest.config.mts tests/int/cli-tier-b-boundaries.int.spec.ts tests/int/agent-issue.int.spec.ts tests/int/boilerplate-sync.int.spec.ts tests/int/branch-safety.int.spec.ts tests/int/cloudflare-env-guard.int.spec.ts tests/int/harness-contract-guard.int.spec.ts tests/int/mission-control-contract.int.spec.ts tests/int/guard-pack.int.spec.ts`
 
   Expected: PASS; all eight help rows are zero-I/O, invalid rows exit 2, and existing valid read-only behavior is unchanged.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
   ```bash
   git add scripts/agent-issue.mjs scripts/agent-issue/cli-args.mjs scripts/check-boilerplate-drift.mjs scripts/boilerplate/config.mjs scripts/check-branch-safety.sh scripts/guard-cloudflare-env.mjs scripts/guard-harness-contract.mjs scripts/guard-mission-control-contract.mjs scripts/guard-pack.mjs tests/int/cli-tier-b-boundaries.int.spec.ts tests/int/agent-issue.int.spec.ts tests/int/boilerplate-sync.int.spec.ts tests/int/branch-safety.int.spec.ts tests/int/cloudflare-env-guard.int.spec.ts tests/int/harness-contract-guard.int.spec.ts tests/int/mission-control-contract.int.spec.ts tests/int/guard-pack.int.spec.ts
   git commit -m "feat: add deterministic help to read-only commands"
   ```
+
+- [x] **Lead acceptance:** `TASK ACCEPTED` at exact head `994cf9a5b1c41061ead714211998b085b2bb4e30`; sequential focused and full checks passed with 427 and 1,248 tests respectively.
 
 ### Task 4: Normalize durable repository setup/sync commands
 
