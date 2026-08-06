@@ -148,6 +148,27 @@ function printSuggestedNextCommands(syncMode, packageSync, applyBuildContract, l
   }
 }
 
+function annotateSyncFailure(
+  error,
+  { logs, mutationPerformed, cleanupError = null },
+) {
+  const failure = error instanceof Error ? error : new Error(String(error))
+  const mayHaveMutated =
+    mutationPerformed ||
+    (failure && typeof failure === 'object' && failure.mutationPerformed === true)
+
+  failure.mutationPerformed = mayHaveMutated
+  if (mayHaveMutated) failure.classification = 'AMBIGUOUS_RESULT'
+  failure.legacyOutput = [...logs]
+
+  if (cleanupError) {
+    failure.cleanupError =
+      cleanupError instanceof Error ? cleanupError.message : String(cleanupError)
+  }
+
+  return failure
+}
+
 const defaultDependencies = {
   rmSync,
   mkdirSync,
@@ -220,6 +241,12 @@ export function createBoilerplateSyncWorkflow(overrides = {}) {
       log(`Syncing Bemoat boilerplate from ${repo}#${ref} (${syncMode} mode)`)
       const git = dependencies.createGitClient({ suppressStdout: suppressToolOutput })
       let stashCreated = false
+      let mutationPerformed = false
+      let result
+      let failure = null
+      const markMutation = () => {
+        mutationPerformed = true
+      }
 
       try {
         dependencies.rmSync(tempRoot, { recursive: true, force: true })
@@ -241,7 +268,12 @@ export function createBoilerplateSyncWorkflow(overrides = {}) {
           log,
         })
 
-        stashCreated = dependencies.stashWorkingTreeIfNeeded(targetRoot, git)
+        stashCreated = dependencies.stashWorkingTreeIfNeeded(
+          targetRoot,
+          git,
+          { onMutation: markMutation },
+        )
+        if (stashCreated) markMutation()
 
         if (applyBuildContract) {
           log(
@@ -263,7 +295,15 @@ export function createBoilerplateSyncWorkflow(overrides = {}) {
           syncConfig,
           onLog: log,
           assertManagedRuntimeDeliveryClosure,
+          onMutation: markMutation,
         })
+        if (
+          syncedManaged.length > 0 ||
+          seededFiles.length > 0 ||
+          mergedFiles.length > 0
+        ) {
+          markMutation()
+        }
 
         const packageSync = dependencies.syncPackageManifest({
           sourceRootPath: sourceRoot,
@@ -272,11 +312,24 @@ export function createBoilerplateSyncWorkflow(overrides = {}) {
           ref,
           applyBuildContract,
           syncConfig,
+          onMutation: markMutation,
         })
+        if (packageSync.packageChanged || packageSync.proposalPath) markMutation()
 
         const buildContractFiles = applyBuildContract
-          ? dependencies.applyBuildContractFiles(sourceRoot, targetRoot, syncConfig.buildContractFilePaths)
+          ? dependencies.applyBuildContractFiles(
+            sourceRoot,
+            targetRoot,
+            syncConfig.buildContractFilePaths,
+            { onMutation: markMutation },
+          )
           : { applied: [], updated: [], skipped: [] }
+        if (
+          buildContractFiles.applied.length > 0 ||
+          buildContractFiles.updated.length > 0
+        ) {
+          markMutation()
+        }
 
         if (buildContractFiles.applied.length > 0) {
           log(`[sync] applied build contract files: ${buildContractFiles.applied.join(', ')}`)
@@ -305,26 +358,26 @@ export function createBoilerplateSyncWorkflow(overrides = {}) {
           log(`[sync] package sync proposal written to ${packageSync.proposalPath}`)
         }
 
-        dependencies.writeFileSync(
-          dependencies.join(targetRoot, syncMetadataPath),
-          `${JSON.stringify(
-            dependencies.buildSyncMetadata({
-              repo,
-              ref,
-              syncMode,
-              seedOnlyPathsSkipped,
-              syncedManaged,
-              seededFiles,
-              skippedSeedFiles,
-              mergedFiles,
-              packageSync,
-              buildContractFiles,
-              syncConfig,
-            }),
-            null,
-            2,
-          )}\n`,
-        )
+        const metadataPath = dependencies.join(targetRoot, syncMetadataPath)
+        const metadata = `${JSON.stringify(
+          dependencies.buildSyncMetadata({
+            repo,
+            ref,
+            syncMode,
+            seedOnlyPathsSkipped,
+            syncedManaged,
+            seededFiles,
+            skippedSeedFiles,
+            mergedFiles,
+            packageSync,
+            buildContractFiles,
+            syncConfig,
+          }),
+          null,
+          2,
+        )}\n`
+        markMutation()
+        dependencies.writeFileSync(metadataPath, metadata)
 
         dependencies.rmSync(tempRoot, { recursive: true, force: true })
 
@@ -367,7 +420,7 @@ export function createBoilerplateSyncWorkflow(overrides = {}) {
 
         printSuggestedNextCommands(syncMode, packageSync, applyBuildContract, log)
 
-        return {
+        result = {
           repo,
           ref,
           syncMode,
@@ -383,10 +436,30 @@ export function createBoilerplateSyncWorkflow(overrides = {}) {
           legacyClassification: committed ? 'SYNCED' : 'NO_OP',
           legacyOutput: logs,
         }
+      } catch (error) {
+        failure = error
       } finally {
-        dependencies.rmSync(tempRoot, { recursive: true, force: true })
-        dependencies.restoreStashIfNeeded(targetRoot, stashCreated, git)
+        try {
+          dependencies.rmSync(tempRoot, { recursive: true, force: true })
+          dependencies.restoreStashIfNeeded(targetRoot, stashCreated, git)
+        } catch (cleanupError) {
+          if (failure) {
+            failure = annotateSyncFailure(failure, {
+              logs,
+              mutationPerformed,
+              cleanupError,
+            })
+          } else {
+            failure = cleanupError
+          }
+        }
       }
+
+      if (failure) {
+        throw annotateSyncFailure(failure, { logs, mutationPerformed })
+      }
+
+      return result
     },
   }
 }

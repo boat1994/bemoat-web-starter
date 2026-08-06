@@ -91,11 +91,10 @@ function renderHelp(invocation) {
   process.stdout.write(formatTextHelp(invocation.contract))
 }
 
-function handleInvocationError(error) {
+function handleInvocationError(error, { command, format }) {
   if (!(error instanceof CliInvocationError)) return false
 
-  process.stderr.write(`INVALID_INVOCATION: ${error.details.reason}\n`)
-  process.exitCode = error.exit_code
+  renderRuntimeError({ command, format, error })
   return true
 }
 
@@ -135,17 +134,26 @@ function runtimeClassification(error) {
 }
 
 function runtimeDetails(error) {
-  if (error instanceof CliInvocationError) {
-    return {
+  const details = error instanceof CliInvocationError
+    ? {
       argument: error.details.argument,
       reason: error.details.reason,
     }
+    : {
+      argument: null,
+      reason: error instanceof Error ? error.message : String(error),
+    }
+
+  if (error && typeof error === 'object') {
+    if (Array.isArray(error.legacyOutput)) {
+      details.legacy_output = error.legacyOutput
+    }
+    if (typeof error.cleanupError === 'string') {
+      details.cleanup_error = error.cleanupError
+    }
   }
 
-  return {
-    argument: null,
-    reason: error instanceof Error ? error.message : String(error),
-  }
+  return details
 }
 
 function renderRuntimeError({ command, format, error }) {
@@ -172,6 +180,9 @@ function renderRuntimeError({ command, format, error }) {
     }))}\n`)
   } else {
     process.stderr.write(`${classification}: ${details.reason}\n`)
+    for (const line of details.legacy_output ?? []) {
+      process.stderr.write(`${line}\n`)
+    }
   }
 
   process.exitCode = classificationExitCode(classification)
@@ -228,10 +239,12 @@ function main() {
       result,
     })
   } catch (error) {
-    if (handleInvocationError(error)) return
+    const format = invocation?.format ?? (process.argv.includes('--json') ? 'json' : 'text')
+    const outputCommand = command ?? 'bemoat:hooks:install'
+    if (handleInvocationError(error, { command: outputCommand, format })) return
     renderRuntimeError({
-      command,
-      format: invocation?.format ?? (process.argv.includes('--json') ? 'json' : 'text'),
+      command: outputCommand,
+      format,
       error,
     })
   }

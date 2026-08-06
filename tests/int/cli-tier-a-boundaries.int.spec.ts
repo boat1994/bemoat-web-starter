@@ -216,6 +216,30 @@ function expectInvalidInvocation(run: CliBoundaryResult) {
   expectNoBoundarySideEffects(run)
 }
 
+function expectJsonInvalidInvocation(run: CliBoundaryResult, entry: TierACase) {
+  expect(run.status, `${entry.command}\n${run.stdout}\n${run.stderr}`).toBe(2)
+  expect(run.stderr).toBe('')
+  expectNoBoundarySideEffects(run)
+
+  const result = parseSingleJson(run.stdout)
+  assertResultEnvelopeV1(result)
+  expect(result).toMatchObject({
+    command: entry.command,
+    mode: 'result',
+    outcome: 'ERROR',
+    classification: 'INVALID_INVOCATION',
+    mutation_performed: false,
+    next_action: {
+      type: 'STOP',
+      command: null,
+    },
+    details: {
+      argument: '--definitely-invalid',
+      reason: 'unknown flag: --definitely-invalid',
+    },
+  })
+}
+
 function changedSnapshotPaths(
   before: FileSystemSnapshot,
   after: FileSystemSnapshot,
@@ -286,6 +310,7 @@ packages:
 function createSyncMutationFixture({
   emitToolOutput = false,
   includeGitignore = false,
+  failCommit = false,
 } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'bemoat-cli-tier-a-sync-'))
   const bin = mkdtempSync(join(tmpdir(), 'bemoat-cli-tier-a-bin-'))
@@ -335,6 +360,11 @@ if (args[0] === 'clone') {
   writeFileSync(join(sourceRoot, 'AGENTS.md'), 'starter managed rail\\n')
   if (${includeGitignore}) writeFileSync(join(sourceRoot, '.gitignore'), 'dist\\n')
   process.exit(0)
+}
+
+if (${failCommit} && args[0] === 'commit') {
+  process.stderr.write('fake commit failure\\n')
+  process.exit(42)
 }
 
 if (args[0] === 'diff' && args.includes('--cached') && args.includes('--quiet')) {
@@ -426,6 +456,15 @@ describe('Task 4 Tier A CLI boundaries: boilerplate sync and hooks install', () 
       }
 
       expectInvalidInvocation(runBoundary(entry, ['--definitely-invalid']))
+    }
+  })
+
+  it('boilerplate sync and hooks JSON invalid invocations return schema-v1 errors without I/O', () => {
+    for (const entry of TIER_A_CASES) {
+      expectJsonInvalidInvocation(
+        runBoundary(entry, ['--json', '--definitely-invalid']),
+        entry,
+      )
     }
   })
 
@@ -532,6 +571,57 @@ describe('Task 4 Tier A CLI boundaries: boilerplate sync and hooks install', () 
       mutation_performed: true,
       details: {
         merged_files: ['.gitignore'],
+      },
+    })
+  })
+
+  it('boilerplate sync JSON reports ambiguous mutation and preserves diagnostics after commit failure', () => {
+    const fixture = createSyncMutationFixture({ failCommit: true })
+    const entry = TIER_A_CASES[0]
+    const run = spawnSync(
+      process.execPath,
+      [
+        resolve(process.cwd(), entry.entrypoint),
+        '--harness-only',
+        '--skip-mc-transition-gate',
+        '--json',
+      ],
+      {
+        cwd: fixture.root,
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          ...facadeEnvironment(entry, {
+            BEMOAT_BOILERPLATE_REPO: 'example/starter',
+            BEMOAT_BOILERPLATE_REF: 'slice-4',
+            PATH: [fixture.bin, process.env.PATH].filter(Boolean).join(delimiter),
+          }),
+        },
+        maxBuffer: 4 * 1024 * 1024,
+      },
+    )
+
+    expect(run.error ?? null).toBeNull()
+    expect(run.status, `${run.stdout}\n${run.stderr}`).toBe(4)
+    expect(run.stderr).toContain('fake commit failure')
+
+    const result = parseSingleJson(run.stdout)
+    assertResultEnvelopeV1(result)
+    expect(result).toMatchObject({
+      command: entry.command,
+      mode: 'result',
+      outcome: 'ERROR',
+      classification: 'AMBIGUOUS_RESULT',
+      mutation_performed: true,
+      next_action: {
+        type: 'STOP',
+        command: null,
+      },
+      details: {
+        legacy_output: expect.arrayContaining([
+          'Syncing Bemoat boilerplate from example/starter#slice-4 (harness-only mode)',
+          '[sync] package sync proposal written to .bemoat/package-sync-proposal.md',
+        ]),
       },
     })
   })

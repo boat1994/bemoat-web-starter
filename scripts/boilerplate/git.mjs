@@ -84,11 +84,16 @@ export function getSyncCommitPaths(pathsSynced = managedPaths, { includePackageJ
   return paths
 }
 
-export function stashWorkingTreeIfNeeded(cwd, git = createGitClient()) {
+export function stashWorkingTreeIfNeeded(
+  cwd,
+  git = createGitClient(),
+  { onMutation = () => {} } = {},
+) {
   const excludedPaths = getSyncCommitPaths()
 
   if (!git.hasWorkingTreeChanges(cwd, excludedPaths)) return false
 
+  onMutation()
   git.stashPush(cwd, excludedPaths)
   return true
 }

@@ -20,7 +20,12 @@ const targetRoot = process.cwd()
 
 export const syncMetadataPath = '.bemoat-boilerplate-sync.json'
 
-export function copyManagedPath(sourceRootPath, targetRootPath, relativePath) {
+export function copyManagedPath(
+  sourceRootPath,
+  targetRootPath,
+  relativePath,
+  { onMutation = () => {} } = {},
+) {
   const source = join(sourceRootPath, relativePath)
   const destination = join(targetRootPath, relativePath)
 
@@ -28,12 +33,18 @@ export function copyManagedPath(sourceRootPath, targetRootPath, relativePath) {
     return { copied: false, reason: 'missing-source' }
   }
 
+  onMutation()
   mkdirSync(dirname(destination), { recursive: true })
   cpSync(source, destination, { recursive: true, force: true })
   return { copied: true }
 }
 
-export function copySeedOnlyPath(sourceRootPath, targetRootPath, relativePath) {
+export function copySeedOnlyPath(
+  sourceRootPath,
+  targetRootPath,
+  relativePath,
+  { onMutation = () => {} } = {},
+) {
   const source = join(sourceRootPath, relativePath)
 
   if (!existsSync(source)) {
@@ -53,6 +64,7 @@ export function copySeedOnlyPath(sourceRootPath, targetRootPath, relativePath) {
       continue
     }
 
+    onMutation()
     mkdirSync(dirname(destinationFile), { recursive: true })
     cpSync(sourceFile, destinationFile)
     seeded.push(filePath)
@@ -97,7 +109,12 @@ export function mergeGitignoreKeepTarget(sourceContent, targetContent) {
   }
 }
 
-export function mergeKeepPath(sourceRootPath, targetRootPath, relativePath) {
+export function mergeKeepPath(
+  sourceRootPath,
+  targetRootPath,
+  relativePath,
+  { onMutation = () => {} } = {},
+) {
   const source = join(sourceRootPath, relativePath)
   const destination = join(targetRootPath, relativePath)
 
@@ -108,6 +125,7 @@ export function mergeKeepPath(sourceRootPath, targetRootPath, relativePath) {
   const sourceContent = readFileSync(source, 'utf8')
 
   if (!existsSync(destination)) {
+    onMutation()
     mkdirSync(dirname(destination), { recursive: true })
     writeFileSync(destination, sourceContent.endsWith('\n') ? sourceContent : `${sourceContent}\n`)
     return { merged: true, addedLines: [], changed: false, created: true }
@@ -124,6 +142,7 @@ export function mergeKeepPath(sourceRootPath, targetRootPath, relativePath) {
     return { merged: false, addedLines: [], changed: false, created: false }
   }
 
+  onMutation()
   writeFileSync(destination, mergeResult.content)
   return {
     merged: true,
@@ -227,6 +246,7 @@ export function applyBuildContractFiles(
   sourceRootPath,
   targetRootPath,
   filePaths = buildContractFilePaths,
+  { onMutation = () => {} } = {},
 ) {
   const applied = []
   const updated = []
@@ -242,6 +262,7 @@ export function applyBuildContractFiles(
     }
 
     const hadExisting = existsSync(destination)
+    onMutation()
     mkdirSync(dirname(destination), { recursive: true })
     cpSync(source, destination, { force: true })
 
@@ -429,6 +450,7 @@ export function syncPackageManifest({
   ref: sourceRef = ref,
   applyBuildContract = false,
   syncConfig = getDefaultSyncConfig(),
+  onMutation = () => {},
 }) {
   const sourcePackagePath = join(sourceRootPath, 'package.json')
   const targetPackagePath = join(targetRootPath, 'package.json')
@@ -477,6 +499,7 @@ export function syncPackageManifest({
   })
   const proposalPath = join(targetRootPath, packageSyncProposalPath)
 
+  onMutation()
   mkdirSync(dirname(proposalPath), { recursive: true })
   writeFileSync(proposalPath, proposalMarkdown)
 
@@ -553,6 +576,7 @@ export function syncPathsFromSource({
   onLog = console.log,
   syncConfig = getDefaultSyncConfig(),
   assertManagedRuntimeDeliveryClosure = assertManagedRuntimeDeliveryClosureDefault,
+  onMutation = () => {},
 }) {
   const syncedManaged = []
   const seededFiles = []
@@ -566,13 +590,13 @@ export function syncPathsFromSource({
   })
 
   for (const path of syncConfig.managedPaths) {
-    const result = copyManagedPath(sourceRootPath, targetRootPath, path)
+    const result = copyManagedPath(sourceRootPath, targetRootPath, path, { onMutation })
     if (result.copied) syncedManaged.push(path)
   }
 
   if (!seedOnlyPathsSkipped) {
     for (const path of syncConfig.seedOnlyPaths) {
-      const result = copySeedOnlyPath(sourceRootPath, targetRootPath, path)
+      const result = copySeedOnlyPath(sourceRootPath, targetRootPath, path, { onMutation })
       if (result.reason === 'missing-source') {
         onWarn(`[skip] ${path} not found in ${repo}#${ref}`)
         continue
@@ -584,7 +608,7 @@ export function syncPathsFromSource({
   }
 
   for (const path of syncConfig.mergeKeepPaths) {
-    const result = mergeKeepPath(sourceRootPath, targetRootPath, path)
+    const result = mergeKeepPath(sourceRootPath, targetRootPath, path, { onMutation })
     if (result.reason === 'missing-source') {
       onWarn(`[skip] ${path} not found in ${repo}#${ref}`)
       continue
