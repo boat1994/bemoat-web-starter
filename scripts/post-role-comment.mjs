@@ -42,11 +42,14 @@ const CORE_VERDICTS = [
 ]
 const TASK_LOG_FIELDS = ['### Task log', 'Timestamp:', 'Task / Issue:', 'Phase:', 'Executing role:']
 const REQUIRED_FIELD_SHAPES = {
-  HANDOFF: [[...TASK_LOG_FIELDS, '**Target:**', '**Objective:**', '**Links:**', '**Next:**']],
+  HANDOFF: [
+    [...TASK_LOG_FIELDS, '**Target:**', '**Objective:**', '**Links:**', '**Next:**'],
+  ],
   RESULT: [
     [...TASK_LOG_FIELDS, '**Completed:**', '**Summary:**', '**Next:**'],
     [...TASK_LOG_FIELDS, '**Role / phase completed:**', '### Summary', '### Files or artifacts changed', '### Commands run', '### Next handoff'],
     ['**Profile:**', '**Task:**', '**PR:**', '**Completed:**', '**Evidence:**', '**AC audit:**', '**Risks / escalation:**', '**Next:**'],
+    ['### Task log', 'Task / Issue:', 'Executing role:', 'Branch:', 'Head:', 'PR:', '### Summary', '### Evidence', 'Commands:', 'Tests:', 'CI:', '### Acceptance criteria', '### Risks / blockers', '### Next permitted action']
   ],
   REVIEW_VERDICT: [
     [...TASK_LOG_FIELDS, '**PR / base / head:**', '**Verdict:**', '**Findings:**', '**Gates:**', '**Next:**'],
