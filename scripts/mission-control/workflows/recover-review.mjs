@@ -15,6 +15,17 @@ import {
   projectReviewVerdictState,
 } from '../../mission-control-reconcile.mjs'
 import { writeIssueBodyWithLease } from '../../mission-control-issue-body-cas.mjs'
+import { createHelpEnvelopeV1, formatTextHelp } from '../../cli/command-help.mjs'
+import {
+  CliInvocationError,
+  parseCommandInvocation,
+  resolveCommandIdentity,
+} from '../../cli/command-invocation.mjs'
+import {
+  CLI_EXIT_CODES,
+  classificationExitCode,
+  createResultEnvelopeV1,
+} from '../../cli/command-result.mjs'
 import {
   RECOVERY_FINDING_IDS,
   RECOVERY_SOURCE_COMMENT_IDS,
@@ -57,6 +68,8 @@ const CHILD_OVERRIDE_ARRAY_KEYS = new Set([
   'manual_qa',
   'protected_paths',
 ])
+const COMMAND = 'bemoat:mission-control:recover-review'
+const ENTRYPOINT = 'scripts/mission-control-recover-review.mjs'
 export const RECOVERY_USAGE =
   'Usage: pnpm run bemoat:mission-control:recover-review -- 274 --repo boat1994/bemoat-web-starter --expected-pr 275 --expected-base main --expected-state AWAITING_REVIEW_2 --expected-head <full-sha> --expected-review-cycle 1 --expected-full-review-count 1 --review-type delta --issue-source-comment 5187836238 --pr-source-comment 5187837555 --original-review-comment <id> --correction-result-comment <id> --body-file <file>'
 
@@ -670,6 +683,158 @@ export async function runReviewRecovery({ options, body, deps }) {
   return { ...result, outcome: 'RECOVERED', recoveryComments: recoveryComments() }
 }
 
+function renderHelp(invocation) {
+  if (invocation.format === 'json') {
+    process.stdout.write(`${JSON.stringify(createHelpEnvelopeV1(invocation.contract))}\n`)
+    return
+  }
+
+  process.stdout.write(formatTextHelp(invocation.contract))
+}
+
+function domainOptions(argv, values) {
+  const domainArgv = argv.filter((argument) => argument !== '--' && argument !== '--json')
+  const parsed = parseRecoveryArgs(domainArgv)
+  return {
+    ...parsed,
+    issueNumber: values.issue_number,
+    repo: values.repository,
+    expectedPr: values.expected_pr,
+    expectedBase: values.expected_base,
+    expectedState: values.expected_state,
+    expectedHead: values.expected_head,
+    expectedReviewCycle: values.expected_review_cycle,
+    expectedFullReviewCount: values.expected_full_review_count,
+    reviewType: values.review_type,
+    issueSourceComment: values.issue_source_comment,
+    prSourceComment: values.pr_source_comment,
+    originalReviewComment: values.original_review_comment,
+    correctionResultComment: values.correction_result_comment,
+    bodyFile: values.body_file,
+  }
+}
+
+function isCanonicalClassification(value) {
+  return typeof value === 'string' && Object.hasOwn(CLI_EXIT_CODES, value)
+}
+
+function isEvidenceConflict(reason) {
+  return /(?:ordinary|evidence|recovery body|source comment|lineage|receipt|finding|verdict)/i.test(reason)
+}
+
+function runtimeClassification(error) {
+  if (error?.mutationPerformed === true || error?.classification === 'AMBIGUOUS_RESULT') {
+    return 'AMBIGUOUS_RESULT'
+  }
+
+  const reason = error instanceof Error ? error.message : String(error)
+  const candidate = error?.classification ?? error?.code ??
+    reason.match(/^(?:ERROR:\s*)?([A-Z_]+):/)?.[1]
+  if (candidate === 'STATE_CONFLICT' && isEvidenceConflict(reason)) {
+    return 'EVIDENCE_CONFLICT'
+  }
+  return isCanonicalClassification(candidate) ? candidate : 'INTERNAL_ERROR'
+}
+
+function runtimeDetails(error) {
+  const details = error instanceof CliInvocationError
+    ? {
+      argument: error.details.argument,
+      reason: error.details.reason,
+    }
+    : {
+      argument: null,
+      reason: error instanceof Error ? error.message : String(error),
+    }
+
+  if (typeof error?.legacyClassification === 'string') {
+    details.legacy_classification = error.legacyClassification
+  }
+  return details
+}
+
+function renderRuntimeError({ command, format, error, values = {} }) {
+  const classification = runtimeClassification(error)
+  const details = runtimeDetails(error)
+  const mutationPerformed = error?.mutationPerformed === true ||
+    classification === 'AMBIGUOUS_RESULT'
+
+  if (format === 'json') {
+    process.stdout.write(`${JSON.stringify(createResultEnvelopeV1({
+      command,
+      outcome: 'ERROR',
+      classification,
+      mutation_performed: mutationPerformed,
+      observed_pre_state: values.expected_state ?? null,
+      repository: values.repository ?? null,
+      issue_number: values.issue_number ?? null,
+      pr_number: values.expected_pr ?? null,
+      exact_head: values.expected_head ?? null,
+      next_action: {
+        type: 'STOP',
+        command: null,
+        reason: details.reason,
+      },
+      details,
+    }))}\n`)
+  } else {
+    process.stderr.write(`${classification}: ${details.reason}\n`)
+  }
+
+  process.exitCode = classificationExitCode(classification)
+}
+
+function renderResult({ command, format, options, result }) {
+  const legacyClassification = result.outcome
+  const ambiguous = legacyClassification === 'RECOVERABLE_ROUTING_DRIFT'
+  const noOp = legacyClassification === 'NO_OP'
+  const state = result.state ?? {}
+  const output = `Mission Control review recovery ${legacyClassification}: Task #${options.issueNumber} -> ${state.state} ${state.review_cycle}/${state.full_review_count}`
+  const envelope = createResultEnvelopeV1({
+    command,
+    outcome: ambiguous ? 'ERROR' : noOp ? 'NO_OP' : 'SUCCESS',
+    classification: ambiguous
+      ? 'AMBIGUOUS_RESULT'
+      : noOp
+        ? 'NO_OP_IDENTICAL_RETRY'
+        : 'SUCCESS',
+    mutation_performed: ambiguous ? true : !noOp,
+    observed_pre_state: options.expectedState,
+    resulting_state: state.state ?? null,
+    repository: options.repo,
+    issue_number: options.issueNumber,
+    pr_number: options.expectedPr,
+    exact_head: options.expectedHead,
+    next_action: ambiguous
+      ? {
+        type: 'STOP',
+        command: null,
+        reason: 'The recovery comment exists but the managed-state projection is not proven.',
+      }
+      : {
+        type: 'COMPLETE',
+        command: null,
+        reason: noOp
+          ? 'The identical quarantined recovery projection is already durable.'
+          : 'The exact quarantined recovery projection is verified.',
+      },
+    details: {
+      legacy_classification: legacyClassification,
+      legacy_output: [output],
+      ...(result.comment?.id != null ? { comment_id: String(result.comment.id) } : {}),
+      ...(result.error ? { recovery_error: String(result.error) } : {}),
+    },
+  })
+
+  if (format === 'json') {
+    process.stdout.write(`${JSON.stringify(envelope)}\n`)
+  } else {
+    process.stdout.write(`${envelope.classification}: ${output}\n`)
+  }
+
+  process.exitCode = classificationExitCode(envelope.classification)
+}
+
 function defaultRunGh(args, options = {}) {
   const result = spawnSync('gh', args, {
     encoding: 'utf8',
@@ -818,11 +983,49 @@ function createProductionDeps() {
   }
 }
 
-export async function main(argv = process.argv.slice(2), deps = createProductionDeps()) {
-  const options = parseRecoveryArgs(argv)
-  const body = readFileSync(options.bodyFile, 'utf8')
-  const result = await runReviewRecovery({ options, body, deps })
-  process.stdout.write(`Mission Control review recovery ${result.outcome}: Task #274 -> ${result.state.state} ${result.state.review_cycle}/${result.state.full_review_count}\n`)
-  return result
+export async function main(argv = process.argv.slice(2), deps = null) {
+  let command = null
+  let invocation = null
+
+  try {
+    command = resolveCommandIdentity({
+      fallback: COMMAND,
+      env: process.env,
+      entrypoint: ENTRYPOINT,
+    })
+    invocation = parseCommandInvocation(command, argv)
+
+    if (invocation.mode === 'help') {
+      renderHelp(invocation)
+      return { outcome: 'HELP', state: null }
+    }
+
+    const options = domainOptions(argv, invocation.values)
+    let body
+    try {
+      body = readFileSync(options.bodyFile, 'utf8')
+    } catch (error) {
+      throw new CliInvocationError(
+        options.bodyFile,
+        error instanceof Error ? error.message : String(error),
+      )
+    }
+    const result = await runReviewRecovery({
+      options,
+      body,
+      deps: deps ?? createProductionDeps(),
+    })
+    renderResult({ command, format: invocation.format, options, result })
+    return result
+  } catch (error) {
+    const format = invocation?.format ?? (argv.includes('--json') ? 'json' : 'text')
+    renderRuntimeError({
+      command: command ?? COMMAND,
+      format,
+      error,
+      values: invocation?.values ?? {},
+    })
+    return null
+  }
 }
 

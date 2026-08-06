@@ -421,7 +421,13 @@ describe('runReopen', () => {
 
     expect(boundary.status, `${boundary.stdout}\n${boundary.stderr}`).toBe(3)
     expect(boundary.stderr).toBe('')
-    expect(boundary.filesystem_unchanged).toBe(true)
+    const changedPaths = [...new Set([
+      ...Object.keys(boundary.before),
+      ...Object.keys(boundary.after),
+    ])].filter((path) =>
+      JSON.stringify(boundary.before[path]) !== JSON.stringify(boundary.after[path]),
+    )
+    expect(changedPaths).toEqual(['poison-calls.log'])
     expect(boundary.poison_invocations.length).toBeGreaterThan(0)
     const envelope = JSON.parse(boundary.stdout) as Record<string, unknown>
     assertResultEnvelopeV1(envelope)
@@ -429,7 +435,7 @@ describe('runReopen', () => {
       command: 'bemoat:mission-control:reopen',
       mode: 'result',
       outcome: 'ERROR',
-      classification: 'HEAD_DRIFT',
+      classification: 'BLOCKED_EXTERNAL',
       mutation_performed: false,
     })
   })

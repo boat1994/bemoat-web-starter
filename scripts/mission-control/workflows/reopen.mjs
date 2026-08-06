@@ -10,6 +10,17 @@ import {
   projectMissionControlStateBlock,
 } from '../../mission-control-state.mjs'
 import { writeIssueBodyWithLease } from '../../mission-control-issue-body-cas.mjs'
+import { createHelpEnvelopeV1, formatTextHelp } from '../../cli/command-help.mjs'
+import {
+  CliInvocationError,
+  parseCommandInvocation,
+  resolveCommandIdentity,
+} from '../../cli/command-invocation.mjs'
+import {
+  CLI_EXIT_CODES,
+  classificationExitCode,
+  createResultEnvelopeV1,
+} from '../../cli/command-result.mjs'
 
 export const REOPEN_AUTHORIZATION_BUNDLE_KIND = 'founder-reopen'
 export const REOPEN_NEXT_ACTION = 'Execute exactly one bounded correction RESULT, then one Delta Review.'
@@ -60,6 +71,7 @@ const FULL_SHA_RE = /^[0-9a-f]{40}$/i
 const REOPEN_STATE = 'ELIGIBLE_FOR_FOUNDER_REVIEW'
 const CORRECTION_STATE = 'FOUNDER_AUTHORIZED_CORRECTION'
 const REOPEN_COMMAND = 'bemoat:mission-control:reopen'
+const ENTRYPOINT = 'scripts/mission-control-reopen.mjs'
 
 function stateConflict(message) {
   return new Error(`STATE_CONFLICT: ${message}`)
@@ -976,13 +988,181 @@ export async function runReopen({ options, deps }) {
   return { outcome: 'REOPENED', state: verified.state }
 }
 
-export async function main(argv = process.argv.slice(2), deps = createProductionDeps()) {
-  const options = parseReopenArgs(argv)
-  if (options.help) {
-    process.stdout.write(`${REOPEN_USAGE}\n`)
-    return { outcome: 'HELP', state: null }
+function renderHelp(invocation) {
+  if (invocation.format === 'json') {
+    process.stdout.write(`${JSON.stringify(createHelpEnvelopeV1(invocation.contract))}\n`)
+    return
   }
-  const result = await runReopen({ options, deps })
-  process.stdout.write(`Mission Control reopen ${result.outcome}: Task #${options.issueNumber} -> ${result.state.state} ${result.state.review_cycle}/${result.state.full_review_count}\n`)
-  return result
+
+  process.stdout.write(formatTextHelp(invocation.contract))
+}
+
+function domainOptions(argv, values) {
+  const domainArgv = argv.filter((argument) => argument !== '--' && argument !== '--json')
+  const parsed = parseReopenArgs(domainArgv)
+  return {
+    ...parsed,
+    issueNumber: values.issue_number,
+    repo: values.repository,
+    expectedPr: values.expected_pr,
+    expectedBase: values.expected_base,
+    expectedState: values.expected_state,
+    expectedOldHead: values.expected_old_head,
+    expectedNewHead: values.expected_new_head,
+    expectedReviewCycle: values.expected_review_cycle,
+    expectedFullReviewCount: values.expected_full_review_count,
+    authorizationComment: values.authorization_comment,
+  }
+}
+
+function isCanonicalClassification(value) {
+  return typeof value === 'string' && Object.hasOwn(CLI_EXIT_CODES, value)
+}
+
+function mayHaveMutated(error) {
+  if (error?.mutationPerformed === true || error?.classification === 'AMBIGUOUS_RESULT') {
+    return true
+  }
+
+  const reason = error instanceof Error ? error.message : String(error)
+  return /(?:CAS\/lease write outcome is ambiguous|post-write|state write|readback)/i.test(reason)
+}
+
+function runtimeClassification(error) {
+  if (mayHaveMutated(error)) return 'AMBIGUOUS_RESULT'
+
+  const reason = error instanceof Error ? error.message : String(error)
+  const candidate = error?.classification ?? error?.code ??
+    reason.match(/^(?:ERROR:\s*)?([A-Z_]+):/)?.[1]
+  if (candidate === 'STATE_CONFLICT' && /\b(?:head|old_reviewed_head|current_head)\b/i.test(reason)) {
+    return 'HEAD_DRIFT'
+  }
+  if (candidate === 'STATE_CONFLICT' && /Founder authorization|immutable Founder|authorization/i.test(reason)) {
+    return 'AUTHORITY_CONFLICT'
+  }
+  return isCanonicalClassification(candidate) ? candidate : 'INTERNAL_ERROR'
+}
+
+function runtimeDetails(error) {
+  const details = error instanceof CliInvocationError
+    ? {
+      argument: error.details.argument,
+      reason: error.details.reason,
+    }
+    : {
+      argument: null,
+      reason: error instanceof Error ? error.message : String(error),
+    }
+
+  if (typeof error?.legacyClassification === 'string') {
+    details.legacy_classification = error.legacyClassification
+  }
+  return details
+}
+
+function renderRuntimeError({ command, format, error, values = {} }) {
+  const classification = runtimeClassification(error)
+  const details = runtimeDetails(error)
+  const mutationPerformed = mayHaveMutated(error)
+
+  if (format === 'json') {
+    process.stdout.write(`${JSON.stringify(createResultEnvelopeV1({
+      command,
+      outcome: 'ERROR',
+      classification,
+      mutation_performed: mutationPerformed,
+      observed_pre_state: values.expected_state ?? null,
+      repository: values.repository ?? null,
+      issue_number: values.issue_number ?? null,
+      pr_number: values.expected_pr ?? null,
+      exact_head: values.expected_new_head ?? null,
+      next_action: {
+        type: 'STOP',
+        command: null,
+        reason: details.reason,
+      },
+      details,
+    }))}\n`)
+  } else {
+    process.stderr.write(`${classification}: ${details.reason}\n`)
+  }
+
+  process.exitCode = classificationExitCode(classification)
+}
+
+function renderResult({ command, format, options, result }) {
+  const legacyClassification = result.outcome
+  const noOp = legacyClassification === 'NO_OP'
+  const output = `Mission Control reopen ${legacyClassification}: Task #${options.issueNumber} -> ${result.state.state} ${result.state.review_cycle}/${result.state.full_review_count}`
+  const envelope = createResultEnvelopeV1({
+    command,
+    outcome: noOp ? 'NO_OP' : 'SUCCESS',
+    classification: noOp ? 'NO_OP_IDENTICAL_RETRY' : 'SUCCESS',
+    mutation_performed: !noOp,
+    observed_pre_state: options.expectedState,
+    resulting_state: result.state.state,
+    repository: options.repo,
+    issue_number: options.issueNumber,
+    pr_number: options.expectedPr,
+    exact_head: options.expectedNewHead,
+    next_action: noOp
+      ? {
+        type: 'COMPLETE',
+        command: null,
+        reason: 'The exact Founder-authorized reopen projection is already durable.',
+      }
+      : {
+        type: 'COMMAND',
+        command: 'bemoat:agent:delivery',
+        reason: 'The bounded correction delivery is the only next mutation.',
+      },
+    details: {
+      legacy_classification: legacyClassification,
+      legacy_output: [output],
+    },
+  })
+
+  if (format === 'json') {
+    process.stdout.write(`${JSON.stringify(envelope)}\n`)
+  } else {
+    process.stdout.write(`${envelope.classification}: ${output}\n`)
+  }
+
+  process.exitCode = classificationExitCode(envelope.classification)
+}
+
+export async function main(argv = process.argv.slice(2), deps = null) {
+  let command = null
+  let invocation = null
+
+  try {
+    command = resolveCommandIdentity({
+      fallback: REOPEN_COMMAND,
+      env: deps?.env ?? (deps ? {} : process.env),
+      entrypoint: ENTRYPOINT,
+    })
+    invocation = parseCommandInvocation(command, argv)
+
+    if (invocation.mode === 'help') {
+      renderHelp(invocation)
+      return { outcome: 'HELP', state: null }
+    }
+
+    const options = domainOptions(argv, invocation.values)
+    const result = await runReopen({
+      options,
+      deps: deps ?? createProductionDeps(),
+    })
+    renderResult({ command, format: invocation.format, options, result })
+    return result
+  } catch (error) {
+    const format = invocation?.format ?? (argv.includes('--json') ? 'json' : 'text')
+    renderRuntimeError({
+      command: command ?? REOPEN_COMMAND,
+      format,
+      error,
+      values: invocation?.values ?? {},
+    })
+    return null
+  }
 }
