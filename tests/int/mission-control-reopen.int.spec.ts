@@ -9,6 +9,8 @@ import {
   parseMissionControlState,
   renderMissionControlState,
 } from '../../scripts/mission-control-state.mjs'
+import { assertResultEnvelopeV1 } from '../../scripts/cli/command-result.mjs'
+import { runCliBoundaryCase } from '../helpers/cli-boundary-harness'
 
 const REPOSITORY = 'boat1994/bemoat-web-starter'
 const ISSUE = '284'
@@ -377,6 +379,59 @@ describe('runReopen', () => {
 
     await expect(runReopen({ options, deps: harness.deps })).rejects.toThrow('STATE_CONFLICT')
     expect(harness.writes).toBe(0)
+  })
+
+  it('head drift without the complete Founder tuple cannot enter reopen', async () => {
+    const harness = createHarness({
+      pullRequest: { headRefOid: DRIFTED_HEAD },
+      authorizationComment: {
+        authorization: {
+          ...baseAuthorization(),
+          finding_ids: undefined,
+        },
+      },
+    })
+    const before = stateFromHarness(harness)
+
+    await expect(runReopen({ options, deps: harness.deps })).rejects.toThrow('STATE_CONFLICT')
+    expect(harness.writes).toBe(0)
+    expect(stateFromHarness(harness)).toEqual(before)
+
+    const boundary = runCliBoundaryCase({
+      entrypoint: 'scripts/mission-control-reopen.mjs',
+      argv: [
+        ISSUE,
+        '--repo', REPOSITORY,
+        '--expected-pr', PR,
+        '--expected-base', BASE,
+        '--expected-state', 'ELIGIBLE_FOR_FOUNDER_REVIEW',
+        '--expected-old-head', OLD_HEAD,
+        '--expected-new-head', NEW_HEAD,
+        '--expected-review-cycle', '1',
+        '--expected-full-review-count', '1',
+        '--authorization-comment', AUTHORIZATION_COMMENT,
+        '--json',
+      ],
+      env: {
+        BEMOAT_FACADE_COMMAND: 'bemoat:mission-control:reopen',
+        BEMOAT_FACADE_ENTRYPOINT: 'scripts/mission-control-reopen.mjs',
+        npm_lifecycle_event: 'bemoat:mission-control:reopen',
+      },
+    })
+
+    expect(boundary.status, `${boundary.stdout}\n${boundary.stderr}`).toBe(3)
+    expect(boundary.stderr).toBe('')
+    expect(boundary.filesystem_unchanged).toBe(true)
+    expect(boundary.poison_invocations.length).toBeGreaterThan(0)
+    const envelope = JSON.parse(boundary.stdout) as Record<string, unknown>
+    assertResultEnvelopeV1(envelope)
+    expect(envelope).toMatchObject({
+      command: 'bemoat:mission-control:reopen',
+      mode: 'result',
+      outcome: 'ERROR',
+      classification: 'HEAD_DRIFT',
+      mutation_performed: false,
+    })
   })
 
   it('rejects a head that drifts between preflight reads and the mutation', async () => {

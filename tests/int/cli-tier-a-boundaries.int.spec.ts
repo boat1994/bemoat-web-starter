@@ -1253,3 +1253,226 @@ describe('Task 5 Tier A canonical role transport boundaries', () => {
     })).toBe('INTERNAL_ERROR')
   })
 })
+
+const TASK_6_BOUNDARY_CASES = [
+  {
+    command: 'bemoat:mission-control:task-bootstrap',
+    entrypoint: 'scripts/mission-control-task-create.mjs',
+  },
+  {
+    command: 'bemoat:mission-control:recover-review',
+    entrypoint: 'scripts/mission-control-recover-review.mjs',
+  },
+  {
+    command: 'bemoat:mission-control:reopen',
+    entrypoint: 'scripts/mission-control-reopen.mjs',
+  },
+] as const satisfies readonly TierACase[]
+
+const TASK_6_CASES_BY_COMMAND = Object.fromEntries(
+  TASK_6_BOUNDARY_CASES.map((entry) => [entry.command, entry]),
+) as Record<string, (typeof TASK_6_BOUNDARY_CASES)[number]>
+
+const RECOVERY_INCIDENT_HEAD = 'c44bf1bc379fe4160946dce96e5a4d7abae7b5b0'
+const REOPEN_OLD_HEAD = RECOVERY_INCIDENT_HEAD
+const REOPEN_NEW_HEAD = '88b306c7e055751f78b9ced5922607eee2d1037f'
+
+const RECOVERY_RUNTIME_ARGS = [
+  '274',
+  '--repo', 'boat1994/bemoat-web-starter',
+  '--expected-pr', '275',
+  '--expected-base', 'main',
+  '--expected-state', 'AWAITING_REVIEW_2',
+  '--expected-head', RECOVERY_INCIDENT_HEAD,
+  '--expected-review-cycle', '1',
+  '--expected-full-review-count', '1',
+  '--review-type', 'delta',
+  '--issue-source-comment', '5187836238',
+  '--pr-source-comment', '5187837555',
+  '--original-review-comment', '5187488219',
+  '--correction-result-comment', '5187802812',
+  '--body-file', 'recovery.md',
+] as const
+
+const REOPEN_RUNTIME_ARGS = [
+  '284',
+  '--repo', 'boat1994/bemoat-web-starter',
+  '--expected-pr', '285',
+  '--expected-base', 'main',
+  '--expected-state', 'ELIGIBLE_FOR_FOUNDER_REVIEW',
+  '--expected-old-head', REOPEN_OLD_HEAD,
+  '--expected-new-head', REOPEN_NEW_HEAD,
+  '--expected-review-cycle', '1',
+  '--expected-full-review-count', '1',
+  '--authorization-comment', '5193626365',
+] as const
+
+function runTask6Boundary(
+  entry: (typeof TASK_6_BOUNDARY_CASES)[number],
+  argv: readonly string[],
+  {
+    env = {},
+    files,
+  }: {
+    env?: Record<string, string>
+    files?: Record<string, string | Buffer>
+  } = {},
+): CliBoundaryResult {
+  return runCliBoundaryCase({
+    entrypoint: entry.entrypoint,
+    argv,
+    env: facadeEnvironment(entry, env),
+    files,
+  })
+}
+
+function expectTask6Help(run: CliBoundaryResult, entry: (typeof TASK_6_BOUNDARY_CASES)[number]) {
+  expect(run.error).toBeNull()
+  expect(run.status, `${entry.command}\n${run.stdout}\n${run.stderr}`).toBe(0)
+  expect(run.stderr).toBe('')
+  expectNoBoundarySideEffects(run)
+
+  if (run.argv.includes('--json')) {
+    const help = parseSingleJson(run.stdout)
+    expect(Object.keys(help).sort()).toEqual([...HELP_KEYS].sort())
+    expect(help).toMatchObject({
+      schema_version: 1,
+      command: entry.command,
+      mode: 'help',
+      classification: 'HELP',
+      tier: 'A',
+    })
+  } else {
+    expect(run.stdout).toContain(`HELP: ${entry.command}`)
+    expect(run.stdout).toContain(`Direct entrypoint: ${entry.entrypoint}`)
+  }
+}
+
+function expectTask6Stop(
+  run: CliBoundaryResult,
+  entry: (typeof TASK_6_BOUNDARY_CASES)[number],
+) {
+  expect(run.error).toBeNull()
+  expect(run.status, `${entry.command}\n${run.stdout}\n${run.stderr}`).toBe(3)
+  expect(run.stderr).toBe('')
+  expectNoBoundarySideEffects(run)
+
+  const result = parseSingleJson(run.stdout)
+  assertResultEnvelopeV1(result)
+  expect(result).toMatchObject({
+    command: entry.command,
+    mode: 'result',
+    outcome: 'ERROR',
+    mutation_performed: false,
+    next_action: {
+      type: 'STOP',
+      command: null,
+    },
+  })
+  expect([
+    'STATE_CONFLICT',
+    'AUTHORITY_CONFLICT',
+    'HEAD_DRIFT',
+    'BLOCKED_EXTERNAL',
+    'EVIDENCE_CONFLICT',
+  ]).toContain(result.classification)
+}
+
+describe('Task 6 bounded bootstrap and recovery CLI boundaries', () => {
+  it('task bootstrap help precedes public-key read and adapter construction', () => {
+    const entry = TASK_6_CASES_BY_COMMAND['bemoat:mission-control:task-bootstrap']
+
+    for (const argv of [
+      ['--help'],
+      ['-h'],
+      ['--help', '--json'],
+      ['--json', '--help'],
+    ]) {
+      expectTask6Help(runTask6Boundary(entry, argv), entry)
+    }
+  })
+
+  it('recover review help precedes body policy checkout and GitHub reads', () => {
+    const entry = TASK_6_CASES_BY_COMMAND['bemoat:mission-control:recover-review']
+
+    for (const argv of [
+      ['--help'],
+      ['-h'],
+      ['--help', '--json'],
+      ['--json', '--help'],
+    ]) {
+      expectTask6Help(runTask6Boundary(entry, argv), entry)
+    }
+  })
+
+  it('reopen help precedes authorization and GitHub reads', () => {
+    const entry = TASK_6_CASES_BY_COMMAND['bemoat:mission-control:reopen']
+
+    for (const argv of [
+      ['--help'],
+      ['-h'],
+      ['--help', '--json'],
+      ['--json', '--help'],
+    ]) {
+      expectTask6Help(runTask6Boundary(entry, argv), entry)
+    }
+  })
+
+  it('bootstrap recover and reopen invalid syntax exits two', () => {
+    for (const entry of TASK_6_BOUNDARY_CASES) {
+      expectInvalidInvocation(runTask6Boundary(entry, ['--definitely-invalid']))
+      expectJsonInvalidInvocation(
+        runTask6Boundary(entry, ['--json', '--definitely-invalid']),
+        entry,
+      )
+    }
+  })
+
+  it('authority and evidence mismatches exit three without mutation', () => {
+    const bootstrap = TASK_6_CASES_BY_COMMAND['bemoat:mission-control:task-bootstrap']
+    const recover = TASK_6_CASES_BY_COMMAND['bemoat:mission-control:recover-review']
+    const reopen = TASK_6_CASES_BY_COMMAND['bemoat:mission-control:reopen']
+
+    expectTask6Stop(
+      runTask6Boundary(
+        bootstrap,
+        ['--founder-authorization-comment-id', '12345', '--json'],
+        {
+          env: {
+            GITHUB_REPOSITORY: '',
+            GITHUB_REF: '',
+            GITHUB_SHA: '',
+            GITHUB_RUN_ID: '',
+          },
+        },
+      ),
+      bootstrap,
+    )
+
+    expectTask6Stop(
+      runTask6Boundary(
+        recover,
+        [...RECOVERY_RUNTIME_ARGS, '--json'],
+        {
+          files: {
+            'recovery.md': '## REVIEW_VERDICT\n\n**Verdict:** ELIGIBLE FOR FOUNDER REVIEW\n',
+          },
+        },
+      ),
+      recover,
+    )
+
+    expectTask6Stop(
+      runTask6Boundary(
+        reopen,
+        [
+          ...REOPEN_RUNTIME_ARGS.slice(0, 12),
+          REOPEN_OLD_HEAD,
+          ...REOPEN_RUNTIME_ARGS.slice(13),
+          '--json',
+        ],
+      ),
+      reopen,
+    )
+  })
+})
