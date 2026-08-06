@@ -24,6 +24,7 @@ import { getCommandContract } from '../../scripts/cli/command-contract.mjs'
 import {
   assertResultEnvelopeV1,
   classifyDelegatedFailure,
+  classificationExitCode,
 } from '../../scripts/cli/command-result.mjs'
 
 type TierACase = {
@@ -1251,6 +1252,167 @@ describe('Task 5 Tier A canonical role transport boundaries', () => {
       command: 'node',
       stderr: 'delegated process failed without a canonical classification',
     })).toBe('INTERNAL_ERROR')
+  })
+})
+
+const TASK_7_MISSION_CONTROL_CASES = [
+  {
+    command: 'bemoat:mission-control:reconcile',
+    entrypoint: 'scripts/mission-control-reconcile.mjs',
+  },
+  {
+    command: 'bemoat:mission-control:merge',
+    entrypoint: 'scripts/mission-control-merge.mjs',
+  },
+] as const satisfies readonly TierACase[]
+
+const TASK_7_TERMINAL_EXIT_CODES = [
+  ['SUCCESS', 0],
+  ['NO_OP_IDENTICAL_RETRY', 0],
+  ['INTERNAL_ERROR', 1],
+  ['INVALID_INVOCATION', 2],
+  ['UNSUPPORTED_PRE_STATE', 3],
+  ['STATE_CONFLICT', 3],
+  ['AUTHORITY_CONFLICT', 3],
+  ['HEAD_DRIFT', 3],
+  ['BLOCKED_EXTERNAL', 3],
+  ['EVIDENCE_CONFLICT', 3],
+  ['AMBIGUOUS_RESULT', 4],
+] as const
+
+function runTask7MissionControlBoundary(
+  entry: (typeof TASK_7_MISSION_CONTROL_CASES)[number],
+  argv: readonly string[],
+): CliBoundaryResult {
+  return runCliBoundaryCase({
+    entrypoint: entry.entrypoint,
+    argv,
+    env: facadeEnvironment(entry),
+  })
+}
+
+function task7RegistryExample(entry: (typeof TASK_7_MISSION_CONTROL_CASES)[number]): readonly string[] {
+  const contract = getCommandContract(entry.command)
+  expect(contract).not.toBeNull()
+  expect(contract?.examples).toHaveLength(1)
+  return contract?.examples[0].argv ?? []
+}
+
+describe('Task 7 reconcile and merge CLI boundaries', () => {
+  it('reconcile and merge help and invalid syntax perform zero I/O', () => {
+    for (const entry of TASK_7_MISSION_CONTROL_CASES) {
+      for (const argv of [
+        ['--help'],
+        ['-h'],
+        ['--help', '--json'],
+        ['--json', '--help'],
+        ['-h', '--json'],
+        ['--json', '-h'],
+      ]) {
+        const run = runTask7MissionControlBoundary(entry, argv)
+        expect(run.error).toBeNull()
+        expect(run.status, `${entry.command}\n${run.stdout}\n${run.stderr}`).toBe(0)
+        expect(run.stderr).toBe('')
+        expectNoBoundarySideEffects(run)
+
+        if (argv.includes('--json')) {
+          const help = parseSingleJson(run.stdout)
+          expect(Object.keys(help).sort()).toEqual([...HELP_KEYS].sort())
+          expect(help).toMatchObject({
+            schema_version: 1,
+            command: entry.command,
+            mode: 'help',
+            classification: 'HELP',
+            tier: 'A',
+          })
+        } else {
+          expect(run.stdout).toContain(`HELP: ${entry.command}`)
+          expect(run.stdout).toContain(`Direct entrypoint: ${entry.entrypoint}`)
+        }
+      }
+
+      expectInvalidInvocation(
+        runTask7MissionControlBoundary(entry, ['--definitely-invalid']),
+      )
+      expectJsonInvalidInvocation(
+        runTask7MissionControlBoundary(entry, ['--json', '--definitely-invalid']),
+        entry,
+      )
+    }
+  })
+
+  it('reconcile and merge examples reach documented preflight', () => {
+    for (const entry of TASK_7_MISSION_CONTROL_CASES) {
+      const run = runTask7MissionControlBoundary(entry, task7RegistryExample(entry))
+
+      expect(run.error).toBeNull()
+      expect(run.status, `${entry.command}\n${run.stdout}\n${run.stderr}`).toBe(3)
+      expect(run.stderr).toBe('')
+      expect(run.poison_invocations.some((invocation) => invocation.includes('/gh '))).toBe(true)
+      expect(run.filesystem_unchanged).toBe(true)
+    }
+  })
+
+  it('reconcile and merge map every terminal class and exit code', () => {
+    for (const [classification, expectedExit] of TASK_7_TERMINAL_EXIT_CODES) {
+      expect(classificationExitCode(classification)).toBe(expectedExit)
+    }
+
+    for (const entry of TASK_7_MISSION_CONTROL_CASES) {
+      expect(classifyDelegatedFailure({
+        command: entry.entrypoint,
+        stdout: `Mission Control ${entry.command} LEGACY_UNKNOWN: no canonical result`,
+      })).toBe('INTERNAL_ERROR')
+
+      const contract = getCommandContract(entry.command)
+      expect(contract).not.toBeNull()
+      const declaredClassifications = new Set([
+        ...(contract?.success_classifications ?? []),
+        ...(contract?.stop_classifications ?? []),
+      ])
+
+      for (const [classification] of TASK_7_TERMINAL_EXIT_CODES) {
+        expect(declaredClassifications, `${entry.command} missing ${classification}`)
+          .toContain(classification)
+      }
+
+      const run = runTask7MissionControlBoundary(entry, [
+        ...task7RegistryExample(entry),
+        '--json',
+      ])
+      expect(run.error).toBeNull()
+      expect(run.status).toBe(3)
+      const result = parseSingleJson(run.stdout)
+      assertResultEnvelopeV1(result)
+      expect(result.classification).toBe('BLOCKED_EXTERNAL')
+      expect(run.status).toBe(classificationExitCode(result.classification as string))
+    }
+  })
+
+  it('reconcile and merge JSON stdout is one v1 object', () => {
+    for (const entry of TASK_7_MISSION_CONTROL_CASES) {
+      const run = runTask7MissionControlBoundary(entry, [
+        ...task7RegistryExample(entry),
+        '--json',
+      ])
+
+      expect(run.error).toBeNull()
+      expect(run.status, `${entry.command}\n${run.stdout}\n${run.stderr}`).toBe(3)
+      expect(run.stderr).toBe('')
+      expect(run.stdout.trim().match(/^\{[\s\S]*\}$/)).not.toBeNull()
+
+      const result = parseSingleJson(run.stdout)
+      assertResultEnvelopeV1(result)
+      expect(result).toMatchObject({
+        schema_version: 1,
+        command: entry.command,
+        mode: 'result',
+        outcome: 'ERROR',
+        classification: 'BLOCKED_EXTERNAL',
+        mutation_performed: false,
+      })
+      expect(run.status).toBe(classificationExitCode(result.classification as string))
+    }
   })
 })
 

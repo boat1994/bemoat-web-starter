@@ -5,6 +5,8 @@ import { resolve } from 'node:path'
 /* eslint-disable @typescript-eslint/no-explicit-any -- untyped runtime .mjs boundary */
 import * as reconcileModule from '../../scripts/mission-control-reconcile.mjs'
 import { parseMissionControlState, renderMissionControlState } from '../../scripts/mission-control-state.mjs'
+import { assertResultEnvelopeV1 } from '../../scripts/cli/command-result.mjs'
+import { runCliBoundaryCase } from '../helpers/cli-boundary-harness'
 
 // Shared .mjs scripts expose runtime behavior, not TypeScript declarations. Keep
 // the strict-project boundary explicit without changing the production API.
@@ -133,6 +135,61 @@ describe('mission-control reconcile classifiers', () => {
       latest_result_comment_id: 'result-1',
     })
   })
+
+  it('reconcile cannot close reopen or adopt arbitrary head drift', async () => {
+    const writes: unknown[] = []
+    const evidence = {
+      managedState: {
+        state: 'AWAITING_REVIEW_1',
+        current_head: 'a'.repeat(40),
+        last_reviewed_head: 'a'.repeat(40),
+      },
+      livePr: { headRefOid: 'b'.repeat(40) },
+      headMismatch: true,
+      exactHeadCi: {
+        exactHeadVerified: false,
+        olderShaSuccess: true,
+      },
+    }
+
+    const bounded = await runBoundedReconciliation({
+      readEvidence: async () => evidence,
+      writeState: async (nextState: unknown) => {
+        writes.push(nextState)
+        return nextState
+      },
+    })
+
+    expect(bounded).toMatchObject({
+      finalOutcome: 'STATE_CONFLICT',
+      reason: 'authoritative live evidence contradicts',
+      finalReason: 'authoritative live evidence contradicts',
+      measurements: {
+        reconciliation_attempts: 1,
+        state_writes: 0,
+      },
+    })
+    expect(writes).toEqual([])
+
+    const boundary = runCliBoundaryCase({
+      entrypoint: 'scripts/mission-control-reconcile.mjs',
+      argv: ['284', '--repo', 'boat1994/bemoat-web-starter', '--json'],
+    })
+    expect(boundary.error).toBeNull()
+    expect(boundary.status).toBe(3)
+    expect(boundary.stderr).toBe('')
+    expect(boundary.poison_invocations.some((invocation) => invocation.includes('/gh '))).toBe(true)
+    const result = JSON.parse(boundary.stdout)
+    assertResultEnvelopeV1(result)
+    expect(result).toMatchObject({
+      command: 'bemoat:mission-control:reconcile',
+      mode: 'result',
+      outcome: 'ERROR',
+      classification: 'BLOCKED_EXTERNAL',
+      mutation_performed: false,
+    })
+  })
+
   it('explains that merge transport must close a merged PR open Issue before terminal reconciliation', () => {
     expect(classifyReconciliation({
       managedState: { state: 'ELIGIBLE_FOR_FOUNDER_REVIEW' },

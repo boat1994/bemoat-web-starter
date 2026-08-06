@@ -1,4 +1,4 @@
-import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -1561,7 +1561,13 @@ function phase1FounderMarkdown(author = 'boat1994') {
   ].join('\n')
 }
 
-function runFounderMergeCliWithFakeGithub({ authorizationBody }: { authorizationBody: string }) {
+function runFounderMergeCliWithFakeGithub({
+  authorizationBody,
+  argv = [],
+}: {
+  authorizationBody: string
+  argv?: readonly string[]
+}) {
   const directory = mkdtempSync(join(tmpdir(), 'bemoat-254-phase1-'))
   const fakeGhPath = join(directory, 'gh')
   const logPath = join(directory, 'calls.log')
@@ -1664,7 +1670,15 @@ process.stdout.write(JSON.stringify(output))
   try {
     const result = spawnSync(
       process.execPath,
-      ['scripts/mission-control-merge.mjs', '254', '--repo', 'boat1994/bemoat-web-starter', '--authorization-comment', '5179000001'],
+      [
+        'scripts/mission-control-merge.mjs',
+        '254',
+        '--repo',
+        'boat1994/bemoat-web-starter',
+        '--authorization-comment',
+        '5179000001',
+        ...argv,
+      ],
       {
         cwd: process.cwd(),
         encoding: 'utf8',
@@ -1675,11 +1689,13 @@ process.stdout.write(JSON.stringify(output))
         },
       },
     )
-    const calls = readFileSync(logPath, 'utf8')
-      .trim()
-      .split('\n')
-      .filter(Boolean)
-      .map((line) => JSON.parse(line) as string[])
+    const calls = existsSync(logPath)
+      ? readFileSync(logPath, 'utf8')
+        .trim()
+        .split('\n')
+        .filter(Boolean)
+        .map((line) => JSON.parse(line) as string[])
+      : []
     return { result, calls }
   } finally {
     rmSync(directory, { recursive: true, force: true })
@@ -1805,6 +1821,117 @@ describe('Phase 1 Finding B: structured Markdown author binding', () => {
       stderr: expect.stringMatching(/AUTHORIZATION_VALIDATION_FAILURE.*author/i),
       mutationCalls: [],
     })
+  })
+})
+
+describe('Task 7 merge validation boundary', () => {
+  it('merge validates all authority head CI and mergeability before its first mutation', async () => {
+    const validationCases = [
+      ['Founder authority', { authorization: { authority: 'Reviewer' } }, /AUTHORIZATION_VALIDATION_FAILURE/],
+      ['reviewed head', { authorization: { reviewed_head: 'a'.repeat(40) } }, /AUTHORIZATION_VALIDATION_FAILURE/],
+      ['current PR head', { pull: { headRefOid: 'b'.repeat(40) } }, /STATE_CONFLICT/],
+      ['protected base', { pull: { baseRefName: 'dev' } }, /STATE_CONFLICT/],
+      ['failed exact-head CI', {
+        pull: {
+          statusCheckRollup: [{ name: 'ci', conclusion: 'FAILURE', status: 'COMPLETED' }],
+        },
+      }, /STATE_CONFLICT/],
+      ['mergeability drift', { pull: { mergeable: 'CONFLICTING' } }, /STATE_CONFLICT/],
+    ] as const
+
+    for (const [_label, options, expectedError] of validationCases) {
+      const harness = createHarness({ ...options, isDraft: false })
+
+      await expect(execute({
+        issueNumber: 222,
+        repo: 'boat1994/bemoat-web-starter',
+        authorizationCommentId: '6000000001',
+        deps: harness.deps,
+      })).rejects.toThrow(expectedError)
+
+      expect(mutationOperations(harness.operations)).toEqual([])
+    }
+
+    const { result, calls } = runFounderMergeCliWithFakeGithub({
+      authorizationBody: phase1FounderMarkdown('attacker'),
+      argv: ['--json'],
+    })
+    expect(result.status).toBe(3)
+    expect(result.stderr).toBe('')
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      schema_version: 1,
+      command: 'bemoat:mission-control:merge',
+      mode: 'result',
+      outcome: 'ERROR',
+      classification: 'AUTHORITY_CONFLICT',
+      mutation_performed: false,
+    })
+    expect(calls.filter(([command, subcommand]) =>
+      command === 'pr' && ['ready', 'merge'].includes(subcommand),
+    )).toEqual([])
+  })
+
+  it('merge reads back protected base RESULT Task DONE closure and campaign projection', async () => {
+    const harness = createHarness({
+      isDraft: false,
+      recordCampaignOwnership: true,
+    })
+    const issueReads: Array<{ state: string, managedState: Record<string, unknown> }> = []
+    const readManagedIssue = harness.deps.readManagedIssue
+    harness.deps.readManagedIssue = async (issueNumber: number) => {
+      const issue = await readManagedIssue(issueNumber)
+      issueReads.push({
+        state: issue.state,
+        managedState: structuredClone(issue.managedState),
+      })
+      return issue
+    }
+
+    const result = await execute({
+      issueNumber: 222,
+      repo: 'boat1994/bemoat-web-starter',
+      authorizationCommentId: '6000000001',
+      deps: harness.deps,
+    })
+
+    expect(result).toMatchObject({
+      outcome: 'DONE',
+      mergeCommit,
+      issueNumber: 222,
+      prNumber: 223,
+    })
+    expect(harness.operations).toEqual([
+      'authorization:222',
+      'campaign-ownership:campaign-slice:215:3:222:223',
+      `review-verdict:${reviewCommentId}`,
+      `merge:${reviewedHead}`,
+      `verify-base:${mergeCommit}:main`,
+      'result:6000000003',
+      'close:222',
+      'task-done:222',
+      'campaign-done:215:3',
+    ])
+    expect(issueReads.map(({ state }) => state)).toEqual(['OPEN', 'OPEN', 'CLOSED'])
+    expect(issueReads.at(-1)?.managedState).toMatchObject({
+      latest_result_comment_id: '6000000003',
+    })
+    expect(harness.issues.get(222)).toMatchObject({
+      state: 'CLOSED',
+      stateReason: 'COMPLETED',
+      managedState: {
+        state: 'DONE',
+        merged_commit_sha: mergeCommit,
+        latest_result_comment_id: '6000000003',
+      },
+    })
+    expect(harness.operations.indexOf('verify-base:8df91686d715a0ddf0ddf258bf9fa5b060a4af29:main'))
+      .toBeLessThan(harness.operations.indexOf('result:6000000003'))
+    expect(harness.operations.indexOf('result:6000000003'))
+      .toBeLessThan(harness.operations.indexOf('close:222'))
+    expect(harness.operations.indexOf('close:222'))
+      .toBeLessThan(harness.operations.indexOf('task-done:222'))
+    expect(harness.operations.indexOf('task-done:222'))
+      .toBeLessThan(harness.operations.indexOf('campaign-done:215:3'))
   })
 })
 
