@@ -505,32 +505,34 @@ Tier totals are exactly A=11, B=8, C=3. Any package change that alters the 22-co
 - Produces: `COMMAND_CONTRACT_SCHEMA_VERSION`, `COMMAND_CONTRACT_REGISTRY`, `getCommandContract(command)`, `validateCommandContractRegistry({ registry, packageJson, transports, states })`, and immutable `MISSION_CONTROL_STATES`.
 - Consumes: `CANONICAL_TRANSPORTS` as the authority; it does not redefine its owner/role semantics.
 
-- [ ] **Step 1: Write the failing inventory/transport tests**
+- [x] **Step 1: Write the failing inventory/transport tests**
 
   Add exact tests named `classifies the exact 22-command package inventory once`, `uses tier totals A=11 B=8 C=3`, `requires every schema-v1 command field and existing entrypoint`, `proves Tier C delegates without a repository parser`, `matches package scripts byte-for-byte`, `matches every canonical transport role and exceptional bit`, `gives every Tier A command one route or explicit exceptional record`, `exports the unchanged 14-state schema`, and `binds reopen facade workflow package script and managed rails`. Mutate an in-memory registry once per rejection case instead of using a monolithic snapshot.
 
-- [ ] **Step 2: Run the focused test and verify failure**
+- [x] **Step 2: Run the focused test and verify failure**
 
   Run: `pnpm exec vitest run --config ./vitest.config.mts tests/int/cli-command-registry.int.spec.ts`
 
   Expected: FAIL because the registry/reader exports do not exist and merged reopen is absent from `managedPackageScripts`/explicit facade paths.
 
-- [ ] **Step 3: Implement the exact Section 3 schema and Section 4 inventory**
+- [x] **Step 3: Implement the exact Section 3 schema and Section 4 inventory**
 
   Export the existing 14 state values without changing them. Populate all 22 command records, all required route rows from Section 3.5, exact input/source/read/write/retry fields, Tier C exclusions, and per-command legacy mappings. Add the root reopen facade and package name to starter-managed rails; do not run sync.
 
-- [ ] **Step 4: Run the focused test and verify pass**
+- [x] **Step 4: Run the focused test and verify pass**
 
   Run: `pnpm exec vitest run --config ./vitest.config.mts tests/int/cli-command-registry.int.spec.ts tests/int/mission-control-reopen.int.spec.ts tests/int/mission-control-child-portability.int.spec.ts`
 
   Expected: PASS; output reports 22 classified commands (11/8/3), seven canonical transport bindings, 14 states, and managed reopen coverage.
 
-- [ ] **Step 5: Commit the independently reviewable registry**
+- [x] **Step 5: Commit the independently reviewable registry**
 
   ```bash
   git add scripts/cli/command-contract-registry.mjs scripts/cli/command-contract.mjs scripts/mission-control-state.mjs scripts/boilerplate/inventory.mjs .bemoat/boilerplate-sync-manifest.json tests/int/cli-command-registry.int.spec.ts
   git commit -m "feat: define canonical agent command registry"
   ```
+
+- [x] **Lead acceptance:** `TASK ACCEPTED` at exact head `1a5ca67cc2d500099699adf2d77b3ca228387ba3`; final Task 1 delta reviewed, with 7 related test files and 245 tests passing.
 
 ### Task 2: Add the minimal invocation/result boundary and real process harness
 
