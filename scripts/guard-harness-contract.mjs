@@ -2,6 +2,13 @@
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
+import { createHelpEnvelopeV1, formatTextHelp } from './cli/command-help.mjs'
+import {
+  CliInvocationError,
+  parseCommandInvocation,
+  resolveCommandIdentity,
+} from './cli/command-invocation.mjs'
+
 export {
   CHILD_FACING_HARNESS_PATHS,
   FORBIDDEN_RAW_SCRIPTS,
@@ -47,7 +54,50 @@ export function isDirectExecution() {
   return import.meta.url === pathToFileURL(resolve(entrypoint)).href
 }
 
+function renderHelp(invocation) {
+  if (invocation.format === 'json') {
+    process.stdout.write(`${JSON.stringify(createHelpEnvelopeV1(invocation.contract))}\n`)
+    return
+  }
+
+  process.stdout.write(formatTextHelp(invocation.contract))
+}
+
+function handleInvocationError(error) {
+  if (!(error instanceof CliInvocationError)) return false
+
+  process.stderr.write(`INVALID_INVOCATION: ${error.details.reason}\n`)
+  process.exitCode = error.exit_code
+  return true
+}
+
+function getFacadeEnvironment() {
+  const lifecycleEvent = process.env.npm_lifecycle_event
+  if (!lifecycleEvent || lifecycleEvent.startsWith('bemoat:')) return process.env
+
+  return { ...process.env, npm_lifecycle_event: undefined }
+}
+
 function main() {
+  let invocation
+
+  try {
+    const command = resolveCommandIdentity({
+      fallback: 'bemoat:guard:harness-contract',
+      env: getFacadeEnvironment(),
+      entrypoint: 'scripts/guard-harness-contract.mjs',
+    })
+    invocation = parseCommandInvocation(command, process.argv.slice(2))
+  } catch (error) {
+    if (handleInvocationError(error)) return
+    throw error
+  }
+
+  if (invocation.mode === 'help') {
+    renderHelp(invocation)
+    return
+  }
+
   const root = process.cwd()
   const childFacingViolations = runHarnessContractGuard({ root })
   const managedPaths = loadManagedPathsFromManifest(root)
@@ -67,7 +117,7 @@ function main() {
       ? 1
       : getHarnessContractExitCode(childFacingViolations)
 
-  process.exit(exitCode)
+  process.exitCode = exitCode
 }
 
 if (isDirectExecution()) main()

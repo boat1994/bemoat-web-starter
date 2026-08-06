@@ -134,10 +134,16 @@ function snapshotRepositoryState(): FileSystemSnapshot {
         cwd: repositoryRoot,
         encoding: 'utf8',
       })
+      const stdout = args[0] === 'status'
+        ? (result.stdout ?? '')
+          .split(/\r?\n/)
+          .filter((line) => !line.startsWith('?? .tmp-'))
+          .join('\n')
+        : result.stdout ?? ''
       return [
         args.join(' '),
         String(result.status),
-        result.stdout ?? '',
+        stdout,
         result.stderr ?? '',
       ].join('\n')
     })
@@ -166,7 +172,8 @@ function runFromRepositoryRoot(
   try {
     installPoisonExecutables(binDirectory, poisonLog)
     const before = snapshotRepositoryState()
-    const result = spawnSync(process.execPath, [entrypoint, ...args], {
+    const executable = entry.entrypoint.endsWith('.sh') ? 'bash' : process.execPath
+    const result = spawnSync(executable, [entrypoint, ...args], {
       cwd: repositoryRoot,
       encoding: 'utf8',
       env: {
@@ -198,10 +205,59 @@ function runFromRepositoryRoot(
   }
 }
 
+function runShellFromIsolatedCwd(
+  entry: TierBCase,
+  argv: readonly string[],
+): CliBoundaryResult {
+  const root = mkdtempSync(join(tmpdir(), 'bemoat-cli-shell-boundary-'))
+  const binDirectory = join(root, 'poison-bin')
+  const poisonLog = join(root, 'poison-calls.log')
+  const entrypoint = resolve(process.cwd(), entry.entrypoint)
+  const args = [...argv]
+
+  try {
+    installPoisonExecutables(binDirectory, poisonLog)
+    const before = snapshotDirectory(root)
+    const result = spawnSync('bash', [entrypoint, ...args], {
+      cwd: root,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        ...facadeEnvironment(entry),
+        PATH: [binDirectory, process.env.PATH].filter(Boolean).join(delimiter),
+        BEMOAT_CLI_POISON_LOG: poisonLog,
+      },
+      maxBuffer: 4 * 1024 * 1024,
+    })
+    const after = snapshotDirectory(root)
+
+    return {
+      cwd: root,
+      entrypoint: entry.entrypoint,
+      argv: args,
+      status: result.status,
+      signal: result.signal,
+      error: result.error ? result.error.message : null,
+      stdout: result.stdout ?? '',
+      stderr: result.stderr ?? '',
+      before,
+      after,
+      filesystem_unchanged: compareFileSystemSnapshots(before, after),
+      poison_invocations: readLines(poisonLog),
+    }
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+}
+
 function runFromIsolatedCwd(
   entry: TierBCase,
   argv: readonly string[],
 ): CliBoundaryResult {
+  if (entry.entrypoint.endsWith('.sh')) {
+    return runShellFromIsolatedCwd(entry, argv)
+  }
+
   return runCliBoundaryCase({
     entrypoint: entry.entrypoint,
     argv,

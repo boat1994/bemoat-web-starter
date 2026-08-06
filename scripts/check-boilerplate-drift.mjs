@@ -5,6 +5,12 @@ import { join, resolve } from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
 
+import { createHelpEnvelopeV1, formatTextHelp } from './cli/command-help.mjs'
+import {
+  CliInvocationError,
+  parseCommandInvocation,
+  resolveCommandIdentity,
+} from './cli/command-invocation.mjs'
 import {
   buildPackageSyncProposal,
   expandSeedOnlyFiles,
@@ -461,15 +467,64 @@ export function isDirectExecution() {
   return import.meta.url === pathToFileURL(resolve(entrypoint)).href
 }
 
+function renderHelp(invocation) {
+  if (invocation.format === 'json') {
+    process.stdout.write(`${JSON.stringify(createHelpEnvelopeV1(invocation.contract))}\n`)
+    return
+  }
+
+  process.stdout.write(formatTextHelp(invocation.contract))
+}
+
+function handleInvocationError(error) {
+  if (!(error instanceof CliInvocationError)) return false
+
+  process.stderr.write(`INVALID_INVOCATION: ${error.details.reason}\n`)
+  process.exitCode = error.exit_code
+  return true
+}
+
+function resolveBoilerplateCheckCommand() {
+  const lifecycleEvent = process.env.npm_lifecycle_event
+  const isRawAlias = lifecycleEvent === 'boilerplate:check'
+  const isUnrelatedLifecycle = lifecycleEvent && !lifecycleEvent.startsWith('bemoat:')
+  const env = isRawAlias || isUnrelatedLifecycle
+    ? { ...process.env, npm_lifecycle_event: undefined }
+    : process.env
+
+  return resolveCommandIdentity({
+    fallback: 'bemoat:boilerplate:check',
+    env,
+    entrypoint: 'scripts/check-boilerplate-drift.mjs',
+  })
+}
+
 function main() {
+  let invocation
+
+  try {
+    const command = resolveBoilerplateCheckCommand()
+    invocation = parseCommandInvocation(command, process.argv.slice(2))
+  } catch (error) {
+    if (handleInvocationError(error)) return
+    throw error
+  }
+
+  if (invocation.mode === 'help') {
+    renderHelp(invocation)
+    return
+  }
+
   if (isBoilerplateSourceRepository(targetRoot, repo)) {
     console.log('Skipping boilerplate drift check in bemoat-web-starter (source repository).')
     console.log('This command compares child projects against upstream boilerplate.')
     console.log('In the starter repo, use git diff and CI instead of boilerplate:check.')
-    process.exit(0)
+    process.exitCode = 0
+    return
   }
 
-  const syncMode = parseSyncMode()
+  const syncMode = parseSyncMode(invocation.values, process.env)
+  let exitCode = 0
 
   try {
     rmSync(tempRoot, { recursive: true, force: true })
@@ -482,14 +537,16 @@ function main() {
     const report = compareBoilerplateDriftByMode({ sourceRoot, targetRoot, mode: syncMode })
     printReport(report)
 
-    process.exit(getDriftExitCode(report))
+    exitCode = getDriftExitCode(report)
   } catch (error) {
     console.error('Unable to fetch or compare boilerplate source.')
     if (error instanceof Error) console.error(error.message)
-    process.exit(2)
+    exitCode = 2
   } finally {
     rmSync(tempRoot, { recursive: true, force: true })
   }
+
+  process.exitCode = exitCode
 }
 
 if (isDirectExecution()) main()

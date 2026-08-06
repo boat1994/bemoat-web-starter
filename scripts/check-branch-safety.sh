@@ -2,6 +2,27 @@
 # Blocks routine work on protected Git Flow branches.
 set -eu
 
+if [ "$#" -gt 0 ]; then
+  if [ "$1" = "--" ]; then
+    shift
+  fi
+
+  if [ "$#" -gt 0 ]; then
+    command_help="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)/cli/command-help.mjs"
+    case "${npm_lifecycle_event:-}" in
+      branch:check)
+        export npm_lifecycle_event="bemoat:branch:check"
+        ;;
+      bemoat:*)
+        ;;
+      *)
+        unset npm_lifecycle_event
+        ;;
+    esac
+    exec node "$command_help" bemoat:branch:check "$@"
+  fi
+fi
+
 branch="$(git branch --show-current 2>/dev/null || true)"
 
 if [ -z "$branch" ]; then

@@ -1040,24 +1040,24 @@ describe('agent issue preflight', () => {
     {
       name: 'missing issue number',
       args: [],
-      stderr: 'Issue preflight failed: missing or invalid issue number.\nUsage: pnpm run bemoat:agent:issue -- <issue-number> [--phase correction]\n',
+      stderr: 'INVALID_INVOCATION: missing positional input: issue_number\n',
     },
     {
       name: 'missing phase value',
       args: ['177', '--phase'],
-      stderr: 'Issue preflight failed: --phase requires a value.\nUsage: pnpm run bemoat:agent:issue -- <issue-number> [--phase correction]\n',
+      stderr: 'INVALID_INVOCATION: --phase requires one value\n',
     },
     {
       name: 'unsupported phase',
       args: ['177', '--phase', 'review'],
-      stderr: 'Issue preflight failed: --phase supports only correction.\nUsage: pnpm run bemoat:agent:issue -- <issue-number> [--phase correction]\n',
+      stderr: 'INVALID_INVOCATION: value must be one of: correction\n',
     },
-  ])('preserves the exact CLI golden for $name', ({ args, stderr }) => {
+  ])('uses canonical invalid invocation for $name', ({ args, stderr }) => {
     const root = createRepo('refactor/177-correction-authority-boundaries')
     const result = runAgentIssue(root, args)
 
     expect({ status: result.status, stdout: result.stdout, stderr: result.stderr }).toEqual({
-      status: 1,
+      status: 2,
       stdout: '',
       stderr,
     })
@@ -1067,8 +1067,8 @@ describe('agent issue preflight', () => {
     const root = createRepo('feature/83-agent-issue')
     const result = runAgentIssue(root, [])
 
-    expect(result.status).toBe(1)
-    expect(result.stderr).toContain('Usage: pnpm run bemoat:agent:issue -- <issue-number>')
+    expect(result.status).toBe(2)
+    expect(result.stderr).toContain('INVALID_INVOCATION')
   })
 
   it('passes on a clean implementation branch and prints GitHub issue metadata when available', () => {
