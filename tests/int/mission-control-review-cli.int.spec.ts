@@ -1,8 +1,15 @@
-import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { afterEach, describe, expect, it } from 'vitest'
+import { assertResultEnvelopeV1 } from '../../scripts/cli/command-result.mjs'
 
 const scriptPath = resolve(process.cwd(), 'scripts/mission-control-review.mjs')
 const tempPaths: string[] = []
@@ -31,13 +38,16 @@ function createGhMock(config: Record<string, unknown>) {
   const directory = mkdtempSync(join(tmpdir(), 'bemoat-review-bin-'))
   tempPaths.push(directory)
   const configPath = join(directory, 'config.json')
+  const callsFile = join(directory, 'calls.log')
   writeFileSync(configPath, JSON.stringify(config))
+  writeFileSync(callsFile, '')
 
   const executable = join(directory, 'gh')
   const script = `#!/usr/bin/env node
 const fs = require('fs');
 const args = process.argv.slice(2);
 const config = JSON.parse(fs.readFileSync('${configPath}', 'utf8'));
+fs.appendFileSync('${callsFile}', 'gh ' + args.join(' ') + '\\n');
 
 if (args[0] === 'repo' && args[1] === 'view') {
   console.log(JSON.stringify({ nameWithOwner: config.repo || 'acme/repo' }));
@@ -143,7 +153,7 @@ process.exit(1);
 `
   writeFileSync(executable, script)
   chmodSync(executable, 0o755)
-  return { path: `${directory}:${process.env.PATH ?? ''}`, configPath }
+  return { path: `${directory}:${process.env.PATH ?? ''}`, configPath, callsFile }
 }
 
 describe('scripts/mission-control-review.mjs CLI characterization', () => {
@@ -229,6 +239,105 @@ updated_by: "Mission Control"
     const res = run(['229', '--body-file', bodyFile, '--expected-state', 'CORRECTION_REQUIRED_2', '--review-type', 'delta', '--expected-head', 'abc1234'], { PATH: gh.path })
     expect(res.status).not.toBe(0)
     expect(res.stderr).toMatch(/RECOVERABLE_ROUTING_DRIFT/i)
+  })
+
+  it('delivery and review preserve last validation before first write', () => {
+    const bodyFile = tempFile('verdict.md', validVerdict)
+    const gh = createGhMock({
+      issueBody: validState,
+      repo: 'acme/repo',
+      prNumber: 230,
+      prHead: 'abc1234',
+      noLease: true,
+    })
+    const res = run([
+      '229',
+      '--body-file',
+      bodyFile,
+      '--expected-state',
+      'CORRECTION_REQUIRED_2',
+      '--review-type',
+      'delta',
+      '--expected-head',
+      'abc1234',
+    ], { PATH: gh.path })
+    expect(res.status, res.stderr).toBe(0)
+
+    const calls = readFileSync(gh.callsFile, 'utf8')
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+    const firstWrite = calls.findIndex((call) =>
+      /^gh api --method POST /.test(call) ||
+      /^gh api -X PUT /.test(call) ||
+      /^gh issue edit /.test(call),
+    )
+    const lastIssueRead = calls.reduce(
+      (last, call, index) => index < firstWrite && /^gh issue view /.test(call) ? index : last,
+      -1,
+    )
+    const lastPullRequestRead = calls.reduce(
+      (last, call, index) => index < firstWrite && /^gh pr view /.test(call) ? index : last,
+      -1,
+    )
+    const lastCommentRead = calls.reduce(
+      (last, call, index) => index < firstWrite && /^gh api --paginate .*issues\/229\/comments/.test(call) ? index : last,
+      -1,
+    )
+
+    expect(firstWrite).toBeGreaterThan(-1)
+    expect(lastIssueRead).toBeGreaterThanOrEqual(0)
+    expect(lastPullRequestRead).toBeGreaterThan(lastIssueRead)
+    expect(lastCommentRead).toBeGreaterThan(lastPullRequestRead)
+    expect(lastCommentRead).toBeLessThan(firstWrite)
+  })
+
+  it('partial comment-state drift is AMBIGUOUS_RESULT', () => {
+    const fullHead = 'ABCDEF0123456789ABCDEF0123456789ABCDEF01'
+    const body = validVerdict.replaceAll('abc1234', fullHead)
+    const state = validState.replaceAll('abc1234', fullHead)
+    const bodyFile = tempFile('verdict.md', body)
+    const gh = createGhMock({
+      issueBody: state,
+      repo: 'acme/repo',
+      prNumber: 230,
+      prHead: fullHead,
+      simulateProjectionFailure: true,
+      noLease: true,
+    })
+    const res = run([
+      '229',
+      '--body-file',
+      bodyFile,
+      '--expected-state',
+      'CORRECTION_REQUIRED_2',
+      '--review-type',
+      'delta',
+      '--expected-head',
+      fullHead,
+      '--json',
+    ], { PATH: gh.path })
+
+    expect(res.status, res.stderr).toBe(4)
+    expect(res.stderr).toBe('')
+    expect(res.stdout.trim().split(/\r?\n/)).toHaveLength(1)
+    const envelope = JSON.parse(res.stdout) as Record<string, unknown>
+    assertResultEnvelopeV1(envelope)
+    expect(envelope).toMatchObject({
+      command: 'bemoat:mission-control:review',
+      mode: 'result',
+      outcome: 'ERROR',
+      classification: 'AMBIGUOUS_RESULT',
+      mutation_performed: true,
+      exact_head: fullHead.toLowerCase(),
+      details: {
+        legacy_classification: 'RECOVERABLE_ROUTING_DRIFT',
+      },
+      next_action: {
+        type: 'STOP',
+        command: null,
+      },
+    })
   })
 
   it('case 7: successful verdict projection', () => {

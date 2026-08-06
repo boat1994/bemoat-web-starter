@@ -4,6 +4,7 @@ import { dirname, join, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 
 import { afterEach, describe, expect, it } from 'vitest'
+import { assertResultEnvelopeV1 } from '../../scripts/cli/command-result.mjs'
 
 const scriptPath = resolve(process.cwd(), 'scripts/post-role-comment.mjs')
 const tempPaths: string[] = []
@@ -269,6 +270,32 @@ describe('bemoat:issue:comment', () => {
       env: { PATH: gh.path, BEMOAT_GH_CAPTURE: gh.capture },
     })
     expect(result.status, result.stderr).toBe(0)
+    expect(() => readFileSync(gh.capture, 'utf8')).toThrow()
+  })
+
+  it('check mode emits one schema-v1 result envelope without posting', () => {
+    const gh = stubGh()
+    const result = run(['115', '--check', '--json'], {
+      input: bodies.RESULT,
+      env: { PATH: gh.path, BEMOAT_GH_CAPTURE: gh.capture },
+    })
+
+    expect(result.status, result.stderr).toBe(0)
+    expect(result.stderr).toBe('')
+    expect(result.stdout.trim().split(/\r?\n/)).toHaveLength(1)
+
+    const envelope = JSON.parse(result.stdout) as Record<string, unknown>
+    assertResultEnvelopeV1(envelope)
+    expect(envelope).toMatchObject({
+      command: 'bemoat:issue:comment',
+      mode: 'result',
+      outcome: 'SUCCESS',
+      classification: 'SUCCESS',
+      mutation_performed: false,
+      issue_number: '115',
+      pr_number: null,
+      exact_head: null,
+    })
     expect(() => readFileSync(gh.capture, 'utf8')).toThrow()
   })
 
