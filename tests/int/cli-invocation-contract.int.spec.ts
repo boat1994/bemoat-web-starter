@@ -24,6 +24,7 @@ type JsonRecord = Record<string, unknown>
 
 const TIER_A_COMMAND = 'bemoat:agent:delivery'
 const TIER_B_COMMAND = 'bemoat:agent:issue'
+const BRANCH_COMMAND = 'bemoat:branch:check'
 const REOPEN_COMMAND = 'bemoat:mission-control:reopen'
 const PACK_COMMAND = 'bemoat:guard:pack'
 const SAFETY_COMMAND = 'bemoat:guard:safety'
@@ -461,16 +462,84 @@ describe('Task 2 CLI invocation and result contracts', () => {
     }
   })
 
+  it('renders the explicitly selected direct help command', () => {
+    const run = runCliBoundaryCase({
+      entrypoint: 'scripts/cli/command-help.mjs',
+      argv: [BRANCH_COMMAND, '--help', '--json'],
+      env: {},
+    })
+
+    expect(run.status).toBe(0)
+    expect(run.error).toBeNull()
+    expect(run.stderr).toBe('')
+    expect(run.poison_invocations).toEqual([])
+    expect(compareFileSystemSnapshots(run.before, run.after)).toBe(true)
+
+    const json = JSON.parse(run.stdout.trim()) as JsonRecord
+    expect(json.command).toBe(BRANCH_COMMAND)
+    expect(json.tier).toBe('B')
+    expect(json.classification).toBe('HELP')
+  })
+
+  it('renders all direct JSON-help permutations byte-identically', () => {
+    const permutations = [
+      ['--help', '--json'],
+      ['--json', '--help'],
+      ['-h', '--json'],
+      ['--json', '-h'],
+    ]
+    const runs = permutations.map((flags) => runCliBoundaryCase({
+      entrypoint: 'scripts/cli/command-help.mjs',
+      argv: [BRANCH_COMMAND, ...flags],
+      env: {},
+    }))
+
+    for (const run of runs) {
+      expect(run.status).toBe(0)
+      expect(run.error).toBeNull()
+      expect(run.stderr).toBe('')
+      expect(run.poison_invocations).toEqual([])
+      expect(compareFileSystemSnapshots(run.before, run.after)).toBe(true)
+    }
+    expect(runs.map((run) => run.stdout)).toEqual([
+      runs[0].stdout,
+      runs[0].stdout,
+      runs[0].stdout,
+      runs[0].stdout,
+    ])
+  })
+
+  it('rejects a mismatched lifecycle entrypoint at the direct boundary', () => {
+    const run = runCliBoundaryCase({
+      entrypoint: 'scripts/cli/command-help.mjs',
+      argv: [BRANCH_COMMAND, '--help', '--json'],
+      env: {
+        BEMOAT_FACADE_COMMAND: PACK_COMMAND,
+        npm_lifecycle_event: TIER_A_COMMAND,
+      },
+    })
+
+    expect(run.status).toBe(2)
+    expect(run.error).toBeNull()
+    expect(run.stderr).toBe('')
+    expect(run.poison_invocations).toEqual([])
+    expect(compareFileSystemSnapshots(run.before, run.after)).toBe(true)
+
+    const json = JSON.parse(run.stdout.trim()) as JsonRecord
+    expect(json.command).toBe(BRANCH_COMMAND)
+    expect(json.classification).toBe('INVALID_INVOCATION')
+  })
+
   it('emits one JSON object with plain-text classification parity', () => {
     const jsonRun = runCliBoundaryCase({
       entrypoint: 'scripts/cli/command-help.mjs',
-      argv: ['--help', '--json'],
-      env: { npm_lifecycle_event: TIER_A_COMMAND },
+      argv: [TIER_A_COMMAND, '--help', '--json'],
+      env: {},
     })
     const textRun = runCliBoundaryCase({
       entrypoint: 'scripts/cli/command-help.mjs',
-      argv: ['--help'],
-      env: { npm_lifecycle_event: TIER_A_COMMAND },
+      argv: [TIER_A_COMMAND, '--help'],
+      env: {},
     })
 
     expect(jsonRun.status).toBe(0)

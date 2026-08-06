@@ -14,8 +14,6 @@ import {
   createResultEnvelopeV1,
 } from './command-result.mjs'
 
-const DEFAULT_HELP_COMMAND = 'bemoat:agent:delivery'
-
 function registeredContract(contract) {
   if (
     typeof contract !== 'object' ||
@@ -206,19 +204,46 @@ export function formatTextHelp(inputContract) {
   return `${lines.join('\n')}\n`
 }
 
-function helpCommandFromEnvironment(env) {
-  const requestedCommand = env?.npm_lifecycle_event ||
-    env?.BEMOAT_COMMAND ||
-    DEFAULT_HELP_COMMAND
-  const contract = getCommandContract(requestedCommand)
-  const entrypoint = contract?.entrypoint
-  return {
-    command: resolveCommandIdentity({
-      fallback: requestedCommand,
-      env,
-      entrypoint,
-    }),
+function directHelpRequest(argv) {
+  const [requestedCommand, ...commandArgv] = argv
+  if (
+    typeof requestedCommand !== 'string' ||
+    requestedCommand.startsWith('-')
+  ) {
+    throw new CliInvocationError(
+      requestedCommand ?? null,
+      'command-help requires a registry command before its flags',
+    )
   }
+  if (getCommandContract(requestedCommand) === null) {
+    throw new CliInvocationError(
+      requestedCommand,
+      `command is not registered: ${requestedCommand}`,
+    )
+  }
+  return {
+    command: requestedCommand,
+    argv: commandArgv,
+  }
+}
+
+function validateRunningFacadeIdentity(env) {
+  const facadeCommand = env?.BEMOAT_FACADE_COMMAND
+  const facadeEntrypoint = env?.BEMOAT_FACADE_ENTRYPOINT
+  if (facadeCommand === undefined && facadeEntrypoint === undefined) return
+  if (typeof facadeCommand !== 'string' || facadeCommand.trim() === '') {
+    throw new CliInvocationError(
+      facadeCommand ?? null,
+      'BEMOAT_FACADE_COMMAND is required with a running facade identity',
+    )
+  }
+
+  const facadeContract = getCommandContract(facadeCommand)
+  resolveCommandIdentity({
+    fallback: facadeCommand,
+    env,
+    entrypoint: facadeEntrypoint ?? facadeContract?.entrypoint,
+  })
 }
 
 function errorClassification(error) {
@@ -288,8 +313,10 @@ function main() {
   const json = argv.includes('--json')
 
   try {
-    command = helpCommandFromEnvironment(process.env).command
-    const invocation = parseCommandInvocation(command, argv)
+    const request = directHelpRequest(argv)
+    command = request.command
+    validateRunningFacadeIdentity(process.env)
+    const invocation = parseCommandInvocation(command, request.argv)
     if (invocation.mode !== 'help') {
       throw new CliInvocationError(null, 'command-help requires --help or -h')
     }
