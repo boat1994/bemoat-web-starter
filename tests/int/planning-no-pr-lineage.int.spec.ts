@@ -702,7 +702,7 @@ if (args[0] === 'repo' && args[1] === 'view') {
       livePr: { number: 230, headRefOid: head, baseRefName: 'main' },
       activeTaskIssue: '229',
       approvedBase: 'main',
-      latestResult: { parsed: { headSha: head, prNumber: '230' } },
+      latestResult: { parsed: { headSha: head, prNumber: '230', base: 'main' } },
       updatedAt: '2026-07-31T00:00:00.000Z',
       updatedBy: 'Mission Control',
     })

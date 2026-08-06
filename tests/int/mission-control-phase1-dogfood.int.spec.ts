@@ -59,7 +59,7 @@ const PINNED_FIXTURE = JSON.parse(
   manifest_path: string
 }
 
-const reviewedHead = 'abc1234deadbeef'
+const reviewedHead = 'abc1234deadbeef0000000000000000000000000'
 const planningHead = '3d0e83e'
 
 const sampleResultBody = `## RESULT

@@ -830,9 +830,9 @@ updated_by: "Mission Control"
     it('blocks delivery lag resolution when exact-head CI is missing', () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const managedState: any = { state: 'READY', review_cycle: 0, full_review_count: 0, active_pr: null, current_head: null }
-      const livePr = { number: 151, headRefOid: 'abcdef1' }
+      const livePr = { number: 151, headRefOid: 'abcdef1000000000000000000000000000000000' }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const latestResult: any = { comment: {}, parsed: { role: 'RESULT', body: '', prNumber: '151', headSha: 'abcdef1', verdict: null, managedStateLine: null } }
+      const latestResult: any = { comment: {}, parsed: { role: 'RESULT', body: '', prNumber: '151', headSha: 'abcdef1000000000000000000000000000000000', verdict: null, managedStateLine: null } }
       const exactHeadCi = { exactHeadVerified: false }
       
       const delivery = classifyDeliveryLag(managedState, livePr, exactHeadCi, latestResult)
@@ -844,9 +844,9 @@ updated_by: "Mission Control"
     it('allows delivery lag resolution when exact-head CI is verified', () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const managedState: any = { state: 'READY', review_cycle: 0, full_review_count: 0, active_pr: null, current_head: null }
-      const livePr = { number: 151, headRefOid: 'abcdef1' }
+      const livePr = { number: 151, headRefOid: 'abcdef1000000000000000000000000000000000' }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const latestResult: any = { comment: {}, parsed: { role: 'RESULT', body: '', prNumber: '151', headSha: 'abcdef1', verdict: null, managedStateLine: null } }
+      const latestResult: any = { comment: {}, parsed: { role: 'RESULT', body: '', prNumber: '151', headSha: 'abcdef1000000000000000000000000000000000', verdict: null, managedStateLine: null } }
       const exactHeadCi = { exactHeadVerified: true }
       
       const delivery = classifyDeliveryLag(managedState, livePr, exactHeadCi, latestResult)
@@ -866,7 +866,7 @@ updated_by: "Mission Control"
           current_head: null,
         },
         livePr: { number: 151, headRefOid: verifiedHead, baseRefName: 'main' },
-        latestResult: { parsed: { prNumber: '151', headSha: 'abcdef1' } },
+        latestResult: { parsed: { prNumber: '151', headSha: 'abcdef1000000000000000000000000000000000', base: 'main' } },
         activeTaskIssue: '#150',
         approvedBase: 'main',
       })
@@ -885,7 +885,7 @@ updated_by: "Mission Control"
           current_head: null,
         },
         livePr: { number: 151, headRefOid: verifiedHead, baseRefName: 'main' },
-        latestResult: { parsed: { prNumber: '151', headSha: '1234567' } },
+        latestResult: { parsed: { prNumber: '151', headSha: '1234567000000000000000000000000000000000', base: 'main' } },
         activeTaskIssue: '#150',
         approvedBase: 'main',
       })).toThrow(/EVIDENCE_CONFLICT: RESULT head does not match verified live PR head/)
@@ -893,7 +893,7 @@ updated_by: "Mission Control"
 
     it('rejects successful CI evidence that names a different head', () => {
       const analysis = analyzeExactHeadCi({
-        headRefOid: 'abcdef1234567890',
+        headRefOid: 'abcdef1234567890000000000000000000000000',
         statusCheckRollup: {
           contexts: [
             {
@@ -910,17 +910,17 @@ updated_by: "Mission Control"
     })
 
     it('routes RESULT and REVIEW_VERDICT head disagreement with the live PR to STATE_CONFLICT', () => {
-      const livePr = { number: 151, headRefOid: 'abcdef1234567890' }
+      const livePr = { number: 151, headRefOid: 'abcdef1234567890000000000000000000000000' }
       const delivery = classifyDeliveryLag(
         { state: 'IN_PROGRESS', active_pr: '#151', current_head: null },
         livePr,
         { exactHeadVerified: true },
-        { parsed: { headSha: '1111111111111111', prNumber: '151' } },
+        { parsed: { headSha: '1111111111111111111111111111111111111111', prNumber: '151' } },
       )
       const review = classifyReviewLag(
         { state: 'AWAITING_REVIEW_1', review_cycle: 0, last_reviewed_head: null },
         livePr,
-        { parsed: { verdict: 'CORRECTION REQUIRED', headSha: '1111111111111111', prNumber: '151' } },
+        { parsed: { verdict: 'CORRECTION REQUIRED', headSha: '1111111111111111111111111111111111111111', prNumber: '151' } },
       )
 
       expect(delivery).toMatchObject({ kind: 'STATE_CONFLICT', reason: 'RESULT head does not match live PR head' })
@@ -930,7 +930,7 @@ updated_by: "Mission Control"
 
   describe.skipIf(!hasStarterOnlyCorpus)('Integrated upstream dogfood (MC-SCENARIO-008)', () => {
     it('replays delivery, three review bounds, role transport, exact-head CI, and sync inventory', async () => {
-      const head = 'abcdef1234567890'
+      const head = 'abcdef1234567890000000000000000000000000'
       const livePr = { number: 151, headRefOid: head, baseRefName: 'main' }
       const renderState = (state: string, reviewCycle: number, fullReviewCount: number) => `
 **Task size**: Core
@@ -958,9 +958,9 @@ updated_by: "Mission Control"
 \`\`\`
 <!-- bemoat-mission-control-state:end -->`
       const comments = {
-        handoff: parseRoleCommentBody('## HANDOFF\n**State:** branch `test/150` · base `main` · head `abcdef1234567890`'),
-        result: parseRoleCommentBody('## RESULT\n**State:** branch `test/150` · base `main` · head `abcdef1234567890`\n**PR:** https://github.com/boat1994/bemoat-web-starter/pull/151'),
-        verdict: parseRoleCommentBody('## REVIEW_VERDICT\n**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/151 · `main` · `abcdef1234567890`\n**Verdict:** ELIGIBLE FOR FOUNDER REVIEW'),
+        handoff: parseRoleCommentBody('## HANDOFF\n**State:** branch `test/150` · base `main` · head `abcdef1234567890000000000000000000000000`'),
+        result: parseRoleCommentBody('## RESULT\n**State:** branch `test/150` · base `main` · head `abcdef1234567890000000000000000000000000`\n**PR:** https://github.com/boat1994/bemoat-web-starter/pull/151'),
+        verdict: parseRoleCommentBody('## REVIEW_VERDICT\n**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/151 · `main` · `abcdef1234567890000000000000000000000000`\n**Verdict:** ELIGIBLE FOR FOUNDER REVIEW'),
       }
 
       expect(Object.values(comments).map((comment) => comment.role)).toEqual([

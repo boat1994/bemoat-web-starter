@@ -1423,7 +1423,7 @@ Bounded implementation work.
       writeState: async () => {
         throw new Error('Issue state write response was lost')
       },
-      listComments: async () => [],
+      listComments: async () => [] as any[],
       postComment: async (body: string) => ({ id: 'result-state-read-timeout', body }),
     })
 
@@ -1457,11 +1457,11 @@ Bounded implementation work.
       writeState: async () => {
         throw new Error('Issue state write response was lost')
       },
-      listComments: async () => [],
+      listComments: async () => [] as any[],
       postComment: async (body: string) => ({ id: 'verdict-state-read-timeout', body }),
     })
 
-    await expect(coordinator.integrateReviewVerdict({
+    await expect((coordinator as any).integrateReviewVerdict({
       verdictBody: reviewBody,
       projectState: (state: Record<string, unknown>) => state,
     })).rejects.toMatchObject({
