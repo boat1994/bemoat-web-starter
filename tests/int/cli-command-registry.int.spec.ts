@@ -568,6 +568,21 @@ describe('Task 1 command contract registry', () => {
       syntax: '--require-mc-transition-gate',
       source: 'caller',
     })
+
+    for (const name of [
+      'BEMOAT_REQUIRE_MC_TRANSITION_CHILD_SYNC_GATE',
+      'BEMOAT_CHILD_SYNC_182_MERGED',
+      'BEMOAT_CHILD_SYNC_184_MERGED',
+      'BEMOAT_CHILD_SYNC_LIVE_RECONSTRUCTED',
+      'BEMOAT_CHILD_SYNC_FRESH_HANDOFF',
+    ]) {
+      expect(syncInputs.find((input) => input.name === name), name).toMatchObject({
+        kind: 'environment',
+        required: false,
+        values: ['1'],
+        source: 'trusted_derived',
+      })
+    }
   })
 
   it('maps every emitted legacy outcome for delivery and task bootstrap', () => {
