@@ -8,7 +8,27 @@ import {
   parseCorrectionContract,
   validateCorrectionRoleComment,
 } from './correction-contract.mjs'
-import { findLatestRoleComment } from './mission-control-reconcile.mjs'
+import {
+  createHelpEnvelopeV1,
+  formatTextHelp,
+} from './cli/command-help.mjs'
+import {
+  CliInvocationError,
+  parseCommandInvocation,
+  resolveCommandIdentity,
+} from './cli/command-invocation.mjs'
+import {
+  CLI_EXIT_CODES,
+  classificationExitCode,
+  createResultEnvelopeV1,
+} from './cli/command-result.mjs'
+import {
+  findLatestRoleComment,
+  normalizeIssueComments,
+  parsePaginatedGhApiJson,
+  parseRoleCommentBody,
+  verifyPostedCommentReadback,
+} from './mission-control-reconcile.mjs'
 import { projectComments } from './github-comment-projection.mjs'
 
 const ROLE_HEADINGS = ['HANDOFF', 'RESULT', 'REVIEW_VERDICT']
@@ -64,51 +84,184 @@ const DOUBLE_LOOP_ALLOWED_DECISIONS = [
   'CREATE_FOLLOW_UP_ISSUE',
 ]
 
-function usage(message) {
-  if (message) process.stderr.write(`ERROR: ${message}\n`)
-  process.stderr.write('Usage: pnpm run bemoat:issue:comment -- <issue-number> [--repo owner/repo] [--body-file path] [--check] [--allow-warning]\n')
-  process.exitCode = 1
+const COMMAND = 'bemoat:issue:comment'
+const ENTRYPOINT = 'scripts/post-role-comment.mjs'
+
+function runtimeError(classification, message, details = {}) {
+  const error = new Error(message)
+  error.classification = classification
+  Object.assign(error, details)
+  return error
 }
 
-function parseArgs(argv) {
-  const options = {
-    issue: null,
-    repo: null,
-    bodyFile: null,
-    check: false,
-    allowWarning: false,
+function resolveRoleCommentCommand() {
+  const env = process.env.npm_lifecycle_event === 'test:int'
+    ? { ...process.env, npm_lifecycle_event: undefined }
+    : process.env
+
+  return resolveCommandIdentity({
+    fallback: COMMAND,
+    env,
+    entrypoint: ENTRYPOINT,
+  })
+}
+
+function renderHelp(invocation) {
+  if (invocation.format === 'json') {
+    process.stdout.write(`${JSON.stringify(createHelpEnvelopeV1(invocation.contract))}\n`)
+    return
   }
-  for (let index = 0; index < argv.length; index += 1) {
-    const argument = argv[index]
-    if (argument === '--') continue
-    if (argument === '--repo' || argument === '--body-file') {
-      const value = argv[++index]
-      if (!value) return { error: `${argument} requires a value` }
-      if (argument === '--repo') {
-        if (options.repo) return { error: '--repo may be provided only once' }
-        options.repo = value
-      } else {
-        if (options.bodyFile) return { error: '--body-file may be provided only once' }
-        options.bodyFile = value
-      }
-      continue
+
+  process.stdout.write(formatTextHelp(invocation.contract))
+}
+
+function runtimeClassification(error) {
+  if (
+    error &&
+    typeof error === 'object' &&
+    typeof error.classification === 'string' &&
+    Object.hasOwn(CLI_EXIT_CODES, error.classification)
+  ) {
+    return error.classification
+  }
+
+  const reason = error instanceof Error ? error.message : String(error)
+  const prefix = reason.match(/^([A-Z_]+):/)
+  if (prefix && Object.hasOwn(CLI_EXIT_CODES, prefix[1])) return prefix[1]
+  if (/\b(?:gh|GitHub|network|remote)\b/i.test(reason)) return 'BLOCKED_EXTERNAL'
+  return 'INTERNAL_ERROR'
+}
+
+function runtimeDetails(error) {
+  const details = error instanceof CliInvocationError
+    ? {
+      argument: error.details.argument,
+      reason: error.details.reason,
     }
-    if (argument === '--check') { options.check = true; continue }
-    if (argument === '--allow-warning') { options.allowWarning = true; continue }
-    if (argument.startsWith('-') || options.issue) return { error: `unexpected argument: ${argument}` }
-    options.issue = argument
+    : {
+      argument: null,
+      reason: error instanceof Error ? error.message : String(error),
+    }
+
+  if (error && typeof error === 'object') {
+    if (Array.isArray(error.errors)) details.errors = error.errors
+    if (Array.isArray(error.legacyOutput)) details.legacy_output = error.legacyOutput
+    if (typeof error.legacyClassification === 'string') {
+      details.legacy_classification = error.legacyClassification
+    }
   }
-  if (!options.issue || !/^[1-9]\d*$/.test(options.issue)) return { error: 'a positive Issue number is required' }
-  if (options.repo && !/^[\w.-]+\/[\w.-]+$/.test(options.repo)) return { error: '--repo must be owner/repo' }
-  return { options }
+
+  return details
+}
+
+function renderRuntimeError({ command, format, error, values = {} }) {
+  const classification = runtimeClassification(error)
+  const details = runtimeDetails(error)
+  const mutationPerformed = Boolean(
+    error &&
+    typeof error === 'object' &&
+    error.mutationPerformed === true,
+  )
+
+  if (format === 'json' && command) {
+    process.stdout.write(`${JSON.stringify(createResultEnvelopeV1({
+      command,
+      outcome: 'ERROR',
+      classification,
+      mutation_performed: mutationPerformed,
+      repository: values.repository ?? null,
+      issue_number: values.issue_number ?? null,
+      next_action: {
+        type: 'STOP',
+        command: null,
+        reason: details.reason,
+      },
+      details,
+    }))}\n`)
+  } else if (error instanceof CliInvocationError) {
+    process.stderr.write(`${classification}: ${details.reason}\n`)
+  } else if (classification === 'BLOCKED_EXTERNAL') {
+    process.stdout.write(`${classification}: ${details.reason}\n`)
+  } else {
+    const legacyPrefix = details.legacy_classification
+      ? `${details.legacy_classification}: `
+      : ''
+    process.stderr.write(`ERROR: ${classification}: ${legacyPrefix}${details.reason}\n`)
+    for (const line of details.legacy_output ?? []) process.stderr.write(`${line}\n`)
+  }
+
+  process.exitCode = classificationExitCode(classification)
+}
+
+function renderResult({
+  command,
+  format,
+  options,
+  role,
+  legacyClassification,
+  legacyOutput,
+  mutationPerformed,
+  parsedBody,
+  commentId = null,
+}) {
+  const exactHead = /^[0-9a-f]{40}$/i.test(parsedBody.headSha ?? '')
+    ? parsedBody.headSha.toLowerCase()
+    : null
+  const result = createResultEnvelopeV1({
+    command,
+    outcome: 'SUCCESS',
+    classification: 'SUCCESS',
+    mutation_performed: mutationPerformed,
+    repository: options.repo,
+    issue_number: options.issue,
+    pr_number: parsedBody.prNumber,
+    exact_head: exactHead,
+    next_action: {
+      type: 'COMPLETE',
+      command: null,
+      reason: 'The role comment operation completed without owning a state transition.',
+    },
+    details: {
+      role,
+      ...(legacyClassification ? { legacy_classification: legacyClassification } : {}),
+      ...(legacyOutput.length > 0 ? { legacy_output: legacyOutput } : {}),
+      ...(options.check ? { check: true } : {}),
+      ...(commentId != null ? { comment_id: String(commentId) } : {}),
+    },
+  })
+
+  if (format === 'json') {
+    process.stdout.write(`${JSON.stringify(result)}\n`)
+  } else {
+    for (const line of legacyOutput) {
+      if (line.startsWith('WARNING:')) process.stderr.write(`${line}\n`)
+    }
+    const message = options.check
+      ? `validated ${role} comment for Issue #${options.issue}`
+      : `posted ${role} comment to Issue #${options.issue}; no durable-state transition was performed`
+    process.stdout.write(`SUCCESS: ${message}\n`)
+  }
+
+  process.exitCode = classificationExitCode('SUCCESS')
 }
 
 function readBody(bodyFile) {
   const stdinIsPipe = !process.stdin.isTTY
   const stdin = stdinIsPipe ? readFileSync(0, 'utf8') : ''
-  if (bodyFile && stdin.length > 0) throw new Error('--body-file and stdin are mutually exclusive')
-  if (bodyFile) return readFileSync(bodyFile, 'utf8')
-  if (!stdin) throw new Error('provide a comment body through --body-file or stdin')
+  if (bodyFile && stdin.length > 0) {
+    throw new CliInvocationError('--body-file', '--body-file and stdin are mutually exclusive')
+  }
+  if (bodyFile) {
+    try {
+      return readFileSync(bodyFile, 'utf8')
+    } catch (error) {
+      throw new CliInvocationError(
+        bodyFile,
+        error instanceof Error ? error.message : String(error),
+      )
+    }
+  }
+  if (!stdin) throw new CliInvocationError('stdin', 'provide a comment body through --body-file or stdin')
   return stdin
 }
 
@@ -257,79 +410,204 @@ function createBodyFile(body) {
   return { directory, path }
 }
 
-function main() {
-  const parsed = parseArgs(process.argv.slice(2))
-  if (parsed.error) return usage(parsed.error)
-
-  let body
-  try {
-    body = readBody(parsed.options.bodyFile)
-  } catch (error) {
-    return usage(error instanceof Error ? error.message : String(error))
-  }
-
-  const { errors, role } = validationErrors(body)
-  if (errors.length) {
-    for (const error of errors) process.stderr.write(`ERROR: ${error}\n`)
-    process.exitCode = 1
-    return
-  }
-
-  let canonicalContract = null
-  let diffFiles = []
-  if (role === 'RESULT' && isCorrectionPhaseResult(body)) {
-    const contractResult = reconstructCanonicalContract({ issue: parsed.options.issue, repo: parsed.options.repo })
-    if (!contractResult.ok) {
-      for (const error of contractResult.errors) process.stderr.write(`ERROR: ${error}\n`)
-      process.exitCode = 1
-      return
-    }
-    const diffResult = reconstructCorrectionDiffFiles({ reviewedHead: contractResult.contract.reviewed_head })
-    if (!diffResult.ok) {
-      for (const error of diffResult.errors) process.stderr.write(`ERROR: ${error}\n`)
-      process.exitCode = 1
-      return
-    }
-    canonicalContract = contractResult.contract
-    diffFiles = diffResult.files
-  }
-
-  const correction = validateCorrectionRoleComment({
-    role,
-    body,
-    diffFiles,
-    canonicalContract,
-  })
-  if (!correction.ok) {
-    for (const error of correction.errors) process.stderr.write(`ERROR: ${error}\n`)
-    process.exitCode = 1
-    return
-  }
-
-  if (body.length > MAX_COMPACT_LENGTH && !parsed.options.allowWarning) {
-    process.stderr.write(`WARNING: ${role} is ${body.length} characters; rerun with --allow-warning to acknowledge.\n`)
-    process.exitCode = 1
-    return
-  }
-  if (body.length > MAX_COMPACT_LENGTH) process.stderr.write(`WARNING: posting acknowledged long ${role} comment.\n`)
-
-  if (parsed.options.check) {
-    process.stdout.write(`validated ${role} comment for Issue #${parsed.options.issue}\n`)
-    return
-  }
-
-  const temporary = createBodyFile(body)
-  const args = ['issue', 'comment', parsed.options.issue]
-  if (parsed.options.repo) args.push('--repo', parsed.options.repo)
-  args.push('--body-file', temporary.path)
+function readLiveRoleComments({ issue, repo }) {
+  const args = ['issue', 'view', issue, '--json', 'comments']
+  if (repo) args.push('--repo', repo)
   const result = spawnSync('gh', args, { encoding: 'utf8' })
-  rmSync(temporary.directory, { recursive: true, force: true })
   if (result.error || result.status !== 0) {
-    process.stderr.write(`ERROR: ${result.stderr || result.error?.message || 'gh issue comment failed'}\n`)
-    process.exitCode = 1
-    return
+    throw new Error(
+      result.stderr || result.stdout || result.error?.message || 'live role-comment readback failed',
+    )
   }
-  process.stdout.write(`posted ${role} comment to Issue #${parsed.options.issue}; no durable-state transition was performed\n`)
+  const payload = JSON.parse(result.stdout)
+  if (Array.isArray(payload)) return normalizeIssueComments(payload)
+  if (Array.isArray(payload?.comments)) return normalizeIssueComments(payload.comments)
+  return parsePaginatedGhApiJson(result.stdout)
+}
+
+function extractPostedCommentId(stdout) {
+  const text = String(stdout ?? '').trim()
+  if (!text) return null
+  try {
+    const payload = JSON.parse(text)
+    if (payload?.id != null) return String(payload.id)
+  } catch {
+    // `gh issue comment` normally returns a URL rather than JSON.
+  }
+  return text.match(/(?:issuecomment-|comments\/)(\d+)/i)?.[1] ?? null
+}
+
+function main() {
+  let command = null
+  let invocation = null
+
+  try {
+    command = resolveRoleCommentCommand()
+    invocation = parseCommandInvocation(command, process.argv.slice(2))
+
+    if (invocation.mode === 'help') {
+      renderHelp(invocation)
+      return
+    }
+
+    const options = {
+      issue: invocation.values.issue_number,
+      repo: invocation.values.repository ?? null,
+      bodyFile: invocation.values.body_file ?? null,
+      check: invocation.values.check === true,
+      allowWarning: invocation.values.allow_warning === true,
+    }
+
+    const body = readBody(options.bodyFile)
+    const { errors, role } = validationErrors(body)
+    if (errors.length) {
+      throw runtimeError('EVIDENCE_CONFLICT', errors.join('; '), { errors })
+    }
+
+    let canonicalContract = null
+    let diffFiles = []
+    if (role === 'RESULT' && isCorrectionPhaseResult(body)) {
+      const contractResult = reconstructCanonicalContract({ issue: options.issue, repo: options.repo })
+      if (!contractResult.ok) {
+        throw runtimeError('EVIDENCE_CONFLICT', contractResult.errors.join('; '), {
+          errors: contractResult.errors,
+        })
+      }
+      const diffResult = reconstructCorrectionDiffFiles({
+        reviewedHead: contractResult.contract.reviewed_head,
+      })
+      if (!diffResult.ok) {
+        throw runtimeError('EVIDENCE_CONFLICT', diffResult.errors.join('; '), {
+          errors: diffResult.errors,
+        })
+      }
+      canonicalContract = contractResult.contract
+      diffFiles = diffResult.files
+    }
+
+    const correction = validateCorrectionRoleComment({
+      role,
+      body,
+      diffFiles,
+      canonicalContract,
+    })
+    if (!correction.ok) {
+      throw runtimeError('EVIDENCE_CONFLICT', correction.errors.join('; '), {
+        errors: correction.errors,
+      })
+    }
+
+    const legacyOutput = []
+    if (body.length > MAX_COMPACT_LENGTH && !options.allowWarning) {
+      throw runtimeError(
+        'EVIDENCE_CONFLICT',
+        `WARNING: ${role} is ${body.length} characters; rerun with --allow-warning to acknowledge.`,
+        {
+          legacyOutput: [
+            `WARNING: ${role} is ${body.length} characters; rerun with --allow-warning to acknowledge.`,
+          ],
+        },
+      )
+    }
+    if (body.length > MAX_COMPACT_LENGTH) {
+      legacyOutput.push(`WARNING: posting acknowledged long ${role} comment.`)
+    }
+
+    const parsedBody = parseRoleCommentBody(body)
+
+    if (options.check) {
+      renderResult({
+        command,
+        format: invocation.format,
+        options,
+        role,
+        legacyClassification: null,
+        legacyOutput,
+        mutationPerformed: false,
+        parsedBody,
+      })
+      return
+    }
+
+    let priorComments
+    try {
+      priorComments = readLiveRoleComments(options)
+    } catch (error) {
+      throw runtimeError(
+        'BLOCKED_EXTERNAL',
+        error instanceof Error ? error.message : String(error),
+      )
+    }
+    const temporary = createBodyFile(body)
+    const args = ['issue', 'comment', options.issue]
+    if (options.repo) args.push('--repo', options.repo)
+    args.push('--body-file', temporary.path)
+    let postResult
+    try {
+      postResult = spawnSync('gh', args, { encoding: 'utf8' })
+    } finally {
+      rmSync(temporary.directory, { recursive: true, force: true })
+    }
+    if (postResult.error || postResult.status !== 0) {
+      throw runtimeError(
+        'BLOCKED_EXTERNAL',
+        postResult.stderr || postResult.error?.message || 'gh issue comment failed',
+      )
+    }
+
+    let durableComment
+    try {
+      const postedId = extractPostedCommentId(postResult.stdout)
+      const liveComments = readLiveRoleComments(options)
+      const priorIds = new Set(
+        priorComments
+          .map((comment) => comment.id)
+          .filter((id) => id != null)
+          .map((id) => String(id)),
+      )
+      const newComments = liveComments.filter(
+        (comment) => comment.id != null && !priorIds.has(String(comment.id)),
+      )
+      const readbackId = postedId ?? (newComments.length === 1 ? newComments[0].id : null)
+      durableComment = verifyPostedCommentReadback({
+        comments: liveComments,
+        body,
+        role,
+        postedId: readbackId,
+      })
+    } catch (error) {
+      throw runtimeError(
+        'AMBIGUOUS_RESULT',
+        `posted ${role} comment could not be confirmed by live readback: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        {
+          mutationPerformed: true,
+          legacyClassification: 'POSTED',
+        },
+      )
+    }
+
+    renderResult({
+      command,
+      format: invocation.format,
+      options,
+      role,
+      legacyClassification: 'POSTED',
+      legacyOutput,
+      mutationPerformed: true,
+      parsedBody,
+      commentId: durableComment.id,
+    })
+  } catch (error) {
+    const format = invocation?.format ?? (process.argv.includes('--json') ? 'json' : 'text')
+    renderRuntimeError({
+      command: command ?? COMMAND,
+      format,
+      error,
+      values: invocation?.values,
+    })
+  }
 }
 
 main()

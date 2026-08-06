@@ -21,7 +21,11 @@ import {
   type FileSystemSnapshot,
 } from '../helpers/cli-boundary-harness'
 import { getCommandContract } from '../../scripts/cli/command-contract.mjs'
-import { assertResultEnvelopeV1 } from '../../scripts/cli/command-result.mjs'
+import {
+  assertResultEnvelopeV1,
+  classifyDelegatedFailure,
+  classificationExitCode,
+} from '../../scripts/cli/command-result.mjs'
 
 type TierACase = {
   command: string
@@ -888,5 +892,750 @@ exit 0
     ]) {
       expect(calls.indexOf(mutation), mutation).toBeGreaterThan(finalPreflight)
     }
+  })
+})
+
+const CANONICAL_FULL_UPPERCASE_SHA = 'ABCDEF0123456789ABCDEF0123456789ABCDEF01'
+const CANONICAL_FULL_LOWERCASE_SHA = CANONICAL_FULL_UPPERCASE_SHA.toLowerCase()
+const CANONICAL_REPOSITORY = 'boat1994/bemoat-web-starter'
+const CANONICAL_UPPERCASE_REPOSITORY = 'BOAT1994/BEMOAT-WEB-STARTER'
+
+const CANONICAL_ROLE_COMMENT_BODY = `## RESULT
+### Task log
+- Timestamp: 2026-08-06T00:00:00+00:00
+- Task / Issue: #284
+- Phase: Dev
+- Executing role: Dev / Builder
+**Completed:** Implementation
+**Summary:** Added the bounded change.
+**Next:** Reviewer posts REVIEW_VERDICT
+`
+
+const CANONICAL_HANDOFF_BODY = `## HANDOFF
+### Task log
+- Timestamp: 2026-08-06T00:00:00+00:00
+- Task / Issue: #284
+- Phase: Dev
+- Executing role: Mission Control
+**Target:** Dev
+**Objective:** Implement the bounded change.
+**Links:** Issue #284
+**Next:** Dev posts RESULT
+`
+
+const CANONICAL_DELIVERY_BODY = `## RESULT
+### Task log
+- Timestamp: 2026-08-06T00:00:00+00:00
+- Task / Issue: #284
+- Phase: Dev
+- Executing role: Dev / Builder
+**Task:** #284 · \`feature/284\` → \`main\` · head \`${CANONICAL_FULL_UPPERCASE_SHA}\`
+**PR:** https://github.com/${CANONICAL_REPOSITORY}/pull/285
+**Completed:** Added the bounded change.
+**Evidence:** Local — focused test → pass; GitHub — exact-head CI → pass
+**AC audit:** Done
+**Risks / escalation:** None
+**Next:** Reviewer posts REVIEW_VERDICT
+`
+
+const CANONICAL_REVIEW_BODY = `## REVIEW_VERDICT
+### Task log
+- Timestamp: 2026-08-06T00:00:00+00:00
+- Task / Issue: #284
+- Phase: Reviewer
+- Executing role: Reviewer
+**PR / base / head:** PR #285 / main / · \`${CANONICAL_FULL_UPPERCASE_SHA}\`
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+**Findings:** Critical: None · Important: None
+**Gates:** exact-head CI pass
+**Next:** Founder merge authorization
+`
+
+type CanonicalTransportCase = TierACase & {
+  label: string
+  bodyFile: string
+  body: string
+  registryArgs: readonly string[]
+  resultArgs: readonly string[]
+  expectedClassification: 'SUCCESS' | 'BLOCKED_EXTERNAL'
+  expectedExit: number
+  expectedPrNumber: string | null
+  expectedExactHead: string | null
+  invalidAuthorityArgs?: readonly string[]
+}
+
+const CANONICAL_TRANSPORT_CASES: readonly CanonicalTransportCase[] = [
+  {
+    label: 'role comment',
+    command: 'bemoat:issue:comment',
+    entrypoint: 'scripts/post-role-comment.mjs',
+    bodyFile: 'comment.md',
+    body: CANONICAL_ROLE_COMMENT_BODY,
+    registryArgs: [
+      '284',
+      '--repo',
+      CANONICAL_REPOSITORY,
+      '--body-file',
+      './comment.md',
+    ],
+    resultArgs: [
+      '284',
+      '--repo',
+      CANONICAL_UPPERCASE_REPOSITORY,
+      '--body-file',
+      './comment.md',
+      '--check',
+    ],
+    expectedClassification: 'SUCCESS',
+    expectedExit: 0,
+    expectedPrNumber: null,
+    expectedExactHead: null,
+  },
+  {
+    label: 'dispatch',
+    command: 'bemoat:mission-control:dispatch',
+    entrypoint: 'scripts/mission-control-dispatch.mjs',
+    bodyFile: 'handoff.md',
+    body: CANONICAL_HANDOFF_BODY,
+    registryArgs: [
+      '284',
+      '--repo',
+      CANONICAL_REPOSITORY,
+      '--body-file',
+      './handoff.md',
+    ],
+    resultArgs: [
+      '284',
+      '--repo',
+      CANONICAL_UPPERCASE_REPOSITORY,
+      '--body-file',
+      './handoff.md',
+    ],
+    expectedClassification: 'BLOCKED_EXTERNAL',
+    expectedExit: 3,
+    expectedPrNumber: null,
+    expectedExactHead: null,
+    invalidAuthorityArgs: [
+      '284',
+      '--repo',
+      CANONICAL_REPOSITORY,
+      '--body-file',
+      './handoff.md',
+      '--planning-base-sha',
+      'abc1234',
+    ],
+  },
+  {
+    label: 'delivery',
+    command: 'bemoat:agent:delivery',
+    entrypoint: 'scripts/agent-delivery.mjs',
+    bodyFile: 'result.md',
+    body: CANONICAL_DELIVERY_BODY,
+    registryArgs: [
+      '284',
+      '--repo',
+      CANONICAL_REPOSITORY,
+      '--body-file',
+      './result.md',
+    ],
+    resultArgs: [
+      '284',
+      '--repo',
+      CANONICAL_UPPERCASE_REPOSITORY,
+      '--body-file',
+      './result.md',
+    ],
+    expectedClassification: 'BLOCKED_EXTERNAL',
+    expectedExit: 3,
+    expectedPrNumber: '285',
+    expectedExactHead: CANONICAL_FULL_LOWERCASE_SHA,
+  },
+  {
+    label: 'ordinary review',
+    command: 'bemoat:mission-control:review',
+    entrypoint: 'scripts/mission-control-review.mjs',
+    bodyFile: 'review.md',
+    body: CANONICAL_REVIEW_BODY,
+    registryArgs: [
+      '284',
+      '--body-file',
+      './review.md',
+      '--expected-state',
+      'AWAITING_REVIEW_1',
+      '--review-type',
+      'full',
+      '--expected-head',
+      CANONICAL_FULL_UPPERCASE_SHA,
+    ],
+    resultArgs: [
+      '284',
+      '--repo',
+      CANONICAL_UPPERCASE_REPOSITORY,
+      '--body-file',
+      './review.md',
+      '--expected-state',
+      'AWAITING_REVIEW_1',
+      '--review-type',
+      'full',
+      '--expected-head',
+      CANONICAL_FULL_UPPERCASE_SHA,
+    ],
+    expectedClassification: 'BLOCKED_EXTERNAL',
+    expectedExit: 3,
+    expectedPrNumber: '285',
+    expectedExactHead: CANONICAL_FULL_LOWERCASE_SHA,
+    invalidAuthorityArgs: [
+      '284',
+      '--body-file',
+      './review.md',
+      '--expected-state',
+      'AWAITING_REVIEW_1',
+      '--review-type',
+      'full',
+      '--expected-head',
+      'abc1234',
+    ],
+  },
+]
+
+const CANONICAL_TRANSPORT_ROWS = CANONICAL_TRANSPORT_CASES.map(
+  (entry) => [entry.label, entry] as const,
+)
+
+function runCanonicalTransport(
+  entry: CanonicalTransportCase,
+  argv: readonly string[],
+): CliBoundaryResult {
+  return runCliBoundaryCase({
+    entrypoint: entry.entrypoint,
+    argv,
+    env: facadeEnvironment(entry),
+    files: {
+      [entry.bodyFile]: entry.body,
+    },
+  })
+}
+
+function expectCanonicalExternalPreflight(run: CliBoundaryResult) {
+  expect(run.error).toBeNull()
+  expect(run.status).toBe(3)
+  expect(run.stderr).toBe('')
+  expect(run.stdout).toContain('BLOCKED_EXTERNAL')
+  expect(run.poison_invocations.length).toBeGreaterThan(0)
+}
+
+function expectCanonicalJsonResult(
+  run: CliBoundaryResult,
+  entry: CanonicalTransportCase,
+) {
+  expect(run.error).toBeNull()
+  expect(run.status, `${run.stdout}\n${run.stderr}`).toBe(entry.expectedExit)
+  expect(run.stderr).toBe('')
+
+  const result = parseSingleJson(run.stdout)
+  assertResultEnvelopeV1(result)
+  expect(result).toMatchObject({
+    command: entry.command,
+    mode: 'result',
+    outcome: entry.expectedClassification === 'SUCCESS' ? 'SUCCESS' : 'ERROR',
+    classification: entry.expectedClassification,
+    mutation_performed: false,
+    repository: CANONICAL_REPOSITORY,
+    issue_number: '284',
+    pr_number: entry.expectedPrNumber,
+    exact_head: entry.expectedExactHead,
+  })
+}
+
+describe('Task 5 Tier A canonical role transport boundaries', () => {
+  it.each(CANONICAL_TRANSPORT_ROWS)(
+    'Tier A %s help forms exit zero without network write or adapter construction',
+    (_label, entry) => {
+      for (const argv of [
+        ['--help'],
+        ['-h'],
+        ['--help', '--json'],
+        ['--json', '--help'],
+        ['-h', '--json'],
+        ['--json', '-h'],
+      ]) {
+        const run = runCanonicalTransport(entry, argv)
+        expect(run.error).toBeNull()
+        expect(run.status, `${entry.command}\n${run.stdout}\n${run.stderr}`).toBe(0)
+        expect(run.stderr).toBe('')
+        expectNoBoundarySideEffects(run)
+
+        if (argv.includes('--json')) {
+          const help = parseSingleJson(run.stdout)
+          expect(help).toMatchObject({
+            schema_version: 1,
+            command: entry.command,
+            mode: 'help',
+            classification: 'HELP',
+            tier: 'A',
+          })
+        } else {
+          expect(run.stdout).toContain(`HELP: ${entry.command}`)
+        }
+      }
+    },
+  )
+
+  it.each(CANONICAL_TRANSPORT_ROWS)(
+    'Tier A %s registry examples reach the documented preflight',
+    (_label, entry) => {
+      const run = runCanonicalTransport(entry, entry.registryArgs)
+      expectCanonicalExternalPreflight(run)
+    },
+  )
+
+  it.each(CANONICAL_TRANSPORT_ROWS)(
+    'Tier A %s invalid syntax exits two before durable reads',
+    (_label, entry) => {
+      for (const argv of [
+        ['--definitely-invalid'],
+        ['--json', '--definitely-invalid'],
+      ]) {
+        const run = runCanonicalTransport(entry, argv)
+        if (argv.includes('--json')) {
+          expectJsonInvalidInvocation(run, entry)
+        } else {
+          expectInvalidInvocation(run)
+        }
+      }
+
+      if (entry.invalidAuthorityArgs) {
+        expectInvalidInvocation(runCanonicalTransport(entry, entry.invalidAuthorityArgs))
+      }
+    },
+  )
+
+  it.each(CANONICAL_TRANSPORT_ROWS)(
+    'Tier A %s emits one v1 result object with the expected exit',
+    (_label, entry) => {
+      expectCanonicalJsonResult(
+        runCanonicalTransport(entry, [...entry.resultArgs, '--json']),
+        entry,
+      )
+    },
+  )
+
+  it.each(CANONICAL_TRANSPORT_ROWS)(
+    'Tier A %s plain and JSON modes share one classification',
+    (_label, entry) => {
+      const plain = runCanonicalTransport(entry, entry.resultArgs)
+      const json = runCanonicalTransport(entry, [...entry.resultArgs, '--json'])
+
+      expect(plain.error).toBeNull()
+      expect(json.error).toBeNull()
+      expect(plain.status).toBe(entry.expectedExit)
+      expect(json.status).toBe(entry.expectedExit)
+      expect(plain.stderr).toBe('')
+      expect(json.stderr).toBe('')
+
+      const result = parseSingleJson(json.stdout)
+      assertResultEnvelopeV1(result)
+      expect(result.classification).toBe(entry.expectedClassification)
+      expect(plain.stdout).toContain(entry.expectedClassification)
+    },
+  )
+
+  it('preserves delegated canonical classifications and defaults unknown failures to INTERNAL_ERROR', () => {
+    expect(classifyDelegatedFailure({
+      command: 'node',
+      stderr: 'ERROR: STATE_CONFLICT: delegated state evidence is stale',
+    })).toBe('STATE_CONFLICT')
+    expect(classifyDelegatedFailure({
+      command: 'node',
+      stdout: 'EVIDENCE_CONFLICT: delegated role body is invalid',
+    })).toBe('EVIDENCE_CONFLICT')
+    expect(classifyDelegatedFailure({
+      command: 'node',
+      stderr: 'delegated process failed without a canonical classification',
+    })).toBe('INTERNAL_ERROR')
+  })
+})
+
+const TASK_7_MISSION_CONTROL_CASES = [
+  {
+    command: 'bemoat:mission-control:reconcile',
+    entrypoint: 'scripts/mission-control-reconcile.mjs',
+  },
+  {
+    command: 'bemoat:mission-control:merge',
+    entrypoint: 'scripts/mission-control-merge.mjs',
+  },
+] as const satisfies readonly TierACase[]
+
+const TASK_7_TERMINAL_EXIT_CODES = [
+  ['SUCCESS', 0],
+  ['NO_OP_IDENTICAL_RETRY', 0],
+  ['INTERNAL_ERROR', 1],
+  ['INVALID_INVOCATION', 2],
+  ['UNSUPPORTED_PRE_STATE', 3],
+  ['STATE_CONFLICT', 3],
+  ['AUTHORITY_CONFLICT', 3],
+  ['HEAD_DRIFT', 3],
+  ['BLOCKED_EXTERNAL', 3],
+  ['EVIDENCE_CONFLICT', 3],
+  ['AMBIGUOUS_RESULT', 4],
+] as const
+
+function runTask7MissionControlBoundary(
+  entry: (typeof TASK_7_MISSION_CONTROL_CASES)[number],
+  argv: readonly string[],
+): CliBoundaryResult {
+  return runCliBoundaryCase({
+    entrypoint: entry.entrypoint,
+    argv,
+    env: facadeEnvironment(entry),
+  })
+}
+
+function task7RegistryExample(entry: (typeof TASK_7_MISSION_CONTROL_CASES)[number]): readonly string[] {
+  const contract = getCommandContract(entry.command)
+  expect(contract).not.toBeNull()
+  expect(contract?.examples).toHaveLength(1)
+  return contract?.examples[0].argv ?? []
+}
+
+describe('Task 7 reconcile and merge CLI boundaries', () => {
+  it('reconcile and merge help and invalid syntax perform zero I/O', () => {
+    for (const entry of TASK_7_MISSION_CONTROL_CASES) {
+      for (const argv of [
+        ['--help'],
+        ['-h'],
+        ['--help', '--json'],
+        ['--json', '--help'],
+        ['-h', '--json'],
+        ['--json', '-h'],
+      ]) {
+        const run = runTask7MissionControlBoundary(entry, argv)
+        expect(run.error).toBeNull()
+        expect(run.status, `${entry.command}\n${run.stdout}\n${run.stderr}`).toBe(0)
+        expect(run.stderr).toBe('')
+        expectNoBoundarySideEffects(run)
+
+        if (argv.includes('--json')) {
+          const help = parseSingleJson(run.stdout)
+          expect(Object.keys(help).sort()).toEqual([...HELP_KEYS].sort())
+          expect(help).toMatchObject({
+            schema_version: 1,
+            command: entry.command,
+            mode: 'help',
+            classification: 'HELP',
+            tier: 'A',
+          })
+        } else {
+          expect(run.stdout).toContain(`HELP: ${entry.command}`)
+          expect(run.stdout).toContain(`Direct entrypoint: ${entry.entrypoint}`)
+        }
+      }
+
+      expectInvalidInvocation(
+        runTask7MissionControlBoundary(entry, ['--definitely-invalid']),
+      )
+      expectJsonInvalidInvocation(
+        runTask7MissionControlBoundary(entry, ['--json', '--definitely-invalid']),
+        entry,
+      )
+    }
+  })
+
+  it('reconcile and merge examples reach documented preflight', () => {
+    for (const entry of TASK_7_MISSION_CONTROL_CASES) {
+      const run = runTask7MissionControlBoundary(entry, task7RegistryExample(entry))
+
+      expect(run.error).toBeNull()
+      expect(run.status, `${entry.command}\n${run.stdout}\n${run.stderr}`).toBe(3)
+      expect(run.stderr).toBe('')
+      expect(run.poison_invocations.some((invocation) => invocation.includes('/gh '))).toBe(true)
+      expect(run.filesystem_unchanged).toBe(true)
+    }
+  })
+
+  it('reconcile and merge map every terminal class and exit code', () => {
+    for (const [classification, expectedExit] of TASK_7_TERMINAL_EXIT_CODES) {
+      expect(classificationExitCode(classification)).toBe(expectedExit)
+    }
+
+    for (const entry of TASK_7_MISSION_CONTROL_CASES) {
+      expect(classifyDelegatedFailure({
+        command: entry.entrypoint,
+        stdout: `Mission Control ${entry.command} LEGACY_UNKNOWN: no canonical result`,
+      })).toBe('INTERNAL_ERROR')
+
+      const contract = getCommandContract(entry.command)
+      expect(contract).not.toBeNull()
+      const declaredClassifications = new Set([
+        ...(contract?.success_classifications ?? []),
+        ...(contract?.stop_classifications ?? []),
+      ])
+
+      for (const [classification] of TASK_7_TERMINAL_EXIT_CODES) {
+        expect(declaredClassifications, `${entry.command} missing ${classification}`)
+          .toContain(classification)
+      }
+
+      const run = runTask7MissionControlBoundary(entry, [
+        ...task7RegistryExample(entry),
+        '--json',
+      ])
+      expect(run.error).toBeNull()
+      expect(run.status).toBe(3)
+      const result = parseSingleJson(run.stdout)
+      assertResultEnvelopeV1(result)
+      expect(result.classification).toBe('BLOCKED_EXTERNAL')
+      expect(run.status).toBe(classificationExitCode(result.classification as string))
+    }
+  })
+
+  it('reconcile and merge JSON stdout is one v1 object', () => {
+    for (const entry of TASK_7_MISSION_CONTROL_CASES) {
+      const run = runTask7MissionControlBoundary(entry, [
+        ...task7RegistryExample(entry),
+        '--json',
+      ])
+
+      expect(run.error).toBeNull()
+      expect(run.status, `${entry.command}\n${run.stdout}\n${run.stderr}`).toBe(3)
+      expect(run.stderr).toBe('')
+      expect(run.stdout.trim().match(/^\{[\s\S]*\}$/)).not.toBeNull()
+
+      const result = parseSingleJson(run.stdout)
+      assertResultEnvelopeV1(result)
+      expect(result).toMatchObject({
+        schema_version: 1,
+        command: entry.command,
+        mode: 'result',
+        outcome: 'ERROR',
+        classification: 'BLOCKED_EXTERNAL',
+        mutation_performed: false,
+      })
+      expect(run.status).toBe(classificationExitCode(result.classification as string))
+    }
+  })
+})
+
+const TASK_6_BOUNDARY_CASES = [
+  {
+    command: 'bemoat:mission-control:task-bootstrap',
+    entrypoint: 'scripts/mission-control-task-create.mjs',
+  },
+  {
+    command: 'bemoat:mission-control:recover-review',
+    entrypoint: 'scripts/mission-control-recover-review.mjs',
+  },
+  {
+    command: 'bemoat:mission-control:reopen',
+    entrypoint: 'scripts/mission-control-reopen.mjs',
+  },
+] as const satisfies readonly TierACase[]
+
+const TASK_6_CASES_BY_COMMAND = Object.fromEntries(
+  TASK_6_BOUNDARY_CASES.map((entry) => [entry.command, entry]),
+) as Record<string, (typeof TASK_6_BOUNDARY_CASES)[number]>
+
+const RECOVERY_INCIDENT_HEAD = 'c44bf1bc379fe4160946dce96e5a4d7abae7b5b0'
+const REOPEN_OLD_HEAD = RECOVERY_INCIDENT_HEAD
+const REOPEN_NEW_HEAD = '88b306c7e055751f78b9ced5922607eee2d1037f'
+
+const RECOVERY_RUNTIME_ARGS = [
+  '274',
+  '--repo', 'boat1994/bemoat-web-starter',
+  '--expected-pr', '275',
+  '--expected-base', 'main',
+  '--expected-state', 'AWAITING_REVIEW_2',
+  '--expected-head', RECOVERY_INCIDENT_HEAD,
+  '--expected-review-cycle', '1',
+  '--expected-full-review-count', '1',
+  '--review-type', 'delta',
+  '--issue-source-comment', '5187836238',
+  '--pr-source-comment', '5187837555',
+  '--original-review-comment', '5187488219',
+  '--correction-result-comment', '5187802812',
+  '--body-file', 'recovery.md',
+] as const
+
+const REOPEN_RUNTIME_ARGS = [
+  '284',
+  '--repo', 'boat1994/bemoat-web-starter',
+  '--expected-pr', '285',
+  '--expected-base', 'main',
+  '--expected-state', 'ELIGIBLE_FOR_FOUNDER_REVIEW',
+  '--expected-old-head', REOPEN_OLD_HEAD,
+  '--expected-new-head', REOPEN_NEW_HEAD,
+  '--expected-review-cycle', '1',
+  '--expected-full-review-count', '1',
+  '--authorization-comment', '5193626365',
+] as const
+
+function runTask6Boundary(
+  entry: (typeof TASK_6_BOUNDARY_CASES)[number],
+  argv: readonly string[],
+  {
+    env = {},
+    files,
+  }: {
+    env?: Record<string, string>
+    files?: Record<string, string | Buffer>
+  } = {},
+): CliBoundaryResult {
+  return runCliBoundaryCase({
+    entrypoint: entry.entrypoint,
+    argv,
+    env: facadeEnvironment(entry, env),
+    files,
+  })
+}
+
+function expectTask6Help(run: CliBoundaryResult, entry: (typeof TASK_6_BOUNDARY_CASES)[number]) {
+  expect(run.error).toBeNull()
+  expect(run.status, `${entry.command}\n${run.stdout}\n${run.stderr}`).toBe(0)
+  expect(run.stderr).toBe('')
+  expectNoBoundarySideEffects(run)
+
+  if (run.argv.includes('--json')) {
+    const help = parseSingleJson(run.stdout)
+    expect(Object.keys(help).sort()).toEqual([...HELP_KEYS].sort())
+    expect(help).toMatchObject({
+      schema_version: 1,
+      command: entry.command,
+      mode: 'help',
+      classification: 'HELP',
+      tier: 'A',
+    })
+  } else {
+    expect(run.stdout).toContain(`HELP: ${entry.command}`)
+    expect(run.stdout).toContain(`Direct entrypoint: ${entry.entrypoint}`)
+  }
+}
+
+function expectTask6Stop(
+  run: CliBoundaryResult,
+  entry: (typeof TASK_6_BOUNDARY_CASES)[number],
+) {
+  expect(run.error).toBeNull()
+  expect(run.status, `${entry.command}\n${run.stdout}\n${run.stderr}`).toBe(3)
+  expect(run.stderr).toBe('')
+  expectNoBoundarySideEffects(run)
+
+  const result = parseSingleJson(run.stdout)
+  assertResultEnvelopeV1(result)
+  expect(result).toMatchObject({
+    command: entry.command,
+    mode: 'result',
+    outcome: 'ERROR',
+    mutation_performed: false,
+    next_action: {
+      type: 'STOP',
+      command: null,
+    },
+  })
+  expect([
+    'STATE_CONFLICT',
+    'AUTHORITY_CONFLICT',
+    'HEAD_DRIFT',
+    'BLOCKED_EXTERNAL',
+    'EVIDENCE_CONFLICT',
+  ]).toContain(result.classification)
+}
+
+describe('Task 6 bounded bootstrap and recovery CLI boundaries', () => {
+  it('task bootstrap help precedes public-key read and adapter construction', () => {
+    const entry = TASK_6_CASES_BY_COMMAND['bemoat:mission-control:task-bootstrap']
+
+    for (const argv of [
+      ['--help'],
+      ['-h'],
+      ['--help', '--json'],
+      ['--json', '--help'],
+    ]) {
+      expectTask6Help(runTask6Boundary(entry, argv), entry)
+    }
+  })
+
+  it('recover review help precedes body policy checkout and GitHub reads', () => {
+    const entry = TASK_6_CASES_BY_COMMAND['bemoat:mission-control:recover-review']
+
+    for (const argv of [
+      ['--help'],
+      ['-h'],
+      ['--help', '--json'],
+      ['--json', '--help'],
+    ]) {
+      expectTask6Help(runTask6Boundary(entry, argv), entry)
+    }
+  })
+
+  it('reopen help precedes authorization and GitHub reads', () => {
+    const entry = TASK_6_CASES_BY_COMMAND['bemoat:mission-control:reopen']
+
+    for (const argv of [
+      ['--help'],
+      ['-h'],
+      ['--help', '--json'],
+      ['--json', '--help'],
+    ]) {
+      expectTask6Help(runTask6Boundary(entry, argv), entry)
+    }
+  })
+
+  it('bootstrap recover and reopen invalid syntax exits two', () => {
+    for (const entry of TASK_6_BOUNDARY_CASES) {
+      expectInvalidInvocation(runTask6Boundary(entry, ['--definitely-invalid']))
+      expectJsonInvalidInvocation(
+        runTask6Boundary(entry, ['--json', '--definitely-invalid']),
+        entry,
+      )
+    }
+  })
+
+  it('authority and evidence mismatches exit three without mutation', () => {
+    const bootstrap = TASK_6_CASES_BY_COMMAND['bemoat:mission-control:task-bootstrap']
+    const recover = TASK_6_CASES_BY_COMMAND['bemoat:mission-control:recover-review']
+    const reopen = TASK_6_CASES_BY_COMMAND['bemoat:mission-control:reopen']
+
+    expectTask6Stop(
+      runTask6Boundary(
+        bootstrap,
+        ['--founder-authorization-comment-id', '12345', '--json'],
+        {
+          env: {
+            GITHUB_REPOSITORY: '',
+            GITHUB_REF: '',
+            GITHUB_SHA: '',
+            GITHUB_RUN_ID: '',
+          },
+        },
+      ),
+      bootstrap,
+    )
+
+    expectTask6Stop(
+      runTask6Boundary(
+        recover,
+        [...RECOVERY_RUNTIME_ARGS, '--json'],
+        {
+          files: {
+            'recovery.md': '## REVIEW_VERDICT\n\n**Verdict:** ELIGIBLE FOR FOUNDER REVIEW\n',
+          },
+        },
+      ),
+      recover,
+    )
+
+    expectTask6Stop(
+      runTask6Boundary(
+        reopen,
+        [
+          ...REOPEN_RUNTIME_ARGS.slice(0, 12),
+          REOPEN_OLD_HEAD,
+          ...REOPEN_RUNTIME_ARGS.slice(13),
+          '--json',
+        ],
+      ),
+      reopen,
+    )
   })
 })

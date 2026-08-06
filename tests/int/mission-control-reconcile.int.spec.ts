@@ -5,6 +5,8 @@ import { resolve } from 'node:path'
 /* eslint-disable @typescript-eslint/no-explicit-any -- untyped runtime .mjs boundary */
 import * as reconcileModule from '../../scripts/mission-control-reconcile.mjs'
 import { parseMissionControlState, renderMissionControlState } from '../../scripts/mission-control-state.mjs'
+import { assertResultEnvelopeV1 } from '../../scripts/cli/command-result.mjs'
+import { runCliBoundaryCase } from '../helpers/cli-boundary-harness'
 
 // Shared .mjs scripts expose runtime behavior, not TypeScript declarations. Keep
 // the strict-project boundary explicit without changing the production API.
@@ -133,6 +135,61 @@ describe('mission-control reconcile classifiers', () => {
       latest_result_comment_id: 'result-1',
     })
   })
+
+  it('reconcile cannot close reopen or adopt arbitrary head drift', async () => {
+    const writes: unknown[] = []
+    const evidence = {
+      managedState: {
+        state: 'AWAITING_REVIEW_1',
+        current_head: 'a'.repeat(40),
+        last_reviewed_head: 'a'.repeat(40),
+      },
+      livePr: { headRefOid: 'b'.repeat(40) },
+      headMismatch: true,
+      exactHeadCi: {
+        exactHeadVerified: false,
+        olderShaSuccess: true,
+      },
+    }
+
+    const bounded = await runBoundedReconciliation({
+      readEvidence: async () => evidence,
+      writeState: async (nextState: unknown) => {
+        writes.push(nextState)
+        return nextState
+      },
+    })
+
+    expect(bounded).toMatchObject({
+      finalOutcome: 'STATE_CONFLICT',
+      reason: 'authoritative live evidence contradicts',
+      finalReason: 'authoritative live evidence contradicts',
+      measurements: {
+        reconciliation_attempts: 1,
+        state_writes: 0,
+      },
+    })
+    expect(writes).toEqual([])
+
+    const boundary = runCliBoundaryCase({
+      entrypoint: 'scripts/mission-control-reconcile.mjs',
+      argv: ['284', '--repo', 'boat1994/bemoat-web-starter', '--json'],
+    })
+    expect(boundary.error).toBeNull()
+    expect(boundary.status).toBe(3)
+    expect(boundary.stderr).toBe('')
+    expect(boundary.poison_invocations.some((invocation) => invocation.includes('/gh '))).toBe(true)
+    const result = JSON.parse(boundary.stdout)
+    assertResultEnvelopeV1(result)
+    expect(result).toMatchObject({
+      command: 'bemoat:mission-control:reconcile',
+      mode: 'result',
+      outcome: 'ERROR',
+      classification: 'BLOCKED_EXTERNAL',
+      mutation_performed: false,
+    })
+  })
+
   it('explains that merge transport must close a merged PR open Issue before terminal reconciliation', () => {
     expect(classifyReconciliation({
       managedState: { state: 'ELIGIBLE_FOR_FOUNDER_REVIEW' },
@@ -1009,6 +1066,36 @@ describe('mission-control reconcile classifiers', () => {
     expect(verdict.prNumber).toBe('174')
   })
 
+  it('prefers the full canonical head and normalizes uppercase authority metadata', () => {
+    const fullHead = 'ABCDEF0123456789ABCDEF0123456789ABCDEF01'
+    const verdict = parseRoleCommentBody(`## REVIEW_VERDICT
+**State:** AWAITING_REVIEW_3 · head \`abcdef0\`
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/174 · \`main\` · \`${fullHead}\`
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+`)
+
+    expect(verdict.headSha).toBe(fullHead.toLowerCase())
+  })
+
+  it('persists lowercase authority heads through review projection', () => {
+    const fullHead = 'ABCDEF0123456789ABCDEF0123456789ABCDEF01'
+    const projected = projectReviewVerdictState({
+      prior: {
+        state: 'AWAITING_REVIEW_1',
+        review_cycle: 0,
+        full_review_count: 0,
+      },
+      verdict: 'ELIGIBLE FOR FOUNDER REVIEW',
+      reviewType: 'full',
+      reviewedHead: fullHead,
+      commentId: 'verdict-1',
+      transitionIdentity: 'review-identity',
+    })
+
+    expect(projected.current_head).toBe(fullHead.toLowerCase())
+    expect(projected.last_reviewed_head).toBe(fullHead.toLowerCase())
+  })
+
   it('scenario 1: valid delivery does not require conflict before Review 1', () => {
     const lag = classifyDeliveryLag(
       { state: 'IN_PROGRESS', active_pr: null, current_head: null },
@@ -1298,6 +1385,48 @@ Bounded implementation work.
     expect(recovery.classification).toBe('RESUME_PROJECTION')
     expect(recovery.comment?.id).toBe('99')
     expect(recovery.recovered).toBe(true)
+  })
+
+  it('keeps a possible post with no live match as AMBIGUOUS_RESULT', () => {
+    const identity = normalizeTransitionIdentity(handoffBody, { role: 'HANDOFF' })
+    const recovery = recoverAmbiguousPost({
+      comments: [],
+      identity,
+      ambiguousPost: true,
+    })
+
+    expect(recovery.classification).toBe('AMBIGUOUS_RESULT')
+  })
+
+  it('preserves AMBIGUOUS_RESULT when the recovery comment read fails', async () => {
+    let recoveryReads = 0
+    const postError = Object.assign(new Error('comment POST response was lost'), {
+      classification: 'AMBIGUOUS_RESULT',
+      mutationPerformed: true,
+    })
+    const coordinator = new CoordinatorClass({
+      readState: async () => ({ state: 'IN_PROGRESS', review_cycle: 0, full_review_count: 0 }),
+      writeState: async () => {
+        throw new Error('ambiguous recovery must not write state')
+      },
+      listComments: async (): Promise<Array<Record<string, unknown>>> => {
+        recoveryReads += 1
+        if (recoveryReads === 1) return []
+        throw new Error('BLOCKED_EXTERNAL: live comment read failed')
+      },
+      postComment: async () => {
+        throw postError
+      },
+    })
+
+    await expect(coordinator.integrateResult({
+      resultBody,
+      projectState: (state: Record<string, unknown>) => state,
+    })).rejects.toMatchObject({
+      classification: 'AMBIGUOUS_RESULT',
+      mutationPerformed: true,
+    })
+    expect(recoveryReads).toBe(2)
   })
 
   it('recovers from comment-success/state-update-failure plus rerun', async () => {
@@ -1700,6 +1829,29 @@ Bounded implementation work.
   it('parses paginated live comment payloads and normalizes ids', () => {
     const parsed = parsePaginatedGhApiJson('[{"id":1,"body":"a"}][{"id":2,"body":"b"}]')
     expect(normalizeIssueComments(parsed).map((comment: any) => comment.id)).toEqual([1, 2])
+  })
+
+  it('rejects distinct full heads that collide at the seven-character prefix', () => {
+    const liveHead = `abcdef0${'1'.repeat(33)}`
+    const conflictingHead = `abcdef0${'2'.repeat(33)}`
+    const collisionBody = resultBody.replace('deadbeef', conflictingHead)
+    const identity = normalizeTransitionIdentity(collisionBody, { role: 'RESULT' })
+
+    expect(findMatchingComments(
+      [{ id: 'collision', body: collisionBody }],
+      identity,
+      { activeOnly: true, bindings: { headSha: liveHead } },
+    )).toHaveLength(0)
+
+    expect(classifyDeliveryLag(
+      { state: 'IN_PROGRESS', active_pr: null, current_head: null },
+      { number: '186', headRefOid: liveHead },
+      { exactHeadVerified: true },
+      { parsed: { headSha: conflictingHead, prNumber: '186' } },
+    )).toMatchObject({
+      kind: 'STATE_CONFLICT',
+      reason: 'RESULT head does not match live PR head',
+    })
   })
 })
 

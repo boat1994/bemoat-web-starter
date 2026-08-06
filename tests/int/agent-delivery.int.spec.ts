@@ -1,4 +1,11 @@
-import { chmodSync, existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -7,14 +14,23 @@ import { afterEach, describe, expect, it } from 'vitest'
 const scriptPath = resolve(process.cwd(), 'scripts/agent-delivery.mjs')
 const tempPaths: string[] = []
 
-function stubGhAndGit(prData: Record<string, unknown>, issueData: Record<string, unknown>, lsRemoteOutput: string, currentBranch: string = 'main', localCommit: string = 'abc1234') {
+function stubGhAndGit(
+  prData: Record<string, unknown>,
+  issueData: Record<string, unknown>,
+  lsRemoteOutput: string,
+  currentBranch: string = 'main',
+  localCommit: string = 'abc1234',
+  options: { failEdit?: boolean; failPost?: boolean } = {},
+) {
   const directory = mkdtempSync(join(tmpdir(), 'bemoat-agent-delivery-bin-'))
   tempPaths.push(directory)
 
   const fixture = join(directory, 'fixture.json')
   const commentsStore = join(directory, 'comments.json')
   const editedBody = join(directory, 'edited-body.md')
+  const callsFile = join(directory, 'calls.log')
   writeFileSync(commentsStore, '[]')
+  writeFileSync(callsFile, '')
   writeFileSync(fixture, JSON.stringify({
     prData,
     issueData,
@@ -23,13 +39,15 @@ function stubGhAndGit(prData: Record<string, unknown>, issueData: Record<string,
       ?? 'acme/repo',
     commentsStore,
     editedBody,
-    failEdit: false,
+    failEdit: options.failEdit ?? false,
+    failPost: options.failPost ?? false,
   }))
 
   const ghJs = join(directory, 'gh-stub.mjs')
-  writeFileSync(ghJs, `import { readFileSync, writeFileSync, existsSync } from 'node:fs'
+  writeFileSync(ghJs, `import { appendFileSync, readFileSync, writeFileSync, existsSync } from 'node:fs'
 const fixture = JSON.parse(readFileSync(${JSON.stringify(fixture)}, 'utf8'))
 const args = process.argv.slice(2)
+appendFileSync(${JSON.stringify(callsFile)}, 'gh ' + args.join(' ') + '\\n')
 if (args[0] === 'pr' && args[1] === 'view') {
   if (args.includes('baseRepository')) {
     console.error('Unknown JSON field: baseRepository')
@@ -65,6 +83,10 @@ if (args[0] === 'api') {
     process.exit(0)
   }
   if (args.includes('POST')) {
+    if (fixture.failPost) {
+      console.error('Simulated comment POST timeout')
+      process.exit(1)
+    }
     const input = args[args.indexOf('--input') + 1]
     const payload = JSON.parse(readFileSync(input, 'utf8'))
     const comments = JSON.parse(readFileSync(fixture.commentsStore, 'utf8'))
@@ -93,6 +115,11 @@ exec "${process.execPath}" "${ghJs}" "$@"
 
   const gitExec = join(directory, 'git')
   writeFileSync(gitExec, `#!/bin/sh
+printf 'git' >> '${callsFile}'
+for argument in "$@"; do
+  printf ' %s' "$argument" >> '${callsFile}'
+done
+printf '\\n' >> '${callsFile}'
 if [ "$1" = "rev-parse" ]; then
   printf '%s' '${localCommit}'
   exit 0
@@ -113,7 +140,7 @@ exit 0
   writeFileSync(nodeExec, `#!/bin/sh
 if [ "$1" = "scripts/post-role-comment.mjs" ]; then
   if [ "$NODE_FAIL_POST_ROLE_COMMENT" = "1" ]; then
-    echo "Failed to post RESULT comment" >&2
+    echo "\${NODE_FAIL_POST_ROLE_COMMENT_CLASSIFICATION:-Failed to post RESULT comment}" >&2
     exit 1
   fi
   exec "${process.execPath}" "$@"
@@ -128,6 +155,7 @@ exec "${process.execPath}" "$@"
     fixture,
     commentsStore,
     editedBody,
+    callsFile,
   }
 }
 
@@ -141,11 +169,19 @@ function run(args: string[], options: { input?: string; env?: Record<string, str
   })
 }
 
+function readCalls(stub: { callsFile: string }) {
+  return readFileSync(stub.callsFile, 'utf8')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+}
+
 afterEach(() => {
   for (const path of tempPaths.splice(0)) rmSync(path, { recursive: true, force: true })
 })
 
 describe('bemoat:agent:delivery', () => {
+  const FULL_HEAD = 'abc1234'.padEnd(40, '0')
   const validResultBody = `## RESULT
 **Profile:** FAST
 **Task:** #154 · \`feature/154\` → \`main\` · head \`abc1234\`
@@ -186,21 +222,21 @@ describe('bemoat:agent:delivery', () => {
   it('fails if local commit does not match remote ref', () => {
     const stub = stubGhAndGit({}, {}, 'def5678 refs/heads/main', 'main', 'abc1234')
     const result = run(['154'], { input: validResultBody, env: { PATH: stub.PATH } })
-    expect(result.status).toBe(1)
+    expect(result.status).toBe(3)
     expect(result.stderr).toContain('STATE_CONFLICT: Remote branch ref does not equal local commit abc1234')
   }, 10000)
 
   it('fails if PR head does not match local commit', () => {
     const stub = stubGhAndGit({ headRefOid: 'def5678', headRefName: 'main' }, {}, 'abc1234 refs/heads/main', 'main', 'abc1234')
     const result = run(['154'], { input: validResultBody, env: { PATH: stub.PATH } })
-    expect(result.status).toBe(1)
+    expect(result.status).toBe(3)
     expect(result.stderr).toContain('STATE_CONFLICT: PR head def5678 does not match local commit abc1234')
   }, 10000)
 
   it('fails if PR headRefName does not match local branch', () => {
     const stub = stubGhAndGit({ headRefOid: 'abc1234', headRefName: 'wrong-branch' }, {}, 'abc1234 refs/heads/main', 'main', 'abc1234')
     const result = run(['154'], { input: validResultBody, env: { PATH: stub.PATH } })
-    expect(result.status).toBe(1)
+    expect(result.status).toBe(3)
     expect(result.stderr).toContain('STATE_CONFLICT: PR headRefName wrong-branch does not match local branch main')
   }, 10000)
 
@@ -212,7 +248,7 @@ describe('bemoat:agent:delivery', () => {
     }
     const stub = stubGhAndGit(prData, {}, 'abc1234 refs/heads/main', 'main', 'abc1234')
     const result = run(['154'], { input: validResultBody, env: { PATH: stub.PATH } })
-    expect(result.status).toBe(1)
+    expect(result.status).toBe(3)
     expect(result.stderr).toContain('STATE_CONFLICT: Exact-head CI not verified')
   }, 10000)
 
@@ -226,7 +262,7 @@ describe('bemoat:agent:delivery', () => {
     }
     const stub = stubGhAndGit(prData, { body: validIssueBody }, 'abc1234 refs/heads/main', 'main', 'abc1234')
     const result = run(['154', '--repo', 'acme/repo'], { input: validResultBody, env: { PATH: stub.PATH } })
-    expect(result.status).toBe(1)
+    expect(result.status).toBe(3)
     expect(result.stderr).toContain('STATE_CONFLICT: PR head repository wrong/repo does not match expected repository acme/repo')
   }, 10000)
 
@@ -240,7 +276,7 @@ describe('bemoat:agent:delivery', () => {
     }
     const stub = stubGhAndGit(prData, { body: validIssueBody }, 'abc1234 refs/heads/main', 'main', 'abc1234')
     const result = run(['154'], { input: validResultBody, env: { PATH: stub.PATH } })
-    expect(result.status).toBe(1)
+    expect(result.status).toBe(3)
     expect(result.stderr).toContain('STATE_CONFLICT: PR head repository wrong/repo does not match expected repository acme/repo')
   }, 10000)
 
@@ -260,7 +296,83 @@ describe('bemoat:agent:delivery', () => {
       console.log('STDOUT:', result.stdout)
     }
     expect(result.status).toBe(0)
-    expect(result.stdout).toMatch(/Delivery reconciliation successful\. RESULT comment \d+ posted/)
+    expect(result.stdout).toMatch(/^SUCCESS: Delivery reconciliation successful\. RESULT comment \d+ posted/)
+  }, 10000)
+
+  it('binds current_head to the verified PR head when RESULT metadata is short', async () => {
+    const { readFileSync } = await import('node:fs')
+    const prData = {
+      headRefOid: FULL_HEAD,
+      headRefName: 'main',
+      baseRefName: 'main',
+      statusCheckRollup: [{ conclusion: 'SUCCESS', targetUrl: `https://ci/${FULL_HEAD}` }],
+    }
+    const stub = stubGhAndGit(
+      prData,
+      { body: validIssueBody },
+      `${FULL_HEAD} refs/heads/main`,
+      'main',
+      FULL_HEAD,
+    )
+
+    const result = run(['154'], { input: validResultBody, env: { PATH: stub.PATH } })
+
+    expect(result.status, result.stderr || result.stdout).toBe(0)
+    const editedBody = readFileSync(stub.editedBody, 'utf8')
+    expect(editedBody).toContain(`current_head: ${FULL_HEAD}`)
+    expect(editedBody).not.toMatch(/^current_head: abc1234$/m)
+  }, 10000)
+
+  it('normalizes uppercase live PR heads before exact comparisons and persistence', () => {
+    const prData = {
+      headRefOid: FULL_HEAD.toUpperCase(),
+      headRefName: 'main',
+      baseRefName: 'main',
+      statusCheckRollup: [{ conclusion: 'SUCCESS', targetUrl: `https://ci/${FULL_HEAD}` }],
+    }
+    const stub = stubGhAndGit(
+      prData,
+      { body: validIssueBody },
+      `${FULL_HEAD} refs/heads/main`,
+      'main',
+      FULL_HEAD,
+    )
+
+    const result = run(['154'], { input: validResultBody, env: { PATH: stub.PATH } })
+
+    expect(result.status, result.stderr || result.stdout).toBe(0)
+    const editedBody = readFileSync(stub.editedBody, 'utf8')
+    expect(editedBody).toContain(`current_head: ${FULL_HEAD}`)
+    expect(editedBody).not.toContain(`current_head: ${FULL_HEAD.toUpperCase()}`)
+  }, 10000)
+
+  it('rejects a RESULT head that conflicts with verified local and PR evidence', () => {
+    const prData = {
+      headRefOid: FULL_HEAD,
+      headRefName: 'main',
+      baseRefName: 'main',
+      statusCheckRollup: [{ conclusion: 'SUCCESS', targetUrl: `https://ci/${FULL_HEAD}` }],
+    }
+    const stub = stubGhAndGit(
+      prData,
+      { body: validIssueBody },
+      `${FULL_HEAD} refs/heads/main`,
+      'main',
+      FULL_HEAD,
+    )
+    const result = run(['154', '--json'], {
+      input: validResultBody.replace('abc1234', 'deadbeef'),
+      env: { PATH: stub.PATH },
+    })
+
+    expect(result.status).toBe(3)
+    expect(result.stderr).toBe('')
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      classification: 'EVIDENCE_CONFLICT',
+      mutation_performed: false,
+    })
+    expect(existsSync(stub.editedBody)).toBe(false)
+    expect(JSON.parse(readFileSync(stub.commentsStore, 'utf8'))).toHaveLength(0)
   }, 10000)
 
   it('persists fresh Mission Control audit provenance for Correction 2 delivery', async () => {
@@ -308,6 +420,154 @@ describe('bemoat:agent:delivery', () => {
     expect(result.status).toBe(1)
     expect(result.stderr).toMatch(/ambiguous POST has no provable match|Failed to validate RESULT comment|Failed to post RESULT comment/)
     expect(existsSync(stub.editedBody)).toBe(false)
+  }, 10000)
+
+  it('preserves a delegated canonical classification from RESULT validation', () => {
+    const prData = {
+      headRefOid: 'abc1234',
+      headRefName: 'main',
+      baseRefName: 'main',
+      statusCheckRollup: [{ conclusion: 'SUCCESS', targetUrl: 'https://ci/abc1234' }],
+    }
+    const stub = stubGhAndGit(prData, { body: validIssueBody }, 'abc1234 refs/heads/main', 'main', 'abc1234')
+    const result = run(['154', '--json'], {
+      input: validResultBody,
+      env: {
+        PATH: stub.PATH,
+        NODE_FAIL_POST_ROLE_COMMENT: '1',
+        NODE_FAIL_POST_ROLE_COMMENT_CLASSIFICATION: 'EVIDENCE_CONFLICT: delegated RESULT evidence is invalid',
+      },
+    })
+
+    expect(result.status).toBe(3)
+    expect(result.stderr).toBe('')
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      classification: 'EVIDENCE_CONFLICT',
+      mutation_performed: false,
+    })
+    expect(existsSync(stub.editedBody)).toBe(false)
+  }, 10000)
+
+  it('keeps an unknown comment POST outcome ambiguous after possible mutation', () => {
+    const prData = {
+      headRefOid: 'abc1234',
+      headRefName: 'main',
+      baseRefName: 'main',
+      statusCheckRollup: [{ conclusion: 'SUCCESS', targetUrl: 'https://ci/abc1234' }],
+    }
+    const stub = stubGhAndGit(
+      prData,
+      { body: validIssueBody },
+      'abc1234 refs/heads/main',
+      'main',
+      'abc1234',
+      { failPost: true },
+    )
+    const result = run(['154', '--json'], {
+      input: validResultBody,
+      env: { PATH: stub.PATH },
+    })
+
+    expect(result.status).toBe(4)
+    expect(result.stderr).toBe('')
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      classification: 'AMBIGUOUS_RESULT',
+      mutation_performed: true,
+    })
+    expect(existsSync(stub.editedBody)).toBe(false)
+  }, 10000)
+
+  it('delivery and review preserve last validation before first write', () => {
+    const prData = {
+      headRefOid: 'abc1234',
+      headRefName: 'main',
+      baseRefName: 'main',
+      statusCheckRollup: [
+        { conclusion: 'SUCCESS', targetUrl: 'https://ci/abc1234' },
+      ],
+    }
+    const stub = stubGhAndGit(
+      prData,
+      { body: validIssueBody },
+      'abc1234 refs/heads/main',
+      'main',
+      'abc1234',
+    )
+
+    const result = run(['154'], {
+      input: validResultBody,
+      env: { PATH: stub.PATH },
+    })
+    expect(result.status, result.stderr).toBe(0)
+
+    const calls = readCalls(stub)
+    const firstWrite = calls.findIndex((call) =>
+      /^gh api --method POST /.test(call) ||
+      /^gh api -X PUT /.test(call) ||
+      /^gh issue edit /.test(call),
+    )
+    const lastIssueRead = calls.reduce(
+      (last, call, index) => index < firstWrite && /^gh issue view /.test(call) ? index : last,
+      -1,
+    )
+    const lastPullRequestRead = calls.reduce(
+      (last, call, index) => index < firstWrite && /^gh pr view /.test(call) ? index : last,
+      -1,
+    )
+    const lastCommentRead = calls.reduce(
+      (last, call, index) => index < firstWrite && /^gh api --paginate /.test(call) ? index : last,
+      -1,
+    )
+
+    expect(firstWrite).toBeGreaterThan(-1)
+    expect(lastIssueRead).toBeGreaterThanOrEqual(0)
+    expect(lastPullRequestRead).toBeGreaterThan(lastIssueRead)
+    expect(lastCommentRead).toBeGreaterThan(lastPullRequestRead)
+    expect(lastCommentRead).toBeLessThan(firstWrite)
+  }, 10000)
+
+  it('partial comment-state drift is AMBIGUOUS_RESULT', () => {
+    const prData = {
+      headRefOid: 'abc1234',
+      headRefName: 'main',
+      baseRefName: 'main',
+      statusCheckRollup: [
+        { conclusion: 'SUCCESS', targetUrl: 'https://ci/abc1234' },
+      ],
+    }
+    const stub = stubGhAndGit(
+      prData,
+      { body: validIssueBody },
+      'abc1234 refs/heads/main',
+      'main',
+      'abc1234',
+      { failEdit: true },
+    )
+
+    const result = run(['154', '--json'], {
+      input: validResultBody,
+      env: { PATH: stub.PATH },
+    })
+    expect(result.status, result.stderr).toBe(4)
+    expect(result.stderr).toBe('')
+    expect(result.stdout.trim().split(/\r?\n/)).toHaveLength(1)
+
+    const envelope = JSON.parse(result.stdout) as Record<string, unknown>
+    expect(envelope).toMatchObject({
+      schema_version: 1,
+      command: 'bemoat:agent:delivery',
+      mode: 'result',
+      outcome: 'ERROR',
+      classification: 'AMBIGUOUS_RESULT',
+      mutation_performed: true,
+      details: {
+        legacy_classification: 'RECOVERABLE_ROUTING_DRIFT',
+      },
+      next_action: {
+        type: 'STOP',
+        command: null,
+      },
+    })
   }, 10000)
 
   it('preserves arbitrary custom YAML fields', async () => {
@@ -360,7 +620,7 @@ describe('bemoat:agent:delivery', () => {
     write(stub.fixture, JSON.stringify(fixture))
 
     const result = run(['154'], { input: validResultBody, env: { PATH: stub.PATH } })
-    expect(result.status).toBe(1)
+    expect(result.status).toBe(4)
     expect(result.stderr).toContain('RECOVERABLE_ROUTING_DRIFT')
   }, 10000)
 
@@ -378,7 +638,7 @@ describe('bemoat:agent:delivery', () => {
     write(stub.fixture, JSON.stringify(fixture))
 
     const first = run(['154'], { input: validResultBody, env: { PATH: stub.PATH } })
-    expect(first.status).toBe(1)
+    expect(first.status).toBe(4)
     expect(first.stderr).toContain('RECOVERABLE_ROUTING_DRIFT')
     const commentsAfterFirst = JSON.parse(readFileSync(stub.commentsStore, 'utf8'))
     expect(commentsAfterFirst).toHaveLength(1)
@@ -407,7 +667,7 @@ describe('bemoat:agent:delivery', () => {
     write(stub.fixture, JSON.stringify(fixture))
 
     const first = run(['255'], { input: resultBody, env: { PATH: stub.PATH } })
-    expect(first.status).toBe(1)
+    expect(first.status).toBe(4)
     expect(first.stderr).toContain('RECOVERABLE_ROUTING_DRIFT')
     const firstComments = JSON.parse(readFileSync(stub.commentsStore, 'utf8'))
     expect(firstComments).toHaveLength(1)

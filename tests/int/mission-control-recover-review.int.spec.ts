@@ -1,6 +1,17 @@
 import { createHash } from 'node:crypto'
+import {
+  chmodSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
+import { spawnSync } from 'node:child_process'
+import { join, resolve } from 'node:path'
 
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
+
+import { assertResultEnvelopeV1 } from '../../scripts/cli/command-result.mjs'
 
 const INCIDENT_HEAD = 'c44bf1bc379fe4160946dce96e5a4d7abae7b5b0'
 const PREVIOUS_REVIEW_HEAD = '301ae166052af036ce4d727be59d8d20cc8c02d1'
@@ -363,6 +374,336 @@ async function createPinnedRecoveryScenario() {
   return { body, deps, options, record, scenario }
 }
 
+const recoveryCliRoots: string[] = []
+
+function writeExecutable(path: string, source: string) {
+  writeFileSync(path, source, 'utf8')
+  chmodSync(path, 0o755)
+}
+
+function createRecoveryCliHarness({
+  scenario,
+  body,
+  skipProjection = false,
+}: {
+  scenario: Awaited<ReturnType<typeof createPinnedRecoveryScenario>>['scenario']
+  body: string
+  skipProjection?: boolean
+}) {
+  const root = mkdtempSync(join('/tmp', 'bemoat-recover-review-cli-'))
+  recoveryCliRoots.push(root)
+
+  const issue = {
+    ...scenario.managedIssue,
+    number: 274,
+    state: 'OPEN',
+  }
+  const sourceIssue = scenario.issueComments[0]
+  const sourcePr = scenario.prComments[0]
+  const issueComments = [
+    sourceIssue,
+    {
+      id: ORIGINAL_REVIEW_COMMENT,
+      body: originalReviewBody(),
+      user: { login: 'boat1994' },
+      author_association: 'OWNER',
+    },
+    {
+      id: CORRECTION_RESULT_COMMENT,
+      body: correctionResultBody(),
+      user: { login: 'boat1994' },
+      author_association: 'OWNER',
+    },
+  ]
+  const prComments = [sourcePr]
+  const comments = [...issueComments, ...prComments]
+  const checks = [
+    { id: 92212805944, name: 'CI', conclusion: 'success', head_sha: INCIDENT_HEAD },
+    { id: 92212805950, name: 'starter-ci', conclusion: 'success', head_sha: INCIDENT_HEAD },
+  ]
+  const policyFiles = {
+    guide: readFileSync(resolve(GUIDE_PATH), 'utf8'),
+    recoveryFacade: readFileSync(resolve(RECOVERY_FACADE_PATH), 'utf8'),
+    recoveryWorkflow: readFileSync(resolve(RECOVERY_WORKFLOW_PATH), 'utf8'),
+    transportRegistry: readFileSync(resolve(TRANSPORT_REGISTRY_PATH), 'utf8'),
+  }
+
+  writeFileSync(join(root, 'issue.json'), JSON.stringify(issue))
+  writeFileSync(join(root, 'pr.json'), JSON.stringify(scenario.pullRequest))
+  writeFileSync(join(root, 'issue-comments.json'), JSON.stringify(issueComments))
+  writeFileSync(join(root, 'pr-comments.json'), JSON.stringify(prComments))
+  writeFileSync(join(root, 'comments.json'), JSON.stringify(comments))
+  writeFileSync(join(root, 'checks.json'), JSON.stringify(checks))
+  writeFileSync(join(root, 'policy.json'), JSON.stringify({ ...scenario.policy, ...policyFiles }))
+  writeFileSync(join(root, 'checkout.json'), JSON.stringify(scenario.executingCheckout))
+  writeFileSync(join(root, 'protected.json'), JSON.stringify({ sha: scenario.protectedSha }))
+  writeFileSync(join(root, 'metrics.json'), JSON.stringify({
+    issueEdits: 0,
+    posts: 0,
+    leaseWrites: 0,
+  }))
+  writeFileSync(join(root, 'body.md'), body)
+
+  const gh = join(root, 'gh')
+  writeExecutable(gh, `#!/usr/bin/env node
+import {
+  existsSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs'
+import { join } from 'node:path'
+
+const root = ${JSON.stringify(root)}
+const args = process.argv.slice(2)
+const endpoint = args.find((value) => value.startsWith('repos/')) ?? ''
+const readJson = (name) => JSON.parse(readFileSync(join(root, name), 'utf8'))
+const writeJson = (name, value) => writeFileSync(join(root, name), JSON.stringify(value))
+const fail = (message) => {
+  process.stderr.write(message + '\\n')
+  process.exit(1)
+}
+const stdinText = async () => {
+  const chunks = []
+  for await (const chunk of process.stdin) chunks.push(chunk)
+  return Buffer.concat(chunks).toString('utf8')
+}
+const methodIndex = args.indexOf('--method')
+const method = methodIndex >= 0 ? args[methodIndex + 1] : (
+  args.includes('-X') ? args[args.indexOf('-X') + 1] : 'GET'
+)
+
+if (args[0] === 'issue' && args[1] === 'view') {
+  process.stdout.write(JSON.stringify(readJson('issue.json')))
+  process.exit(0)
+}
+
+if (args[0] === 'pr' && args[1] === 'view') {
+  process.stdout.write(JSON.stringify(readJson('pr.json')))
+  process.exit(0)
+}
+
+if (args[0] === 'issue' && args[1] === 'edit') {
+  const metrics = readJson('metrics.json')
+  metrics.issueEdits += 1
+  writeJson('metrics.json', metrics)
+  if (${skipProjection ? 'false' : 'true'}) {
+    const bodyFile = args[args.indexOf('--body-file') + 1]
+    const issue = readJson('issue.json')
+    issue.body = readFileSync(bodyFile, 'utf8')
+    writeJson('issue.json', issue)
+  }
+  process.exit(0)
+}
+
+if (args[0] === 'api' && method === 'POST' && endpoint.endsWith('/issues/274/comments')) {
+  const payload = JSON.parse(await stdinText())
+  const comments = readJson('issue-comments.json')
+  const metrics = readJson('metrics.json')
+  metrics.posts += 1
+  const comment = {
+    id: 'recovery-' + metrics.posts,
+    body: payload.body,
+    user: { login: 'boat1994' },
+    author_association: 'OWNER',
+    issue_number: 274,
+  }
+  comments.push(comment)
+  writeJson('issue-comments.json', comments)
+  writeJson('comments.json', [...comments, ...readJson('pr-comments.json')])
+  writeJson('metrics.json', metrics)
+  process.stdout.write(JSON.stringify(comment))
+  process.exit(0)
+}
+
+if (args[0] === 'api' && args.includes('--paginate') && endpoint.endsWith('/issues/274/comments?per_page=100')) {
+  process.stdout.write(JSON.stringify([readJson('issue-comments.json')]))
+  process.exit(0)
+}
+
+if (args[0] === 'api' && args.includes('--paginate') && endpoint.endsWith('/issues/275/comments?per_page=100')) {
+  process.stdout.write(JSON.stringify([readJson('pr-comments.json')]))
+  process.exit(0)
+}
+
+const commentMatch = endpoint.match(/\\/issues\\/comments\\/(\\d+)$/)
+if (args[0] === 'api' && commentMatch) {
+  const comment = readJson('comments.json').find((entry) => String(entry.id) === commentMatch[1])
+  if (!comment) fail('404 Not Found')
+  process.stdout.write(JSON.stringify(comment))
+  process.exit(0)
+}
+
+if (args[0] === 'api' && endpoint.includes('/commits/') && endpoint.includes('/check-runs')) {
+  process.stdout.write(JSON.stringify({ check_runs: readJson('checks.json') }))
+  process.exit(0)
+}
+
+if (args[0] === 'api' && endpoint.endsWith('/git/ref/heads/main')) {
+  process.stdout.write(JSON.stringify({ object: { sha: readJson('protected.json').sha } }))
+  process.exit(0)
+}
+
+if (args[0] === 'api' && endpoint.includes('/git/ref/heads/bemoat/mission-control-leases')) {
+  process.stdout.write(JSON.stringify({ ref: 'refs/heads/bemoat/mission-control-leases', object: { sha: 'lease-branch' } }))
+  process.exit(0)
+}
+
+if (args[0] === 'api' && endpoint.includes('/contents/.bemoat/mission-control/leases/')) {
+  const leasePath = join(root, 'lease.json')
+  const isPut = args.includes('-X') && args[args.indexOf('-X') + 1] === 'PUT'
+  if (!isPut) {
+    if (!existsSync(leasePath)) fail('404 Not Found')
+    const lease = readJson('lease.json')
+    process.stdout.write(JSON.stringify({
+      sha: lease.sha,
+      content: Buffer.from(JSON.stringify(lease.content), 'utf8').toString('base64'),
+    }))
+    process.exit(0)
+  }
+
+  const payload = JSON.parse(await stdinText())
+  const current = existsSync(leasePath) ? readJson('lease.json') : null
+  if (payload.sha && (!current || payload.sha !== current.sha)) fail('409 Conflict')
+  const metrics = readJson('metrics.json')
+  metrics.leaseWrites += 1
+  const next = {
+    sha: 'lease-' + metrics.leaseWrites,
+    content: JSON.parse(Buffer.from(payload.content, 'base64').toString('utf8')),
+  }
+  writeJson('lease.json', next)
+  writeJson('metrics.json', metrics)
+  process.stdout.write(JSON.stringify({ content: { sha: next.sha } }))
+  process.exit(0)
+}
+
+if (args[0] === 'api' && endpoint.endsWith('/contents/docs/mission-control/mission-control-guide.md?ref=${EXECUTION_POLICY_SHA}')) {
+  const policy = readJson('policy.json')
+  process.stdout.write(JSON.stringify({
+    path: '${GUIDE_PATH}',
+    sha: '${POLICY_SOURCE_SHA}',
+    encoding: 'base64',
+    content: Buffer.from(policy.guide, 'utf8').toString('base64'),
+  }))
+  process.exit(0)
+}
+
+if (args[0] === 'api' && endpoint.includes('/contents/scripts/mission-control-recover-review.mjs?ref=')) {
+  const policy = readJson('policy.json')
+  process.stdout.write(JSON.stringify({
+    path: '${RECOVERY_FACADE_PATH}',
+    sha: 'f'.repeat(40),
+    encoding: 'base64',
+    content: Buffer.from(policy.recoveryFacade, 'utf8').toString('base64'),
+  }))
+  process.exit(0)
+}
+
+if (args[0] === 'api' && endpoint.includes('/contents/scripts/mission-control/workflows/recover-review.mjs?ref=')) {
+  const policy = readJson('policy.json')
+  process.stdout.write(JSON.stringify({
+    path: '${RECOVERY_WORKFLOW_PATH}',
+    sha: 'f'.repeat(40),
+    encoding: 'base64',
+    content: Buffer.from(policy.recoveryWorkflow, 'utf8').toString('base64'),
+  }))
+  process.exit(0)
+}
+
+if (args[0] === 'api' && endpoint.includes('/contents/scripts/mission-control/transport-registry.mjs?ref=')) {
+  const policy = readJson('policy.json')
+  process.stdout.write(JSON.stringify({
+    path: '${TRANSPORT_REGISTRY_PATH}',
+    sha: 'f'.repeat(40),
+    encoding: 'base64',
+    content: Buffer.from(policy.transportRegistry, 'utf8').toString('base64'),
+  }))
+  process.exit(0)
+}
+
+if (args[0] === 'api' && endpoint.includes('/contents/.bemoat/mission-control-overrides.md?ref=')) {
+  fail('404 Not Found')
+}
+
+fail('unsupported gh call: ' + args.join(' '))
+`)
+
+  const git = join(root, 'git')
+  writeExecutable(git, `#!/bin/sh
+if [ "$1" = "rev-parse" ] && [ "$2" = "HEAD" ]; then
+  printf '%s' '${EXECUTION_POLICY_SHA}'
+elif [ "$1" = "symbolic-ref" ] && [ "$2" = "--short" ] && [ "$3" = "HEAD" ]; then
+  printf '%s' 'main'
+elif [ "$1" = "merge-base" ]; then
+  printf '%s' '${EXECUTION_POLICY_SHA}'
+elif [ "$1" = "ls-tree" ]; then
+  printf '%s\\n' '${RECOVERY_FACADE_PATH}' '${RECOVERY_WORKFLOW_PATH}' '${TRANSPORT_REGISTRY_PATH}'
+elif [ "$1" = "status" ]; then
+  :
+else
+  printf 'unexpected git call\\n' >&2
+  exit 1
+fi
+`)
+
+  return {
+    root,
+    env: {
+      PATH: `${root}:${process.env.PATH ?? ''}`,
+      BEMOAT_FACADE_COMMAND: 'bemoat:mission-control:recover-review',
+      BEMOAT_FACADE_ENTRYPOINT: RECOVERY_FACADE_PATH,
+      npm_lifecycle_event: 'bemoat:mission-control:recover-review',
+    },
+  }
+}
+
+function recoveryCliArgs(bodyFile: string): string[] {
+  return [
+    '274',
+    '--repo', 'boat1994/bemoat-web-starter',
+    '--expected-pr', '275',
+    '--expected-base', 'main',
+    '--expected-state', 'AWAITING_REVIEW_2',
+    '--expected-head', INCIDENT_HEAD,
+    '--expected-review-cycle', '1',
+    '--expected-full-review-count', '1',
+    '--review-type', 'delta',
+    '--issue-source-comment', '5187836238',
+    '--pr-source-comment', '5187837555',
+    '--original-review-comment', ORIGINAL_REVIEW_COMMENT,
+    '--correction-result-comment', CORRECTION_RESULT_COMMENT,
+    '--body-file', bodyFile,
+    '--json',
+  ]
+}
+
+function runRecoveryCli(
+  harness: ReturnType<typeof createRecoveryCliHarness>,
+) {
+  return spawnSync(
+    process.execPath,
+    [resolve(process.cwd(), RECOVERY_FACADE_PATH), ...recoveryCliArgs(join(harness.root, 'body.md'))],
+    {
+      cwd: process.cwd(),
+      env: { ...process.env, ...harness.env },
+      encoding: 'utf8',
+    },
+  )
+}
+
+function recoveryMetrics(harness: ReturnType<typeof createRecoveryCliHarness>) {
+  return JSON.parse(readFileSync(join(harness.root, 'metrics.json'), 'utf8')) as {
+    issueEdits: number
+    posts: number
+    leaseWrites: number
+  }
+}
+
+afterEach(() => {
+  for (const root of recoveryCliRoots.splice(0)) {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
 describe('Mission Control review recovery transport', () => {
   it('registers one exceptional recovery route without changing ordinary review ownership', async () => {
     const { CANONICAL_TRANSPORTS, getTransportRoute } = await registryModulePromise
@@ -645,6 +986,107 @@ The PR #275 is ready, but this is not a canonical binding.
         execution_policy_sha: EXECUTION_POLICY_SHA,
         transition_identity_sha256: record.transition_identity_sha256,
       },
+    })
+  })
+
+  it('valid and identical retry fixtures map to canonical success classes', async () => {
+    const { body, scenario } = await createPinnedRecoveryScenario()
+    const harness = createRecoveryCliHarness({ scenario, body })
+
+    const first = runRecoveryCli(harness)
+    expect(first.status, first.stderr || first.stdout).toBe(0)
+    expect(first.stderr).toBe('')
+    const firstEnvelope = JSON.parse(first.stdout) as Record<string, unknown>
+    assertResultEnvelopeV1(firstEnvelope)
+    expect(firstEnvelope).toMatchObject({
+      command: 'bemoat:mission-control:recover-review',
+      mode: 'result',
+      outcome: 'SUCCESS',
+      classification: 'SUCCESS',
+      mutation_performed: true,
+      details: {
+        legacy_classification: 'RECOVERED',
+      },
+    })
+
+    const second = runRecoveryCli(harness)
+    expect(second.status, second.stderr || second.stdout).toBe(0)
+    expect(second.stderr).toBe('')
+    const secondEnvelope = JSON.parse(second.stdout) as Record<string, unknown>
+    assertResultEnvelopeV1(secondEnvelope)
+    expect(secondEnvelope).toMatchObject({
+      command: 'bemoat:mission-control:recover-review',
+      mode: 'result',
+      outcome: 'NO_OP',
+      classification: 'NO_OP_IDENTICAL_RETRY',
+      mutation_performed: false,
+      details: {
+        legacy_classification: 'NO_OP',
+      },
+    })
+
+    expect(recoveryMetrics(harness)).toMatchObject({
+      issueEdits: 1,
+      posts: 1,
+    })
+  }, 20000)
+
+  it('unproved partial writes exit four', async () => {
+    const { body, scenario } = await createPinnedRecoveryScenario()
+    const harness = createRecoveryCliHarness({
+      scenario,
+      body,
+      skipProjection: true,
+    })
+
+    const result = runRecoveryCli(harness)
+    expect(result.status, result.stderr || result.stdout).toBe(4)
+    expect(result.stderr).toBe('')
+    const envelope = JSON.parse(result.stdout) as Record<string, unknown>
+    assertResultEnvelopeV1(envelope)
+    expect(envelope).toMatchObject({
+      command: 'bemoat:mission-control:recover-review',
+      mode: 'result',
+      outcome: 'ERROR',
+      classification: 'AMBIGUOUS_RESULT',
+      mutation_performed: true,
+      next_action: {
+        type: 'STOP',
+        command: null,
+      },
+    })
+    expect(recoveryMetrics(harness)).toMatchObject({
+      issueEdits: 1,
+      posts: 1,
+    })
+  }, 20000)
+
+  it('ordinary review evidence cannot enter recover-review', async () => {
+    const { scenario } = await createPinnedRecoveryScenario()
+    const harness = createRecoveryCliHarness({
+      scenario,
+      body: originalReviewBody(),
+    })
+
+    const result = runRecoveryCli(harness)
+    expect(result.status, result.stderr || result.stdout).toBe(3)
+    expect(result.stderr).toBe('')
+    const envelope = JSON.parse(result.stdout) as Record<string, unknown>
+    assertResultEnvelopeV1(envelope)
+    expect(envelope).toMatchObject({
+      command: 'bemoat:mission-control:recover-review',
+      mode: 'result',
+      outcome: 'ERROR',
+      classification: 'EVIDENCE_CONFLICT',
+      mutation_performed: false,
+      next_action: {
+        type: 'STOP',
+        command: null,
+      },
+    })
+    expect(recoveryMetrics(harness)).toMatchObject({
+      issueEdits: 0,
+      posts: 0,
     })
   })
 

@@ -855,6 +855,42 @@ updated_by: "Mission Control"
       expect(delivery.reason).toBe('unambiguous delivery evidence')
     })
 
+    it('binds delivery projection to the verified live head instead of short RESULT metadata', () => {
+      const verifiedHead = 'abcdef1'.padEnd(40, '0')
+      const proposal = proposeDeliveryReconciliation({
+        managedState: {
+          state: 'READY',
+          review_cycle: 0,
+          full_review_count: 0,
+          active_pr: null,
+          current_head: null,
+        },
+        livePr: { number: 151, headRefOid: verifiedHead, baseRefName: 'main' },
+        latestResult: { parsed: { prNumber: '151', headSha: 'abcdef1' } },
+        activeTaskIssue: '#150',
+        approvedBase: 'main',
+      })
+
+      expect(proposal.current_head).toBe(verifiedHead)
+    })
+
+    it('rejects delivery projection when RESULT head evidence conflicts with the live head', () => {
+      const verifiedHead = 'abcdef1'.padEnd(40, '0')
+      expect(() => proposeDeliveryReconciliation({
+        managedState: {
+          state: 'READY',
+          review_cycle: 0,
+          full_review_count: 0,
+          active_pr: null,
+          current_head: null,
+        },
+        livePr: { number: 151, headRefOid: verifiedHead, baseRefName: 'main' },
+        latestResult: { parsed: { prNumber: '151', headSha: '1234567' } },
+        activeTaskIssue: '#150',
+        approvedBase: 'main',
+      })).toThrow(/EVIDENCE_CONFLICT: RESULT head does not match verified live PR head/)
+    })
+
     it('rejects successful CI evidence that names a different head', () => {
       const analysis = analyzeExactHeadCi({
         headRefOid: 'abcdef1234567890',
