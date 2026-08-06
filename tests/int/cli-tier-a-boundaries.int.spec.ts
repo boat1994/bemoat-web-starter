@@ -21,7 +21,10 @@ import {
   type FileSystemSnapshot,
 } from '../helpers/cli-boundary-harness'
 import { getCommandContract } from '../../scripts/cli/command-contract.mjs'
-import { assertResultEnvelopeV1 } from '../../scripts/cli/command-result.mjs'
+import {
+  assertResultEnvelopeV1,
+  classifyDelegatedFailure,
+} from '../../scripts/cli/command-result.mjs'
 
 type TierACase = {
   command: string
@@ -1234,4 +1237,19 @@ describe('Task 5 Tier A canonical role transport boundaries', () => {
       expect(plain.stdout).toContain(entry.expectedClassification)
     },
   )
+
+  it('preserves delegated canonical classifications and defaults unknown failures to INTERNAL_ERROR', () => {
+    expect(classifyDelegatedFailure({
+      command: 'node',
+      stderr: 'ERROR: STATE_CONFLICT: delegated state evidence is stale',
+    })).toBe('STATE_CONFLICT')
+    expect(classifyDelegatedFailure({
+      command: 'node',
+      stdout: 'EVIDENCE_CONFLICT: delegated role body is invalid',
+    })).toBe('EVIDENCE_CONFLICT')
+    expect(classifyDelegatedFailure({
+      command: 'node',
+      stderr: 'delegated process failed without a canonical classification',
+    })).toBe('INTERNAL_ERROR')
+  })
 })

@@ -140,7 +140,7 @@ exit 0
   writeFileSync(nodeExec, `#!/bin/sh
 if [ "$1" = "scripts/post-role-comment.mjs" ]; then
   if [ "$NODE_FAIL_POST_ROLE_COMMENT" = "1" ]; then
-    echo "Failed to post RESULT comment" >&2
+    echo "\${NODE_FAIL_POST_ROLE_COMMENT_CLASSIFICATION:-Failed to post RESULT comment}" >&2
     exit 1
   fi
   exec "${process.execPath}" "$@"
@@ -394,8 +394,34 @@ describe('bemoat:agent:delivery', () => {
       input: validResultBody,
       env: { PATH: stub.PATH, NODE_FAIL_POST_ROLE_COMMENT: '1' },
     })
-    expect(result.status).toBe(3)
+    expect(result.status).toBe(1)
     expect(result.stderr).toMatch(/ambiguous POST has no provable match|Failed to validate RESULT comment|Failed to post RESULT comment/)
+    expect(existsSync(stub.editedBody)).toBe(false)
+  }, 10000)
+
+  it('preserves a delegated canonical classification from RESULT validation', () => {
+    const prData = {
+      headRefOid: 'abc1234',
+      headRefName: 'main',
+      baseRefName: 'main',
+      statusCheckRollup: [{ conclusion: 'SUCCESS', targetUrl: 'https://ci/abc1234' }],
+    }
+    const stub = stubGhAndGit(prData, { body: validIssueBody }, 'abc1234 refs/heads/main', 'main', 'abc1234')
+    const result = run(['154', '--json'], {
+      input: validResultBody,
+      env: {
+        PATH: stub.PATH,
+        NODE_FAIL_POST_ROLE_COMMENT: '1',
+        NODE_FAIL_POST_ROLE_COMMENT_CLASSIFICATION: 'EVIDENCE_CONFLICT: delegated RESULT evidence is invalid',
+      },
+    })
+
+    expect(result.status).toBe(3)
+    expect(result.stderr).toBe('')
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      classification: 'EVIDENCE_CONFLICT',
+      mutation_performed: false,
+    })
     expect(existsSync(stub.editedBody)).toBe(false)
   }, 10000)
 
@@ -552,7 +578,7 @@ describe('bemoat:agent:delivery', () => {
       input: validResultBody,
       env: { PATH: stub.PATH, NODE_FAIL_POST_ROLE_COMMENT: '1' },
     })
-    expect(result.status).toBe(3)
+    expect(result.status).toBe(1)
     expect(result.stderr).toMatch(/ambiguous POST has no provable match|Failed to validate RESULT comment|Failed to post RESULT comment/)
     expect(existsSync(stub.editedBody)).toBe(false)
   }, 10000)

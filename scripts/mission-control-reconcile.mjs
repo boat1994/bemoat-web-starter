@@ -59,12 +59,14 @@ function hasLegacyManagedState(state = {}) {
 }
 
 function isReviewThreeCorrectionAuthorization(authorization, state) {
+  const reviewedHead = normalizeAuthorityHead(authorization?.reviewed_head)
   return authorization &&
     authorization.status === 'approved' && authorization.authority === 'Founder' &&
     authorization.scope === 'correction' && authorization.for_review_number === 3 &&
-    typeof authorization.reviewed_head === 'string' && authorization.reviewed_head.length > 0 &&
-    authorization.reviewed_head === state.last_reviewed_head &&
-    authorization.reviewed_head === state.current_head &&
+    typeof authorization.reviewed_head === 'string' &&
+    reviewedHead &&
+    reviewedHead === normalizeAuthorityHead(state.last_reviewed_head) &&
+    reviewedHead === normalizeAuthorityHead(state.current_head) &&
     Array.isArray(authorization.finding_ids) && authorization.finding_ids.length > 0 &&
     authorization.finding_ids.every((id) => typeof id === 'string' && id.length > 0) &&
     typeof authorization.action === 'string' && authorization.action.length > 0 &&
@@ -72,7 +74,7 @@ function isReviewThreeCorrectionAuthorization(authorization, state) {
 }
 
 function correctionAuthorizationId(authorization) {
-  return `founder-r3-${authorization.reviewed_head.slice(0, 12)}-${authorization.authorized_at}`
+  return `founder-r3-${normalizeAuthorityHead(authorization.reviewed_head).slice(0, 12)}-${authorization.authorized_at}`
     .replace(/[^a-zA-Z0-9_-]/g, '-')
 }
 
@@ -563,9 +565,18 @@ export function selectActiveRoleComments(comments = [], role) {
   })
 }
 
+function normalizeAuthorityHead(value) {
+  const normalized = String(value ?? '').trim()
+  return normalized ? normalized.toLowerCase() : null
+}
+
 function headsAlign(left, right) {
-  if (!left || !right) return true
-  return left === right || left.startsWith(right.slice(0, 7)) || right.startsWith(left.slice(0, 7))
+  const normalizedLeft = normalizeAuthorityHead(left)
+  const normalizedRight = normalizeAuthorityHead(right)
+  if (!normalizedLeft || !normalizedRight) return true
+  return normalizedLeft === normalizedRight ||
+    normalizedLeft.startsWith(normalizedRight.slice(0, 7)) ||
+    normalizedRight.startsWith(normalizedLeft.slice(0, 7))
 }
 
 function bindDeliveryHead(resultHead, liveHead) {
@@ -674,6 +685,52 @@ export function findMatchingComments(comments = [], identity, options = {}) {
       return true
     })
     .map((entry) => entry.comment)
+}
+
+/**
+ * Prove that a successful role-comment POST is durable and still carries the
+ * intended identity and GitHub metadata.
+ *
+ * @param {{
+ *   comments?: Array<{ body?: string, id?: string | number, author?: string, author_association?: string }>,
+ *   body: string,
+ *   role: 'HANDOFF' | 'RESULT' | 'REVIEW_VERDICT',
+ *   postedId?: string | number | null,
+ *   matchOptions?: Record<string, unknown>,
+ * }} input
+ */
+export function verifyPostedCommentReadback({
+  comments = [],
+  body,
+  role,
+  postedId = null,
+  matchOptions = {},
+}) {
+  const identity = normalizeTransitionIdentity(body, { role })
+  const matches = findMatchingComments(comments, identity, {
+    activeOnly: false,
+    ...matchOptions,
+  })
+    .filter((comment) => postedId == null || String(comment.id) === String(postedId))
+  if (matches.length !== 1) {
+    throw new Error(
+      `postcondition: live ${role} comment readback found ${matches.length} matching comment(s)`,
+    )
+  }
+
+  const [comment] = matches
+  if (String(comment.body ?? '') !== String(body)) {
+    throw new Error(`postcondition: live ${role} comment body differs from the intended body`)
+  }
+  if (
+    comment.id == null ||
+    !comment.author ||
+    comment.author === 'unknown' ||
+    !comment.author_association
+  ) {
+    throw new Error(`postcondition: live ${role} comment metadata is incomplete`)
+  }
+  return comment
 }
 
 /**
@@ -807,7 +864,9 @@ function coordinatorOwnedProjection({ prior = {}, base = {}, identity, comment, 
       }
     }
     const commentHead = parseRoleCommentBody(comment?.body ?? '').headSha
-    const reviewedHead = commentHead ?? base?.last_reviewed_head ?? base?.current_head ?? null
+    const reviewedHead = normalizeAuthorityHead(
+      commentHead ?? base?.last_reviewed_head ?? base?.current_head ?? null,
+    )
     if (reviewedHead) {
       owned.current_head = reviewedHead
       owned.last_reviewed_head = reviewedHead
@@ -934,12 +993,29 @@ export class Coordinator {
         return { identity, comment: posted, created: true }
       } catch (error) {
         const possibleMutation = error?.mutationPerformed === true
-        const recovery = recoverAmbiguousPost({
-          comments: await this.listComments(),
-          identity,
-          ambiguousPost: possibleMutation,
-          matchOptions: options,
-        })
+        let recovery
+        try {
+          recovery = recoverAmbiguousPost({
+            comments: await this.listComments(),
+            identity,
+            ambiguousPost: possibleMutation,
+            matchOptions: options,
+          })
+        } catch (recoveryError) {
+          if (!possibleMutation) throw error
+          const ambiguous = new Error(
+            `AMBIGUOUS_RESULT: unable to verify the outcome of the role comment POST: ${
+              recoveryError instanceof Error ? recoveryError.message : String(recoveryError)
+            }`,
+            { cause: error },
+          )
+          ambiguous.classification = 'AMBIGUOUS_RESULT'
+          ambiguous.mutationPerformed = true
+          if (typeof error?.legacyClassification === 'string') {
+            ambiguous.legacyClassification = error.legacyClassification
+          }
+          throw ambiguous
+        }
         if (recovery.classification === 'RESUME_PROJECTION' && recovery.comment) {
           return { identity, comment: recovery.comment, created: false, recovered: true }
         }
@@ -1452,11 +1528,12 @@ export function parseRoleCommentBody(body = '') {
   const headFromState = body.match(/\*\*State:\*\*[^\n]*head\s+`([0-9a-f]{7,40})`/i)?.[1] ?? null
   const headFromPrLine = body.match(/\*\*PR\s*\/\s*base\s*\/\s*head:\*\*[^\n]*·\s*`([0-9a-f]{7,40})`/i)?.[1] ?? null
   const headFromExact = body.match(/\*\*Exact head reviewed:\*\*\s*`([0-9a-f]{7,40})`/i)?.[1] ?? null
-  const headSha =
-    headFromState ||
+  const headSha = normalizeAuthorityHead(
     headFromPrLine ||
     headFromExact ||
-    (body.match(/head\s+`([0-9a-f]{7,40})`/i)?.[1] ?? null)
+    headFromState ||
+    (body.match(/head\s+`([0-9a-f]{7,40})`/i)?.[1] ?? null),
+  )
   const verdict = body.match(/^\*\*Verdict:\*\*\s*(.+?)\s*$/m)?.[1]?.trim() ?? null
   const managedStateLine = body.match(/^\*\*Managed state:\*\*\s*(.+?)\s*$/m)?.[1]?.trim() ?? null
 
@@ -1519,9 +1596,10 @@ export function classifyDeliveryLag(managedState, livePr, exactHeadCi, latestRes
     return { lag: false, kind: 'STATE_CONFLICT', reason: 'RESULT PR does not match live PR' }
   }
 
-  const resultHead = latestResult?.parsed?.headSha ?? null
+  const resultHead = normalizeAuthorityHead(latestResult?.parsed?.headSha)
+  const liveHead = normalizeAuthorityHead(livePr.headRefOid)
   const headsAlign =
-    !resultHead || resultHead === livePr.headRefOid || resultHead.startsWith(livePr.headRefOid.slice(0, 7))
+    !resultHead || resultHead === liveHead || resultHead.startsWith(liveHead.slice(0, 7))
 
   if (!headsAlign) {
     return { lag: false, kind: 'STATE_CONFLICT', reason: 'RESULT head does not match live PR head' }
@@ -1546,7 +1624,8 @@ export function classifyReviewLag(managedState, livePr, latestVerdict = null) {
   const awaitingStates = /^AWAITING_REVIEW_\d+$/
   const correctionStates = /^CORRECTION_REQUIRED_\d+$/
   const verdict = latestVerdict.parsed.verdict
-  const reviewedHead = latestVerdict.parsed.headSha
+  const reviewedHead = normalizeAuthorityHead(latestVerdict.parsed.headSha)
+  const liveHead = normalizeAuthorityHead(livePr?.headRefOid)
 
   if (!CORE_VERDICTS.has(verdict)) {
     return { lag: false, kind: 'STATE_CONFLICT', reason: 'invalid review verdict enum' }
@@ -1560,12 +1639,15 @@ export function classifyReviewLag(managedState, livePr, latestVerdict = null) {
     return { lag: false, kind: 'STATE_CONFLICT', reason: 'REVIEW_VERDICT PR does not match live PR' }
   }
 
-  if (reviewedHead && livePr?.headRefOid && reviewedHead !== livePr.headRefOid) {
+  if (reviewedHead && liveHead && reviewedHead !== liveHead) {
     return { lag: false, kind: 'STATE_CONFLICT', reason: 'verdict head does not match live PR head' }
   }
 
   const expectedState = resolveVerdictState(verdict, managedState.review_cycle ?? 0)
-  if (managedState.state === expectedState && managedState.last_reviewed_head === reviewedHead) {
+  if (
+    managedState.state === expectedState &&
+    normalizeAuthorityHead(managedState.last_reviewed_head) === reviewedHead
+  ) {
     return { lag: false, kind: null, reason: 'review state already recorded' }
   }
 
@@ -1580,7 +1662,7 @@ export function classifyMergeDrift(authorizedHead, liveHead) {
   if (!authorizedHead || !liveHead) {
     return { drift: true, reason: 'missing authorized or live head for merge transition' }
   }
-  if (authorizedHead !== liveHead) {
+  if (normalizeAuthorityHead(authorizedHead) !== normalizeAuthorityHead(liveHead)) {
     return { drift: true, reason: 'authorized merge head does not match live PR head' }
   }
   return { drift: false, reason: null }
@@ -1684,13 +1766,14 @@ export function resolveVerdictState(verdict, currentReviewCycle = 0) {
 
 export function proposeReviewReconciliation(input) {
   const reviewCycle = input.reviewCycle ?? 0
+  const reviewedHead = normalizeAuthorityHead(input.reviewedHead)
 
   if (input.verdict === 'CORRECTION REQUIRED' && reviewCycle >= 2) {
     return {
       state: 'STATE_CONFLICT',
       review_cycle: reviewCycle,
       full_review_count: Math.min(input.fullReviewCount ?? 0, 1),
-      last_reviewed_head: input.reviewedHead,
+      last_reviewed_head: reviewedHead,
       next_permitted_action: 'Mission Control must classify contradictory evidence.',
     }
   }
@@ -1704,7 +1787,7 @@ export function proposeReviewReconciliation(input) {
     state: resolveVerdictState(input.verdict, reviewCycle),
     review_cycle: nextCycle,
     full_review_count: nextFullReviewCount,
-    last_reviewed_head: input.reviewedHead,
+    last_reviewed_head: reviewedHead,
     next_permitted_action: nextActionForVerdict(input.verdict, nextCycle),
   }
 }
@@ -1728,13 +1811,14 @@ export function projectReviewVerdictState({
   if (!prior || typeof prior !== 'object') throw new Error('review projection requires prior managed state')
   if (!CORE_VERDICTS.has(verdict)) throw new Error('review projection requires a Core verdict')
   if (!['full', 'delta'].includes(reviewType)) throw new Error('review projection requires review type full or delta')
-  if (!reviewedHead) throw new Error('review projection requires exact reviewed head')
+  const normalizedReviewedHead = normalizeAuthorityHead(reviewedHead)
+  if (!normalizedReviewedHead) throw new Error('review projection requires exact reviewed head')
   if (reviewType === 'full' && prior.review_cycle !== 0) throw new Error('full review requires review_cycle 0')
   if (reviewType === 'delta' && prior.review_cycle < 1) throw new Error('delta review requires an existing review cycle')
 
   const proposal = proposeReviewReconciliation({
     verdict,
-    reviewedHead,
+    reviewedHead: normalizedReviewedHead,
     reviewCycle: prior.review_cycle,
     fullReviewCount: prior.full_review_count,
   })
@@ -1748,8 +1832,8 @@ export function projectReviewVerdictState({
   return {
     ...structuredClone(prior),
     ...proposal,
-    current_head: reviewedHead,
-    last_reviewed_head: reviewedHead,
+    current_head: normalizedReviewedHead,
+    last_reviewed_head: normalizedReviewedHead,
     open_blockers: blockerIds,
     latest_review_verdict_comment_id: String(commentId),
     latest_transition_identity: transitionIdentity,
@@ -1791,7 +1875,7 @@ export function analyzeReconciliation(context) {
       !terminalEvidence?.prMerged &&
       context.managedState?.current_head &&
         context.livePr?.headRefOid &&
-        context.managedState.current_head !== context.livePr.headRefOid,
+        normalizeAuthorityHead(context.managedState.current_head) !== normalizeAuthorityHead(context.livePr.headRefOid),
     ),
     staleCi: context.exactHeadCi?.exactHeadVerified === false && context.exactHeadCi?.olderShaSuccess === true,
   })
@@ -1926,7 +2010,7 @@ function parseCanonicalReviewTarget(body = '') {
   const match = body.match(
     /^\*\*PR\s*\/\s*base\s*\/\s*head:\*\*[^\n]*?·\s*`([^`]+)`\s*·\s*`([0-9a-f]{7,40})`\s*$/im,
   )
-  return match ? { base: match[1], head: match[2] } : null
+  return match ? { base: match[1], head: match[2].toLowerCase() } : null
 }
 
 function hasCanonicalReviewTargetLine(body = '') {
@@ -2158,8 +2242,8 @@ function resolveReviewVerdictBinding(body, { issueNumber }) {
     kind: 'legacy',
     prNumber: legacy.prNumber,
     base: legacy.base,
-    head: legacy.head,
-    headSha: legacy.head,
+    head: normalizeAuthorityHead(legacy.head),
+    headSha: normalizeAuthorityHead(legacy.head),
     verdict: parsed.verdict,
   }
 }
@@ -2212,7 +2296,11 @@ function selectLiveReviewVerdictComment({ comments, issueNumber, livePr }) {
   if (binding.base !== livePr.baseRefName) {
     throw new Error('STATE_CONFLICT: REVIEW_VERDICT base does not match the live PR')
   }
-  if (binding.head !== livePr.headRefOid || binding.headSha !== livePr.headRefOid) {
+  const liveHead = normalizeAuthorityHead(livePr.headRefOid)
+  if (
+    normalizeAuthorityHead(binding.head) !== liveHead ||
+    normalizeAuthorityHead(binding.headSha) !== liveHead
+  ) {
     throw new Error('STATE_CONFLICT: REVIEW_VERDICT exact head does not match the live PR')
   }
   if (binding.verdict !== 'ELIGIBLE FOR FOUNDER REVIEW') {
@@ -2257,7 +2345,11 @@ export function assertManagedActivePrForReviewVerdictReconciliation({
   if (String(pr.number) !== prNumber || pr.baseRefName !== state.approved_base) {
     throw new Error('STATE_CONFLICT: managed active PR or approved base does not match live PR')
   }
-  if (pr.headRefOid !== state.current_head || pr.headRefOid !== state.last_reviewed_head) {
+  const liveHead = normalizeAuthorityHead(pr.headRefOid)
+  if (
+    liveHead !== normalizeAuthorityHead(state.current_head) ||
+    liveHead !== normalizeAuthorityHead(state.last_reviewed_head)
+  ) {
     throw new Error('STATE_CONFLICT: managed exact head does not match live PR head')
   }
 

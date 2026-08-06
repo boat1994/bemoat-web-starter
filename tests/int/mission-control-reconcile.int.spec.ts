@@ -1009,6 +1009,36 @@ describe('mission-control reconcile classifiers', () => {
     expect(verdict.prNumber).toBe('174')
   })
 
+  it('prefers the full canonical head and normalizes uppercase authority metadata', () => {
+    const fullHead = 'ABCDEF0123456789ABCDEF0123456789ABCDEF01'
+    const verdict = parseRoleCommentBody(`## REVIEW_VERDICT
+**State:** AWAITING_REVIEW_3 · head \`abcdef0\`
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/174 · \`main\` · \`${fullHead}\`
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+`)
+
+    expect(verdict.headSha).toBe(fullHead.toLowerCase())
+  })
+
+  it('persists lowercase authority heads through review projection', () => {
+    const fullHead = 'ABCDEF0123456789ABCDEF0123456789ABCDEF01'
+    const projected = projectReviewVerdictState({
+      prior: {
+        state: 'AWAITING_REVIEW_1',
+        review_cycle: 0,
+        full_review_count: 0,
+      },
+      verdict: 'ELIGIBLE FOR FOUNDER REVIEW',
+      reviewType: 'full',
+      reviewedHead: fullHead,
+      commentId: 'verdict-1',
+      transitionIdentity: 'review-identity',
+    })
+
+    expect(projected.current_head).toBe(fullHead.toLowerCase())
+    expect(projected.last_reviewed_head).toBe(fullHead.toLowerCase())
+  })
+
   it('scenario 1: valid delivery does not require conflict before Review 1', () => {
     const lag = classifyDeliveryLag(
       { state: 'IN_PROGRESS', active_pr: null, current_head: null },
@@ -1309,6 +1339,37 @@ Bounded implementation work.
     })
 
     expect(recovery.classification).toBe('AMBIGUOUS_RESULT')
+  })
+
+  it('preserves AMBIGUOUS_RESULT when the recovery comment read fails', async () => {
+    let recoveryReads = 0
+    const postError = Object.assign(new Error('comment POST response was lost'), {
+      classification: 'AMBIGUOUS_RESULT',
+      mutationPerformed: true,
+    })
+    const coordinator = new CoordinatorClass({
+      readState: async () => ({ state: 'IN_PROGRESS', review_cycle: 0, full_review_count: 0 }),
+      writeState: async () => {
+        throw new Error('ambiguous recovery must not write state')
+      },
+      listComments: async (): Promise<Array<Record<string, unknown>>> => {
+        recoveryReads += 1
+        if (recoveryReads === 1) return []
+        throw new Error('BLOCKED_EXTERNAL: live comment read failed')
+      },
+      postComment: async () => {
+        throw postError
+      },
+    })
+
+    await expect(coordinator.integrateResult({
+      resultBody,
+      projectState: (state: Record<string, unknown>) => state,
+    })).rejects.toMatchObject({
+      classification: 'AMBIGUOUS_RESULT',
+      mutationPerformed: true,
+    })
+    expect(recoveryReads).toBe(2)
   })
 
   it('recovers from comment-success/state-update-failure plus rerun', async () => {

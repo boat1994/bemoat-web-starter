@@ -15,6 +15,7 @@ import {
   parseRoleCommentBody,
   projectReviewVerdictState,
   resolveProductionCommentTrust,
+  verifyPostedCommentReadback,
 } from './mission-control-reconcile.mjs'
 import { writeIssueBodyWithLease } from './mission-control-issue-body-cas.mjs'
 import {
@@ -166,37 +167,45 @@ function renderRuntimeError({
 }
 
 function renderResult({ command, format, options, result, repository, observedPreState }) {
-  const output = `Mission Control review ${result.outcome}: ${result.state.state} + REVIEW_VERDICT comment ${result.comment.id}`
+  const replayed = result.replayed === true
+  const output = `Mission Control review ${replayed ? 'NO_OP_IDENTICAL_RETRY' : result.outcome}: ${result.state.state} + REVIEW_VERDICT comment ${result.comment.id}`
   const envelope = createResultEnvelopeV1({
     command,
-    outcome: 'SUCCESS',
-    classification: 'SUCCESS',
-    mutation_performed: true,
+    outcome: replayed ? 'NO_OP' : 'SUCCESS',
+    classification: replayed ? 'NO_OP_IDENTICAL_RETRY' : 'SUCCESS',
+    mutation_performed: !replayed,
     observed_pre_state: observedPreState,
     resulting_state: result.state?.state ?? null,
     repository,
     issue_number: options.issue,
     pr_number: options.prNumber,
     exact_head: options.expectedHead.length === 40 ? options.expectedHead.toLowerCase() : null,
-    next_action: {
-      type: 'COMMAND',
-      command: 'bemoat:mission-control:dispatch',
-      reason: 'The resulting review state determines the next bounded dispatch or Founder gate.',
-    },
+    next_action: replayed
+      ? {
+        type: 'COMPLETE',
+        command: null,
+        reason: 'The identical REVIEW_VERDICT retry is already durable; no further dispatch is required.',
+      }
+      : {
+        type: 'COMMAND',
+        command: 'bemoat:mission-control:dispatch',
+        reason: 'The resulting review state determines the next bounded dispatch or Founder gate.',
+      },
     details: {
-      legacy_classification: result.outcome,
+      legacy_classification: replayed ? 'NO_OP' : result.outcome,
       legacy_output: [output],
       comment_id: String(result.comment.id),
+      ...(replayed ? { replayed: true } : {}),
     },
   })
 
   if (format === 'json') {
     process.stdout.write(`${JSON.stringify(envelope)}\n`)
   } else {
-    process.stdout.write(`SUCCESS: ${output}\n`)
+    process.stdout.write(`${envelope.classification}: ${output}\n`)
   }
 
-  process.exitCode = classificationExitCode('SUCCESS')
+  process.exitCode = classificationExitCode(envelope.classification)
 }
 
 function replaceStateBlock(body, state) {
@@ -305,6 +314,7 @@ async function main() {
       isReviewRecoveryIncident({ taskIssue: options.issue, activePr: parsedVerdict.prNumber })
         ? normalizeIssueComments(parsePaginatedGhApiJson(run('gh', ['api', '--paginate', `repos/${repo}/issues/${parsedVerdict.prNumber}/comments`])))
         : []
+    const commentTrust = resolveProductionCommentTrust()
     const postComment = (commentBody) => {
       const temp = mkdtempSync(join(tmpdir(), 'bemoat-review-comment-'))
       const payload = join(temp, 'payload.json')
@@ -314,6 +324,17 @@ async function main() {
         let posted
         try {
           posted = JSON.parse(run('gh', ['api', '--method', 'POST', `repos/${repo}/issues/${options.issue}/comments`, '--input', payload]))
+          if (posted?.id == null) {
+            throw new Error('review verdict comment did not return a durable comment identifier')
+          }
+          const durable = verifyPostedCommentReadback({
+            comments: listComments(),
+            body: commentBody,
+            role: 'REVIEW_VERDICT',
+            postedId: posted.id,
+            matchOptions: commentTrust,
+          })
+          return { ...posted, ...durable, id: durable.id, body: durable.body }
         } catch (error) {
           throw runtimeError(
             'AMBIGUOUS_RESULT',
@@ -324,17 +345,6 @@ async function main() {
             },
           )
         }
-        if (posted?.id == null) {
-          throw runtimeError(
-            'AMBIGUOUS_RESULT',
-            'review verdict comment did not return a durable comment identifier',
-            {
-              mutationPerformed: true,
-              legacyClassification: 'STATE_CONFLICT',
-            },
-          )
-        }
-        return { ...posted, id: posted.id, body: posted.body ?? commentBody, author: posted.user?.login ?? null, author_association: posted.author_association ?? null }
       } finally { rmSync(temp, { recursive: true, force: true }) }
     }
     const writeState = async (next, expected) => {
@@ -373,7 +383,7 @@ async function main() {
     if (String(original.current_head ?? '').toLowerCase() !== options.expectedHead.toLowerCase()) {
       throw new Error('STATE_CONFLICT: managed current head differs from reviewed head')
     }
-    const coordinator = new Coordinator({ readState: async () => readIssue(), writeState, listComments: async () => listComments(), postComment: async (comment) => postComment(comment), ...resolveProductionCommentTrust() })
+    const coordinator = new Coordinator({ readState: async () => readIssue(), writeState, listComments: async () => listComments(), postComment: async (comment) => postComment(comment), ...commentTrust })
     const result = await coordinator.integrateReviewVerdict({
       verdictBody: body,
       verifyPreconditions: async () => undefined,

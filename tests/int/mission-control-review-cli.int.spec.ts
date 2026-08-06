@@ -96,11 +96,32 @@ if (args[0] === 'api') {
   if (endpoint && endpoint.includes('/issues/') && endpoint.includes('/comments')) {
     if (method === 'POST') {
       if (config.simulateProjectionFailure) {
-        const posted = { id: 9999, body: 'posted comment' };
+        const payloadFile = args[args.indexOf('--input') + 1];
+        const posted = {
+          id: 9999,
+          body: JSON.parse(fs.readFileSync(payloadFile, 'utf8')).body,
+          user: { login: 'boat1994' },
+          author_association: 'OWNER',
+        };
+        if (!config.phantomPost) {
+          config.comments = [...(config.comments || []), posted];
+          fs.writeFileSync('${configPath}', JSON.stringify(config));
+        }
         console.log(JSON.stringify(posted));
         process.exit(0);
       }
-      console.log(JSON.stringify({ id: 9001, body: 'new comment', user: { login: 'Reviewer' } }));
+      const payloadFile = args[args.indexOf('--input') + 1];
+      const posted = {
+        id: 9001,
+        body: JSON.parse(fs.readFileSync(payloadFile, 'utf8')).body,
+        user: { login: 'boat1994' },
+        author_association: 'OWNER',
+      };
+      if (!config.phantomPost) {
+        config.comments = [...(config.comments || []), posted];
+        fs.writeFileSync('${configPath}', JSON.stringify(config));
+      }
+      console.log(JSON.stringify(posted));
       process.exit(0);
     } else {
       console.log(JSON.stringify(config.comments || []));
@@ -407,6 +428,97 @@ updated_by: "Mission Control"
         comment: { id: '9001' },
       })
       expect(postCalls).toBe(0)
+    })
+  })
+
+  it('case 9: CLI replay is a canonical no-op with live readback and no writes', () => {
+    const identity = normalizeTransitionIdentity(validVerdict, { role: 'REVIEW_VERDICT' })
+    const replayState = validState.replace(
+      'updated_at: "2026-07-23T17:00:00Z"',
+      [
+        'latest_review_verdict_comment_id: "9001"',
+        `latest_transition_identity: '${serializeTransitionIdentity(identity)}'`,
+        'updated_at: "2026-07-23T17:00:00Z"',
+      ].join('\n'),
+    )
+    const bodyFile = tempFile('verdict.md', validVerdict)
+    const gh = createGhMock({
+      issueBody: replayState,
+      repo: 'acme/repo',
+      prNumber: 230,
+      prHead: FULL_HEAD,
+      comments: [{
+        id: '9001',
+        body: validVerdict,
+        user: { login: 'boat1994' },
+        author_association: 'OWNER',
+      }],
+      noLease: true,
+    })
+    const res = run([
+      '229',
+      '--body-file',
+      bodyFile,
+      '--expected-state',
+      'AWAITING_REVIEW_3',
+      '--review-type',
+      'delta',
+      '--expected-head',
+      FULL_HEAD,
+      '--json',
+    ], { PATH: gh.path })
+
+    expect(res.status, res.stderr || res.stdout).toBe(0)
+    expect(res.stderr).toBe('')
+    const envelope = JSON.parse(res.stdout) as Record<string, unknown>
+    assertResultEnvelopeV1(envelope)
+    expect(envelope).toMatchObject({
+      command: 'bemoat:mission-control:review',
+      outcome: 'NO_OP',
+      classification: 'NO_OP_IDENTICAL_RETRY',
+      mutation_performed: false,
+      next_action: {
+        type: 'COMPLETE',
+        command: null,
+      },
+    })
+
+    const calls = readFileSync(gh.callsFile, 'utf8').split(/\r?\n/).filter(Boolean)
+    expect(calls.some((call) => call.includes('POST') || call.startsWith('gh issue edit'))).toBe(false)
+    expect(calls.filter((call) => call.includes('/issues/229/comments')).length).toBeGreaterThan(0)
+  })
+
+  it('case 10: phantom POST fails closed as AMBIGUOUS_RESULT', () => {
+    const bodyFile = tempFile('verdict.md', validVerdict)
+    const gh = createGhMock({
+      issueBody: validState,
+      repo: 'acme/repo',
+      prNumber: 230,
+      prHead: FULL_HEAD,
+      phantomPost: true,
+      noLease: true,
+    })
+    const res = run([
+      '229',
+      '--body-file',
+      bodyFile,
+      '--expected-state',
+      'AWAITING_REVIEW_3',
+      '--review-type',
+      'delta',
+      '--expected-head',
+      FULL_HEAD,
+      '--json',
+    ], { PATH: gh.path })
+
+    expect(res.status).toBe(4)
+    expect(res.stderr).toBe('')
+    expect(JSON.parse(res.stdout)).toMatchObject({
+      command: 'bemoat:mission-control:review',
+      outcome: 'ERROR',
+      classification: 'AMBIGUOUS_RESULT',
+      mutation_performed: true,
+      next_action: { type: 'STOP', command: null },
     })
   })
 })

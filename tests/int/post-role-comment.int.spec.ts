@@ -128,12 +128,39 @@ function tempFile(name: string, content: string) {
   return path
 }
 
-function stubGh() {
+function stubGh(options: { phantomPost?: boolean } = {}) {
   const directory = mkdtempSync(join(tmpdir(), 'bemoat-role-comment-bin-'))
   tempPaths.push(directory)
   const capture = join(directory, 'arguments.txt')
   const executable = join(directory, 'gh')
-  writeFileSync(executable, `#!/bin/sh\nprintf '%s\\n' "$@" > "$BEMOAT_GH_CAPTURE"\n`)
+  const postedPath = join(directory, 'posted.json')
+  writeFileSync(executable, `#!/usr/bin/env node
+const fs = require('fs');
+const args = process.argv.slice(2);
+const capture = process.env.BEMOAT_GH_CAPTURE;
+const postedPath = ${JSON.stringify(postedPath)};
+if (args[0] === 'issue' && args[1] === 'comment') {
+  const bodyFile = args[args.indexOf('--body-file') + 1];
+  const posted = {
+    id: 9001,
+    body: fs.readFileSync(bodyFile, 'utf8'),
+    user: { login: 'boat1994' },
+    author_association: 'OWNER',
+  };
+  if (${options.phantomPost === true ? 'true' : 'false'} === false) {
+    fs.writeFileSync(postedPath, JSON.stringify(posted));
+  }
+  if (capture) fs.writeFileSync(capture, args.join('\\n') + '\\n');
+  process.exit(0);
+}
+if (args[0] === 'issue' && args[1] === 'view' && args.includes('comments')) {
+  const comments = fs.existsSync(postedPath) ? [JSON.parse(fs.readFileSync(postedPath, 'utf8'))] : [];
+  process.stdout.write(JSON.stringify({ comments }));
+  process.exit(0);
+}
+if (capture) fs.writeFileSync(capture, args.join('\\n') + '\\n');
+process.exit(0);
+`)
   chmodSync(executable, 0o755)
   return { capture, path: `${directory}:${process.env.PATH ?? ''}` }
 }
@@ -262,6 +289,24 @@ describe('bemoat:issue:comment', () => {
       '--body-file',
       expect.stringMatching(/(?:^\/tmp\/|\/T\/bemoat-role-comment-)/),
     ])
+  })
+
+  it('fails closed when a successful POST is not durable in the live comment readback', () => {
+    const gh = stubGh({ phantomPost: true })
+    const result = run(['115', '--repo', 'acme/repo', '--json'], {
+      input: bodies.RESULT,
+      env: { PATH: gh.path, BEMOAT_GH_CAPTURE: gh.capture },
+    })
+
+    expect(result.status).toBe(4)
+    expect(result.stderr).toBe('')
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      command: 'bemoat:issue:comment',
+      outcome: 'ERROR',
+      classification: 'AMBIGUOUS_RESULT',
+      mutation_performed: true,
+      next_action: { type: 'STOP', command: null },
+    })
   })
 
   it('never invokes gh in check mode', () => {
