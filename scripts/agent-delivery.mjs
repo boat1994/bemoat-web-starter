@@ -17,6 +17,30 @@ import {
   resolveProductionCommentTrust,
 } from './mission-control-reconcile.mjs'
 import { writeIssueBodyWithLease } from './mission-control-issue-body-cas.mjs'
+import {
+  createHelpEnvelopeV1,
+  formatTextHelp,
+} from './cli/command-help.mjs'
+import {
+  CliInvocationError,
+  parseCommandInvocation,
+  resolveCommandIdentity,
+} from './cli/command-invocation.mjs'
+import {
+  CLI_EXIT_CODES,
+  classificationExitCode,
+  createResultEnvelopeV1,
+} from './cli/command-result.mjs'
+
+const COMMAND = 'bemoat:agent:delivery'
+const ENTRYPOINT = 'scripts/agent-delivery.mjs'
+
+function runtimeError(classification, message, details = {}) {
+  const error = new Error(message)
+  error.classification = classification
+  Object.assign(error, details)
+  return error
+}
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, { encoding: 'utf8', ...options })
@@ -30,37 +54,175 @@ function tryRun(command, args, options = {}) {
   return spawnSync(command, args, { encoding: 'utf8', input: options.input, env: options.env, ...options })
 }
 
-function usage(message) {
-  if (message) process.stderr.write(`ERROR: ${message}\n`)
-  process.stderr.write('Usage: pnpm run bemoat:agent:delivery -- <issue-number> [--repo owner/repo] [--body-file path]\n')
-  process.exitCode = 1
+function resolveDeliveryCommand() {
+  const env = process.env.npm_lifecycle_event === 'test:int'
+    ? { ...process.env, npm_lifecycle_event: undefined }
+    : process.env
+
+  return resolveCommandIdentity({
+    fallback: COMMAND,
+    env,
+    entrypoint: ENTRYPOINT,
+  })
 }
 
-function parseArgs(argv) {
-  const options = { issue: null, repo: null, bodyFile: null }
-  for (let index = 0; index < argv.length; index += 1) {
-    const argument = argv[index]
-    if (argument === '--') continue
-    if (argument === '--repo' || argument === '--body-file') {
-      const value = argv[++index]
-      if (!value) return { error: `${argument} requires a value` }
-      if (argument === '--repo') options.repo = value
-      else options.bodyFile = value
-      continue
-    }
-    if (argument.startsWith('-') || options.issue) return { error: `unexpected argument: ${argument}` }
-    options.issue = argument
+function renderHelp(invocation) {
+  if (invocation.format === 'json') {
+    process.stdout.write(`${JSON.stringify(createHelpEnvelopeV1(invocation.contract))}\n`)
+    return
   }
-  if (!options.issue || !/^[1-9]\d*$/.test(options.issue)) return { error: 'a positive Issue number is required' }
-  return { options }
+
+  process.stdout.write(formatTextHelp(invocation.contract))
+}
+
+function runtimeClassification(error) {
+  if (
+    error &&
+    typeof error === 'object' &&
+    typeof error.classification === 'string' &&
+    Object.hasOwn(CLI_EXIT_CODES, error.classification)
+  ) {
+    return error.classification
+  }
+
+  const reason = error instanceof Error ? error.message : String(error)
+  const prefix = reason.match(/^([A-Z_]+):/)
+  if (prefix && Object.hasOwn(CLI_EXIT_CODES, prefix[1])) return prefix[1]
+  if (/\b(?:gh|GitHub|network|remote)\b/i.test(reason)) return 'BLOCKED_EXTERNAL'
+  return 'INTERNAL_ERROR'
+}
+
+function runtimeDetails(error) {
+  const details = error instanceof CliInvocationError
+    ? {
+      argument: error.details.argument,
+      reason: error.details.reason,
+    }
+    : {
+      argument: null,
+      reason: error instanceof Error ? error.message : String(error),
+    }
+
+  if (error && typeof error === 'object') {
+    if (Array.isArray(error.errors)) details.errors = error.errors
+    if (typeof error.legacyClassification === 'string') {
+      details.legacy_classification = error.legacyClassification
+    }
+  }
+
+  return details
+}
+
+function renderRuntimeError({
+  command,
+  format,
+  error,
+  mutationPerformed = false,
+  values = {},
+  parsedBody = null,
+}) {
+  const classification = runtimeClassification(error)
+  const details = runtimeDetails(error)
+  const mutated = Boolean(
+    mutationPerformed ||
+    (error && typeof error === 'object' && error.mutationPerformed === true),
+  )
+
+  if (format === 'json' && command) {
+    process.stdout.write(`${JSON.stringify(createResultEnvelopeV1({
+      command,
+      outcome: 'ERROR',
+      classification,
+      mutation_performed: mutated,
+      repository: values.repository ?? null,
+      issue_number: values.issue_number ?? null,
+      pr_number: parsedBody?.prNumber ?? null,
+      exact_head: /^[0-9a-f]{40}$/i.test(parsedBody?.headSha ?? '')
+        ? parsedBody.headSha.toLowerCase()
+        : null,
+      next_action: {
+        type: 'STOP',
+        command: null,
+        reason: details.reason,
+      },
+      details,
+    }))}\n`)
+  } else if (error instanceof CliInvocationError) {
+    process.stderr.write(`${classification}: ${details.reason}\n`)
+  } else if (
+    classification === 'BLOCKED_EXTERNAL' &&
+    !/ambiguous POST|Failed to validate RESULT comment/i.test(details.reason)
+  ) {
+    process.stdout.write(`${classification}: ${details.reason}\n`)
+  } else {
+    const legacyPrefix = details.legacy_classification
+      ? `${details.legacy_classification}: `
+      : ''
+    process.stderr.write(`ERROR: ${classification}: ${legacyPrefix}${details.reason}\n`)
+  }
+
+  process.exitCode = classificationExitCode(classification)
+}
+
+function renderResult({
+  command,
+  format,
+  options,
+  result,
+  expectedRepo,
+  localCommit,
+  observedPreState,
+}) {
+  const output = `Delivery reconciliation successful. RESULT comment ${result.comment.id} posted and state updated.`
+  const envelope = createResultEnvelopeV1({
+    command,
+    outcome: 'SUCCESS',
+    classification: 'SUCCESS',
+    mutation_performed: true,
+    observed_pre_state: observedPreState,
+    resulting_state: result.state?.state ?? null,
+    repository: expectedRepo,
+    issue_number: options.issue,
+    pr_number: options.prNumber,
+    exact_head: /^[0-9a-f]{40}$/i.test(localCommit) ? localCommit.toLowerCase() : null,
+    next_action: {
+      type: 'COMMAND',
+      command: 'bemoat:mission-control:review',
+      reason: 'The delivered head is ready for the registered review route.',
+    },
+    details: {
+      legacy_classification: result.outcome,
+      legacy_output: [output],
+      comment_id: String(result.comment.id),
+    },
+  })
+
+  if (format === 'json') {
+    process.stdout.write(`${JSON.stringify(envelope)}\n`)
+  } else {
+    process.stdout.write(`${output}\n`)
+  }
+
+  process.exitCode = classificationExitCode('SUCCESS')
 }
 
 function readBody(bodyFile) {
   const stdinIsPipe = !process.stdin.isTTY
   const stdin = stdinIsPipe ? readFileSync(0, 'utf8') : ''
-  if (bodyFile && stdin.length > 0) throw new Error('--body-file and stdin are mutually exclusive')
-  if (bodyFile) return readFileSync(bodyFile, 'utf8')
-  if (!stdin) throw new Error('provide a comment body through --body-file or stdin')
+  if (bodyFile && stdin.length > 0) {
+    throw new CliInvocationError('--body-file', '--body-file and stdin are mutually exclusive')
+  }
+  if (bodyFile) {
+    try {
+      return readFileSync(bodyFile, 'utf8')
+    } catch (error) {
+      throw new CliInvocationError(
+        bodyFile,
+        error instanceof Error ? error.message : String(error),
+      )
+    }
+  }
+  if (!stdin) throw new CliInvocationError('stdin', 'provide a comment body through --body-file or stdin')
   return stdin
 }
 
@@ -69,52 +231,62 @@ function sameState(left, right) {
 }
 
 function main() {
-  mainAsync().catch((error) => {
-    process.stderr.write(`ERROR: ${error instanceof Error ? error.message : String(error)}\n`)
-    process.exitCode = 1
-  })
+  mainAsync()
 }
 
 async function mainAsync() {
-  const parsed = parseArgs(process.argv.slice(2))
-  if (parsed.error) return usage(parsed.error)
+  let command = null
+  let invocation = null
+  let mutationPerformed = false
+  let parsed = null
+  let body = null
+  let parsedBody = null
 
-  let body
   try {
-    body = readBody(parsed.options.bodyFile)
-  } catch (error) {
-    return usage(error instanceof Error ? error.message : String(error))
-  }
+    command = resolveDeliveryCommand()
+    invocation = parseCommandInvocation(command, process.argv.slice(2))
 
-  const parsedBody = parseRoleCommentBody(body)
+    if (invocation.mode === 'help') {
+      renderHelp(invocation)
+      return
+    }
+
+    parsed = {
+      options: {
+        issue: invocation.values.issue_number,
+        repo: invocation.values.repository ?? null,
+        bodyFile: invocation.values.body_file ?? null,
+      },
+    }
+
+    body = readBody(parsed.options.bodyFile)
+
+  parsedBody = parseRoleCommentBody(body)
   if (parsedBody.role !== 'RESULT') {
-    return usage('Delivery requires a RESULT comment body')
+    throw runtimeError('EVIDENCE_CONFLICT', 'Delivery requires a RESULT comment body')
   }
 
   const resultPr = parsedBody.prNumber
   if (!resultPr) {
-    process.stderr.write('ERROR: STATE_CONFLICT: RESULT PR identifier missing\n')
-    process.exitCode = 1
-    return
+    throw runtimeError('STATE_CONFLICT', 'RESULT PR identifier missing')
   }
 
   // 1. resolve expected delivered commit
   let localCommit
   try {
     localCommit = run('git', ['rev-parse', 'HEAD'])
-  } catch {
-    process.stderr.write(`ERROR: STATE_CONFLICT: Could not resolve local commit\n`)
-    process.exitCode = 1
-    return
+  } catch (error) {
+    throw runtimeError(
+      'BLOCKED_EXTERNAL',
+      `Could not resolve local commit: ${error instanceof Error ? error.message : String(error)}`,
+    )
   }
 
   // 2. verifies the remote branch ref equals that commit
   const currentBranch = run('git', ['branch', '--show-current'])
   const lsRemote = tryRun('git', ['ls-remote', 'origin', currentBranch])
   if (lsRemote.status !== 0 || !lsRemote.stdout.includes(localCommit)) {
-    process.stderr.write(`ERROR: STATE_CONFLICT: Remote branch ref does not equal local commit ${localCommit}\n`)
-    process.exitCode = 1
-    return
+    throw runtimeError('STATE_CONFLICT', `Remote branch ref does not equal local commit ${localCommit}`)
   }
 
   // 3. & 4. verifies the live Pulls API head equals the same commit, and expected transport target
@@ -122,30 +294,22 @@ async function mainAsync() {
   if (parsed.options.repo) ghArgs.push('--repo', parsed.options.repo)
   const prResult = tryRun('gh', ghArgs)
   if (prResult.status !== 0) {
-    process.stderr.write(`ERROR: BLOCKED_EXTERNAL: GitHub PR lookup failed\n`)
-    process.exitCode = 1
-    return
+    throw runtimeError('BLOCKED_EXTERNAL', 'GitHub PR lookup failed')
   }
 
   let prData
   try {
     prData = JSON.parse(prResult.stdout)
   } catch {
-    process.stderr.write('ERROR: BLOCKED_EXTERNAL: Invalid PR JSON\n')
-    process.exitCode = 1
-    return
+    throw runtimeError('BLOCKED_EXTERNAL', 'Invalid PR JSON')
   }
 
   if (prData.headRefOid !== localCommit) {
-    process.stderr.write(`ERROR: STATE_CONFLICT: PR head ${prData.headRefOid} does not match local commit ${localCommit}\n`)
-    process.exitCode = 1
-    return
+    throw runtimeError('STATE_CONFLICT', `PR head ${prData.headRefOid} does not match local commit ${localCommit}`)
   }
 
   if (prData.headRefName !== currentBranch) {
-    process.stderr.write(`ERROR: STATE_CONFLICT: PR headRefName ${prData.headRefName} does not match local branch ${currentBranch}\n`)
-    process.exitCode = 1
-    return
+    throw runtimeError('STATE_CONFLICT', `PR headRefName ${prData.headRefName} does not match local branch ${currentBranch}`)
   }
 
   let expectedRepo = parsed.options.repo
@@ -154,22 +318,19 @@ async function mainAsync() {
     if (repoResult.status === 0) expectedRepo = repoResult.stdout.trim()
   }
   if (!expectedRepo) {
-    process.stderr.write('ERROR: BLOCKED_EXTERNAL: Canonical PR repository is unavailable\n')
-    process.exitCode = 1
-    return
+    throw runtimeError('BLOCKED_EXTERNAL', 'Canonical PR repository is unavailable')
   }
   if (prData.headRepository?.nameWithOwner && expectedRepo && prData.headRepository.nameWithOwner !== expectedRepo) {
-    process.stderr.write(`ERROR: STATE_CONFLICT: PR head repository ${prData.headRepository.nameWithOwner} does not match expected repository ${expectedRepo}\n`)
-    process.exitCode = 1
-    return
+    throw runtimeError(
+      'STATE_CONFLICT',
+      `PR head repository ${prData.headRepository.nameWithOwner} does not match expected repository ${expectedRepo}`,
+    )
   }
 
   // 5. requires all configured exact-head workflows on that commit
   const ciAnalysis = analyzeExactHeadCi(prData)
   if (!ciAnalysis.exactHeadVerified) {
-    process.stderr.write(`ERROR: STATE_CONFLICT: Exact-head CI not verified: ${ciAnalysis.summary}\n`)
-    process.exitCode = 1
-    return
+    throw runtimeError('STATE_CONFLICT', `Exact-head CI not verified: ${ciAnalysis.summary}`)
   }
 
   // 6. updates the canonical Issue state only after all evidence agrees
@@ -177,17 +338,13 @@ async function mainAsync() {
   if (parsed.options.repo) issueArgs.push('--repo', parsed.options.repo)
   const issueResult = tryRun('gh', issueArgs)
   if (issueResult.status !== 0) {
-    process.stderr.write(`ERROR: BLOCKED_EXTERNAL: GitHub issue lookup failed\n`)
-    process.exitCode = 1
-    return
+    throw runtimeError('BLOCKED_EXTERNAL', 'GitHub issue lookup failed')
   }
   const issueData = JSON.parse(issueResult.stdout)
   const currentState = parseMissionControlState(issueData.body)
 
   if (currentState.present && !currentState.valid) {
-    process.stderr.write(`ERROR: STATE_CONFLICT: Issue has invalid Mission Control state: ${currentState.reason}\n`)
-    process.exitCode = 1
-    return
+    throw runtimeError('STATE_CONFLICT', `Issue has invalid Mission Control state: ${currentState.reason}`)
   }
 
   const deliveryTimestamp = new Date().toISOString()
@@ -209,7 +366,31 @@ async function mainAsync() {
   if (!stateObj.material_change_status) stateObj.material_change_status = 'none'
 
   let expectedBody = issueData.body
+  const verifyLivePullRequest = () => {
+    const livePrResult = tryRun('gh', ghArgs)
+    if (livePrResult.status !== 0) {
+      throw runtimeError('BLOCKED_EXTERNAL', 'GitHub PR lookup failed during final validation')
+    }
+    let livePr
+    try {
+      livePr = JSON.parse(livePrResult.stdout)
+    } catch {
+      throw runtimeError('BLOCKED_EXTERNAL', 'Invalid PR JSON during final validation')
+    }
+    if (livePr.headRefOid !== localCommit) {
+      throw runtimeError('HEAD_DRIFT', `PR head ${livePr.headRefOid} drifted from local commit ${localCommit}`)
+    }
+    if (livePr.headRefName !== currentBranch) {
+      throw runtimeError('HEAD_DRIFT', `PR headRefName ${livePr.headRefName} drifted from local branch ${currentBranch}`)
+    }
+    const liveCiAnalysis = analyzeExactHeadCi(livePr)
+    if (!liveCiAnalysis.exactHeadVerified) {
+      throw runtimeError('STATE_CONFLICT', `Exact-head CI not verified during final validation: ${liveCiAnalysis.summary}`)
+    }
+    return livePr
+  }
   const listLiveComments = () => {
+    verifyLivePullRequest()
     const listResult = tryRun('gh', [
       'api',
       '--paginate',
@@ -255,6 +436,7 @@ async function mainAsync() {
       } else {
         newBody = `${newBody}\n\n${renderStateBlock(nextState)}\n`
       }
+      mutationPerformed = true
       await writeIssueBodyWithLease({
         repo: expectedRepo,
         issueNumber: parsed.options.issue,
@@ -305,7 +487,9 @@ async function mainAsync() {
         writeFileSync(tmpComment, commentBody)
         const checkArgs = ['scripts/post-role-comment.mjs', parsed.options.issue, '--body-file', tmpComment, '--check']
         if (parsed.options.repo) checkArgs.push('--repo', parsed.options.repo)
-        const checkResult = tryRun('node', checkArgs)
+        const checkResult = tryRun('node', checkArgs, {
+          env: { ...process.env, npm_lifecycle_event: undefined },
+        })
         if (checkResult.status !== 0) {
           throw new Error(`STATE_CONFLICT: Failed to validate RESULT comment\n${checkResult.stderr || checkResult.stdout || ''}`)
         }
@@ -320,9 +504,29 @@ async function mainAsync() {
         ])
         if (postResult.status !== 0) {
           // Ambiguous POST: recovery rereads live comments (not a process-local array).
-          throw new Error(`STATE_CONFLICT: Failed to post RESULT comment\n${postResult.stderr || postResult.stdout || ''}`)
+          throw runtimeError(
+            'AMBIGUOUS_RESULT',
+            `Failed to post RESULT comment\n${postResult.stderr || postResult.stdout || ''}`,
+            {
+              mutationPerformed: true,
+              legacyClassification: 'STATE_CONFLICT',
+            },
+          )
         }
-        const posted = JSON.parse(postResult.stdout)
+        mutationPerformed = true
+        let posted
+        try {
+          posted = JSON.parse(postResult.stdout)
+        } catch (error) {
+          throw runtimeError(
+            'AMBIGUOUS_RESULT',
+            `Posted RESULT response was not valid JSON: ${error instanceof Error ? error.message : String(error)}`,
+            {
+              mutationPerformed: true,
+              legacyClassification: 'STATE_CONFLICT',
+            },
+          )
+        }
         if (posted?.id == null) {
           const identity = normalizeTransitionIdentity(commentBody, { role: 'RESULT' })
           const recovered = findMatchingComments(listLiveComments(), identity, {
@@ -330,7 +534,14 @@ async function mainAsync() {
             ...commentTrust,
           })
           if (recovered.length === 1) return recovered[0]
-          throw new Error('posted RESULT did not return a durable comment identifier')
+          throw runtimeError(
+            'AMBIGUOUS_RESULT',
+            'posted RESULT did not return a durable comment identifier',
+            {
+              mutationPerformed: true,
+              legacyClassification: 'STATE_CONFLICT',
+            },
+          )
         }
         return {
           id: posted.id,
@@ -356,36 +567,60 @@ async function mainAsync() {
   })
 
   if (result.outcome === 'RECOVERABLE_ROUTING_DRIFT') {
-    process.stderr.write(`ERROR: RECOVERABLE_ROUTING_DRIFT: comment posted but state update failed: ${result.error}\n`)
-    process.exitCode = 1
-    return
+    throw runtimeError(
+      'AMBIGUOUS_RESULT',
+      `comment posted but state update failed: ${result.error}`,
+      {
+        mutationPerformed: true,
+        legacyClassification: result.outcome,
+      },
+    )
   }
 
   // Live postconditions: Issue state + comment id + PR head.
   if (!result.comment?.id) {
-    process.stderr.write('ERROR: STATE_CONFLICT: RESULT integration did not retain a live comment id\n')
-    process.exitCode = 1
-    return
+    throw runtimeError('STATE_CONFLICT', 'RESULT integration did not retain a live comment id')
   }
   const liveComments = listLiveComments()
   const bound = liveComments.find((comment) => String(comment.id) === String(result.comment.id))
   if (!bound) {
-    process.stderr.write(`ERROR: STATE_CONFLICT: RESULT comment ${result.comment.id} was not found on live Issue comments\n`)
-    process.exitCode = 1
-    return
+    throw runtimeError('AMBIGUOUS_RESULT', `RESULT comment ${result.comment.id} was not found on live Issue comments`, {
+      mutationPerformed: true,
+      legacyClassification: 'STATE_CONFLICT',
+    })
   }
   if (prData.headRefOid !== localCommit) {
-    process.stderr.write(`ERROR: STATE_CONFLICT: PR head drifted during delivery\n`)
-    process.exitCode = 1
-    return
+    throw runtimeError('AMBIGUOUS_RESULT', 'PR head drifted during delivery', {
+      mutationPerformed: true,
+      legacyClassification: 'STATE_CONFLICT',
+    })
   }
   if (result.state?.latest_result_comment_id && String(result.state.latest_result_comment_id) !== String(result.comment.id)) {
-    process.stderr.write('ERROR: STATE_CONFLICT: live state is not bound to the posted RESULT comment id\n')
-    process.exitCode = 1
-    return
+    throw runtimeError('AMBIGUOUS_RESULT', 'live state is not bound to the posted RESULT comment id', {
+      mutationPerformed: true,
+      legacyClassification: 'STATE_CONFLICT',
+    })
   }
 
-  process.stdout.write(`Delivery reconciliation successful. RESULT comment ${result.comment.id} posted and state updated.\n`)
+  renderResult({
+    command,
+    format: invocation.format,
+    options: { ...parsed.options, prNumber: resultPr },
+    result,
+    expectedRepo,
+    localCommit,
+    observedPreState: currentState.state?.state ?? null,
+  })
+  } catch (error) {
+    renderRuntimeError({
+      command: command ?? COMMAND,
+      format: invocation?.format ?? (process.argv.includes('--json') ? 'json' : 'text'),
+      error,
+      mutationPerformed,
+      values: invocation?.values,
+      parsedBody,
+    })
+  }
 }
 
 main()
