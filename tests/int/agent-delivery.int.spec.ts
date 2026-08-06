@@ -13,6 +13,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 const scriptPath = resolve(process.cwd(), 'scripts/agent-delivery.mjs')
 const tempPaths: string[] = []
+const FULL_HEAD = 'abc1234'.padEnd(40, '0')
 
 function stubGhAndGit(
   prData: Record<string, unknown>,
@@ -20,10 +21,19 @@ function stubGhAndGit(
   lsRemoteOutput: string,
   currentBranch: string = 'main',
   localCommit: string = 'abc1234',
-  options: { failEdit?: boolean; failPost?: boolean } = {},
+  options: { failEdit?: boolean; failPost?: boolean; finalReadbackDrift?: boolean } = {},
 ) {
   const directory = mkdtempSync(join(tmpdir(), 'bemoat-agent-delivery-bin-'))
   tempPaths.push(directory)
+  const effectiveLocalCommit = localCommit === 'abc1234' ? FULL_HEAD : localCommit
+  const effectivePrData = {
+    ...prData,
+    ...(prData.headRefOid === 'abc1234' ? { headRefOid: FULL_HEAD } : {}),
+  }
+  const effectiveRemoteOutput = lsRemoteOutput
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^abc1234(?=\s)/, FULL_HEAD))
+    .join('\n')
 
   const fixture = join(directory, 'fixture.json')
   const commentsStore = join(directory, 'comments.json')
@@ -32,7 +42,7 @@ function stubGhAndGit(
   writeFileSync(commentsStore, '[]')
   writeFileSync(callsFile, '')
   writeFileSync(fixture, JSON.stringify({
-    prData,
+    prData: effectivePrData,
     issueData,
     repo: (prData.baseRepository as { nameWithOwner?: string } | undefined)?.nameWithOwner
       ?? (prData.headRepository as { nameWithOwner?: string } | undefined)?.nameWithOwner
@@ -41,6 +51,7 @@ function stubGhAndGit(
     editedBody,
     failEdit: options.failEdit ?? false,
     failPost: options.failPost ?? false,
+    finalReadbackDrift: options.finalReadbackDrift ?? false,
   }))
 
   const ghJs = join(directory, 'gh-stub.mjs')
@@ -79,7 +90,14 @@ if (args[0] === 'issue' && args[1] === 'edit') {
 }
 if (args[0] === 'api') {
   if (args.includes('--paginate')) {
-    process.stdout.write(readFileSync(fixture.commentsStore, 'utf8'))
+    const comments = JSON.parse(readFileSync(fixture.commentsStore, 'utf8'))
+    const commentReads = fixture.commentReads || 0
+    fixture.commentReads = commentReads + 1
+    writeFileSync(${JSON.stringify(fixture)}, JSON.stringify(fixture))
+    const readback = fixture.finalReadbackDrift && commentReads >= 2
+      ? comments.map(comment => ({ ...comment, body: comment.body + '\\nTampered after projection' }))
+      : comments
+    process.stdout.write(JSON.stringify(readback))
     process.exit(0)
   }
   if (args.includes('POST')) {
@@ -121,7 +139,7 @@ for argument in "$@"; do
 done
 printf '\\n' >> '${callsFile}'
 if [ "$1" = "rev-parse" ]; then
-  printf '%s' '${localCommit}'
+  printf '%s' '${effectiveLocalCommit}'
   exit 0
 fi
 if [ "$1" = "branch" ]; then
@@ -129,7 +147,7 @@ if [ "$1" = "branch" ]; then
   exit 0
 fi
 if [ "$1" = "ls-remote" ]; then
-  printf '%s' '${lsRemoteOutput}'
+  printf '%s' '${effectiveRemoteOutput}'
   exit 0
 fi
 exit 0
@@ -181,7 +199,6 @@ afterEach(() => {
 })
 
 describe('bemoat:agent:delivery', () => {
-  const FULL_HEAD = 'abc1234'.padEnd(40, '0')
   const validResultBody = `## RESULT
 **Profile:** FAST
 **Task:** #154 · \`feature/154\` → \`main\` · head \`abc1234\`
@@ -224,6 +241,30 @@ describe('bemoat:agent:delivery', () => {
     const result = run(['154'], { input: validResultBody, env: { PATH: stub.PATH } })
     expect(result.status).toBe(3)
     expect(result.stderr).toContain('STATE_CONFLICT: Remote branch ref does not equal local commit abc1234')
+  }, 10000)
+
+  it('requires the exact local SHA on the exact remote branch ref', () => {
+    const foreignHead = 'def5678'.padEnd(40, '1')
+    const prData = {
+      headRefOid: FULL_HEAD,
+      headRefName: 'main',
+      baseRefName: 'main',
+      statusCheckRollup: [{ conclusion: 'SUCCESS', targetUrl: `https://ci/${FULL_HEAD}` }],
+    }
+    const stub = stubGhAndGit(
+      prData,
+      { body: validIssueBody },
+      `${foreignHead} refs/heads/main\n${FULL_HEAD} refs/tags/unrelated`,
+      'main',
+      FULL_HEAD,
+    )
+    const result = run(['154'], {
+      input: validResultBody.replaceAll('abc1234', FULL_HEAD),
+      env: { PATH: stub.PATH },
+    })
+
+    expect(result.status).toBe(3)
+    expect(result.stderr).toContain(`STATE_CONFLICT: Remote branch ref does not equal local commit ${FULL_HEAD}`)
   }, 10000)
 
   it('fails if PR head does not match local commit', () => {
@@ -297,6 +338,30 @@ describe('bemoat:agent:delivery', () => {
     }
     expect(result.status).toBe(0)
     expect(result.stdout).toMatch(/^SUCCESS: Delivery reconciliation successful\. RESULT comment \d+ posted/)
+  }, 10000)
+
+  it('rejects live PR base drift before delivery mutation', () => {
+    const prData = {
+      headRefOid: FULL_HEAD,
+      headRefName: 'main',
+      baseRefName: 'dev',
+      statusCheckRollup: [{ conclusion: 'SUCCESS', targetUrl: `https://ci/${FULL_HEAD}` }],
+    }
+    const stub = stubGhAndGit(
+      prData,
+      { body: validIssueBody },
+      `${FULL_HEAD} refs/heads/main`,
+      'main',
+      FULL_HEAD,
+    )
+    const result = run(['154'], {
+      input: validResultBody.replaceAll('abc1234', FULL_HEAD),
+      env: { PATH: stub.PATH },
+    })
+
+    expect(result.status).toBe(3)
+    expect(result.stderr).toContain('STATE_CONFLICT: live PR base differs from managed approved base')
+    expect(readCalls(stub).some((line) => line.includes('issue edit'))).toBe(false)
   }, 10000)
 
   it('binds current_head to the verified PR head when RESULT metadata is short', async () => {
@@ -567,6 +632,34 @@ describe('bemoat:agent:delivery', () => {
         type: 'STOP',
         command: null,
       },
+    })
+  }, 10000)
+
+  it('requires final delivery comment body and metadata readback after projection', () => {
+    const prData = {
+      headRefOid: FULL_HEAD,
+      headRefName: 'main',
+      baseRefName: 'main',
+      statusCheckRollup: [{ conclusion: 'SUCCESS', targetUrl: `https://ci/${FULL_HEAD}` }],
+    }
+    const stub = stubGhAndGit(
+      prData,
+      { body: validIssueBody },
+      `${FULL_HEAD} refs/heads/main`,
+      'main',
+      FULL_HEAD,
+      { finalReadbackDrift: true },
+    )
+    const result = run(['154', '--json'], {
+      input: validResultBody.replaceAll('abc1234', FULL_HEAD),
+      env: { PATH: stub.PATH },
+    })
+
+    expect(result.status).toBe(4)
+    expect(result.stderr).toBe('')
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      classification: 'AMBIGUOUS_RESULT',
+      mutation_performed: true,
     })
   }, 10000)
 

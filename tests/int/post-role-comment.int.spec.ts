@@ -132,6 +132,9 @@ function stubGh(options: {
   phantomPost?: boolean
   duplicatePost?: boolean
   olderOnly?: boolean
+  failPost?: boolean
+  omitPostedId?: boolean
+  untrustedPost?: boolean
 } = {}) {
   const directory = mkdtempSync(join(tmpdir(), 'bemoat-role-comment-bin-'))
   tempPaths.push(directory)
@@ -145,12 +148,16 @@ const capture = process.env.BEMOAT_GH_CAPTURE;
 const postedPath = ${JSON.stringify(postedPath)};
 if (args[0] === 'issue' && args[1] === 'comment') {
   const bodyFile = args[args.indexOf('--body-file') + 1];
+  if (${options.failPost === true ? 'true' : 'false'}) {
+    console.error('Simulated comment POST timeout');
+    process.exit(1);
+  }
   const postedId = ${options.duplicatePost === true || options.olderOnly === true ? '9002' : '9001'};
   const posted = {
     id: postedId,
     body: fs.readFileSync(bodyFile, 'utf8'),
-    user: { login: 'boat1994' },
-    author_association: 'OWNER',
+    user: { login: ${options.untrustedPost === true ? "'attacker'" : "'boat1994'"} },
+    author_association: ${options.untrustedPost === true ? "'NONE'" : "'OWNER'"},
   };
   const older = { ...posted, id: 9001 };
   if (${options.phantomPost === true ? 'true' : 'false'} === false) {
@@ -162,7 +169,7 @@ if (args[0] === 'issue' && args[1] === 'comment') {
     fs.writeFileSync(postedPath, JSON.stringify(persisted));
   }
   if (capture) fs.writeFileSync(capture, args.join('\\n') + '\\n');
-  process.stdout.write('https://github.com/acme/repo/issues/115#issuecomment-' + posted.id + '\\n');
+  process.stdout.write(${options.omitPostedId === true ? "''" : "'https://github.com/acme/repo/issues/115#issuecomment-' + posted.id + '\\n'"});
   process.exit(0);
 }
 if (args[0] === 'issue' && args[1] === 'view' && args.includes('comments')) {
@@ -332,6 +339,38 @@ describe('bemoat:issue:comment', () => {
     expect(JSON.parse(result.stdout)).toMatchObject({
       command: 'bemoat:issue:comment',
       outcome: 'ERROR',
+      classification: 'AMBIGUOUS_RESULT',
+      mutation_performed: true,
+    })
+  })
+
+  it('maps a direct POST failure to AMBIGUOUS_RESULT with mutation performed', () => {
+    const gh = stubGh({ failPost: true })
+    const result = run(['115', '--repo', 'acme/repo', '--json'], {
+      input: bodies.RESULT,
+      env: { PATH: gh.path, BEMOAT_GH_CAPTURE: gh.capture },
+    })
+
+    expect(result.status).toBe(4)
+    expect(result.stderr).toBe('')
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      command: 'bemoat:issue:comment',
+      outcome: 'ERROR',
+      classification: 'AMBIGUOUS_RESULT',
+      mutation_performed: true,
+    })
+  })
+
+  it('rejects a body-only fallback when the new comment is not trusted', () => {
+    const gh = stubGh({ omitPostedId: true, untrustedPost: true })
+    const result = run(['115', '--repo', 'acme/repo', '--json'], {
+      input: bodies.RESULT,
+      env: { PATH: gh.path, BEMOAT_GH_CAPTURE: gh.capture },
+    })
+
+    expect(result.status).toBe(4)
+    expect(result.stderr).toBe('')
+    expect(JSON.parse(result.stdout)).toMatchObject({
       classification: 'AMBIGUOUS_RESULT',
       mutation_performed: true,
     })

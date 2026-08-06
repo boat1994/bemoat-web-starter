@@ -27,6 +27,7 @@ import {
   normalizeIssueComments,
   parsePaginatedGhApiJson,
   parseRoleCommentBody,
+  resolveProductionCommentTrust,
   verifyPostedCommentReadback,
 } from './mission-control-reconcile.mjs'
 import { projectComments } from './github-comment-projection.mjs'
@@ -550,14 +551,17 @@ function main() {
     }
     if (postResult.error || postResult.status !== 0) {
       throw runtimeError(
-        'BLOCKED_EXTERNAL',
+        'AMBIGUOUS_RESULT',
         postResult.stderr || postResult.error?.message || 'gh issue comment failed',
+        { mutationPerformed: true },
       )
     }
 
     let durableComment
+    let readbackId = null
     try {
       const postedId = extractPostedCommentId(postResult.stdout)
+      readbackId = postedId
       const liveComments = readLiveRoleComments(options)
       const priorIds = new Set(
         priorComments
@@ -568,12 +572,13 @@ function main() {
       const newComments = liveComments.filter(
         (comment) => comment.id != null && !priorIds.has(String(comment.id)),
       )
-      const readbackId = postedId ?? (newComments.length === 1 ? newComments[0].id : null)
+      readbackId = postedId ?? (newComments.length === 1 ? newComments[0].id : null)
       durableComment = verifyPostedCommentReadback({
         comments: liveComments,
         body,
         role,
         postedId: readbackId,
+        matchOptions: resolveProductionCommentTrust(),
       })
     } catch (error) {
       throw runtimeError(
@@ -583,6 +588,7 @@ function main() {
         }`,
         {
           mutationPerformed: true,
+          postedCommentId: readbackId,
           legacyClassification: 'POSTED',
         },
       )

@@ -16,6 +16,7 @@ import {
   projectReviewVerdictState,
   resolveProductionCommentTrust,
   verifyPostedCommentReadback,
+  normalizeAuthorityBase,
 } from './mission-control-reconcile.mjs'
 import { writeIssueBodyWithLease } from './mission-control-issue-body-cas.mjs'
 import {
@@ -291,6 +292,11 @@ async function main() {
     ) {
       throw new Error('STATE_CONFLICT: live PR head differs from reviewed head')
     }
+    const liveBase = normalizeAuthorityBase(pr.baseRefName)
+    const verdictBase = normalizeAuthorityBase(parsedVerdict.base)
+    if (!liveBase || !verdictBase || liveBase !== verdictBase) {
+      throw new Error('STATE_CONFLICT: REVIEW_VERDICT base differs from live PR base')
+    }
     if (!analyzeExactHeadCi(pr).exactHeadVerified) throw new Error('STATE_CONFLICT: exact-head CI is not verified')
 
     const verifyLivePullRequest = () => {
@@ -300,6 +306,9 @@ async function main() {
         livePr.headRefOid.toLowerCase() !== parsedVerdict.headSha.toLowerCase()
       ) {
         throw new Error('HEAD_DRIFT: live PR head changed during final validation')
+      }
+      if (normalizeAuthorityBase(livePr.baseRefName) !== liveBase) {
+        throw new Error('STATE_CONFLICT: live PR base changed during final validation')
       }
       if (!analyzeExactHeadCi(livePr).exactHeadVerified) {
         throw new Error('STATE_CONFLICT: exact-head CI is not verified during final validation')
@@ -321,7 +330,7 @@ async function main() {
       try {
         writeFileSync(payload, JSON.stringify({ body: commentBody }))
         mutationPerformed = true
-        let posted
+        let posted = null
         try {
           posted = JSON.parse(run('gh', ['api', '--method', 'POST', `repos/${repo}/issues/${options.issue}/comments`, '--input', payload]))
           if (posted?.id == null) {
@@ -341,6 +350,7 @@ async function main() {
             `review verdict comment result is ambiguous: ${error instanceof Error ? error.message : String(error)}`,
             {
               mutationPerformed: true,
+              postedCommentId: posted?.id ?? null,
               legacyClassification: 'STATE_CONFLICT',
             },
           )
@@ -379,11 +389,19 @@ async function main() {
     })
     if (!bootstrapPreflight.ok) throw new Error(`${bootstrapPreflight.classification ?? 'STATE_CONFLICT'}: ${bootstrapPreflight.reason}`)
     if (original.state !== options.expectedState) throw new Error(`UNSUPPORTED_PRE_STATE: expected ${options.expectedState}, received ${original.state}`)
-    if (original.approved_base !== pr.baseRefName) throw new Error('STATE_CONFLICT: live PR base differs from approved base')
+    if (normalizeAuthorityBase(original.approved_base) !== liveBase) throw new Error('STATE_CONFLICT: live PR base differs from approved base')
     if (String(original.current_head ?? '').toLowerCase() !== options.expectedHead.toLowerCase()) {
       throw new Error('STATE_CONFLICT: managed current head differs from reviewed head')
     }
-    const coordinator = new Coordinator({ readState: async () => readIssue(), writeState, listComments: async () => listComments(), postComment: async (comment) => postComment(comment), ...commentTrust })
+    const coordinator = new Coordinator({
+      readState: async () => readIssue(),
+      writeState,
+      listComments: async () => listComments(),
+      postComment: async (comment) => postComment(comment),
+      ...commentTrust,
+      verifiedHead: pr.headRefOid,
+      verifiedBase: liveBase,
+    })
     const result = await coordinator.integrateReviewVerdict({
       verdictBody: body,
       verifyPreconditions: async () => undefined,
@@ -404,6 +422,27 @@ async function main() {
         mutationPerformed: true,
         legacyClassification: result.outcome,
       })
+    }
+    try {
+      verifyPostedCommentReadback({
+        comments: listComments(),
+        body,
+        role: 'REVIEW_VERDICT',
+        postedId: result.comment.id,
+        matchOptions: commentTrust,
+      })
+    } catch (error) {
+      throw runtimeError(
+        'AMBIGUOUS_RESULT',
+        `REVIEW_VERDICT comment could not be confirmed on final live readback: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        {
+          mutationPerformed: true,
+          postedCommentId: result.comment.id,
+          legacyClassification: result.outcome,
+        },
+      )
     }
     renderResult({
       command,

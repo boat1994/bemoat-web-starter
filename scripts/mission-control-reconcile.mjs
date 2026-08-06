@@ -570,17 +570,25 @@ export function normalizeAuthorityHead(value) {
   return normalized ? normalized.toLowerCase() : null
 }
 
+export function normalizeAuthorityBase(value) {
+  const normalized = String(value ?? '').trim()
+  return normalized ? normalized.toLowerCase() : null
+}
+
 function headsAlign(left, right) {
   const normalizedLeft = normalizeAuthorityHead(left)
   const normalizedRight = normalizeAuthorityHead(right)
   if (!normalizedLeft || !normalizedRight) return true
-  if (normalizedLeft === normalizedRight) return true
+  const isShaLike = (value) => /^[0-9a-f]{7,40}$/.test(value)
+  if (normalizedLeft === normalizedRight) {
+    return !isShaLike(normalizedLeft) || normalizedLeft.length === 40
+  }
   if (normalizedLeft.length === 40 && normalizedRight.length === 40) return false
   if (normalizedLeft.length === 40) {
-    return normalizedRight.length >= 7 && normalizedLeft.startsWith(normalizedRight)
+    return isShaLike(normalizedRight) && normalizedLeft.startsWith(normalizedRight)
   }
   if (normalizedRight.length === 40) {
-    return normalizedLeft.length >= 7 && normalizedRight.startsWith(normalizedLeft)
+    return isShaLike(normalizedLeft) && normalizedRight.startsWith(normalizedLeft)
   }
   return false
 }
@@ -640,7 +648,7 @@ export function resolveProductionCommentTrust({
  * @param {{ taskId: string, phase: string, role: string, contentHash: string }} identity
  * @param {{
  *   activeOnly?: boolean,
- *   bindings?: { prNumber?: string | number | null, headSha?: string | null, taskId?: string | null, phase?: string | null },
+ *   bindings?: { prNumber?: string | number | null, base?: string | null, headSha?: string | null, taskId?: string | null, phase?: string | null },
  *   trustedAuthors?: string[],
  *   requireTrustedAuthor?: boolean,
  *   trustedAssociations?: string[],
@@ -671,10 +679,22 @@ export function findMatchingComments(comments = [], identity, options = {}) {
       if (bindings?.phase && entry.identity.phase && entry.identity.phase !== bindings.phase) {
         return false
       }
-      if (bindings?.prNumber && entry.parsed.prNumber && String(entry.parsed.prNumber) !== String(bindings.prNumber)) {
+      if (
+        bindings?.prNumber &&
+        (!entry.parsed.prNumber || String(entry.parsed.prNumber) !== String(bindings.prNumber))
+      ) {
         return false
       }
-      if (bindings?.headSha && entry.parsed.headSha && !headsAlign(entry.parsed.headSha, bindings.headSha)) {
+      if (
+        bindings?.headSha &&
+        (!entry.parsed.headSha || !headsAlign(entry.parsed.headSha, bindings.headSha))
+      ) {
+        return false
+      }
+      if (
+        bindings?.base &&
+        normalizeAuthorityBase(entry.parsed.base) !== normalizeAuthorityBase(bindings.base)
+      ) {
         return false
       }
       if (trustedAuthors?.length) {
@@ -796,9 +816,67 @@ export function resolveChildSyncCommandGate({
 }
 
 /**
- * @param {{ comments?: Array<{ body?: string, id?: string | number }>, identity: object, ambiguousPost?: boolean, matchOptions?: object }} input
+ * @param {{
+ *   comments?: Array<{ body?: string, id?: string | number, author?: string, user?: { login?: string }, author_association?: string }>,
+ *   identity: object,
+ *   body?: string,
+ *   role?: 'HANDOFF' | 'RESULT' | 'REVIEW_VERDICT',
+ *   postedId?: string | number | null,
+ *   ambiguousPost?: boolean,
+ *   matchOptions?: object,
+ * }} input
  */
-export function recoverAmbiguousPost({ comments = [], identity, ambiguousPost = true, matchOptions = { activeOnly: true } }) {
+export function recoverAmbiguousPost({
+  comments = [],
+  identity,
+  body = null,
+  role = identity?.role ?? null,
+  postedId = null,
+  ambiguousPost = true,
+  matchOptions = { activeOnly: true },
+}) {
+  if (ambiguousPost) {
+    if (postedId == null || typeof body !== 'string' || !role) {
+      const error = new Error('AMBIGUOUS_RESULT: possible POST has no complete authoritative comment identity')
+      error.classification = 'AMBIGUOUS_RESULT'
+      error.mutationPerformed = true
+      return { classification: 'AMBIGUOUS_RESULT', error }
+    }
+    try {
+      const comment = verifyPostedCommentReadback({
+        comments,
+        body,
+        role,
+        postedId,
+        matchOptions,
+      })
+      return { classification: 'RESUME_PROJECTION', comment, recovered: true }
+    } catch (error) {
+      const ambiguous = error instanceof Error ? error : new Error(String(error))
+      ambiguous.classification = 'AMBIGUOUS_RESULT'
+      ambiguous.mutationPerformed = true
+      return {
+        classification: 'AMBIGUOUS_RESULT',
+        error: ambiguous,
+      }
+    }
+  }
+
+  if (postedId != null && typeof body === 'string' && role) {
+    try {
+      const comment = verifyPostedCommentReadback({
+        comments,
+        body,
+        role,
+        postedId,
+        matchOptions,
+      })
+      return { classification: 'RESUME_PROJECTION', comment, recovered: true }
+    } catch {
+      return { classification: 'BLOCKED_EXTERNAL', error: new Error('posted role comment was not found') }
+    }
+  }
+
   const matches = findMatchingComments(comments, identity, matchOptions)
   const classification = classifyTransition(matches.length)
   if (classification === 'RESUME_PROJECTION') {
@@ -808,9 +886,12 @@ export function recoverAmbiguousPost({ comments = [], identity, ambiguousPost = 
     return { classification, error: new Error('ambiguous POST resolved to competing matches') }
   }
   if (ambiguousPost) {
+    const error = new Error('ambiguous POST has no provable match')
+    error.classification = 'AMBIGUOUS_RESULT'
+    error.mutationPerformed = true
     return {
       classification: 'AMBIGUOUS_RESULT',
-      error: new Error('ambiguous POST has no provable match'),
+      error,
     }
   }
   return { classification, error: new Error('ambiguous POST has no provable match') }
@@ -941,6 +1022,8 @@ export class Coordinator {
    *   trustedAuthors?: string[] | null,
    *   requireTrustedAuthor?: boolean,
    *   trustedAssociations?: string[] | null,
+   *   verifiedHead?: string | null,
+   *   verifiedBase?: string | null,
    * }} transports
    */
   constructor(transports) {
@@ -952,6 +1035,8 @@ export class Coordinator {
     this.trustedAuthors = transports.trustedAuthors ?? null
     this.requireTrustedAuthor = transports.requireTrustedAuthor ?? false
     this.trustedAssociations = transports.trustedAssociations ?? null
+    this.verifiedHead = transports.verifiedHead ?? null
+    this.verifiedBase = transports.verifiedBase ?? null
   }
 
   _matchOptions(roleBody, role) {
@@ -965,7 +1050,8 @@ export class Coordinator {
           taskId: identity.taskId || null,
           phase: identity.phase || null,
           prNumber: parsed.prNumber,
-          headSha: parsed.headSha,
+          base: this.verifiedBase ?? parsed.base,
+          headSha: this.verifiedHead ?? parsed.headSha,
         },
         trustedAuthors: this.trustedAuthors ?? undefined,
         requireTrustedAuthor: this.requireTrustedAuthor,
@@ -1004,11 +1090,15 @@ export class Coordinator {
         return { identity, comment: posted, created: true }
       } catch (error) {
         const possibleMutation = error?.mutationPerformed === true
+        const postedId = error?.postedCommentId ?? error?.authoritativePostId ?? null
         let recovery
         try {
           recovery = recoverAmbiguousPost({
             comments: await this.listComments(),
             identity,
+            body: roleBody,
+            role,
+            postedId,
             ambiguousPost: possibleMutation,
             matchOptions: options,
           })
@@ -1174,8 +1264,19 @@ export class Coordinator {
       let live
       try {
         live = await this.readState()
-      } catch {
-        throw error
+      } catch (readError) {
+        const ambiguous = new Error(
+          `AMBIGUOUS_RESULT: unable to verify Issue state after RESULT comment and state write: ${
+            readError instanceof Error ? readError.message : String(readError)
+          }`,
+          { cause: error },
+        )
+        ambiguous.classification = 'AMBIGUOUS_RESULT'
+        ambiguous.mutationPerformed = true
+        if (typeof error?.legacyClassification === 'string') {
+          ambiguous.legacyClassification = error.legacyClassification
+        }
+        throw ambiguous
       }
       if (sameValue(live, original)) {
         return {
@@ -1342,7 +1443,23 @@ export class Coordinator {
       }
     } catch (error) {
       if (!created) throw error
-      const live = await this.readState()
+      let live
+      try {
+        live = await this.readState()
+      } catch (readError) {
+        const ambiguous = new Error(
+          `AMBIGUOUS_RESULT: unable to verify Issue state after REVIEW_VERDICT comment and state write: ${
+            readError instanceof Error ? readError.message : String(readError)
+          }`,
+          { cause: error },
+        )
+        ambiguous.classification = 'AMBIGUOUS_RESULT'
+        ambiguous.mutationPerformed = true
+        if (typeof error?.legacyClassification === 'string') {
+          ambiguous.legacyClassification = error.legacyClassification
+        }
+        throw ambiguous
+      }
       if (sameValue(live, projected)) return {
         outcome: 'REVIEWED',
         classification: routingDriftClassification({ prior: original, identity, comment, role: 'REVIEW_VERDICT' }),
@@ -1525,7 +1642,15 @@ export async function dispatchFounderAuthorizedCorrection({
 export function parseRoleCommentBody(body = '') {
   const heading = body.match(/^##\s+(HANDOFF|RESULT|REVIEW_VERDICT)\s*$/m)?.[1] ?? null
   if (!heading) {
-    return { role: null, body, prNumber: null, headSha: null, verdict: null, managedStateLine: null }
+    return {
+      role: null,
+      body,
+      prNumber: null,
+      base: null,
+      headSha: null,
+      verdict: null,
+      managedStateLine: null,
+    }
   }
 
   const prFromUrl = body.match(/https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/(\d+)/)?.[1] ?? null
@@ -1536,6 +1661,26 @@ export function parseRoleCommentBody(body = '') {
     )?.[1] ?? null
   const prFromCanonicalShorthand =
     body.match(/\*\*PR\s*\/\s*base\s*\/\s*head:\*\*[^\n]*\bPR\s*#(\d+)\b/i)?.[1] ?? null
+  const canonicalBaseMatch = body.match(
+    /^\*\*PR\s*\/\s*base\s*\/\s*head:\*\*\s*(?:https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+|PR\s*#\d+)\s*(?:\/\s*|\s*·\s*)(?:`([^`]+)`|([^/·]+?))\s*(?:\/\s*·|·)\s*`[0-9a-f]{7,40}`\s*$/im,
+  )
+  const baseFromCanonicalLine = (canonicalBaseMatch?.[1] ?? canonicalBaseMatch?.[2])?.trim() ?? null
+  const baseFromStateLine = body.match(
+    /^\*\*(?:State|Task(?:\s*\/\s*Issue)?):\*\*[^\n]*?\bbase\s+`([^`]+)`/im,
+  )?.[1]?.trim() ?? null
+  const baseFromTaskBranch = body.match(
+    /^\*\*Task(?:\s*\/\s*Issue)?:\*\*[^\n]*?→\s*`([^`]+)`\s*·/im,
+  )?.[1]?.trim() ?? null
+  const baseFromLegacy = body.match(
+    /^\*\*(?:Approved\s+base|Base):\*\*\s*(?:`([^`\r\n]+)`|([^\s\r\n]+))/im,
+  )
+  const base = normalizeAuthorityBase(
+    baseFromCanonicalLine ||
+      baseFromStateLine ||
+      baseFromTaskBranch ||
+      (baseFromLegacy?.[1] ?? baseFromLegacy?.[2])?.trim() ||
+      null,
+  )
   const headFromState = body.match(/\*\*State:\*\*[^\n]*head\s+`([0-9a-f]{7,40})`/i)?.[1] ?? null
   const headFromPrLine = body.match(/\*\*PR\s*\/\s*base\s*\/\s*head:\*\*[^\n]*·\s*`([0-9a-f]{7,40})`/i)?.[1] ?? null
   const headFromExact = body.match(/\*\*Exact head reviewed:\*\*\s*`([0-9a-f]{7,40})`/i)?.[1] ?? null
@@ -1555,6 +1700,7 @@ export function parseRoleCommentBody(body = '') {
       heading === 'REVIEW_VERDICT'
         ? prFromCanonicalLine || prFromCanonicalShorthand
         : prFromUrl || prFromHash,
+    base,
     headSha,
     verdict,
     managedStateLine,
@@ -1691,7 +1837,16 @@ export function isGenuineStateConflict(evidence = {}) {
 export function proposeDeliveryReconciliation(evidence) {
   const prNumber = String(evidence.livePr.number)
   const head = bindDeliveryHead(evidence.latestResult?.parsed?.headSha, evidence.livePr.headRefOid)
-  const approvedBase = evidence.approvedBase || evidence.livePr.baseRefName || 'main'
+  const liveBase = normalizeAuthorityBase(evidence.livePr.baseRefName)
+  const resultBase = normalizeAuthorityBase(evidence.latestResult?.parsed?.base)
+  const approvedBase = normalizeAuthorityBase(
+    evidence.approvedBase ?? evidence.managedState?.approved_base ?? liveBase,
+  )
+  if (!liveBase || !resultBase || resultBase !== liveBase || approvedBase !== liveBase) {
+    const error = new Error('EVIDENCE_CONFLICT: RESULT, approved state, and live PR must agree on the canonical base')
+    error.classification = 'EVIDENCE_CONFLICT'
+    throw error
+  }
   const updatedAt = evidence.updatedAt ?? new Date().toISOString()
   const updatedBy = evidence.updatedBy ?? 'Mission Control'
 
@@ -2020,7 +2175,7 @@ function parseCanonicalReviewTarget(body = '') {
   const match = body.match(
     /^\*\*PR\s*\/\s*base\s*\/\s*head:\*\*[^\n]*?·\s*`([^`]+)`\s*·\s*`([0-9a-f]{7,40})`\s*$/im,
   )
-  return match ? { base: match[1], head: match[2].toLowerCase() } : null
+  return match ? { base: normalizeAuthorityBase(match[1]), head: match[2].toLowerCase() } : null
 }
 
 function hasCanonicalReviewTargetLine(body = '') {
@@ -2144,7 +2299,7 @@ export function parseLegacyReviewVerdictBinding(body = '') {
     kind: 'legacy',
     issueNumber: taskMatches[0][1],
     prNumber: prMatches[0][1],
-    base: baseMatches[0][1],
+    base: normalizeAuthorityBase(baseMatches[0][1]),
     head: normalizeAuthorityHead(headMatches[0][1]),
   }
 }
@@ -2303,7 +2458,7 @@ function selectLiveReviewVerdictComment({ comments, issueNumber, livePr }) {
   if (String(binding.prNumber) !== String(livePr.number)) {
     throw new Error('STATE_CONFLICT: REVIEW_VERDICT PR does not match the live PR')
   }
-  if (binding.base !== livePr.baseRefName) {
+  if (normalizeAuthorityBase(binding.base) !== normalizeAuthorityBase(livePr.baseRefName)) {
     throw new Error('STATE_CONFLICT: REVIEW_VERDICT base does not match the live PR')
   }
   const liveHead = normalizeAuthorityHead(livePr.headRefOid)
@@ -2352,7 +2507,10 @@ export function assertManagedActivePrForReviewVerdictReconciliation({
   runGh = (args, options) => run('gh', args, options),
 }) {
   const prNumber = String(state.active_pr).replace(/^#/, '')
-  if (String(pr.number) !== prNumber || pr.baseRefName !== state.approved_base) {
+  if (
+    String(pr.number) !== prNumber ||
+    normalizeAuthorityBase(pr.baseRefName) !== normalizeAuthorityBase(state.approved_base)
+  ) {
     throw new Error('STATE_CONFLICT: managed active PR or approved base does not match live PR')
   }
   const liveHead = normalizeAuthorityHead(pr.headRefOid)

@@ -357,10 +357,35 @@ async function main() {
           env: { ...process.env, npm_lifecycle_event: undefined },
         })
         writeFileSync(payloadFile, JSON.stringify({ body }))
-        const posted = JSON.parse(run('gh', [
-          'api', '--method', 'POST', `repos/${repo}/issues/${options.issue}/comments`, '--input', payloadFile,
-        ]))
-        if (posted?.id == null) throw new Error('posted HANDOFF did not return a comment identifier')
+        let posted
+        try {
+          posted = JSON.parse(run('gh', [
+            'api', '--method', 'POST', `repos/${repo}/issues/${options.issue}/comments`, '--input', payloadFile,
+          ]))
+        } catch (error) {
+          if (options.founderCorrection) throw error
+          throw runtimeError(
+            'AMBIGUOUS_RESULT',
+            `HANDOFF POST outcome is unknown: ${error instanceof Error ? error.message : String(error)}`,
+            {
+              mutationPerformed: true,
+              postedCommentId: null,
+            },
+          )
+        }
+        if (posted?.id == null) {
+          if (options.founderCorrection) {
+            throw new Error('posted HANDOFF did not return a comment identifier')
+          }
+          throw runtimeError(
+            'AMBIGUOUS_RESULT',
+            'HANDOFF POST did not return an authoritative comment identifier',
+            {
+              mutationPerformed: true,
+              postedCommentId: null,
+            },
+          )
+        }
         if (options.founderCorrection) {
           return {
             ...posted,
@@ -389,6 +414,7 @@ async function main() {
             }`,
             {
               mutationPerformed: true,
+              postedCommentId: posted.id,
               legacyClassification: 'POSTED',
             },
           )
@@ -468,8 +494,9 @@ async function main() {
       updatedBy: 'Mission Control',
       planningAuthorizationBaseSha: options.planningBaseSha,
     })
-    const liveComments = listLiveComments()
+    let liveComments
     try {
+      liveComments = listLiveComments()
       verifyPostedCommentReadback({
         comments: liveComments,
         body: handoffBody,
@@ -485,6 +512,7 @@ async function main() {
         }`,
         {
           mutationPerformed: true,
+          postedCommentId: result.comment?.id ?? null,
           legacyClassification: 'POSTED',
         },
       )

@@ -92,7 +92,7 @@ function correctionRequiredBody() {
 - Phase: Reviewer
 - Executing role: Reviewer / Red Team
 
-**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/232 · \`main\` · \`deadbeef\`
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/232 · \`main\` · \`${REVIEWED_HEAD}\`
 **Verdict:** CORRECTION REQUIRED
 **Findings:** Critical: None · Important: MC-R1-231-001
 **Gates:** exact-head CI pass
@@ -101,7 +101,7 @@ function correctionRequiredBody() {
 \`\`\`json
 {
   "schema_version": 1,
-  "reviewed_head": "deadbeef",
+  "reviewed_head": "${REVIEWED_HEAD}",
   "findings": [
     {
       "id": "MC-R1-231-001",
@@ -139,7 +139,7 @@ describe('mission-control review transition', () => {
     const verdictBody = correctionRequiredBody()
     let state: any = {
       state: 'AWAITING_REVIEW_1', review_cycle: 0, full_review_count: 0,
-      active_pr: '#232', current_head: 'deadbeef', last_reviewed_head: null,
+      active_pr: '#232', current_head: REVIEWED_HEAD, last_reviewed_head: null,
       open_blockers: [], next_permitted_action: 'Review 1',
     }
     const comments: any[] = []
@@ -160,20 +160,20 @@ describe('mission-control review transition', () => {
       },
     })
     const project = (prior: any, comment: any, identity: any) => projectReviewVerdictState({
-      prior, verdict: 'CORRECTION REQUIRED', reviewType: 'full', reviewedHead: 'deadbeef',
+      prior, verdict: 'CORRECTION REQUIRED', reviewType: 'full', reviewedHead: REVIEWED_HEAD,
       commentId: comment.id, transitionIdentity: JSON.stringify(identity),
       findings: [{ finding_id: 'MC-R1-231-001' },], updatedAt: 'now', updatedBy: 'Reviewer',
     })
 
     const first = await coordinator.integrateReviewVerdict({ verdictBody, projectState: project })
     expect(first.outcome).toBe('REVIEWED')
-    expect(state).toMatchObject({ state: 'CORRECTION_REQUIRED_1', review_cycle: 1, full_review_count: 1, last_reviewed_head: 'deadbeef', current_head: 'deadbeef', latest_review_verdict_comment_id: '9001', open_blockers: ['MC-R1-231-001'] })
+    expect(state).toMatchObject({ state: 'CORRECTION_REQUIRED_1', review_cycle: 1, full_review_count: 1, last_reviewed_head: REVIEWED_HEAD, current_head: REVIEWED_HEAD, latest_review_verdict_comment_id: '9001', open_blockers: ['MC-R1-231-001'] })
 
     const replay = await coordinator.integrateReviewVerdict({ verdictBody, projectState: project })
     expect(replay.outcome).toBe('REVIEWED')
     expect(postCount).toBe(1)
     expect(state.review_cycle).toBe(1)
-    expect(state.last_reviewed_head).toBe('deadbeef')
+    expect(state.last_reviewed_head).toBe(REVIEWED_HEAD)
   })
 
   it('projects last_reviewed_head to exact reviewed head on successful Review 1', async () => {
@@ -269,11 +269,11 @@ describe('Issue #229 Review 3 blocker-projection hotfix', () => {
     expect(projectReviewVerdictState({
       prior: {
         state: 'AWAITING_REVIEW_1', review_cycle: 0, full_review_count: 0,
-        current_head: 'deadbeef', last_reviewed_head: null, open_blockers: [],
+        current_head: REVIEWED_HEAD, last_reviewed_head: null, open_blockers: [],
       },
       verdict: 'CORRECTION REQUIRED',
       reviewType: 'full',
-      reviewedHead: 'deadbeef',
+      reviewedHead: REVIEWED_HEAD,
       commentId: '9001',
       transitionIdentity: 'identity',
       findings: parsed.findings,

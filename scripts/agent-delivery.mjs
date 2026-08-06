@@ -15,6 +15,7 @@ import {
   resolveProductionCommentTrust,
   verifyPostedCommentReadback,
   normalizeAuthorityHead,
+  normalizeAuthorityBase,
 } from './mission-control-reconcile.mjs'
 import { writeIssueBodyWithLease } from './mission-control-issue-body-cas.mjs'
 import {
@@ -231,6 +232,16 @@ function sameState(left, right) {
   return JSON.stringify(left) === JSON.stringify(right)
 }
 
+function parseExactRemoteCommit(stdout, branch) {
+  const expectedRef = `refs/heads/${branch}`
+  const matches = String(stdout ?? '')
+    .split(/\r?\n/)
+    .map((line) => line.trim().match(/^([0-9a-f]{40})\s+(\S+)$/i))
+    .filter((match) => match?.[2] === expectedRef)
+
+  return matches.length === 1 ? matches[0][1].toLowerCase() : null
+}
+
 function main() {
   mainAsync()
 }
@@ -282,11 +293,17 @@ async function mainAsync() {
       `Could not resolve local commit: ${error instanceof Error ? error.message : String(error)}`,
     )
   }
+  if (!/^[0-9a-f]{40}$/i.test(localCommit)) {
+    throw runtimeError('STATE_CONFLICT', `Local commit is not a full SHA: ${localCommit}`)
+  }
 
   // 2. verifies the remote branch ref equals that commit
   const currentBranch = run('git', ['branch', '--show-current'])
   const lsRemote = tryRun('git', ['ls-remote', 'origin', currentBranch])
-  if (lsRemote.status !== 0 || !lsRemote.stdout.toLowerCase().includes(localCommit)) {
+  const remoteCommit = lsRemote.status === 0
+    ? parseExactRemoteCommit(lsRemote.stdout, currentBranch)
+    : null
+  if (remoteCommit !== localCommit) {
     throw runtimeError('STATE_CONFLICT', `Remote branch ref does not equal local commit ${localCommit}`)
   }
 
@@ -348,13 +365,22 @@ async function mainAsync() {
   if (currentState.present && !currentState.valid) {
     throw runtimeError('STATE_CONFLICT', `Issue has invalid Mission Control state: ${currentState.reason}`)
   }
+  const liveBase = normalizeAuthorityBase(prData.baseRefName)
+  const resultBase = normalizeAuthorityBase(parsedBody.base)
+  const approvedBase = normalizeAuthorityBase(currentState.state?.approved_base)
+  if (!liveBase || !approvedBase || liveBase !== approvedBase) {
+    throw runtimeError('STATE_CONFLICT', 'live PR base differs from managed approved base')
+  }
+  if (!resultBase || resultBase !== liveBase) {
+    throw runtimeError('STATE_CONFLICT', `RESULT base ${resultBase || '(missing)'} does not match live PR base ${liveBase}`)
+  }
 
   const deliveryTimestamp = new Date().toISOString()
   const newStateProposal = proposeDeliveryReconciliation({
     managedState: currentState.state,
-    livePr: { number: resultPr, headRefOid: localCommit, baseRefName: prData.baseRefName || 'main' },
+    livePr: { number: resultPr, headRefOid: localCommit, baseRefName: liveBase },
     activeTaskIssue: parsed.options.issue,
-    approvedBase: currentState.state?.approved_base ?? prData.baseRefName ?? 'main',
+    approvedBase,
     latestResult: { parsed: parsedBody },
     updatedAt: deliveryTimestamp,
     updatedBy: 'Mission Control',
@@ -385,6 +411,9 @@ async function mainAsync() {
     }
     if (livePr.headRefName !== currentBranch) {
       throw runtimeError('HEAD_DRIFT', `PR headRefName ${livePr.headRefName} drifted from local branch ${currentBranch}`)
+    }
+    if (normalizeAuthorityBase(livePr.baseRefName) !== liveBase) {
+      throw runtimeError('STATE_CONFLICT', `PR base ${livePr.baseRefName ?? '(missing)'} drifted from expected base ${liveBase}`)
     }
     const liveCiAnalysis = analyzeExactHeadCi(livePr)
     if (!liveCiAnalysis.exactHeadVerified) {
@@ -514,6 +543,7 @@ async function mainAsync() {
           '--input',
           payloadFile,
         ])
+        let posted = null
         if (postResult.status !== 0) {
           // Ambiguous POST: recovery rereads live comments (not a process-local array).
           throw runtimeError(
@@ -521,12 +551,12 @@ async function mainAsync() {
             `Failed to post RESULT comment\n${postResult.stderr || postResult.stdout || ''}`,
             {
               mutationPerformed: true,
+              postedCommentId: null,
               legacyClassification: 'STATE_CONFLICT',
             },
           )
         }
         mutationPerformed = true
-        let posted
         try {
           posted = JSON.parse(postResult.stdout)
         } catch (error) {
@@ -535,6 +565,7 @@ async function mainAsync() {
             `Posted RESULT response was not valid JSON: ${error instanceof Error ? error.message : String(error)}`,
             {
               mutationPerformed: true,
+              postedCommentId: posted?.id ?? null,
               legacyClassification: 'STATE_CONFLICT',
             },
           )
@@ -555,6 +586,7 @@ async function mainAsync() {
             }`,
             {
               mutationPerformed: true,
+              postedCommentId: posted?.id ?? null,
               legacyClassification: 'STATE_CONFLICT',
             },
           )
@@ -564,6 +596,8 @@ async function mainAsync() {
       }
     },
     ...commentTrust,
+    verifiedHead: localCommit,
+    verifiedBase: liveBase,
   })
 
   const result = await coordinator.integrateResult({
@@ -587,15 +621,33 @@ async function mainAsync() {
 
   // Live postconditions: Issue state + comment id + PR head.
   if (!result.comment?.id) {
-    throw runtimeError('STATE_CONFLICT', 'RESULT integration did not retain a live comment id')
-  }
-  const liveComments = listLiveComments()
-  const bound = liveComments.find((comment) => String(comment.id) === String(result.comment.id))
-  if (!bound) {
-    throw runtimeError('AMBIGUOUS_RESULT', `RESULT comment ${result.comment.id} was not found on live Issue comments`, {
+    throw runtimeError('AMBIGUOUS_RESULT', 'RESULT integration did not retain a live comment id', {
       mutationPerformed: true,
       legacyClassification: 'STATE_CONFLICT',
     })
+  }
+  let liveComments
+  try {
+    liveComments = listLiveComments()
+    verifyPostedCommentReadback({
+      comments: liveComments,
+      body,
+      role: 'RESULT',
+      postedId: result.comment.id,
+      matchOptions: commentTrust,
+    })
+  } catch (error) {
+    throw runtimeError(
+      'AMBIGUOUS_RESULT',
+      `RESULT comment could not be confirmed on final live readback: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+      {
+        mutationPerformed: true,
+        postedCommentId: result.comment.id,
+        legacyClassification: 'STATE_CONFLICT',
+      },
+    )
   }
   if (normalizeAuthorityHead(prData.headRefOid) !== localCommit) {
     throw runtimeError('AMBIGUOUS_RESULT', 'PR head drifted during delivery', {
