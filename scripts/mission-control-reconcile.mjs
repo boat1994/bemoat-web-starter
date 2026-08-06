@@ -565,7 +565,7 @@ export function selectActiveRoleComments(comments = [], role) {
   })
 }
 
-function normalizeAuthorityHead(value) {
+export function normalizeAuthorityHead(value) {
   const normalized = String(value ?? '').trim()
   return normalized ? normalized.toLowerCase() : null
 }
@@ -574,9 +574,15 @@ function headsAlign(left, right) {
   const normalizedLeft = normalizeAuthorityHead(left)
   const normalizedRight = normalizeAuthorityHead(right)
   if (!normalizedLeft || !normalizedRight) return true
-  return normalizedLeft === normalizedRight ||
-    normalizedLeft.startsWith(normalizedRight.slice(0, 7)) ||
-    normalizedRight.startsWith(normalizedLeft.slice(0, 7))
+  if (normalizedLeft === normalizedRight) return true
+  if (normalizedLeft.length === 40 && normalizedRight.length === 40) return false
+  if (normalizedLeft.length === 40) {
+    return normalizedRight.length >= 7 && normalizedLeft.startsWith(normalizedRight)
+  }
+  if (normalizedRight.length === 40) {
+    return normalizedLeft.length >= 7 && normalizedRight.startsWith(normalizedLeft)
+  }
+  return false
 }
 
 function bindDeliveryHead(resultHead, liveHead) {
@@ -588,10 +594,7 @@ function bindDeliveryHead(resultHead, liveHead) {
     throw error
   }
 
-  const matches = normalizedResult === normalizedLive ||
-    (normalizedResult.length >= 7 && normalizedLive.startsWith(normalizedResult)) ||
-    (normalizedLive.length >= 7 && normalizedResult.startsWith(normalizedLive))
-  if (!matches) {
+  if (!headsAlign(normalizedResult, normalizedLive)) {
     const error = new Error('EVIDENCE_CONFLICT: RESULT head does not match verified live PR head')
     error.classification = 'EVIDENCE_CONFLICT'
     throw error
@@ -706,6 +709,9 @@ export function verifyPostedCommentReadback({
   postedId = null,
   matchOptions = {},
 }) {
+  if (postedId == null) {
+    throw new Error(`postcondition: live ${role} comment readback requires the authoritative POST comment id`)
+  }
   const identity = normalizeTransitionIdentity(body, { role })
   const matches = findMatchingComments(comments, identity, {
     activeOnly: false,
@@ -722,11 +728,13 @@ export function verifyPostedCommentReadback({
   if (String(comment.body ?? '') !== String(body)) {
     throw new Error(`postcondition: live ${role} comment body differs from the intended body`)
   }
+  const author = comment.author || comment.user?.login || null
+  const association = comment.author_association || comment.authorAssociation || null
   if (
     comment.id == null ||
-    !comment.author ||
-    comment.author === 'unknown' ||
-    !comment.author_association
+    !author ||
+    author === 'unknown' ||
+    !association
   ) {
     throw new Error(`postcondition: live ${role} comment metadata is incomplete`)
   }
@@ -864,9 +872,12 @@ function coordinatorOwnedProjection({ prior = {}, base = {}, identity, comment, 
       }
     }
     const commentHead = parseRoleCommentBody(comment?.body ?? '').headSha
-    const reviewedHead = normalizeAuthorityHead(
-      commentHead ?? base?.last_reviewed_head ?? base?.current_head ?? null,
-    )
+    const normalizedCommentHead = normalizeAuthorityHead(commentHead)
+    const knownHead = normalizeAuthorityHead(base?.last_reviewed_head ?? base?.current_head ?? null)
+    const reviewedHead = normalizedCommentHead && knownHead?.length === 40 &&
+      normalizedCommentHead.length < 40 && headsAlign(normalizedCommentHead, knownHead)
+      ? knownHead
+      : (normalizedCommentHead ?? knownHead)
     if (reviewedHead) {
       owned.current_head = reviewedHead
       owned.last_reviewed_head = reviewedHead
@@ -1598,10 +1609,9 @@ export function classifyDeliveryLag(managedState, livePr, exactHeadCi, latestRes
 
   const resultHead = normalizeAuthorityHead(latestResult?.parsed?.headSha)
   const liveHead = normalizeAuthorityHead(livePr.headRefOid)
-  const headsAlign =
-    !resultHead || resultHead === liveHead || resultHead.startsWith(liveHead.slice(0, 7))
+  const headsMatch = !resultHead || headsAlign(resultHead, liveHead)
 
-  if (!headsAlign) {
+  if (!headsMatch) {
     return { lag: false, kind: 'STATE_CONFLICT', reason: 'RESULT head does not match live PR head' }
   }
 
@@ -1639,7 +1649,7 @@ export function classifyReviewLag(managedState, livePr, latestVerdict = null) {
     return { lag: false, kind: 'STATE_CONFLICT', reason: 'REVIEW_VERDICT PR does not match live PR' }
   }
 
-  if (reviewedHead && liveHead && reviewedHead !== liveHead) {
+  if (reviewedHead && liveHead && !headsAlign(reviewedHead, liveHead)) {
     return { lag: false, kind: 'STATE_CONFLICT', reason: 'verdict head does not match live PR head' }
   }
 
@@ -2110,8 +2120,8 @@ export function parseLegacyReviewVerdictBinding(body = '') {
   )]
   const headMatches = [...body.matchAll(
     new RegExp(
-      `^\\*\\*Head:\\*\\*${LEGACY_FIELD_SPACING}\`([0-9a-f]{40})\`${LEGACY_FIELD_SPACING}$`,
-      'gm',
+      `^\\*\\*Head:\\*\\*${LEGACY_FIELD_SPACING}\`([0-9a-f]{7,40})\`${LEGACY_FIELD_SPACING}$`,
+      'gmi',
     ),
   )]
 
@@ -2135,7 +2145,7 @@ export function parseLegacyReviewVerdictBinding(body = '') {
     issueNumber: taskMatches[0][1],
     prNumber: prMatches[0][1],
     base: baseMatches[0][1],
-    head: headMatches[0][1],
+    head: normalizeAuthorityHead(headMatches[0][1]),
   }
 }
 
@@ -2298,8 +2308,8 @@ function selectLiveReviewVerdictComment({ comments, issueNumber, livePr }) {
   }
   const liveHead = normalizeAuthorityHead(livePr.headRefOid)
   if (
-    normalizeAuthorityHead(binding.head) !== liveHead ||
-    normalizeAuthorityHead(binding.headSha) !== liveHead
+    !headsAlign(binding.head, liveHead) ||
+    !headsAlign(binding.headSha, liveHead)
   ) {
     throw new Error('STATE_CONFLICT: REVIEW_VERDICT exact head does not match the live PR')
   }

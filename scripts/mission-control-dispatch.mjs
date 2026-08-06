@@ -12,6 +12,7 @@ import {
   parseRoleCommentBody,
   verifyStatePostcondition,
   resolveProductionCommentTrust,
+  verifyPostedCommentReadback,
 } from './mission-control-reconcile.mjs'
 import {
   createHelpEnvelopeV1,
@@ -360,15 +361,37 @@ async function main() {
           'api', '--method', 'POST', `repos/${repo}/issues/${options.issue}/comments`, '--input', payloadFile,
         ]))
         if (posted?.id == null) throw new Error('posted HANDOFF did not return a comment identifier')
-        return {
-          ...posted,
-          id: posted.id,
-          body: posted.body ?? body,
-          url: posted.html_url ?? posted.url ?? null,
-          createdAt: posted.created_at ?? posted.createdAt ?? null,
-          updatedAt: posted.updated_at ?? posted.updatedAt ?? null,
-          author: posted.user?.login ?? null,
-          author_association: posted.author_association ?? null,
+        if (options.founderCorrection) {
+          return {
+            ...posted,
+            id: posted.id,
+            body: posted.body ?? body,
+            url: posted.html_url ?? posted.url ?? null,
+            createdAt: posted.created_at ?? posted.createdAt ?? null,
+            updatedAt: posted.updated_at ?? posted.updatedAt ?? null,
+            author: posted.user?.login ?? null,
+            author_association: posted.author_association ?? null,
+          }
+        }
+        try {
+          return verifyPostedCommentReadback({
+            comments: listLiveComments(),
+            body,
+            role: 'HANDOFF',
+            postedId: posted.id,
+            matchOptions: resolveProductionCommentTrust(),
+          })
+        } catch (error) {
+          throw runtimeError(
+            'AMBIGUOUS_RESULT',
+            `posted HANDOFF comment could not be confirmed by live readback: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+            {
+              mutationPerformed: true,
+              legacyClassification: 'POSTED',
+            },
+          )
         }
       } finally {
         rmSync(temp, { recursive: true, force: true })
@@ -446,9 +469,25 @@ async function main() {
       planningAuthorizationBaseSha: options.planningBaseSha,
     })
     const liveComments = listLiveComments()
-    const bound = liveComments.find((comment) => String(comment.id) === String(result.comment?.id))
-    if (!bound) {
-      throw new Error('postcondition: posted HANDOFF comment id was not found on live Issue comments')
+    try {
+      verifyPostedCommentReadback({
+        comments: liveComments,
+        body: handoffBody,
+        role: 'HANDOFF',
+        postedId: result.comment?.id ?? null,
+        matchOptions: resolveProductionCommentTrust(),
+      })
+    } catch (error) {
+      throw runtimeError(
+        'AMBIGUOUS_RESULT',
+        `posted HANDOFF comment could not be confirmed on final live readback: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        {
+          mutationPerformed: true,
+          legacyClassification: 'POSTED',
+        },
+      )
     }
     if (result.state?.state !== 'IN_PROGRESS') {
       throw new Error('postcondition: live Issue state is not IN_PROGRESS after HANDOFF')

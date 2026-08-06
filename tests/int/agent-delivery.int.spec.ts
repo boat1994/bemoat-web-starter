@@ -323,6 +323,29 @@ describe('bemoat:agent:delivery', () => {
     expect(editedBody).not.toMatch(/^current_head: abc1234$/m)
   }, 10000)
 
+  it('normalizes uppercase live PR heads before exact comparisons and persistence', () => {
+    const prData = {
+      headRefOid: FULL_HEAD.toUpperCase(),
+      headRefName: 'main',
+      baseRefName: 'main',
+      statusCheckRollup: [{ conclusion: 'SUCCESS', targetUrl: `https://ci/${FULL_HEAD}` }],
+    }
+    const stub = stubGhAndGit(
+      prData,
+      { body: validIssueBody },
+      `${FULL_HEAD} refs/heads/main`,
+      'main',
+      FULL_HEAD,
+    )
+
+    const result = run(['154'], { input: validResultBody, env: { PATH: stub.PATH } })
+
+    expect(result.status, result.stderr || result.stdout).toBe(0)
+    const editedBody = readFileSync(stub.editedBody, 'utf8')
+    expect(editedBody).toContain(`current_head: ${FULL_HEAD}`)
+    expect(editedBody).not.toContain(`current_head: ${FULL_HEAD.toUpperCase()}`)
+  }, 10000)
+
   it('rejects a RESULT head that conflicts with verified local and PR evidence', () => {
     const prData = {
       headRefOid: FULL_HEAD,

@@ -1773,6 +1773,29 @@ Bounded implementation work.
     const parsed = parsePaginatedGhApiJson('[{"id":1,"body":"a"}][{"id":2,"body":"b"}]')
     expect(normalizeIssueComments(parsed).map((comment: any) => comment.id)).toEqual([1, 2])
   })
+
+  it('rejects distinct full heads that collide at the seven-character prefix', () => {
+    const liveHead = `abcdef0${'1'.repeat(33)}`
+    const conflictingHead = `abcdef0${'2'.repeat(33)}`
+    const collisionBody = resultBody.replace('deadbeef', conflictingHead)
+    const identity = normalizeTransitionIdentity(collisionBody, { role: 'RESULT' })
+
+    expect(findMatchingComments(
+      [{ id: 'collision', body: collisionBody }],
+      identity,
+      { activeOnly: true, bindings: { headSha: liveHead } },
+    )).toHaveLength(0)
+
+    expect(classifyDeliveryLag(
+      { state: 'IN_PROGRESS', active_pr: null, current_head: null },
+      { number: '186', headRefOid: liveHead },
+      { exactHeadVerified: true },
+      { parsed: { headSha: conflictingHead, prNumber: '186' } },
+    )).toMatchObject({
+      kind: 'STATE_CONFLICT',
+      reason: 'RESULT head does not match live PR head',
+    })
+  })
 })
 
 describe('Issue #255 atomic role-transition regressions', () => {

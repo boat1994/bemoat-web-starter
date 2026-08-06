@@ -14,6 +14,7 @@ import {
   verifyStatePostcondition,
   resolveProductionCommentTrust,
   verifyPostedCommentReadback,
+  normalizeAuthorityHead,
 } from './mission-control-reconcile.mjs'
 import { writeIssueBodyWithLease } from './mission-control-issue-body-cas.mjs'
 import {
@@ -274,7 +275,7 @@ async function mainAsync() {
   // 1. resolve expected delivered commit
   let localCommit
   try {
-    localCommit = run('git', ['rev-parse', 'HEAD'])
+    localCommit = normalizeAuthorityHead(run('git', ['rev-parse', 'HEAD']))
   } catch (error) {
     throw runtimeError(
       'BLOCKED_EXTERNAL',
@@ -285,7 +286,7 @@ async function mainAsync() {
   // 2. verifies the remote branch ref equals that commit
   const currentBranch = run('git', ['branch', '--show-current'])
   const lsRemote = tryRun('git', ['ls-remote', 'origin', currentBranch])
-  if (lsRemote.status !== 0 || !lsRemote.stdout.includes(localCommit)) {
+  if (lsRemote.status !== 0 || !lsRemote.stdout.toLowerCase().includes(localCommit)) {
     throw runtimeError('STATE_CONFLICT', `Remote branch ref does not equal local commit ${localCommit}`)
   }
 
@@ -304,8 +305,9 @@ async function mainAsync() {
     throw runtimeError('BLOCKED_EXTERNAL', 'Invalid PR JSON')
   }
 
-  if (prData.headRefOid !== localCommit) {
-    throw runtimeError('STATE_CONFLICT', `PR head ${prData.headRefOid} does not match local commit ${localCommit}`)
+  const prHead = normalizeAuthorityHead(prData.headRefOid)
+  if (prHead !== localCommit) {
+    throw runtimeError('STATE_CONFLICT', `PR head ${prHead} does not match local commit ${localCommit}`)
   }
 
   if (prData.headRefName !== currentBranch) {
@@ -377,8 +379,9 @@ async function mainAsync() {
     } catch {
       throw runtimeError('BLOCKED_EXTERNAL', 'Invalid PR JSON during final validation')
     }
-    if (livePr.headRefOid !== localCommit) {
-      throw runtimeError('HEAD_DRIFT', `PR head ${livePr.headRefOid} drifted from local commit ${localCommit}`)
+    const liveHead = normalizeAuthorityHead(livePr.headRefOid)
+    if (liveHead !== localCommit) {
+      throw runtimeError('HEAD_DRIFT', `PR head ${liveHead} drifted from local commit ${localCommit}`)
     }
     if (livePr.headRefName !== currentBranch) {
       throw runtimeError('HEAD_DRIFT', `PR headRefName ${livePr.headRefName} drifted from local branch ${currentBranch}`)
@@ -594,7 +597,7 @@ async function mainAsync() {
       legacyClassification: 'STATE_CONFLICT',
     })
   }
-  if (prData.headRefOid !== localCommit) {
+  if (normalizeAuthorityHead(prData.headRefOid) !== localCommit) {
     throw runtimeError('AMBIGUOUS_RESULT', 'PR head drifted during delivery', {
       mutationPerformed: true,
       legacyClassification: 'STATE_CONFLICT',
