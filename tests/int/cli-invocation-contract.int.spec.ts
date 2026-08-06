@@ -119,6 +119,7 @@ function reopenArguments({
   issueNumber = '284',
   repository = 'BOAT1994/BEMOAT-WEB-STARTER',
   expectedPr = '285',
+  expectedBase = 'main',
   expectedOldHead = FULL_UPPERCASE_SHA,
   expectedNewHead = SECOND_FULL_UPPERCASE_SHA,
   reviewCycle = '9007199254740991',
@@ -128,6 +129,7 @@ function reopenArguments({
   issueNumber?: string
   repository?: string
   expectedPr?: string
+  expectedBase?: string
   expectedOldHead?: string
   expectedNewHead?: string
   reviewCycle?: string
@@ -140,6 +142,8 @@ function reopenArguments({
     repository,
     '--expected-pr',
     expectedPr,
+    '--expected-base',
+    expectedBase,
     '--expected-state',
     'ELIGIBLE_FOR_FOUNDER_REVIEW',
     '--expected-old-head',

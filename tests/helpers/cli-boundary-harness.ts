@@ -29,7 +29,7 @@ export type FileSystemSnapshot = Record<string, SnapshotEntry>
 export type CliBoundaryCase = {
   entrypoint: string
   argv?: readonly string[]
-  env?: NodeJS.ProcessEnv
+  env?: Partial<NodeJS.ProcessEnv>
   stdin?: string | Buffer
   files?: Record<string, string | Buffer>
 }
