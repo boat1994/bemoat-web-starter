@@ -1,9 +1,0 @@
-{
-  "schema_version": 1,
-  "issue": "320",
-  "transition_identity": "{\"taskId\":\"320\",\"phase\":\"Reviewer\",\"role\":\"REVIEW_VERDICT\",\"contentHash\":\"363d04312d1f9cf7e5156710953468ea3705b928c2d1479d9c7aaf4163dae3b6\"}",
-  "observed_body_sha256": "4cc34195b9edefd87dd0c12f4e85dbe4472f4ce82c0b62992036f41219bd5014",
-  "holder": "mission-control-reconcile-review-verdict",
-  "status": "released",
-  "updated_at": "2026-08-06T18:53:51.385Z"
-}
