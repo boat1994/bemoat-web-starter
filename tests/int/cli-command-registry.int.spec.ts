@@ -417,7 +417,7 @@ describe('Task 1 command contract registry', () => {
       expect(contract.command).toBe(transport.command)
     }
 
-    const canonicalCommands = new Set(CANONICAL_TRANSPORTS.map((transport) => transport.command))
+    const canonicalCommands = new Set<string>(CANONICAL_TRANSPORTS.map((transport) => transport.command))
     for (const command of Object.keys(EXPECTED_COMMAND_TIERS)) {
       if (!canonicalCommands.has(command)) {
         expect(getCommandContract(command)?.transport_role, command).toBeNull()
