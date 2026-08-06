@@ -670,6 +670,49 @@ describe('Task 4 Tier A CLI boundaries: boilerplate sync and hooks install', () 
     })
   })
 
+  it('hooks install JSON keeps Git stdout out of the result envelope', () => {
+    const root = createHooksMutationFixture()
+    const bin = mkdtempSync(join(tmpdir(), 'bemoat-cli-tier-a-hook-bin-'))
+    temporaryRoots.push(bin)
+    writeExecutable(
+      join(bin, 'git'),
+      `#!/usr/bin/env sh
+printf '%s\n' 'fake git config stdout'
+exit 0
+`,
+    )
+    const entry = TIER_A_CASES[1]
+    const run = spawnSync(
+      process.execPath,
+      [resolve(process.cwd(), entry.entrypoint), '--json'],
+      {
+        cwd: root,
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          ...facadeEnvironment(entry),
+          PATH: [bin, process.env.PATH].filter(Boolean).join(delimiter),
+        },
+        maxBuffer: 4 * 1024 * 1024,
+      },
+    )
+
+    expect(run.error ?? null).toBeNull()
+    expect(run.status, `${run.stdout}\n${run.stderr}`).toBe(0)
+    expect(run.stderr).toBe('fake git config stdout\n')
+    expect(run.stdout.trim().split(/\r?\n/)).toHaveLength(1)
+
+    const result = parseSingleJson(run.stdout)
+    assertResultEnvelopeV1(result)
+    expect(result).toMatchObject({
+      command: entry.command,
+      mode: 'result',
+      outcome: 'SUCCESS',
+      classification: 'SUCCESS',
+      mutation_performed: true,
+    })
+  })
+
   it('hooks install JSON reports ambiguous mutation when git config fails after chmod', () => {
     const root = createHooksMutationFixture({ gitRepository: false })
     const entry = TIER_A_CASES[1]

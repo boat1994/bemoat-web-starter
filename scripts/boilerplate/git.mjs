@@ -32,7 +32,10 @@ function getCommandStatus(command, args, options = {}) {
   })
 
   if (result.error) throw result.error
-  return result.status ?? 1
+  return {
+    status: result.status ?? 1,
+    stderr: result.stderr ?? '',
+  }
 }
 
 function getScopedGitPathArgs(paths) {
@@ -62,12 +65,17 @@ export function createGitClient({ suppressStdout = false } = {}) {
       run('git', ['add', '--', ...paths], { cwd, ...runOptions })
     },
     hasStagedChanges(cwd, paths) {
-      const status = getCommandStatus('git', ['diff', '--cached', '--quiet', '--', ...paths], { cwd })
+      const result = getCommandStatus('git', ['diff', '--cached', '--quiet', '--', ...paths], { cwd })
 
-      if (status === 0) return false
-      if (status === 1) return true
+      if (result.status === 0) return false
+      if (result.status === 1) return true
 
-      throw new Error('Unable to determine staged sync changes')
+      const diagnostic = String(result.stderr).trim()
+      throw new Error(
+        diagnostic
+          ? `Unable to determine staged sync changes: ${diagnostic}`
+          : 'Unable to determine staged sync changes',
+      )
     },
     commit(cwd, message) {
       run('git', ['commit', '-m', message], { cwd, ...runOptions })

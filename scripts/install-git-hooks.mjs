@@ -29,6 +29,12 @@ function createAmbiguousInstallError(error) {
   return partialError
 }
 
+function writeCapturedGitStdout(output) {
+  if (!output) return
+  const text = Buffer.isBuffer(output) ? output.toString('utf8') : String(output)
+  if (text) process.stderr.write(text)
+}
+
 export function isDirectExecution() {
   const entrypoint = process.argv[1]
 
@@ -37,7 +43,10 @@ export function isDirectExecution() {
   return import.meta.url === pathToFileURL(resolve(entrypoint)).href
 }
 
-export function installGitHooks({ root = process.cwd() } = {}) {
+export function installGitHooks({
+  root = process.cwd(),
+  captureGitStdout = false,
+} = {}) {
   const hookPaths = HOOKS.map((hook) => ({ hook, path: resolve(root, hook) }))
 
   for (const { hook, path } of hookPaths) {
@@ -57,11 +66,25 @@ export function installGitHooks({ root = process.cwd() } = {}) {
   }
 
   try {
-    execFileSync('git', ['config', 'core.hooksPath', HOOKS_DIR], {
-      cwd: root,
-      stdio: 'inherit',
-    })
+    const gitStdout = execFileSync(
+      'git',
+      ['config', 'core.hooksPath', HOOKS_DIR],
+      captureGitStdout
+        ? {
+          cwd: root,
+          encoding: 'utf8',
+          stdio: ['ignore', 'pipe', 'inherit'],
+        }
+        : {
+          cwd: root,
+          stdio: 'inherit',
+        },
+    )
+    if (captureGitStdout) writeCapturedGitStdout(gitStdout)
   } catch (error) {
+    if (captureGitStdout && error && typeof error === 'object') {
+      writeCapturedGitStdout(error.stdout)
+    }
     if (hookModesChanged) throw createAmbiguousInstallError(error)
     throw error
   }
@@ -232,7 +255,9 @@ function main() {
       return
     }
 
-    const result = installGitHooks()
+    const result = installGitHooks({
+      captureGitStdout: invocation.format === 'json',
+    })
     renderHooksResult({
       command,
       format: invocation.format,
