@@ -19,6 +19,16 @@ import {
 const HOOKS_DIR = '.githooks'
 const HOOKS = [`${HOOKS_DIR}/pre-commit`, `${HOOKS_DIR}/pre-push`]
 
+function createAmbiguousInstallError(error) {
+  const reason = error instanceof Error ? error.message : String(error)
+  const partialError = new Error(
+    `Hook modes changed, but core.hooksPath could not be configured: ${reason}`,
+  )
+  partialError.classification = 'AMBIGUOUS_RESULT'
+  partialError.mutationPerformed = true
+  return partialError
+}
+
 export function isDirectExecution() {
   const entrypoint = process.argv[1]
 
@@ -36,18 +46,25 @@ export function installGitHooks({ root = process.cwd() } = {}) {
     }
   }
 
+  let hookModesChanged = false
   for (const { path } of hookPaths) {
     try {
       chmodSync(path, 0o755)
+      hookModesChanged = true
     } catch {
       // Non-fatal on platforms that ignore chmod
     }
   }
 
-  execFileSync('git', ['config', 'core.hooksPath', HOOKS_DIR], {
-    cwd: root,
-    stdio: 'inherit',
-  })
+  try {
+    execFileSync('git', ['config', 'core.hooksPath', HOOKS_DIR], {
+      cwd: root,
+      stdio: 'inherit',
+    })
+  } catch (error) {
+    if (hookModesChanged) throw createAmbiguousInstallError(error)
+    throw error
+  }
 
   return {
     hooks: HOOKS,
@@ -134,13 +151,18 @@ function runtimeDetails(error) {
 function renderRuntimeError({ command, format, error }) {
   const classification = runtimeClassification(error)
   const details = runtimeDetails(error)
+  const mutationPerformed = Boolean(
+    error &&
+    typeof error === 'object' &&
+    error.mutationPerformed === true,
+  )
 
   if (format === 'json' && command) {
     process.stdout.write(`${JSON.stringify(createResultEnvelopeV1({
       command,
       outcome: 'ERROR',
       classification,
-      mutation_performed: false,
+      mutation_performed: mutationPerformed,
       next_action: {
         type: 'STOP',
         command: null,

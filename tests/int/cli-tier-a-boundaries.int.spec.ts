@@ -283,7 +283,10 @@ packages:
   writeFixtureFile(root, 'vitest.setup.ts', 'export {}\n')
 }
 
-function createSyncMutationFixture() {
+function createSyncMutationFixture({
+  emitToolOutput = false,
+  includeGitignore = false,
+} = {}) {
   const root = mkdtempSync(join(tmpdir(), 'bemoat-cli-tier-a-sync-'))
   const bin = mkdtempSync(join(tmpdir(), 'bemoat-cli-tier-a-bin-'))
   temporaryRoots.push(root, bin)
@@ -300,13 +303,14 @@ import { join } from 'node:path'
 const args = process.argv.slice(2)
 const logPath = process.env.BEMOAT_FAKE_GIT_LOG
 if (logPath) appendFileSync(logPath, args.join(' ') + '\\n')
+if (${emitToolOutput}) process.stdout.write('fake git output\\n')
 
 if (args[0] === 'clone') {
   const sourceRoot = args[args.length - 1]
   const manifest = {
     managedPaths: ['AGENTS.md'],
     seedOnlyPaths: [],
-    mergeKeepPaths: [],
+    mergeKeepPaths: ${includeGitignore ? "['.gitignore']" : '[]'},
     managedPackageScripts: [],
     suggestedPackageScripts: [],
     buildContractPackageScripts: [],
@@ -329,6 +333,7 @@ if (args[0] === 'clone') {
     JSON.stringify(toolchainContract),
   )
   writeFileSync(join(sourceRoot, 'AGENTS.md'), 'starter managed rail\\n')
+  if (${includeGitignore}) writeFileSync(join(sourceRoot, '.gitignore'), 'dist\\n')
   process.exit(0)
 }
 
@@ -343,16 +348,18 @@ process.exit(0)
   return { root, bin }
 }
 
-function createHooksMutationFixture() {
+function createHooksMutationFixture({ gitRepository = true } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'bemoat-cli-tier-a-hooks-'))
   temporaryRoots.push(root)
 
-  const init = spawnSync('git', ['init', '--quiet'], {
-    cwd: root,
-    encoding: 'utf8',
-  })
-  if (init.status !== 0) {
-    throw new Error(`git init failed: ${init.stderr}`)
+  if (gitRepository) {
+    const init = spawnSync('git', ['init', '--quiet'], {
+      cwd: root,
+      encoding: 'utf8',
+    })
+    if (init.status !== 0) {
+      throw new Error(`git init failed: ${init.stderr}`)
+    }
   }
 
   for (const [relativePath, content] of Object.entries(HOOK_FIXTURE_FILES)) {
@@ -481,6 +488,54 @@ describe('Task 4 Tier A CLI boundaries: boilerplate sync and hooks install', () 
     })
   })
 
+  it('boilerplate sync JSON isolates workflow and tool output to one envelope', () => {
+    const fixture = createSyncMutationFixture({
+      emitToolOutput: true,
+      includeGitignore: true,
+    })
+    const entry = TIER_A_CASES[0]
+    const run = spawnSync(
+      process.execPath,
+      [
+        resolve(process.cwd(), entry.entrypoint),
+        '--harness-only',
+        '--skip-mc-transition-gate',
+        '--json',
+      ],
+      {
+        cwd: fixture.root,
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          ...facadeEnvironment(entry, {
+            BEMOAT_BOILERPLATE_REPO: 'example/starter',
+            BEMOAT_BOILERPLATE_REF: 'slice-4',
+            BEMOAT_FAKE_GIT_LOG: join(fixture.bin, 'git.log'),
+            PATH: [fixture.bin, process.env.PATH].filter(Boolean).join(delimiter),
+          }),
+        },
+        maxBuffer: 4 * 1024 * 1024,
+      },
+    )
+
+    expect(run.error ?? null).toBeNull()
+    expect(run.status, `${run.stdout}\n${run.stderr}`).toBe(0)
+    expect(run.stderr).toBe('')
+
+    const result = parseSingleJson(run.stdout)
+    assertResultEnvelopeV1(result)
+    expect(result).toMatchObject({
+      command: entry.command,
+      mode: 'result',
+      outcome: 'SUCCESS',
+      classification: 'SUCCESS',
+      mutation_performed: true,
+      details: {
+        merged_files: ['.gitignore'],
+      },
+    })
+  })
+
   it('hooks install JSON changes only hook modes and core.hooksPath', () => {
     const root = createHooksMutationFixture()
     const entry = TIER_A_CASES[1]
@@ -522,6 +577,48 @@ describe('Task 4 Tier A CLI boundaries: boilerplate sync and hooks install', () 
       outcome: 'SUCCESS',
       classification: 'SUCCESS',
       mutation_performed: true,
+    })
+  })
+
+  it('hooks install JSON reports ambiguous mutation when git config fails after chmod', () => {
+    const root = createHooksMutationFixture({ gitRepository: false })
+    const entry = TIER_A_CASES[1]
+    const before = snapshotDirectory(root)
+    const run = spawnSync(
+      process.execPath,
+      [resolve(process.cwd(), entry.entrypoint), '--json'],
+      {
+        cwd: root,
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          ...facadeEnvironment(entry),
+        },
+      },
+    )
+    const after = snapshotDirectory(root)
+
+    expect(run.error ?? null).toBeNull()
+    expect(run.status, `${run.stdout}\n${run.stderr}`).toBe(4)
+    expect(changedSnapshotPaths(before, after)).toEqual([
+      '.githooks/pre-commit',
+      '.githooks/pre-push',
+    ])
+    expect(after['.githooks/pre-commit']?.mode).toBe(0o755)
+    expect(after['.githooks/pre-push']?.mode).toBe(0o755)
+
+    const result = parseSingleJson(run.stdout)
+    assertResultEnvelopeV1(result)
+    expect(result).toMatchObject({
+      command: entry.command,
+      mode: 'result',
+      outcome: 'ERROR',
+      classification: 'AMBIGUOUS_RESULT',
+      mutation_performed: true,
+      next_action: {
+        type: 'STOP',
+        command: null,
+      },
     })
   })
 

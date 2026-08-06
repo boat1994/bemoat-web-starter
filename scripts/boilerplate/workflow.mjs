@@ -21,9 +21,9 @@ import {
   stashWorkingTreeIfNeeded,
 } from './git.mjs'
 
-function run(command, args, options = {}) {
+function run(command, args, { suppressStdout = false, ...options } = {}) {
   execFileSync(command, args, {
-    stdio: 'inherit',
+    stdio: suppressStdout ? ['ignore', 'ignore', 'inherit'] : 'inherit',
     ...options,
   })
 }
@@ -192,6 +192,7 @@ export function createBoilerplateSyncWorkflow(overrides = {}) {
      *   syncMode?: string,
      *   applyBuildContract?: boolean,
      *   invocationValues?: string[] | Record<string, unknown>,
+   *   suppressToolOutput?: boolean,
      * }} options
      */
     run({
@@ -205,6 +206,7 @@ export function createBoilerplateSyncWorkflow(overrides = {}) {
       syncMode: providedSyncMode = undefined,
       applyBuildContract: providedApplyBuildContract = undefined,
       invocationValues = undefined,
+      suppressToolOutput = false,
     }) {
       enforceChildSyncGate()
       const syncMode = providedSyncMode ?? dependencies.parseSyncMode(invocationValues)
@@ -216,7 +218,7 @@ export function createBoilerplateSyncWorkflow(overrides = {}) {
         dependencies.log(message)
       }
       log(`Syncing Bemoat boilerplate from ${repo}#${ref} (${syncMode} mode)`)
-      const git = dependencies.createGitClient()
+      const git = dependencies.createGitClient({ suppressStdout: suppressToolOutput })
       let stashCreated = false
 
       try {
@@ -226,14 +228,18 @@ export function createBoilerplateSyncWorkflow(overrides = {}) {
         dependencies.run(
           'git',
           ['clone', '--depth', '1', '--branch', ref, `https://github.com/${repo}.git`, sourceRoot],
-          { cwd: targetRoot },
+          { cwd: targetRoot, suppressStdout: suppressToolOutput },
         )
 
         const syncConfig = dependencies.getSourceSyncConfig(sourceRoot)
         const sourcePackage = dependencies.readJSON(dependencies.join(sourceRoot, 'package.json'))
         const targetPackage = dependencies.readJSON(dependencies.join(targetRoot, 'package.json'))
         dependencies.assertExactManagedPackageScripts(sourcePackage, targetPackage)
-        dependencies.runToolchainPreflight({ targetRootPath: targetRoot, contractRootPath: sourceRoot })
+        dependencies.runToolchainPreflight({
+          targetRootPath: targetRoot,
+          contractRootPath: sourceRoot,
+          log,
+        })
 
         stashCreated = dependencies.stashWorkingTreeIfNeeded(targetRoot, git)
 
@@ -255,6 +261,7 @@ export function createBoilerplateSyncWorkflow(overrides = {}) {
           targetRootPath: targetRoot,
           mode: syncMode,
           syncConfig,
+          onLog: log,
           assertManagedRuntimeDeliveryClosure,
         })
 

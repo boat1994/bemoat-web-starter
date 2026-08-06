@@ -39,16 +39,27 @@ function getScopedGitPathArgs(paths) {
   return ['--', '.', ...paths.map((path) => `:(exclude)${path}`)]
 }
 
-export function createGitClient() {
+export function createGitClient({ suppressStdout = false } = {}) {
+  const runOptions = suppressStdout
+    ? { stdio: ['ignore', 'ignore', 'inherit'] }
+    : {}
+
   return {
     hasWorkingTreeChanges(cwd, excludedPaths = []) {
       return getCommandOutput('git', ['status', '--short', ...getScopedGitPathArgs(excludedPaths)], { cwd }).trim().length > 0
     },
     stashPush(cwd, excludedPaths = []) {
-      run('git', ['stash', 'push', '--include-untracked', '-m', stashMessage, ...getScopedGitPathArgs(excludedPaths)], { cwd })
+      run('git', [
+        'stash',
+        'push',
+        '--include-untracked',
+        '-m',
+        stashMessage,
+        ...getScopedGitPathArgs(excludedPaths),
+      ], { cwd, ...runOptions })
     },
     addPaths(cwd, paths) {
-      run('git', ['add', '--', ...paths], { cwd })
+      run('git', ['add', '--', ...paths], { cwd, ...runOptions })
     },
     hasStagedChanges(cwd, paths) {
       const status = getCommandStatus('git', ['diff', '--cached', '--quiet', '--', ...paths], { cwd })
@@ -59,10 +70,10 @@ export function createGitClient() {
       throw new Error('Unable to determine staged sync changes')
     },
     commit(cwd, message) {
-      run('git', ['commit', '-m', message], { cwd })
+      run('git', ['commit', '-m', message], { cwd, ...runOptions })
     },
     stashPop(cwd) {
-      run('git', ['stash', 'pop'], { cwd })
+      run('git', ['stash', 'pop'], { cwd, ...runOptions })
     },
   }
 }

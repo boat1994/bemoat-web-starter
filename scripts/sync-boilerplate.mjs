@@ -289,6 +289,7 @@ function main() {
       syncMode,
       applyBuildContract,
       invocationValues: invocation.values,
+      suppressToolOutput: invocation.format === 'json',
       enforceChildSyncGate: () => enforceMcTransitionChildSyncGate({
         values: invocation.values,
         env: process.env,
