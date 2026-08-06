@@ -1,4 +1,11 @@
-import { chmodSync, existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -7,14 +14,23 @@ import { afterEach, describe, expect, it } from 'vitest'
 const scriptPath = resolve(process.cwd(), 'scripts/agent-delivery.mjs')
 const tempPaths: string[] = []
 
-function stubGhAndGit(prData: Record<string, unknown>, issueData: Record<string, unknown>, lsRemoteOutput: string, currentBranch: string = 'main', localCommit: string = 'abc1234') {
+function stubGhAndGit(
+  prData: Record<string, unknown>,
+  issueData: Record<string, unknown>,
+  lsRemoteOutput: string,
+  currentBranch: string = 'main',
+  localCommit: string = 'abc1234',
+  options: { failEdit?: boolean } = {},
+) {
   const directory = mkdtempSync(join(tmpdir(), 'bemoat-agent-delivery-bin-'))
   tempPaths.push(directory)
 
   const fixture = join(directory, 'fixture.json')
   const commentsStore = join(directory, 'comments.json')
   const editedBody = join(directory, 'edited-body.md')
+  const callsFile = join(directory, 'calls.log')
   writeFileSync(commentsStore, '[]')
+  writeFileSync(callsFile, '')
   writeFileSync(fixture, JSON.stringify({
     prData,
     issueData,
@@ -23,13 +39,14 @@ function stubGhAndGit(prData: Record<string, unknown>, issueData: Record<string,
       ?? 'acme/repo',
     commentsStore,
     editedBody,
-    failEdit: false,
+    failEdit: options.failEdit ?? false,
   }))
 
   const ghJs = join(directory, 'gh-stub.mjs')
-  writeFileSync(ghJs, `import { readFileSync, writeFileSync, existsSync } from 'node:fs'
+  writeFileSync(ghJs, `import { appendFileSync, readFileSync, writeFileSync, existsSync } from 'node:fs'
 const fixture = JSON.parse(readFileSync(${JSON.stringify(fixture)}, 'utf8'))
 const args = process.argv.slice(2)
+appendFileSync(${JSON.stringify(callsFile)}, 'gh ' + args.join(' ') + '\\n')
 if (args[0] === 'pr' && args[1] === 'view') {
   if (args.includes('baseRepository')) {
     console.error('Unknown JSON field: baseRepository')
@@ -93,6 +110,11 @@ exec "${process.execPath}" "${ghJs}" "$@"
 
   const gitExec = join(directory, 'git')
   writeFileSync(gitExec, `#!/bin/sh
+printf 'git' >> '${callsFile}'
+for argument in "$@"; do
+  printf ' %s' "$argument" >> '${callsFile}'
+done
+printf '\\n' >> '${callsFile}'
 if [ "$1" = "rev-parse" ]; then
   printf '%s' '${localCommit}'
   exit 0
@@ -128,6 +150,7 @@ exec "${process.execPath}" "$@"
     fixture,
     commentsStore,
     editedBody,
+    callsFile,
   }
 }
 
@@ -139,6 +162,13 @@ function run(args: string[], options: { input?: string; env?: Record<string, str
     encoding: 'utf8',
     input: options.input,
   })
+}
+
+function readCalls(stub: { callsFile: string }) {
+  return readFileSync(stub.callsFile, 'utf8')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
 }
 
 afterEach(() => {
@@ -308,6 +338,99 @@ describe('bemoat:agent:delivery', () => {
     expect(result.status).toBe(1)
     expect(result.stderr).toMatch(/ambiguous POST has no provable match|Failed to validate RESULT comment|Failed to post RESULT comment/)
     expect(existsSync(stub.editedBody)).toBe(false)
+  }, 10000)
+
+  it('delivery and review preserve last validation before first write', () => {
+    const prData = {
+      headRefOid: 'abc1234',
+      headRefName: 'main',
+      baseRefName: 'main',
+      statusCheckRollup: [
+        { conclusion: 'SUCCESS', targetUrl: 'https://ci/abc1234' },
+      ],
+    }
+    const stub = stubGhAndGit(
+      prData,
+      { body: validIssueBody },
+      'abc1234 refs/heads/main',
+      'main',
+      'abc1234',
+    )
+
+    const result = run(['154'], {
+      input: validResultBody,
+      env: { PATH: stub.PATH },
+    })
+    expect(result.status, result.stderr).toBe(0)
+
+    const calls = readCalls(stub)
+    const firstWrite = calls.findIndex((call) =>
+      /^gh api --method POST /.test(call) ||
+      /^gh api -X PUT /.test(call) ||
+      /^gh issue edit /.test(call),
+    )
+    const lastIssueRead = calls.reduce(
+      (last, call, index) => index < firstWrite && /^gh issue view /.test(call) ? index : last,
+      -1,
+    )
+    const lastPullRequestRead = calls.reduce(
+      (last, call, index) => index < firstWrite && /^gh pr view /.test(call) ? index : last,
+      -1,
+    )
+    const lastCommentRead = calls.reduce(
+      (last, call, index) => index < firstWrite && /^gh api --paginate /.test(call) ? index : last,
+      -1,
+    )
+
+    expect(firstWrite).toBeGreaterThan(-1)
+    expect(lastIssueRead).toBeGreaterThanOrEqual(0)
+    expect(lastPullRequestRead).toBeGreaterThan(lastIssueRead)
+    expect(lastCommentRead).toBeGreaterThan(lastPullRequestRead)
+    expect(lastCommentRead).toBeLessThan(firstWrite)
+  }, 10000)
+
+  it('partial comment-state drift is AMBIGUOUS_RESULT', () => {
+    const prData = {
+      headRefOid: 'abc1234',
+      headRefName: 'main',
+      baseRefName: 'main',
+      statusCheckRollup: [
+        { conclusion: 'SUCCESS', targetUrl: 'https://ci/abc1234' },
+      ],
+    }
+    const stub = stubGhAndGit(
+      prData,
+      { body: validIssueBody },
+      'abc1234 refs/heads/main',
+      'main',
+      'abc1234',
+      { failEdit: true },
+    )
+
+    const result = run(['154', '--json'], {
+      input: validResultBody,
+      env: { PATH: stub.PATH },
+    })
+    expect(result.status, result.stderr).toBe(4)
+    expect(result.stderr).toBe('')
+    expect(result.stdout.trim().split(/\r?\n/)).toHaveLength(1)
+
+    const envelope = JSON.parse(result.stdout) as Record<string, unknown>
+    expect(envelope).toMatchObject({
+      schema_version: 1,
+      command: 'bemoat:agent:delivery',
+      mode: 'result',
+      outcome: 'ERROR',
+      classification: 'AMBIGUOUS_RESULT',
+      mutation_performed: true,
+      details: {
+        legacy_classification: 'RECOVERABLE_ROUTING_DRIFT',
+      },
+      next_action: {
+        type: 'STOP',
+        command: null,
+      },
+    })
   }, 10000)
 
   it('preserves arbitrary custom YAML fields', async () => {

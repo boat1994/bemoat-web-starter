@@ -889,3 +889,349 @@ exit 0
     }
   })
 })
+
+const CANONICAL_FULL_UPPERCASE_SHA = 'ABCDEF0123456789ABCDEF0123456789ABCDEF01'
+const CANONICAL_FULL_LOWERCASE_SHA = CANONICAL_FULL_UPPERCASE_SHA.toLowerCase()
+const CANONICAL_REPOSITORY = 'boat1994/bemoat-web-starter'
+const CANONICAL_UPPERCASE_REPOSITORY = 'BOAT1994/BEMOAT-WEB-STARTER'
+
+const CANONICAL_ROLE_COMMENT_BODY = `## RESULT
+### Task log
+- Timestamp: 2026-08-06T00:00:00+00:00
+- Task / Issue: #284
+- Phase: Dev
+- Executing role: Dev / Builder
+**Completed:** Implementation
+**Summary:** Added the bounded change.
+**Next:** Reviewer posts REVIEW_VERDICT
+`
+
+const CANONICAL_HANDOFF_BODY = `## HANDOFF
+### Task log
+- Timestamp: 2026-08-06T00:00:00+00:00
+- Task / Issue: #284
+- Phase: Dev
+- Executing role: Mission Control
+**Target:** Dev
+**Objective:** Implement the bounded change.
+**Links:** Issue #284
+**Next:** Dev posts RESULT
+`
+
+const CANONICAL_DELIVERY_BODY = `## RESULT
+### Task log
+- Timestamp: 2026-08-06T00:00:00+00:00
+- Task / Issue: #284
+- Phase: Dev
+- Executing role: Dev / Builder
+**Task:** #284 · \`feature/284\` → \`main\` · head \`${CANONICAL_FULL_UPPERCASE_SHA}\`
+**PR:** https://github.com/${CANONICAL_REPOSITORY}/pull/285
+**Completed:** Added the bounded change.
+**Evidence:** Local — focused test → pass; GitHub — exact-head CI → pass
+**AC audit:** Done
+**Risks / escalation:** None
+**Next:** Reviewer posts REVIEW_VERDICT
+`
+
+const CANONICAL_REVIEW_BODY = `## REVIEW_VERDICT
+### Task log
+- Timestamp: 2026-08-06T00:00:00+00:00
+- Task / Issue: #284
+- Phase: Reviewer
+- Executing role: Reviewer
+**PR / base / head:** PR #285 / main / · \`${CANONICAL_FULL_UPPERCASE_SHA}\`
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+**Findings:** Critical: None · Important: None
+**Gates:** exact-head CI pass
+**Next:** Founder merge authorization
+`
+
+type CanonicalTransportCase = TierACase & {
+  label: string
+  bodyFile: string
+  body: string
+  registryArgs: readonly string[]
+  resultArgs: readonly string[]
+  expectedClassification: 'SUCCESS' | 'BLOCKED_EXTERNAL'
+  expectedExit: number
+  expectedPrNumber: string | null
+  expectedExactHead: string | null
+  invalidAuthorityArgs?: readonly string[]
+}
+
+const CANONICAL_TRANSPORT_CASES = [
+  {
+    label: 'role comment',
+    command: 'bemoat:issue:comment',
+    entrypoint: 'scripts/post-role-comment.mjs',
+    bodyFile: 'comment.md',
+    body: CANONICAL_ROLE_COMMENT_BODY,
+    registryArgs: [
+      '284',
+      '--repo',
+      CANONICAL_REPOSITORY,
+      '--body-file',
+      './comment.md',
+    ],
+    resultArgs: [
+      '284',
+      '--repo',
+      CANONICAL_UPPERCASE_REPOSITORY,
+      '--body-file',
+      './comment.md',
+      '--check',
+    ],
+    expectedClassification: 'SUCCESS',
+    expectedExit: 0,
+    expectedPrNumber: null,
+    expectedExactHead: null,
+  },
+  {
+    label: 'dispatch',
+    command: 'bemoat:mission-control:dispatch',
+    entrypoint: 'scripts/mission-control-dispatch.mjs',
+    bodyFile: 'handoff.md',
+    body: CANONICAL_HANDOFF_BODY,
+    registryArgs: [
+      '284',
+      '--repo',
+      CANONICAL_REPOSITORY,
+      '--body-file',
+      './handoff.md',
+    ],
+    resultArgs: [
+      '284',
+      '--repo',
+      CANONICAL_UPPERCASE_REPOSITORY,
+      '--body-file',
+      './handoff.md',
+    ],
+    expectedClassification: 'BLOCKED_EXTERNAL',
+    expectedExit: 3,
+    expectedPrNumber: null,
+    expectedExactHead: null,
+    invalidAuthorityArgs: [
+      '284',
+      '--repo',
+      CANONICAL_REPOSITORY,
+      '--body-file',
+      './handoff.md',
+      '--planning-base-sha',
+      'abc1234',
+    ],
+  },
+  {
+    label: 'delivery',
+    command: 'bemoat:agent:delivery',
+    entrypoint: 'scripts/agent-delivery.mjs',
+    bodyFile: 'result.md',
+    body: CANONICAL_DELIVERY_BODY,
+    registryArgs: [
+      '284',
+      '--repo',
+      CANONICAL_REPOSITORY,
+      '--body-file',
+      './result.md',
+    ],
+    resultArgs: [
+      '284',
+      '--repo',
+      CANONICAL_UPPERCASE_REPOSITORY,
+      '--body-file',
+      './result.md',
+    ],
+    expectedClassification: 'BLOCKED_EXTERNAL',
+    expectedExit: 3,
+    expectedPrNumber: '285',
+    expectedExactHead: CANONICAL_FULL_LOWERCASE_SHA,
+  },
+  {
+    label: 'ordinary review',
+    command: 'bemoat:mission-control:review',
+    entrypoint: 'scripts/mission-control-review.mjs',
+    bodyFile: 'review.md',
+    body: CANONICAL_REVIEW_BODY,
+    registryArgs: [
+      '284',
+      '--body-file',
+      './review.md',
+      '--expected-state',
+      'AWAITING_REVIEW_1',
+      '--review-type',
+      'full',
+      '--expected-head',
+      CANONICAL_FULL_UPPERCASE_SHA,
+    ],
+    resultArgs: [
+      '284',
+      '--repo',
+      CANONICAL_UPPERCASE_REPOSITORY,
+      '--body-file',
+      './review.md',
+      '--expected-state',
+      'AWAITING_REVIEW_1',
+      '--review-type',
+      'full',
+      '--expected-head',
+      CANONICAL_FULL_UPPERCASE_SHA,
+    ],
+    expectedClassification: 'BLOCKED_EXTERNAL',
+    expectedExit: 3,
+    expectedPrNumber: '285',
+    expectedExactHead: CANONICAL_FULL_LOWERCASE_SHA,
+    invalidAuthorityArgs: [
+      '284',
+      '--body-file',
+      './review.md',
+      '--expected-state',
+      'AWAITING_REVIEW_1',
+      '--review-type',
+      'full',
+      '--expected-head',
+      'abc1234',
+    ],
+  },
+] as const satisfies readonly CanonicalTransportCase[]
+
+const CANONICAL_TRANSPORT_ROWS = CANONICAL_TRANSPORT_CASES.map(
+  (entry) => [entry.label, entry] as const,
+)
+
+function runCanonicalTransport(
+  entry: CanonicalTransportCase,
+  argv: readonly string[],
+): CliBoundaryResult {
+  return runCliBoundaryCase({
+    entrypoint: entry.entrypoint,
+    argv,
+    env: facadeEnvironment(entry),
+    files: {
+      [entry.bodyFile]: entry.body,
+    },
+  })
+}
+
+function expectCanonicalExternalPreflight(run: CliBoundaryResult) {
+  expect(run.error).toBeNull()
+  expect(run.status).toBe(3)
+  expect(run.stderr).toBe('')
+  expect(run.stdout).toContain('BLOCKED_EXTERNAL')
+  expect(run.poison_invocations.length).toBeGreaterThan(0)
+}
+
+function expectCanonicalJsonResult(
+  run: CliBoundaryResult,
+  entry: CanonicalTransportCase,
+) {
+  expect(run.error).toBeNull()
+  expect(run.status, `${run.stdout}\n${run.stderr}`).toBe(entry.expectedExit)
+  expect(run.stderr).toBe('')
+
+  const result = parseSingleJson(run.stdout)
+  assertResultEnvelopeV1(result)
+  expect(result).toMatchObject({
+    command: entry.command,
+    mode: 'result',
+    outcome: entry.expectedClassification === 'SUCCESS' ? 'SUCCESS' : 'ERROR',
+    classification: entry.expectedClassification,
+    mutation_performed: false,
+    repository: CANONICAL_REPOSITORY,
+    issue_number: '284',
+    pr_number: entry.expectedPrNumber,
+    exact_head: entry.expectedExactHead,
+  })
+}
+
+describe('Task 5 Tier A canonical role transport boundaries', () => {
+  it.each(CANONICAL_TRANSPORT_ROWS)(
+    'Tier A %s help forms exit zero without network write or adapter construction',
+    (_label, entry) => {
+      for (const argv of [
+        ['--help'],
+        ['-h'],
+        ['--help', '--json'],
+        ['--json', '--help'],
+        ['-h', '--json'],
+        ['--json', '-h'],
+      ]) {
+        const run = runCanonicalTransport(entry, argv)
+        expect(run.error).toBeNull()
+        expect(run.status, `${entry.command}\n${run.stdout}\n${run.stderr}`).toBe(0)
+        expect(run.stderr).toBe('')
+        expectNoBoundarySideEffects(run)
+
+        if (argv.includes('--json')) {
+          const help = parseSingleJson(run.stdout)
+          expect(help).toMatchObject({
+            schema_version: 1,
+            command: entry.command,
+            mode: 'help',
+            classification: 'HELP',
+            tier: 'A',
+          })
+        } else {
+          expect(run.stdout).toContain(`HELP: ${entry.command}`)
+        }
+      }
+    },
+  )
+
+  it.each(CANONICAL_TRANSPORT_ROWS)(
+    'Tier A %s registry examples reach the documented preflight',
+    (_label, entry) => {
+      const run = runCanonicalTransport(entry, entry.registryArgs)
+      expectCanonicalExternalPreflight(run)
+    },
+  )
+
+  it.each(CANONICAL_TRANSPORT_ROWS)(
+    'Tier A %s invalid syntax exits two before durable reads',
+    (_label, entry) => {
+      for (const argv of [
+        ['--definitely-invalid'],
+        ['--json', '--definitely-invalid'],
+      ]) {
+        const run = runCanonicalTransport(entry, argv)
+        if (argv.includes('--json')) {
+          expectJsonInvalidInvocation(run, entry)
+        } else {
+          expectInvalidInvocation(run)
+        }
+      }
+
+      if (entry.invalidAuthorityArgs) {
+        expectInvalidInvocation(runCanonicalTransport(entry, entry.invalidAuthorityArgs))
+      }
+    },
+  )
+
+  it.each(CANONICAL_TRANSPORT_ROWS)(
+    'Tier A %s emits one v1 result object with the expected exit',
+    (_label, entry) => {
+      expectCanonicalJsonResult(
+        runCanonicalTransport(entry, [...entry.resultArgs, '--json']),
+        entry,
+      )
+    },
+  )
+
+  it.each(CANONICAL_TRANSPORT_ROWS)(
+    'Tier A %s plain and JSON modes share one classification',
+    (_label, entry) => {
+      const plain = runCanonicalTransport(entry, entry.resultArgs)
+      const json = runCanonicalTransport(entry, [...entry.resultArgs, '--json'])
+
+      expect(plain.error).toBeNull()
+      expect(json.error).toBeNull()
+      expect(plain.status).toBe(entry.expectedExit)
+      expect(json.status).toBe(entry.expectedExit)
+      expect(plain.stderr).toBe('')
+      expect(json.stderr).toBe('')
+
+      const result = parseSingleJson(json.stdout)
+      assertResultEnvelopeV1(result)
+      expect(result.classification).toBe(entry.expectedClassification)
+      expect(plain.stdout).toContain(entry.expectedClassification)
+    },
+  )
+})
