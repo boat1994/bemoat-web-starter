@@ -216,21 +216,21 @@ describe('bemoat:agent:delivery', () => {
   it('fails if local commit does not match remote ref', () => {
     const stub = stubGhAndGit({}, {}, 'def5678 refs/heads/main', 'main', 'abc1234')
     const result = run(['154'], { input: validResultBody, env: { PATH: stub.PATH } })
-    expect(result.status).toBe(1)
+    expect(result.status).toBe(3)
     expect(result.stderr).toContain('STATE_CONFLICT: Remote branch ref does not equal local commit abc1234')
   }, 10000)
 
   it('fails if PR head does not match local commit', () => {
     const stub = stubGhAndGit({ headRefOid: 'def5678', headRefName: 'main' }, {}, 'abc1234 refs/heads/main', 'main', 'abc1234')
     const result = run(['154'], { input: validResultBody, env: { PATH: stub.PATH } })
-    expect(result.status).toBe(1)
+    expect(result.status).toBe(3)
     expect(result.stderr).toContain('STATE_CONFLICT: PR head def5678 does not match local commit abc1234')
   }, 10000)
 
   it('fails if PR headRefName does not match local branch', () => {
     const stub = stubGhAndGit({ headRefOid: 'abc1234', headRefName: 'wrong-branch' }, {}, 'abc1234 refs/heads/main', 'main', 'abc1234')
     const result = run(['154'], { input: validResultBody, env: { PATH: stub.PATH } })
-    expect(result.status).toBe(1)
+    expect(result.status).toBe(3)
     expect(result.stderr).toContain('STATE_CONFLICT: PR headRefName wrong-branch does not match local branch main')
   }, 10000)
 
@@ -242,7 +242,7 @@ describe('bemoat:agent:delivery', () => {
     }
     const stub = stubGhAndGit(prData, {}, 'abc1234 refs/heads/main', 'main', 'abc1234')
     const result = run(['154'], { input: validResultBody, env: { PATH: stub.PATH } })
-    expect(result.status).toBe(1)
+    expect(result.status).toBe(3)
     expect(result.stderr).toContain('STATE_CONFLICT: Exact-head CI not verified')
   }, 10000)
 
@@ -256,7 +256,7 @@ describe('bemoat:agent:delivery', () => {
     }
     const stub = stubGhAndGit(prData, { body: validIssueBody }, 'abc1234 refs/heads/main', 'main', 'abc1234')
     const result = run(['154', '--repo', 'acme/repo'], { input: validResultBody, env: { PATH: stub.PATH } })
-    expect(result.status).toBe(1)
+    expect(result.status).toBe(3)
     expect(result.stderr).toContain('STATE_CONFLICT: PR head repository wrong/repo does not match expected repository acme/repo')
   }, 10000)
 
@@ -270,7 +270,7 @@ describe('bemoat:agent:delivery', () => {
     }
     const stub = stubGhAndGit(prData, { body: validIssueBody }, 'abc1234 refs/heads/main', 'main', 'abc1234')
     const result = run(['154'], { input: validResultBody, env: { PATH: stub.PATH } })
-    expect(result.status).toBe(1)
+    expect(result.status).toBe(3)
     expect(result.stderr).toContain('STATE_CONFLICT: PR head repository wrong/repo does not match expected repository acme/repo')
   }, 10000)
 
@@ -335,7 +335,7 @@ describe('bemoat:agent:delivery', () => {
       input: validResultBody,
       env: { PATH: stub.PATH, NODE_FAIL_POST_ROLE_COMMENT: '1' },
     })
-    expect(result.status).toBe(1)
+    expect(result.status).toBe(3)
     expect(result.stderr).toMatch(/ambiguous POST has no provable match|Failed to validate RESULT comment|Failed to post RESULT comment/)
     expect(existsSync(stub.editedBody)).toBe(false)
   }, 10000)
@@ -464,7 +464,7 @@ describe('bemoat:agent:delivery', () => {
       input: validResultBody,
       env: { PATH: stub.PATH, NODE_FAIL_POST_ROLE_COMMENT: '1' },
     })
-    expect(result.status).toBe(1)
+    expect(result.status).toBe(3)
     expect(result.stderr).toMatch(/ambiguous POST has no provable match|Failed to validate RESULT comment|Failed to post RESULT comment/)
     expect(existsSync(stub.editedBody)).toBe(false)
   }, 10000)
@@ -483,7 +483,7 @@ describe('bemoat:agent:delivery', () => {
     write(stub.fixture, JSON.stringify(fixture))
 
     const result = run(['154'], { input: validResultBody, env: { PATH: stub.PATH } })
-    expect(result.status).toBe(1)
+    expect(result.status).toBe(4)
     expect(result.stderr).toContain('RECOVERABLE_ROUTING_DRIFT')
   }, 10000)
 
@@ -501,7 +501,7 @@ describe('bemoat:agent:delivery', () => {
     write(stub.fixture, JSON.stringify(fixture))
 
     const first = run(['154'], { input: validResultBody, env: { PATH: stub.PATH } })
-    expect(first.status).toBe(1)
+    expect(first.status).toBe(4)
     expect(first.stderr).toContain('RECOVERABLE_ROUTING_DRIFT')
     const commentsAfterFirst = JSON.parse(readFileSync(stub.commentsStore, 'utf8'))
     expect(commentsAfterFirst).toHaveLength(1)
@@ -530,7 +530,7 @@ describe('bemoat:agent:delivery', () => {
     write(stub.fixture, JSON.stringify(fixture))
 
     const first = run(['255'], { input: resultBody, env: { PATH: stub.PATH } })
-    expect(first.status).toBe(1)
+    expect(first.status).toBe(4)
     expect(first.stderr).toContain('RECOVERABLE_ROUTING_DRIFT')
     const firstComments = JSON.parse(readFileSync(stub.commentsStore, 'utf8'))
     expect(firstComments).toHaveLength(1)

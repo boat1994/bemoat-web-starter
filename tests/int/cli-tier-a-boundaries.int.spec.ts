@@ -959,7 +959,7 @@ type CanonicalTransportCase = TierACase & {
   invalidAuthorityArgs?: readonly string[]
 }
 
-const CANONICAL_TRANSPORT_CASES = [
+const CANONICAL_TRANSPORT_CASES: readonly CanonicalTransportCase[] = [
   {
     label: 'role comment',
     command: 'bemoat:issue:comment',
@@ -1091,7 +1091,7 @@ const CANONICAL_TRANSPORT_CASES = [
       'abc1234',
     ],
   },
-] as const satisfies readonly CanonicalTransportCase[]
+]
 
 const CANONICAL_TRANSPORT_ROWS = CANONICAL_TRANSPORT_CASES.map(
   (entry) => [entry.label, entry] as const,
