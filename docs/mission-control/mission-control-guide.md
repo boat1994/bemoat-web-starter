@@ -48,6 +48,16 @@ the result, identifies one next action, and stops.
 Mission Control is not an implementation agent and not a perpetual code
 reviewer.
 
+## Bemoat CLI Discovery
+
+Before selecting task bootstrap, dispatch, reconcile, review, recover-review,
+reopen, merge, delivery, or role comment transport, Mission Control must follow
+the canonical [Bemoat CLI Discovery](../../AGENTS.md#bemoat-cli-discovery) rule
+for the applicable public command. It must use the returned command contract
+and authoritative live state; it must not choose a command based solely on state
+names or remembered routing. A discovery failure stops as
+`CLI_DISCOVERY_DEFECT`.
+
 A durable state records authority, evidence, and the next permitted action; it is not an agent execution stage. A durable state transition does not itself require or authorize a separate model run.
 
 ## Applicability and preflight outcomes

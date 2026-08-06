@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
+import { createHelpEnvelopeV1, formatTextHelp } from './cli/command-help.mjs'
+import { parseCommandInvocation, resolveCommandIdentity } from './cli/command-invocation.mjs'
 import { parseCorrectionContract } from './correction-contract.mjs'
 import { writeIssueBodyWithLease } from './mission-control-issue-body-cas.mjs'
 import { parseMissionControlState, populateOrPreservePlanningAuthorizationBaseSha, projectMissionControlStateBlock } from './mission-control-state.mjs'
@@ -2946,6 +2948,19 @@ async function runProductionReviewVerdictReconciliation(options) {
 }
 
 async function runProductionBoundedReconciliation() {
+  const command = resolveCommandIdentity({
+    fallback: 'bemoat:mission-control:reconcile',
+    env: process.env,
+    entrypoint: 'scripts/mission-control-reconcile.mjs',
+  })
+  const invocation = parseCommandInvocation(command, process.argv.slice(2))
+  if (invocation.mode === 'help') {
+    const help = invocation.format === 'json'
+      ? `${JSON.stringify(createHelpEnvelopeV1(invocation.contract))}\n`
+      : formatTextHelp(invocation.contract)
+    process.stdout.write(help)
+    return
+  }
   const options = parseReconcileArgs(process.argv.slice(2))
   const reviewVerdictResult = await runProductionReviewVerdictReconciliation(options)
   if (reviewVerdictResult) {
