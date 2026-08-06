@@ -23,7 +23,7 @@ import {
 
 function run(command, args, { suppressStdout = false, ...options } = {}) {
   execFileSync(command, args, {
-    stdio: suppressStdout ? ['ignore', 'ignore', 'inherit'] : 'inherit',
+    stdio: suppressStdout ? ['ignore', 2, 'inherit'] : 'inherit',
     ...options,
   })
 }

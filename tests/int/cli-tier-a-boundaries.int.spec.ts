@@ -520,7 +520,7 @@ describe('Task 4 Tier A CLI boundaries: boilerplate sync and hooks install', () 
 
     expect(run.error ?? null).toBeNull()
     expect(run.status, `${run.stdout}\n${run.stderr}`).toBe(0)
-    expect(run.stderr).toBe('')
+    expect(run.stderr).toContain('fake git output')
 
     const result = parseSingleJson(run.stdout)
     assertResultEnvelopeV1(result)

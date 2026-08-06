@@ -41,7 +41,7 @@ function getScopedGitPathArgs(paths) {
 
 export function createGitClient({ suppressStdout = false } = {}) {
   const runOptions = suppressStdout
-    ? { stdio: ['ignore', 'ignore', 'inherit'] }
+    ? { stdio: ['ignore', 2, 'inherit'] }
     : {}
 
   return {
