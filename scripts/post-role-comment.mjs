@@ -24,13 +24,15 @@ import {
 } from './cli/command-result.mjs'
 import {
   findLatestRoleComment,
+  findMatchingComments,
+  normalizeTransitionIdentity,
   normalizeIssueComments,
   parsePaginatedGhApiJson,
   parseRoleCommentBody,
   resolveProductionCommentTrust,
   verifyPostedCommentReadback,
 } from './mission-control-reconcile.mjs'
-import { projectComments } from './github-comment-projection.mjs'
+import { projectComments, selectAuthoritativeRoleComments } from './github-comment-projection.mjs'
 
 
 const MAX_COMPACT_LENGTH = 6_000
@@ -184,14 +186,15 @@ function renderResult({
   mutationPerformed,
   parsedBody,
   commentId = null,
+  classification = 'SUCCESS',
 }) {
   const exactHead = /^[0-9a-f]{40}$/i.test(parsedBody.headSha ?? '')
     ? parsedBody.headSha.toLowerCase()
     : null
   const result = createResultEnvelopeV1({
     command,
-    outcome: 'SUCCESS',
-    classification: 'SUCCESS',
+    outcome: classification === 'NO_OP_IDENTICAL_RETRY' ? 'NO_OP' : 'SUCCESS',
+    classification,
     mutation_performed: mutationPerformed,
     repository: options.repo,
     issue_number: options.issue,
@@ -200,7 +203,9 @@ function renderResult({
     next_action: {
       type: 'COMPLETE',
       command: null,
-      reason: 'The role comment operation completed without owning a state transition.',
+      reason: classification === 'NO_OP_IDENTICAL_RETRY'
+        ? 'The identical validated role comment is already authoritative.'
+        : 'The role comment operation completed without owning a state transition.',
     },
     details: {
       role,
@@ -219,7 +224,9 @@ function renderResult({
     }
     const message = options.check
       ? `validated ${role} comment for Issue #${options.issue}`
-      : `posted ${role} comment to Issue #${options.issue}; no durable-state transition was performed`
+      : classification === 'NO_OP_IDENTICAL_RETRY'
+        ? `reused authoritative ${role} comment on Issue #${options.issue}; no mutation was performed`
+        : `posted ${role} comment to Issue #${options.issue}; no durable-state transition was performed`
     process.stdout.write(`SUCCESS: ${message}\n`)
   }
 
@@ -430,6 +437,31 @@ function extractPostedCommentId(stdout) {
   return text.match(/(?:issuecomment-|comments\/)(\d+)/i)?.[1] ?? null
 }
 
+function findIdenticalAuthoritativeRoleComment({ comments, body, role, issue }) {
+  const identity = normalizeTransitionIdentity(body, { role })
+  if (!identity.taskId || String(identity.taskId) !== String(issue)) return null
+
+  const parsed = parseRoleCommentBody(body)
+  const trust = resolveProductionCommentTrust()
+  const exactHead = /^[0-9a-f]{40}$/i.test(parsed.headSha ?? '') ? parsed.headSha : null
+  const matches = findMatchingComments(comments, identity, {
+    activeOnly: true,
+    bindings: {
+      taskId: identity.taskId,
+      phase: identity.phase || null,
+      prNumber: parsed.prNumber,
+      base: parsed.base,
+      headSha: exactHead,
+    },
+    ...trust,
+  })
+  if (matches.length === 0) return null
+
+  const authoritative = selectAuthoritativeRoleComments(comments, role)
+  const authoritativeMatches = matches.filter((comment) => authoritative.has(comment))
+  return authoritativeMatches.length === 1 ? authoritativeMatches[0] : null
+}
+
 function main() {
   let command = null
   let invocation = null
@@ -531,6 +563,29 @@ function main() {
         error instanceof Error ? error.message : String(error),
       )
     }
+
+    const identicalComment = findIdenticalAuthoritativeRoleComment({
+      comments: priorComments,
+      body,
+      role,
+      issue: options.issue,
+    })
+    if (identicalComment) {
+      renderResult({
+        command,
+        format: invocation.format,
+        options,
+        role,
+        legacyClassification: 'NO_OP',
+        legacyOutput,
+        mutationPerformed: false,
+        parsedBody,
+        commentId: identicalComment.id,
+        classification: 'NO_OP_IDENTICAL_RETRY',
+      })
+      return
+    }
+
     const temporary = createBodyFile(body)
     const args = ['issue', 'comment', options.issue]
     if (options.repo) args.push('--repo', options.repo)

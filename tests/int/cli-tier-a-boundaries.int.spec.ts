@@ -78,6 +78,7 @@ const HELP_KEYS = [
   'required_evidence',
   'reads',
   'writes',
+  'stop_classifications',
   'retry_contract',
   'role_contracts',
   'result_classifications',

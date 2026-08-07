@@ -76,6 +76,7 @@ export function createHelpEnvelopeV1(inputContract) {
     retry_contract: copyValue(contract.retry_contract ?? {}),
     role_contracts: copyValue(contract.role_contracts ?? {}),
     result_classifications: resultClassifications(contract),
+    stop_classifications: copyArray(contract.stop_classifications),
     next_action_rules: copyArray(contract.next_action_rules),
     stop_conditions: copyArray(contract.stop_conditions),
     examples: copyArray(contract.examples),

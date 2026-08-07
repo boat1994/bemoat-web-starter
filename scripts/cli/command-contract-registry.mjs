@@ -624,7 +624,8 @@ const commands = {
     ],
     required_evidence: ['Canonical role/comment body validation.', 'Issue and correction evidence when the role requires it.'],
     reads: ['body file or stdin', 'Issue comments and correction evidence'],
-    writes: ['Issue role comment unless --check is supplied'],
+    writes: ['Issue role comment unless --check is supplied or an identical authoritative retry is proven'],
+    success_classifications: ['SUCCESS', 'NO_OP_IDENTICAL_RETRY'],
     retry_contract: {
       identical_retry: 'conditional',
       classification: 'NO_OP_IDENTICAL_RETRY',
@@ -733,6 +734,10 @@ const commands = {
       {
         classification: 'SUCCESS',
         next_action: nextAction('COMPLETE', null, 'The role comment operation completed without owning a state transition.'),
+      },
+      {
+        classification: 'NO_OP_IDENTICAL_RETRY',
+        next_action: nextAction('COMPLETE', null, 'The identical validated role comment is already authoritative.'),
       },
     ],
     examples: [
