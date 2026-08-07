@@ -383,6 +383,7 @@ describe(COMMAND, () => {
     const harness = createHarness()
     const result = await runRecoverState({ options: options(), deps: harness.deps })
     expect(result.classification).toBe('SUCCESS')
+    if (!result.state) throw new Error('successful recovery must return a state')
     expect(result.state).toMatchObject(expectedState())
     expect(result.state.recovery_evidence_fingerprint).toMatch(/^[0-9a-f]{64}$/)
     expect(parseMissionControlState(harness.body)).toMatchObject({ present: true, valid: true })
@@ -404,6 +405,7 @@ describe(COMMAND, () => {
   it('derives state, counters, findings, heads, and PR identity from evidence', async () => {
     const harness = createHarness()
     const result = await runRecoverState({ options: options({ expectedState: 'DONE', reviewCycle: 99, openBlockers: ['caller-supplied'] }), deps: harness.deps })
+    if (!result.state) throw new Error('successful recovery must return a state')
     expect(result.state).toMatchObject(expectedState())
     expect(result.state.state).toBe('CORRECTION_REQUIRED_1')
     expect(result.state.review_cycle).toBe(1)
@@ -457,6 +459,7 @@ describe(COMMAND, () => {
   it('preserves guide blob provenance separately from the protected policy commit', async () => {
     const harness = createHarness()
     const result = await runRecoverState({ options: options(), deps: harness.deps })
+    if (!result.state) throw new Error('successful recovery must return a state')
     expect(result.state.guide_source_sha).toBe(POLICY_BLOB_SHA)
     expect(result.state.guide_source_sha).not.toBe(BASE_SHA)
   })
