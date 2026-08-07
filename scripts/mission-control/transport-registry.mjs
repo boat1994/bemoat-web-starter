@@ -70,6 +70,13 @@ export const CANONICAL_TRANSPORTS = Object.freeze([
     purpose: 'append one Founder-authorized finding to the active correction contract without changing CORRECTION_REQUIRED state',
     exceptional: false,
   }),
+  Object.freeze({
+    command: 'bemoat:mission-control:recover-state',
+    role: 'STATE_PROJECTION',
+    owner: 'Missing Managed-State Recovery Transport',
+    purpose: 'recreate one uniquely reconstructed absent managed-state projection without review or finding adoption',
+    exceptional: true,
+  }),
 ])
 
 const routeByCommand = new Map(CANONICAL_TRANSPORTS.map((route) => [route.command, route]))
@@ -89,4 +96,3 @@ export function assertTransportRoute(command, { role, allowExceptional = true } 
   }
   return route
 }
-

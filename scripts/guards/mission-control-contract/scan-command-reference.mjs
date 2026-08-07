@@ -66,6 +66,23 @@ const REQUIRED_ADOPT_FINDING_ARGS = [
   '[--check]',
 ]
 
+const REQUIRED_RECOVER_STATE_ARGS = [
+  'pnpm run bemoat:mission-control:recover-state',
+  '-- <issue-number>',
+  '--repo <owner>/<repo>',
+  '--expected-pr <number>',
+  '--expected-base <branch>',
+  '--expected-base-sha <full-sha>',
+  '--expected-head <full-sha>',
+  '--expected-branch <branch>',
+  '--predecessor-comment <id>',
+  '--adoption-authorization-comment <id>',
+  '--implementation-result-comment <id>',
+  '--implementation-review-comment <id>',
+  '--recovery-authorization-comment <id>',
+  '[--check]',
+]
+
 export function scanCommandReferenceContent(relativePath, content) {
   const violations = []
 
@@ -110,12 +127,19 @@ export function scanCommandReferenceContent(relativePath, content) {
     }
   }
 
+  for (const arg of REQUIRED_RECOVER_STATE_ARGS) {
+    if (!content.includes(arg)) {
+      violations.push(violation('MC031', relativePath, `Command reference missing missing-state recovery arg: ${arg}`))
+    }
+  }
+
   const expectedTableHeaders = [
     '| Command |',
     '| `dispatch` |',
     '| `review` |',
     '| `reconcile` |',
     '| `adopt-finding` |',
+    '| `recover-state` |',
     '| `merge` |',
     '| `recover-review` |'
   ]
