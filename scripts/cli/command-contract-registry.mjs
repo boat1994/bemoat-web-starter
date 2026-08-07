@@ -709,15 +709,23 @@ const commands = {
           'STATE CONFLICT'
         ],
         correction_contract: {
-          condition: 'Verdict is CORRECTION REQUIRED',
+          condition: 'Verdict is CORRECTION REQUIRED or BLOCKED FOR FOUNDER DECISION with unresolved implementation findings',
+          placement: 'Must be provided as a markdown fenced JSON block anywhere in the comment body.',
+          representation: 'fenced_json_block',
           schema_version: 1,
           modes: ['implementation_pr', 'planning_no_pr'],
-          required_finding_fields: [
-            'id',
-            'canonical_summary',
-            'source_thread',
-            'required_evidence'
-          ]
+          required_keys: ['schema_version', 'reviewed_head', 'findings'],
+          optional_keys: ['mode'],
+          finding_id_requirements: 'Must be a non-empty string and unique after whitespace normalization.',
+          reviewed_head_binding: 'Must be a non-empty string matching the exact PR head or base SHA being reviewed.',
+          evidence_requirements: 'Finding required_evidence must be a non-empty array of non-empty strings.',
+          multiplicity: 'Exactly one Correction Contract JSON block is permitted per role comment.',
+          invalid_combinations: ['Multiple JSON blocks', 'planning_no_pr mode without expected_areas', 'Duplicate finding IDs'],
+          finding_schema: {
+            required_keys: ['id', 'canonical_summary', 'source_thread', 'required_evidence'],
+            optional_keys: ['expected_areas', 'prohibited_areas']
+          },
+          canonical_example: "```json\n{\n  \"schema_version\": 1,\n  \"mode\": \"implementation_pr\",\n  \"reviewed_head\": \"1234567890abcdef1234567890abcdef12345678\",\n  \"findings\": [\n    {\n      \"id\": \"EXAMPLE-001\",\n      \"canonical_summary\": \"Fix the thing\",\n      \"source_thread\": \"https://github.com/...\",\n      \"required_evidence\": [\"Test output\"]\n    }\n  ]\n}\n```"
         }
       }
     },

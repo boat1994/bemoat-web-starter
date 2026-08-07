@@ -430,6 +430,43 @@ describe('bemoat:issue:comment', () => {
     expect(() => readFileSync(gh.capture, 'utf8')).toThrow()
   })
 
+  it('exposes the exact correction contract representation via help --json', () => {
+    const helpResult = run(['--help', '--json'])
+    expect(helpResult.status, helpResult.stderr).toBe(0)
+
+    const lines = helpResult.stdout.split('\n')
+    const jsonLine = lines.find((line) => line.trim().startsWith('{'))
+    const contract = JSON.parse(jsonLine!)
+
+    const correctionSchema = contract.role_contracts.REVIEW_VERDICT.correction_contract
+    expect(correctionSchema.placement).toBeDefined()
+    expect(correctionSchema.representation).toBe('fenced_json_block')
+    expect(correctionSchema.canonical_example).toContain('```json')
+
+    // Construct a REVIEW_VERDICT from the canonical example
+    const reviewVerdict = `## REVIEW_VERDICT
+### Task log
+- Timestamp: 2026-08-07T12:00:00Z
+- Task / Issue: #115
+- Phase: Reviewer
+- Executing role: Reviewer
+**Reviewed PR:** https://github.com/acme/repo/pull/12
+**Approved base:** main
+**Exact head reviewed:** 1234567890abcdef1234567890abcdef12345678
+**Verdict:** CORRECTION REQUIRED
+### Critical / Important findings summary
+- Important: needs fix
+### Gate status
+- CI: pass
+### Next handoff
+- Dev
+\n${correctionSchema.canonical_example}`
+
+    // Now test that this body passes the public check path
+    const checkResult = run(['115', '--check'], { input: reviewVerdict })
+    expect(checkResult.status, checkResult.stderr).toBe(0)
+  })
+
   it('shares EVIDENCE_CONFLICT classification and exit between text and JSON check modes', () => {
     const invalidBody = bodies.RESULT.replace('**Summary:** Added the bounded change.\n', '')
     const text = run(['115', '--check'], { input: invalidBody })
