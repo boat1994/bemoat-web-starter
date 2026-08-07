@@ -298,15 +298,20 @@ pnpm run bemoat:agent:issue -- 276 --phase correction
 Exact syntax:
 
 ```text
-pnpm run bemoat:mission-control:recover-state -- <issue-number> --repo <owner>/<repo> --expected-pr <number> --expected-base <branch> --expected-base-sha <full-sha> --expected-head <full-sha> --expected-branch <branch> --predecessor-comment <id> --adoption-authorization-comment <id> --implementation-result-comment <id> --implementation-review-comment <id> --recovery-authorization-comment <id> [--check]
+pnpm run bemoat:mission-control:recover-state -- <issue-number> --repo <owner>/<repo> --expected-pr <number> --expected-base <branch> --expected-base-sha <full-sha> --expected-head <full-sha> --expected-branch <branch> --predecessor-comment <id> --adoption-authorization-comment <id> --implementation-result-comment <id> --implementation-review-comment <id> --recovery-authorization-comment <id> --lineage-correction-authorization-comment <id> [--check]
 ```
 
 The command accepts only a wholly absent canonical managed-state marker pair.
 It derives the state, review counters, active PR/head, last reviewed head,
 finding set, policy identity, and authority-bearing fields from the live PR,
 protected `main`, and the selected immutable predecessor, Founder
-authorization, implementation RESULT, review verdict, and recovery
-authorization comments. No resulting state, counter, head, finding, or
+authorization, historical adopt-finding RESULT/review, original recovery
+authorization, current recovery RESULT/review, and lineage-correction
+authorization comments. The historical adopt-finding head remains the exact
+head bound by its original evidence; the current recovery head is independently
+bound by the live PR, current recovery evidence, and the lineage authorization.
+The historical head must be proven by trusted Git ancestry to be an ancestor of
+the current recovery head. No resulting state, counter, head, finding, or
 authority lineage is caller-supplied.
 
 Positional arguments and flags:
@@ -318,6 +323,7 @@ Positional arguments and flags:
 - `--implementation-result-comment` selects the RESULT proving adoption was not executed.
 - `--implementation-review-comment` selects the reviewed adopt-finding eligibility verdict.
 - `--recovery-authorization-comment` selects the Founder authorization for this exceptional recovery.
+- `--lineage-correction-authorization-comment` selects the immutable Founder authorization for `RECOVER-STATE-LINEAGE-001`; it binds the current recovery RESULT/review selectors and the historical/current head roles.
 - `--check` performs the complete validation without writing the Issue body.
 
 The only successful mutation appends exactly one canonical state block through
@@ -325,8 +331,8 @@ the existing leased/CAS Issue-body writer. It preserves the surrounding Issue
 body and all historical comments, never creates or alters an active correction
 contract identity, and never posts a review or RESULT. A valid existing state,
 malformed or partial markers, ambiguous or conflicting history, superseded or
-competing authority, unsupported lineage, head/base drift, lease/CAS conflict,
-or ambiguous readback is a stop condition. An identical completed projection
+competing authority, unsupported or unproven ancestry, head/base drift,
+lease/CAS conflict, or ambiguous readback is a stop condition. An identical completed projection
 returns `NO_OP_IDENTICAL_RETRY` without writing. The appended projection carries
 one trusted-derived recovery-evidence fingerprint solely to prove that a retry
 uses the same immutable evidence; it is never a caller input.

@@ -1,3 +1,5 @@
+import { spawnSync } from 'node:child_process'
+
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -24,14 +26,19 @@ const BASE = 'main'
 const BRANCH = 'feature/276-slice-b'
 const BASE_SHA = '7cf51129144a355172a32d57a73b5fda9eae5504'
 const POLICY_BLOB_SHA = 'b'.repeat(40)
-const CURRENT_HEAD = 'c659bc11b927ba54cf663a41fd13495aa1af20ee'
+const CURRENT_HEAD = '53e1775f38ad93c8a08251388a23ef6a38c3f36a'
+const HISTORICAL_ADOPT_HEAD = 'c659bc11b927ba54cf663a41fd13495aa1af20ee'
 const REVIEWED_HEAD = '24497c9891b03e4042ac34770a1dfd3b225be1e1'
 const ADOPTION_HEAD = '917f879bea53ced5bc9622bd28f46d45046973c4'
+const NON_ANCESTOR_HEAD = 'aaf76459d5b88dd340072ea67803a8a6ed041d38'
 const PREDECESSOR_COMMENT = '5213944977'
 const ADOPTION_AUTHORIZATION_COMMENT = '5215031090'
 const IMPLEMENTATION_RESULT_COMMENT = '5215321038'
 const IMPLEMENTATION_REVIEW_COMMENT = '5215623058'
 const RECOVERY_AUTHORIZATION_COMMENT = '5216214424'
+const RECOVERY_IMPLEMENTATION_RESULT_COMMENT = '5217140920'
+const RECOVERY_IMPLEMENTATION_REVIEW_COMMENT = '5217390793'
+const LINEAGE_CORRECTION_AUTHORIZATION_COMMENT = '5218182829'
 const COUNTER_EVIDENCE_COMMENT = '5212960343'
 
 const FINDINGS = [
@@ -125,7 +132,7 @@ Implement the Founder-authorized append-only adoption.
 }
 
 function implementationResultBody(overrides: { head?: string; executed?: boolean } = {}) {
-  const head = overrides.head ?? CURRENT_HEAD
+  const head = overrides.head ?? HISTORICAL_ADOPT_HEAD
   return `## RESULT
 
 ### Task log
@@ -144,7 +151,7 @@ function implementationResultBody(overrides: { head?: string; executed?: boolean
 }
 
 function implementationReviewBody(overrides: { head?: string; verdict?: string } = {}) {
-  const head = overrides.head ?? CURRENT_HEAD
+  const head = overrides.head ?? HISTORICAL_ADOPT_HEAD
   return `## REVIEW_VERDICT
 
 ### Task log
@@ -176,7 +183,7 @@ The Founder approves exactly one bounded correction: \`MC-MISSING-MANAGED-STATE-
 - Issue: #${overrides.issue ?? ISSUE}
 - PR: #${overrides.pr ?? PR}
 - Branch: \`${BRANCH}\`
-- Current exact head: \`${overrides.head ?? CURRENT_HEAD}\`
+- Current exact head: \`${overrides.head ?? HISTORICAL_ADOPT_HEAD}\`
 - Base: \`${BASE}@${BASE_SHA}\`
 - Expected reconstructable historical state for this incident: \`${overrides.expectedState ?? 'CORRECTION_REQUIRED_1'}\`
 - Existing predecessor correction contract: comment \`${PREDECESSOR_COMMENT}\`
@@ -185,6 +192,73 @@ The Founder approves exactly one bounded correction: \`MC-MISSING-MANAGED-STATE-
 
 ### Next permitted action
 Implement the bounded recovery transport. Do not execute live recovery.
+`
+}
+
+function recoveryImplementationResultBody(overrides: { head?: string; executed?: boolean } = {}) {
+  const head = overrides.head ?? CURRENT_HEAD
+  return `## RESULT
+
+### Task log
+- Task / Issue: #${ISSUE}
+- Phase: Dev (implementation)
+- Branch: \`${BRANCH}\`
+- Head: \`${head}\`
+- PR: https://github.com/${REPOSITORY}/pull/${PR}
+
+### Summary
+- Added exceptional Tier-A \`bemoat:mission-control:recover-state\` for one wholly absent managed-state projection.
+- ${overrides.executed ? 'Executed the live recovery transition against Issue #276.' : 'No live recovery or adopt-finding transition was executed.'}
+`
+}
+
+function recoveryImplementationReviewBody(overrides: { head?: string; verdict?: string } = {}) {
+  const head = overrides.head ?? CURRENT_HEAD
+  return `## REVIEW_VERDICT
+
+### Task log
+- Task / Issue: #${ISSUE}
+- Phase: Review
+- Reviewed PR: #${PR}
+- Approved base: \`${BASE_SHA}\`
+- Exact head reviewed: \`${head}\`
+- Verdict: ${overrides.verdict ?? 'ELIGIBLE FOR FOUNDER REVIEW'}
+`
+}
+
+function lineageCorrectionAuthorizationBody(overrides: {
+  issue?: string
+  pr?: string
+  branch?: string
+  head?: string
+  baseSha?: string
+  implementationResult?: string
+  implementationReview?: string
+  recoveryAuthorization?: string
+  recoveryImplementationResult?: string
+  recoveryImplementationReview?: string
+} = {}) {
+  return `## FOUNDER AUTHORIZATION — RECOVER-STATE-LINEAGE-001
+
+The Founder approves exactly one bounded correction: \`RECOVER-STATE-LINEAGE-001\`.
+
+### Exact binding
+
+- Repository: \`${REPOSITORY}\`
+- Issue: #${overrides.issue ?? ISSUE}
+- PR: #${overrides.pr ?? PR}
+- Branch: \`${overrides.branch ?? BRANCH}\`
+- Protected base: \`${BASE}@${overrides.baseSha ?? BASE_SHA}\`
+- Current exact head: \`${overrides.head ?? CURRENT_HEAD}\`
+- Historical adopt-finding implementation RESULT: \`${overrides.implementationResult ?? IMPLEMENTATION_RESULT_COMMENT}\`
+- Historical adopt-finding implementation REVIEW_VERDICT: \`${overrides.implementationReview ?? IMPLEMENTATION_REVIEW_COMMENT}\`
+- Missing-state recovery authorization: \`${overrides.recoveryAuthorization ?? RECOVERY_AUTHORIZATION_COMMENT}\`
+- Missing-state recovery implementation RESULT: \`${overrides.recoveryImplementationResult ?? RECOVERY_IMPLEMENTATION_RESULT_COMMENT}\`
+- Missing-state recovery bounded REVIEW_VERDICT: \`${overrides.recoveryImplementationReview ?? RECOVERY_IMPLEMENTATION_REVIEW_COMMENT}\`
+
+### Approved semantic correction
+
+Historical adopt-finding evidence remains bound to its original head; the current recovery head is independently validated.
 `
 }
 
@@ -211,6 +285,9 @@ function baseComments(overrides: JsonObject = {}) {
     comment(IMPLEMENTATION_RESULT_COMMENT, implementationResultBody(), { created_at: '2026-08-07T16:30:00+07:00' }),
     comment(IMPLEMENTATION_REVIEW_COMMENT, implementationReviewBody(), { created_at: '2026-08-07T10:05:00Z' }),
     comment(RECOVERY_AUTHORIZATION_COMMENT, recoveryAuthorizationBody(), { created_at: '2026-08-07T17:00:00Z' }),
+    comment(RECOVERY_IMPLEMENTATION_RESULT_COMMENT, recoveryImplementationResultBody(), { created_at: '2026-08-07T19:42:00+07:00' }),
+    comment(RECOVERY_IMPLEMENTATION_REVIEW_COMMENT, recoveryImplementationReviewBody(), { created_at: '2026-08-07T19:59:57Z' }),
+    comment(LINEAGE_CORRECTION_AUTHORIZATION_COMMENT, lineageCorrectionAuthorizationBody(), { created_at: '2026-08-07T20:10:00Z' }),
     ...extraComments,
   ] as Comment[]
 }
@@ -229,6 +306,7 @@ function options(overrides: JsonObject = {}): JsonObject {
     implementationResultComment: IMPLEMENTATION_RESULT_COMMENT,
     implementationReviewComment: IMPLEMENTATION_REVIEW_COMMENT,
     recoveryAuthorizationComment: RECOVERY_AUTHORIZATION_COMMENT,
+    lineageCorrectionAuthorizationComment: LINEAGE_CORRECTION_AUTHORIZATION_COMMENT,
     check: false,
     ...overrides,
   }
@@ -286,6 +364,13 @@ function createHarness(overrides: JsonObject = {}) {
     transitionIdentity: string
   }> = []
   const operations: string[] = []
+  const ancestryCalls: Array<{
+    repository: string
+    base: string
+    baseSha: string
+    ancestor: string
+    descendant: string
+  }> = []
   const deps = {
     readManagedIssue: async () => ({
       number: Number(ISSUE),
@@ -306,6 +391,28 @@ function createHarness(overrides: JsonObject = {}) {
       sha: POLICY_BLOB_SHA,
       guideVersion: '1.3.0',
     }),
+    verifyCommitAncestry: async ({
+      repository,
+      base,
+      baseSha,
+      ancestor,
+      descendant,
+    }: {
+      repository: string
+      base: string
+      baseSha: string
+      ancestor: string
+      descendant: string
+    }) => {
+      ancestryCalls.push({ repository, base, baseSha, ancestor, descendant })
+      const result = spawnSync('git', ['merge-base', '--is-ancestor', ancestor, descendant], {
+        cwd: process.cwd(),
+        encoding: 'utf8',
+      })
+      if (result.status === 0) return true
+      if (result.status === 1) return false
+      throw new Error(result.stderr || result.error?.message || 'git ancestry proof failed')
+    },
     writeIssueBody: async (input: {
       repo: string
       issueNumber: string
@@ -343,6 +450,7 @@ function createHarness(overrides: JsonObject = {}) {
     deps,
     pullRequest,
     operations,
+    ancestryCalls,
     get writes() { return writes.length },
     get body() { return issueBody },
     set body(next: string) { issueBody = next },
@@ -352,6 +460,80 @@ function createHarness(overrides: JsonObject = {}) {
 }
 
 describe(COMMAND, () => {
+  it('accepts historical adopt-finding evidence at an ancestor head of the current recovery head', async () => {
+    const harness = createHarness()
+    const result = await runRecoverState({ options: options(), deps: harness.deps })
+
+    expect(result.classification).toBe('SUCCESS')
+    expect(result.state).toMatchObject({
+      current_head: CURRENT_HEAD,
+      last_reviewed_head: REVIEWED_HEAD,
+    })
+    expect(result.evidenceIds).toMatchObject({
+      historical_adopt_finding_head: HISTORICAL_ADOPT_HEAD,
+      current_recovery_head: CURRENT_HEAD,
+      ancestry_proof: 'historical_adopt_finding_head_is_ancestor_of_current_recovery_head',
+    })
+    expect(harness.ancestryCalls).toHaveLength(2)
+    expect(harness.ancestryCalls).toEqual([
+      {
+        repository: REPOSITORY,
+        base: BASE,
+        baseSha: BASE_SHA,
+        ancestor: HISTORICAL_ADOPT_HEAD,
+        descendant: CURRENT_HEAD,
+      },
+      {
+        repository: REPOSITORY,
+        base: BASE,
+        baseSha: BASE_SHA,
+        ancestor: HISTORICAL_ADOPT_HEAD,
+        descendant: CURRENT_HEAD,
+      },
+    ])
+  })
+
+  it('rejects historical adopt-finding RESULT and REVIEW_VERDICT heads that disagree', async () => {
+    const harness = createHarness()
+    harness.comments = harness.comments.map((entry) => entry.id === IMPLEMENTATION_REVIEW_COMMENT
+      ? { ...entry, body: implementationReviewBody({ head: NON_ANCESTOR_HEAD }) }
+      : entry)
+
+    await expect(runRecoverState({ options: options(), deps: harness.deps })).rejects.toThrow(/HEAD_DRIFT|EVIDENCE_CONFLICT/)
+    expect(harness.writes).toBe(0)
+  })
+
+  it('rejects a historical adopt-finding head that is not an ancestor of the current recovery head', async () => {
+    const harness = createHarness()
+    harness.comments = harness.comments.map((entry) => {
+      if (entry.id === IMPLEMENTATION_RESULT_COMMENT) return { ...entry, body: implementationResultBody({ head: NON_ANCESTOR_HEAD }) }
+      if (entry.id === IMPLEMENTATION_REVIEW_COMMENT) return { ...entry, body: implementationReviewBody({ head: NON_ANCESTOR_HEAD }) }
+      if (entry.id === RECOVERY_AUTHORIZATION_COMMENT) return { ...entry, body: recoveryAuthorizationBody({ head: NON_ANCESTOR_HEAD }) }
+      return entry
+    })
+
+    await expect(runRecoverState({ options: options(), deps: harness.deps })).rejects.toThrow(/HEAD_DRIFT/)
+    expect(harness.writes).toBe(0)
+  })
+
+  it('rejects a historical head that is a descendant of the current recovery head', async () => {
+    const harness = createHarness({
+      pullRequest: { headRefOid: HISTORICAL_ADOPT_HEAD },
+    })
+    harness.comments = harness.comments.map((entry) => {
+      if (entry.id === IMPLEMENTATION_RESULT_COMMENT) return { ...entry, body: implementationResultBody({ head: CURRENT_HEAD }) }
+      if (entry.id === IMPLEMENTATION_REVIEW_COMMENT) return { ...entry, body: implementationReviewBody({ head: CURRENT_HEAD }) }
+      if (entry.id === RECOVERY_AUTHORIZATION_COMMENT) return { ...entry, body: recoveryAuthorizationBody({ head: CURRENT_HEAD }) }
+      if (entry.id === RECOVERY_IMPLEMENTATION_RESULT_COMMENT) return { ...entry, body: recoveryImplementationResultBody({ head: HISTORICAL_ADOPT_HEAD }) }
+      if (entry.id === RECOVERY_IMPLEMENTATION_REVIEW_COMMENT) return { ...entry, body: recoveryImplementationReviewBody({ head: HISTORICAL_ADOPT_HEAD }) }
+      if (entry.id === LINEAGE_CORRECTION_AUTHORIZATION_COMMENT) return { ...entry, body: lineageCorrectionAuthorizationBody({ head: HISTORICAL_ADOPT_HEAD }) }
+      return entry
+    })
+
+    await expect(runRecoverState({ options: options({ expectedHead: HISTORICAL_ADOPT_HEAD }), deps: harness.deps })).rejects.toThrow(/HEAD_DRIFT/)
+    expect(harness.writes).toBe(0)
+  })
+
   it('help is machine-readable and performs zero writes', async () => {
     const harness = createHarness()
     const result = await main(['--help', '--json'], harness.deps)
@@ -367,6 +549,22 @@ describe(COMMAND, () => {
         classification: 'SUCCESS',
         next_action: expect.objectContaining({ command: 'bemoat:mission-control:adopt-finding' }),
       }),
+    ]))
+    expect(help.required_inputs).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        name: 'lineage_correction_authorization_comment',
+        syntax: '--lineage-correction-authorization-comment <id>',
+      }),
+    ]))
+    expect(help.trusted_derived_values).toEqual(expect.arrayContaining([
+      'historical adopt-finding head and current recovery head as separate authority roles',
+      'trusted Git ancestry proof between the historical and current recovery heads',
+    ]))
+    expect(help.required_evidence).toEqual(expect.arrayContaining([
+      expect.stringContaining('historical adopt-finding implementation/review head'),
+    ]))
+    expect(help.stop_conditions).toEqual(expect.arrayContaining([
+      expect.stringContaining('failed ancestry proof'),
     ]))
   })
 
@@ -481,8 +679,69 @@ describe(COMMAND, () => {
   })
 
   it('rejects base, branch, and current-head drift', async () => {
-    const harness = createHarness({ pullRequest: { headRefName: 'other-branch' } })
+    const wrongBranch = createHarness({ pullRequest: { headRefName: 'other-branch' } })
+    await expect(runRecoverState({ options: options(), deps: wrongBranch.deps })).rejects.toThrow(/HEAD_DRIFT/)
+
+    const wrongBase = createHarness({ pullRequest: { baseRefOid: '8'.repeat(40) } })
+    await expect(runRecoverState({ options: options(), deps: wrongBase.deps })).rejects.toThrow(/HEAD_DRIFT/)
+
+    const wrongHead = createHarness({ pullRequest: { headRefOid: HISTORICAL_ADOPT_HEAD } })
+    await expect(runRecoverState({ options: options(), deps: wrongHead.deps })).rejects.toThrow(/HEAD_DRIFT/)
+  })
+
+  it('rejects current recovery RESULT and REVIEW_VERDICT heads that disagree', async () => {
+    const harness = createHarness()
+    harness.comments = harness.comments.map((entry) => entry.id === RECOVERY_IMPLEMENTATION_REVIEW_COMMENT
+      ? { ...entry, body: recoveryImplementationReviewBody({ head: HISTORICAL_ADOPT_HEAD }) }
+      : entry)
+
     await expect(runRecoverState({ options: options(), deps: harness.deps })).rejects.toThrow(/HEAD_DRIFT/)
+    expect(harness.writes).toBe(0)
+  })
+
+  it('rejects historical evidence from another PR, branch, or protected base', async () => {
+    const wrongPr = createHarness()
+    wrongPr.comments = wrongPr.comments.map((entry) => entry.id === IMPLEMENTATION_REVIEW_COMMENT
+      ? { ...entry, body: implementationReviewBody().replace('**Reviewed PR:** 292', '**Reviewed PR:** 999') }
+      : entry)
+    await expect(runRecoverState({ options: options(), deps: wrongPr.deps })).rejects.toThrow(/EVIDENCE_CONFLICT/)
+
+    const wrongBranch = createHarness()
+    wrongBranch.comments = wrongBranch.comments.map((entry) => entry.id === IMPLEMENTATION_RESULT_COMMENT
+      ? { ...entry, body: implementationResultBody().replace(BRANCH, 'feature/other-branch') }
+      : entry)
+    await expect(runRecoverState({ options: options(), deps: wrongBranch.deps })).rejects.toThrow(/EVIDENCE_CONFLICT/)
+
+    const wrongBase = createHarness()
+    wrongBase.comments = wrongBase.comments.map((entry) => entry.id === LINEAGE_CORRECTION_AUTHORIZATION_COMMENT
+      ? { ...entry, body: lineageCorrectionAuthorizationBody({ baseSha: '8'.repeat(40) }) }
+      : entry)
+    await expect(runRecoverState({ options: options(), deps: wrongBase.deps })).rejects.toThrow(/HEAD_DRIFT/)
+
+    const wrongHistoricalBase = createHarness()
+    wrongHistoricalBase.comments = wrongHistoricalBase.comments.map((entry) => entry.id === IMPLEMENTATION_REVIEW_COMMENT
+      ? { ...entry, body: implementationReviewBody().replace(BASE_SHA, '8'.repeat(40)) }
+      : entry)
+    await expect(runRecoverState({ options: options(), deps: wrongHistoricalBase.deps })).rejects.toThrow(/HEAD_DRIFT/)
+  })
+
+  it('does not expose an arbitrary historical-head selector to callers', () => {
+    const contract = getCommandContract(COMMAND) as unknown as {
+      required_inputs: Array<{ name: string }>
+      optional_flags: Array<{ name: string }>
+    }
+    const names = [...contract.required_inputs, ...contract.optional_flags].map((input) => input.name)
+    expect(names).not.toContain('historical_head')
+    expect(names).not.toContain('historical_adopt_finding_head')
+    expect(names).toContain('lineage_correction_authorization_comment')
+  })
+
+  it('fails closed when trusted ancestry proof is unavailable', async () => {
+    const harness = createHarness()
+    harness.deps.verifyCommitAncestry = undefined as never
+
+    await expect(runRecoverState({ options: options(), deps: harness.deps })).rejects.toThrow(/BLOCKED_EXTERNAL/)
+    expect(harness.writes).toBe(0)
   })
 
   it('requires the trusted Founder identity and immutable non-superseded authorities', async () => {
@@ -494,6 +753,58 @@ describe(COMMAND, () => {
       extraComments: [comment('5217000003', `supersedes: ${RECOVERY_AUTHORIZATION_COMMENT}\nnot authoritative`)],
     })
     await expect(runRecoverState({ options: options(), deps: superseded.deps })).rejects.toThrow(/AUTHORITY_CONFLICT/)
+
+    const supersededHistorical = createHarness({
+      extraComments: [comment('5217000007', `supersedes: ${IMPLEMENTATION_REVIEW_COMMENT}\nnot authoritative`)],
+    })
+    await expect(runRecoverState({ options: options(), deps: supersededHistorical.deps })).rejects.toThrow(/AUTHORITY_CONFLICT/)
+  })
+
+  it('rejects competing historical adopt-finding evidence', async () => {
+    const harness = createHarness({
+      extraComments: [comment('5217000008', implementationResultBody())],
+    })
+
+    await expect(runRecoverState({ options: options(), deps: harness.deps })).rejects.toThrow(/EVIDENCE_CONFLICT/)
+    expect(harness.writes).toBe(0)
+  })
+
+  it('rejects evidence that proves live adopt-finding was executed', async () => {
+    const harness = createHarness()
+    harness.comments = harness.comments.map((entry) => entry.id === IMPLEMENTATION_RESULT_COMMENT
+      ? { ...entry, body: implementationResultBody({ executed: true }) }
+      : entry)
+
+    await expect(runRecoverState({ options: options(), deps: harness.deps })).rejects.toThrow(/AUTHORITY_CONFLICT/)
+    expect(harness.writes).toBe(0)
+  })
+
+  it('rejects a missing or wrong lineage-correction authorization selector', async () => {
+    const missing = createHarness()
+    const missingResult = await main([
+      ISSUE,
+      '--repo', REPOSITORY,
+      '--expected-pr', PR,
+      '--expected-base', BASE,
+      '--expected-base-sha', BASE_SHA,
+      '--expected-head', CURRENT_HEAD,
+      '--expected-branch', BRANCH,
+      '--predecessor-comment', PREDECESSOR_COMMENT,
+      '--adoption-authorization-comment', ADOPTION_AUTHORIZATION_COMMENT,
+      '--implementation-result-comment', IMPLEMENTATION_RESULT_COMMENT,
+      '--implementation-review-comment', IMPLEMENTATION_REVIEW_COMMENT,
+      '--recovery-authorization-comment', RECOVERY_AUTHORIZATION_COMMENT,
+      '--check', '--json',
+    ], missing.deps)
+    expect(missingResult.classification).toBe('INVALID_INVOCATION')
+    expect(missing.writes).toBe(0)
+
+    const wrong = createHarness()
+    await expect(runRecoverState({
+      options: options({ lineageCorrectionAuthorizationComment: RECOVERY_AUTHORIZATION_COMMENT }),
+      deps: wrong.deps,
+    })).rejects.toThrow(/AUTHORITY_CONFLICT|EVIDENCE_CONFLICT/)
+    expect(wrong.writes).toBe(0)
   })
 
   it('creates exactly one canonical block and preserves unrelated Issue prose', async () => {
@@ -605,6 +916,7 @@ describe(COMMAND, () => {
       '--implementation-result-comment', IMPLEMENTATION_RESULT_COMMENT,
       '--implementation-review-comment', IMPLEMENTATION_REVIEW_COMMENT,
       '--recovery-authorization-comment', RECOVERY_AUTHORIZATION_COMMENT,
+      '--lineage-correction-authorization-comment', LINEAGE_CORRECTION_AUTHORIZATION_COMMENT,
       '--check', '--json',
     ], harness.deps)
     expect(result.classification).toBe('SUCCESS')

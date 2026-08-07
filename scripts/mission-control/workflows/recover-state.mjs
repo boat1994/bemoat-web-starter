@@ -34,11 +34,14 @@ export const NEXT_ACTION_COMMAND = 'bemoat:mission-control:adopt-finding'
 
 const RECOVERY_AUTHORIZATION_ID = 'MC-MISSING-MANAGED-STATE-RECOVERY-001'
 const ADOPT_FINDING_ID = 'MC-CORRECTION-FINDING-ADOPTION-001'
+const LINEAGE_CORRECTION_AUTHORIZATION_ID = 'RECOVER-STATE-LINEAGE-001'
 const FULL_SHA_RE = /^[0-9a-f]{40}$/i
 const RECOVERY_AUTHORIZATION_HEADING_RE =
   /^##\s+FOUNDER AUTHORIZATION\s+[—-]\s+MC-MISSING-MANAGED-STATE-RECOVERY-001\s*$/mi
 const ADOPT_AUTHORIZATION_HEADING_RE =
   /^##\s+FOUNDER AUTHORIZATION\s+[—-]\s+MC-CORRECTION-FINDING-ADOPTION-001\s*$/mi
+const LINEAGE_CORRECTION_AUTHORIZATION_HEADING_RE =
+  /^##\s+FOUNDER AUTHORIZATION\s+[—-]\s+RECOVER-STATE-LINEAGE-001\s*$/mi
 
 function classifiedError(classification, message, details = {}) {
   const error = new Error(`${classification}: ${message}`)
@@ -88,6 +91,15 @@ function hasExactId(body, label, id) {
   return candidate === String(id)
 }
 
+function readExactCommentId(body, label, context) {
+  const value = readLabeledValue(body, label)
+  const candidate = value?.match(/^(?:comment\s+)?`?#?([1-9]\d*)`?$/i)?.[1] ?? null
+  if (!candidate) {
+    throw classifiedError('EVIDENCE_CONFLICT', `${context} is missing an immutable ${label} selector`)
+  }
+  return candidate
+}
+
 function extractIssueNumber(body) {
   const value = readLabeledValue(body, ['Task / Issue', 'Issue'])
   return normalizeId(value)
@@ -105,8 +117,8 @@ function extractPrNumber(body) {
   return linked?.[1] ?? null
 }
 
-function assertCommentIsImmutable({ comment, comments, options, label }) {
-  if (!comment || String(comment.id) !== String(options[label])) {
+function assertCommentIsImmutable({ comment, comments, options, label, commentId = options[label] }) {
+  if (!comment || String(comment.id) !== String(commentId)) {
     throw classifiedError('EVIDENCE_CONFLICT', `${label} does not identify the selected immutable comment`)
   }
   const live = comments.filter((entry) => String(entry?.id) === String(comment.id))
@@ -195,6 +207,45 @@ function assertBaseAndHeadText(body, { base, head }, label) {
 function assertBodyContains(body, needle, label, classification = 'EVIDENCE_CONFLICT') {
   if (!String(body).toLowerCase().includes(String(needle).toLowerCase())) {
     throw classifiedError(classification, `${label} is missing required evidence: ${needle}`)
+  }
+}
+
+function assertApprovedBaseBindingIfPresent(body, options, label) {
+  const value = readLabeledValue(body, 'Approved base')
+  if (!value) return
+  const approvedBaseSha = normalizeSha(value)
+  if (approvedBaseSha) {
+    if (approvedBaseSha !== options.expectedBaseSha) {
+      throw classifiedError('HEAD_DRIFT', `${label} protected base SHA does not match`)
+    }
+    return
+  }
+  if (!new RegExp(`\\b${escapeRegExp(options.expectedBase)}\\b`, 'i').test(value)) {
+    throw classifiedError('HEAD_DRIFT', `${label} protected base binding does not match`)
+  }
+}
+
+function lineHasExecutionProof(line, subjects) {
+  const text = String(line).toLowerCase()
+  const hasSubject = subjects.some((subject) => text.includes(String(subject).toLowerCase()))
+  const hasExecution = /\b(?:execute|executed|execution)\b/.test(text)
+  const hasNegation = /\b(?:did\s+not|not|never|no)\b/.test(text) || /\bunexecuted\b/.test(text)
+  return hasSubject && hasExecution && hasNegation
+}
+
+function lineClaimsExecution(line, subjects) {
+  const text = String(line).toLowerCase()
+  const hasSubject = subjects.some((subject) => text.includes(String(subject).toLowerCase()))
+  return hasSubject && /\bexecuted\b/.test(text) && !/\b(?:did\s+not|not|never|no)\b/.test(text)
+}
+
+function assertExecutionRemainedUnexecuted(body, subjects, label) {
+  const lines = String(body).split(/\r?\n/)
+  if (!lines.some((line) => lineHasExecutionProof(line, subjects))) {
+    throw classifiedError('AUTHORITY_CONFLICT', `${label} does not prove that the live operation remained unexecuted`)
+  }
+  if (lines.some((line) => lineClaimsExecution(line, subjects))) {
+    throw classifiedError('AUTHORITY_CONFLICT', `${label} claims that the live operation was executed`)
   }
 }
 
@@ -291,6 +342,7 @@ function parsePredecessor({ comment, comments, options, trustedFounderLogins }) 
   assertCommentIsImmutable({ comment, comments, options, label: 'predecessorComment' })
   assertTrustedAuthor(comment, trustedFounderLogins, 'predecessor correction contract')
   assertIssueAttachment(comment, options, 'predecessor correction contract')
+  assertNotSuperseded(comments, comment, 'predecessor correction contract')
   assertBodyContains(body, '## REVIEW_VERDICT', 'predecessor correction contract')
   assertBodyContains(body, 'CORRECTION REQUIRED', 'predecessor correction contract')
   assertTaskPrBinding(body, options, 'predecessor correction contract')
@@ -305,6 +357,7 @@ function parsePredecessor({ comment, comments, options, trustedFounderLogins }) 
   const reviewedHead = normalizeSha(parsed.contract.reviewed_head)
   if (!reviewedHead) throw classifiedError('HEAD_DRIFT', 'predecessor reviewed head must be a full SHA')
   assertBaseAndHeadText(body, { base: options.expectedBase, head: reviewedHead }, 'predecessor correction contract')
+  assertApprovedBaseBindingIfPresent(body, options, 'predecessor correction contract')
   const findingIds = parsed.contract.findings.map((finding) => finding.id)
   if (findingIds.length === 0 || new Set(findingIds).size !== findingIds.length) {
     throw classifiedError('EVIDENCE_CONFLICT', 'predecessor correction findings are empty or duplicated')
@@ -368,46 +421,99 @@ function parseAdoptionAuthorization({ comment, comments, options, predecessor, t
   }
 }
 
-function parseImplementationResult({ comment, comments, options, trustedFounderLogins }) {
+function parseImplementationResult({ comment, comments, options, trustedFounderLogins, expectedHead = null }) {
   const body = String(comment?.body ?? '')
   assertCommentIsImmutable({ comment, comments, options, label: 'implementationResultComment' })
   assertTrustedAuthor(comment, trustedFounderLogins, 'adopt-finding implementation RESULT')
   assertIssueAttachment(comment, options, 'adopt-finding implementation RESULT')
+  assertNotSuperseded(comments, comment, 'adopt-finding implementation RESULT')
   assertBodyContains(body, '## RESULT', 'adopt-finding implementation RESULT')
   assertTaskPrBinding(body, options, 'adopt-finding implementation RESULT')
   assertBodyContains(body, 'bemoat:mission-control:adopt-finding', 'adopt-finding implementation RESULT')
   const head = normalizeSha(readLabeledValue(body, ['Head', 'Exact head']))
-  if (head !== options.expectedHead) {
-    throw classifiedError('HEAD_DRIFT', 'implementation RESULT head does not match the live PR head')
+  if (!head) {
+    throw classifiedError('HEAD_DRIFT', 'adopt-finding implementation RESULT must bind a full historical head')
+  }
+  if (expectedHead && head !== expectedHead) {
+    throw classifiedError('HEAD_DRIFT', 'adopt-finding implementation RESULT head does not match its bound historical head')
   }
   assertBodyContains(body, options.expectedBranch, 'adopt-finding implementation RESULT')
-  if (!/did not execute[^\n]*live adoption|live adoption remains unexecuted|not execute[^\n]*adoption/i.test(body)) {
-    throw classifiedError('AUTHORITY_CONFLICT', 'implementation RESULT does not prove that live adoption remained unexecuted')
-  }
-  if (/live adoption[^\n]*(?:was )?executed|executed[^\n]*live adoption/i.test(body)) {
-    throw classifiedError('AUTHORITY_CONFLICT', 'implementation RESULT claims live adoption was executed')
-  }
+  assertExecutionRemainedUnexecuted(
+    body,
+    ['live adoption', 'adopt-finding'],
+    'adopt-finding implementation RESULT',
+  )
   return { body, bodyHash: hashExactBody(body), head }
 }
 
-function parseImplementationReview({ comment, comments, options, trustedFounderLogins }) {
+function parseImplementationReview({ comment, comments, options, trustedFounderLogins, expectedHead = null }) {
   const body = String(comment?.body ?? '')
   assertCommentIsImmutable({ comment, comments, options, label: 'implementationReviewComment' })
   assertTrustedAuthor(comment, trustedFounderLogins, 'adopt-finding implementation review')
   assertIssueAttachment(comment, options, 'adopt-finding implementation review')
+  assertNotSuperseded(comments, comment, 'adopt-finding implementation review')
   assertBodyContains(body, '## REVIEW_VERDICT', 'adopt-finding implementation review')
   assertTaskPrBinding(body, options, 'adopt-finding implementation review')
   assertBodyContains(body, 'ELIGIBLE FOR FOUNDER REVIEW', 'adopt-finding implementation review')
   assertBodyContains(body, ADOPT_FINDING_ID, 'adopt-finding implementation review')
   assertBodyContains(body, NEXT_ACTION_COMMAND, 'adopt-finding implementation review')
+  assertApprovedBaseBindingIfPresent(body, options, 'adopt-finding implementation review')
   const head = normalizeSha(readLabeledValue(body, ['Exact head reviewed', 'Head']))
-  if (head !== options.expectedHead) {
-    throw classifiedError('HEAD_DRIFT', 'implementation review head does not match the live PR head')
+  if (!head) {
+    throw classifiedError('HEAD_DRIFT', 'adopt-finding implementation review must bind a full historical head')
+  }
+  if (expectedHead && head !== expectedHead) {
+    throw classifiedError('HEAD_DRIFT', 'adopt-finding implementation review head does not match its bound historical head')
   }
   return { body, bodyHash: hashExactBody(body), head }
 }
 
-function parseRecoveryAuthorization({ comment, comments, options, trustedFounderLogins, derivedState }) {
+function parseRecoveryImplementationResult({ comment, comments, options, trustedFounderLogins, expectedHead, commentId }) {
+  const body = String(comment?.body ?? '')
+  assertCommentIsImmutable({ comment, comments, options, label: 'recoveryImplementationResultComment', commentId })
+  assertTrustedAuthor(comment, trustedFounderLogins, 'missing-state recovery implementation RESULT')
+  assertIssueAttachment(comment, options, 'missing-state recovery implementation RESULT')
+  assertNotSuperseded(comments, comment, 'missing-state recovery implementation RESULT')
+  assertBodyContains(body, '## RESULT', 'missing-state recovery implementation RESULT')
+  assertTaskPrBinding(body, options, 'missing-state recovery implementation RESULT')
+  assertBodyContains(body, RECOVER_STATE_COMMAND, 'missing-state recovery implementation RESULT')
+  assertBodyContains(body, options.expectedBranch, 'missing-state recovery implementation RESULT')
+  const head = normalizeSha(readLabeledValue(body, ['Head', 'Exact head']))
+  if (!head) {
+    throw classifiedError('HEAD_DRIFT', 'missing-state recovery implementation RESULT must bind the current recovery head')
+  }
+  if (head !== expectedHead) {
+    throw classifiedError('HEAD_DRIFT', 'missing-state recovery implementation RESULT head does not match the current recovery head')
+  }
+  assertExecutionRemainedUnexecuted(
+    body,
+    ['live recovery', 'recover-state', 'adopt-finding'],
+    'missing-state recovery implementation RESULT',
+  )
+  return { body, bodyHash: hashExactBody(body), head }
+}
+
+function parseRecoveryImplementationReview({ comment, comments, options, trustedFounderLogins, expectedHead, commentId }) {
+  const body = String(comment?.body ?? '')
+  assertCommentIsImmutable({ comment, comments, options, label: 'recoveryImplementationReviewComment', commentId })
+  assertTrustedAuthor(comment, trustedFounderLogins, 'missing-state recovery implementation review')
+  assertIssueAttachment(comment, options, 'missing-state recovery implementation review')
+  assertNotSuperseded(comments, comment, 'missing-state recovery implementation review')
+  assertBodyContains(body, '## REVIEW_VERDICT', 'missing-state recovery implementation review')
+  assertTaskPrBinding(body, options, 'missing-state recovery implementation review')
+  assertBodyContains(body, 'ELIGIBLE FOR FOUNDER REVIEW', 'missing-state recovery implementation review')
+  assertApprovedBaseBindingIfPresent(body, options, 'missing-state recovery implementation review')
+  const head = normalizeSha(readLabeledValue(body, ['Exact head reviewed', 'Head']))
+  if (!head) {
+    throw classifiedError('HEAD_DRIFT', 'missing-state recovery implementation review must bind the current recovery head')
+  }
+  if (head !== expectedHead) {
+    throw classifiedError('HEAD_DRIFT', 'missing-state recovery implementation review head does not match the current recovery head')
+  }
+  return { body, bodyHash: hashExactBody(body), head }
+}
+
+function parseRecoveryAuthorization({ comment, comments, options, trustedFounderLogins, derivedState, expectedHead }) {
   const body = String(comment?.body ?? '')
   assertCommentIsImmutable({ comment, comments, options, label: 'recoveryAuthorizationComment' })
   assertTrustedAuthor(comment, trustedFounderLogins, 'missing-state recovery authorization')
@@ -422,7 +528,7 @@ function parseRecoveryAuthorization({ comment, comments, options, trustedFounder
   assertBodyContains(body, `Issue: #${options.issueNumber}`, 'missing-state recovery authorization')
   assertBodyContains(body, `PR: #${options.expectedPr}`, 'missing-state recovery authorization')
   assertBodyContains(body, `Branch: \`${options.expectedBranch}\``, 'missing-state recovery authorization')
-  assertBodyContains(body, `Current exact head: \`${options.expectedHead}\``, 'missing-state recovery authorization', 'HEAD_DRIFT')
+  assertBodyContains(body, `Current exact head: \`${expectedHead}\``, 'missing-state recovery authorization', 'HEAD_DRIFT')
   assertBodyContains(body, `Base: \`${options.expectedBase}@${options.expectedBaseSha}\``, 'missing-state recovery authorization', 'HEAD_DRIFT')
   if (!hasExactId(body, 'Existing predecessor correction contract', options.predecessorComment) ||
       !hasExactId(body, 'Existing Founder finding-adoption authorization', options.adoptionAuthorizationComment) ||
@@ -444,10 +550,76 @@ function parseRecoveryAuthorization({ comment, comments, options, trustedFounder
     bodyHash: hashExactBody(body),
     authorizationId: RECOVERY_AUTHORIZATION_ID,
     expectedState,
+    authorizedHead: expectedHead,
   }
 }
 
-function assertNoCompetingEvidence({ comments, selectedIds, options, predecessor }) {
+function parseLineageCorrectionAuthorization({ comment, comments, options, trustedFounderLogins }) {
+  const body = String(comment?.body ?? '')
+  const label = 'recover-state lineage-correction authorization'
+  assertCommentIsImmutable({ comment, comments, options, label: 'lineageCorrectionAuthorizationComment' })
+  assertTrustedAuthor(comment, trustedFounderLogins, label)
+  assertIssueAttachment(comment, options, label)
+  assertNotSuperseded(comments, comment, label)
+  assertSingleHeadingCandidate(comments, comment, LINEAGE_CORRECTION_AUTHORIZATION_HEADING_RE, label)
+  if (!LINEAGE_CORRECTION_AUTHORIZATION_HEADING_RE.test(body)) {
+    throw classifiedError('AUTHORITY_CONFLICT', `${label} heading is malformed`)
+  }
+  assertBodyContains(body, LINEAGE_CORRECTION_AUTHORIZATION_ID, label)
+  assertBodyContains(body, `Repository: \`${options.repo}\``, label)
+  assertBodyContains(body, `Issue: #${options.issueNumber}`, label)
+  assertBodyContains(body, `PR: #${options.expectedPr}`, label)
+  assertBodyContains(body, `Branch: \`${options.expectedBranch}\``, label)
+  assertBodyContains(body, `Protected base: \`${options.expectedBase}@${options.expectedBaseSha}\``, label, 'HEAD_DRIFT')
+  assertBodyContains(body, `Current exact head: \`${options.expectedHead}\``, label, 'HEAD_DRIFT')
+
+  const selectors = {
+    historicalImplementationResult: readExactCommentId(
+      body,
+      'Historical adopt-finding implementation RESULT',
+      label,
+    ),
+    historicalImplementationReview: readExactCommentId(
+      body,
+      'Historical adopt-finding implementation REVIEW_VERDICT',
+      label,
+    ),
+    recoveryAuthorization: readExactCommentId(
+      body,
+      'Missing-state recovery authorization',
+      label,
+    ),
+    recoveryImplementationResult: readExactCommentId(
+      body,
+      'Missing-state recovery implementation RESULT',
+      label,
+    ),
+    recoveryImplementationReview: readExactCommentId(
+      body,
+      'Missing-state recovery bounded REVIEW_VERDICT',
+      label,
+    ),
+  }
+  const selectorIds = Object.values(selectors)
+  if (new Set(selectorIds).size !== selectorIds.length) {
+    throw classifiedError('EVIDENCE_CONFLICT', `${label} contains duplicate immutable evidence selectors`)
+  }
+  if (selectors.historicalImplementationResult !== String(options.implementationResultComment) ||
+      selectors.historicalImplementationReview !== String(options.implementationReviewComment) ||
+      selectors.recoveryAuthorization !== String(options.recoveryAuthorizationComment)) {
+    throw classifiedError('EVIDENCE_CONFLICT', `${label} selectors do not match the explicit historical evidence invocation`)
+  }
+
+  return {
+    body,
+    bodyHash: hashExactBody(body),
+    authorizationId: LINEAGE_CORRECTION_AUTHORIZATION_ID,
+    ...selectors,
+    currentHead: options.expectedHead,
+  }
+}
+
+function assertNoCompetingEvidence({ comments, selectedIds, options, predecessor, historicalHead }) {
   const selected = new Set(Object.values(selectedIds).map((value) => String(value)))
   const sameHeadVerdicts = comments.filter((comment) => {
     const body = String(comment?.body ?? '')
@@ -475,10 +647,35 @@ function assertNoCompetingEvidence({ comments, selectedIds, options, predecessor
     throw classifiedError('EVIDENCE_CONFLICT', 'competing adopt-finding implementation RESULT evidence exists')
   }
 
-  for (const comment of comments) {
+  const sameHeadRecoveryResults = comments.filter((comment) => {
     const body = String(comment?.body ?? '')
+    return /##\s+RESULT/i.test(body) && bodyContainsSha(body, options.expectedHead) && body.includes(RECOVER_STATE_COMMAND)
+  })
+  if (sameHeadRecoveryResults.some((comment) => !selected.has(String(comment.id)))) {
+    throw classifiedError('EVIDENCE_CONFLICT', 'competing missing-state recovery implementation RESULT evidence exists')
+  }
+
+  const sameHistoricalResults = comments.filter((comment) => {
+    const body = String(comment?.body ?? '')
+    return /##\s+RESULT/i.test(body) && bodyContainsSha(body, historicalHead) && body.includes('adopt-finding')
+  })
+  if (sameHistoricalResults.some((comment) => !selected.has(String(comment.id)))) {
+    throw classifiedError('EVIDENCE_CONFLICT', 'competing historical adopt-finding implementation RESULT evidence exists')
+  }
+
+  const sameHistoricalVerdicts = comments.filter((comment) => {
+    const body = String(comment?.body ?? '')
+    return /##\s+REVIEW_VERDICT/i.test(body) && bodyContainsSha(body, historicalHead) &&
+      body.includes(ADOPT_FINDING_ID) && body.includes('ELIGIBLE FOR FOUNDER REVIEW')
+  })
+  if (sameHistoricalVerdicts.some((comment) => !selected.has(String(comment.id)))) {
+    throw classifiedError('EVIDENCE_CONFLICT', 'competing historical adopt-finding REVIEW_VERDICT evidence exists')
+  }
+
+  for (const comment of comments) {
     if (selected.has(String(comment?.id))) continue
-    if (bodyContainsSha(body, options.expectedHead) && /adopt-finding[^\n]*(?:executed|transition)/i.test(body) && /executed/i.test(body)) {
+    const lines = String(comment?.body ?? '').split(/\r?\n/)
+    if (lines.some((line) => lineClaimsExecution(line, ['live adoption', 'adopt-finding']))) {
       throw classifiedError('AUTHORITY_CONFLICT', 'unknown evidence claims live finding adoption was executed')
     }
   }
@@ -574,6 +771,7 @@ async function reconstruct({ options, deps }) {
     implementationResult: options.implementationResultComment,
     implementationReview: options.implementationReviewComment,
     recoveryAuthorization: options.recoveryAuthorizationComment,
+    lineageCorrectionAuthorization: options.lineageCorrectionAuthorizationComment,
   }
   const selectedComments = {}
   for (const [key, optionKey] of Object.entries({
@@ -582,8 +780,24 @@ async function reconstruct({ options, deps }) {
     implementationResult: 'implementationResultComment',
     implementationReview: 'implementationReviewComment',
     recoveryAuthorization: 'recoveryAuthorizationComment',
+    lineageCorrectionAuthorization: 'lineageCorrectionAuthorizationComment',
   })) {
     selectedComments[key] = await deps.readComment(options.repo, options[optionKey])
+  }
+
+  const lineageCorrectionAuthorization = parseLineageCorrectionAuthorization({
+    comment: selectedComments.lineageCorrectionAuthorization,
+    comments,
+    options,
+    trustedFounderLogins,
+  })
+  const selectedLineageComments = {}
+  for (const [key, commentId] of Object.entries({
+    recoveryImplementationResult: lineageCorrectionAuthorization.recoveryImplementationResult,
+    recoveryImplementationReview: lineageCorrectionAuthorization.recoveryImplementationReview,
+  })) {
+    selectedLineageComments[key] = await deps.readComment(options.repo, commentId)
+    selectedIds[key] = commentId
   }
 
   const predecessor = parsePredecessor({
@@ -610,7 +824,11 @@ async function reconstruct({ options, deps }) {
     comments,
     options,
     trustedFounderLogins,
+    expectedHead: implementationResult.head,
   })
+  if (implementationReview.head !== implementationResult.head) {
+    throw classifiedError('EVIDENCE_CONFLICT', 'historical adopt-finding implementation RESULT and REVIEW_VERDICT bind different heads')
+  }
 
   if (adoptionAuthorization.adopted_finding.id !== ADOPT_FINDING_ID) {
     throw classifiedError('EVIDENCE_CONFLICT', 'adoption authorization finding is unsupported')
@@ -624,8 +842,62 @@ async function reconstruct({ options, deps }) {
     options,
     trustedFounderLogins,
     derivedState,
+    expectedHead: implementationResult.head,
   })
-  assertNoCompetingEvidence({ comments, selectedIds, options, predecessor })
+  if (recoveryAuthorization.authorizedHead !== implementationResult.head) {
+    throw classifiedError('HEAD_DRIFT', 'missing-state recovery authorization is not bound to the historical adopt-finding implementation head')
+  }
+  const recoveryImplementationResult = parseRecoveryImplementationResult({
+    comment: selectedLineageComments.recoveryImplementationResult,
+    comments,
+    options,
+    trustedFounderLogins,
+    expectedHead: options.expectedHead,
+    commentId: lineageCorrectionAuthorization.recoveryImplementationResult,
+  })
+  const recoveryImplementationReview = parseRecoveryImplementationReview({
+    comment: selectedLineageComments.recoveryImplementationReview,
+    comments,
+    options,
+    trustedFounderLogins,
+    expectedHead: recoveryImplementationResult.head,
+    commentId: lineageCorrectionAuthorization.recoveryImplementationReview,
+  })
+  if (recoveryImplementationReview.head !== recoveryImplementationResult.head ||
+      recoveryImplementationResult.head !== options.expectedHead ||
+      lineageCorrectionAuthorization.currentHead !== recoveryImplementationResult.head) {
+    throw classifiedError('HEAD_DRIFT', 'current recovery implementation and review evidence do not bind the exact live recovery head')
+  }
+
+  if (typeof deps.verifyCommitAncestry !== 'function') {
+    throw classifiedError('BLOCKED_EXTERNAL', 'trusted Git ancestry verification is unavailable')
+  }
+  let ancestryVerified
+  try {
+    ancestryVerified = await deps.verifyCommitAncestry({
+      repository: options.repo,
+      base: options.expectedBase,
+      baseSha: options.expectedBaseSha,
+      ancestor: implementationResult.head,
+      descendant: recoveryImplementationResult.head,
+    })
+  } catch (error) {
+    if (error?.classification) throw error
+    throw classifiedError('BLOCKED_EXTERNAL', `trusted Git ancestry verification failed: ${error instanceof Error ? error.message : String(error)}`)
+  }
+  if (ancestryVerified !== true) {
+    if (ancestryVerified === false) {
+      throw classifiedError('HEAD_DRIFT', 'historical adopt-finding head is not an ancestor of the current recovery head')
+    }
+    throw classifiedError('BLOCKED_EXTERNAL', 'trusted Git ancestry verification did not return a boolean proof')
+  }
+  assertNoCompetingEvidence({
+    comments,
+    selectedIds,
+    options,
+    predecessor,
+    historicalHead: implementationResult.head,
+  })
 
   const evidence = {
     predecessor_comment_id: String(options.predecessorComment),
@@ -638,10 +910,19 @@ async function reconstruct({ options, deps }) {
     adoption_head: adoptionAuthorization.adoption_head,
     implementation_result_comment_id: String(options.implementationResultComment),
     implementation_result_body_sha256: implementationResult.bodyHash,
+    historical_adopt_finding_head: implementationResult.head,
     implementation_review_comment_id: String(options.implementationReviewComment),
     implementation_review_body_sha256: implementationReview.bodyHash,
     recovery_authorization_comment_id: String(options.recoveryAuthorizationComment),
     recovery_authorization_body_sha256: recoveryAuthorization.bodyHash,
+    recovery_implementation_result_comment_id: String(lineageCorrectionAuthorization.recoveryImplementationResult),
+    recovery_implementation_result_body_sha256: recoveryImplementationResult.bodyHash,
+    recovery_implementation_review_comment_id: String(lineageCorrectionAuthorization.recoveryImplementationReview),
+    recovery_implementation_review_body_sha256: recoveryImplementationReview.bodyHash,
+    current_recovery_head: recoveryImplementationResult.head,
+    ancestry_proof: 'historical_adopt_finding_head_is_ancestor_of_current_recovery_head',
+    lineage_correction_authorization_comment_id: String(options.lineageCorrectionAuthorizationComment),
+    lineage_correction_authorization_body_sha256: lineageCorrectionAuthorization.bodyHash,
     policy_source_sha: normalizeSha(policy.sha),
   }
   const evidenceFingerprint = hashExactBody(stableStringify(evidence))
@@ -815,6 +1096,7 @@ function invocationToOptions(invocation) {
     implementationResultComment: values.implementation_result_comment,
     implementationReviewComment: values.implementation_review_comment,
     recoveryAuthorizationComment: values.recovery_authorization_comment,
+    lineageCorrectionAuthorizationComment: values.lineage_correction_authorization_comment,
     check: values.check === true,
   }
 }
@@ -842,6 +1124,9 @@ function renderResult({ command, format, options, result }) {
       mutation_boundary: 'one missing canonical managed-state block only',
       no_comment_mutation: true,
       adoption_executed: false,
+      historical_adopt_finding_head: result.evidenceIds?.historical_adopt_finding_head ?? null,
+      current_recovery_head: result.evidenceIds?.current_recovery_head ?? null,
+      ancestry_proof: result.evidenceIds?.ancestry_proof ?? null,
     },
   })
   if (format === 'json') process.stdout.write(`${JSON.stringify(envelope)}\n`)
@@ -971,6 +1256,18 @@ export function createProductionDeps() {
         throw classifiedError('BLOCKED_EXTERNAL', 'protected Mission Control guide blob identity is unavailable')
       }
       return { ref, commitSha: expectedSha, sha: file.sha, guideVersion: version }
+    },
+    verifyCommitAncestry: async ({ repository, base, baseSha, ancestor, descendant }) => {
+      const ancestryScope = `${repository} ${base}@${baseSha}`
+      const result = spawnSync('git', ['merge-base', '--is-ancestor', ancestor, descendant], {
+        encoding: 'utf8',
+      })
+      if (result.status === 0) return true
+      if (result.status === 1) return false
+      throw classifiedError(
+        'BLOCKED_EXTERNAL',
+        result.stderr || result.stdout || result.error?.message || `trusted Git ancestry verification failed for ${ancestryScope}`,
+      )
     },
     writeIssueBody: async ({ repo, issueNumber, expectedBody, nextBody, transitionIdentity }) =>
       writeIssueBodyWithLease({
