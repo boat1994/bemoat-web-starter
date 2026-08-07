@@ -1,4 +1,5 @@
 import { CANONICAL_TRANSPORTS } from '../mission-control/transport-registry.mjs'
+import { CORRECTION_EVIDENCE_CONTRACT } from '../correction-contract.mjs'
 
 export const COMMAND_CONTRACT_SCHEMA_VERSION = 1
 
@@ -675,7 +676,8 @@ const commands = {
           'Risks / blockers',
           'Next permitted action'
         ],
-        allowed_verdicts: []
+        allowed_verdicts: [],
+        correction_evidence_map: CORRECTION_EVIDENCE_CONTRACT,
       },
       REVIEW_VERDICT: {
         required_heading: '## REVIEW_VERDICT',

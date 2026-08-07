@@ -7,6 +7,50 @@ export const FINDING_STATUS = Object.freeze({
   UNPROVEN: 'UNPROVEN',
 })
 
+export const CORRECTION_EVIDENCE_CONTRACT = Object.freeze({
+  representation: 'fenced_json_object',
+  schema_version: CORRECTION_EVIDENCE_SCHEMA_VERSION,
+  required_keys: ['schema_version', 'correction_base', 'finding_results'],
+  correction_base: {
+    type: 'string',
+    binding: 'must equal the immutable reviewed head',
+  },
+  finding_results: Object.freeze({
+    representation: 'object keyed by immutable finding ID',
+    entry_fields: ['changed_files', 'tests', 'status'],
+    status_enum: Object.freeze(Object.values(FINDING_STATUS)),
+  }),
+  bindings: [
+    'correction_base must equal the immutable reviewed head',
+    'finding IDs must exactly match the immutable correction finding set; omitted, added, or substituted IDs are invalid',
+    'referenced changed files must exist in the actual correction diff',
+    'correction scope and prohibited-area validation remains authoritative',
+  ],
+  claimed_resolved_requirements: [
+    'changed_files must be non-empty',
+    'tests must be non-empty',
+  ],
+  multiplicity: 'Exactly one correction evidence-map block is permitted',
+  canonical_example: `\`\`\`json
+{
+  "schema_version": 2,
+  "correction_base": "1234567890abcdef1234567890abcdef12345678",
+  "finding_results": {
+    "MC-R1-001": {
+      "changed_files": ["src/lib/month-boundary.ts"],
+      "tests": ["pnpm exec vitest run tests/int/month-boundary.int.spec.ts"],
+      "status": "CLAIMED_RESOLVED"
+    },
+    "MC-R1-002": {
+      "changed_files": ["tests/int/month-boundary.int.spec.ts"],
+      "tests": ["pnpm exec vitest run tests/int/month-boundary.int.spec.ts"],
+      "status": "UNPROVEN"
+    }
+  }
+}
+\`\`\``,
+})
+
 /**
  * @param {string} text
  * @returns {Array<Record<string, unknown>>}
