@@ -294,6 +294,7 @@ export const REQUIRED_CLI_PROMPT_GUIDE_PHRASES = [
   'bemoat:mission-control:reconcile',
   'bemoat:mission-control:recover-review',
   'bemoat:mission-control:reopen',
+  'bemoat:mission-control:adopt-finding',
   'bemoat:mission-control:merge',
   'bemoat:issue:comment',
 ]

@@ -63,6 +63,13 @@ export const CANONICAL_TRANSPORTS = Object.freeze([
     purpose: 'project Founder-authorized PR head drift to FOUNDER_AUTHORIZED_CORRECTION',
     exceptional: false,
   }),
+  Object.freeze({
+    command: 'bemoat:mission-control:adopt-finding',
+    role: 'STATE_PROJECTION',
+    owner: 'Founder-authorized Finding Adoption Transport',
+    purpose: 'append one Founder-authorized finding to the active correction contract without changing CORRECTION_REQUIRED state',
+    exceptional: false,
+  }),
 ])
 
 const routeByCommand = new Map(CANONICAL_TRANSPORTS.map((route) => [route.command, route]))

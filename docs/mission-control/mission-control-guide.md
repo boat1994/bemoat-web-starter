@@ -382,6 +382,7 @@ Use these canonical mappings when that operation is already selected:
 | reconciliation | `bemoat:mission-control:reconcile` |
 | recover-review | `bemoat:mission-control:recover-review` |
 | reopen | `bemoat:mission-control:reopen` |
+| adopt-finding | `bemoat:mission-control:adopt-finding` |
 | merge | `bemoat:mission-control:merge` |
 | role-comment transport | `bemoat:issue:comment` |
 

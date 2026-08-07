@@ -51,6 +51,21 @@ const REQUIRED_RECOVERY_ARGS = [
   '--body-file <canonical-recovery-verdict.md>',
 ]
 
+const REQUIRED_ADOPT_FINDING_ARGS = [
+  'pnpm run bemoat:mission-control:adopt-finding',
+  '-- <issue-number>',
+  '--repo <owner>/<repo>',
+  '--expected-pr <number>',
+  '--expected-base <branch>',
+  '--expected-base-sha <full-sha>',
+  '--expected-state <CORRECTION_REQUIRED_1|CORRECTION_REQUIRED_2>',
+  '--expected-reviewed-head <full-sha>',
+  '--expected-adoption-head <full-sha>',
+  '--predecessor-comment <id>',
+  '--authorization-comment <id>',
+  '[--check]',
+]
+
 export function scanCommandReferenceContent(relativePath, content) {
   const violations = []
 
@@ -89,11 +104,18 @@ export function scanCommandReferenceContent(relativePath, content) {
     }
   }
 
+  for (const arg of REQUIRED_ADOPT_FINDING_ARGS) {
+    if (!content.includes(arg)) {
+      violations.push(violation('MC030', relativePath, `Command reference missing adopt-finding arg: ${arg}`))
+    }
+  }
+
   const expectedTableHeaders = [
     '| Command |',
     '| `dispatch` |',
     '| `review` |',
     '| `reconcile` |',
+    '| `adopt-finding` |',
     '| `merge` |',
     '| `recover-review` |'
   ]

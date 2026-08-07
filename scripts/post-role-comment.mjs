@@ -5,9 +5,11 @@ import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import {
   isCorrectionPhaseResult,
-  parseCorrectionContract,
   validateCorrectionRoleComment,
 } from './correction-contract.mjs'
+import {
+  resolveAuthoritativeCorrectionContract,
+} from './mission-control/domain/active-correction-contract.mjs'
 import {
   createHelpEnvelopeV1,
   formatTextHelp,
@@ -317,15 +319,16 @@ function validationErrors(body, contract) {
 }
 
 /**
- * Reconstruct the immutable canonical correction contract from the latest
- * correction-eligible REVIEW_VERDICT on the live Issue. This is the only
+ * Reconstruct the immutable canonical correction contract from the active
+ * Founder-adopted correction-contract identity when present; otherwise from the
+ * latest correction-eligible REVIEW_VERDICT on the live Issue. This is the only
  * supported source of canonical findings for a correction RESULT — there is
  * no caller-supplied override, so the normal posting path cannot bypass
  * identity, base, diff, or prohibited-scope validation by omitting an input.
  * @param {{ issue: string, repo: string | null }} options
  */
 function reconstructCanonicalContract({ issue, repo }) {
-  const args = ['issue', 'view', issue, '--json', 'comments']
+  const args = ['issue', 'view', issue, '--json', 'body,comments']
   if (repo) args.push('--repo', repo)
   const result = spawnSync('gh', args, { encoding: 'utf8' })
   if (result.error || result.status !== 0) {
@@ -353,19 +356,26 @@ function reconstructCanonicalContract({ issue, repo }) {
 
   const comments = Array.isArray(payload.comments) ? projectComments(payload.comments) : []
   const latestVerdict = findLatestRoleComment(comments, 'REVIEW_VERDICT')
-  if (!latestVerdict?.comment?.body) {
-    return { ok: false, errors: ['no REVIEW_VERDICT comment was found on the Issue to reconstruct the canonical contract'] }
-  }
-  if (latestVerdict.parsed?.verdict !== 'CORRECTION REQUIRED') {
-    return {
-      ok: false,
-      errors: [`latest REVIEW_VERDICT is ${latestVerdict.parsed?.verdict ?? 'unknown'}, not CORRECTION REQUIRED`],
+  const resolved = resolveAuthoritativeCorrectionContract({
+    issueBody: payload.body ?? '',
+    latestCorrectionVerdictBody:
+      latestVerdict?.parsed?.verdict === 'CORRECTION REQUIRED'
+        ? latestVerdict.comment?.body ?? null
+        : null,
+  })
+  if (!resolved.ok) {
+    if (!latestVerdict?.comment?.body) {
+      return { ok: false, errors: ['no REVIEW_VERDICT comment was found on the Issue to reconstruct the canonical contract'] }
     }
+    if (latestVerdict.parsed?.verdict !== 'CORRECTION REQUIRED') {
+      return {
+        ok: false,
+        errors: [`latest REVIEW_VERDICT is ${latestVerdict.parsed?.verdict ?? 'unknown'}, not CORRECTION REQUIRED`],
+      }
+    }
+    return { ok: false, errors: resolved.errors }
   }
-
-  const parsed = parseCorrectionContract(latestVerdict.comment.body)
-  if (!parsed.ok) return { ok: false, errors: parsed.errors }
-  return { ok: true, contract: parsed.contract }
+  return { ok: true, contract: resolved.contract, source: resolved.source }
 }
 
 /**

@@ -13,6 +13,8 @@ overrides chat, copied handoffs, local notes, or stale values.
 | `review` | Submit a Full Review 1 or Delta Review verdict, update counters and target states. |
 | `recover-review` | Exceptional, exact-incident transport for the approved #274/#275 raw-review quarantine; it is not ordinary review. |
 | `reconcile` | Repair state routing mismatch. Requires an existing valid managed-state block. Cannot initialize state, replay reviews, post verdicts, or increment counters. |
+| `reopen` | Project Founder-authorized PR head drift to `FOUNDER_AUTHORIZED_CORRECTION`. |
+| `adopt-finding` | Append exactly one Founder-authorized finding to the active correction contract while preserving `CORRECTION_REQUIRED_1\|2` and review counters. |
 | `merge` | Finalize Founder-authorized merge. Uses the live PR head and an existing Founder JSON authorization comment. |
 | (none) | Stop and request human review if evidence disagrees, authentication fails, or preconditions mismatch. Never mutate state YAML directly. |
 
@@ -249,6 +251,46 @@ GitHub reads fail closed as `BLOCKED_EXTERNAL`; competing, stale, malformed, or
 mismatched Issue/PR/base/head/comment evidence fails as `STATE_CONFLICT`.
 Never replace reconcile with direct `gh issue edit`, manual YAML, or an ad hoc
 transition script.
+
+## Adopt finding
+
+Exact syntax:
+
+```text
+pnpm run bemoat:mission-control:adopt-finding -- <issue-number> --repo <owner>/<repo> --expected-pr <number> --expected-base <branch> --expected-base-sha <full-sha> --expected-state <CORRECTION_REQUIRED_1|CORRECTION_REQUIRED_2> --expected-reviewed-head <full-sha> --expected-adoption-head <full-sha> --predecessor-comment <id> --authorization-comment <id> [--check] [--json]
+```
+
+Positional arguments and flags:
+
+- `<issue-number>` is the positive Task Issue number.
+- `--repo` is required `owner/repo`.
+- `--expected-pr` is the exact active Pull Request number.
+- `--expected-base` / `--expected-base-sha` bind the protected base name and SHA.
+- `--expected-state` must be `CORRECTION_REQUIRED_1` or `CORRECTION_REQUIRED_2`.
+- `--expected-reviewed-head` is the predecessor reviewed head preserved by adoption.
+- `--expected-adoption-head` is the live adoption head bound by Founder authorization.
+- `--predecessor-comment` is the immutable predecessor correction-contract comment ID.
+- `--authorization-comment` is the immutable Founder authorization comment ID.
+- `--check` validates without mutating managed state.
+- Finding ID, canonical summary, scope, and evidence requirements are trusted-derived from the Founder authorization and must never be caller-supplied.
+
+Preconditions and sources: authenticate one Founder adopt-finding authorization,
+verify the predecessor contract findings remain unchanged, append exactly one
+authorized finding into a new active correction-contract identity, and CAS-update
+only that identity. Leave the original `REVIEW_VERDICT`, review counters, and
+`CORRECTION_REQUIRED_*` state unchanged.
+
+Structurally valid fake example:
+
+```text
+pnpm run bemoat:mission-control:adopt-finding -- 276 --repo boat1994/bemoat-web-starter --expected-pr 292 --expected-base main --expected-base-sha 7cf51129144a355172a32d57a73b5fda9eae5504 --expected-state CORRECTION_REQUIRED_1 --expected-reviewed-head 24497c9891b03e4042ac34770a1dfd3b225be1e1 --expected-adoption-head 917f879bea53ced5bc9622bd28f46d45046973c4 --predecessor-comment 5213944977 --authorization-comment 5215031090 --check --json
+```
+
+Success routes exclusively to:
+
+```text
+pnpm run bemoat:agent:issue -- 276 --phase correction
+```
 
 ## Review
 

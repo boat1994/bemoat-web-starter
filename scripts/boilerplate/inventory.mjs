@@ -31,6 +31,7 @@ export const managedPaths = [
   'scripts/adapters/command-runner.mjs', 'scripts/mission-control-review.mjs',
   'scripts/mission-control-merge.mjs', 'scripts/mission-control-dispatch.mjs',
   'scripts/mission-control-recover-review.mjs', 'scripts/mission-control-reopen.mjs',
+  'scripts/mission-control-adopt-finding.mjs',
   'scripts/mission-control-issue-body-cas.mjs', 'scripts/post-role-comment.mjs',
   'scripts/cli',
   'scripts/guard-cloudflare-env.mjs', 'scripts/guard-pack.mjs', 'scripts/guard-planning-contract.mjs',
@@ -81,6 +82,7 @@ export const managedPaths = [
   'tests/int/mission-control-merge.int.spec.ts', 'tests/int/mission-control-merge-verdict-binding-entrypoint.int.spec.ts', 'tests/int/mission-control-issue-body-cas.int.spec.ts',
   'tests/int/mission-control-recover-review.int.spec.ts',
   'tests/int/mission-control-reopen.int.spec.ts',
+  'tests/int/mission-control-adopt-finding.int.spec.ts',
   'tests/int/mission-control-correction-entrypoints.int.spec.ts',
   'tests/int/mission-control-characterization.int.spec.ts', 'tests/int/mission-control-task-bootstrap-contract.int.spec.ts', 'tests/int/mission-control-task-initialization.int.spec.ts',
   'tests/int/mission-control-child-portability.int.spec.ts',
@@ -108,7 +110,9 @@ export const packageSyncProposalPath = '.bemoat/package-sync-proposal.md'
 /** Namespaced scripts safe to add when missing during sync. Never overwrite existing entries. */
 export const managedPackageScripts = [
   'bemoat:agent:issue', 'bemoat:mission-control:dispatch', 'bemoat:mission-control:review', 'bemoat:mission-control:task-bootstrap',
-  'bemoat:mission-control:merge', 'bemoat:mission-control:recover-review', 'bemoat:mission-control:reopen', 'bemoat:agent:delivery', 'bemoat:issue:comment',
+  'bemoat:mission-control:merge', 'bemoat:mission-control:recover-review', 'bemoat:mission-control:reopen',
+  'bemoat:mission-control:adopt-finding',
+  'bemoat:agent:delivery', 'bemoat:issue:comment',
   'bemoat:branch:check', 'bemoat:guard:safety', 'bemoat:guard:pack',
   'bemoat:guard:harness-contract', 'bemoat:guard:mission-control-contract',
   'bemoat:guard:cloudflare-env', 'bemoat:test:int', 'bemoat:typecheck', 'bemoat:check',
