@@ -81,6 +81,8 @@ const REQUIRED_RECOVER_STATE_ARGS = [
   '--implementation-review-comment <id>',
   '--recovery-authorization-comment <id>',
   '--lineage-correction-authorization-comment <id>',
+  '--correction-result-comment <id>',
+  '--correction-review-comment <id>',
   '[--check]',
 ]
 

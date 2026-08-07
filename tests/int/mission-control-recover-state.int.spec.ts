@@ -27,6 +27,7 @@ const BRANCH = 'feature/276-slice-b'
 const BASE_SHA = '7cf51129144a355172a32d57a73b5fda9eae5504'
 const POLICY_BLOB_SHA = 'b'.repeat(40)
 const CURRENT_HEAD = '53e1775f38ad93c8a08251388a23ef6a38c3f36a'
+const CORRECTION_REVIEWED_HEAD = '81b63cccda485c6df0b50ebed34a80488c9ee8f6'
 const HISTORICAL_ADOPT_HEAD = 'c659bc11b927ba54cf663a41fd13495aa1af20ee'
 const REVIEWED_HEAD = '24497c9891b03e4042ac34770a1dfd3b225be1e1'
 const ADOPTION_HEAD = '917f879bea53ced5bc9622bd28f46d45046973c4'
@@ -39,6 +40,8 @@ const RECOVERY_AUTHORIZATION_COMMENT = '5216214424'
 const RECOVERY_IMPLEMENTATION_RESULT_COMMENT = '5217140920'
 const RECOVERY_IMPLEMENTATION_REVIEW_COMMENT = '5217390793'
 const LINEAGE_CORRECTION_AUTHORIZATION_COMMENT = '5218182829'
+const CORRECTION_RESULT_COMMENT = '5218673559'
+const CORRECTION_REVIEW_COMMENT = '5218763552'
 const COUNTER_EVIDENCE_COMMENT = '5212960343'
 
 const FINDINGS = [
@@ -180,8 +183,8 @@ The Founder approves exactly one bounded correction: \`MC-MISSING-MANAGED-STATE-
 ### Exact live binding
 
 - Repository: \`${REPOSITORY}\`
-- Issue: #${overrides.issue ?? ISSUE}
-- PR: #${overrides.pr ?? PR}
+- Issue: \`#${overrides.issue ?? ISSUE}\`
+- PR: \`#${overrides.pr ?? PR}\`
 - Branch: \`${BRANCH}\`
 - Current exact head: \`${overrides.head ?? HISTORICAL_ADOPT_HEAD}\`
 - Base: \`${BASE}@${BASE_SHA}\`
@@ -226,6 +229,37 @@ function recoveryImplementationReviewBody(overrides: { head?: string; verdict?: 
 `
 }
 
+function correctionResultBody(overrides: { head?: string } = {}) {
+  const head = overrides.head ?? CORRECTION_REVIEWED_HEAD
+  return `## RESULT
+
+### Task log
+- Task / Issue: #${ISSUE}
+- Phase: Dev (correction)
+- Branch: \`${BRANCH}\`
+- Head: \`${head}\`
+- PR: https://github.com/${REPOSITORY}/pull/${PR}
+
+### Summary
+- Corrected the recover-state lineage role separation.
+- Live recover-state and adopt-finding were not executed.
+`
+}
+
+function correctionReviewBody(overrides: { head?: string; verdict?: string } = {}) {
+  const head = overrides.head ?? CORRECTION_REVIEWED_HEAD
+  return `## REVIEW_VERDICT
+
+### Task log
+- Task / Issue: #${ISSUE}
+- Phase: Bounded correction review
+- Reviewed PR: #${PR}
+- Approved base: \`${BASE_SHA}\`
+- Exact head reviewed: \`${head}\`
+- Verdict: ${overrides.verdict ?? 'ELIGIBLE FOR FOUNDER REVIEW'}
+`
+}
+
 function lineageCorrectionAuthorizationBody(overrides: {
   issue?: string
   pr?: string
@@ -249,7 +283,7 @@ The Founder approves exactly one bounded correction: \`RECOVER-STATE-LINEAGE-001
 - PR: #${overrides.pr ?? PR}
 - Branch: \`${overrides.branch ?? BRANCH}\`
 - Protected base: \`${BASE}@${overrides.baseSha ?? BASE_SHA}\`
-- Current exact head: \`${overrides.head ?? CURRENT_HEAD}\`
+- Current exact head at authorization: \`${overrides.head ?? CURRENT_HEAD}\`
 - Historical adopt-finding implementation RESULT: \`${overrides.implementationResult ?? IMPLEMENTATION_RESULT_COMMENT}\`
 - Historical adopt-finding implementation REVIEW_VERDICT: \`${overrides.implementationReview ?? IMPLEMENTATION_REVIEW_COMMENT}\`
 - Missing-state recovery authorization: \`${overrides.recoveryAuthorization ?? RECOVERY_AUTHORIZATION_COMMENT}\`
@@ -288,6 +322,8 @@ function baseComments(overrides: JsonObject = {}) {
     comment(RECOVERY_IMPLEMENTATION_RESULT_COMMENT, recoveryImplementationResultBody(), { created_at: '2026-08-07T19:42:00+07:00' }),
     comment(RECOVERY_IMPLEMENTATION_REVIEW_COMMENT, recoveryImplementationReviewBody(), { created_at: '2026-08-07T19:59:57Z' }),
     comment(LINEAGE_CORRECTION_AUTHORIZATION_COMMENT, lineageCorrectionAuthorizationBody(), { created_at: '2026-08-07T20:10:00Z' }),
+    comment(CORRECTION_RESULT_COMMENT, correctionResultBody({ head: CURRENT_HEAD }), { created_at: '2026-08-07T21:59:51+07:00' }),
+    comment(CORRECTION_REVIEW_COMMENT, correctionReviewBody({ head: CURRENT_HEAD }), { created_at: '2026-08-07T15:10:00Z' }),
     ...extraComments,
   ] as Comment[]
 }
@@ -307,6 +343,8 @@ function options(overrides: JsonObject = {}): JsonObject {
     implementationReviewComment: IMPLEMENTATION_REVIEW_COMMENT,
     recoveryAuthorizationComment: RECOVERY_AUTHORIZATION_COMMENT,
     lineageCorrectionAuthorizationComment: LINEAGE_CORRECTION_AUTHORIZATION_COMMENT,
+    correctionResultComment: CORRECTION_RESULT_COMMENT,
+    correctionReviewComment: CORRECTION_REVIEW_COMMENT,
     check: false,
     ...overrides,
   }
@@ -460,6 +498,65 @@ function createHarness(overrides: JsonObject = {}) {
 }
 
 describe(COMMAND, () => {
+  it('accepts an immutable recovery anchor when the correction-reviewed live head is a later descendant', async () => {
+    const harness = createHarness({
+      pullRequest: { headRefOid: CORRECTION_REVIEWED_HEAD },
+    })
+    harness.comments = harness.comments.map((entry) => {
+      if (entry.id === RECOVERY_AUTHORIZATION_COMMENT) {
+        return { ...entry, body: recoveryAuthorizationBody({ head: CURRENT_HEAD }) }
+      }
+      if (entry.id === LINEAGE_CORRECTION_AUTHORIZATION_COMMENT) {
+        return { ...entry, body: lineageCorrectionAuthorizationBody({ head: CURRENT_HEAD }) }
+      }
+      if (entry.id === CORRECTION_RESULT_COMMENT) {
+        return { ...entry, body: correctionResultBody() }
+      }
+      if (entry.id === CORRECTION_REVIEW_COMMENT) {
+        return { ...entry, body: correctionReviewBody() }
+      }
+      return entry
+    })
+
+    const result = await runRecoverState({
+      options: options({
+        expectedHead: CORRECTION_REVIEWED_HEAD,
+        correctionResultComment: CORRECTION_RESULT_COMMENT,
+        correctionReviewComment: CORRECTION_REVIEW_COMMENT,
+      }),
+      deps: harness.deps,
+    })
+
+    expect(result.classification).toBe('SUCCESS')
+    expect(result.state?.current_head).toBe(CORRECTION_REVIEWED_HEAD)
+    expect(result.evidenceIds).toMatchObject({
+      recovery_authorization_anchor_head: CURRENT_HEAD,
+      correction_reviewed_head: CORRECTION_REVIEWED_HEAD,
+    })
+  })
+
+  it('returns HEAD_DRIFT when the live PR exact head differs from the correction-reviewed head', async () => {
+    const harness = createHarness({
+      pullRequest: { headRefOid: CORRECTION_REVIEWED_HEAD },
+    })
+
+    await expect(runRecoverState({
+      options: options({ expectedHead: CORRECTION_REVIEWED_HEAD }),
+      deps: harness.deps,
+    })).rejects.toThrow(/HEAD_DRIFT/)
+    expect(harness.writes).toBe(0)
+  })
+
+  it('fails closed when the historical recovery authorization anchor is changed or mismatched', async () => {
+    const harness = createHarness()
+    harness.comments = harness.comments.map((entry) => entry.id === RECOVERY_AUTHORIZATION_COMMENT
+      ? { ...entry, body: recoveryAuthorizationBody({ head: NON_ANCESTOR_HEAD }) }
+      : entry)
+
+    await expect(runRecoverState({ options: options(), deps: harness.deps })).rejects.toThrow(/HEAD_DRIFT/)
+    expect(harness.writes).toBe(0)
+  })
+
   it('accepts historical adopt-finding evidence at an ancestor head of the current recovery head', async () => {
     const harness = createHarness()
     const result = await runRecoverState({ options: options(), deps: harness.deps })
@@ -472,8 +569,14 @@ describe(COMMAND, () => {
     expect(result.evidenceIds).toMatchObject({
       historical_adopt_finding_head: HISTORICAL_ADOPT_HEAD,
       current_recovery_head: CURRENT_HEAD,
+      correction_reviewed_head: CURRENT_HEAD,
+      live_pr_exact_head: CURRENT_HEAD,
       ancestry_proof: 'historical_adopt_finding_head_is_ancestor_of_current_recovery_head',
     })
+    expect(harness.comments.find((entry) => entry.id === IMPLEMENTATION_RESULT_COMMENT)?.body)
+      .toContain(`Head: \`${HISTORICAL_ADOPT_HEAD}\``)
+    expect(harness.comments.find((entry) => entry.id === IMPLEMENTATION_REVIEW_COMMENT)?.body)
+      .toContain(`**Exact head reviewed:** \`${HISTORICAL_ADOPT_HEAD}\``)
     expect(harness.ancestryCalls).toHaveLength(2)
     expect(harness.ancestryCalls).toEqual([
       {
@@ -555,13 +658,23 @@ describe(COMMAND, () => {
         name: 'lineage_correction_authorization_comment',
         syntax: '--lineage-correction-authorization-comment <id>',
       }),
+      expect.objectContaining({
+        name: 'correction_result_comment',
+        syntax: '--correction-result-comment <id>',
+      }),
+      expect.objectContaining({
+        name: 'correction_review_comment',
+        syntax: '--correction-review-comment <id>',
+      }),
     ]))
     expect(help.trusted_derived_values).toEqual(expect.arrayContaining([
-      'historical adopt-finding head and current recovery head as separate authority roles',
-      'trusted Git ancestry proof between the historical and current recovery heads',
+      'historical adopt-finding implementation head',
+      'recovery authorization-bound head and recovery implementation anchor head',
+      'correction-reviewed head and current live PR exact head',
+      'trusted Git ancestry proofs between the distinct lineage heads',
     ]))
     expect(help.required_evidence).toEqual(expect.arrayContaining([
-      expect.stringContaining('historical adopt-finding implementation/review head'),
+      expect.stringContaining('historical adopt-finding head'),
     ]))
     expect(help.stop_conditions).toEqual(expect.arrayContaining([
       expect.stringContaining('failed ancestry proof'),
@@ -760,6 +873,46 @@ describe(COMMAND, () => {
     await expect(runRecoverState({ options: options(), deps: supersededHistorical.deps })).rejects.toThrow(/AUTHORITY_CONFLICT/)
   })
 
+  it('does not treat an approved handoff link as superseding its referenced authorization', async () => {
+    const handoff = createHarness({
+      extraComments: [comment('5220485844', `## HANDOFF
+
+Links: authorization https://github.com/${REPOSITORY}/issues/${ISSUE}#issuecomment-${LINEAGE_CORRECTION_AUTHORIZATION_COMMENT}
+Stop on ambiguous authority, missing/competing/superseded evidence, failed ancestry, or scope expansion.`)],
+    })
+
+    const result = await runRecoverState({
+      options: options(),
+      deps: handoff.deps,
+      checkOnly: true,
+    })
+
+    expect(result.classification).toBe('SUCCESS')
+    expect(handoff.writes).toBe(0)
+  })
+
+  it('does not treat role-heading references in an approved handoff as competing evidence', async () => {
+    const handoff = createHarness({
+      pullRequest: { headRefOid: CORRECTION_REVIEWED_HEAD },
+      extraComments: [comment('5220485844', `## HANDOFF
+
+State: head \`${CORRECTION_REVIEWED_HEAD}\`
+Next: Dev returns \`## RESULT\`, then an independent review; do not execute \`adopt-finding\`.`)],
+    })
+    handoff.comments = handoff.comments.map((entry) => entry.id === CORRECTION_RESULT_COMMENT
+      ? { ...entry, body: correctionResultBody() }
+      : entry.id === CORRECTION_REVIEW_COMMENT
+        ? { ...entry, body: correctionReviewBody() }
+        : entry)
+
+    const result = await runRecoverState({
+      options: options({ expectedHead: CORRECTION_REVIEWED_HEAD }),
+      deps: handoff.deps,
+    })
+
+    expect(result.classification).toBe('SUCCESS')
+  })
+
   it('rejects competing historical adopt-finding evidence', async () => {
     const harness = createHarness({
       extraComments: [comment('5217000008', implementationResultBody())],
@@ -805,6 +958,51 @@ describe(COMMAND, () => {
       deps: wrong.deps,
     })).rejects.toThrow(/AUTHORITY_CONFLICT|EVIDENCE_CONFLICT/)
     expect(wrong.writes).toBe(0)
+  })
+
+  it('fails closed when correction RESULT/review selectors are missing, edited, superseded, duplicated, or differently bound', async () => {
+    const missing = createHarness()
+    const missingResult = await main([
+      ISSUE,
+      '--repo', REPOSITORY,
+      '--expected-pr', PR,
+      '--expected-base', BASE,
+      '--expected-base-sha', BASE_SHA,
+      '--expected-head', CURRENT_HEAD,
+      '--expected-branch', BRANCH,
+      '--predecessor-comment', PREDECESSOR_COMMENT,
+      '--adoption-authorization-comment', ADOPTION_AUTHORIZATION_COMMENT,
+      '--implementation-result-comment', IMPLEMENTATION_RESULT_COMMENT,
+      '--implementation-review-comment', IMPLEMENTATION_REVIEW_COMMENT,
+      '--recovery-authorization-comment', RECOVERY_AUTHORIZATION_COMMENT,
+      '--lineage-correction-authorization-comment', LINEAGE_CORRECTION_AUTHORIZATION_COMMENT,
+      '--correction-result-comment', CORRECTION_RESULT_COMMENT,
+      '--check', '--json',
+    ], missing.deps)
+    expect(missingResult.classification).toBe('INVALID_INVOCATION')
+    expect(missing.writes).toBe(0)
+
+    const edited = createHarness()
+    edited.comments = edited.comments.map((entry) => entry.id === CORRECTION_RESULT_COMMENT
+      ? { ...entry, updated_at: '2026-08-08T00:00:00Z' }
+      : entry)
+    await expect(runRecoverState({ options: options(), deps: edited.deps })).rejects.toThrow(/EVIDENCE_CONFLICT/)
+
+    const superseded = createHarness({
+      extraComments: [comment('5217000010', `supersedes: ${CORRECTION_RESULT_COMMENT}\nnot authoritative`)],
+    })
+    await expect(runRecoverState({ options: options(), deps: superseded.deps })).rejects.toThrow(/AUTHORITY_CONFLICT/)
+
+    const duplicated = createHarness({
+      extraComments: [comment('5217000011', correctionResultBody({ head: CURRENT_HEAD }))],
+    })
+    await expect(runRecoverState({ options: options(), deps: duplicated.deps })).rejects.toThrow(/EVIDENCE_CONFLICT/)
+
+    const differentlyBound = createHarness()
+    differentlyBound.comments = differentlyBound.comments.map((entry) => entry.id === CORRECTION_REVIEW_COMMENT
+      ? { ...entry, body: correctionReviewBody({ head: NON_ANCESTOR_HEAD }) }
+      : entry)
+    await expect(runRecoverState({ options: options(), deps: differentlyBound.deps })).rejects.toThrow(/HEAD_DRIFT/)
   })
 
   it('creates exactly one canonical block and preserves unrelated Issue prose', async () => {
@@ -917,6 +1115,8 @@ describe(COMMAND, () => {
       '--implementation-review-comment', IMPLEMENTATION_REVIEW_COMMENT,
       '--recovery-authorization-comment', RECOVERY_AUTHORIZATION_COMMENT,
       '--lineage-correction-authorization-comment', LINEAGE_CORRECTION_AUTHORIZATION_COMMENT,
+      '--correction-result-comment', CORRECTION_RESULT_COMMENT,
+      '--correction-review-comment', CORRECTION_REVIEW_COMMENT,
       '--check', '--json',
     ], harness.deps)
     expect(result.classification).toBe('SUCCESS')

@@ -298,7 +298,7 @@ pnpm run bemoat:agent:issue -- 276 --phase correction
 Exact syntax:
 
 ```text
-pnpm run bemoat:mission-control:recover-state -- <issue-number> --repo <owner>/<repo> --expected-pr <number> --expected-base <branch> --expected-base-sha <full-sha> --expected-head <full-sha> --expected-branch <branch> --predecessor-comment <id> --adoption-authorization-comment <id> --implementation-result-comment <id> --implementation-review-comment <id> --recovery-authorization-comment <id> --lineage-correction-authorization-comment <id> [--check]
+pnpm run bemoat:mission-control:recover-state -- <issue-number> --repo <owner>/<repo> --expected-pr <number> --expected-base <branch> --expected-base-sha <full-sha> --expected-head <full-sha> --expected-branch <branch> --predecessor-comment <id> --adoption-authorization-comment <id> --implementation-result-comment <id> --implementation-review-comment <id> --recovery-authorization-comment <id> --lineage-correction-authorization-comment <id> --correction-result-comment <id> --correction-review-comment <id> [--check]
 ```
 
 The command accepts only a wholly absent canonical managed-state marker pair.
@@ -308,11 +308,13 @@ protected `main`, and the selected immutable predecessor, Founder
 authorization, historical adopt-finding RESULT/review, original recovery
 authorization, current recovery RESULT/review, and lineage-correction
 authorization comments. The historical adopt-finding head remains the exact
-head bound by its original evidence; the current recovery head is independently
-bound by the live PR, current recovery evidence, and the lineage authorization.
-The historical head must be proven by trusted Git ancestry to be an ancestor of
-the current recovery head. No resulting state, counter, head, finding, or
-authority lineage is caller-supplied.
+ head bound by its original evidence. The recovery authorization-bound head,
+recovery implementation anchor head, correction-reviewed head, and live PR exact
+head are separate roles. The recovery anchor is independently bound by its
+RESULT/review and lineage authorization; the correction-reviewed head is bound
+by the explicit correction RESULT/review selectors and must equal the live PR
+exact head. Required ancestry relationships are proven by trusted Git evidence.
+No resulting state, counter, head, finding, or authority lineage is caller-supplied.
 
 Positional arguments and flags:
 
@@ -323,7 +325,9 @@ Positional arguments and flags:
 - `--implementation-result-comment` selects the RESULT proving adoption was not executed.
 - `--implementation-review-comment` selects the reviewed adopt-finding eligibility verdict.
 - `--recovery-authorization-comment` selects the Founder authorization for this exceptional recovery.
-- `--lineage-correction-authorization-comment` selects the immutable Founder authorization for `RECOVER-STATE-LINEAGE-001`; it binds the current recovery RESULT/review selectors and the historical/current head roles.
+- `--lineage-correction-authorization-comment` selects the immutable Founder authorization for `RECOVER-STATE-LINEAGE-001`; it binds the recovery-anchor RESULT/review selectors and the historical/recovery head roles.
+- `--correction-result-comment` explicitly selects the immutable correction RESULT that binds the correction-reviewed head.
+- `--correction-review-comment` explicitly selects the immutable bounded REVIEW_VERDICT that validates the correction-reviewed head.
 - `--check` performs the complete validation without writing the Issue body.
 
 The only successful mutation appends exactly one canonical state block through
