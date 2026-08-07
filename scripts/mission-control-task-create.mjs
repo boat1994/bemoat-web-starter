@@ -122,6 +122,38 @@ function renderRuntimeError({ command, format, error, values = {} }) {
 
 function renderResult({ command, format, result }) {
   const legacyClassification = result.outcome
+  if (legacyClassification === 'PREFLIGHT_SUCCESS') {
+    const output = 'Mission Control task bootstrap preflight SUCCESS: The requested bootstrap is eligible and authoritative evidence is valid.'
+    const envelope = createResultEnvelopeV1({
+      command,
+      outcome: 'SUCCESS',
+      classification: 'SUCCESS',
+      mutation_performed: false,
+      resulting_state: null,
+      repository: BOOTSTRAP_CONTRACT.repository,
+      issue_number: null,
+      pr_number: String(BOOTSTRAP_CONTRACT.pullRequest),
+      exact_head: BOOTSTRAP_CONTRACT.head,
+      next_action: {
+        type: 'COMMAND',
+        command: 'bemoat:mission-control:task-bootstrap',
+        reason: 'The preflight passed; actual mutation is now eligible.',
+      },
+      details: {
+        legacy_classification: legacyClassification,
+        legacy_output: [output],
+        request_id: result.requestId,
+      },
+    })
+    if (format === 'json') {
+      process.stdout.write(`${JSON.stringify(envelope)}\n`)
+    } else {
+      process.stdout.write(`${envelope.classification}: ${output}\n`)
+    }
+    process.exitCode = classificationExitCode(envelope.classification)
+    return
+  }
+
   const noOp = legacyClassification === 'IDEMPOTENT'
   const parsedState = parseMissionControlState(result.issue?.body ?? '')
   const state = parsedState.valid ? parsedState.state : null
@@ -202,6 +234,7 @@ async function main(argv = process.argv.slice(2)) {
     })
     const result = await service.bootstrap({
       founderAuthorizationCommentId: invocation.values.founder_authorization_comment_id,
+      check: invocation.values.check === true,
     })
     // Never serialize the private key or the full Issue body into the workflow
     // log. The durable evidence remains on GitHub for the next preflight.

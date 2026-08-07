@@ -410,7 +410,8 @@ export function createTaskBootstrapService({
   signingKeyId,
   workflow,
 } = {}) {
-  async function bootstrap({ founderAuthorizationCommentId } = {}) {
+  async function bootstrap(options = {}) {
+    const { founderAuthorizationCommentId, check = false } = options
     if (!positiveId(founderAuthorizationCommentId)) throw stateConflict('founder_authorization_comment_id must be a positive immutable comment ID')
     if (repository !== BOOTSTRAP_CONTRACT.repository || !publicKey || !signingPrivateKey || !signingKeyId) throw blockedExternal('protected genesis repository, public key, signing key ID, or private signing material is unavailable')
     if (!github || typeof github.getRepository !== 'function') throw blockedExternal('GitHub adapter is unavailable')
@@ -463,6 +464,10 @@ export function createTaskBootstrapService({
       policyVersion: context.policy.version,
       policySha: context.policy.blobSha,
     })
+
+    if (check) {
+      return { ok: true, outcome: 'PREFLIGHT_SUCCESS', requestId: request.requestId, issue: { number: null, url: null } }
+    }
 
     let creationLease
     try {
