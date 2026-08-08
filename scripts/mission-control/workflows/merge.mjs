@@ -39,6 +39,7 @@ import { validateBlockerResolutionPostconditions } from '../domain/merge-blocker
 import { blockerResolutionCampaignPostconditions } from '../domain/merge-blocker-campaign-postconditions.mjs'
 import { renderFinalResultBody } from '../domain/merge-final-result.mjs'
 import { classifyCampaignOwnershipEvidence } from '../domain/merge-campaign-ownership.mjs'
+import { validateDirectOwnership } from '../domain/merge-direct-ownership.mjs'
 import {
   CAMPAIGN_PROJECTION_KINDS,
   hasMeaningfulBindingValue,
@@ -272,20 +273,6 @@ function verifyRequiredExactHeadCi(pr, repo) {
   if (!result.valid) throw stateConflict(result.reason)
 }
 
-function verifyDirectOwnership(issueNumber, issue, pr) {
-  const state = issue?.managedState
-  if (!state) throw stateConflict('managed Issue state is unavailable')
-  if (normalizeIssueNumber(state.active_task_issue) !== issueNumber) {
-    throw stateConflict('merge transport may operate only on the directly managed task Issue')
-  }
-  const prNumber = normalizePrNumber(state.active_pr)
-  if (!prNumber) throw stateConflict('directly managed task has no active PR terminal ownership')
-  if (pr?.number != null && normalizePrNumber(pr.number) !== prNumber) {
-    throw stateConflict('live PR does not match the managed task active PR')
-  }
-  return prNumber
-}
-
 function verifyHeadBindings(state, pr, authorization, repo) {
   const reviewedHead = state?.last_reviewed_head
   if (!state?.approved_base || pr.baseRefName !== state.approved_base) {
@@ -449,7 +436,8 @@ export async function runFounderAuthorizedMerge({
   const prNumber = normalizePrNumber(state?.active_pr)
   if (!prNumber) throw stateConflict('directly managed task has no active PR terminal ownership')
   let pr = await deps.readPullRequest(prNumber, repo)
-  verifyDirectOwnership(issueNumber, issue, pr)
+  const ownership = validateDirectOwnership({ issueNumber, issue, pr })
+  if (!ownership.valid) throw stateConflict(ownership.reason)
   if (
     typeof deps.readIssueComments === 'function' &&
     isReviewRecoveryIncident({ taskIssue: issueNumber, activePr: prNumber })
