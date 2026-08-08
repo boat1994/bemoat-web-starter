@@ -1,3 +1,17 @@
+/**
+ * @param {{
+ *   issueNumber: number | string,
+ *   prNumber: number | string,
+ *   reviewedHead: string,
+ *   mergeCommit: string,
+ *   base: string,
+ *   policyVersion: string,
+ *   nextAction?: string | null,
+ *   projectionKind?: string,
+ *   campaignIssue?: number | string | null,
+ *   campaignBlockerId?: string | null,
+ * }} options
+ */
 export function renderFinalResultBody({
   issueNumber,
   prNumber,
