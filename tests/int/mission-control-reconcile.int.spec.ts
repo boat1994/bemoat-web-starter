@@ -4,6 +4,7 @@ import { resolve } from 'node:path'
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- untyped runtime .mjs boundary */
 import * as reconcileModule from '../../scripts/mission-control-reconcile.mjs'
+import * as coordinatorTransitions from '../../scripts/mission-control/coordinator-transitions.mjs'
 import { parseMissionControlState, renderMissionControlState } from '../../scripts/mission-control-state.mjs'
 
 // Shared .mjs scripts expose runtime behavior, not TypeScript declarations. Keep
@@ -42,6 +43,12 @@ const {
   reconciliationFailureReason,
   runBoundedReconciliation,
   resolveProductionCommentTrust,
+  sameValue,
+  deriveTransitionFacts,
+  assertRoutingOnlyProjection,
+  coordinatorOwnedRoutingProjection,
+  buildTransitionMatchOptions,
+  resolveRoleComment,
 } = reconcileModule as unknown as Record<string, (...args: any[]) => any>
 
 const CoordinatorClass = reconcileModule.Coordinator as unknown as new (transports: Record<string, unknown>) => {
@@ -86,6 +93,13 @@ const sampleVerdict = `## REVIEW_VERDICT
 const FULL_SAMPLE_HEAD = 'abc1234'.padEnd(40, '0')
 
 describe('mission-control reconcile classifiers', () => {
+  it('exposes the extracted Coordinator transition boundary', () => {
+    expect(coordinatorTransitions.integrateHandoff).toBeTypeOf('function')
+    expect(coordinatorTransitions.integrateResult).toBeTypeOf('function')
+    expect(coordinatorTransitions.resumeProjection).toBeTypeOf('function')
+    expect(coordinatorTransitions.assertCompatibleSnapshot).toBeTypeOf('function')
+  })
+
   it('projects a full correction-required verdict with immutable findings and canonical transition bindings', () => {
     const prior: Record<string, unknown> = {
       schema_version: 1,
@@ -133,6 +147,54 @@ describe('mission-control reconcile classifiers', () => {
       latest_handoff_comment_id: 'handoff-1',
       latest_result_comment_id: 'result-1',
     })
+  })
+  it('preserves the prior projection and fails closed for invalid review inputs', () => {
+    const prior: Record<string, unknown> = {
+      schema_version: 1,
+      state: 'AWAITING_REVIEW_1',
+      review_cycle: 0,
+      full_review_count: 0,
+      current_head: 'old-head',
+      last_reviewed_head: null,
+      open_blockers: [],
+    }
+
+    expect(projectReviewVerdictState({
+      prior,
+      verdict: 'ELIGIBLE FOR FOUNDER REVIEW',
+      reviewType: 'full',
+      reviewedHead: 'ABC1234',
+      commentId: 42,
+      transitionIdentity: 'identity',
+      findings: [{ id: 'ignored-for-eligible' }],
+    })).toMatchObject({
+      current_head: 'abc1234',
+      last_reviewed_head: 'abc1234',
+      open_blockers: [],
+      latest_review_verdict_comment_id: '42',
+    })
+    expect(prior).toMatchObject({
+      state: 'AWAITING_REVIEW_1',
+      current_head: 'old-head',
+      open_blockers: [],
+    })
+
+    expect(() => projectReviewVerdictState({
+      prior,
+      verdict: 'NOT A CORE VERDICT',
+      reviewType: 'full',
+      reviewedHead: 'abc1234',
+      commentId: 1,
+      transitionIdentity: 'identity',
+    })).toThrow('review projection requires a Core verdict')
+    expect(() => projectReviewVerdictState({
+      prior,
+      verdict: 'ELIGIBLE FOR FOUNDER REVIEW',
+      reviewType: 'delta',
+      reviewedHead: 'abc1234',
+      commentId: 1,
+      transitionIdentity: 'identity',
+    })).toThrow('delta review requires an existing review cycle')
   })
   it('explains that merge transport must close a merged PR open Issue before terminal reconciliation', () => {
     expect(classifyReconciliation({
@@ -1177,6 +1239,15 @@ describe('mission-control reconcile classifiers', () => {
   it('scenario 6: head drift during merge transition blocks the operation', () => {
     expect(classifyMergeDrift('authorizedhead', 'livehead')).toMatchObject({ drift: true })
     expect(classifyMergeDrift('samehead', 'samehead')).toMatchObject({ drift: false })
+    expect(classifyMergeDrift(' ABCDEF ', 'abcdef')).toEqual({ drift: false, reason: null })
+    expect(classifyMergeDrift(null, 'livehead')).toEqual({
+      drift: true,
+      reason: 'missing authorized or live head for merge transition',
+    })
+    expect(classifyMergeDrift('authorizedhead', '')).toEqual({
+      drift: true,
+      reason: 'missing authorized or live head for merge transition',
+    })
   })
 
   it('scenario 7: delivery reconciliation never increments review counters', () => {
@@ -1287,6 +1358,35 @@ Bounded implementation work.
     })
   })
 
+  it('assembles matching bindings with verified transport values taking precedence', () => {
+    const assembled = buildTransitionMatchOptions({
+      roleBody: resultBody,
+      role: 'RESULT',
+      trustedAuthors: ['boat1994'],
+      requireTrustedAuthor: true,
+      trustedAssociations: ['OWNER'],
+      verifiedBase: 'release',
+      verifiedHead: FULL_RESULT_HEAD,
+    })
+
+    expect(assembled).toMatchObject({
+      identity: normalizeTransitionIdentity(resultBody, { role: 'RESULT' }),
+      options: {
+        activeOnly: true,
+        bindings: {
+          taskId: '184',
+          phase: 'Dev (implementation)',
+          prNumber: '186',
+          base: 'release',
+          headSha: FULL_RESULT_HEAD,
+        },
+        trustedAuthors: ['boat1994'],
+        requireTrustedAuthor: true,
+        trustedAssociations: ['OWNER'],
+      },
+    })
+  })
+
   it('parses and matches comment markers exactly', () => {
     expect(parseCommentMarker('## HANDOFF\n\nWork')).toBe('HANDOFF')
     expect(parseCommentMarker('## RESULT\n\nDone')).toBe('RESULT')
@@ -1298,6 +1398,78 @@ Bounded implementation work.
     expect(classifyTransition(0)).toBe('BLOCKED_EXTERNAL')
     expect(classifyTransition(1)).toBe('RESUME_PROJECTION')
     expect(classifyTransition(2)).toBe('STATE_CONFLICT')
+  })
+
+  it('keeps transition guard helpers available through the reconcile facade', () => {
+    expect(resolveRoleComment).toBeTypeOf('function')
+    expect(sameValue({ b: 2, a: 1 }, { a: 1, b: 2 })).toBe(true)
+    expect(deriveTransitionFacts({
+      role: 'RESULT',
+      roleBody: resultBody,
+      prior: { state: 'IN_PROGRESS' },
+      projected: { state: 'AWAITING_REVIEW_1' },
+    })).toMatchObject({
+      changesAuthoritativeState: true,
+      producesEvidence: true,
+    })
+    expect(() => assertRoutingOnlyProjection({
+      prior: { state: 'READY' },
+      projected: { state: 'IN_PROGRESS' },
+    })).toThrow('STATE_CONFLICT')
+  })
+
+  it('characterizes coordinator-owned routing over caller projection', () => {
+    const identity = normalizeTransitionIdentity(handoffBody, { role: 'HANDOFF' })
+    const projected = coordinatorOwnedRoutingProjection({
+      prior: {
+        state: 'READY',
+        latest_handoff_comment_id: 'prior-handoff',
+        latest_result_comment_id: 'prior-result',
+        latest_transition_identity: 'prior-identity',
+        next_permitted_action: 'Mission Control posts HANDOFF',
+      },
+      base: {
+        state: 'CALLER_FORGED_STATE',
+        latest_handoff_comment_id: 'caller-forged-handoff',
+        latest_result_comment_id: 'caller-forged-result',
+      },
+      identity,
+      comment: { id: 'handoff-1', body: `${handoffBody}\n**Target:** Dev / Builder` },
+      role: 'HANDOFF',
+      updatedAt: '2026-08-08T00:00:00.000Z',
+      updatedBy: 'Tester',
+    })
+
+    expect(projected).toMatchObject({
+      state: 'IN_PROGRESS',
+      latest_handoff_comment_id: 'handoff-1',
+      latest_result_comment_id: 'prior-result',
+      latest_transition_identity: JSON.stringify(identity),
+      next_permitted_action: 'Dev / Builder executes the authorized HANDOFF; do not re-post HANDOFF.',
+      updated_at: '2026-08-08T00:00:00.000Z',
+      updated_by: 'Tester',
+    })
+  })
+
+  it('preserves state and prior routing action for a targetless replay', () => {
+    const identity = normalizeTransitionIdentity(handoffBody, { role: 'HANDOFF' })
+    const projected = coordinatorOwnedRoutingProjection({
+      prior: {
+        state: 'BLOCKED_FOR_FOUNDER_DECISION',
+        next_permitted_action: 'Founder decides the bounded action.',
+      },
+      base: { state: 'CALLER_FORGED_STATE', next_permitted_action: 'caller action' },
+      identity,
+      comment: { id: 'handoff-2', body: handoffBody },
+      role: 'HANDOFF',
+      preserveState: true,
+    })
+
+    expect(projected).toMatchObject({
+      state: 'CALLER_FORGED_STATE',
+      next_permitted_action: 'caller action',
+      latest_handoff_comment_id: 'handoff-2',
+    })
   })
 
   it('coordinator injects transports', async () => {
