@@ -25,7 +25,7 @@
       { "path": "scripts/mission-control/domain/campaign-validator.mjs", "max_lines": 482 },
       { "path": "scripts/mission-control/domain/review-recovery.mjs", "max_lines": 485 },
       { "path": "scripts/mission-control/workflows/adopt-finding.mjs", "max_lines": 728 },
-      { "path": "scripts/mission-control/workflows/merge.mjs", "max_lines": 1598 },
+      { "path": "scripts/mission-control/workflows/merge.mjs", "max_lines": 1523 },
       { "path": "scripts/mission-control/workflows/recover-review.mjs", "max_lines": 828 },
       { "path": "scripts/mission-control/workflows/recover-state.mjs", "max_lines": 1428 },
       { "path": "scripts/mission-control/workflows/reopen.mjs", "max_lines": 988 },
