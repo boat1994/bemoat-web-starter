@@ -3,7 +3,6 @@ import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { createHelpEnvelopeV1, formatTextHelp } from './cli/command-help.mjs'
 import { parseCommandInvocation, resolveCommandIdentity } from './cli/command-invocation.mjs'
-import { parseCorrectionContract } from './correction-contract.mjs'
 import { writeIssueBodyWithLease } from './mission-control-issue-body-cas.mjs'
 import { parseMissionControlState, populateOrPreservePlanningAuthorizationBaseSha, projectMissionControlStateBlock } from './mission-control-state.mjs'
 import {
@@ -24,14 +23,10 @@ import {
   assertManagedActivePrForReviewVerdictReconciliation,
 } from './mission-control/authority-head-validation.mjs'
 import {
-  classifyDeliveryLag,
-  classifyReviewLag,
-  proposeDeliveryReconciliation,
   proposeReviewReconciliation,
 } from './mission-control/reconciliation-proposals.mjs'
 import {
   classifyReconciliation,
-  migrateLegacyManagedState,
   proposedRepair,
 } from './mission-control/reconciliation-classification.mjs'
 export {
@@ -40,6 +35,10 @@ export {
   migratePlanningOnlyTaskState,
   isSeparatePlanningImplementationAuthorization,
 } from './mission-control/reconciliation-classification.mjs'
+export {
+  analyzeReconciliation,
+  isGenuineStateConflict,
+} from './mission-control/reconciliation-analysis.mjs'
 export {
   classifyDeliveryLag,
   classifyReviewLag,
@@ -1569,16 +1568,6 @@ export function classifyMergeDrift(authorizedHead, liveHead) {
   return { drift: false, reason: null }
 }
 
-export function isGenuineStateConflict(evidence = {}) {
-  if (evidence.competingPrs) return true
-  if (evidence.headMismatch) return true
-  if (evidence.staleCi) return true
-  if ((evidence.stateConflictBlockers ?? []).some((blocker) => blocker.includes('STATE_CONFLICT'))) {
-    return true
-  }
-  return false
-}
-
 /**
  * Build the complete reviewer-owned durable projection.  The executable
  * facade supplies only evidence already bound to the live Issue/PR/comment;
@@ -1636,109 +1625,6 @@ export function founderMergeTransitionAuthorized({ mergeAuthorized = false, migr
     deployAllowed: deployAuthorized,
     boundedSequence: mergeAuthorized && !migrationAuthorized && !deployAuthorized,
   }
-}
-
-export function analyzeReconciliation(context) {
-  const terminalEvidence = context.terminal ?? null
-  const genuineConflict = isGenuineStateConflict({
-    stateConflictBlockers: context.stateConflictBlockers,
-    headMismatch: Boolean(
-      !terminalEvidence?.prMerged &&
-      context.managedState?.current_head &&
-        context.livePr?.headRefOid &&
-        normalizeAuthorityHead(context.managedState.current_head) !== normalizeAuthorityHead(context.livePr.headRefOid),
-    ),
-    staleCi: context.exactHeadCi?.exactHeadVerified === false && context.exactHeadCi?.olderShaSuccess === true,
-  })
-
-  const deliveryLag = classifyDeliveryLag(
-    context.managedState,
-    context.livePr,
-    context.exactHeadCi,
-    context.latestResult,
-  )
-  const reviewLag = classifyReviewLag(context.managedState, context.livePr, context.latestVerdict)
-
-  let bookkeepingProposal = null
-  let bookkeepingType = null
-  if (deliveryLag.kind === 'DETERMINISTIC_RECONCILIATION' && context.livePr) {
-    bookkeepingType = 'delivery'
-    bookkeepingProposal = proposeDeliveryReconciliation({
-      managedState: context.managedState,
-      livePr: context.livePr,
-      activeTaskIssue: context.activeTaskIssue,
-      approvedBase: context.managedState?.approved_base,
-      latestResult: context.latestResult,
-    })
-  } else if (reviewLag.kind === 'DETERMINISTIC_RECONCILIATION' && context.latestVerdict?.parsed?.verdict) {
-    bookkeepingType = 'review'
-    bookkeepingProposal = proposeReviewReconciliation({
-      verdict: context.latestVerdict.parsed.verdict,
-      reviewedHead: context.latestVerdict.parsed.headSha || context.livePr?.headRefOid,
-      reviewCycle: context.managedState?.review_cycle ?? 0,
-      fullReviewCount: context.managedState?.full_review_count ?? 0,
-    })
-  }
-
-  const authoritativeContract = parseCorrectionContract(context.latestVerdict?.comment?.body ?? '')
-  if (authoritativeContract.ok) {
-    const expectedBlockers = authoritativeContract.contract.findings.map((finding) => finding.id)
-    const durableBlockers = context.managedState?.open_blockers ?? []
-    if (!sameValue(expectedBlockers, durableBlockers)) {
-      bookkeepingType = bookkeepingType ?? 'review'
-      bookkeepingProposal = {
-        ...(bookkeepingProposal ?? {}),
-        open_blockers: expectedBlockers,
-      }
-    }
-  }
-
-  const classification = classifyReconciliation({
-    authoritativeContradiction: genuineConflict,
-    requiredEvidenceUnavailable: context.requiredEvidenceUnavailable,
-    managedState: context.managedState,
-    terminal: terminalEvidence,
-    bookkeepingProposal,
-  })
-
-  const result = {
-    genuineConflict,
-    classification,
-    delivery: deliveryLag,
-    review: reviewLag,
-    proposal: null,
-  }
-
-  if (classification.outcome === 'STATE_CONFLICT' || classification.outcome === 'BLOCKED_EXTERNAL') {
-    return result
-  }
-
-  if (classification.outcome === 'TERMINAL_REPAIR') {
-    result.proposal = {
-      type: 'terminal',
-      fields: proposedRepair(context, classification),
-    }
-  } else if (classification.outcome === 'DETERMINISTIC_MIGRATION') {
-    try {
-      result.proposal = {
-        type: 'migration',
-        fields: migrateLegacyManagedState(context.managedState).state,
-      }
-    } catch (error) {
-      result.classification = {
-        outcome: 'STATE_CONFLICT',
-        reason: error instanceof Error ? error.message : String(error),
-      }
-      result.proposal = null
-    }
-  } else if (classification.outcome === 'BOOKKEEPING_REPAIR' && bookkeepingType) {
-    result.proposal = {
-      type: bookkeepingType,
-      fields: bookkeepingProposal,
-    }
-  }
-
-  return result
 }
 
 function run(command, args, options = {}) {
