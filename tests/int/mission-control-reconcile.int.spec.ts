@@ -4,6 +4,7 @@ import { resolve } from 'node:path'
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- untyped runtime .mjs boundary */
 import * as reconcileModule from '../../scripts/mission-control-reconcile.mjs'
+import * as coordinatorTransitions from '../../scripts/mission-control/coordinator-transitions.mjs'
 import { parseMissionControlState, renderMissionControlState } from '../../scripts/mission-control-state.mjs'
 
 // Shared .mjs scripts expose runtime behavior, not TypeScript declarations. Keep
@@ -92,6 +93,13 @@ const sampleVerdict = `## REVIEW_VERDICT
 const FULL_SAMPLE_HEAD = 'abc1234'.padEnd(40, '0')
 
 describe('mission-control reconcile classifiers', () => {
+  it('exposes the extracted Coordinator transition boundary', () => {
+    expect(coordinatorTransitions.integrateHandoff).toBeTypeOf('function')
+    expect(coordinatorTransitions.integrateResult).toBeTypeOf('function')
+    expect(coordinatorTransitions.resumeProjection).toBeTypeOf('function')
+    expect(coordinatorTransitions.assertCompatibleSnapshot).toBeTypeOf('function')
+  })
+
   it('projects a full correction-required verdict with immutable findings and canonical transition bindings', () => {
     const prior: Record<string, unknown> = {
       schema_version: 1,

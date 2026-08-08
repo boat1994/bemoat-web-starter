@@ -46,7 +46,6 @@ import {
   isReviewRecoveryIncident,
 } from './mission-control/domain/review-recovery.mjs'
 import {
-  classifyTransition,
   findMatchingComments,
   normalizeIssueComments,
   parsePaginatedGhApiJson,
@@ -74,6 +73,12 @@ import {
   verifyStatePostcondition,
 } from './mission-control/state-verification.mjs'
 import { reconcileReviewVerdict as reconcileReviewVerdictTransition } from './mission-control/review-verdict-transition.mjs'
+import {
+  assertCompatibleSnapshot as assertCompatibleSnapshotTransition,
+  integrateHandoff as integrateHandoffTransition,
+  integrateResult as integrateResultTransition,
+  resumeProjection as resumeProjectionTransition,
+} from './mission-control/coordinator-transitions.mjs'
 export {
   assertDeltaReviewHeadProjection,
   assertRoutingOnlyProjection,
@@ -224,144 +229,18 @@ export class Coordinator {
    * Comment-first READY -> IN_PROGRESS HANDOFF integration.
    */
   async integrateHandoff({ handoffBody, transitionState, updatedAt, updatedBy, planningAuthorizationBaseSha, policy: rawPolicy = {} }) {
-    if (!/^## (?:HANDOFF|AUTHORIZATION)\s*$/m.test(handoffBody ?? '')) {
-      throw new Error('integrateHandoff requires one HANDOFF or AUTHORIZATION role comment')
-    }
-    const original = await this.readState()
-    const planningCorrectionInitialization = original?.state === 'BLOCKED_FOR_FOUNDER_DECISION' &&
-      original?.workflow_mode === 'planning_no_pr' &&
-      original?.review_cycle === 0 &&
-      original?.full_review_count === 0 &&
-      original?.active_pr == null &&
-      original?.current_head == null &&
-      original?.last_reviewed_head == null &&
-      original?.founder_decision?.status === 'declined' &&
-      /Planning Correction 1 Initialization/i.test(handoffBody)
-    if (original?.state !== 'READY' && !planningCorrectionInitialization) {
-      throw new Error(`integrateHandoff requires READY, received ${original?.state ?? 'missing state'}`)
-    }
-    this.authorizeTransition({ role: 'HANDOFF', roleBody: handoffBody, prior: original, policy: rawPolicy })
-    const { identity, comment, recovered } = await this._resolveComment(handoffBody, 'HANDOFF')
-    const callerProjection = typeof transitionState === 'function'
-      ? transitionState(original)
-      : (transitionState ?? structuredClone(original))
-    const projected = this._coordinatorOwnedRouting({
-      identity,
-      comment,
-      role: 'HANDOFF',
-      updatedAt,
-      updatedBy,
-      base: callerProjection,
-      prior: original,
-      preserveState: planningCorrectionInitialization,
-      planningAuthorizationBaseSha,
+    return integrateHandoffTransition(this, {
+      handoffBody, transitionState, updatedAt, updatedBy, planningAuthorizationBaseSha, policy: rawPolicy,
     })
-    const policy = this.authorizeTransition({
-      role: 'HANDOFF',
-      roleBody: handoffBody,
-      comment,
-      prior: original,
-      projected,
-      policy: rawPolicy,
-    })
-    const written = await this.writeState(projected, original)
-    verifyStatePostcondition(projected, written, [
-      'state', 'latest_transition_identity', 'latest_handoff_comment_id', 'next_permitted_action',
-    ])
-    return {
-      outcome: 'DISPATCHED',
-      classification: routingDriftClassification({ prior: original, identity, comment, role: 'HANDOFF' }),
-      state: written,
-      comment,
-      identity,
-      recovered: Boolean(recovered),
-      policy,
-    }
   }
 
   /**
    * Comment-first RESULT integration with precondition gating.
    */
   async integrateResult({ resultBody, projectState, verifyPreconditions, updatedAt, updatedBy, policy: rawPolicy = {} }) {
-    if (parseCommentMarker(resultBody) !== 'RESULT') {
-      throw new Error('integrateResult requires a RESULT role comment')
-    }
-    if (typeof verifyPreconditions === 'function') {
-      await verifyPreconditions()
-    }
-    const original = await this.readState()
-    this.authorizeTransition({ role: 'RESULT', roleBody: resultBody, prior: original, policy: rawPolicy })
-    const { identity, comment, created, recovered } = await this._resolveComment(resultBody, 'RESULT')
-    const callerProjection = typeof projectState === 'function' ? projectState(original) : projectState
-    const projected = this._coordinatorOwnedRouting({
-      identity,
-      comment,
-      role: 'RESULT',
-      updatedAt,
-      updatedBy,
-      base: callerProjection,
-      prior: original,
+    return integrateResultTransition(this, {
+      resultBody, projectState, verifyPreconditions, updatedAt, updatedBy, policy: rawPolicy,
     })
-    const policy = this.authorizeTransition({
-      role: 'RESULT',
-      roleBody: resultBody,
-      comment,
-      prior: original,
-      projected,
-      policy: rawPolicy,
-    })
-    try {
-      const written = await this.writeState(projected, original)
-      verifyStatePostcondition(projected, written)
-      return {
-        outcome: 'DELIVERED',
-        classification: routingDriftClassification({ prior: original, identity, comment, role: 'RESULT' }),
-        state: written,
-        comment,
-        identity,
-        created,
-        recovered: Boolean(recovered),
-        policy,
-      }
-    } catch (error) {
-      if (!created) throw error
-      let live
-      try {
-        live = await this.readState()
-      } catch (readError) {
-        const ambiguous = new Error(
-          `AMBIGUOUS_RESULT: unable to verify Issue state after RESULT comment and state write: ${
-            readError instanceof Error ? readError.message : String(readError)
-          }`,
-          { cause: error },
-        )
-        ambiguous.classification = 'AMBIGUOUS_RESULT'
-        ambiguous.mutationPerformed = true
-        if (typeof error?.legacyClassification === 'string') {
-          ambiguous.legacyClassification = error.legacyClassification
-        }
-        throw ambiguous
-      }
-      if (sameValue(live, original)) {
-        return {
-          outcome: 'RECOVERABLE_ROUTING_DRIFT',
-          classification: 'REPAIRABLE_DRIFT',
-          state: original,
-          comment,
-          identity,
-          recovered: Boolean(recovered),
-          error: error instanceof Error ? error.message : String(error),
-        }
-      }
-      if (sameValue(live, projected)) {
-        verifyStatePostcondition(projected, live)
-        return { outcome: 'DELIVERED', state: live, comment, identity, created }
-      }
-      throw new Error(
-        `STATE_CONFLICT: incompatible concurrent authority after comment post: ${error instanceof Error ? error.message : String(error)}`,
-        { cause: error },
-      )
-    }
   }
 
   /**
@@ -520,40 +399,14 @@ export class Coordinator {
    * Resume projection when comment exists but state update previously failed.
    */
   async resumeProjection({ roleBody, role, projectState, planningAuthorizationBaseSha }) {
-    const { identity, options } = this._matchOptions(roleBody, role)
-    const comments = await this.listComments()
-    const matches = findMatchingComments(comments, identity, options)
-    const classification = classifyTransition(matches.length)
-    if (classification !== 'RESUME_PROJECTION') {
-      throw new Error(`${classification}: cannot resume projection`)
-    }
-    const original = await this.readState()
-    const callerProjection = typeof projectState === 'function' ? projectState(original) : projectState
-    const projected = this._coordinatorOwnedRouting({
-      identity,
-      comment: matches[0],
-      role,
-      base: callerProjection,
-      prior: original,
-      planningAuthorizationBaseSha,
-    })
-    const written = await this.writeState(projected, original)
-    verifyStatePostcondition(projected, written)
-    return { outcome: 'RESUMED', state: written, comment: matches[0], identity }
+    return resumeProjectionTransition(this, { roleBody, role, projectState, planningAuthorizationBaseSha })
   }
 
   /**
    * Fail closed when concurrent incompatible state is observed.
    */
   async assertCompatibleSnapshot(expectedState) {
-    const live = await this.readState()
-    const incompatibleKeys = ['state', 'active_pr', 'review_cycle', 'full_review_count']
-    for (const key of incompatibleKeys) {
-      if (expectedState?.[key] !== undefined && !sameValue(live?.[key], expectedState[key])) {
-        throw new Error(`STATE_CONFLICT: incompatible concurrent state change on ${key}`)
-      }
-    }
-    return live
+    return assertCompatibleSnapshotTransition(this, expectedState)
   }
 }
 
