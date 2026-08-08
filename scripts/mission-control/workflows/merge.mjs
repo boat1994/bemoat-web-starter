@@ -34,6 +34,7 @@ import { normalizePaginatedCommitMessages } from '../domain/merge-commit-message
 import { classifyRequiredExactHeadCi } from '../domain/merge-exact-head-ci.mjs'
 import { classifyMergeability } from '../domain/merge-mergeability.mjs'
 import { classifyNoAutomaticClosure } from '../domain/merge-no-automatic-closure.mjs'
+import { validateNextAction } from '../domain/merge-next-action.mjs'
 import {
   AUTHORIZATION_VALIDATION_FAILURE,
   authorizationValidationFailure,
@@ -474,23 +475,6 @@ async function completeTerminalBlockerProjection({
   }
 
   return { campaignIssue, campaignBlockerId, nextAction, postconditions: campaignProjection.postconditions }
-}
-
-function validateNextAction(nextAction, { requiredSlice = null } = {}) {
-  const slice = nextAction?.slice == null ? null : Number(nextAction.slice)
-  const valid =
-    nextAction &&
-    typeof nextAction === 'object' &&
-    !Array.isArray(nextAction) &&
-    nextAction.started === false &&
-    typeof nextAction.action === 'string' &&
-    nextAction.action.trim().length > 0 &&
-    !/^\s*start\b/i.test(nextAction.action) &&
-    (requiredSlice == null || slice === requiredSlice)
-  if (!valid) {
-    throw stateConflict('merge completion next campaign action is missing, conflicting, or would start the next Slice')
-  }
-  return { ...nextAction, ...(slice == null ? {} : { slice }) }
 }
 
 function validateBlockerResolutionPostconditions(
