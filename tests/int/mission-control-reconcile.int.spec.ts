@@ -137,6 +137,54 @@ describe('mission-control reconcile classifiers', () => {
       latest_result_comment_id: 'result-1',
     })
   })
+  it('preserves the prior projection and fails closed for invalid review inputs', () => {
+    const prior: Record<string, unknown> = {
+      schema_version: 1,
+      state: 'AWAITING_REVIEW_1',
+      review_cycle: 0,
+      full_review_count: 0,
+      current_head: 'old-head',
+      last_reviewed_head: null,
+      open_blockers: [],
+    }
+
+    expect(projectReviewVerdictState({
+      prior,
+      verdict: 'ELIGIBLE FOR FOUNDER REVIEW',
+      reviewType: 'full',
+      reviewedHead: 'ABC1234',
+      commentId: 42,
+      transitionIdentity: 'identity',
+      findings: [{ id: 'ignored-for-eligible' }],
+    })).toMatchObject({
+      current_head: 'abc1234',
+      last_reviewed_head: 'abc1234',
+      open_blockers: [],
+      latest_review_verdict_comment_id: '42',
+    })
+    expect(prior).toMatchObject({
+      state: 'AWAITING_REVIEW_1',
+      current_head: 'old-head',
+      open_blockers: [],
+    })
+
+    expect(() => projectReviewVerdictState({
+      prior,
+      verdict: 'NOT A CORE VERDICT',
+      reviewType: 'full',
+      reviewedHead: 'abc1234',
+      commentId: 1,
+      transitionIdentity: 'identity',
+    })).toThrow('review projection requires a Core verdict')
+    expect(() => projectReviewVerdictState({
+      prior,
+      verdict: 'ELIGIBLE FOR FOUNDER REVIEW',
+      reviewType: 'delta',
+      reviewedHead: 'abc1234',
+      commentId: 1,
+      transitionIdentity: 'identity',
+    })).toThrow('delta review requires an existing review cycle')
+  })
   it('explains that merge transport must close a merged PR open Issue before terminal reconciliation', () => {
     expect(classifyReconciliation({
       managedState: { state: 'ELIGIBLE_FOR_FOUNDER_REVIEW' },
