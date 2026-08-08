@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { normalizePaginatedCommitMessages } from '../../scripts/mission-control/domain/merge-commit-messages.mjs'
+import { renderFinalResultBody } from '../../scripts/mission-control/domain/merge-final-result.mjs'
 
 describe('merge commit message normalization', () => {
   it('flattens pages and preserves headline, multiline body, and empty messages', () => {
@@ -21,5 +22,34 @@ describe('merge commit message normalization', () => {
     expect(() => normalizePaginatedCommitMessages([[], null])).toThrow(
       'BLOCKED_EXTERNAL: GitHub PR commit pagination did not return complete page arrays',
     )
+  })
+
+  it('renders campaign slice and blocker-resolution final RESULT bodies', () => {
+    expect(renderFinalResultBody({
+      issueNumber: 222,
+      prNumber: 223,
+      reviewedHead: '527a48cb83364a7fbde0fad5f88f5c9d1244d0ab',
+      mergeCommit: '8df91686d715a0ddf0ddf258bf9fa5b060a4af29',
+      base: 'main',
+      policyVersion: '1.3.0',
+      nextAction: 'select Slice 4',
+      projectionKind: 'campaign-slice',
+    })).toContain('**Next:** select Slice 4')
+
+    expect(renderFinalResultBody({
+      issueNumber: 254,
+      prNumber: 255,
+      reviewedHead: 'a'.repeat(40),
+      mergeCommit: 'b'.repeat(40),
+      base: 'main',
+      policyVersion: '1.3.0',
+      nextAction: null,
+      projectionKind: 'blocker-resolution',
+      campaignIssue: 215,
+      campaignBlockerId: 'issue-254-planning-correction-1',
+    })).toContain([
+      '**Projection:** blocker-resolution',
+      '**Campaign blocker:** #215 · `issue-254-planning-correction-1`',
+    ].join('\n'))
   })
 })

@@ -37,6 +37,7 @@ import { classifyNoAutomaticClosure } from '../domain/merge-no-automatic-closure
 import { validateNextAction } from '../domain/merge-next-action.mjs'
 import { validateBlockerResolutionPostconditions } from '../domain/merge-blocker-postconditions.mjs'
 import { blockerResolutionCampaignPostconditions } from '../domain/merge-blocker-campaign-postconditions.mjs'
+import { renderFinalResultBody } from '../domain/merge-final-result.mjs'
 import {
   AUTHORIZATION_VALIDATION_FAILURE,
   authorizationValidationFailure,
@@ -380,25 +381,6 @@ function normalizeIssueReason(issue) {
 
 function resultCommentId(result) {
   return result?.id ?? result?.commentId ?? null
-}
-
-function finalResultBody({ issueNumber, prNumber, reviewedHead, mergeCommit, base, policyVersion, nextAction, projectionKind, campaignIssue, campaignBlockerId }) {
-  const lines = [
-    '## RESULT',
-    '',
-    `**Task / Issue:** #${issueNumber}`,
-    '**Phase:** Merge completion',
-    `**PR / base / head:** PR #${prNumber} · \`${base}\` · \`${reviewedHead}\``,
-    `**Policy:** \`${policyVersion}\``,
-    `**Merged commit:** \`${mergeCommit}\``,
-    '**Verdict:** DONE',
-    `**Next:** ${nextAction ?? 'select the next campaign action; do not start it in this bundle.'}`,
-  ]
-  if (projectionKind === CAMPAIGN_PROJECTION_KINDS.BLOCKER_RESOLUTION) {
-    lines.splice(4, 0, '**Projection:** blocker-resolution')
-    lines.splice(5, 0, `**Campaign blocker:** #${campaignIssue} · \`${campaignBlockerId}\``)
-  }
-  return lines.join('\n')
 }
 
 async function completeTerminalCampaignProjection({
@@ -837,7 +819,7 @@ export async function runFounderAuthorizedMerge({
       base: state.approved_base,
       policyVersion: state.guide_version,
       mergeCommit: commit,
-      body: finalResultBody({
+      body: renderFinalResultBody({
         issueNumber,
         prNumber,
         reviewedHead,
