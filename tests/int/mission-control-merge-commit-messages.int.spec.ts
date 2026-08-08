@@ -3,8 +3,9 @@ import { describe, expect, it } from 'vitest'
 import { mergeCommitOid } from '../../scripts/mission-control/domain/merge-commit-oid.mjs'
 import { normalizePaginatedCommitMessages } from '../../scripts/mission-control/domain/merge-commit-messages.mjs'
 import { renderFinalResultBody } from '../../scripts/mission-control/domain/merge-final-result.mjs'
+import { normalizeIssueState } from '../../scripts/mission-control/domain/merge-issue-state.mjs'
 
-describe('merge commit message normalization', () => {
+describe('merge domain normalization', () => {
   it('resolves the first available merge commit identity', () => {
     expect(mergeCommitOid(
       { mergeCommit: { oid: 'pr-oid', sha: 'pr-sha' } },
@@ -39,6 +40,13 @@ describe('merge commit message normalization', () => {
     expect(() => normalizePaginatedCommitMessages([[], null])).toThrow(
       'BLOCKED_EXTERNAL: GitHub PR commit pagination did not return complete page arrays',
     )
+  })
+
+  it('normalizes Issue states and fails closed for missing Issues', () => {
+    expect(normalizeIssueState({ state: 'closed' })).toBe('CLOSED')
+    expect(normalizeIssueState({ state: 'OPEN' })).toBe('OPEN')
+    expect(normalizeIssueState({})).toBe('')
+    expect(normalizeIssueState(null)).toBe('')
   })
 
   it('renders campaign slice and blocker-resolution final RESULT bodies', () => {
