@@ -11,8 +11,6 @@ import {
 import { parseMissionControlState } from '../../mission-control-state.mjs'
 import { writeIssueBodyWithLease } from '../../mission-control-issue-body-cas.mjs'
 import {
-  LEGACY_MAX_SLICE,
-  expectedSliceKeys,
   selectNextCampaignAction,
   validateCampaignTransition,
 } from '../domain/campaign-authority.mjs'
@@ -46,6 +44,11 @@ import { sameTerminalBinding } from '../domain/merge-terminal-binding.mjs'
 import { stateBlockReplacement } from '../domain/merge-state-block-replacement.mjs'
 import { classifyCampaignOwnershipEvidence } from '../domain/merge-campaign-ownership.mjs'
 import { deriveCampaignExpansionAuthority } from '../domain/merge-campaign-expansion-authority.mjs'
+import {
+  projectCampaignBlockerResolved,
+  projectCampaignSliceDone,
+} from '../domain/merge-campaign-state-projection.mjs'
+import { projectTaskDoneState } from '../domain/merge-task-done-projection.mjs'
 import { validateDirectOwnership } from '../domain/merge-direct-ownership.mjs'
 import { commentSupersedesId } from '../domain/merge-comment-supersession.mjs'
 import { mergeCommitOid } from '../domain/merge-commit-oid.mjs'
@@ -91,7 +94,6 @@ export { normalizeIssueReason, normalizeIssueState }
 const FULL_SHA_RE = /^[0-9a-f]{40}$/i
 const MERGE_COMPLETION_BUNDLE_KIND = 'merge-completion'
 const MERGE_COMPLETION_AUTHORITY_SCOPE = 'merge'
-const BLOCKER_RESOLUTION_MAX_SLICE = 11
 
 export { SAFE_EXECUTION_BUNDLES, SAFE_EXECUTION_BUNDLE_SCOPES, validateSafeExecutionBundle }
 
@@ -891,16 +893,6 @@ function createProductionDeps() {
     }
   }
 
-  const emptyCampaignSlice = () => ({
-    status: 'NOT_STARTED',
-    issue: null,
-    pr: null,
-    reviewed_head: null,
-    merged_commit: null,
-    authority_comment_ids: [],
-    blocker_ids: [],
-  })
-
   return {
     readManagedIssue,
     readPullRequest,
@@ -955,16 +947,7 @@ function createProductionDeps() {
       if (!sameTerminalBinding(live.managedState, expectedState)) {
         throw stateConflict('Task DONE CAS/lease precondition changed before direct projection')
       }
-      const nextState = {
-        ...structuredClone(live.managedState),
-        state: 'DONE',
-        merged_commit_sha: mergeCommit,
-        latest_result_comment_id: String(resultCommentId),
-        open_blockers: [],
-        next_permitted_action: 'none on this task',
-        updated_at: new Date().toISOString(),
-        updated_by: 'Founder-authorized merge transport',
-      }
+      const nextState = projectTaskDoneState(live.managedState, { mergeCommit, resultCommentId })
       await writeIssueBodyWithLease({
         repo,
         issueNumber,
@@ -988,28 +971,14 @@ function createProductionDeps() {
       const parsed = parseCampaign(issue.body, { evidence })
       if (!parsed.present || !parsed.valid) campaignParseFailure(parsed, `campaign Issue #${campaignIssue} has invalid projection`)
       const key = String(campaignSlice)
-      const priorSlice = parsed.campaign?.slices?.[key]
-      if (!priorSlice || (priorSlice.issue != null && normalizeIssueNumber(priorSlice.issue) !== taskIssue)) {
-        throw stateConflict(`campaign slice ${key} is not bound to Task Issue #${taskIssue}`)
-      }
-      const nextCampaign = {
-        ...structuredClone(parsed.campaign),
-        slices: {
-          ...structuredClone(parsed.campaign.slices),
-          [key]: {
-            ...structuredClone(priorSlice),
-            status: 'DONE',
-            issue: `#${taskIssue}`,
-            pr: `#${prNumber}`,
-            reviewed_head: reviewedHead,
-            merged_commit: mergeCommit,
-            blocker_ids: [],
-            authority_comment_ids: [...new Set([...(priorSlice.authority_comment_ids ?? []), String(authorizationCommentId)])],
-          },
-        },
-        updated_at: new Date().toISOString(),
-        updated_by: 'Founder-authorized merge transport',
-      }
+      const nextCampaign = projectCampaignSliceDone(parsed.campaign, {
+        campaignSlice,
+        taskIssue,
+        prNumber,
+        reviewedHead,
+        mergeCommit,
+        authorizationCommentId,
+      })
       const transition = validateCampaignTransition(parsed.campaign, nextCampaign, {
         mode: 'lifecycle',
         targetSlice: key,
@@ -1058,43 +1027,10 @@ function createProductionDeps() {
 
       const priorCampaign = structuredClone(priorParsed.campaign)
       const authority = priorCampaign.campaign_expansion_authority ?? deriveCampaignExpansionAuthority(repo, campaignIssue, evidence)
-      const currentMaxSlice = Math.max(...Object.keys(priorCampaign.slices).map(Number))
-      const authorizedMaxSlice = Number(authority.authorized_max_slice)
-      if (authorizedMaxSlice !== BLOCKER_RESOLUTION_MAX_SLICE) {
-        throw stateConflict('blocker-resolution is bounded to the Founder-approved campaign range through Slice 11')
-      }
-      for (const key of expectedSliceKeys(LEGACY_MAX_SLICE - 3)) {
-        if (priorCampaign.slices[key]?.blocker_ids?.includes(campaignBlockerId)) {
-          throw stateConflict(`blocker-resolution may not mutate untouched campaign Slice ${key}`)
-        }
-      }
-      const nextSlices = structuredClone(priorCampaign.slices)
-      for (const key of expectedSliceKeys(authorizedMaxSlice).slice(currentMaxSlice)) {
-        nextSlices[key] = emptyCampaignSlice()
-      }
-      for (const slice of Object.values(nextSlices)) {
-        slice.blocker_ids = slice.blocker_ids.filter((id) => id !== campaignBlockerId)
-      }
-      const nextCampaign = {
-        ...priorCampaign,
-        campaign_lifecycle: 'ACTIVE',
-        campaign_expansion_authority: authority,
-        slices: nextSlices,
-        root_script_map: {
-          ...priorCampaign.root_script_map,
-          validation_status: authorizedMaxSlice > LEGACY_MAX_SLICE
-            ? 'PENDING_EXPANDED_IMPLEMENTATION'
-            : priorCampaign.root_script_map.validation_status,
-        },
-        campaign_blockers: priorCampaign.campaign_blockers.filter((blocker) => blocker.id !== campaignBlockerId),
-        updated_at: new Date().toISOString(),
-        updated_by: 'Founder-authorized merge transport',
-      }
-      const untouchedSlices = expectedSliceKeys(LEGACY_MAX_SLICE - 3)
-        .every((key) => JSON.stringify(priorCampaign.slices[key]) === JSON.stringify(nextCampaign.slices[key]))
-      if (!untouchedSlices) {
-        throw stateConflict('blocker-resolution changed one or more protected campaign Slices 1–4')
-      }
+      const nextCampaign = projectCampaignBlockerResolved(priorCampaign, {
+        campaignBlockerId,
+        authority,
+      })
       const transition = validateCampaignTransition(priorCampaign, nextCampaign, {
         mode: 'blocker-resolution',
         blockerId: campaignBlockerId,
