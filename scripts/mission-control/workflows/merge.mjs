@@ -42,6 +42,7 @@ import { blockerResolutionCampaignPostconditions } from '../domain/merge-blocker
 import { renderFinalResultBody } from '../domain/merge-final-result.mjs'
 import { classifyCampaignOwnershipEvidence } from '../domain/merge-campaign-ownership.mjs'
 import { validateDirectOwnership } from '../domain/merge-direct-ownership.mjs'
+import { commentSupersedesId } from '../domain/merge-comment-supersession.mjs'
 import {
   SAFE_EXECUTION_BUNDLES,
   SAFE_EXECUTION_BUNDLE_SCOPES,
@@ -789,25 +790,6 @@ function sameTerminalBinding(left, right) {
 
 function flattenGhPages(value) {
   return Array.isArray(value) ? value.flat(Infinity).filter((entry) => entry && typeof entry === 'object') : []
-}
-
-function commentSupersedesId(body, targetCommentId) {
-  const text = String(body ?? '')
-  if (text.includes(`supersedes: ${targetCommentId}`) ||
-    text.includes(`superseded_comment_id: ${targetCommentId}`) ||
-    (text.includes(String(targetCommentId)) && /superseded|not authoritative/i.test(text))) {
-    return true
-  }
-  try {
-    const parsed = parseFounderMergeAuthorization(text)
-    const supersededIds = [
-      ...(Array.isArray(parsed.supersedes_comment_ids) ? parsed.supersedes_comment_ids : []),
-      ...(parsed.supersedes_comment_id == null ? [] : [parsed.supersedes_comment_id]),
-    ]
-    return supersededIds.some((id) => String(id) === String(targetCommentId))
-  } catch {
-    return false
-  }
 }
 
 function campaignParseFailure(parsed, context) {
