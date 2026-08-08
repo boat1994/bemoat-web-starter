@@ -18,7 +18,7 @@
       { "path": "scripts/guard-planning-contract.mjs", "max_lines": 859 },
       { "path": "scripts/mission-control-dispatch.mjs", "max_lines": 545 },
       { "path": "scripts/mission-control-issue-body-cas.mjs", "max_lines": 438 },
-      { "path": "scripts/mission-control-reconcile.mjs", "max_lines": 567 },
+      { "path": "scripts/mission-control-reconcile.mjs", "max_lines": 143 },
       { "path": "scripts/mission-control-review.mjs", "max_lines": 470 },
       { "path": "scripts/mission-control-state.mjs", "max_lines": 548 },
       { "path": "scripts/mission-control/domain/campaign-authority.mjs", "max_lines": 547 },

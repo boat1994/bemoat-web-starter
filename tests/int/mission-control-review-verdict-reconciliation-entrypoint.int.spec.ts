@@ -348,7 +348,7 @@ describe('Review-verdict identity normalization', () => {
     let state: Record<string, unknown> = initialState()
     const coordinator = new Coordinator({
       readState: async () => structuredClone(state),
-      writeState: async (next) => {
+      writeState: async (next: Record<string, unknown>) => {
         state = structuredClone(next)
         return structuredClone(state)
       },
@@ -526,7 +526,7 @@ describe('merged managed active PR Review-verdict lineage reconciliation', () =>
     let state: Record<string, unknown> = initialState({ review_cycle: 1, full_review_count: 1 })
     const coordinator = new Coordinator({
       readState: async () => structuredClone(state),
-      writeState: async (next) => {
+      writeState: async (next: Record<string, unknown>) => {
         state = structuredClone(next)
         return structuredClone(state)
       },
