@@ -39,6 +39,11 @@ import { validateBlockerResolutionPostconditions } from '../domain/merge-blocker
 import { blockerResolutionCampaignPostconditions } from '../domain/merge-blocker-campaign-postconditions.mjs'
 import { renderFinalResultBody } from '../domain/merge-final-result.mjs'
 import {
+  CAMPAIGN_PROJECTION_KINDS,
+  hasMeaningfulBindingValue,
+  resolveCampaignProjectionKind,
+} from '../domain/merge-campaign-projection.mjs'
+import {
   AUTHORIZATION_VALIDATION_FAILURE,
   authorizationValidationFailure,
   generateFounderMergeAuthorization,
@@ -67,11 +72,6 @@ const FULL_SHA_RE = /^[0-9a-f]{40}$/i
 const MERGE_COMPLETION_BUNDLE_KIND = 'merge-completion'
 const MERGE_COMPLETION_AUTHORITY_SCOPE = 'merge'
 const BLOCKER_RESOLUTION_MAX_SLICE = 11
-
-export const CAMPAIGN_PROJECTION_KINDS = Object.freeze({
-  SLICE: 'campaign-slice',
-  BLOCKER_RESOLUTION: 'blocker-resolution',
-})
 
 export const SAFE_EXECUTION_BUNDLES = Object.freeze({
   'authorization-execution': Object.freeze([
@@ -162,36 +162,6 @@ function normalizePrNumber(value) {
   return resolvePrNumber(value)
 }
 
-function hasMeaningfulBindingValue(value) {
-  return value !== null && value !== undefined &&
-    !(typeof value === 'string' && value.trim().length === 0)
-}
-
-function resolveCampaignProjectionKind(authorization = {}) {
-  const explicitKind = authorization.projection_kind
-  const hasBlockerBinding = hasMeaningfulBindingValue(authorization.campaign_blocker_id)
-
-  if (explicitKind == null) {
-    if (hasBlockerBinding) {
-      throw stateConflict('blocker-resolution requires an explicit projection_kind')
-    }
-    return CAMPAIGN_PROJECTION_KINDS.SLICE
-  }
-  if (explicitKind === CAMPAIGN_PROJECTION_KINDS.SLICE) {
-    if (hasBlockerBinding) {
-      throw stateConflict('campaign-slice projection cannot carry a campaign_blocker_id binding')
-    }
-    return explicitKind
-  }
-  if (explicitKind !== CAMPAIGN_PROJECTION_KINDS.BLOCKER_RESOLUTION) {
-    throw stateConflict(`unsupported campaign projection_kind: ${String(explicitKind)}`)
-  }
-  if (hasMeaningfulBindingValue(authorization.campaign_slice)) {
-    throw stateConflict('blocker-resolution projection prohibits campaign_slice')
-  }
-  return explicitKind
-}
-
 function validateBlockerResolutionBindings({ authorization, state }) {
   const campaignIssue = normalizeIssueNumber(authorization.campaign_issue)
   if (!campaignIssue) {
@@ -256,7 +226,9 @@ async function resolveCampaignMergeRoute({
   }
 
   const managedCampaignSlice = state?.campaign_slice == null ? null : Number(state.campaign_slice)
-  const projectionKind = resolveCampaignProjectionKind(authorization)
+  const projectionClassification = resolveCampaignProjectionKind(authorization)
+  if (!projectionClassification.valid) throw stateConflict(projectionClassification.reason)
+  const projectionKind = projectionClassification.projectionKind
   let blockerBinding = null
 
   if (managedCampaignSlice != null) {
