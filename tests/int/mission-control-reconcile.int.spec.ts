@@ -45,6 +45,7 @@ const {
   sameValue,
   deriveTransitionFacts,
   assertRoutingOnlyProjection,
+  coordinatorOwnedRoutingProjection,
 } = reconcileModule as unknown as Record<string, (...args: any[]) => any>
 
 const CoordinatorClass = reconcileModule.Coordinator as unknown as new (transports: Record<string, unknown>) => {
@@ -1375,6 +1376,60 @@ Bounded implementation work.
       prior: { state: 'READY' },
       projected: { state: 'IN_PROGRESS' },
     })).toThrow('STATE_CONFLICT')
+  })
+
+  it('characterizes coordinator-owned routing over caller projection', () => {
+    const identity = normalizeTransitionIdentity(handoffBody, { role: 'HANDOFF' })
+    const projected = coordinatorOwnedRoutingProjection({
+      prior: {
+        state: 'READY',
+        latest_handoff_comment_id: 'prior-handoff',
+        latest_result_comment_id: 'prior-result',
+        latest_transition_identity: 'prior-identity',
+        next_permitted_action: 'Mission Control posts HANDOFF',
+      },
+      base: {
+        state: 'CALLER_FORGED_STATE',
+        latest_handoff_comment_id: 'caller-forged-handoff',
+        latest_result_comment_id: 'caller-forged-result',
+      },
+      identity,
+      comment: { id: 'handoff-1', body: `${handoffBody}\n**Target:** Dev / Builder` },
+      role: 'HANDOFF',
+      updatedAt: '2026-08-08T00:00:00.000Z',
+      updatedBy: 'Tester',
+    })
+
+    expect(projected).toMatchObject({
+      state: 'IN_PROGRESS',
+      latest_handoff_comment_id: 'handoff-1',
+      latest_result_comment_id: 'prior-result',
+      latest_transition_identity: JSON.stringify(identity),
+      next_permitted_action: 'Dev / Builder executes the authorized HANDOFF; do not re-post HANDOFF.',
+      updated_at: '2026-08-08T00:00:00.000Z',
+      updated_by: 'Tester',
+    })
+  })
+
+  it('preserves state and prior routing action for a targetless replay', () => {
+    const identity = normalizeTransitionIdentity(handoffBody, { role: 'HANDOFF' })
+    const projected = coordinatorOwnedRoutingProjection({
+      prior: {
+        state: 'BLOCKED_FOR_FOUNDER_DECISION',
+        next_permitted_action: 'Founder decides the bounded action.',
+      },
+      base: { state: 'CALLER_FORGED_STATE', next_permitted_action: 'caller action' },
+      identity,
+      comment: { id: 'handoff-2', body: handoffBody },
+      role: 'HANDOFF',
+      preserveState: true,
+    })
+
+    expect(projected).toMatchObject({
+      state: 'CALLER_FORGED_STATE',
+      next_permitted_action: 'caller action',
+      latest_handoff_comment_id: 'handoff-2',
+    })
   })
 
   it('coordinator injects transports', async () => {

@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process'
 import { createHelpEnvelopeV1, formatTextHelp } from './cli/command-help.mjs'
 import { parseCommandInvocation, resolveCommandIdentity } from './cli/command-invocation.mjs'
 import { writeIssueBodyWithLease } from './mission-control-issue-body-cas.mjs'
-import { parseMissionControlState, populateOrPreservePlanningAuthorizationBaseSha, projectMissionControlStateBlock } from './mission-control-state.mjs'
+import { parseMissionControlState, projectMissionControlStateBlock } from './mission-control-state.mjs'
 import {
   normalizeTransitionIdentity,
   parseCommentMarker,
@@ -65,7 +65,7 @@ import {
   limitTransitions,
 } from './mission-control/domain/productive-policy.mjs'
 import {
-  coordinatorOwnedProjection,
+  coordinatorOwnedRoutingProjection,
   routingDriftClassification,
 } from './mission-control/coordinator-projection.mjs'
 import {
@@ -140,6 +140,7 @@ export {
 } from './mission-control/comment-evidence.mjs'
 export {
   coordinatorOwnedProjection,
+  coordinatorOwnedRoutingProjection,
   routingDriftClassification,
 } from './mission-control/coordinator-projection.mjs'
 
@@ -397,38 +398,17 @@ export class Coordinator {
   }
 
   _coordinatorOwnedRouting({ identity, comment, role, updatedAt, updatedBy, base, prior, planningAuthorizationBaseSha, preserveState = false }) {
-    const target = (comment?.body ?? '').match(/^\*\*Target:\*\*\s*(.+?)\s*$/m)?.[1]?.trim()
-    let owned = {
-      ...coordinatorOwnedProjection({ prior, base, identity, comment, role }),
-      latest_transition_identity: serializeTransitionIdentity(identity),
-      updated_at: updatedAt ?? new Date().toISOString(),
-      updated_by: updatedBy ?? 'Mission Control',
-    }
-    if (role === 'HANDOFF') {
-      if (!preserveState) owned.state = 'IN_PROGRESS'
-      owned.next_permitted_action = target
-        ? (preserveState ? (owned.next_permitted_action ?? `${target} executes the authorized HANDOFF; do not re-post HANDOFF.`) : `${target} executes the authorized HANDOFF; do not re-post HANDOFF.`)
-        : (preserveState ? (owned.next_permitted_action ?? 'Worker executes the authorized HANDOFF; do not re-post HANDOFF.') : 'Worker executes the authorized HANDOFF; do not re-post HANDOFF.')
-
-      // planning_authorization_base_sha is ancestry authority for planning_no_pr only.
-      // It is never derived from guide_source_sha (policy provenance at HANDOFF time).
-      // Authoritative sources: explicit integrateHandoff seam, or durable state already set
-      // when Mission Control authorized the planning branch from that exact commit.
-      if (owned.workflow_mode === 'planning_no_pr') {
-        const lineageSha = planningAuthorizationBaseSha ?? owned.planning_authorization_base_sha
-        if (lineageSha == null || lineageSha === '') {
-          throw new Error(
-            'STATE_CONFLICT: planning_no_pr HANDOFF requires explicit planning_authorization_base_sha ancestry authority',
-          )
-        }
-        const populated = populateOrPreservePlanningAuthorizationBaseSha(owned, lineageSha)
-        if (!populated.ok) {
-          throw new Error(`STATE_CONFLICT: ${populated.reason}`)
-        }
-        owned = populated.state
-      }
-    }
-    return owned
+    return coordinatorOwnedRoutingProjection({
+      identity,
+      comment,
+      role,
+      updatedAt,
+      updatedBy,
+      base,
+      prior,
+      planningAuthorizationBaseSha,
+      preserveState,
+    })
   }
 
   /**
