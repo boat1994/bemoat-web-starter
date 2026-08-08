@@ -929,14 +929,7 @@ export { classifyMergeDrift } from './mission-control/merge-drift-classification
  */
 export { projectReviewVerdictState } from './mission-control/review-verdict-projection.mjs'
 
-export function founderMergeTransitionAuthorized({ mergeAuthorized = false, migrationAuthorized = false, deployAuthorized = false } = {}) {
-  return {
-    mergeAllowed: mergeAuthorized,
-    migrationAllowed: migrationAuthorized,
-    deployAllowed: deployAuthorized,
-    boundedSequence: mergeAuthorized && !migrationAuthorized && !deployAuthorized,
-  }
-}
+export { founderMergeTransitionAuthorized } from './mission-control/founder-merge-transition-policy.mjs'
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
