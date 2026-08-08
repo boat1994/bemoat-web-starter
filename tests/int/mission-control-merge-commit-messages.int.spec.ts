@@ -3,7 +3,10 @@ import { describe, expect, it } from 'vitest'
 import { mergeCommitOid } from '../../scripts/mission-control/domain/merge-commit-oid.mjs'
 import { normalizePaginatedCommitMessages } from '../../scripts/mission-control/domain/merge-commit-messages.mjs'
 import { renderFinalResultBody } from '../../scripts/mission-control/domain/merge-final-result.mjs'
-import { normalizeIssueState } from '../../scripts/mission-control/domain/merge-issue-state.mjs'
+import {
+  normalizeIssueReason,
+  normalizeIssueState,
+} from '../../scripts/mission-control/domain/merge-issue-state.mjs'
 
 describe('merge domain normalization', () => {
   it('resolves the first available merge commit identity', () => {
@@ -47,6 +50,13 @@ describe('merge domain normalization', () => {
     expect(normalizeIssueState({ state: 'OPEN' })).toBe('OPEN')
     expect(normalizeIssueState({})).toBe('')
     expect(normalizeIssueState(null)).toBe('')
+  })
+
+  it('normalizes Issue reasons across GitHub field shapes', () => {
+    expect(normalizeIssueReason({ stateReason: 'completed' })).toBe('COMPLETED')
+    expect(normalizeIssueReason({ state_reason: 'reopened' })).toBe('REOPENED')
+    expect(normalizeIssueReason({})).toBe('')
+    expect(normalizeIssueReason(null)).toBe('')
   })
 
   it('renders campaign slice and blocker-resolution final RESULT bodies', () => {

@@ -44,7 +44,7 @@ import { classifyCampaignOwnershipEvidence } from '../domain/merge-campaign-owne
 import { validateDirectOwnership } from '../domain/merge-direct-ownership.mjs'
 import { commentSupersedesId } from '../domain/merge-comment-supersession.mjs'
 import { mergeCommitOid } from '../domain/merge-commit-oid.mjs'
-import { normalizeIssueState } from '../domain/merge-issue-state.mjs'
+import { normalizeIssueReason, normalizeIssueState } from '../domain/merge-issue-state.mjs'
 import {
   SAFE_EXECUTION_BUNDLES,
   SAFE_EXECUTION_BUNDLE_SCOPES,
@@ -80,7 +80,7 @@ export {
 }
 export { normalizePaginatedCommitMessages }
 export { flattenGhPages }
-export { normalizeIssueState }
+export { normalizeIssueReason, normalizeIssueState }
 
 const FULL_SHA_RE = /^[0-9a-f]{40}$/i
 const MERGE_COMPLETION_BUNDLE_KIND = 'merge-completion'
@@ -207,10 +207,6 @@ function verifyMergeability(pr) {
 function verifyNoAutomaticClosure(pr, issueNumber, repo) {
   const result = classifyNoAutomaticClosure(pr, issueNumber, repo)
   if (!result.valid) throw stateConflict(result.reason)
-}
-
-function normalizeIssueReason(issue) {
-  return String(issue?.stateReason ?? issue?.state_reason ?? '').toUpperCase()
 }
 
 function resultCommentId(result) {

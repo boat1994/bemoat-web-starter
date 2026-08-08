@@ -20,7 +20,7 @@ const grandfathered = [
   ['scripts/mission-control-review.mjs', 470], ['scripts/mission-control-state.mjs', 548],
   ['scripts/mission-control/domain/campaign-authority.mjs', 547], ['scripts/mission-control/domain/campaign-validator.mjs', 482],
   ['scripts/mission-control/domain/review-recovery.mjs', 485], ['scripts/mission-control/workflows/adopt-finding.mjs', 728],
-  ['scripts/mission-control/workflows/merge.mjs', 1381],
+  ['scripts/mission-control/workflows/merge.mjs', 1295],
   ['scripts/mission-control/workflows/recover-review.mjs', 828], ['scripts/mission-control/workflows/recover-state.mjs', 1428],
   ['scripts/mission-control/workflows/reopen.mjs', 988], ['scripts/mission-control/workflows/task-bootstrap.mjs', 658],
   ['scripts/post-role-comment.mjs', 690],
