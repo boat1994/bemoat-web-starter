@@ -30,6 +30,7 @@ describe('central guard pack', () => {
       'mission-control-contract',
       'planning-contract',
       'mission-control-drift',
+      'structural-protection',
       'scripts-architecture',
     ])
   })
@@ -113,6 +114,9 @@ describe('central guard pack', () => {
     const syncMod = await import('../../scripts/sync-boilerplate.mjs')
 
     expect(syncMod.managedPaths).toContain('scripts/guard-pack.mjs')
+    expect(syncMod.managedPaths).toContain('scripts/guards/structural-protection.mjs')
+    expect(syncMod.managedPaths).toContain('scripts/structural-protection-manifest.json')
+    expect(syncMod.managedPaths).toContain('tests/int/structural-protection.int.spec.ts')
     expect(syncMod.managedPaths).toContain('scripts/guard-build-script-contract.mjs')
     expect(syncMod.managedPaths).toContain('scripts/guard-package-manager.mjs')
     expect(syncMod.managedPaths).toContain('scripts/guard-toolchain-contract.mjs')
