@@ -31,6 +31,7 @@ import {
   parseProductionMergeReviewVerdict,
   resolveMergeReviewVerdictBinding,
 } from '../domain/merge-review-verdict.mjs'
+import { normalizePaginatedCommitMessages } from '../domain/merge-commit-messages.mjs'
 import {
   AUTHORIZATION_VALIDATION_FAILURE,
   authorizationValidationFailure,
@@ -53,6 +54,7 @@ export {
   validateFounderMergeAuthorization,
   validateFounderMergeAuthorizationEvidence,
 }
+export { normalizePaginatedCommitMessages }
 
 const STARTER_REPOSITORY = 'boat1994/bemoat-web-starter'
 const FULL_SHA_RE = /^[0-9a-f]{40}$/i
@@ -292,17 +294,6 @@ async function resolveCampaignMergeRoute({
   })
   validateCampaignOwnershipEvidence({ ownership, route, issueNumber, prNumber })
   return route
-}
-
-export function normalizePaginatedCommitMessages(pages) {
-  if (!Array.isArray(pages) || pages.some((page) => !Array.isArray(page))) {
-    throw blockedExternal('GitHub PR commit pagination did not return complete page arrays')
-  }
-  return pages.flat().map((entry) => {
-    const message = String(entry?.commit?.message ?? '')
-    const [messageHeadline = '', ...bodyLines] = message.split('\n')
-    return { messageHeadline, messageBody: bodyLines.join('\n') }
-  })
 }
 
 export function validateMergeReviewVerdict({ reviewVerdict, expected }) {
