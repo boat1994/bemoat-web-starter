@@ -1,8 +1,12 @@
 const INVALID_NEXT_ACTION_MESSAGE =
   'STATE_CONFLICT: merge completion next campaign action is missing, conflicting, or would start the next Slice'
 
-/** @param {{ requiredSlice?: number | null }} options */
-export function validateNextAction(nextAction, { requiredSlice = null } = {}) {
+/**
+ * @param {any} nextAction
+ * @param {{ requiredSlice?: number | null }} [options]
+ */
+export function validateNextAction(nextAction, options = {}) {
+  const { requiredSlice = null } = options
   const slice = nextAction?.slice == null ? null : Number(nextAction.slice)
   const valid =
     nextAction &&
