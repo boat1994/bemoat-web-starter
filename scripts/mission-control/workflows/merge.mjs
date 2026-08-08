@@ -8,7 +8,6 @@ import {
   parseCommandInvocation,
 } from '../../cli/command-invocation.mjs'
 
-import { analyzeExactHeadCi, normalizeStatusChecks, isCheckSuccessful } from '../../agent-issue/exact-head-ci.mjs'
 import { resolveIssueNumber, resolvePrNumber } from '../../agent-issue/issue-references.mjs'
 import { parseMissionControlState, projectMissionControlStateBlock } from '../../mission-control-state.mjs'
 import { writeIssueBodyWithLease } from '../../mission-control-issue-body-cas.mjs'
@@ -32,6 +31,7 @@ import {
   resolveMergeReviewVerdictBinding,
 } from '../domain/merge-review-verdict.mjs'
 import { normalizePaginatedCommitMessages } from '../domain/merge-commit-messages.mjs'
+import { classifyRequiredExactHeadCi } from '../domain/merge-exact-head-ci.mjs'
 import {
   AUTHORIZATION_VALIDATION_FAILURE,
   authorizationValidationFailure,
@@ -310,15 +310,9 @@ export function validateMergeReviewVerdict({ reviewVerdict, expected }) {
 }
 
 function verifyRequiredExactHeadCi(pr, repo) {
-  const analysis = analyzeExactHeadCi(pr)
-  if (!analysis.exactHeadVerified) {
-    throw stateConflict(`required exact-head CI is not successful: ${analysis.summary}`)
-  }
-  const checks = normalizeStatusChecks(pr.statusCheckRollup)
-  const successfulNames = new Set(checks.filter(isCheckSuccessful).map((check) => check.name ?? check.context))
   const requiredChecks = repo === STARTER_REPOSITORY ? ['ci', 'starter-ci'] : ['ci']
-  const missing = requiredChecks.filter((name) => !successfulNames.has(name))
-  if (missing.length > 0) throw stateConflict(`required exact-head CI checks are missing or unsuccessful: ${missing.join(', ')}`)
+  const result = classifyRequiredExactHeadCi(pr, requiredChecks)
+  if (!result.valid) throw stateConflict(result.reason)
 }
 
 function verifyDirectOwnership(issueNumber, issue, pr) {
