@@ -38,6 +38,7 @@ import { validateNextAction } from '../domain/merge-next-action.mjs'
 import { validateBlockerResolutionPostconditions } from '../domain/merge-blocker-postconditions.mjs'
 import { blockerResolutionCampaignPostconditions } from '../domain/merge-blocker-campaign-postconditions.mjs'
 import { renderFinalResultBody } from '../domain/merge-final-result.mjs'
+import { classifyCampaignOwnershipEvidence } from '../domain/merge-campaign-ownership.mjs'
 import {
   CAMPAIGN_PROJECTION_KINDS,
   hasMeaningfulBindingValue,
@@ -180,34 +181,6 @@ function validateBlockerResolutionBindings({ authorization, state }) {
   return { campaignIssue, campaignBlockerId }
 }
 
-function validateCampaignOwnershipEvidence({ ownership, route, issueNumber, prNumber }) {
-  if (!ownership || typeof ownership !== 'object' || Array.isArray(ownership) || ownership.verified !== true) {
-    throw stateConflict('campaign merge route requires verified durable ownership evidence')
-  }
-  const ownershipKind = ownership.projectionKind ?? ownership.projection_kind
-  if (ownershipKind !== route.projectionKind) {
-    throw stateConflict('campaign ownership evidence projection kind differs from authorization')
-  }
-  if (normalizeIssueNumber(ownership.campaignIssue) !== route.campaignIssue) {
-    throw stateConflict('campaign ownership evidence campaign Issue differs from managed state')
-  }
-  if (normalizeIssueNumber(ownership.taskIssue) !== issueNumber ||
-    normalizePrNumber(ownership.prNumber ?? ownership.pr) !== prNumber) {
-    throw stateConflict('campaign ownership evidence does not bind the exact task and PR')
-  }
-  if (ownershipKind === CAMPAIGN_PROJECTION_KINDS.SLICE) {
-    if (Number(ownership.campaignSlice) !== route.campaignSlice) {
-      throw stateConflict('campaign ownership evidence slice differs from managed state')
-    }
-  } else if (ownership.campaignBlockerId !== route.blockerBinding.campaignBlockerId) {
-    throw stateConflict('campaign ownership evidence blocker differs from authorization')
-  }
-  if (!['campaign-projection', 'task-ownership-registry'].includes(ownership.evidence_kind)) {
-    throw stateConflict('campaign merge route requires canonical allocation or ownership-registry evidence')
-  }
-  return ownership
-}
-
 async function resolveCampaignMergeRoute({
   deps,
   repo,
@@ -270,7 +243,13 @@ async function resolveCampaignMergeRoute({
     campaignBlockerId: route.blockerBinding?.campaignBlockerId ?? null,
     projectionKind: route.projectionKind,
   })
-  validateCampaignOwnershipEvidence({ ownership, route, issueNumber, prNumber })
+  const ownershipClassification = classifyCampaignOwnershipEvidence({
+    ownership,
+    route,
+    issueNumber,
+    prNumber,
+  })
+  if (!ownershipClassification.valid) throw stateConflict(ownershipClassification.reason)
   return route
 }
 
