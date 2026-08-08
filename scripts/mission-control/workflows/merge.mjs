@@ -32,6 +32,7 @@ import {
 } from '../domain/merge-review-verdict.mjs'
 import { normalizePaginatedCommitMessages } from '../domain/merge-commit-messages.mjs'
 import { classifyRequiredExactHeadCi } from '../domain/merge-exact-head-ci.mjs'
+import { classifyMergeability } from '../domain/merge-mergeability.mjs'
 import {
   AUTHORIZATION_VALIDATION_FAILURE,
   authorizationValidationFailure,
@@ -351,9 +352,8 @@ function verifyHeadBindings(state, pr, authorization, repo) {
 }
 
 function verifyMergeability(pr) {
-  if (String(pr?.mergeable ?? '').toUpperCase() !== 'MERGEABLE') {
-    throw stateConflict('PR mergeability changed or is not verified as MERGEABLE')
-  }
+  const result = classifyMergeability(pr)
+  if (!result.valid) throw stateConflict(result.reason)
   return true
 }
 

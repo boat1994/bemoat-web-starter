@@ -133,6 +133,7 @@
     "tests/int/scripts-entrypoints-contract.int.spec.ts",
     "tests/int/mission-control-review.int.spec.ts",
     "tests/int/mission-control-merge.int.spec.ts",
+    "tests/int/mission-control-merge-mergeability.int.spec.ts",
     "tests/int/mission-control-merge-verdict-binding-entrypoint.int.spec.ts",
     "tests/int/mission-control-issue-body-cas.int.spec.ts",
     "tests/int/mission-control-recover-review.int.spec.ts",
