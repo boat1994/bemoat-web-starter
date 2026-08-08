@@ -47,6 +47,7 @@ const {
   assertRoutingOnlyProjection,
   coordinatorOwnedRoutingProjection,
   buildTransitionMatchOptions,
+  resolveRoleComment,
 } = reconcileModule as unknown as Record<string, (...args: any[]) => any>
 
 const CoordinatorClass = reconcileModule.Coordinator as unknown as new (transports: Record<string, unknown>) => {
@@ -1392,6 +1393,7 @@ Bounded implementation work.
   })
 
   it('keeps transition guard helpers available through the reconcile facade', () => {
+    expect(resolveRoleComment).toBeTypeOf('function')
     expect(sameValue({ b: 2, a: 1 }, { a: 1, b: 2 })).toBe(true)
     expect(deriveTransitionFacts({
       role: 'RESULT',

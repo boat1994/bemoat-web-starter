@@ -5,12 +5,10 @@ import { parseCommandInvocation, resolveCommandIdentity } from './cli/command-in
 import { writeIssueBodyWithLease } from './mission-control-issue-body-cas.mjs'
 import { parseMissionControlState, projectMissionControlStateBlock } from './mission-control-state.mjs'
 import {
-  normalizeTransitionIdentity,
   parseCommentMarker,
   serializeTransitionIdentity,
 } from './mission-control/transition-identity.mjs'
 import {
-  selectActiveRoleComments,
   selectLiveReviewVerdictComment,
 } from './mission-control/review-verdict-binding.mjs'
 import { buildTransitionMatchOptions } from './mission-control/transition-match-options.mjs'
@@ -52,9 +50,9 @@ import {
   findMatchingComments,
   normalizeIssueComments,
   parsePaginatedGhApiJson,
-  recoverAmbiguousPost,
   resolveProductionCommentTrust,
 } from './mission-control/comment-evidence.mjs'
+import { resolveRoleComment } from './mission-control/comment-resolution.mjs'
 import {
   isBlockerMaterial,
   isTransitionProductive,
@@ -138,6 +136,7 @@ export {
   resolveProductionCommentTrust,
   verifyPostedCommentReadback,
 } from './mission-control/comment-evidence.mjs'
+export { resolveRoleComment } from './mission-control/comment-resolution.mjs'
 export {
   coordinatorOwnedProjection,
   coordinatorOwnedRoutingProjection,
@@ -310,83 +309,14 @@ export class Coordinator {
 
   async _resolveComment(roleBody, role) {
     const { identity, options } = this._matchOptions(roleBody, role)
-    const comments = await this.listComments()
-    const activeRoleComments = selectActiveRoleComments(comments, role)
-    if (role === 'HANDOFF' && activeRoleComments.length > 1) {
-      const identities = new Set(
-        activeRoleComments.map((comment) => serializeTransitionIdentity(normalizeTransitionIdentity(comment.body ?? ''))),
-      )
-      if (identities.size > 1) {
-        throw new Error('STATE_CONFLICT: competing HANDOFF comments')
-      }
-    }
-    if (identity.taskId) {
-      const sameTaskComments = activeRoleComments.filter((comment) =>
-        normalizeTransitionIdentity(comment.body ?? '').taskId === identity.taskId,
-      )
-      if (sameTaskComments.length > 1) {
-        throw new Error(`STATE_CONFLICT: competing role comments for ${role}`)
-      }
-    }
-    const matches = findMatchingComments(comments, identity, options)
-    if (matches.length === 0) {
-      try {
-        const posted = await this.postComment(roleBody)
-        if (posted?.id == null) {
-          throw new Error('posted role comment did not return a durable comment identifier')
-        }
-        return { identity, comment: posted, created: true }
-      } catch (error) {
-        const possibleMutation = error?.mutationPerformed === true
-        const postedId = error?.postedCommentId ?? error?.authoritativePostId ?? null
-        let recovery
-        try {
-          recovery = recoverAmbiguousPost({
-            comments: await this.listComments(),
-            identity,
-            body: roleBody,
-            role,
-            postedId,
-            ambiguousPost: possibleMutation,
-            matchOptions: options,
-          })
-        } catch (recoveryError) {
-          if (!possibleMutation) throw error
-          const ambiguous = new Error(
-            `AMBIGUOUS_RESULT: unable to verify the outcome of the role comment POST: ${
-              recoveryError instanceof Error ? recoveryError.message : String(recoveryError)
-            }`,
-            { cause: error },
-          )
-          ambiguous.classification = 'AMBIGUOUS_RESULT'
-          ambiguous.mutationPerformed = true
-          if (typeof error?.legacyClassification === 'string') {
-            ambiguous.legacyClassification = error.legacyClassification
-          }
-          throw ambiguous
-        }
-        if (recovery.classification === 'RESUME_PROJECTION' && recovery.comment) {
-          return { identity, comment: recovery.comment, created: false, recovered: true }
-        }
-        if (recovery.classification === 'AMBIGUOUS_RESULT') {
-          const ambiguous = recovery.error ?? new Error('ambiguous POST has no provable match')
-          ambiguous.classification = 'AMBIGUOUS_RESULT'
-          ambiguous.mutationPerformed = true
-          throw ambiguous
-        }
-        if (recovery.classification === 'STATE_CONFLICT') {
-          const conflict = new Error('STATE_CONFLICT: ambiguous POST resolved to competing matches', { cause: error })
-          conflict.classification = 'STATE_CONFLICT'
-          conflict.mutationPerformed = possibleMutation
-          throw conflict
-        }
-        throw error
-      }
-    }
-    if (matches.length > 1) {
-      throw new Error('STATE_CONFLICT: competing role comments for the same transition identity')
-    }
-    return { identity, comment: matches[0], created: false }
+    return resolveRoleComment({
+      roleBody,
+      role,
+      identity,
+      options,
+      listComments: this.listComments,
+      postComment: this.postComment,
+    })
   }
 
   _coordinatorOwnedRouting({ identity, comment, role, updatedAt, updatedBy, base, prior, planningAuthorizationBaseSha, preserveState = false }) {
