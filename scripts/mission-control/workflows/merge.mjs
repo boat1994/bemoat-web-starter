@@ -41,6 +41,7 @@ import { blockerResolutionCampaignPostconditions } from '../domain/merge-blocker
 import { renderFinalResultBody } from '../domain/merge-final-result.mjs'
 import { normalizeIssueNumber, normalizePrNumber } from '../domain/merge-issue-references.mjs'
 import { resultCommentId } from '../domain/merge-result-comment-id.mjs'
+import { blockedExternal, stateConflict } from '../domain/merge-errors.mjs'
 import { classifyCampaignOwnershipEvidence } from '../domain/merge-campaign-ownership.mjs'
 import { validateDirectOwnership } from '../domain/merge-direct-ownership.mjs'
 import { commentSupersedesId } from '../domain/merge-comment-supersession.mjs'
@@ -97,14 +98,6 @@ function defaultMergeCompletionBundle() {
     terminal_outcome: 'Task DONE and campaign slice DONE; next action selected but not started',
     steps: SAFE_EXECUTION_BUNDLES['merge-completion'],
   }
-}
-
-function stateConflict(message) {
-  return new Error(`STATE_CONFLICT: ${message}`)
-}
-
-function blockedExternal(message) {
-  return new Error(`BLOCKED_EXTERNAL: ${message}`)
 }
 
 async function resolveCampaignMergeRoute({
