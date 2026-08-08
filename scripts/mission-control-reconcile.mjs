@@ -918,21 +918,7 @@ export {
  * @param {Array<{ body?: string, createdAt?: string }>} comments
  * @param {'RESULT' | 'REVIEW_VERDICT'} role
  */
-export function findLatestRoleComment(comments = [], role) {
-  const matches = comments
-    .map((comment) => ({ comment, parsed: parseRoleCommentBody(comment.body ?? '') }))
-    .filter((entry) => entry.parsed.role === role)
-
-  if (matches.length === 0) return null
-
-  matches.sort((left, right) => {
-    const leftTime = Date.parse(left.comment.createdAt ?? '') || 0
-    const rightTime = Date.parse(right.comment.createdAt ?? '') || 0
-    return rightTime - leftTime
-  })
-
-  return matches[0]
-}
+export { findLatestRoleComment } from './mission-control/role-comment-selection.mjs'
 
 export { classifyMergeDrift } from './mission-control/merge-drift-classification.mjs'
 
