@@ -67,6 +67,10 @@ import {
   isFounderDispatchHandoffAuthority,
   limitTransitions,
 } from './mission-control/domain/productive-policy.mjs'
+import {
+  coordinatorOwnedProjection,
+  routingDriftClassification,
+} from './mission-control/coordinator-projection.mjs'
 
 const CORE_VERDICTS = new Set([
   'CORRECTION REQUIRED',
@@ -305,6 +309,10 @@ export {
   resolveProductionCommentTrust,
   verifyPostedCommentReadback,
 } from './mission-control/comment-evidence.mjs'
+export {
+  coordinatorOwnedProjection,
+  routingDriftClassification,
+} from './mission-control/coordinator-projection.mjs'
 
 /**
  * Child-sync command gate evidence. When enforcement is required, all declared
@@ -353,77 +361,6 @@ export const CHILD_SYNC_GATE_REQUIREMENTS = Object.freeze({
   requiresLiveChildStateReconstruction: true,
   requiresFreshChildSyncHandoff: true,
 })
-
-const COORDINATOR_OWNED_LINEAGE_KEYS = Object.freeze([
-  'latest_handoff_comment_id',
-  'latest_result_comment_id',
-  'latest_review_verdict_comment_id',
-  'latest_transition_identity',
-])
-
-function coordinatorOwnedProjection({ prior = {}, base = {}, identity, comment, role }) {
-  const owned = {
-    ...structuredClone(prior ?? {}),
-    ...structuredClone(base ?? {}),
-  }
-
-  // Callers may propose domain state, counters, and heads, but they cannot
-  // manufacture comment lineage. Preserve the durable prior values first and
-  // let the coordinator replace only the field owned by this role transition.
-  for (const key of COORDINATOR_OWNED_LINEAGE_KEYS) {
-    if (Object.hasOwn(prior ?? {}, key)) owned[key] = prior[key]
-    else delete owned[key]
-  }
-
-  if (role === 'REVIEW_VERDICT') {
-    for (const key of ['review_cycle', 'full_review_count']) {
-      if (Number.isInteger(prior?.[key]) &&
-          (!Number.isInteger(owned[key]) || owned[key] < prior[key])) {
-        owned[key] = prior[key]
-      }
-    }
-    const commentHead = parseRoleCommentBody(comment?.body ?? '').headSha
-    const normalizedCommentHead = normalizeAuthorityHead(commentHead)
-    const knownHead = normalizeAuthorityHead(base?.last_reviewed_head ?? base?.current_head ?? null)
-    const reviewedHead = normalizedCommentHead && knownHead?.length === 40 &&
-      normalizedCommentHead.length < 40 && headsAlign(normalizedCommentHead, knownHead)
-      ? knownHead
-      : (normalizedCommentHead ?? knownHead)
-    if (reviewedHead) {
-      owned.current_head = reviewedHead
-      owned.last_reviewed_head = reviewedHead
-    }
-  }
-
-  owned.latest_transition_identity = serializeTransitionIdentity(identity)
-  if (role === 'HANDOFF') {
-    owned.latest_handoff_comment_id = comment?.id != null ? String(comment.id) : null
-  } else if (role === 'RESULT') {
-    owned.latest_result_comment_id = comment?.id != null ? String(comment.id) : null
-  } else if (role === 'REVIEW_VERDICT') {
-    owned.latest_review_verdict_comment_id = comment?.id != null ? String(comment.id) : null
-  }
-
-  return owned
-}
-
-function routingDriftClassification({ prior = {}, identity, comment, role }) {
-  const expectedIdentity = serializeTransitionIdentity(identity)
-  const expectedId = comment?.id != null ? String(comment.id) : null
-  const key = role === 'HANDOFF'
-    ? 'latest_handoff_comment_id'
-    : role === 'RESULT'
-      ? 'latest_result_comment_id'
-      : role === 'REVIEW_VERDICT'
-        ? 'latest_review_verdict_comment_id'
-        : null
-  if (!key) return null
-  if (String(prior?.[key] ?? '') !== String(expectedId ?? '') ||
-      prior?.latest_transition_identity !== expectedIdentity) {
-    return 'REPAIRABLE_DRIFT'
-  }
-  return null
-}
 
 export function assertChildSyncGateReady({ issues182Merged = false, issues184Merged = false, liveChildReconstructed = false, freshHandoffIssued = false } = {}) {
   const blockers = []
