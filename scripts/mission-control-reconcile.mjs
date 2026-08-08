@@ -10,10 +10,10 @@ import {
   serializeTransitionIdentity,
 } from './mission-control/transition-identity.mjs'
 import {
-  parseRoleCommentBody,
   selectActiveRoleComments,
   selectLiveReviewVerdictComment,
 } from './mission-control/review-verdict-binding.mjs'
+import { buildTransitionMatchOptions } from './mission-control/transition-match-options.mjs'
 import {
   assertManagedActivePrForReviewVerdictReconciliation,
 } from './mission-control/authority-head-validation.mjs'
@@ -143,6 +143,7 @@ export {
   coordinatorOwnedRoutingProjection,
   routingDriftClassification,
 } from './mission-control/coordinator-projection.mjs'
+export { buildTransitionMatchOptions } from './mission-control/transition-match-options.mjs'
 
 /**
  * Canonical comment-first transition coordinator. Role comments are immutable
@@ -296,24 +297,15 @@ export class Coordinator {
   }
 
   _matchOptions(roleBody, role) {
-    const parsed = parseRoleCommentBody(roleBody)
-    const identity = normalizeTransitionIdentity(roleBody, { role })
-    return {
-      identity,
-      options: {
-        activeOnly: true,
-        bindings: {
-          taskId: identity.taskId || null,
-          phase: identity.phase || null,
-          prNumber: parsed.prNumber,
-          base: this.verifiedBase ?? parsed.base,
-          headSha: this.verifiedHead ?? parsed.headSha,
-        },
-        trustedAuthors: this.trustedAuthors ?? undefined,
-        requireTrustedAuthor: this.requireTrustedAuthor,
-        trustedAssociations: this.trustedAssociations ?? undefined,
-      },
-    }
+    return buildTransitionMatchOptions({
+      roleBody,
+      role,
+      trustedAuthors: this.trustedAuthors,
+      requireTrustedAuthor: this.requireTrustedAuthor,
+      trustedAssociations: this.trustedAssociations,
+      verifiedHead: this.verifiedHead,
+      verifiedBase: this.verifiedBase,
+    })
   }
 
   async _resolveComment(roleBody, role) {

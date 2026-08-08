@@ -46,6 +46,7 @@ const {
   deriveTransitionFacts,
   assertRoutingOnlyProjection,
   coordinatorOwnedRoutingProjection,
+  buildTransitionMatchOptions,
 } = reconcileModule as unknown as Record<string, (...args: any[]) => any>
 
 const CoordinatorClass = reconcileModule.Coordinator as unknown as new (transports: Record<string, unknown>) => {
@@ -1345,6 +1346,35 @@ Bounded implementation work.
       phase: 'Dev (implementation)',
       role: 'HANDOFF',
       contentHash: expect.stringMatching(/^[0-9a-f]{64}$/),
+    })
+  })
+
+  it('assembles matching bindings with verified transport values taking precedence', () => {
+    const assembled = buildTransitionMatchOptions({
+      roleBody: resultBody,
+      role: 'RESULT',
+      trustedAuthors: ['boat1994'],
+      requireTrustedAuthor: true,
+      trustedAssociations: ['OWNER'],
+      verifiedBase: 'release',
+      verifiedHead: FULL_RESULT_HEAD,
+    })
+
+    expect(assembled).toMatchObject({
+      identity: normalizeTransitionIdentity(resultBody, { role: 'RESULT' }),
+      options: {
+        activeOnly: true,
+        bindings: {
+          taskId: '184',
+          phase: 'Dev (implementation)',
+          prNumber: '186',
+          base: 'release',
+          headSha: FULL_RESULT_HEAD,
+        },
+        trustedAuthors: ['boat1994'],
+        requireTrustedAuthor: true,
+        trustedAssociations: ['OWNER'],
+      },
     })
   })
 
