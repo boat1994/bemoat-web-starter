@@ -13,6 +13,14 @@ import {
   transitionIdentityMatches,
 } from './mission-control/transition-identity.mjs'
 import {
+  headsAlign,
+  normalizeAuthorityBase,
+  normalizeAuthorityHead,
+  parseRoleCommentBody,
+  selectActiveRoleComments,
+  selectLiveReviewVerdictComment,
+} from './mission-control/review-verdict-binding.mjs'
+import {
   detectUnaccountedReviewEvidence,
   isReviewRecoveryIncident,
 } from './mission-control/domain/review-recovery.mjs'
@@ -582,6 +590,16 @@ export {
 }
 from './mission-control/transition-identity.mjs'
 
+export {
+  isExplicitlyNonAuthoritativeRoleBody,
+  normalizeAuthorityBase,
+  normalizeAuthorityHead,
+  parseLegacyReviewVerdictBinding,
+  parseRoleCommentBody,
+  selectActiveRoleComments,
+  selectLiveReviewVerdictComment,
+} from './mission-control/review-verdict-binding.mjs'
+
 /**
  * @param {number} matchCount
  * @returns {'BLOCKED_EXTERNAL' | 'STATE_CONFLICT' | 'RESUME_PROJECTION'}
@@ -590,59 +608,6 @@ export function classifyTransition(matchCount) {
   if (matchCount === 0) return 'BLOCKED_EXTERNAL'
   if (matchCount > 1) return 'STATE_CONFLICT'
   return 'RESUME_PROJECTION'
-}
-
-/**
- * Explicit non-authoritative / superseded role-comment markers. Shared with
- * projection semantics so historical comments do not compete with active authority.
- */
-export function isExplicitlyNonAuthoritativeRoleBody(body = '') {
-  return (
-    /\[(?:diagnostic|stale|superseded)\]/i.test(body) ||
-    (/\b(?:hereby\s+)?superseded\b/i.test(body) && /\bnot\s+authorized\b/i.test(body)) ||
-    /\bnot\s+authoritative\b/i.test(body) ||
-    /^\[Superseded (?:HANDOFF|RESULT|REVIEW_VERDICT) comment\./i.test(body)
-  )
-}
-
-/**
- * Select active, non-superseded comments for a role. Historical superseded
- * comments remain visible but are not competing authority.
- */
-export function selectActiveRoleComments(comments = [], role) {
-  return comments.filter((comment) => {
-    const body = comment?.body ?? ''
-    if (parseCommentMarker(body) !== role) return false
-    return !isExplicitlyNonAuthoritativeRoleBody(body)
-  })
-}
-
-export function normalizeAuthorityHead(value) {
-  const normalized = String(value ?? '').trim()
-  return normalized ? normalized.toLowerCase() : null
-}
-
-export function normalizeAuthorityBase(value) {
-  const normalized = String(value ?? '').trim()
-  return normalized ? normalized.toLowerCase() : null
-}
-
-function headsAlign(left, right) {
-  const normalizedLeft = normalizeAuthorityHead(left)
-  const normalizedRight = normalizeAuthorityHead(right)
-  if (!normalizedLeft || !normalizedRight) return true
-  const isShaLike = (value) => /^[0-9a-f]{7,40}$/.test(value)
-  if (normalizedLeft === normalizedRight) {
-    return !isShaLike(normalizedLeft) || normalizedLeft.length === 40
-  }
-  if (normalizedLeft.length === 40 && normalizedRight.length === 40) return false
-  if (normalizedLeft.length === 40) {
-    return isShaLike(normalizedRight) && normalizedLeft.startsWith(normalizedRight)
-  }
-  if (normalizedRight.length === 40) {
-    return isShaLike(normalizedLeft) && normalizedRight.startsWith(normalizedLeft)
-  }
-  return false
 }
 
 function bindDeliveryHead(resultHead, liveHead) {
@@ -1900,77 +1865,6 @@ export async function dispatchFounderAuthorizedCorrection({
 }
 
 /**
- * @param {string} body
- */
-export function parseRoleCommentBody(body = '') {
-  const heading = body.match(/^##\s+(HANDOFF|RESULT|REVIEW_VERDICT)\s*$/m)?.[1] ?? null
-  if (!heading) {
-    return {
-      role: null,
-      body,
-      prNumber: null,
-      base: null,
-      headSha: null,
-      verdict: null,
-      managedStateLine: null,
-    }
-  }
-
-  const prFromUrl = body.match(/https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/(\d+)/)?.[1] ?? null
-  const prFromHash = body.match(/\bPR\s*#(\d+)\b/i)?.[1] ?? null
-  const prFromCanonicalLine =
-    body.match(
-      /\*\*PR\s*\/\s*base\s*\/\s*head:\*\*[^\n]*https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/(\d+)/i,
-    )?.[1] ?? null
-  const prFromCanonicalShorthand =
-    body.match(/\*\*PR\s*\/\s*base\s*\/\s*head:\*\*[^\n]*\bPR\s*#(\d+)\b/i)?.[1] ?? null
-  const canonicalBaseMatch = body.match(
-    /^\*\*PR\s*\/\s*base\s*\/\s*head:\*\*\s*(?:https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+|PR\s*#\d+)\s*(?:\/\s*|\s*·\s*)(?:`([^`]+)`|([^/·]+?))\s*(?:\/\s*·|·)\s*`[0-9a-f]{7,40}`\s*$/im,
-  )
-  const baseFromCanonicalLine = (canonicalBaseMatch?.[1] ?? canonicalBaseMatch?.[2])?.trim() ?? null
-  const baseFromStateLine = body.match(
-    /^\*\*(?:State|Task(?:\s*\/\s*Issue)?):\*\*[^\n]*?\bbase\s+`([^`]+)`/im,
-  )?.[1]?.trim() ?? null
-  const baseFromTaskBranch = body.match(
-    /^\*\*Task(?:\s*\/\s*Issue)?:\*\*[^\n]*?→\s*`([^`]+)`\s*·/im,
-  )?.[1]?.trim() ?? null
-  const baseFromLegacy = body.match(
-    /^\*\*(?:Approved\s+base|Base):\*\*\s*(?:`([^`\r\n]+)`|([^\s\r\n]+))/im,
-  )
-  const base = normalizeAuthorityBase(
-    baseFromCanonicalLine ||
-      baseFromStateLine ||
-      baseFromTaskBranch ||
-      (baseFromLegacy?.[1] ?? baseFromLegacy?.[2])?.trim() ||
-      null,
-  )
-  const headFromState = body.match(/\*\*State:\*\*[^\n]*head\s+`([0-9a-f]{7,40})`/i)?.[1] ?? null
-  const headFromPrLine = body.match(/\*\*PR\s*\/\s*base\s*\/\s*head:\*\*[^\n]*·\s*`([0-9a-f]{7,40})`/i)?.[1] ?? null
-  const headFromExact = body.match(/\*\*Exact head reviewed:\*\*\s*`([0-9a-f]{7,40})`/i)?.[1] ?? null
-  const headSha = normalizeAuthorityHead(
-    headFromPrLine ||
-    headFromExact ||
-    headFromState ||
-    (body.match(/head\s+`([0-9a-f]{7,40})`/i)?.[1] ?? null),
-  )
-  const verdict = body.match(/^\*\*Verdict:\*\*\s*(.+?)\s*$/m)?.[1]?.trim() ?? null
-  const managedStateLine = body.match(/^\*\*Managed state:\*\*\s*(.+?)\s*$/m)?.[1]?.trim() ?? null
-
-  return {
-    role: heading,
-    body,
-    prNumber:
-      heading === 'REVIEW_VERDICT'
-        ? prFromCanonicalLine || prFromCanonicalShorthand
-        : prFromUrl || prFromHash,
-    base,
-    headSha,
-    verdict,
-    managedStateLine,
-  }
-}
-
-/**
  * @param {Array<{ body?: string, createdAt?: string }>} comments
  * @param {'RESULT' | 'REVIEW_VERDICT'} role
  */
@@ -2432,309 +2326,6 @@ function parseReconcileArgs(argv) {
 
 function stateBlockReplacement(body, state) {
   return projectMissionControlStateBlock(body, state)
-}
-
-function parseCanonicalReviewTarget(body = '') {
-  const match = body.match(
-    /^\*\*PR\s*\/\s*base\s*\/\s*head:\*\*[^\n]*?·\s*`([^`]+)`\s*·\s*`([0-9a-f]{7,40})`\s*$/im,
-  )
-  return match ? { base: normalizeAuthorityBase(match[1]), head: match[2].toLowerCase() } : null
-}
-
-function hasCanonicalReviewTargetLine(body = '') {
-  return /^\*\*PR\s*\/\s*base\s*\/\s*head:\*\*/im.test(body)
-}
-
-function parseTaskIssueNumber(body = '') {
-  return body.match(/\*\*Task(?:\s*\/\s*Issue)?:\*\*\s*(?:Issue\s*)?#?(\d+)/i)?.[1] ??
-    body.match(/Task\s*\/\s*Issue:\s*(?:Issue\s*)?#?(\d+)/i)?.[1] ?? null
-}
-
-/**
- * Collect every recognized authoritative Task Issue number from a REVIEW_VERDICT
- * body. Incidental prose and bare Issue references are not Task authority.
- *
- * Recognized forms mirror `parseTaskIssueNumber`:
- * - bold `**Task:**` / `**Task / Issue:**` fields
- * - task-log `- Task / Issue:` lines
- *
- * @param {string} [body]
- * @returns {string[]}
- */
-function collectRecognizedTaskIssueNumbers(body = '') {
-  /** @type {string[]} */
-  const values = []
-  for (const match of body.matchAll(/\*\*Task(?:\s*\/\s*Issue)?:\*\*\s*(?:Issue\s*)?#?(\d+)/gi)) {
-    values.push(match[1])
-  }
-  for (const match of body.matchAll(/(?:^|\n)[ \t]*-[ \t]*Task\s*\/\s*Issue:\s*(?:Issue\s*)?#?(\d+)/gim)) {
-    values.push(match[1])
-  }
-  return values
-}
-
-/**
- * Resolve the single Issue-scoping Task binding for a REVIEW_VERDICT, or null
- * when no recognized Task evidence is present. Duplicated or conflicting
- * recognized Task fields fail closed before any Issue-based exclusion.
- *
- * @param {string} [body]
- * @returns {string | null}
- */
-function resolveIssueScopingTaskNumber(body = '') {
-  const values = collectRecognizedTaskIssueNumbers(body)
-  if (values.length === 0) {
-    // Preserve broader single-match recognition (non-bullet Task / Issue:) when
-    // no bold/task-log authoritative fields were collected.
-    return parseTaskIssueNumber(body)
-  }
-
-  const boldFieldCount = [...body.matchAll(/\*\*Task(?:\s*\/\s*Issue)?:\*\*\s*(?:Issue\s*)?#?(\d+)/gi)].length
-  if (boldFieldCount > 1) {
-    throw new Error('STATE_CONFLICT: REVIEW_VERDICT Task Issue bindings are duplicated or ambiguous')
-  }
-
-  const unique = [...new Set(values.map(String))]
-  if (unique.length > 1) {
-    throw new Error('STATE_CONFLICT: REVIEW_VERDICT Task Issue bindings are duplicated or ambiguous')
-  }
-  return unique[0]
-}
-
-/**
- * Narrow legacy REVIEW_VERDICT binding for historical comments that use
- * explicit single-line `**Task:**` / `**PR:**` / `**Base:**` / `**Head:**`
- * fields instead of canonical `**PR / base / head:**`.
- *
- * Separators allow horizontal whitespace only (never CR/LF). Incidental prose,
- * bare `PR #N`, pull URLs, or branch/SHA mentions outside these recognized
- * fields are never sufficient.
- *
- * @param {string} [body]
- * @returns {{
- *   kind: 'legacy',
- *   issueNumber: string,
- *   prNumber: string,
- *   base: string,
- *   head: string,
- * } | null}
- */
-const LEGACY_FIELD_SPACING = '[ \\t]*'
-
-export function parseLegacyReviewVerdictBinding(body = '') {
-  if (hasCanonicalReviewTargetLine(body)) return null
-
-  const taskMatches = [...body.matchAll(
-    new RegExp(`^\\*\\*Task:\\*\\*${LEGACY_FIELD_SPACING}(?:Issue\\s*)?#(\\d+)${LEGACY_FIELD_SPACING}$`, 'gm'),
-  )]
-  const prMatches = [...body.matchAll(
-    new RegExp(`^\\*\\*PR:\\*\\*${LEGACY_FIELD_SPACING}#(\\d+)${LEGACY_FIELD_SPACING}$`, 'gm'),
-  )]
-  const baseMatches = [...body.matchAll(
-    new RegExp(
-      `^\\*\\*Base:\\*\\*${LEGACY_FIELD_SPACING}\`([^\`\\r\\n]+)\`(?:${LEGACY_FIELD_SPACING}\\(\`[0-9a-f]{7,40}\`\\))?${LEGACY_FIELD_SPACING}$`,
-      'gm',
-    ),
-  )]
-  const headMatches = [...body.matchAll(
-    new RegExp(
-      `^\\*\\*Head:\\*\\*${LEGACY_FIELD_SPACING}\`([0-9a-f]{7,40})\`${LEGACY_FIELD_SPACING}$`,
-      'gmi',
-    ),
-  )]
-
-  const counts = [
-    taskMatches.length,
-    prMatches.length,
-    baseMatches.length,
-    headMatches.length,
-  ]
-  const presentCount = counts.filter((count) => count > 0).length
-  if (presentCount === 0) return null
-  if (counts.some((count) => count === 0)) {
-    throw new Error('STATE_CONFLICT: legacy REVIEW_VERDICT binding is missing a required field')
-  }
-  if (counts.some((count) => count > 1)) {
-    throw new Error('STATE_CONFLICT: legacy REVIEW_VERDICT binding fields are duplicated or ambiguous')
-  }
-
-  return {
-    kind: 'legacy',
-    issueNumber: taskMatches[0][1],
-    prNumber: prMatches[0][1],
-    base: normalizeAuthorityBase(baseMatches[0][1]),
-    head: normalizeAuthorityHead(headMatches[0][1]),
-  }
-}
-
-function hasRecognizedLegacyBindingFieldLabels(body = '') {
-  return (
-    /^\*\*Task:\*\*/m.test(body) ||
-    /^\*\*PR:\*\*/m.test(body) ||
-    /^\*\*Base:\*\*/m.test(body) ||
-    /^\*\*Head:\*\*/m.test(body)
-  )
-}
-
-/**
- * Classify Issue-relevant REVIEW_VERDICT binding evidence before PR-lineage
- * filtering. Only a fully validated unique binding may be treated as historical
- * evidence for another PR. Partial, duplicated, conflicting, or malformed
- * recognized evidence fails closed.
- *
- * @param {string} body
- * @param {{ issueNumber: string | number }} options
- * @returns {{
- *   status: 'valid' | 'none' | 'malformed',
- *   binding?: {
- *     kind: 'canonical' | 'legacy',
- *     prNumber: string,
- *     base: string,
- *     head: string,
- *     headSha: string,
- *     verdict: string | null,
- *   },
- *   error?: Error,
- * }}
- */
-function classifyReviewVerdictBindingEvidence(body, { issueNumber }) {
-  if (hasCanonicalReviewTargetLine(body)) {
-    try {
-      return { status: 'valid', binding: resolveReviewVerdictBinding(body, { issueNumber }) }
-    } catch (error) {
-      return {
-        status: 'malformed',
-        error: error instanceof Error
-          ? error
-          : new Error('STATE_CONFLICT: REVIEW_VERDICT canonical binding evidence is malformed'),
-      }
-    }
-  }
-
-  if (!hasRecognizedLegacyBindingFieldLabels(body)) {
-    return { status: 'none' }
-  }
-
-  try {
-    return { status: 'valid', binding: resolveReviewVerdictBinding(body, { issueNumber }) }
-  } catch (error) {
-    return {
-      status: 'malformed',
-      error: error instanceof Error
-        ? error
-        : new Error('STATE_CONFLICT: REVIEW_VERDICT legacy binding evidence is malformed'),
-    }
-  }
-}
-
-/**
- * Resolve REVIEW_VERDICT PR/base/head binding from canonical evidence, or from
- * the narrow legacy field set when the canonical line is entirely absent.
- *
- * @param {string} body
- * @param {{ issueNumber: string | number }} options
- * @returns {{
- *   kind: 'canonical' | 'legacy',
- *   prNumber: string,
- *   base: string,
- *   head: string,
- *   headSha: string,
- *   verdict: string | null,
- * }}
- */
-function resolveReviewVerdictBinding(body, { issueNumber }) {
-  const parsed = parseRoleCommentBody(body)
-  if (hasCanonicalReviewTargetLine(body)) {
-    const target = parseCanonicalReviewTarget(body)
-    if (!parsed.prNumber || !parsed.headSha || !target) {
-      throw new Error('STATE_CONFLICT: live REVIEW_VERDICT is missing canonical PR/base/head evidence')
-    }
-    return {
-      kind: 'canonical',
-      prNumber: String(parsed.prNumber),
-      base: target.base,
-      head: target.head,
-      headSha: parsed.headSha,
-      verdict: parsed.verdict,
-    }
-  }
-
-  const legacy = parseLegacyReviewVerdictBinding(body)
-  if (!legacy) {
-    throw new Error('STATE_CONFLICT: live REVIEW_VERDICT is missing canonical PR/base/head evidence')
-  }
-  if (String(legacy.issueNumber) !== String(issueNumber)) {
-    throw new Error('STATE_CONFLICT: REVIEW_VERDICT Task Issue does not match the managed Issue')
-  }
-  return {
-    kind: 'legacy',
-    prNumber: legacy.prNumber,
-    base: legacy.base,
-    head: normalizeAuthorityHead(legacy.head),
-    headSha: normalizeAuthorityHead(legacy.head),
-    verdict: parsed.verdict,
-  }
-}
-
-function selectLiveReviewVerdictComment({ comments, issueNumber, livePr }) {
-  const active = selectActiveRoleComments(comments, 'REVIEW_VERDICT')
-
-  // Validate every active verdict's recognized Task bindings before Issue
-  // filtering so wrong-first / conflicting / duplicated Task evidence cannot be
-  // excluded as another-Issue history before ambiguity is detected.
-  const issueRelevant = active.filter((comment) => {
-    const taskIssue = resolveIssueScopingTaskNumber(comment.body ?? '')
-    return taskIssue == null || String(taskIssue) === String(issueNumber)
-  })
-
-  // Classify every Issue-relevant verdict before PR-lineage filtering so
-  // incomplete/ambiguous legacy evidence cannot be discarded as different-PR
-  // history. Only a fully validated unique binding may be excluded.
-  const classified = issueRelevant.map((comment) => {
-    const classification = classifyReviewVerdictBindingEvidence(comment.body ?? '', { issueNumber })
-    if (classification.status === 'malformed') {
-      throw classification.error instanceof Error
-        ? classification.error
-        : new Error('STATE_CONFLICT: REVIEW_VERDICT binding evidence is malformed')
-    }
-    return { comment, classification }
-  })
-
-  // Historical transport reviews for a different PR remain visible but must not
-  // compete for the managed active_pr / live PR routing lineage.
-  const relevant = classified.filter(({ classification }) => {
-    if (classification.status !== 'valid') return true
-    return String(classification.binding.prNumber) === String(livePr.number)
-  })
-  if (relevant.length === 0) {
-    throw new Error('BLOCKED_EXTERNAL: no active REVIEW_VERDICT evidence for the managed Issue')
-  }
-  if (relevant.length > 1) {
-    throw new Error('STATE_CONFLICT: competing active REVIEW_VERDICT comments')
-  }
-
-  const { comment, classification } = relevant[0]
-  if (classification.status !== 'valid') {
-    throw new Error('STATE_CONFLICT: live REVIEW_VERDICT is missing canonical PR/base/head evidence')
-  }
-  const binding = classification.binding
-  if (String(binding.prNumber) !== String(livePr.number)) {
-    throw new Error('STATE_CONFLICT: REVIEW_VERDICT PR does not match the live PR')
-  }
-  if (normalizeAuthorityBase(binding.base) !== normalizeAuthorityBase(livePr.baseRefName)) {
-    throw new Error('STATE_CONFLICT: REVIEW_VERDICT base does not match the live PR')
-  }
-  const liveHead = normalizeAuthorityHead(livePr.headRefOid)
-  if (
-    !headsAlign(binding.head, liveHead) ||
-    !headsAlign(binding.headSha, liveHead)
-  ) {
-    throw new Error('STATE_CONFLICT: REVIEW_VERDICT exact head does not match the live PR')
-  }
-  if (binding.verdict !== 'ELIGIBLE FOR FOUNDER REVIEW') {
-    throw new Error('STATE_CONFLICT: eligible managed state requires an eligible REVIEW_VERDICT')
-  }
-  return comment
 }
 
 /**
