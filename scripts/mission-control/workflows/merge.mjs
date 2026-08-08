@@ -8,7 +8,6 @@ import {
   parseCommandInvocation,
 } from '../../cli/command-invocation.mjs'
 
-import { resolveIssueNumber, resolvePrNumber } from '../../agent-issue/issue-references.mjs'
 import { parseMissionControlState, projectMissionControlStateBlock } from '../../mission-control-state.mjs'
 import { writeIssueBodyWithLease } from '../../mission-control-issue-body-cas.mjs'
 import {
@@ -40,6 +39,7 @@ import { validateBlockerResolutionBindings } from '../domain/merge-blocker-bindi
 import { validateBlockerResolutionPostconditions } from '../domain/merge-blocker-postconditions.mjs'
 import { blockerResolutionCampaignPostconditions } from '../domain/merge-blocker-campaign-postconditions.mjs'
 import { renderFinalResultBody } from '../domain/merge-final-result.mjs'
+import { normalizeIssueNumber, normalizePrNumber } from '../domain/merge-issue-references.mjs'
 import { resultCommentId } from '../domain/merge-result-comment-id.mjs'
 import { classifyCampaignOwnershipEvidence } from '../domain/merge-campaign-ownership.mjs'
 import { validateDirectOwnership } from '../domain/merge-direct-ownership.mjs'
@@ -105,14 +105,6 @@ function stateConflict(message) {
 
 function blockedExternal(message) {
   return new Error(`BLOCKED_EXTERNAL: ${message}`)
-}
-
-function normalizeIssueNumber(value) {
-  return resolveIssueNumber(value)
-}
-
-function normalizePrNumber(value) {
-  return resolvePrNumber(value)
 }
 
 async function resolveCampaignMergeRoute({
