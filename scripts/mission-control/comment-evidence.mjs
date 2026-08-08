@@ -5,7 +5,6 @@ import {
 import {
   headsAlign,
   normalizeAuthorityBase,
-  normalizeAuthorityHead,
   parseRoleCommentBody,
   selectActiveRoleComments,
 } from './review-verdict-binding.mjs'

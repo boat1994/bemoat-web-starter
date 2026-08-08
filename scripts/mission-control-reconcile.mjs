@@ -8,11 +8,9 @@ import {
   normalizeTransitionIdentity,
   parseCommentMarker,
   serializeTransitionIdentity,
-  transitionIdentityMatches,
 } from './mission-control/transition-identity.mjs'
 import {
   headsAlign,
-  normalizeAuthorityBase,
   normalizeAuthorityHead,
   parseRoleCommentBody,
   selectActiveRoleComments,
@@ -60,7 +58,6 @@ import {
   parsePaginatedGhApiJson,
   recoverAmbiguousPost,
   resolveProductionCommentTrust,
-  verifyPostedCommentReadback,
 } from './mission-control/comment-evidence.mjs'
 import {
   isBlockerMaterial,
