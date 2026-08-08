@@ -42,6 +42,7 @@ import { renderFinalResultBody } from '../domain/merge-final-result.mjs'
 import { normalizeIssueNumber, normalizePrNumber } from '../domain/merge-issue-references.mjs'
 import { resultCommentId } from '../domain/merge-result-comment-id.mjs'
 import { blockedExternal, stateConflict } from '../domain/merge-errors.mjs'
+import { sameTerminalBinding } from '../domain/merge-terminal-binding.mjs'
 import { classifyCampaignOwnershipEvidence } from '../domain/merge-campaign-ownership.mjs'
 import { validateDirectOwnership } from '../domain/merge-direct-ownership.mjs'
 import { commentSupersedesId } from '../domain/merge-comment-supersession.mjs'
@@ -756,11 +757,6 @@ function stateBlockReplacement(body, state) {
   } catch (error) {
     throw stateConflict(error instanceof Error ? error.message : String(error))
   }
-}
-
-function sameTerminalBinding(left, right) {
-  return ['state', 'active_task_issue', 'active_pr', 'current_head', 'last_reviewed_head']
-    .every((key) => left?.[key] === right?.[key])
 }
 
 function campaignParseFailure(parsed, context) {

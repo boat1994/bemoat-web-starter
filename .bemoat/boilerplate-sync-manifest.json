@@ -153,6 +153,7 @@
     "tests/int/mission-control-merge-verdict-binding-entrypoint.int.spec.ts",
     "tests/int/mission-control-merge-safe-execution-bundle.int.spec.ts",
     "tests/int/mission-control-merge-comment-supersession.int.spec.ts",
+    "tests/int/mission-control-merge-terminal-binding.int.spec.ts",
     "tests/int/mission-control-issue-body-cas.int.spec.ts",
     "tests/int/mission-control-recover-review.int.spec.ts",
     "tests/int/mission-control-reopen.int.spec.ts",
