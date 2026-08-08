@@ -31,7 +31,7 @@ import {
   resolveMergeReviewVerdictBinding,
 } from '../domain/merge-review-verdict.mjs'
 import { normalizePaginatedCommitMessages } from '../domain/merge-commit-messages.mjs'
-import { classifyRequiredExactHeadCi } from '../domain/merge-exact-head-ci.mjs'
+import { classifyHeadBindings } from '../domain/merge-head-bindings.mjs'
 import { classifyMergeability } from '../domain/merge-mergeability.mjs'
 import { classifyNoAutomaticClosure } from '../domain/merge-no-automatic-closure.mjs'
 import { validateNextAction } from '../domain/merge-next-action.mjs'
@@ -69,7 +69,6 @@ export {
 }
 export { normalizePaginatedCommitMessages }
 
-const STARTER_REPOSITORY = 'boat1994/bemoat-web-starter'
 const FULL_SHA_RE = /^[0-9a-f]{40}$/i
 const MERGE_COMPLETION_BUNDLE_KIND = 'merge-completion'
 const MERGE_COMPLETION_AUTHORITY_SCOPE = 'merge'
@@ -267,31 +266,10 @@ export function validateMergeReviewVerdict({ reviewVerdict, expected }) {
   return true
 }
 
-function verifyRequiredExactHeadCi(pr, repo) {
-  const requiredChecks = repo === STARTER_REPOSITORY ? ['ci', 'starter-ci'] : ['ci']
-  const result = classifyRequiredExactHeadCi(pr, requiredChecks)
-  if (!result.valid) throw stateConflict(result.reason)
-}
-
 function verifyHeadBindings(state, pr, authorization, repo) {
-  const reviewedHead = state?.last_reviewed_head
-  if (!state?.approved_base || pr.baseRefName !== state.approved_base) {
-    throw stateConflict('live PR base differs from the managed protected base')
-  }
-  if (!reviewedHead || state.current_head !== reviewedHead || pr.headRefOid !== reviewedHead) {
-    throw stateConflict('current, reviewed, and live PR heads must match exactly')
-  }
-  if (!FULL_SHA_RE.test(String(state?.guide_source_sha)) || authorization.policy_source_sha !== state.guide_source_sha) {
-    throw stateConflict('merged policy source SHA does not match the managed policy evidence')
-  }
-  if (!FULL_SHA_RE.test(String(pr?.baseRefOid)) || authorization.protected_base_sha !== pr.baseRefOid) {
-    throw stateConflict('protected base commit SHA does not match the live PR base evidence')
-  }
-  if (authorization.reviewed_head !== reviewedHead) {
-    throw stateConflict('Founder authorization reviewed head differs from managed/live head')
-  }
-  verifyRequiredExactHeadCi(pr, repo)
-  return reviewedHead
+  const result = classifyHeadBindings(state, pr, authorization, repo)
+  if (!result.valid) throw stateConflict(result.reason)
+  return result.reviewedHead
 }
 
 function verifyMergeability(pr) {
