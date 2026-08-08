@@ -35,6 +35,7 @@ import { classifyHeadBindings } from '../domain/merge-head-bindings.mjs'
 import { classifyMergeability } from '../domain/merge-mergeability.mjs'
 import { classifyNoAutomaticClosure } from '../domain/merge-no-automatic-closure.mjs'
 import { validateNextAction } from '../domain/merge-next-action.mjs'
+import { validateBlockerResolutionBindings } from '../domain/merge-blocker-bindings.mjs'
 import { validateBlockerResolutionPostconditions } from '../domain/merge-blocker-postconditions.mjs'
 import { blockerResolutionCampaignPostconditions } from '../domain/merge-blocker-campaign-postconditions.mjs'
 import { renderFinalResultBody } from '../domain/merge-final-result.mjs'
@@ -161,24 +162,6 @@ function normalizeIssueNumber(value) {
 
 function normalizePrNumber(value) {
   return resolvePrNumber(value)
-}
-
-function validateBlockerResolutionBindings({ authorization, state }) {
-  const campaignIssue = normalizeIssueNumber(authorization.campaign_issue)
-  if (!campaignIssue) {
-    throw stateConflict('blocker-resolution requires an exact campaign Issue binding')
-  }
-  if (state?.campaign_issue != null && normalizeIssueNumber(state.campaign_issue) !== campaignIssue) {
-    throw stateConflict('blocker-resolution campaign Issue binding differs from managed state')
-  }
-  if (state?.campaign_slice != null) {
-    throw stateConflict('blocker-resolution projection prohibits campaign_slice')
-  }
-  const campaignBlockerId = authorization.campaign_blocker_id
-  if (typeof campaignBlockerId !== 'string' || campaignBlockerId.length === 0) {
-    throw stateConflict('blocker-resolution requires an exact campaign blocker binding')
-  }
-  return { campaignIssue, campaignBlockerId }
 }
 
 async function resolveCampaignMergeRoute({
