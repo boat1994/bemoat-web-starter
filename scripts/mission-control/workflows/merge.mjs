@@ -40,6 +40,7 @@ import { validateBlockerResolutionBindings } from '../domain/merge-blocker-bindi
 import { validateBlockerResolutionPostconditions } from '../domain/merge-blocker-postconditions.mjs'
 import { blockerResolutionCampaignPostconditions } from '../domain/merge-blocker-campaign-postconditions.mjs'
 import { renderFinalResultBody } from '../domain/merge-final-result.mjs'
+import { resultCommentId } from '../domain/merge-result-comment-id.mjs'
 import { classifyCampaignOwnershipEvidence } from '../domain/merge-campaign-ownership.mjs'
 import { validateDirectOwnership } from '../domain/merge-direct-ownership.mjs'
 import { commentSupersedesId } from '../domain/merge-comment-supersession.mjs'
@@ -207,10 +208,6 @@ function verifyMergeability(pr) {
 function verifyNoAutomaticClosure(pr, issueNumber, repo) {
   const result = classifyNoAutomaticClosure(pr, issueNumber, repo)
   if (!result.valid) throw stateConflict(result.reason)
-}
-
-function resultCommentId(result) {
-  return result?.id ?? result?.commentId ?? null
 }
 
 async function completeTerminalCampaignProjection({

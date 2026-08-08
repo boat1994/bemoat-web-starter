@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { mergeCommitOid } from '../../scripts/mission-control/domain/merge-commit-oid.mjs'
 import { normalizePaginatedCommitMessages } from '../../scripts/mission-control/domain/merge-commit-messages.mjs'
 import { renderFinalResultBody } from '../../scripts/mission-control/domain/merge-final-result.mjs'
+import { resultCommentId } from '../../scripts/mission-control/domain/merge-result-comment-id.mjs'
 import {
   normalizeIssueReason,
   normalizeIssueState,
@@ -57,6 +58,13 @@ describe('merge domain normalization', () => {
     expect(normalizeIssueReason({ state_reason: 'reopened' })).toBe('REOPENED')
     expect(normalizeIssueReason({})).toBe('')
     expect(normalizeIssueReason(null)).toBe('')
+  })
+
+  it('resolves the first available final RESULT comment identifier', () => {
+    expect(resultCommentId({ id: 123, commentId: 456 })).toBe(123)
+    expect(resultCommentId({ commentId: 456 })).toBe(456)
+    expect(resultCommentId({})).toBeNull()
+    expect(resultCommentId(null)).toBeNull()
   })
 
   it('renders campaign slice and blocker-resolution final RESULT bodies', () => {
