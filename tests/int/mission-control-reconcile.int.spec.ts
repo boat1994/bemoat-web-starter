@@ -42,6 +42,9 @@ const {
   reconciliationFailureReason,
   runBoundedReconciliation,
   resolveProductionCommentTrust,
+  sameValue,
+  deriveTransitionFacts,
+  assertRoutingOnlyProjection,
 } = reconcileModule as unknown as Record<string, (...args: any[]) => any>
 
 const CoordinatorClass = reconcileModule.Coordinator as unknown as new (transports: Record<string, unknown>) => {
@@ -1298,6 +1301,23 @@ Bounded implementation work.
     expect(classifyTransition(0)).toBe('BLOCKED_EXTERNAL')
     expect(classifyTransition(1)).toBe('RESUME_PROJECTION')
     expect(classifyTransition(2)).toBe('STATE_CONFLICT')
+  })
+
+  it('keeps transition guard helpers available through the reconcile facade', () => {
+    expect(sameValue({ b: 2, a: 1 }, { a: 1, b: 2 })).toBe(true)
+    expect(deriveTransitionFacts({
+      role: 'RESULT',
+      roleBody: resultBody,
+      prior: { state: 'IN_PROGRESS' },
+      projected: { state: 'AWAITING_REVIEW_1' },
+    })).toMatchObject({
+      changesAuthoritativeState: true,
+      producesEvidence: true,
+    })
+    expect(() => assertRoutingOnlyProjection({
+      prior: { state: 'READY' },
+      projected: { state: 'IN_PROGRESS' },
+    })).toThrow('STATE_CONFLICT')
   })
 
   it('coordinator injects transports', async () => {
