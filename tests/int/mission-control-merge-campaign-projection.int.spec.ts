@@ -5,6 +5,7 @@ import {
   resolveCampaignProjectionKind,
 } from '../../scripts/mission-control/domain/merge-campaign-projection.mjs'
 import { classifyCampaignOwnershipEvidence } from '../../scripts/mission-control/domain/merge-campaign-ownership.mjs'
+import { campaignParseFailure } from '../../scripts/mission-control/domain/merge-campaign-errors.mjs'
 
 describe('resolveCampaignProjectionKind', () => {
   it.each([
@@ -110,5 +111,25 @@ describe('classifyCampaignOwnershipEvidence', () => {
       ownership: blockerOwnership,
       reason: null,
     })
+  })
+})
+
+describe('campaignParseFailure', () => {
+  it('preserves blocked-external campaign parse failures', () => {
+    expect(() => campaignParseFailure({
+      classification: 'BLOCKED_EXTERNAL',
+      reason: 'campaign evidence is unavailable',
+    }, 'campaign evidence')).toThrow(
+      'BLOCKED_EXTERNAL: campaign evidence: campaign evidence is unavailable',
+    )
+  })
+
+  it('classifies other campaign parse failures as state conflicts', () => {
+    expect(() => campaignParseFailure({
+      classification: 'STATE_CONFLICT',
+      reason: 'invalid campaign projection',
+    }, 'campaign Issue #215')).toThrow(
+      'STATE_CONFLICT: campaign Issue #215: invalid campaign projection',
+    )
   })
 })

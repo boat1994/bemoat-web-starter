@@ -42,6 +42,7 @@ import { renderFinalResultBody } from '../domain/merge-final-result.mjs'
 import { normalizeIssueNumber, normalizePrNumber } from '../domain/merge-issue-references.mjs'
 import { resultCommentId } from '../domain/merge-result-comment-id.mjs'
 import { blockedExternal, stateConflict } from '../domain/merge-errors.mjs'
+import { campaignParseFailure } from '../domain/merge-campaign-errors.mjs'
 import { sameTerminalBinding } from '../domain/merge-terminal-binding.mjs'
 import { stateBlockReplacement } from '../domain/merge-state-block-replacement.mjs'
 import { classifyCampaignOwnershipEvidence } from '../domain/merge-campaign-ownership.mjs'
@@ -750,12 +751,6 @@ function parseArgs(argv) {
     throw new Error('Usage: pnpm run bemoat:mission-control:merge -- <issue-number> --repo owner/repo --authorization-comment <id>')
   }
   return options
-}
-
-function campaignParseFailure(parsed, context) {
-  const message = `${context}: ${parsed.reason ?? 'invalid campaign projection'}`
-  if (parsed.classification === 'BLOCKED_EXTERNAL') throw blockedExternal(message)
-  throw stateConflict(message)
 }
 
 function createProductionDeps() {
