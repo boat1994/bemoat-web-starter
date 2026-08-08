@@ -1872,3 +1872,69 @@ describe('Phase 1 Finding C: rejection before mutation', () => {
     expect(mutationOperations(harness.operations)).toEqual([])
   })
 })
+
+function runMergeCli(args: string[]) {
+  const result = spawnSync('node', ['scripts/mission-control-merge.mjs', ...args], { encoding: 'utf8' })
+  return {
+    status: result.status,
+    stdout: result.stdout,
+    stderr: result.stderr,
+  }
+}
+
+describe('bemoat:mission-control:merge CLI discovery', () => {
+  const discoveryForms = [
+    ['--help'],
+    ['-h'],
+    ['--help', '--json'],
+    ['--json', '--help'],
+    ['-h', '--json'],
+    ['--json', '-h'],
+  ]
+
+  for (const args of discoveryForms) {
+    it(`supports discovery form: ${args.join(' ')}`, () => {
+      const result = runMergeCli(args)
+      expect(result.status).toBe(0)
+      if (args.includes('--json')) {
+        expect(result.stdout.trim().startsWith('{')).toBe(true)
+        const parsed = JSON.parse(result.stdout)
+        expect(parsed.command).toBe('bemoat:mission-control:merge')
+      } else {
+        expect(result.stdout).toContain('bemoat:mission-control:merge')
+        expect(result.stdout).toContain('Execute an existing Founder-authorized merge completion bundle')
+      }
+      expect(result.stderr).toBe('')
+    })
+  }
+
+  it('--help and -h are semantically equivalent', () => {
+    const help1 = runMergeCli(['--help'])
+    const help2 = runMergeCli(['-h'])
+    expect(help1.stdout).toBe(help2.stdout)
+  })
+
+  it('all JSON help permutations normalize to the same payload', () => {
+    const payloads = [
+      ['--help', '--json'],
+      ['--json', '--help'],
+      ['-h', '--json'],
+      ['--json', '-h'],
+    ].map((args) => JSON.parse(runMergeCli(args).stdout))
+
+    for (let i = 1; i < payloads.length; i++) {
+      expect(payloads[i]).toEqual(payloads[0])
+    }
+  })
+
+  it('missing normal merge arguments do not matter in help mode', () => {
+    const result = runMergeCli(['--help'])
+    expect(result.status).toBe(0)
+  })
+
+  it('invalid non-help invocation behavior remains unchanged', () => {
+    const result = runMergeCli([])
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain('Usage: pnpm run bemoat:mission-control:merge -- <issue-number> --repo owner/repo --authorization-comment <id>')
+  })
+})

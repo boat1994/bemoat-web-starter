@@ -2,6 +2,12 @@
 import { createHash } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
 
+import { createHelpEnvelopeV1, formatTextHelp } from './cli/command-help.mjs'
+import {
+  CliInvocationError,
+  parseCommandInvocation,
+} from './cli/command-invocation.mjs'
+
 import { analyzeExactHeadCi, normalizeStatusChecks, isCheckSuccessful } from './agent-issue/exact-head-ci.mjs'
 import { resolveIssueNumber, resolvePrNumber } from './agent-issue/issue-references.mjs'
 import { parseMissionControlState, projectMissionControlStateBlock } from './mission-control-state.mjs'
@@ -2027,10 +2033,26 @@ function createProductionDeps() {
 
 async function main() {
   try {
-    const options = parseArgs(process.argv.slice(2))
+    const argv = process.argv.slice(2)
+    if (argv.includes('--help') || argv.includes('-h')) {
+      const invocation = parseCommandInvocation('bemoat:mission-control:merge', argv)
+      if (invocation.format === 'json') {
+        process.stdout.write(`${JSON.stringify(createHelpEnvelopeV1(invocation.contract))}\n`)
+      } else {
+        process.stdout.write(formatTextHelp(invocation.contract))
+      }
+      return
+    }
+
+    const options = parseArgs(argv)
     const result = await runFounderAuthorizedMerge({ ...options, deps: createProductionDeps() })
     process.stdout.write(`Mission Control merge transport ${result.outcome}: PR #${result.prNumber} at ${result.reviewedHead} -> ${result.mergeCommit}; Issue #${result.issueNumber} DONE.\n`)
   } catch (error) {
+    if (error instanceof CliInvocationError) {
+      process.stderr.write(`ERROR: [${error.classification}] ${error.message}\n`)
+      process.exitCode = 1
+      return
+    }
     process.stderr.write(`ERROR: ${error instanceof Error ? error.message : String(error)}\n`)
     process.exitCode = 1
   }
