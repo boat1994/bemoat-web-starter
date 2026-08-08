@@ -1,3 +1,5 @@
+import { resolvePrNumber } from '../../agent-issue/issue-references.mjs'
+
 const FULL_SHA_RE = /^[0-9a-f]{40}$/i
 
 function stateConflict(message) {
@@ -67,6 +69,23 @@ export function parseProductionMergeReviewVerdict(body, commentId) {
     base: binding.base,
     reviewed_head: binding.reviewed_head,
     non_superseded: binding.non_superseded,
+  }
+}
+
+export function classifyMergeReviewVerdict({ reviewVerdict, expected }) {
+  const valid =
+    reviewVerdict && typeof reviewVerdict === 'object' && !Array.isArray(reviewVerdict) &&
+    reviewVerdict.verdict === 'ELIGIBLE FOR FOUNDER REVIEW' &&
+    String(reviewVerdict.comment_id) === String(expected.commentId) &&
+    reviewVerdict.reviewed_head === expected.exactHead &&
+    resolvePrNumber(reviewVerdict.pr) === resolvePrNumber(expected.pr) &&
+    reviewVerdict.base === expected.base &&
+    reviewVerdict.non_superseded === true
+  return {
+    valid,
+    reason: valid
+      ? null
+      : 'latest review verdict is changed, superseded, or does not bind the exact PR, base, and reviewed head',
   }
 }
 

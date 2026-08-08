@@ -27,6 +27,7 @@ import {
   isReviewRecoveryIncident,
 } from '../domain/review-recovery.mjs'
 import {
+  classifyMergeReviewVerdict,
   parseProductionMergeReviewVerdict,
   resolveMergeReviewVerdictBinding,
 } from '../domain/merge-review-verdict.mjs'
@@ -237,15 +238,8 @@ async function resolveCampaignMergeRoute({
 }
 
 export function validateMergeReviewVerdict({ reviewVerdict, expected }) {
-  const valid =
-    reviewVerdict && typeof reviewVerdict === 'object' && !Array.isArray(reviewVerdict) &&
-    reviewVerdict.verdict === 'ELIGIBLE FOR FOUNDER REVIEW' &&
-    String(reviewVerdict.comment_id) === String(expected.commentId) &&
-    reviewVerdict.reviewed_head === expected.exactHead &&
-    normalizePrNumber(reviewVerdict.pr) === expected.pr &&
-    reviewVerdict.base === expected.base &&
-    reviewVerdict.non_superseded === true
-  if (!valid) throw stateConflict('latest review verdict is changed, superseded, or does not bind the exact PR, base, and reviewed head')
+  const classification = classifyMergeReviewVerdict({ reviewVerdict, expected })
+  if (!classification.valid) throw stateConflict(classification.reason)
   return true
 }
 
