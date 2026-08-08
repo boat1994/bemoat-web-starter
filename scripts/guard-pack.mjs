@@ -52,6 +52,7 @@ import {
   scanToolchainContract,
 } from './guard-toolchain-contract.mjs'
 import { formatViolations, runRepoSafetyGuard } from './guard-repo-safety.mjs'
+import { formatStructuralProtectionViolations, runStructuralProtectionGuard } from './guards/structural-protection.mjs'
 
 /** Ordered central guard pack — each entry is a reusable, deterministic check. */
 export const GUARD_PACK = [
@@ -120,6 +121,12 @@ export const GUARD_PACK = [
     summary: 'Mission Control contract drift (e.g. strict review budget limits)',
     run: runMissionControlDriftGuard,
     format: formatMissionControlDriftViolations,
+  },
+  {
+    id: 'structural-protection',
+    summary: 'Production script no-growth limits and protected test oracle fingerprints',
+    run: (options) => runStructuralProtectionGuard(options?.root || process.cwd()),
+    format: formatStructuralProtectionViolations,
   },
   {
     id: 'scripts-architecture',

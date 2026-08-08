@@ -14,7 +14,7 @@ The harness is everything child projects need to run the same safety rails, work
 | Mission Control policy | `docs/mission-control/*`, `prompts/mission-control/chatgpt-project-loader.md`, `scripts/guard-mission-control-contract.mjs` |
 | Superpowers skill entry | Native `superpowers:using-superpowers` or portable fallback `.agents/skills/using-superpowers.md` (not `docs/superpowers/*`) |
 | GitHub workflow and templates | `.github/workflows/ci.yml` (child-safe `bemoat:*` only), PR template, issue templates |
-| Safety guards | `scripts/guard-pack.mjs` (orchestrator), `scripts/guard-repo-safety.mjs`, `scripts/guard-harness-contract.mjs`, `scripts/guard-mission-control-contract.mjs`, `scripts/guard-package-manager.mjs`, `scripts/guard-env-placeholder.mjs`, `scripts/guard-cloudflare-env.mjs`, `scripts/guard-frontend-seo.mjs` — see [guard-pack.md](./guard-pack.md) |
+| Safety guards | `scripts/guard-pack.mjs` (orchestrator), `scripts/guard-repo-safety.mjs`, `scripts/guard-harness-contract.mjs`, `scripts/guard-mission-control-contract.mjs`, `scripts/guard-package-manager.mjs`, `scripts/guard-env-placeholder.mjs`, `scripts/guard-cloudflare-env.mjs`, `scripts/guard-frontend-seo.mjs`, `scripts/guards/structural-protection.mjs`, and `scripts/structural-protection-manifest.json` — see [guard-pack.md](./guard-pack.md) |
 | Cloudflare deploy guards | Recommended `deploy` / `preview` scripts that call `guard:cloudflare-env` |
 | Sync and drift | `scripts/sync-boilerplate.mjs`, `scripts/check-boilerplate-drift.mjs` |
 | Local git hooks | `.githooks`, `scripts/check-branch-safety.sh`, `scripts/install-git-hooks.mjs`, `hooks:install` |
@@ -252,6 +252,7 @@ Current shared tests (listed in `managedPaths` in `scripts/sync-boilerplate.mjs`
 - `tests/int/cloudflare-env-guard.int.spec.ts`
 - `tests/int/post-role-comment.int.spec.ts`
 - `tests/int/guard-pack.int.spec.ts`
+- `tests/int/structural-protection.int.spec.ts`
 - `tests/int/harness-contract-guard.int.spec.ts`
 - `tests/int/mission-control-contract.int.spec.ts`
 - `tests/int/open-next-config.int.spec.ts`
