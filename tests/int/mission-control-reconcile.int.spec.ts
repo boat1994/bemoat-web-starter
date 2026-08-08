@@ -1228,6 +1228,15 @@ describe('mission-control reconcile classifiers', () => {
   it('scenario 6: head drift during merge transition blocks the operation', () => {
     expect(classifyMergeDrift('authorizedhead', 'livehead')).toMatchObject({ drift: true })
     expect(classifyMergeDrift('samehead', 'samehead')).toMatchObject({ drift: false })
+    expect(classifyMergeDrift(' ABCDEF ', 'abcdef')).toEqual({ drift: false, reason: null })
+    expect(classifyMergeDrift(null, 'livehead')).toEqual({
+      drift: true,
+      reason: 'missing authorized or live head for merge transition',
+    })
+    expect(classifyMergeDrift('authorizedhead', '')).toEqual({
+      drift: true,
+      reason: 'missing authorized or live head for merge transition',
+    })
   })
 
   it('scenario 7: delivery reconciliation never increments review counters', () => {

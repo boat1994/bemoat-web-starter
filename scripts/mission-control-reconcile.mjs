@@ -10,7 +10,6 @@ import {
   serializeTransitionIdentity,
 } from './mission-control/transition-identity.mjs'
 import {
-  normalizeAuthorityHead,
   parseRoleCommentBody,
   selectActiveRoleComments,
   selectLiveReviewVerdictComment,
@@ -935,15 +934,7 @@ export function findLatestRoleComment(comments = [], role) {
   return matches[0]
 }
 
-export function classifyMergeDrift(authorizedHead, liveHead) {
-  if (!authorizedHead || !liveHead) {
-    return { drift: true, reason: 'missing authorized or live head for merge transition' }
-  }
-  if (normalizeAuthorityHead(authorizedHead) !== normalizeAuthorityHead(liveHead)) {
-    return { drift: true, reason: 'authorized merge head does not match live PR head' }
-  }
-  return { drift: false, reason: null }
-}
+export { classifyMergeDrift } from './mission-control/merge-drift-classification.mjs'
 
 /**
  * Build the complete reviewer-owned durable projection.  The executable
