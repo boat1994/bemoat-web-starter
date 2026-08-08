@@ -5,7 +5,6 @@ import { parseCommandInvocation, resolveCommandIdentity } from './cli/command-in
 import { writeIssueBodyWithLease } from './mission-control-issue-body-cas.mjs'
 import { parseMissionControlState, projectMissionControlStateBlock } from './mission-control-state.mjs'
 import {
-  parseCommentMarker,
   serializeTransitionIdentity,
 } from './mission-control/transition-identity.mjs'
 import {
@@ -46,7 +45,6 @@ import {
   isReviewRecoveryIncident,
 } from './mission-control/domain/review-recovery.mjs'
 import {
-  findMatchingComments,
   normalizeIssueComments,
   parsePaginatedGhApiJson,
   resolveProductionCommentTrust,
@@ -57,7 +55,6 @@ import {
 } from './mission-control/transition-authorization.mjs'
 import {
   coordinatorOwnedRoutingProjection,
-  routingDriftClassification,
 } from './mission-control/coordinator-projection.mjs'
 import {
   assertDeltaReviewHeadProjection,
@@ -69,10 +66,8 @@ import {
   resolveEvidenceHead,
   sameValue,
 } from './mission-control/transition-guards.mjs'
-import {
-  verifyStatePostcondition,
-} from './mission-control/state-verification.mjs'
 import { reconcileReviewVerdict as reconcileReviewVerdictTransition } from './mission-control/review-verdict-transition.mjs'
+import { integrateReviewVerdict as integrateReviewVerdictTransition } from './mission-control/review-verdict-integration-transition.mjs'
 import {
   assertCompatibleSnapshot as assertCompatibleSnapshotTransition,
   integrateHandoff as integrateHandoffTransition,
@@ -257,142 +252,9 @@ export class Coordinator {
 
   /** Comment-first reviewer completion with a verified durable projection. */
   async integrateReviewVerdict({ verdictBody, projectState, verifyPreconditions, updatedAt, updatedBy, policy: rawPolicy = {} }) {
-    if (parseCommentMarker(verdictBody) !== 'REVIEW_VERDICT') {
-      throw new Error('integrateReviewVerdict requires a REVIEW_VERDICT role comment')
-    }
-    if (typeof verifyPreconditions === 'function') await verifyPreconditions()
-    const original = await this.readState()
-    const preflightPolicy = this.authorizeTransition({
-      role: 'REVIEW_VERDICT',
-      roleBody: verdictBody,
-      prior: original,
-      policy: rawPolicy,
+    return integrateReviewVerdictTransition(this, {
+      verdictBody, projectState, verifyPreconditions, updatedAt, updatedBy, policy: rawPolicy,
     })
-
-    const { identity: requestedIdentity, options: matchOptions } = this._matchOptions(verdictBody, 'REVIEW_VERDICT')
-    const existingComments = await this.listComments()
-    const existingMatches = findMatchingComments(existingComments, requestedIdentity, matchOptions)
-    const replayCandidate = existingMatches.length === 1 &&
-      original?.latest_transition_identity === serializeTransitionIdentity(requestedIdentity) &&
-      String(original?.latest_review_verdict_comment_id ?? '') === String(existingMatches[0].id)
-
-    const projectForComment = (candidateComment) => {
-      const callerProjection = typeof projectState === 'function'
-        ? projectState(original, candidateComment, requestedIdentity)
-        : projectState
-      return this._coordinatorOwnedRouting({
-        identity: requestedIdentity,
-        comment: candidateComment,
-        role: 'REVIEW_VERDICT',
-        base: callerProjection,
-        prior: original,
-        updatedAt,
-        updatedBy: updatedBy ?? 'Reviewer',
-      })
-    }
-
-    if (!replayCandidate) {
-      const prospectiveComment = { id: '__prospective_review_verdict__', body: verdictBody }
-      const prospectiveProjected = projectForComment(prospectiveComment)
-      const prospectivePolicy = this.authorizeTransition({
-        role: 'REVIEW_VERDICT',
-        roleBody: verdictBody,
-        comment: prospectiveComment,
-        prior: original,
-        projected: prospectiveProjected,
-        policy: rawPolicy,
-      })
-      if (prospectivePolicy.preserveSemanticEvidence) {
-        assertRoutingOnlyProjection({
-          prior: original,
-          projected: prospectiveProjected,
-          reason: 'metadata-only REVIEW_VERDICT projection',
-        })
-      }
-    }
-
-    const { identity, comment, created, recovered } = await this._resolveComment(verdictBody, 'REVIEW_VERDICT')
-    const serializedIdentity = serializeTransitionIdentity(identity)
-    if (
-      original?.latest_transition_identity === serializedIdentity &&
-      String(original?.latest_review_verdict_comment_id ?? '') === String(comment.id)
-    ) {
-      return { outcome: 'REVIEWED', state: original, comment, identity, created: false, replayed: true, policy: preflightPolicy }
-    }
-    const projected = projectForComment(comment)
-    const policy = this.authorizeTransition({
-      role: 'REVIEW_VERDICT',
-      roleBody: verdictBody,
-      comment,
-      prior: original,
-      projected,
-      policy: rawPolicy,
-    })
-    if (policy.preserveSemanticEvidence) {
-      assertRoutingOnlyProjection({
-        prior: original,
-        projected,
-        reason: 'metadata-only REVIEW_VERDICT projection',
-      })
-    }
-    try {
-      const written = await this.writeState(projected, original)
-      verifyStatePostcondition(projected, written, [
-        'state', 'review_cycle', 'full_review_count', 'current_head', 'last_reviewed_head',
-        'latest_transition_identity', 'latest_review_verdict_comment_id', 'open_blockers',
-      ])
-      return {
-        outcome: 'REVIEWED',
-        classification: routingDriftClassification({ prior: original, identity, comment, role: 'REVIEW_VERDICT' }),
-        state: written,
-        comment,
-        identity,
-        created,
-        recovered: Boolean(recovered),
-        policy,
-      }
-    } catch (error) {
-      if (!created) throw error
-      let live
-      try {
-        live = await this.readState()
-      } catch (readError) {
-        const ambiguous = new Error(
-          `AMBIGUOUS_RESULT: unable to verify Issue state after REVIEW_VERDICT comment and state write: ${
-            readError instanceof Error ? readError.message : String(readError)
-          }`,
-          { cause: error },
-        )
-        ambiguous.classification = 'AMBIGUOUS_RESULT'
-        ambiguous.mutationPerformed = true
-        if (typeof error?.legacyClassification === 'string') {
-          ambiguous.legacyClassification = error.legacyClassification
-        }
-        throw ambiguous
-      }
-      if (sameValue(live, projected)) return {
-        outcome: 'REVIEWED',
-        classification: routingDriftClassification({ prior: original, identity, comment, role: 'REVIEW_VERDICT' }),
-        state: live,
-        comment,
-        identity,
-        created,
-        recovered: Boolean(recovered),
-      }
-      if (sameValue(live, original)) {
-        return {
-          outcome: 'RECOVERABLE_ROUTING_DRIFT',
-          classification: 'REPAIRABLE_DRIFT',
-          state: original,
-          comment,
-          identity,
-          created,
-          recovered: Boolean(recovered),
-          error: String(error),
-        }
-      }
-      throw new Error(`STATE_CONFLICT: incompatible concurrent authority after verdict post: ${error instanceof Error ? error.message : String(error)}`, { cause: error })
-    }
   }
 
   /**
