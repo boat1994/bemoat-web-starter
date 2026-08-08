@@ -77,6 +77,7 @@ export const managedPaths = [
   'tests/int/cli-tier-b-boundaries.int.spec.ts',
   'tests/int/cli-tier-a-boundaries.int.spec.ts',
   'tests/int/mission-control-reconcile.int.spec.ts',
+  'tests/int/mission-control-bounded-reconciliation-entrypoint.int.spec.ts',
   'tests/int/mission-control-review-verdict-reconciliation-entrypoint.int.spec.ts',
   'tests/int/command-runner.int.spec.ts',
   'tests/int/scripts-architecture.int.spec.ts', 'tests/int/campaign-schema.int.spec.ts',

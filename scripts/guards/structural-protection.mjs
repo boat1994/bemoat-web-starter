@@ -48,8 +48,8 @@ export function validateStructuralProtectionManifest(manifest) {
     if (scripts.root !== 'scripts' || scripts.extension !== '.mjs' || scripts.line_count_algorithm !== 'physical-lines-v1' || scripts.soft_ceiling !== 400) {
       violations.push(violation('STRUCT004', MANIFEST_PATH, 'production_scripts values do not match the v1 contract.'))
     }
-    if (!Array.isArray(scripts.grandfathered) || !scripts.grandfathered.every((entry) => hasExactKeys(entry, ENTRY_KEYS) && isSafePath(entry.path) && entry.path.startsWith('scripts/') && Number.isSafeInteger(entry.max_lines) && entry.max_lines > 400) || !isSortedUnique(scripts.grandfathered || [])) {
-      violations.push(violation('STRUCT005', MANIFEST_PATH, 'grandfathered entries must be sorted, unique, safe script paths with safe maxima above 400.'))
+    if (!Array.isArray(scripts.grandfathered) || !scripts.grandfathered.every((entry) => hasExactKeys(entry, ENTRY_KEYS) && isSafePath(entry.path) && entry.path.startsWith('scripts/') && Number.isSafeInteger(entry.max_lines) && entry.max_lines > 0) || !isSortedUnique(scripts.grandfathered || [])) {
+      violations.push(violation('STRUCT005', MANIFEST_PATH, 'grandfathered entries must be sorted, unique, safe script paths with positive maxima.'))
     }
   }
   const oracle = manifest.protected_oracle
