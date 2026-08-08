@@ -25,9 +25,13 @@ import {
   proposeReviewReconciliation,
 } from './mission-control/reconciliation-proposals.mjs'
 import {
-  classifyReconciliation,
-  proposedRepair,
-} from './mission-control/reconciliation-classification.mjs'
+  reconciliationFailureReason,
+  runBoundedReconciliation,
+} from './mission-control/bounded-reconciliation.mjs'
+export {
+  reconciliationFailureReason,
+  runBoundedReconciliation,
+} from './mission-control/bounded-reconciliation.mjs'
 export {
   classifyReconciliation,
   migrateLegacyManagedState,
@@ -78,12 +82,6 @@ const CORE_VERDICTS = new Set([
   'BLOCKED FOR FOUNDER DECISION',
   'BLOCKED EXTERNAL',
   'STATE CONFLICT',
-])
-
-const REPAIR_OUTCOMES = new Set([
-  'DETERMINISTIC_MIGRATION',
-  'BOOKKEEPING_REPAIR',
-  'TERMINAL_REPAIR',
 ])
 
 function sameValue(left, right) {
@@ -173,63 +171,6 @@ function assertDeltaReviewHeadProjection({ role, prior = {}, projected = {}, rev
   const projectedHead = normalizeAuthorityHead(projected.last_reviewed_head ?? projected.current_head)
   if (!projectedHead || !headsAlign(projectedHead, liveHead) || headsAlign(projectedHead, priorHead)) {
     throw new Error('STATE_CONFLICT: changed-head delta review must replace prior semantic review evidence')
-  }
-}
-
-/**
- * Run at most one deterministic repair and one live verification. A second
- * repair is never attempted in the same run.
- */
-export async function runBoundedReconciliation({ readEvidence, writeState }) {
-  const measurements = {
-    coordination_runs: 1,
-    state_writes: 0,
-    role_comments: 0,
-    model_required_stages: 0,
-    reconciliation_attempts: 0,
-    false_state_conflicts: 0,
-  }
-
-  const initialEvidence = await readEvidence()
-  measurements.reconciliation_attempts += 1
-  const initial = classifyReconciliation(initialEvidence)
-  if (!REPAIR_OUTCOMES.has(initial.outcome)) {
-    return {
-      ...initial,
-      finalOutcome: initial.outcome,
-      finalReason: initial.reason,
-      measurements,
-    }
-  }
-
-  let proposed
-  try {
-    proposed = proposedRepair(initialEvidence, initial)
-  } catch (error) {
-    return {
-      ...initial,
-      finalOutcome: 'STATE_CONFLICT',
-      finalReason: error instanceof Error ? error.message : String(error),
-      measurements,
-    }
-  }
-  const written = await writeState(proposed, initialEvidence.managedState)
-  if (!sameValue(written, proposed)) {
-    throw new Error('durable reconciliation write was not confirmed')
-  }
-  measurements.state_writes += 1
-
-  const verifiedEvidence = await readEvidence()
-  measurements.reconciliation_attempts += 1
-  const verified = classifyReconciliation(verifiedEvidence)
-  const verificationStillRequestsRepair = REPAIR_OUTCOMES.has(verified.outcome)
-  return {
-    ...initial,
-    finalOutcome: verificationStillRequestsRepair ? 'STATE_CONFLICT' : verified.outcome,
-    finalReason: verificationStillRequestsRepair
-      ? 'bounded repair was not confirmed by the single verification'
-      : verified.reason,
-    measurements,
   }
 }
 
@@ -1455,10 +1396,6 @@ async function runProductionBoundedReconciliation() {
     throw new Error(reconciliationFailureReason(result))
   }
   process.stdout.write(`Mission Control reconciliation ${result.finalOutcome}: ${result.measurements.reconciliation_attempts} attempt(s), ${result.measurements.state_writes} durable write(s)\n`)
-}
-
-export function reconciliationFailureReason(result = {}) {
-  return result.finalReason ?? result.reason ?? 'Mission Control reconciliation failed without a diagnostic'
 }
 
 if (process.argv[1]?.endsWith('/mission-control-reconcile.mjs')) {
