@@ -1,4 +1,5 @@
 import { CANONICAL_TRANSPORTS } from '../mission-control/transport-registry.mjs'
+import { CORRECTION_EVIDENCE_CONTRACT } from '../correction-contract.mjs'
 
 export const COMMAND_CONTRACT_SCHEMA_VERSION = 1
 
@@ -23,10 +24,12 @@ const ALL_MUTATING_COMMANDS = [
   'bemoat:boilerplate:sync',
   'bemoat:hooks:install',
   'bemoat:issue:comment',
+  'bemoat:mission-control:adopt-finding',
   'bemoat:mission-control:dispatch',
   'bemoat:mission-control:merge',
   'bemoat:mission-control:reconcile',
   'bemoat:mission-control:recover-review',
+  'bemoat:mission-control:recover-state',
   'bemoat:mission-control:reopen',
   'bemoat:mission-control:review',
   'bemoat:mission-control:task-bootstrap',
@@ -135,6 +138,7 @@ function contract({
     classification: null,
     condition: 'No durable retry distinction is defined for this command.',
   },
+  role_contracts = {},
   next_action_rules = [
     {
       classification: 'SUCCESS',
@@ -186,6 +190,7 @@ function contract({
     stop_classifications,
     stop_conditions,
     retry_contract,
+    role_contracts,
     next_action_rules,
     examples,
     exceptional: fields.exceptional,
@@ -241,6 +246,7 @@ function contract({
  * @property {string[]} stop_classifications
  * @property {string[]} stop_conditions
  * @property {{identical_retry: 'allowed'|'forbidden'|'conditional', classification: string|null, condition: string}} retry_contract
+ * @property {Record<string, any>} role_contracts
  * @property {{classification: string, next_action: NextAction}[]} next_action_rules
  * @property {{description: string, argv: string[]}[]} examples
  * @property {boolean} exceptional
@@ -621,16 +627,121 @@ const commands = {
     ],
     required_evidence: ['Canonical role/comment body validation.', 'Issue and correction evidence when the role requires it.'],
     reads: ['body file or stdin', 'Issue comments and correction evidence'],
-    writes: ['Issue role comment unless --check is supplied'],
+    writes: ['Issue role comment unless --check is supplied or an identical authoritative retry is proven'],
+    success_classifications: ['SUCCESS', 'NO_OP_IDENTICAL_RETRY'],
     retry_contract: {
       identical_retry: 'conditional',
       classification: 'NO_OP_IDENTICAL_RETRY',
       condition: 'A retry is identical only when the same validated role comment is already the live authoritative comment.',
     },
+    role_contracts: {
+      HANDOFF: {
+        required_heading: '## HANDOFF',
+        required_bindings: [
+          'issue_number',
+          'bounded_objective',
+          'permitted_scope',
+          'prohibited_scope',
+          'approved_branch_or_target_when_applicable',
+          'authority_identity_when_required',
+          'exact_base_or_head_when_required',
+          'one_next_permitted_action',
+          'stop_conditions'
+        ],
+        compatibility_shapes: [
+          ['### Task log', 'Timestamp:', 'Task / Issue:', 'Phase:', 'Executing role:', '**Target:**', '**Objective:**', '**Links:**', '**Next:**']
+        ],
+        required_sections: [],
+        allowed_verdicts: []
+      },
+      RESULT: {
+        required_heading: '## RESULT',
+        required_bindings: [
+          'issue_number',
+          'executing_role',
+          'branch',
+          'exact_head_when_code',
+          'pr_binding_when_applicable',
+          'predecessor_evidence_when_correction'
+        ],
+        compatibility_shapes: [
+          ['### Task log', 'Timestamp:', 'Task / Issue:', 'Phase:', 'Executing role:', '**Completed:**', '**Summary:**', '**Next:**'],
+          ['### Task log', 'Timestamp:', 'Task / Issue:', 'Phase:', 'Executing role:', '**Role / phase completed:**', '### Summary', '### Files or artifacts changed', '### Commands run', '### Next handoff'],
+          ['**Profile:**', '**Task:**', '**PR:**', '**Completed:**', '**Evidence:**', '**AC audit:**', '**Risks / escalation:**', '**Next:**'],
+          ['### Task log', 'Task / Issue:', 'Executing role:', 'Branch:', 'Head:', 'PR:', '### Summary', '### Evidence', 'Commands:', 'Tests:', 'CI:', '### Acceptance criteria', '### Risks / blockers', '### Next permitted action']
+        ],
+        required_sections: [
+          'Task log',
+          'Summary',
+          'Evidence',
+          'Acceptance criteria',
+          'Risks / blockers',
+          'Next permitted action'
+        ],
+        allowed_verdicts: [],
+        correction_evidence_map: CORRECTION_EVIDENCE_CONTRACT,
+      },
+      REVIEW_VERDICT: {
+        required_heading: '## REVIEW_VERDICT',
+        required_bindings: [
+          'issue_number',
+          'pr_number',
+          'exact_reviewed_head',
+          'policy_sha_when_required',
+          'review_type',
+          'review_cycle',
+          'reviewer_identity',
+          'predecessor_evidence_when_correction'
+        ],
+        compatibility_shapes: [
+          ['### Task log', 'Timestamp:', 'Task / Issue:', 'Phase:', 'Executing role:', '**PR / base / head:**', '**Verdict:**', '**Findings:**', '**Gates:**', '**Next:**'],
+          ['### Task log', 'Timestamp:', 'Task / Issue:', 'Phase:', 'Executing role:', '**Reviewed PR:**', '**Approved base:**', '**Exact head reviewed:**', '**Verdict:**', '### Critical / Important findings summary', '### Gate status', '### Next handoff']
+        ],
+        required_sections: [
+          'Review identity',
+          'Immutable finding disposition',
+          'Critical findings',
+          'Important findings',
+          'Minor / Nit findings',
+          'Evidence',
+          'Exact next permitted action'
+        ],
+        allowed_verdicts: [
+          'CORRECTION REQUIRED',
+          'ELIGIBLE FOR FOUNDER REVIEW',
+          'BLOCKED FOR FOUNDER DECISION',
+          'BLOCKED EXTERNAL',
+          'STATE CONFLICT'
+        ],
+        correction_contract: {
+          condition: 'Verdict is CORRECTION REQUIRED or BLOCKED FOR FOUNDER DECISION with unresolved implementation findings',
+          placement: 'Must be provided as a markdown fenced JSON block anywhere in the comment body.',
+          representation: 'fenced_json_block',
+          schema_version: 1,
+          modes: ['implementation_pr', 'planning_no_pr'],
+          required_keys: ['schema_version', 'reviewed_head', 'findings'],
+          optional_keys: ['mode'],
+          finding_id_requirements: 'Must be a non-empty string and unique after whitespace normalization.',
+          reviewed_head_binding: 'Must be a non-empty string matching the exact PR head or base SHA being reviewed.',
+          evidence_requirements: 'Finding required_evidence must be a non-empty array of non-empty strings.',
+          multiplicity: 'Exactly one Correction Contract JSON block is permitted per role comment.',
+          invalid_combinations: ['Multiple JSON blocks', 'planning_no_pr mode without expected_areas', 'Duplicate finding IDs'],
+          finding_schema: {
+            required_keys: ['id', 'canonical_summary', 'source_thread', 'required_evidence'],
+            optional_keys: ['expected_areas', 'prohibited_areas']
+          },
+          canonical_example: "```json\n{\n  \"schema_version\": 1,\n  \"mode\": \"implementation_pr\",\n  \"reviewed_head\": \"1234567890abcdef1234567890abcdef12345678\",\n  \"findings\": [\n    {\n      \"id\": \"EXAMPLE-001\",\n      \"canonical_summary\": \"Fix the thing\",\n      \"source_thread\": \"https://github.com/...\",\n      \"required_evidence\": [\"Test output\"]\n    }\n  ]\n}\n```"
+        }
+      }
+    },
     next_action_rules: [
       {
         classification: 'SUCCESS',
         next_action: nextAction('COMPLETE', null, 'The role comment operation completed without owning a state transition.'),
+      },
+      {
+        classification: 'NO_OP_IDENTICAL_RETRY',
+        next_action: nextAction('COMPLETE', null, 'The identical validated role comment is already authoritative.'),
       },
     ],
     examples: [
@@ -638,11 +749,23 @@ const commands = {
         description: 'Validate a role comment before a transport posts it.',
         argv: ['284', '--repo', 'boat1994/bemoat-web-starter', '--body-file', './comment.md', '--check'],
       },
+      {
+        description: 'Publish a HANDOFF comment.',
+        argv: ['284', '--body-file', './handoff.md'],
+      },
+      {
+        description: 'Publish a RESULT comment.',
+        argv: ['284', '--body-file', './result.md'],
+      },
+      {
+        description: 'Publish a REVIEW_VERDICT comment.',
+        argv: ['284', '--body-file', './review.md'],
+      }
     ],
     parser_owner: 'scripts/post-role-comment.mjs',
     safe_help_invocation: 'pnpm run bemoat:issue:comment -- --help --json',
     last_validation_before_mutation: 'Validate the role body, Issue binding, and correction evidence immediately before posting.',
-    post_write_readback: 'Read the live Issue comments and confirm the posted role/comment identity.',
+    post_write_readback: 'Verify mutation via returned comment ID; if absent or unpropagated, retry readback with bounded delay before asserting AMBIGUOUS_RESULT: POSTED.',
     legacy_classification_map: {
       POSTED: 'SUCCESS',
       NO_OP: 'NO_OP_IDENTICAL_RETRY',
@@ -920,6 +1043,236 @@ const commands = {
     },
   }),
 
+  'bemoat:mission-control:adopt-finding': contract({
+    command: 'bemoat:mission-control:adopt-finding',
+    tier: 'A',
+    entrypoint: 'scripts/mission-control-adopt-finding.mjs',
+    purpose: 'Append exactly one Founder-authorized finding to the active correction contract without changing CORRECTION_REQUIRED state or review counters.',
+    operation: 'Authenticate immutable Founder authorization, append one trusted-derived finding to a new authoritative CORRECTION_CONTRACT, and CAS-update only the active correction-contract identity.',
+    accepted_pre_states: ['CORRECTION_REQUIRED_1', 'CORRECTION_REQUIRED_2'],
+    required_inputs: [
+      positional('issue_number', '<issue-number>', 'positive_integer', 'Managed Task Issue number.'),
+      flag('repository', '--repo <owner/repository>', 'repository', 'Repository containing the Task Issue.', [], true),
+      flag('expected_pr', '--expected-pr <number>', 'positive_integer', 'Exact active Pull Request number.', [], true),
+      flag('expected_base', '--expected-base <branch>', 'string', 'Approved Pull Request base branch.', [], true),
+      flag('expected_base_sha', '--expected-base-sha <full-sha>', 'full_sha', 'Exact protected base SHA.', [], true),
+      flag('expected_state', '--expected-state <state>', 'enum', 'Must be CORRECTION_REQUIRED_1 or CORRECTION_REQUIRED_2.', ['CORRECTION_REQUIRED_1', 'CORRECTION_REQUIRED_2'], true),
+      flag('expected_reviewed_head', '--expected-reviewed-head <full-sha>', 'full_sha', 'Predecessor reviewed head preserved by adoption.', [], true),
+      flag('expected_adoption_head', '--expected-adoption-head <full-sha>', 'full_sha', 'Live adoption head bound by Founder authorization.', [], true),
+      flag('predecessor_comment', '--predecessor-comment <id>', 'positive_integer', 'Immutable predecessor correction-contract comment ID.', [], true),
+      flag('authorization_comment', '--authorization-comment <id>', 'positive_integer', 'Immutable Founder authorization comment ID.', [], true),
+    ],
+    optional_flags: [
+      flag('check', '--check', 'boolean', 'Validate adoption evidence without mutating managed state.'),
+      flag('expected_predecessor_body_sha', '--expected-predecessor-body-sha <sha256>', 'string', 'Optional exact predecessor comment body hash.'),
+      flag('expected_predecessor_fingerprint', '--expected-predecessor-fingerprint <sha256>', 'string', 'Optional exact predecessor contract fingerprint.'),
+    ],
+    trusted_derived_values: [
+      'Founder authorization identity and body hash',
+      'trusted Founder author login',
+      'adopted finding id/summary/evidence derived only from Founder authorization',
+      'predecessor contract findings and fingerprint',
+      'reconciled active correction-contract identity',
+      'lease/CAS holder identity',
+    ],
+    required_evidence: [
+      'Immutable Founder authorization proving exactly one appended finding.',
+      'Immutable predecessor CORRECTION_CONTRACT comment with unchanged finding objects.',
+      'Exact repository/Issue/PR/base/head bindings and non-supersession proof.',
+      'CAS/lease protection for the active correction-contract identity write.',
+    ],
+    reads: [
+      'Founder authorization comment',
+      'predecessor correction-contract comment',
+      'Task Issue managed state',
+      'PR base/head evidence',
+      'trusted Founder identity configuration',
+    ],
+    writes: [
+      'active correction-contract identity via lease/CAS only; no REVIEW_VERDICT mutation; no review counter mutation',
+    ],
+    success_classifications: ['SUCCESS', 'NO_OP_IDENTICAL_RETRY'],
+    retry_contract: {
+      identical_retry: 'conditional',
+      classification: 'NO_OP_IDENTICAL_RETRY',
+      condition: 'A retry is identical only when the same Founder authorization, predecessor contract, adoption head, and reconciled active contract identity are already durable.',
+    },
+    next_action_rules: [
+      {
+        classification: 'SUCCESS',
+        next_action: nextAction(
+          'COMMAND',
+          'bemoat:agent:issue',
+          'Exact next permitted action: pnpm run bemoat:agent:issue -- <issue-number> --phase correction',
+        ),
+      },
+      {
+        classification: 'NO_OP_IDENTICAL_RETRY',
+        next_action: nextAction(
+          'COMMAND',
+          'bemoat:agent:issue',
+          'Exact next permitted action: pnpm run bemoat:agent:issue -- <issue-number> --phase correction',
+        ),
+      },
+    ],
+    stop_conditions: [
+      'Stop when Founder authorization cannot be deterministically parsed or authenticated.',
+      'Stop on wrong repo/Issue/PR/base/head or predecessor contract identity.',
+      'Stop on superseded or competing Founder authorization comments.',
+      'Stop on stale CAS, lease conflict, or ambiguous mutation outcome without retry.',
+      'Finding identity, summary, scope, and evidence requirements are trusted-derived from Founder authorization and must never be caller-supplied.',
+    ],
+    examples: [
+      {
+        description: 'Non-mutating adoption check against live Founder authorization.',
+        argv: [
+          '276',
+          '--repo',
+          'boat1994/bemoat-web-starter',
+          '--expected-pr',
+          '292',
+          '--expected-base',
+          'main',
+          '--expected-base-sha',
+          '<base-sha>',
+          '--expected-state',
+          'CORRECTION_REQUIRED_1',
+          '--expected-reviewed-head',
+          '<reviewed-head>',
+          '--expected-adoption-head',
+          '<adoption-head>',
+          '--predecessor-comment',
+          '<predecessor-comment-id>',
+          '--authorization-comment',
+          '<founder-authorization-comment-id>',
+          '--check',
+          '--json',
+        ],
+      },
+    ],
+    parser_owner: 'scripts/mission-control/workflows/adopt-finding.mjs',
+    safe_help_invocation: 'pnpm run bemoat:mission-control:adopt-finding -- --help --json',
+    last_validation_before_mutation: 'Re-read Issue/PR/base/head and immutable Founder/predecessor comments immediately before the lease/CAS write.',
+    post_write_readback: 'Re-read the Issue and verify only active_correction_contract_identity changed while CORRECTION_REQUIRED state and review counters remain unchanged.',
+  }),
+
+  'bemoat:mission-control:recover-state': contract({
+    command: 'bemoat:mission-control:recover-state',
+    tier: 'A',
+    entrypoint: 'scripts/mission-control-recover-state.mjs',
+    purpose: 'Recreate one absent Mission Control managed-state projection from uniquely reconstructable immutable evidence.',
+    operation: 'Authenticate the bounded recovery lineage, derive the canonical state, and append exactly one managed-state block through leased/CAS protection.',
+    accepted_pre_states: ['MANAGED_STATE_BLOCK_ABSENT'],
+    required_inputs: [
+      positional('issue_number', '<issue-number>', 'positive_integer', 'Managed Task Issue number.'),
+      flag('repository', '--repo <owner/repository>', 'repository', 'Repository containing the Task Issue.', [], true),
+      flag('expected_pr', '--expected-pr <number>', 'positive_integer', 'Exact active Pull Request number.', [], true),
+      flag('expected_base', '--expected-base <branch>', 'string', 'Protected base branch bound by the live PR and Founder authorization.', [], true),
+      flag('expected_base_sha', '--expected-base-sha <full-sha>', 'full_sha', 'Exact protected base commit SHA; the guide blob SHA is derived separately.', [], true),
+      flag('expected_head', '--expected-head <full-sha>', 'full_sha', 'Exact live PR head to bind and preserve.', [], true),
+      flag('expected_branch', '--expected-branch <branch>', 'string', 'Exact live PR branch to bind.', [], true),
+      flag('predecessor_comment', '--predecessor-comment <id>', 'positive_integer', 'Immutable predecessor correction-contract REVIEW_VERDICT comment.', [], true),
+      flag('adoption_authorization_comment', '--adoption-authorization-comment <id>', 'positive_integer', 'Immutable Founder finding-adoption authorization comment.', [], true),
+      flag('implementation_result_comment', '--implementation-result-comment <id>', 'positive_integer', 'Immutable implementation RESULT proving live adoption was not executed.', [], true),
+      flag('implementation_review_comment', '--implementation-review-comment <id>', 'positive_integer', 'Immutable reviewed adopt-finding eligibility verdict.', [], true),
+      flag('recovery_authorization_comment', '--recovery-authorization-comment <id>', 'positive_integer', 'Immutable Founder missing-state recovery authorization comment.', [], true),
+      flag('lineage_correction_authorization_comment', '--lineage-correction-authorization-comment <id>', 'positive_integer', 'Immutable Founder authorization for the historical/current recovery-head lineage correction.', [], true),
+      flag('correction_result_comment', '--correction-result-comment <id>', 'positive_integer', 'Immutable current lineage-correction RESULT bound to the correction-reviewed head.', [], true),
+      flag('correction_review_comment', '--correction-review-comment <id>', 'positive_integer', 'Immutable bounded REVIEW_VERDICT validating the correction-reviewed head.', [], true),
+    ],
+    optional_flags: [
+      flag('check', '--check', 'boolean', 'Validate the complete recovery lineage without mutating the Issue.'),
+    ],
+    trusted_derived_values: [
+      'managed-state presence and validity',
+      'historical state and review counters',
+      'approved base, active Task/PR, current head, and last reviewed head',
+      'historical adopt-finding implementation head',
+      'recovery authorization-bound head and recovery implementation anchor head',
+      'correction-reviewed head and current live PR exact head',
+      'trusted Git ancestry proofs between the distinct lineage heads',
+      'predecessor finding IDs and open blockers',
+      'protected main guide version/source identity',
+      'Founder identity, authority lineage, and immutable evidence body hashes',
+      'lease/CAS holder identity',
+    ],
+    required_evidence: [
+      'The live Task Issue has no managed-state markers at all.',
+      'One immutable predecessor CORRECTION_CONTRACT uniquely binds the correction lineage.',
+      'One immutable Founder adoption authorization, historical implementation RESULT/review, original recovery authorization, recovery-anchor RESULT/review, lineage-correction authorization, and explicit correction RESULT/review bind the same Task/PR/base/branch lineage.',
+      'The historical adopt-finding head, recovery authorization-bound head, recovery implementation anchor head, correction-reviewed head, and live PR exact head are represented separately.',
+      'Required ancestry/non-supersession relationships between those heads are proven by trusted repository Git evidence.',
+      'Protected main policy and live PR identity match the invocation.',
+      'No competing, superseding, malformed, or executed-adoption evidence exists.',
+    ],
+    reads: [
+      'Task Issue body and all immutable Issue comments',
+      'active Pull Request branch/base/head',
+      'trusted repository Git ancestry between the distinct lineage heads',
+      'trusted Founder identity configuration',
+      'protected main Mission Control guide and source SHA',
+    ],
+    writes: ['one canonical managed-state block appended through leased/CAS Issue-body projection'],
+    success_classifications: ['SUCCESS', 'NO_OP_IDENTICAL_RETRY'],
+    retry_contract: {
+      identical_retry: 'conditional',
+      classification: 'NO_OP_IDENTICAL_RETRY',
+      condition: 'Only an exact completed projection with the same reconstructed state and immutable evidence may return NO_OP_IDENTICAL_RETRY; changed or competing evidence stops.',
+    },
+    next_action_rules: [
+      {
+        classification: 'SUCCESS',
+        next_action: nextAction(
+          'COMMAND',
+          'bemoat:mission-control:adopt-finding',
+          'Re-attempt the previously authorized finding-adoption command after fresh live verification; recovery never executes adoption automatically.',
+        ),
+      },
+      {
+        classification: 'NO_OP_IDENTICAL_RETRY',
+        next_action: nextAction(
+          'COMMAND',
+          'bemoat:mission-control:adopt-finding',
+          'The identical recovery projection is already durable; re-attempt finding adoption only after fresh live verification.',
+        ),
+      },
+    ],
+    stop_conditions: [
+      'Stop on any valid existing state, malformed or partial marker block, ambiguous history, conflicting counters, competing authority, supersession, unsupported lineage, failed ancestry proof, or executed adoption evidence.',
+      'Resulting state, counters, heads, finding set, and authority-bearing fields are trusted-derived and must never be caller-supplied.',
+      'Stop on protected-base/head/branch drift, stale CAS or lease conflict, or ambiguous write/readback outcome without retry.',
+      'Correction RESULT and bounded REVIEW_VERDICT selectors are explicit; missing, edited, superseded, duplicated, competing, or differently bound evidence stops.',
+      'Do not publish comments, replay review, alter historical comments, create correction-contract identity, or invoke adopt-finding.',
+    ],
+    examples: [
+      {
+        description: 'Non-mutating recovery validation against immutable evidence.',
+        argv: [
+          '276',
+          '--repo', 'boat1994/bemoat-web-starter',
+          '--expected-pr', '292',
+          '--expected-base', 'main',
+          '--expected-base-sha', '<base-sha>',
+          '--expected-head', '<current-head>',
+          '--expected-branch', 'feature/276-slice-b',
+          '--predecessor-comment', '<predecessor-comment-id>',
+          '--adoption-authorization-comment', '<adoption-authorization-comment-id>',
+          '--implementation-result-comment', '<implementation-result-comment-id>',
+          '--implementation-review-comment', '<implementation-review-comment-id>',
+          '--recovery-authorization-comment', '<recovery-authorization-comment-id>',
+          '--lineage-correction-authorization-comment', '<lineage-correction-authorization-comment-id>',
+          '--correction-result-comment', '<correction-result-comment-id>',
+          '--correction-review-comment', '<correction-review-comment-id>',
+          '--check',
+        ],
+      },
+    ],
+    parser_owner: 'scripts/mission-control/workflows/recover-state.mjs',
+    safe_help_invocation: 'pnpm run bemoat:mission-control:recover-state -- --help --json',
+    last_validation_before_mutation: 'Re-read the complete immutable evidence set, protected policy, live PR, and wholly absent Issue body immediately before the single leased/CAS write.',
+    post_write_readback: 'Re-read the Issue and confirm exactly one canonical managed-state block matches the trusted-derived projection; no comment or adoption call is permitted.',
+  }),
+
   'bemoat:mission-control:reopen': contract({
     command: 'bemoat:mission-control:reopen',
     tier: 'A',
@@ -1061,11 +1414,12 @@ const commands = {
     entrypoint: 'scripts/mission-control-task-create.mjs',
     purpose: 'Create and attest a Mission Control Task Issue from Founder authorization.',
     operation: 'Verify signed Actions identity and project the initial Task state and campaign link.',
-    accepted_pre_states: [],
+    accepted_pre_states: ['NOT_STATEFUL'],
     required_inputs: [
       flag('founder_authorization_comment_id', '--founder-authorization-comment-id <id>', 'positive_integer', 'Immutable Founder authorization comment.', [], true),
     ],
     optional_flags: [
+      flag('check', '--check', 'boolean', 'Validate without creating the Task Issue.'),
       environment('GITHUB_ACTIONS', 'boolean', 'Trusted GitHub Actions execution identity.', ['true']),
       environment('GITHUB_REPOSITORY', 'repository', 'Trusted Actions repository identity.'),
       environment('GITHUB_WORKFLOW', 'string', 'Trusted Actions workflow identity.'),
@@ -1076,14 +1430,14 @@ const commands = {
       environment('BEMOAT_TASK_BOOTSTRAP_SIGNING_PRIVATE_KEY', 'string', 'Trusted signing material supplied only by Actions secret configuration.'),
     ],
     trusted_derived_values: [
-      'workflow identity',
-      'protected public key',
-      'campaign and Pull Request evidence',
+      'Actions-derived workflow identity',
+      'trusted-derived protected public key',
+      'GitHub-derived campaign and Pull Request evidence',
     ],
     required_evidence: [
-      'Signed Founder authorization.',
-      'Trusted GitHub Actions workflow identity and public key.',
-      'Campaign/PR evidence for the Task bootstrap.',
+      'Founder-authorized signed authorization.',
+      'Actions-derived trusted GitHub workflow identity and public key.',
+      'GitHub-derived campaign/PR evidence for the Task bootstrap.',
     ],
     reads: ['signed authorization', 'workflow identity', 'public key', 'GitHub campaign/PR'],
     writes: ['Task Issue creation/state/attestation', 'campaign projection'],
@@ -1091,6 +1445,62 @@ const commands = {
       identical_retry: 'conditional',
       classification: 'NO_OP_IDENTICAL_RETRY',
       condition: 'A retry is identical only when the same authorization fingerprint and Task projection already exist.',
+    },
+    role_contracts: {
+      FOUNDER_AUTHORIZATION: {
+        required_bindings: [
+          'schema_version',
+          'status',
+          'authority',
+          'author_login',
+          'comment_id',
+          'immutable_comment_reference',
+          'non_superseded',
+          'superseded_by',
+          'repository',
+          'bundle_kind',
+          'parent_issue',
+          'pr',
+          'exact_head',
+          'reviewed_head',
+          'base',
+          'policy_source',
+          'policy_source_sha',
+          'protected_base_sha',
+          'policy_version',
+          'scope',
+          'action'
+        ],
+        representation: 'raw_json_object',
+        identity_requirements: 'Must be authored by a trusted Founder login.',
+        scope_binding: 'task-initialization',
+        action_binding: 'create-managed-task',
+        canonical_example: `{
+  "schema_version": 1,
+  "status": "approved",
+  "authority": "Founder",
+  "author_login": "boat1994",
+  "comment_id": "12345",
+  "immutable_comment_reference": true,
+  "non_superseded": true,
+  "superseded_by": null,
+  "repository": "boat1994/bemoat-web-starter",
+  "bundle_kind": "task-bootstrap-genesis",
+  "parent_issue": 262,
+  "task_issue": null,
+  "pr": 263,
+  "exact_head": "d5f0d1edf86f0c0f94a4891558ae6fcea7bfb73f",
+  "reviewed_head": "d5f0d1edf86f0c0f94a4891558ae6fcea7bfb73f",
+  "base": "main",
+  "policy_source": "docs/mission-control/mission-control-guide.md",
+  "policy_source_sha": "f46f5de1d5ee17669c7c4663893164ffb835b339",
+  "protected_base_sha": "f6ac355b98aa281dda2a49bcf2ddaeb279d8173d",
+  "policy_version": "1.3.0",
+  "scope": "task-initialization",
+  "action": "create-managed-task",
+  "comment_sha256": "..."
+}`
+      }
     },
     next_action_rules: [
       {
@@ -1226,6 +1636,18 @@ const routes = [
     decision: 'COMMAND',
   }),
   route({
+    route_key: 'CORRECTION_REQUIRED_1/founder-authorized-finding-adoption',
+    observed_state: 'CORRECTION_REQUIRED_1',
+    evidence_case: 'founder-authorized-finding-adoption',
+    required_evidence_condition: 'An immutable Founder adopt-finding authorization and predecessor correction contract are complete for the live CORRECTION_REQUIRED_1 head.',
+    forbidden_evidence_condition: 'Caller-supplied findings, superseded authorization, competing adoption comments, or head/base drift.',
+    permitted_operation: 'Append exactly one Founder-authorized finding to the active correction contract.',
+    canonical_command: 'bemoat:mission-control:adopt-finding',
+    required_review_type: null,
+    expected_post_state_or_gate: 'CORRECTION_REQUIRED_1 with reconciled active correction-contract identity',
+    decision: 'COMMAND',
+  }),
+  route({
     route_key: 'CORRECTION_REQUIRED_1/bounded-correction-result-evidence',
     observed_state: 'CORRECTION_REQUIRED_1',
     evidence_case: 'bounded-correction-result-evidence',
@@ -1247,6 +1669,18 @@ const routes = [
     canonical_command: 'bemoat:mission-control:review',
     required_review_type: 'delta',
     expected_post_state_or_gate: 'CORRECTION_REQUIRED_2, ELIGIBLE_FOR_FOUNDER_REVIEW, or a blocking gate',
+    decision: 'COMMAND',
+  }),
+  route({
+    route_key: 'CORRECTION_REQUIRED_2/founder-authorized-finding-adoption',
+    observed_state: 'CORRECTION_REQUIRED_2',
+    evidence_case: 'founder-authorized-finding-adoption',
+    required_evidence_condition: 'An immutable Founder adopt-finding authorization and predecessor correction contract are complete for the live CORRECTION_REQUIRED_2 head.',
+    forbidden_evidence_condition: 'Caller-supplied findings, superseded authorization, competing adoption comments, or head/base drift.',
+    permitted_operation: 'Append exactly one Founder-authorized finding to the active correction contract.',
+    canonical_command: 'bemoat:mission-control:adopt-finding',
+    required_review_type: null,
+    expected_post_state_or_gate: 'CORRECTION_REQUIRED_2 with reconciled active correction-contract identity',
     decision: 'COMMAND',
   }),
   route({
@@ -1395,6 +1829,24 @@ const routes = [
     required_review_type: 'delta',
     expected_post_state_or_gate: 'AWAITING_REVIEW_2 projection from quarantined evidence',
     prohibited_commands: ['bemoat:mission-control:review'],
+    decision: 'COMMAND',
+  }),
+  route({
+    route_key: 'ANY_STATE/absent-managed-state-unique-reconstruction',
+    observed_state: null,
+    evidence_case: 'absent-managed-state-unique-reconstruction',
+    required_evidence_condition: 'The managed Task Issue has no state markers and one immutable, uniquely bound correction lineage reconstructs the canonical projection exactly.',
+    forbidden_evidence_condition: 'Any valid, malformed, partial, ambiguous, superseded, conflicting, unsupported, or executed-adoption evidence.',
+    permitted_operation: 'Recreate exactly one absent managed-state projection through the exceptional recovery transport.',
+    canonical_command: 'bemoat:mission-control:recover-state',
+    required_review_type: null,
+    expected_post_state_or_gate: 'Trusted-derived historical managed state with finding adoption still pending.',
+    prohibited_commands: [
+      'bemoat:mission-control:reconcile',
+      'bemoat:mission-control:recover-review',
+      'bemoat:mission-control:review',
+      'bemoat:mission-control:adopt-finding',
+    ],
     decision: 'COMMAND',
   }),
   route({

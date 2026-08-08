@@ -48,6 +48,17 @@ the result, identifies one next action, and stops.
 Mission Control is not an implementation agent and not a perpetual code
 reviewer.
 
+## Bemoat CLI Discovery
+
+Before selecting task bootstrap, dispatch, reconcile, review, recover-review,
+recover-state, reopen, merge, delivery, or role comment transport, Mission
+Control must follow
+the canonical [Bemoat CLI Discovery](../../AGENTS.md#bemoat-cli-discovery) rule
+for the applicable public command. It must use the returned command contract
+and authoritative live state; it must not choose a command based solely on state
+names or remembered routing. A discovery failure stops as
+`CLI_DISCOVERY_DEFECT`.
+
 A durable state records authority, evidence, and the next permitted action; it is not an agent execution stage. A durable state transition does not itself require or authorize a separate model run.
 
 ## Applicability and preflight outcomes
@@ -340,6 +351,79 @@ retaining full evidence in GitHub.
   authority reference, exact head/base, bounded objective, stop conditions,
   required evidence, and prohibited actions. Stable policy and historical
   evidence should be linked rather than repeated.
+
+### Ready-to-paste prompt public CLI routing
+
+Every generated `Ready-to-paste prompt` that may invoke or mutate the harness,
+GitHub role comments, task state, review, reconciliation, dispatch, delivery,
+reopen, recovery, or merge state must contain a public CLI routing section. Add
+the block directly inside the productive HANDOFF or correction prompt; it is not
+a separate prompt-generation, prompt-review, or durable transition ceremony.
+
+When the operation is deterministic, name its canonical operation and command:
+
+```text
+Canonical operation: reconciliation
+Canonical command: bemoat:mission-control:reconcile
+
+First inspect:
+pnpm run bemoat:mission-control:reconcile -- --help --json
+
+Then invoke the public entrypoint using only the documented inputs and live authoritative evidence.
+```
+
+Use these canonical mappings when that operation is already selected:
+
+| Operation | Canonical command |
+| --- | --- |
+| task bootstrap | `bemoat:mission-control:task-bootstrap` |
+| dispatch | `bemoat:mission-control:dispatch` |
+| delivery | `bemoat:agent:delivery` |
+| review | `bemoat:mission-control:review` |
+| reconciliation | `bemoat:mission-control:reconcile` |
+| recover-review | `bemoat:mission-control:recover-review` |
+| missing managed-state recovery | `bemoat:mission-control:recover-state` |
+| reopen | `bemoat:mission-control:reopen` |
+| adopt-finding | `bemoat:mission-control:adopt-finding` |
+| merge | `bemoat:mission-control:merge` |
+| role-comment transport | `bemoat:issue:comment` |
+
+When live state still determines routing, name only the bounded candidate set:
+
+```text
+Candidate commands:
+- bemoat:mission-control:reconcile
+- bemoat:mission-control:review
+- bemoat:mission-control:recover-review
+
+Inspect each applicable candidate with `--help --json`.
+
+Select the command whose accepted pre-state, required evidence, and next-action rules match live GitHub state.
+```
+
+For every canonical command or applicable candidate, require:
+
+```text
+pnpm run <command> -- --help --json
+```
+
+Selection must use the returned accepted pre-state, required evidence, mutation
+behavior, retry contract, and next-action rules. Missing, unsafe,
+non-machine-readable, or contradictory help is `CLI_DISCOVERY_DEFECT`.
+
+Direct internal workflow imports are prohibited. Do not import `Coordinator`,
+Productive-Only policy helpers, workflow services, adapters, transition
+functions, parsers, or projection helpers. Raw GitHub reads remain permitted
+for independent verification. Raw GitHub mutation is prohibited when a
+registered Bemoat command owns the operation. It is permitted only when no
+registered command owns the operation, and the prompt must require the agent to
+log the precise reason for every raw mutation exception.
+
+Do not emit vague mutation instructions such as “use the appropriate script”,
+“continue with GitHub CLI”, “post the required comment”, or “update Mission
+Control state” unless the same prompt names the canonical command or bounded
+candidate set. Purely conversational Founder decisions that invoke no agent or
+repository mutation do not require a CLI routing block.
 
 ## Brainstorming Response Profile
 

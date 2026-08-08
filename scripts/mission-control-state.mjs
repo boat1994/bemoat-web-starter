@@ -298,6 +298,7 @@ function validatePreReviewFounderDecisionGate(state) {
  *   material_change_status: string,
  *   updated_at: string | null,
  *   updated_by: string | null,
+ *   recovery_evidence_fingerprint?: string,
  *   [key: string]: unknown,
  * }} MissionControlState
  */
@@ -363,6 +364,10 @@ export function parseMissionControlState(body = '') {
   }
   if (!Array.isArray(state.open_blockers) || !Array.isArray(state.follow_up_issues)) {
     return { present: true, valid: false, reason: 'open_blockers and follow_up_issues must be arrays' }
+  }
+  if (Object.hasOwn(state, 'recovery_evidence_fingerprint') &&
+      (typeof state.recovery_evidence_fingerprint !== 'string' || !/^[0-9a-f]{64}$/i.test(state.recovery_evidence_fingerprint))) {
+    return { present: true, valid: false, reason: 'recovery_evidence_fingerprint must be a full SHA-256 when present' }
   }
 
   const postBudget = validatePostBudgetReviews(state)
@@ -473,7 +478,7 @@ export function renderMissionControlState(stateObj) {
     'latest_transition_identity',
     'guide_version', 'guide_source_ref', 'guide_source_sha', 'open_blockers',
     'follow_up_issues', 'next_permitted_action', 'material_change_status', 'updated_at',
-    'updated_by'
+    'updated_by', 'recovery_evidence_fingerprint'
   ]
   const keys = new Set([...orderedKeys, ...Object.keys(stateObj)])
 
@@ -521,4 +526,23 @@ export function projectMissionControlStateBlock(body = '', stateObj = {}) {
   const before = String(body).slice(0, start.index)
   const after = String(body).slice(end.index + end[0].length)
   return `${before}${renderMissionControlState(stateObj)}${after}`
+}
+
+/**
+ * Append one managed-state block only when the canonical projection is wholly
+ * absent. This is intentionally separate from projectMissionControlStateBlock
+ * so ordinary reconciliation continues to reject missing state.
+ *
+ * @param {string} body
+ * @param {Record<string, unknown>} stateObj
+ * @returns {string}
+ */
+export function appendMissingMissionControlStateBlock(body = '', stateObj = {}) {
+  const parsed = parseMissionControlState(String(body))
+  if (parsed.present) {
+    throw new Error('managed state block is not wholly absent')
+  }
+  const source = String(body)
+  const separator = source.length === 0 || source.endsWith('\n') ? '' : '\n'
+  return `${source}${separator}${renderMissionControlState(stateObj)}\n`
 }

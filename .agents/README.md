@@ -24,6 +24,9 @@ not available, use the matching Markdown file in `.agents/skills/`.
 
 ## Required Reading Order
 
+Before selecting or running any registered `bemoat:*` command, follow the
+canonical [Bemoat CLI Discovery](../AGENTS.md#bemoat-cli-discovery) rule.
+
 Before planning, editing, reviewing, or running implementation commands:
 
 1. Read `AGENTS.md`.
@@ -69,4 +72,3 @@ Stop and report before editing or committing when:
 - The change belongs in a child project rather than reusable starter
   infrastructure.
 - Required validation fails and cannot be fixed within scope.
-

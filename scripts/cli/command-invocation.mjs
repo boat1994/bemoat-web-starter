@@ -347,5 +347,6 @@ export function parseCommandInvocation(command, argv = []) {
     mode: 'run',
     format,
     values,
+    contract,
   }
 }

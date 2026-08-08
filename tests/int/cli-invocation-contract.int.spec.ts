@@ -33,6 +33,8 @@ const SECOND_FULL_UPPERCASE_SHA = '1234567890ABCDEF1234567890ABCDEF12345678'
 const FULL_LOWERCASE_SHA = FULL_UPPERCASE_SHA.toLowerCase()
 const SECOND_FULL_LOWERCASE_SHA = SECOND_FULL_UPPERCASE_SHA.toLowerCase()
 
+const ISSUE_COMMENT_COMMAND = 'bemoat:issue:comment'
+
 const HELP_KEYS = [
   'schema_version',
   'command',
@@ -48,7 +50,9 @@ const HELP_KEYS = [
   'required_evidence',
   'reads',
   'writes',
+  'stop_classifications',
   'retry_contract',
+  'role_contracts',
   'result_classifications',
   'next_action_rules',
   'stop_conditions',
@@ -224,6 +228,42 @@ function makeResultEnvelope() {
 }
 
 describe('Task 2 CLI invocation and result contracts', () => {
+  it('publishes the correction RESULT evidence-map contract from the issue comment help', () => {
+    const help = createHelpEnvelopeV1(getCommandContract(ISSUE_COMMENT_COMMAND)) as JsonRecord
+    const roleContracts = help.role_contracts as JsonRecord
+    const resultContract = roleContracts.RESULT as JsonRecord
+    const evidenceMap = resultContract.correction_evidence_map as JsonRecord
+    const findingResults = evidenceMap.finding_results as JsonRecord
+
+    expect(evidenceMap.representation).toBe('fenced_json_object')
+    expect(evidenceMap.schema_version).toBe(2)
+    expect(evidenceMap.required_keys).toEqual([
+      'schema_version',
+      'correction_base',
+      'finding_results',
+    ])
+    expect(evidenceMap.correction_base).toEqual({
+      type: 'string',
+      binding: 'must equal the immutable reviewed head',
+    })
+    expect(findingResults.representation).toBe('object keyed by immutable finding ID')
+    expect(findingResults.entry_fields).toEqual(['changed_files', 'tests', 'status'])
+    expect(findingResults.status_enum).toEqual(['CLAIMED_RESOLVED', 'UNPROVEN'])
+    expect(evidenceMap.bindings).toEqual(expect.arrayContaining([
+      'correction_base must equal the immutable reviewed head',
+      'finding IDs must exactly match the immutable correction finding set; omitted, added, or substituted IDs are invalid',
+      'referenced changed files must exist in the actual correction diff',
+    ]))
+    expect(evidenceMap.claimed_resolved_requirements).toEqual([
+      'changed_files must be non-empty',
+      'tests must be non-empty',
+    ])
+    expect(evidenceMap.multiplicity).toBe('Exactly one correction evidence-map block is permitted')
+    expect(typeof evidenceMap.canonical_example).toBe('string')
+    expect(evidenceMap.canonical_example).toContain('"correction_base"')
+    expect(evidenceMap.canonical_example).toContain('"finding_results"')
+  })
+
   it('normalizes all four Tier A JSON-help permutations', () => {
     const permutations = [
       ['--help', '--json'],
@@ -387,6 +427,7 @@ describe('Task 2 CLI invocation and result contracts', () => {
       'required_evidence',
       'reads',
       'writes',
+      'stop_classifications',
       'result_classifications',
       'next_action_rules',
       'stop_conditions',
@@ -395,6 +436,7 @@ describe('Task 2 CLI invocation and result contracts', () => {
       expect(Array.isArray(help[key]), key).toBe(true)
     }
     expect(typeof help.retry_contract).toBe('object')
+    expect(typeof help.role_contracts).toBe('object')
 
     const result = makeResultEnvelope() as JsonRecord
     expect(Object.keys(result).sort()).toEqual([...RESULT_KEYS].sort())

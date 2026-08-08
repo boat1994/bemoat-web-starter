@@ -12,7 +12,24 @@ const {
   validateCorrectionScope,
   isCorrectionPhaseResult,
   validateCorrectionRoleComment,
-} = correctionContractModule as unknown as Record<string, (...args: any[]) => any>
+  CORRECTION_EVIDENCE_CONTRACT,
+  CORRECTION_EVIDENCE_SCHEMA_VERSION,
+} = correctionContractModule as unknown as {
+  parseCorrectionContract: (...args: any[]) => any
+  parseCorrectionEvidenceMap: (...args: any[]) => any
+  validateFindingIdentity: (...args: any[]) => any
+  buildCorrectionCapsule: (...args: any[]) => any
+  validateFindingEvidence: (...args: any[]) => any
+  validateCorrectionScope: (...args: any[]) => any
+  isCorrectionPhaseResult: (...args: any[]) => any
+  validateCorrectionRoleComment: (...args: any[]) => any
+  CORRECTION_EVIDENCE_CONTRACT: {
+    canonical_example: string
+    schema_version: number
+    finding_results: { status_enum: string[] }
+  }
+  CORRECTION_EVIDENCE_SCHEMA_VERSION: number
+}
 
 const reviewedHead = 'abc1234deadbeef'
 
@@ -101,6 +118,52 @@ ${JSON.stringify(map, null, 2)}
 }
 
 describe('correction-contract pure module', () => {
+  it('keeps the public correction evidence contract aligned with runtime validation', () => {
+    const publicExample = JSON.parse(
+      CORRECTION_EVIDENCE_CONTRACT.canonical_example.match(/```json\n([\s\S]*?)\n```/)?.[1] ?? '{}',
+    )
+    const contract = {
+      reviewed_head: publicExample.correction_base,
+      findings: Object.keys(publicExample.finding_results).map((id) => ({
+        id,
+        canonical_summary: `canonical summary for ${id}`,
+      })),
+    }
+    const result = validateCorrectionRoleComment({
+      role: 'RESULT',
+      body: resultBody(publicExample),
+      diffFiles: ['src/lib/month-boundary.ts', 'tests/int/month-boundary.int.spec.ts'],
+      canonicalContract: contract,
+    })
+
+    expect(result.ok).toBe(true)
+    expect(CORRECTION_EVIDENCE_CONTRACT.finding_results.status_enum).toEqual(['CLAIMED_RESOLVED', 'UNPROVEN'])
+    expect(CORRECTION_EVIDENCE_CONTRACT.schema_version).toBe(CORRECTION_EVIDENCE_SCHEMA_VERSION)
+  })
+
+  it('rejects a public correction evidence example that violates a documented invariant', () => {
+    const publicExample = JSON.parse(
+      CORRECTION_EVIDENCE_CONTRACT.canonical_example.match(/```json\n([\s\S]*?)\n```/)?.[1] ?? '{}',
+    )
+    publicExample.finding_results['MC-R1-001'].changed_files = []
+    const contract = {
+      reviewed_head: publicExample.correction_base,
+      findings: Object.keys(publicExample.finding_results).map((id) => ({
+        id,
+        canonical_summary: `canonical summary for ${id}`,
+      })),
+    }
+    const result = validateCorrectionRoleComment({
+      role: 'RESULT',
+      body: resultBody(publicExample),
+      diffFiles: ['src/lib/month-boundary.ts', 'tests/int/month-boundary.int.spec.ts'],
+      canonicalContract: contract,
+    })
+
+    expect(result.ok).toBe(false)
+    expect(result.errors.join(' ')).toMatch(/changed_files|evidence/i)
+  })
+
   it('accepts schema-v2 correction RESULT evidence while keeping the immutable verdict contract at v1', () => {
     expect(parseCorrectionContract(verdictBody()).contract.schema_version).toBe(1)
     const parsed = parseCorrectionEvidenceMap(resultBody())

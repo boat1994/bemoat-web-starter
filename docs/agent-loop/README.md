@@ -42,6 +42,10 @@ For a step-by-step harness migration in child repos (audit mode, sync mode, PR c
 
 ## Task-only prompts
 
+Before selecting or running any registered `bemoat:*` command, follow the
+canonical [Bemoat CLI Discovery](../../AGENTS.md#bemoat-cli-discovery) rule.
+Discovery of `--help --json` precedes command execution.
+
 Users do not need to repeat branch, check, commit, push, or PR steps in every message. Provide the task (or a GitHub issue); agents read `AGENTS.md` and this folder, then run the [Default Agent Workflow](../../AGENTS.md#default-agent-workflow) automatically unless you override it.
 
 For issue-based work, agents pause once after branch setup and a passing issue

@@ -1,6 +1,7 @@
 import {
   MODULE_SECTION_MAP,
   REQUIRED_BRAINSTORMING_GUIDE_PHRASES,
+  REQUIRED_CLI_PROMPT_GUIDE_PHRASES,
   REQUIRED_CORRECTION_GUIDE_PHRASES,
   REQUIRED_COST_AWARE_GUIDE_PHRASES,
   REQUIRED_LEAN_FOUNDER_DECISION_PHRASES,
@@ -131,6 +132,13 @@ export function scanGuideContent(relativePath, content) {
     if (!content.includes(phrase)) {
       violations.push(
         violation('MC012', relativePath, `Guide missing brainstorming profile invariant: ${phrase}`),
+      )
+    }
+  }
+  for (const phrase of REQUIRED_CLI_PROMPT_GUIDE_PHRASES) {
+    if (!content.includes(phrase)) {
+      violations.push(
+        violation('MC012', relativePath, `Guide missing Ready-to-paste CLI routing invariant: ${phrase}`),
       )
     }
   }

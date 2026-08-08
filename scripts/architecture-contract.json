@@ -214,6 +214,13 @@
       "migration_status": "planned"
     },
     {
+      "path": "scripts/mission-control-adopt-finding.mjs",
+      "facade_disposition": "composition_root",
+      "internal_destination": "scripts/mission-control/workflows/adopt-finding.mjs",
+      "owning_slice": 5,
+      "migration_status": "planned"
+    },
+    {
       "path": "scripts/mission-control-brainstorming.mjs",
       "facade_disposition": "stable_facade",
       "internal_destination": "scripts/mission-control/domain/brainstorming.mjs",
@@ -252,6 +259,13 @@
       "path": "scripts/mission-control-recover-review.mjs",
       "facade_disposition": "composition_root",
       "internal_destination": "scripts/mission-control/workflows/recover-review.mjs",
+      "owning_slice": 5,
+      "migration_status": "planned"
+    },
+    {
+      "path": "scripts/mission-control-recover-state.mjs",
+      "facade_disposition": "composition_root",
+      "internal_destination": "scripts/mission-control/workflows/recover-state.mjs",
       "owning_slice": 5,
       "migration_status": "planned"
     },

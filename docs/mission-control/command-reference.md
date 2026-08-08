@@ -13,6 +13,9 @@ overrides chat, copied handoffs, local notes, or stale values.
 | `review` | Submit a Full Review 1 or Delta Review verdict, update counters and target states. |
 | `recover-review` | Exceptional, exact-incident transport for the approved #274/#275 raw-review quarantine; it is not ordinary review. |
 | `reconcile` | Repair state routing mismatch. Requires an existing valid managed-state block. Cannot initialize state, replay reviews, post verdicts, or increment counters. |
+| `reopen` | Project Founder-authorized PR head drift to `FOUNDER_AUTHORIZED_CORRECTION`. |
+| `adopt-finding` | Append exactly one Founder-authorized finding to the active correction contract while preserving `CORRECTION_REQUIRED_1\|2` and review counters. |
+| `recover-state` | Exceptional recovery for one completely absent managed-state block when immutable evidence uniquely reconstructs the prior canonical state. It cannot repair malformed state, replay review, or invoke finding adoption. |
 | `merge` | Finalize Founder-authorized merge. Uses the live PR head and an existing Founder JSON authorization comment. |
 | (none) | Stop and request human review if evidence disagrees, authentication fails, or preconditions mismatch. Never mutate state YAML directly. |
 
@@ -249,6 +252,104 @@ GitHub reads fail closed as `BLOCKED_EXTERNAL`; competing, stale, malformed, or
 mismatched Issue/PR/base/head/comment evidence fails as `STATE_CONFLICT`.
 Never replace reconcile with direct `gh issue edit`, manual YAML, or an ad hoc
 transition script.
+
+## Adopt finding
+
+Exact syntax:
+
+```text
+pnpm run bemoat:mission-control:adopt-finding -- <issue-number> --repo <owner>/<repo> --expected-pr <number> --expected-base <branch> --expected-base-sha <full-sha> --expected-state <CORRECTION_REQUIRED_1|CORRECTION_REQUIRED_2> --expected-reviewed-head <full-sha> --expected-adoption-head <full-sha> --predecessor-comment <id> --authorization-comment <id> [--check] [--json]
+```
+
+Positional arguments and flags:
+
+- `<issue-number>` is the positive Task Issue number.
+- `--repo` is required `owner/repo`.
+- `--expected-pr` is the exact active Pull Request number.
+- `--expected-base` / `--expected-base-sha` bind the protected base name and SHA.
+- `--expected-state` must be `CORRECTION_REQUIRED_1` or `CORRECTION_REQUIRED_2`.
+- `--expected-reviewed-head` is the predecessor reviewed head preserved by adoption.
+- `--expected-adoption-head` is the live adoption head bound by Founder authorization.
+- `--predecessor-comment` is the immutable predecessor correction-contract comment ID.
+- `--authorization-comment` is the immutable Founder authorization comment ID.
+- `--check` validates without mutating managed state.
+- Finding ID, canonical summary, scope, and evidence requirements are trusted-derived from the Founder authorization and must never be caller-supplied.
+
+Preconditions and sources: authenticate one Founder adopt-finding authorization,
+verify the predecessor contract findings remain unchanged, append exactly one
+authorized finding into a new active correction-contract identity, and CAS-update
+only that identity. Leave the original `REVIEW_VERDICT`, review counters, and
+`CORRECTION_REQUIRED_*` state unchanged.
+
+Structurally valid fake example:
+
+```text
+pnpm run bemoat:mission-control:adopt-finding -- 276 --repo boat1994/bemoat-web-starter --expected-pr 292 --expected-base main --expected-base-sha 7cf51129144a355172a32d57a73b5fda9eae5504 --expected-state CORRECTION_REQUIRED_1 --expected-reviewed-head 24497c9891b03e4042ac34770a1dfd3b225be1e1 --expected-adoption-head 917f879bea53ced5bc9622bd28f46d45046973c4 --predecessor-comment 5213944977 --authorization-comment 5215031090 --check --json
+```
+
+Success routes exclusively to:
+
+```text
+pnpm run bemoat:agent:issue -- 276 --phase correction
+```
+
+## Missing managed-state recovery
+
+Exact syntax:
+
+```text
+pnpm run bemoat:mission-control:recover-state -- <issue-number> --repo <owner>/<repo> --expected-pr <number> --expected-base <branch> --expected-base-sha <full-sha> --expected-head <full-sha> --expected-branch <branch> --predecessor-comment <id> --adoption-authorization-comment <id> --implementation-result-comment <id> --implementation-review-comment <id> --recovery-authorization-comment <id> --lineage-correction-authorization-comment <id> --correction-result-comment <id> --correction-review-comment <id> [--check]
+```
+
+The command accepts only a wholly absent canonical managed-state marker pair.
+It derives the state, review counters, active PR/head, last reviewed head,
+finding set, policy identity, and authority-bearing fields from the live PR,
+protected `main`, and the selected immutable predecessor, Founder
+authorization, historical adopt-finding RESULT/review, original recovery
+authorization, current recovery RESULT/review, and lineage-correction
+authorization comments. The historical adopt-finding head remains the exact
+ head bound by its original evidence. The recovery authorization-bound head,
+recovery implementation anchor head, correction-reviewed head, and live PR exact
+head are separate roles. The recovery anchor is independently bound by its
+RESULT/review and lineage authorization; the correction-reviewed head is bound
+by the explicit correction RESULT/review selectors and must equal the live PR
+exact head. Required ancestry relationships are proven by trusted Git evidence.
+No resulting state, counter, head, finding, or authority lineage is caller-supplied.
+
+Positional arguments and flags:
+
+- `<issue-number>` is the managed Task Issue number.
+- `--repo`, `--expected-pr`, `--expected-base`, `--expected-base-sha`, `--expected-head`, and `--expected-branch` bind the live repository, PR, protected base commit, exact current head, and branch. `--expected-base-sha` is the protected commit binding; the guide's separate blob SHA is fetched and derived by the transport.
+- `--predecessor-comment` selects the immutable predecessor correction contract.
+- `--adoption-authorization-comment` selects the existing Founder finding-adoption authorization.
+- `--implementation-result-comment` selects the RESULT proving adoption was not executed.
+- `--implementation-review-comment` selects the reviewed adopt-finding eligibility verdict.
+- `--recovery-authorization-comment` selects the Founder authorization for this exceptional recovery.
+- `--lineage-correction-authorization-comment` selects the immutable Founder authorization for `RECOVER-STATE-LINEAGE-001`; it binds the recovery-anchor RESULT/review selectors and the historical/recovery head roles.
+- `--correction-result-comment` explicitly selects the immutable correction RESULT that binds the correction-reviewed head.
+- `--correction-review-comment` explicitly selects the immutable bounded REVIEW_VERDICT that validates the correction-reviewed head.
+- `--check` performs the complete validation without writing the Issue body.
+
+The only successful mutation appends exactly one canonical state block through
+the existing leased/CAS Issue-body writer. It preserves the surrounding Issue
+body and all historical comments, never creates or alters an active correction
+contract identity, and never posts a review or RESULT. A valid existing state,
+malformed or partial markers, ambiguous or conflicting history, superseded or
+competing authority, unsupported or unproven ancestry, head/base drift,
+lease/CAS conflict, or ambiguous readback is a stop condition. An identical completed projection
+returns `NO_OP_IDENTICAL_RETRY` without writing. The appended projection carries
+one trusted-derived recovery-evidence fingerprint solely to prove that a retry
+uses the same immutable evidence; it is never a caller input.
+
+Success routes only to the already authorized command after fresh live
+verification:
+
+```text
+pnpm run bemoat:mission-control:adopt-finding
+```
+
+Recovery does not invoke that command automatically, and it is not a general
+replacement for `reconcile` or `recover-review`.
 
 ## Review
 

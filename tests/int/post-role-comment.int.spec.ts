@@ -5,6 +5,7 @@ import { spawnSync } from 'node:child_process'
 
 import { afterEach, describe, expect, it } from 'vitest'
 import { assertResultEnvelopeV1 } from '../../scripts/cli/command-result.mjs'
+import { getCommandContract } from '../../scripts/cli/command-contract.mjs'
 
 const scriptPath = resolve(process.cwd(), 'scripts/post-role-comment.mjs')
 const tempPaths: string[] = []
@@ -132,6 +133,7 @@ function stubGh(options: {
   phantomPost?: boolean
   duplicatePost?: boolean
   olderOnly?: boolean
+  delayedReadback?: boolean
   failPost?: boolean
   omitPostedId?: boolean
   untrustedPost?: boolean
@@ -141,13 +143,19 @@ function stubGh(options: {
   const capture = join(directory, 'arguments.txt')
   const executable = join(directory, 'gh')
   const postedPath = join(directory, 'posted.json')
+  const postCountPath = join(directory, 'post-count.txt')
+  const readCountPath = join(directory, 'read-count.txt')
   writeFileSync(executable, `#!/usr/bin/env node
 const fs = require('fs');
 const args = process.argv.slice(2);
 const capture = process.env.BEMOAT_GH_CAPTURE;
 const postedPath = ${JSON.stringify(postedPath)};
+const postCountPath = ${JSON.stringify(postCountPath)};
+const readCountPath = ${JSON.stringify(readCountPath)};
 if (args[0] === 'issue' && args[1] === 'comment') {
   const bodyFile = args[args.indexOf('--body-file') + 1];
+  const postCount = Number(fs.existsSync(postCountPath) ? fs.readFileSync(postCountPath, 'utf8') : '0') + 1;
+  fs.writeFileSync(postCountPath, String(postCount));
   if (${options.failPost === true ? 'true' : 'false'}) {
     console.error('Simulated comment POST timeout');
     process.exit(1);
@@ -158,8 +166,9 @@ if (args[0] === 'issue' && args[1] === 'comment') {
     body: fs.readFileSync(bodyFile, 'utf8'),
     user: { login: ${options.untrustedPost === true ? "'attacker'" : "'boat1994'"} },
     author_association: ${options.untrustedPost === true ? "'NONE'" : "'OWNER'"},
+    created_at: '2026-07-16T12:01:00Z',
   };
-  const older = { ...posted, id: 9001 };
+  const older = { ...posted, id: 9001, created_at: '2026-07-16T12:00:00Z' };
   if (${options.phantomPost === true ? 'true' : 'false'} === false) {
     const persisted = ${options.duplicatePost === true
       ? '[older, posted]'
@@ -173,16 +182,19 @@ if (args[0] === 'issue' && args[1] === 'comment') {
   process.exit(0);
 }
 if (args[0] === 'issue' && args[1] === 'view' && args.includes('comments')) {
+  const readCount = Number(fs.existsSync(readCountPath) ? fs.readFileSync(readCountPath, 'utf8') : '0') + 1;
+  fs.writeFileSync(readCountPath, String(readCount));
   const stored = fs.existsSync(postedPath) ? JSON.parse(fs.readFileSync(postedPath, 'utf8')) : [];
   const comments = Array.isArray(stored) ? stored : [stored];
-  process.stdout.write(JSON.stringify({ comments }));
+  const visibleComments = ${options.delayedReadback === true ? 'readCount <= 4 ? [] : comments' : 'comments'};
+  process.stdout.write(JSON.stringify({ comments: visibleComments }));
   process.exit(0);
 }
 if (capture) fs.writeFileSync(capture, args.join('\\n') + '\\n');
 process.exit(0);
 `)
   chmodSync(executable, 0o755)
-  return { capture, path: `${directory}:${process.env.PATH ?? ''}` }
+  return { capture, path: `${directory}:${process.env.PATH ?? ''}`, postCountPath }
 }
 
 /**
@@ -327,6 +339,172 @@ describe('bemoat:issue:comment', () => {
     })
   })
 
+  it('skips the GitHub mutation on an identical retry of the authoritative role comment', () => {
+    const gh = stubGh({ duplicatePost: true })
+    const env = { PATH: gh.path, BEMOAT_GH_CAPTURE: gh.capture }
+
+    const first = run(['115', '--repo', 'acme/repo', '--json'], {
+      input: bodies.RESULT,
+      env,
+    })
+    const retry = run(['115', '--repo', 'acme/repo', '--json'], {
+      input: bodies.RESULT,
+      env,
+    })
+
+    expect(first.status, first.stderr).toBe(0)
+    expect(retry.status, retry.stderr).toBe(0)
+    expect(Number(readFileSync(gh.postCountPath, 'utf8'))).toBe(1)
+    expect(JSON.parse(retry.stdout)).toMatchObject({
+      command: 'bemoat:issue:comment',
+      outcome: 'NO_OP',
+      classification: 'NO_OP_IDENTICAL_RETRY',
+      mutation_performed: false,
+      details: { comment_id: '9002' },
+      next_action: { type: 'COMPLETE' },
+    })
+  })
+
+  it.each([
+    ['HANDOFF', bodies.HANDOFF],
+    ['REVIEW_VERDICT', bodies.REVIEW_VERDICT],
+  ])('skips an identical %s retry', (_role, body) => {
+    const gh = stubGh({ duplicatePost: true })
+    const env = { PATH: gh.path, BEMOAT_GH_CAPTURE: gh.capture }
+
+    const first = run(['115', '--repo', 'acme/repo', '--json'], { input: body, env })
+    const retry = run(['115', '--repo', 'acme/repo', '--json'], { input: body, env })
+
+    expect(first.status, first.stderr).toBe(0)
+    expect(retry.status, retry.stderr).toBe(0)
+    expect(Number(readFileSync(gh.postCountPath, 'utf8'))).toBe(1)
+    expect(JSON.parse(retry.stdout)).toMatchObject({
+      outcome: 'NO_OP',
+      classification: 'NO_OP_IDENTICAL_RETRY',
+      mutation_performed: false,
+      details: { comment_id: '9002' },
+      next_action: { type: 'COMPLETE' },
+    })
+  })
+
+  it('does not deduplicate a materially different role body', () => {
+    const gh = stubGh()
+    const env = { PATH: gh.path, BEMOAT_GH_CAPTURE: gh.capture }
+
+    const first = run(['115', '--repo', 'acme/repo', '--json'], { input: bodies.RESULT, env })
+    const second = run(['115', '--repo', 'acme/repo', '--json'], {
+      input: bodies.RESULT.replace('Added the bounded change.', 'Added a different bounded change.'),
+      env,
+    })
+
+    expect(first.status, first.stderr).toBe(0)
+    expect(second.status, second.stderr).toBe(0)
+    expect(Number(readFileSync(gh.postCountPath, 'utf8'))).toBe(2)
+    expect(JSON.parse(second.stdout)).toMatchObject({
+      classification: 'SUCCESS',
+      mutation_performed: true,
+    })
+  })
+
+  it('does not deduplicate a comment bound to a different task issue', () => {
+    const gh = stubGh()
+    const env = { PATH: gh.path, BEMOAT_GH_CAPTURE: gh.capture }
+
+    const first = run(['115', '--repo', 'acme/repo', '--json'], { input: bodies.RESULT, env })
+    const second = run(['115', '--repo', 'acme/repo', '--json'], {
+      input: bodies.RESULT.replace('#115', '#116'),
+      env,
+    })
+
+    expect(first.status, first.stderr).toBe(0)
+    expect(second.status, second.stderr).toBe(0)
+    expect(Number(readFileSync(gh.postCountPath, 'utf8'))).toBe(2)
+    expect(JSON.parse(second.stdout)).toMatchObject({
+      classification: 'SUCCESS',
+      mutation_performed: true,
+    })
+  })
+
+  it('does not deduplicate a comment bound to a different exact head', () => {
+    const headA = 'abcdef0123456789abcdef0123456789abcdef01'
+    const headB = '1234567890abcdef1234567890abcdef12345678'
+    const resultA = `${bodies.RESULT}\n**State:** branch \`feature/115\` · base \`main\` · head \`${headA}\`\n**PR:** #292\n`
+    const resultB = resultA.replace(headA, headB)
+    const gh = stubGh()
+    const env = { PATH: gh.path, BEMOAT_GH_CAPTURE: gh.capture }
+
+    const first = run(['115', '--repo', 'acme/repo', '--json'], { input: resultA, env })
+    const second = run(['115', '--repo', 'acme/repo', '--json'], { input: resultB, env })
+
+    expect(first.status, first.stderr).toBe(0)
+    expect(second.status, second.stderr).toBe(0)
+    expect(Number(readFileSync(gh.postCountPath, 'utf8'))).toBe(2)
+    expect(JSON.parse(second.stdout)).toMatchObject({
+      classification: 'SUCCESS',
+      mutation_performed: true,
+    })
+  })
+
+  it('does not deduplicate a different role type', () => {
+    const gh = stubGh()
+    const env = { PATH: gh.path, BEMOAT_GH_CAPTURE: gh.capture }
+
+    const first = run(['115', '--repo', 'acme/repo', '--json'], { input: bodies.RESULT, env })
+    const second = run(['115', '--repo', 'acme/repo', '--json'], { input: bodies.HANDOFF, env })
+
+    expect(first.status, first.stderr).toBe(0)
+    expect(second.status, second.stderr).toBe(0)
+    expect(Number(readFileSync(gh.postCountPath, 'utf8'))).toBe(2)
+    expect(JSON.parse(second.stdout)).toMatchObject({
+      classification: 'SUCCESS',
+      mutation_performed: true,
+      details: { role: 'HANDOFF' },
+    })
+  })
+
+  it('does not deduplicate a different REVIEW_VERDICT finding payload', () => {
+    const gh = stubGh()
+    const env = { PATH: gh.path, BEMOAT_GH_CAPTURE: gh.capture }
+
+    const first = run(['115', '--repo', 'acme/repo', '--json'], {
+      input: bodies.REVIEW_VERDICT,
+      env,
+    })
+    const second = run(['115', '--repo', 'acme/repo', '--json'], {
+      input: bodies.REVIEW_VERDICT.replace('missing test', 'different finding payload'),
+      env,
+    })
+
+    expect(first.status, first.stderr).toBe(0)
+    expect(second.status, second.stderr).toBe(0)
+    expect(Number(readFileSync(gh.postCountPath, 'utf8'))).toBe(2)
+    expect(JSON.parse(second.stdout)).toMatchObject({
+      classification: 'SUCCESS',
+      mutation_performed: true,
+    })
+  })
+
+  it('does not create a duplicate after an ambiguous delayed readback', () => {
+    const gh = stubGh({ delayedReadback: true })
+    const env = { PATH: gh.path, BEMOAT_GH_CAPTURE: gh.capture }
+
+    const first = run(['115', '--repo', 'acme/repo', '--json'], { input: bodies.RESULT, env })
+    const retry = run(['115', '--repo', 'acme/repo', '--json'], { input: bodies.RESULT, env })
+
+    expect(first.status).toBe(4)
+    expect(JSON.parse(first.stdout)).toMatchObject({
+      classification: 'AMBIGUOUS_RESULT',
+      mutation_performed: true,
+    })
+    expect(retry.status, retry.stderr).toBe(0)
+    expect(Number(readFileSync(gh.postCountPath, 'utf8'))).toBe(1)
+    expect(JSON.parse(retry.stdout)).toMatchObject({
+      classification: 'NO_OP_IDENTICAL_RETRY',
+      mutation_performed: false,
+      details: { comment_id: '9001' },
+    })
+  })
+
   it('keeps an older identical comment ambiguous when the POST identity is absent from readback', () => {
     const gh = stubGh({ olderOnly: true })
     const result = run(['115', '--repo', 'acme/repo', '--json'], {
@@ -428,6 +606,55 @@ describe('bemoat:issue:comment', () => {
       exact_head: null,
     })
     expect(() => readFileSync(gh.capture, 'utf8')).toThrow()
+  })
+
+  it('exposes the exact correction contract representation via help --json', () => {
+    const helpResult = run(['--help', '--json'])
+    expect(helpResult.status, helpResult.stderr).toBe(0)
+
+    const lines = helpResult.stdout.split('\n')
+    const jsonLine = lines.find((line) => line.trim().startsWith('{'))
+    const contract = JSON.parse(jsonLine!)
+
+    const correctionSchema = contract.role_contracts.REVIEW_VERDICT.correction_contract
+    expect(correctionSchema.placement).toBeDefined()
+    expect(correctionSchema.representation).toBe('fenced_json_block')
+    expect(correctionSchema.canonical_example).toContain('```json')
+
+    // Construct a REVIEW_VERDICT from the canonical example
+    const reviewVerdict = `## REVIEW_VERDICT
+### Task log
+- Timestamp: 2026-08-07T12:00:00Z
+- Task / Issue: #115
+- Phase: Reviewer
+- Executing role: Reviewer
+**Reviewed PR:** https://github.com/acme/repo/pull/12
+**Approved base:** main
+**Exact head reviewed:** 1234567890abcdef1234567890abcdef12345678
+**Verdict:** CORRECTION REQUIRED
+### Critical / Important findings summary
+- Important: needs fix
+### Gate status
+- CI: pass
+### Next handoff
+- Dev
+\n${correctionSchema.canonical_example}`
+
+    // Now test that this body passes the public check path
+    const checkResult = run(['115', '--check'], { input: reviewVerdict })
+    expect(checkResult.status, checkResult.stderr).toBe(0)
+  })
+
+  it('exposes the registry stop classifications in public help --json', () => {
+    const helpResult = run(['--help', '--json'])
+    expect(helpResult.status, helpResult.stderr).toBe(0)
+
+    const jsonLine = helpResult.stdout.split('\n').find((line) => line.trim().startsWith('{'))
+    const help = JSON.parse(jsonLine!)
+    const contract = getCommandContract('bemoat:issue:comment')
+
+    expect(help.stop_classifications).toEqual(contract.stop_classifications)
+    expect(help.stop_classifications).toContain('AMBIGUOUS_RESULT')
   })
 
   it('shares EVIDENCE_CONFLICT classification and exit between text and JSON check modes', () => {

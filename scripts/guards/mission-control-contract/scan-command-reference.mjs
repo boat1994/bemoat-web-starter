@@ -51,6 +51,41 @@ const REQUIRED_RECOVERY_ARGS = [
   '--body-file <canonical-recovery-verdict.md>',
 ]
 
+const REQUIRED_ADOPT_FINDING_ARGS = [
+  'pnpm run bemoat:mission-control:adopt-finding',
+  '-- <issue-number>',
+  '--repo <owner>/<repo>',
+  '--expected-pr <number>',
+  '--expected-base <branch>',
+  '--expected-base-sha <full-sha>',
+  '--expected-state <CORRECTION_REQUIRED_1|CORRECTION_REQUIRED_2>',
+  '--expected-reviewed-head <full-sha>',
+  '--expected-adoption-head <full-sha>',
+  '--predecessor-comment <id>',
+  '--authorization-comment <id>',
+  '[--check]',
+]
+
+const REQUIRED_RECOVER_STATE_ARGS = [
+  'pnpm run bemoat:mission-control:recover-state',
+  '-- <issue-number>',
+  '--repo <owner>/<repo>',
+  '--expected-pr <number>',
+  '--expected-base <branch>',
+  '--expected-base-sha <full-sha>',
+  '--expected-head <full-sha>',
+  '--expected-branch <branch>',
+  '--predecessor-comment <id>',
+  '--adoption-authorization-comment <id>',
+  '--implementation-result-comment <id>',
+  '--implementation-review-comment <id>',
+  '--recovery-authorization-comment <id>',
+  '--lineage-correction-authorization-comment <id>',
+  '--correction-result-comment <id>',
+  '--correction-review-comment <id>',
+  '[--check]',
+]
+
 export function scanCommandReferenceContent(relativePath, content) {
   const violations = []
 
@@ -89,11 +124,25 @@ export function scanCommandReferenceContent(relativePath, content) {
     }
   }
 
+  for (const arg of REQUIRED_ADOPT_FINDING_ARGS) {
+    if (!content.includes(arg)) {
+      violations.push(violation('MC030', relativePath, `Command reference missing adopt-finding arg: ${arg}`))
+    }
+  }
+
+  for (const arg of REQUIRED_RECOVER_STATE_ARGS) {
+    if (!content.includes(arg)) {
+      violations.push(violation('MC031', relativePath, `Command reference missing missing-state recovery arg: ${arg}`))
+    }
+  }
+
   const expectedTableHeaders = [
     '| Command |',
     '| `dispatch` |',
     '| `review` |',
     '| `reconcile` |',
+    '| `adopt-finding` |',
+    '| `recover-state` |',
     '| `merge` |',
     '| `recover-review` |'
   ]

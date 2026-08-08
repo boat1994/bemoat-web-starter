@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "production_scripts": {
+    "root": "scripts",
+    "extension": ".mjs",
+    "line_count_algorithm": "physical-lines-v1",
+    "soft_ceiling": 400,
+    "grandfathered": [
+      { "path": "scripts/agent-delivery.mjs", "max_lines": 686 },
+      { "path": "scripts/agent-issue/current-post-budget-authority.mjs", "max_lines": 646 },
+      { "path": "scripts/agent-issue/progress-tracking.mjs", "max_lines": 462 },
+      { "path": "scripts/boilerplate/filesystem.mjs", "max_lines": 635 },
+      { "path": "scripts/boilerplate/workflow.mjs", "max_lines": 465 },
+      { "path": "scripts/check-boilerplate-drift.mjs", "max_lines": 552 },
+      { "path": "scripts/cli/command-contract-registry.mjs", "max_lines": 1990 },
+      { "path": "scripts/cli/command-contract.mjs", "max_lines": 577 },
+      { "path": "scripts/correction-contract.mjs", "max_lines": 648 },
+      { "path": "scripts/guard-planning-contract.mjs", "max_lines": 859 },
+      { "path": "scripts/mission-control-dispatch.mjs", "max_lines": 545 },
+      { "path": "scripts/mission-control-issue-body-cas.mjs", "max_lines": 438 },
+      { "path": "scripts/mission-control-merge.mjs", "max_lines": 2061 },
+      { "path": "scripts/mission-control-reconcile.mjs", "max_lines": 3070 },
+      { "path": "scripts/mission-control-review.mjs", "max_lines": 470 },
+      { "path": "scripts/mission-control-state.mjs", "max_lines": 548 },
+      { "path": "scripts/mission-control/domain/campaign-authority.mjs", "max_lines": 547 },
+      { "path": "scripts/mission-control/domain/campaign-validator.mjs", "max_lines": 482 },
+      { "path": "scripts/mission-control/domain/review-recovery.mjs", "max_lines": 485 },
+      { "path": "scripts/mission-control/workflows/adopt-finding.mjs", "max_lines": 728 },
+      { "path": "scripts/mission-control/workflows/recover-review.mjs", "max_lines": 828 },
+      { "path": "scripts/mission-control/workflows/recover-state.mjs", "max_lines": 1428 },
+      { "path": "scripts/mission-control/workflows/reopen.mjs", "max_lines": 988 },
+      { "path": "scripts/mission-control/workflows/task-bootstrap.mjs", "max_lines": 658 },
+      { "path": "scripts/post-role-comment.mjs", "max_lines": 690 }
+    ]
+  },
+  "protected_oracle": {
+    "algorithm": "sha256",
+    "files": [
+      { "path": "tests/int/mission-control-merge-verdict-binding-entrypoint.int.spec.ts", "sha256": "c780c36f4fcc3d386be6b3dcb5a86f16b1030a1446cfe59a9fefe83f1dc54b65" },
+      { "path": "tests/int/mission-control-merge.int.spec.ts", "sha256": "2dfb92137dc35d5cd3ab718ff330bde87ae933891cbeaf077baf374a497f2d6e" }
+    ]
+  }
+}

@@ -15,6 +15,7 @@ For issue-based work, do not edit files first.
 Run:
 
 ```bash
+pnpm run bemoat:agent:issue -- --help --json
 pnpm run bemoat:agent:issue -- <issue-number>
 ```
 

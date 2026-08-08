@@ -4,6 +4,9 @@ import {
   parseCorrectionContract,
   validateCorrectionScope,
 } from '../correction-contract.mjs'
+import {
+  resolveAuthoritativeCorrectionContract,
+} from '../mission-control/domain/active-correction-contract.mjs'
 import { findLatestRoleComment } from '../mission-control-reconcile.mjs'
 import {
   extractVerdictPrBaseAndHead,
@@ -108,6 +111,111 @@ export function runCorrectionPhasePreflight({
   }
 
   const latestVerdict = findLatestRoleComment(commentResult.comments, 'REVIEW_VERDICT')
+  const activeResolved = resolveAuthoritativeCorrectionContract({
+    issueBody: issueMetadata.body ?? '',
+    latestCorrectionVerdictBody:
+      latestVerdict?.parsed?.verdict === 'CORRECTION REQUIRED'
+        ? latestVerdict.comment?.body ?? null
+        : null,
+  })
+  if (activeResolved.ok && activeResolved.source === 'active_correction_contract_identity') {
+    const parsedContract = { ok: true, contract: activeResolved.contract }
+    const defaultRepo = getDefaultRepo(cwd)
+    const reviewThreeAuthorization = verifyReviewThreeCorrectionAuthorization({
+      issueBody: issueMetadata.body ?? '',
+      contract: parsedContract.contract,
+      comments: commentResult.comments,
+      issueNumber,
+      defaultRepo,
+      cwd,
+      env,
+      fetchIssueCommentById,
+    })
+    if (!reviewThreeAuthorization.ok) {
+      output.push('Stop: Review 3 Founder correction authorization failed before correction edit authorization.')
+      for (const error of reviewThreeAuthorization.errors) output.push(`- ${error}`)
+      return { ok: false, exitCode: 1, usageError: false, output, issueNumber, branchName, statusShort, issueMetadata }
+    }
+
+    if (parsedContract.contract.mode === 'planning_no_pr') {
+      const { base: verdictBase } = extractVerdictPrBaseAndHead(latestVerdict?.comment?.body ?? '')
+      const durableProofs = verifyPlanningNoPrDurableProofs({
+        cwd,
+        env,
+        issueBody: issueMetadata.body ?? '',
+        issueNumber,
+        contractReviewedHead: parsedContract.contract.reviewed_head,
+        branchName,
+        verdictBase,
+      })
+      if (!durableProofs.ok) {
+        output.push('Stop: planning_no_pr durable authorization proofs failed before correction edit authorization.')
+        for (const error of durableProofs.errors) output.push(`- ${error}`)
+        return { ok: false, exitCode: 1, usageError: false, output, issueNumber, branchName, statusShort, issueMetadata }
+      }
+    }
+
+    const reconciliation = reconcileCorrectionPrEvidence({
+      cwd,
+      env,
+      verdictBody: latestVerdict?.comment?.body ?? '',
+      contractReviewedHead: parsedContract.contract.reviewed_head,
+      mode: parsedContract.contract.mode,
+      branchName,
+      issueNumber,
+      contract: parsedContract.contract,
+      issueBody: issueMetadata.body ?? '',
+    })
+    if (!reconciliation.ok) {
+      output.push('Stop: live PR evidence does not reconcile with the immutable contract head before correction edit authorization.')
+      for (const error of reconciliation.errors) output.push(`- ${error}`)
+      return { ok: false, exitCode: 1, usageError: false, output, issueNumber, branchName, statusShort, issueMetadata }
+    }
+    if (reviewThreeAuthorization.reviewThree) {
+      const ci = analyzeExactHeadCi(reconciliation.livePr)
+      if (!ci.exactHeadVerified) {
+        output.push(`Stop: Review 3 correction requires successful exact-head CI (${ci.summary}).`)
+        return { ok: false, exitCode: 1, usageError: false, output, issueNumber, branchName, statusShort, issueMetadata }
+      }
+    }
+
+    const diffResult = getCorrectionDiffFiles(cwd, parsedContract.contract.reviewed_head, env)
+    if (diffResult.ok && diffResult.files.length > 0) {
+      const scopeCheck = validateCorrectionScope(parsedContract.contract, diffResult.files, { mode: parsedContract.contract.mode })
+      if (!scopeCheck.ok) {
+        output.push('Stop: correction diff touches prohibited scope.')
+        for (const error of scopeCheck.errors) output.push(`- ${error}`)
+        return { ok: false, exitCode: 1, usageError: false, output, issueNumber, branchName, statusShort, issueMetadata }
+      }
+    }
+
+    const prUrl =
+      reconciliation.livePr?.url ||
+      null
+    const capsule = buildCorrectionCapsule(parsedContract.contract, {
+      issueNumber,
+      prUrl,
+      mode: parsedContract.contract.mode,
+    })
+    return {
+      ok: true,
+      exitCode: 0,
+      usageError: false,
+      output: [
+        'Bemoat correction-mode preflight',
+        `Issue: ${issueMetadata.url ?? fallbackIssueUrl ?? `#${issueNumber}`}`,
+        ...capsule.lines,
+        'Edit authorization: granted for the immutable finding set only.',
+        'Authoritative source: active_correction_contract_identity (reconciled union).',
+      ],
+      issueNumber,
+      branchName,
+      statusShort,
+      issueMetadata,
+      correctionContract: parsedContract.contract,
+    }
+  }
+
   if (!latestVerdict?.comment?.body) {
     output.push('Stop: missing correction-eligible REVIEW_VERDICT with immutable findings.')
     return { ok: false, exitCode: 1, usageError: false, output, issueNumber, branchName, statusShort, issueMetadata }

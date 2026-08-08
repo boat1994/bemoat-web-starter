@@ -250,6 +250,9 @@ pnpm run bemoat:mission-control:merge -- <issue-number> --repo owner/repo --auth
 # Terminal state projection only (the reconciler never closes Issues)
 pnpm run bemoat:mission-control:reconcile -- <issue-number> [--repo owner/repo]
 
+# Exceptional missing-state recovery (validation or one leased/CAS projection)
+pnpm run bemoat:mission-control:recover-state -- <issue-number> --repo owner/repo --check
+
 # Child harness pull (after starter merge)
 pnpm run bemoat:boilerplate:sync -- --harness-only
 ```
