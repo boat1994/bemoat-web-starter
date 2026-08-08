@@ -7,6 +7,12 @@ import { parseCorrectionContract } from './correction-contract.mjs'
 import { writeIssueBodyWithLease } from './mission-control-issue-body-cas.mjs'
 import { parseMissionControlState, populateOrPreservePlanningAuthorizationBaseSha, projectMissionControlStateBlock } from './mission-control-state.mjs'
 import {
+  normalizeTransitionIdentity,
+  parseCommentMarker,
+  serializeTransitionIdentity,
+  transitionIdentityMatches,
+} from './mission-control/transition-identity.mjs'
+import {
   detectUnaccountedReviewEvidence,
   isReviewRecoveryIncident,
 } from './mission-control/domain/review-recovery.mjs'
@@ -19,6 +25,10 @@ import {
   isFounderDispatchHandoffAuthority,
   limitTransitions,
 } from './mission-control/domain/productive-policy.mjs'
+
+function sha256(value) {
+  return createHash('sha256').update(value).digest('hex')
+}
 
 const PRE_DELIVERY_STATES = new Set(['READY', 'IN_PROGRESS', 'CORRECTION_REQUIRED_1', 'CORRECTION_REQUIRED_2'])
 const CORE_VERDICTS = new Set([
@@ -564,60 +574,13 @@ export async function dispatchManagedTask({ readState, writeState, postHandoff, 
  * The durable authorization is bound to the concrete HANDOFF comment identifier;
  * a failed state write retracts that comment instead of allowing replay.
  */
-function sha256(value) {
-  return createHash('sha256').update(value).digest('hex')
+export {
+  normalizeTransitionIdentity,
+  parseCommentMarker,
+  serializeTransitionIdentity,
+  transitionIdentityMatches,
 }
-
-const ROLE_MARKERS = new Set(['HANDOFF', 'RESULT', 'REVIEW_VERDICT'])
-
-/**
- * @param {string} body
- * @returns {'HANDOFF' | 'RESULT' | 'REVIEW_VERDICT' | null}
- */
-export function parseCommentMarker(body = '') {
-  const match = body.match(/^##\s+(HANDOFF|RESULT|REVIEW_VERDICT|AUTHORIZATION)\s*$/m)
-  let marker = match?.[1] ?? null
-  if (marker === 'AUTHORIZATION') marker = 'HANDOFF'
-  return marker && ROLE_MARKERS.has(marker) ? marker : null
-}
-
-/**
- * @param {string} body
- * @param {{ taskId?: string, phase?: string, role?: string }} [overrides]
- */
-export function normalizeTransitionIdentity(body = '', overrides = {}) {
-  const role = overrides.role ?? parseCommentMarker(body) ?? ''
-  const taskId = overrides.taskId ??
-    body.match(/\*\*Task(?:\s*\/\s*Issue)?:\*\*\s*(?:Issue\s*)?#?(\d+)/i)?.[1] ??
-    body.match(/Task\s*\/\s*Issue:\s*(?:Issue\s*)?#?(\d+)/i)?.[1] ?? ''
-  const phase = overrides.phase ??
-    body.match(/\*\*Phase:\*\*\s*(.+?)\s*$/m)?.[1]?.trim() ??
-    body.match(/Phase:\s*(.+?)$/m)?.[1]?.trim() ?? ''
-  const normalizedContent = body
-    .replace(/^### Task log[\s\S]*?(?=\n\*\*|\n##|$)/m, '')
-    .replace(/^- Timestamp:.*$/gm, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-  return {
-    taskId: String(taskId),
-    phase,
-    role,
-    contentHash: sha256(normalizedContent),
-  }
-}
-
-export function serializeTransitionIdentity(identity) {
-  return JSON.stringify({
-    taskId: identity.taskId,
-    phase: identity.phase,
-    role: identity.role,
-    contentHash: identity.contentHash,
-  })
-}
-
-export function transitionIdentityMatches(left, right) {
-  return serializeTransitionIdentity(left) === serializeTransitionIdentity(right)
-}
+from './mission-control/transition-identity.mjs'
 
 /**
  * @param {number} matchCount
