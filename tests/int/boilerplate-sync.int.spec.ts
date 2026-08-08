@@ -45,6 +45,10 @@ const STARTER_ONLY_INT_TESTS: { path: string; reason: string }[] = [
     path: 'tests/int/mission-control-review-cli.int.spec.ts',
     reason: 'Review CLI characterization tests are starter harness validation only',
   },
+  {
+    path: 'tests/int/mission-control-merge-blocker-campaign-postconditions.int.spec.ts',
+    reason: 'Direct coverage for the extracted merge domain seam is starter harness validation only',
+  },
 ]
 
 /** Fixture trees that are starter-only and intentionally not synced. */
