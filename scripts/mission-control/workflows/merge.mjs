@@ -8,7 +8,7 @@ import {
   parseCommandInvocation,
 } from '../../cli/command-invocation.mjs'
 
-import { parseMissionControlState, projectMissionControlStateBlock } from '../../mission-control-state.mjs'
+import { parseMissionControlState } from '../../mission-control-state.mjs'
 import { writeIssueBodyWithLease } from '../../mission-control-issue-body-cas.mjs'
 import {
   CAMPAIGN_EXPANSION_POLICY_VERSION,
@@ -43,6 +43,7 @@ import { normalizeIssueNumber, normalizePrNumber } from '../domain/merge-issue-r
 import { resultCommentId } from '../domain/merge-result-comment-id.mjs'
 import { blockedExternal, stateConflict } from '../domain/merge-errors.mjs'
 import { sameTerminalBinding } from '../domain/merge-terminal-binding.mjs'
+import { stateBlockReplacement } from '../domain/merge-state-block-replacement.mjs'
 import { classifyCampaignOwnershipEvidence } from '../domain/merge-campaign-ownership.mjs'
 import { validateDirectOwnership } from '../domain/merge-direct-ownership.mjs'
 import { commentSupersedesId } from '../domain/merge-comment-supersession.mjs'
@@ -749,14 +750,6 @@ function parseArgs(argv) {
     throw new Error('Usage: pnpm run bemoat:mission-control:merge -- <issue-number> --repo owner/repo --authorization-comment <id>')
   }
   return options
-}
-
-function stateBlockReplacement(body, state) {
-  try {
-    return projectMissionControlStateBlock(body, state)
-  } catch (error) {
-    throw stateConflict(error instanceof Error ? error.message : String(error))
-  }
 }
 
 function campaignParseFailure(parsed, context) {
