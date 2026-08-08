@@ -16,7 +16,7 @@ const grandfathered = [
   ['scripts/cli/command-contract-registry.mjs', 1990], ['scripts/cli/command-contract.mjs', 577],
   ['scripts/correction-contract.mjs', 648], ['scripts/guard-planning-contract.mjs', 859],
   ['scripts/mission-control-dispatch.mjs', 545], ['scripts/mission-control-issue-body-cas.mjs', 438],
-  ['scripts/mission-control-merge.mjs', 2061], ['scripts/mission-control-reconcile.mjs', 3070],
+  ['scripts/mission-control-merge.mjs', 2061], ['scripts/mission-control-reconcile.mjs', 567],
   ['scripts/mission-control-review.mjs', 470], ['scripts/mission-control-state.mjs', 548],
   ['scripts/mission-control/domain/campaign-authority.mjs', 547], ['scripts/mission-control/domain/campaign-validator.mjs', 482],
   ['scripts/mission-control/domain/review-recovery.mjs', 485], ['scripts/mission-control/workflows/adopt-finding.mjs', 728],
@@ -115,6 +115,19 @@ describe('structural protection guard', () => {
     expect(await guard(path)).toEqual([])
     write(path, 'scripts/moved.mjs', `${'x\n'.repeat(401)}`)
     expect(await guard(path)).not.toEqual([])
+  })
+
+  it('rejects growth above an accepted ratcheted ceiling', async () => {
+    const path = fixture()
+    const target = 'scripts/mission-control-reconcile.mjs'
+    write(path, target, `${'x\n'.repeat(568)}`)
+    expect(await guard(path)).toEqual([{
+      rule: 'STRUCT012',
+      file: target,
+      message: '568 physical lines exceeds the maximum of 567.',
+    }])
+    write(path, target, `${'x\n'.repeat(567)}`)
+    expect(await guard(path)).toEqual([])
   })
 
   it('rejects changed, missing, symlinked, duplicate, reordered, or extra protected oracle entries', async () => {

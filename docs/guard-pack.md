@@ -40,7 +40,7 @@ Orchestrator: `scripts/guard-pack.mjs` runs guards in the order above and aggreg
 
 ## structural-protection
 
-The manifest uses `physical-lines-v1`: count LF bytes, then add one line only when a non-empty file lacks a trailing LF. CRLF and LF therefore have equal line counts. Existing grandfathered files retain their recorded maximum even when they shrink; deleted entries remain tombstones, while renamed destinations are new files and must meet the 400-line ceiling. There are no bypass flags or automatic manifest updates. The guard also rejects symlinks and fingerprints the two protected Mission Control test files before any assertion-level bypass can take effect.
+The manifest uses `physical-lines-v1`: count LF bytes, then add one line only when a non-empty file lacks a trailing LF. CRLF and LF therefore have equal line counts. Accepted reductions ratchet a grandfathered file's effective maximum down to the accepted baseline; when a reduction reaches 400 lines or fewer, remove its grandfathered entry so the normal 400-line ceiling applies. Increasing a protected maximum requires explicit, auditable Founder authorization rather than an ordinary manifest edit. Deleted entries remain tombstones, while renamed destinations are new files and must meet the 400-line ceiling. There are no bypass flags or automatic manifest updates. The guard also rejects symlinks and fingerprints the two protected Mission Control test files before any assertion-level bypass can take effect.
 
 ## planning-contract
 
