@@ -53,6 +53,7 @@ import {
   hasMeaningfulBindingValue,
   resolveCampaignProjectionKind,
 } from '../domain/merge-campaign-projection.mjs'
+import { flattenGhPages } from '../domain/merge-gh-pages.mjs'
 import {
   AUTHORIZATION_VALIDATION_FAILURE,
   authorizationValidationFailure,
@@ -76,6 +77,7 @@ export {
   validateFounderMergeAuthorizationEvidence,
 }
 export { normalizePaginatedCommitMessages }
+export { flattenGhPages }
 
 const FULL_SHA_RE = /^[0-9a-f]{40}$/i
 const MERGE_COMPLETION_BUNDLE_KIND = 'merge-completion'
@@ -786,10 +788,6 @@ function stateBlockReplacement(body, state) {
 function sameTerminalBinding(left, right) {
   return ['state', 'active_task_issue', 'active_pr', 'current_head', 'last_reviewed_head']
     .every((key) => left?.[key] === right?.[key])
-}
-
-function flattenGhPages(value) {
-  return Array.isArray(value) ? value.flat(Infinity).filter((entry) => entry && typeof entry === 'object') : []
 }
 
 function campaignParseFailure(parsed, context) {
