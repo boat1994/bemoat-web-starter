@@ -1,9 +1,26 @@
 import { describe, expect, it } from 'vitest'
 
+import { mergeCommitOid } from '../../scripts/mission-control/domain/merge-commit-oid.mjs'
 import { normalizePaginatedCommitMessages } from '../../scripts/mission-control/domain/merge-commit-messages.mjs'
 import { renderFinalResultBody } from '../../scripts/mission-control/domain/merge-final-result.mjs'
 
 describe('merge commit message normalization', () => {
+  it('resolves the first available merge commit identity', () => {
+    expect(mergeCommitOid(
+      { mergeCommit: { oid: 'pr-oid', sha: 'pr-sha' } },
+      { mergeCommit: { oid: 'result-oid', sha: 'result-sha' } },
+    )).toBe('pr-oid')
+    expect(mergeCommitOid(
+      { mergeCommit: { sha: 'pr-sha' } },
+      { mergeCommit: { oid: 'result-oid' } },
+    )).toBe('pr-sha')
+    expect(mergeCommitOid(
+      null,
+      { mergeCommit: { sha: 'result-sha' } },
+    )).toBe('result-sha')
+    expect(mergeCommitOid(null, null)).toBeNull()
+  })
+
   it('flattens pages and preserves headline, multiline body, and empty messages', () => {
     expect(normalizePaginatedCommitMessages([
       [{ commit: { message: 'Subject\n\nFirst body line\nSecond body line' } }],

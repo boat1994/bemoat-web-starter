@@ -43,6 +43,7 @@ import { renderFinalResultBody } from '../domain/merge-final-result.mjs'
 import { classifyCampaignOwnershipEvidence } from '../domain/merge-campaign-ownership.mjs'
 import { validateDirectOwnership } from '../domain/merge-direct-ownership.mjs'
 import { commentSupersedesId } from '../domain/merge-comment-supersession.mjs'
+import { mergeCommitOid } from '../domain/merge-commit-oid.mjs'
 import {
   SAFE_EXECUTION_BUNDLES,
   SAFE_EXECUTION_BUNDLE_SCOPES,
@@ -204,10 +205,6 @@ function verifyMergeability(pr) {
 function verifyNoAutomaticClosure(pr, issueNumber, repo) {
   const result = classifyNoAutomaticClosure(pr, issueNumber, repo)
   if (!result.valid) throw stateConflict(result.reason)
-}
-
-function mergeCommitOid(pr, mergeResult) {
-  return pr?.mergeCommit?.oid ?? pr?.mergeCommit?.sha ?? mergeResult?.mergeCommit?.oid ?? mergeResult?.mergeCommit?.sha ?? null
 }
 
 function normalizeIssueState(issue) {
