@@ -28,7 +28,6 @@ import {
   reconstructDeltaReviewFindingUnion,
   resolveAuthoritativeCorrectionContract,
   sameValue,
-  validateActiveCorrectionContractIdentity,
 } from '../domain/active-correction-contract.mjs'
 import {
   assertFounderAdoptFindingAuthorization,
@@ -38,6 +37,11 @@ import {
   fingerprintCorrectionContract,
   hashExactBody,
 } from '../domain/correction-contract-fingerprint.mjs'
+import {
+  assertOnlyIdentityMutation,
+  buildNextState,
+  isIdenticalCompletedProjection,
+} from '../domain/adopt-finding-projection.mjs'
 
 export const ADOPT_FINDING_COMMAND = 'bemoat:mission-control:adopt-finding'
 export const ADOPT_FINDING_ENTRYPOINT = 'scripts/mission-control-adopt-finding.mjs'
@@ -157,27 +161,6 @@ function renderResult({
   return envelope
 }
 
-function assertOnlyIdentityMutation(before, after) {
-  const keys = new Set([...Object.keys(before ?? {}), ...Object.keys(after ?? {})])
-  const allowed = new Set([
-    ACTIVE_CORRECTION_CONTRACT_IDENTITY_KEY,
-    'updated_at',
-    'updated_by',
-    'next_permitted_action',
-  ])
-  for (const key of keys) {
-    if (allowed.has(key)) continue
-    if (!sameValue(before?.[key], after?.[key])) {
-      throw classifiedError('STATE_CONFLICT', `adopt-finding changed unrelated managed-state field ${key}`)
-    }
-  }
-  for (const key of ['state', 'review_cycle', 'full_review_count', 'last_reviewed_head', 'current_head']) {
-    if (!sameValue(before?.[key], after?.[key])) {
-      throw classifiedError('STATE_CONFLICT', `adopt-finding must preserve ${key}`)
-    }
-  }
-}
-
 function assertPredecessorBindings({
   predecessorComment,
   predecessorAuthorization,
@@ -225,33 +208,6 @@ function assertPredecessorBindings({
     contract: parsed.contract,
     authorizationBinding: predecessorAuthorization ?? null,
   }
-}
-
-function buildNextState(state, identity) {
-  return {
-    ...structuredClone(state),
-    [ACTIVE_CORRECTION_CONTRACT_IDENTITY_KEY]: identity,
-    next_permitted_action: exactNextAction(
-      String(state.active_task_issue ?? '').match(/#?(\d+)/)?.[1] ?? '',
-    ),
-    updated_at: new Date().toISOString(),
-    updated_by: 'Mission Control adopt-finding',
-  }
-}
-
-function isIdenticalCompletedProjection({ state, identity, options, authorization }) {
-  const existing = state?.[ACTIVE_CORRECTION_CONTRACT_IDENTITY_KEY]
-  if (!existing) return false
-  const validated = validateActiveCorrectionContractIdentity(existing)
-  if (!validated.ok) return false
-  return (
-    String(validated.identity.founder_authorization_comment_id) === String(options.authorizationComment) &&
-    String(validated.identity.predecessor_comment_id) === String(options.predecessorComment) &&
-    validated.identity.founder_authorization_body_sha256 === authorization.body_sha256 &&
-    validated.identity.adoption_head === normalizeSha(options.expectedAdoptionHead) &&
-    validated.identity.contract_fingerprint === identity.contract_fingerprint &&
-    sameValue(validated.identity.contract, identity.contract)
-  )
 }
 
 export async function runAdoptFinding({ options, deps, checkOnly = false }) {

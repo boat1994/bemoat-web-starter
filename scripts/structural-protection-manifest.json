@@ -36,6 +36,7 @@
   "protected_oracle": {
     "algorithm": "sha256",
     "files": [
+      { "path": "tests/int/mission-control-adopt-finding.int.spec.ts", "sha256": "ff7722313a94b8cdcc219b1101423ab73691acdb099532475addb4fed0ff689b" },
       { "path": "tests/int/mission-control-merge-verdict-binding-entrypoint.int.spec.ts", "sha256": "c780c36f4fcc3d386be6b3dcb5a86f16b1030a1446cfe59a9fefe83f1dc54b65" },
       { "path": "tests/int/mission-control-merge.int.spec.ts", "sha256": "2dfb92137dc35d5cd3ab718ff330bde87ae933891cbeaf077baf374a497f2d6e" }
     ]
