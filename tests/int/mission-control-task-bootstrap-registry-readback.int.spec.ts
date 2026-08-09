@@ -7,10 +7,13 @@ describe('task bootstrap registry readback boundary', () => {
     const workflow = readFileSync('scripts/mission-control/workflows/task-bootstrap.mjs', 'utf8')
 
     expect(workflow).toContain(
-      "import { readRegistryRecords, verifyFinalTaskRegistryReadback } from '../domain/task-bootstrap-registry-readback.mjs'",
+      "import { readRegistryRecords } from '../domain/task-bootstrap-registry-readback.mjs'",
+    )
+    expect(workflow).toContain(
+      "import { verifyFinalTask } from '../domain/task-bootstrap-final-readback.mjs'",
     )
     expect(workflow).not.toMatch(/async function readRegistryRecords\(/)
     expect(workflow).not.toContain('const registryVerification = verifyTaskOwnershipRecord(')
-    expect(workflow).toContain('verifyFinalTaskRegistryReadback({')
+    expect(workflow).toContain('const verifiedIssue = await verifyFinalTask({')
   })
 })

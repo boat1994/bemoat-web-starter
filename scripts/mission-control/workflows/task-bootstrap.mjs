@@ -15,7 +15,6 @@ import {
   TASK_ATTESTATION_OPERATION,
   TASK_ATTESTATION_OPERATION_VERSION,
   TASK_ATTESTATION_SCHEMA,
-  canonicalHash,
   createSignedEnvelope,
   parseTaskAttestation,
   sha256Hex,
@@ -31,7 +30,8 @@ import {
   runCanonicalManagedTaskPreflight,
 } from '../domain/task-bootstrap-preflight.mjs'
 import { classifyTaskBootstrapAllocation, matchesProvisional, registryForRequest } from '../domain/task-bootstrap-allocation.mjs'
-import { readRegistryRecords, verifyFinalTaskRegistryReadback } from '../domain/task-bootstrap-registry-readback.mjs'
+import { readRegistryRecords } from '../domain/task-bootstrap-registry-readback.mjs'
+import { verifyFinalTask } from '../domain/task-bootstrap-final-readback.mjs'
 import { buildInitialTaskState } from '../domain/task-bootstrap-state.mjs'
 
 const REQUIRED_CI_NAMES = new Set(['ci', 'starter-ci'])
@@ -277,46 +277,6 @@ async function projectWithCas({ github, issue, nextBody, requestId }) {
       try { await github.releaseIssueLease({ issueNumber: issue.number, requestId, lease }) } catch { /* readback remains authoritative */ }
     }
   }
-}
-
-async function verifyFinalTask({ github, issueNumber, context, authorization, requestId, attestation, registryRecord, expectedBody }) {
-  let issue
-  try { issue = await github.getIssue(issueNumber) } catch (error) { throw blockedExternal(`allocated Task Issue #${issueNumber} could not be read back`, error) }
-  if (expectedBody != null && issue.body !== expectedBody) throw blockedExternal('Task Issue body readback differs from the body projected by the winning lease')
-  let pullRequest
-  try { pullRequest = await github.getPullRequest(BOOTSTRAP_CONTRACT.pullRequest) } catch (error) { throw blockedExternal('PR evidence was unavailable during final Task readback', error) }
-  const preflight = runCanonicalManagedTaskPreflight({
-    issue,
-    pullRequest,
-    repository: context.repository.nameWithOwner,
-    publicKey: context.publicKey,
-    signingKeyId: context.signingKeyId,
-    expectedProtectedBaseSha: BOOTSTRAP_CONTRACT.protectedBaseSha,
-    expectedAuthorization: { ...authorization, parentIssue: context.parentIssue },
-    expectedWorkflow: context.workflow,
-    policy: context.policy,
-    repositoryIdentity: context.repository,
-    requireBootstrapAttestation: true,
-  })
-  if (!preflight.ok) throw blockedExternal(`canonical managed-task preflight failed after projection: ${preflight.reason}`)
-  const parsedAttestation = parseTaskAttestation(issue.body)
-  if (!parsedAttestation.ok || parsedAttestation.envelope.payload.request_id !== requestId) throw blockedExternal('readback Task attestation does not match the deterministic request')
-  if (canonicalHash(parsedAttestation.envelope) !== canonicalHash(attestation)) throw blockedExternal('readback Task attestation changed after projection')
-  verifyFinalTaskRegistryReadback({
-    registryRecord,
-    publicKey: context.publicKey,
-    repository: context.repository.nameWithOwner,
-    signingKeyId: context.signingKeyId,
-    parentIssue: context.parentIssue,
-    taskIssue: issue,
-    pullRequest,
-    base: BOOTSTRAP_CONTRACT.base,
-    head: BOOTSTRAP_CONTRACT.head,
-    protectedBaseSha: BOOTSTRAP_CONTRACT.protectedBaseSha,
-    requestId,
-    attestation: parsedAttestation.envelope,
-  })
-  return issue
 }
 
 /**
