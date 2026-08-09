@@ -164,6 +164,7 @@
     "tests/int/mission-control-recover-review.int.spec.ts",
     "tests/int/mission-control-reopen.int.spec.ts",
     "tests/int/mission-control-adopt-finding.int.spec.ts",
+    "tests/int/mission-control-adopt-finding-rendering.int.spec.ts",
     "tests/int/mission-control-recover-state.int.spec.ts",
     "tests/int/mission-control-correction-entrypoints.int.spec.ts",
     "tests/int/mission-control-dispatch-result-rendering.int.spec.ts",
