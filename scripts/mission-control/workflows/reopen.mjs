@@ -10,6 +10,11 @@ import {
   projectMissionControlStateBlock,
 } from '../../mission-control-state.mjs'
 import { writeIssueBodyWithLease } from '../../mission-control-issue-body-cas.mjs'
+import {
+  buildNextState,
+  cloneReopenValue,
+  sameReopenValue,
+} from '../domain/reopen-state-projection.mjs'
 
 export const REOPEN_AUTHORIZATION_BUNDLE_KIND = 'founder-reopen'
 export const REOPEN_NEXT_ACTION = 'Execute exactly one bounded correction RESULT, then one Delta Review.'
@@ -69,10 +74,6 @@ function blockedExternal(message) {
   return new Error(`BLOCKED_EXTERNAL: ${message}`)
 }
 
-function clone(value) {
-  return structuredClone(value)
-}
-
 function normalizeId(value) {
   const match = String(value ?? '').match(/^#?([1-9]\d*)$/)
   return match?.[1] ?? null
@@ -88,24 +89,6 @@ function hashBody(body) {
 
 function isObject(value) {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function sameValue(left, right) {
-  if (Object.is(left, right)) return true
-  if (typeof left !== typeof right || left === null || right === null) return false
-  if (Array.isArray(left)) {
-    return Array.isArray(right) &&
-      left.length === right.length &&
-      left.every((value, index) => sameValue(value, right[index]))
-  }
-  if (Array.isArray(right)) return false
-  if (typeof left === 'object') {
-    const leftKeys = Object.keys(left).sort()
-    const rightKeys = Object.keys(right).sort()
-    return leftKeys.length === rightKeys.length &&
-      leftKeys.every((key, index) => key === rightKeys[index] && sameValue(left[key], right[key]))
-  }
-  return false
 }
 
 function requireValue(options, key) {
@@ -289,7 +272,7 @@ function assertBoundedScope(value) {
     value.length > 0 &&
     value.every((entry) => typeof entry === 'string' && entry.trim())
   ) {
-    return clone(value)
+    return cloneReopenValue(value)
   }
   throw stateConflict('Founder authorization bounded correction scope is required')
 }
@@ -441,7 +424,7 @@ function assertFounderAuthorization({
   }
 
   const normalized = {
-    ...clone(authorization),
+    ...cloneReopenValue(authorization),
     comment_id: String(options.authorizationComment),
     immutable_comment_id: String(options.authorizationComment),
     comment_sha256: bodyHash,
@@ -505,9 +488,9 @@ function assertFounderAuthorization({
   }
 
   return {
-    comment: clone(comment),
+    comment: cloneReopenValue(comment),
     authorization: normalized,
-    comments: clone(comments),
+    comments: cloneReopenValue(comments),
     trustedFounderLogins: [...trustedFounderLogins],
   }
 }
@@ -627,62 +610,6 @@ function assertPrPreflight(pr, options, expectedHead) {
   }
 }
 
-function assertOnlyBoundedStateChanges(before, after) {
-  const allowed = new Set([
-    'state',
-    'current_head',
-    'founder_correction_authorization',
-    'next_permitted_action',
-    'updated_at',
-    'updated_by',
-  ])
-  const keys = new Set([...Object.keys(before ?? {}), ...Object.keys(after ?? {})])
-  for (const key of keys) {
-    if (!allowed.has(key) && !sameValue(before?.[key], after?.[key])) {
-      throw stateConflict(`reopen projection changed unrelated state field ${key}`)
-    }
-  }
-}
-
-function buildNextState(state, evidence, options) {
-  const authorization = evidence.authorization
-  const nextAuthorization = {
-    ...clone(authorization),
-    schema_version: 2,
-    status: 'authorized',
-    authority: 'Founder',
-    scope: 'correction',
-    action: 'reopen',
-    for_review_number: Number(options.expectedReviewCycle),
-    review_cycle: Number(options.expectedReviewCycle),
-    authorization_id: authorization.authorization_id,
-    reviewed_head: normalizeSha(options.expectedNewHead),
-    old_reviewed_head: normalizeSha(options.expectedOldHead),
-    exact_head: normalizeSha(options.expectedNewHead),
-    finding_ids: clone(authorization.finding_ids),
-    maximum_correction_deliveries: 1,
-    correction_deliveries: 0,
-    delta_review_requirement: true,
-    required_next_review: 'Delta Review',
-    delta_review_count: 0,
-    correction_result_comment_id: null,
-    delta_review_comment_id: null,
-    merge_authorization_invalidated_head: normalizeSha(options.expectedOldHead),
-    authorization_record: clone(authorization),
-  }
-  const nextState = {
-    ...clone(state),
-    state: CORRECTION_STATE,
-    current_head: normalizeSha(options.expectedNewHead),
-    next_permitted_action: REOPEN_NEXT_ACTION,
-    founder_correction_authorization: nextAuthorization,
-    updated_at: new Date().toISOString(),
-    updated_by: 'Founder-authorized Reopen Transport',
-  }
-  assertOnlyBoundedStateChanges(state, nextState)
-  return nextState
-}
-
 function assertPostState(issue, state, pr, evidence, options) {
   assertIssueIdentity(issue, options)
   if (!isObject(state) || state.state !== CORRECTION_STATE) {
@@ -729,7 +656,7 @@ function assertPostState(issue, state, pr, evidence, options) {
       authorization.correction_result_comment_id !== null ||
       authorization.delta_review_comment_id !== null ||
       !isObject(authorization.authorization_record) ||
-      !sameValue(authorization.authorization_record, evidence.authorization)) {
+      !sameReopenValue(authorization.authorization_record, evidence.authorization)) {
     throw stateConflict('post-write Founder authorization record is incomplete or changed')
   }
   assertReviewLineage(state)
@@ -919,10 +846,13 @@ export async function runReopen({ options, deps }) {
   }
   assertPreState(latest.issue, latest.state, options)
   assertPrPreflight(latest.pr, options, options.expectedNewHead)
-  if (!sameValue(latest.state, state) || latest.issue.body !== issue.body) {
+  if (!sameReopenValue(latest.state, state) || latest.issue.body !== issue.body) {
     throw stateConflict('managed Issue changed during authorization preflight')
   }
-  const nextState = buildNextState(latest.state, evidence, options)
+  const nextState = buildNextState(latest.state, evidence, options, {
+    correctionState: CORRECTION_STATE,
+    nextAction: REOPEN_NEXT_ACTION,
+  })
   let nextBody
   try {
     nextBody = projectMissionControlStateBlock(latest.issue.body, nextState)
@@ -963,14 +893,14 @@ export async function runReopen({ options, deps }) {
     state: verified.state,
     pr: verified.pr,
   })
-  if (!sameValue(postEvidence.authorization, evidence.authorization)) {
+  if (!sameReopenValue(postEvidence.authorization, evidence.authorization)) {
     throw stateConflict('Founder authorization evidence changed during the state write')
   }
   if (verified.issue.body !== nextBody) {
     throw stateConflict('post-write Issue body readback does not match the projected body')
   }
   assertPostState(verified.issue, verified.state, verified.pr, postEvidence, options)
-  if (!sameValue(verified.state, nextState)) {
+  if (!sameReopenValue(verified.state, nextState)) {
     throw stateConflict('post-write managed state readback does not match the canonical projection')
   }
   return { outcome: 'REOPENED', state: verified.state }

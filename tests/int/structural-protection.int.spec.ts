@@ -22,7 +22,7 @@ const grandfathered = [
   ['scripts/mission-control/domain/review-recovery.mjs', 485], ['scripts/mission-control/workflows/adopt-finding.mjs', 728],
   ['scripts/mission-control/workflows/merge.mjs', 1124],
   ['scripts/mission-control/workflows/recover-review.mjs', 828], ['scripts/mission-control/workflows/recover-state.mjs', 1127],
-  ['scripts/mission-control/workflows/reopen.mjs', 988], ['scripts/mission-control/workflows/task-bootstrap.mjs', 658],
+  ['scripts/mission-control/workflows/reopen.mjs', 918], ['scripts/mission-control/workflows/task-bootstrap.mjs', 658],
   ['scripts/post-role-comment.mjs', 690],
 ] as const
 
@@ -76,7 +76,7 @@ describe('structural protection guard', () => {
     expect((await guard()).map((entry: { rule: string }) => entry.rule)).toEqual([])
     expect(grandfathered).toHaveLength(25)
     expect(JSON.parse(readFileSync(join(root, 'scripts/structural-protection-manifest.json'), 'utf8'))).toEqual(manifest())
-    expect(scriptInventory(root)).toBe(168)
+    expect(scriptInventory(root)).toBe(169)
   })
 
   it('rejects malformed schema, types, unknown keys, ordering, duplicates, paths, and SHA values', async () => {
