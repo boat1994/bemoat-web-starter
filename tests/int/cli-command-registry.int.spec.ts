@@ -366,6 +366,12 @@ describe('Task 1 command contract registry', () => {
     expectRegistryValid()
   })
 
+  it('keeps the public registry containers frozen', () => {
+    expect(Object.isFrozen(COMMAND_CONTRACT_REGISTRY)).toBe(true)
+    expect(Object.isFrozen(COMMAND_CONTRACT_REGISTRY.commands)).toBe(true)
+    expect(Object.isFrozen(COMMAND_CONTRACT_REGISTRY.routes)).toBe(true)
+  })
+
   it('proves Tier C delegates without a repository parser', () => {
     const tierCCommands = Object.entries(EXPECTED_COMMAND_TIERS)
       .filter(([, tier]) => tier === 'C')

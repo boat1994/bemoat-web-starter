@@ -12,7 +12,7 @@
       { "path": "scripts/boilerplate/filesystem.mjs", "max_lines": 635 },
       { "path": "scripts/boilerplate/workflow.mjs", "max_lines": 465 },
       { "path": "scripts/check-boilerplate-drift.mjs", "max_lines": 552 },
-      { "path": "scripts/cli/command-contract-registry.mjs", "max_lines": 1990 },
+      { "path": "scripts/cli/command-contract-registry.mjs", "max_lines": 837 },
       { "path": "scripts/cli/command-contract.mjs", "max_lines": 577 },
       { "path": "scripts/correction-contract.mjs", "max_lines": 648 },
       { "path": "scripts/guard-planning-contract.mjs", "max_lines": 859 },
