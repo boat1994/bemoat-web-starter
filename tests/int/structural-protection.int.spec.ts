@@ -13,7 +13,7 @@ const grandfathered = [
   ['scripts/agent-delivery.mjs', 686], ['scripts/agent-issue/current-post-budget-authority.mjs', 646],
   ['scripts/agent-issue/progress-tracking.mjs', 462], ['scripts/boilerplate/filesystem.mjs', 635],
   ['scripts/boilerplate/workflow.mjs', 465], ['scripts/check-boilerplate-drift.mjs', 552],
-  ['scripts/cli/command-contract-registry.mjs', 1990], ['scripts/cli/command-contract.mjs', 577],
+  ['scripts/cli/command-contract-registry.mjs', 837], ['scripts/cli/command-contract.mjs', 577],
   ['scripts/correction-contract.mjs', 648], ['scripts/guard-planning-contract.mjs', 859],
   ['scripts/mission-control-dispatch.mjs', 545], ['scripts/mission-control-issue-body-cas.mjs', 438],
   ['scripts/mission-control-reconcile.mjs', 143],
@@ -76,7 +76,7 @@ describe('structural protection guard', () => {
     expect((await guard()).map((entry: { rule: string }) => entry.rule)).toEqual([])
     expect(grandfathered).toHaveLength(25)
     expect(JSON.parse(readFileSync(join(root, 'scripts/structural-protection-manifest.json'), 'utf8'))).toEqual(manifest())
-    expect(scriptInventory(root)).toBe(162)
+    expect(scriptInventory(root)).toBe(167)
   })
 
   it('rejects malformed schema, types, unknown keys, ordering, duplicates, paths, and SHA values', async () => {
