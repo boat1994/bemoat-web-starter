@@ -1,5 +1,5 @@
 import { CANONICAL_TRANSPORTS } from '../mission-control/transport-registry.mjs'
-import { CORRECTION_EVIDENCE_CONTRACT } from '../correction-contract.mjs'
+import { CORRECTION_EVIDENCE_CONTRACT } from '../mission-control/domain/correction-contract.mjs'
 import { missionControlPrimaryCommands } from './mission-control-command-metadata-primary.mjs'
 import { missionControlRecoveryCommands } from './mission-control-command-metadata-recovery.mjs'
 import { missionControlReviewCommands } from './mission-control-command-metadata-review.mjs'

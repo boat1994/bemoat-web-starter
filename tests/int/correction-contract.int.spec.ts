@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- untyped runtime .mjs boundary */
 import * as correctionContractModule from '../../scripts/correction-contract.mjs'
+import * as correctionContractDomain from '../../scripts/mission-control/domain/correction-contract.mjs'
 
 const {
   parseCorrectionContract,
@@ -118,6 +119,11 @@ ${JSON.stringify(map, null, 2)}
 }
 
 describe('correction-contract pure module', () => {
+  it('keeps the stable facade exports backed by the Slice 5 domain module', () => {
+    expect(Object.keys(correctionContractDomain).sort()).toEqual(Object.keys(correctionContractModule).sort())
+    expect(correctionContractDomain.parseCorrectionContract(verdictBody()).ok).toBe(true)
+  })
+
   it('keeps the public correction evidence contract aligned with runtime validation', () => {
     const publicExample = JSON.parse(
       CORRECTION_EVIDENCE_CONTRACT.canonical_example.match(/```json\n([\s\S]*?)\n```/)?.[1] ?? '{}',

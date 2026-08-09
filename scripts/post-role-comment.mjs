@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process'
 import {
   isCorrectionPhaseResult,
   validateCorrectionRoleComment,
-} from './correction-contract.mjs'
+} from './mission-control/domain/correction-contract.mjs'
 import {
   resolveAuthoritativeCorrectionContract,
 } from './mission-control/domain/active-correction-contract.mjs'

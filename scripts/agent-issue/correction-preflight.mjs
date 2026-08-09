@@ -3,7 +3,7 @@ import {
   derivePlanningArtifactAllowlist,
   parseCorrectionContract,
   validateCorrectionScope,
-} from '../correction-contract.mjs'
+} from '../mission-control/domain/correction-contract.mjs'
 import {
   resolveAuthoritativeCorrectionContract,
 } from '../mission-control/domain/active-correction-contract.mjs'

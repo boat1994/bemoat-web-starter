@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto'
 import yaml from 'yaml'
 
 import { analyzeExactHeadCi } from '../../agent-issue/exact-head-ci.mjs'
-import { parseCorrectionContract, parseCorrectionEvidenceMap, validateFindingIdentity } from '../../correction-contract.mjs'
+import { parseCorrectionContract, parseCorrectionEvidenceMap, validateFindingIdentity } from '../domain/correction-contract.mjs'
 import { scanGuideContent } from '../../guards/mission-control-contract/scan-guide.mjs'
 import { parseMissionControlState, projectMissionControlStateBlock } from '../../mission-control-state.mjs'
 import {
@@ -825,4 +825,3 @@ export async function main(argv = process.argv.slice(2), deps = createProduction
   process.stdout.write(`Mission Control review recovery ${result.outcome}: Task #274 -> ${result.state.state} ${result.state.review_cycle}/${result.state.full_review_count}\n`)
   return result
 }
-

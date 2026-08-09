@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { analyzeExactHeadCi } from './agent-issue/exact-head-ci.mjs'
 import { runCommand as run } from './adapters/command-runner.mjs'
-import { parseReviewVerdictContractFindings } from './correction-contract.mjs'
+import { parseReviewVerdictContractFindings } from './mission-control/domain/correction-contract.mjs'
 import { parseMissionControlState, projectMissionControlStateBlock } from './mission-control-state.mjs'
 import { preflightCanonicalBootstrapTask } from './mission-control/domain/task-bootstrap-preflight.mjs'
 import {

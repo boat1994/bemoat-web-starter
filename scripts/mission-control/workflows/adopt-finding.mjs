@@ -10,7 +10,7 @@ import {
   parseCommandInvocation,
   resolveCommandIdentity,
 } from '../../cli/command-invocation.mjs'
-import { parseCorrectionContract } from '../../correction-contract.mjs'
+import { parseCorrectionContract } from '../domain/correction-contract.mjs'
 import { writeIssueBodyWithLease, isLeaseCasConflict } from '../../mission-control-issue-body-cas.mjs'
 import {
   parseMissionControlState,
