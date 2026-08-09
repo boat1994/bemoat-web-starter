@@ -29,7 +29,6 @@ import { classifyHeadBindings } from '../domain/merge-head-bindings.mjs'
 import { classifyMergeability } from '../domain/merge-mergeability.mjs'
 import { classifyNoAutomaticClosure } from '../domain/merge-no-automatic-closure.mjs'
 import { validateNextAction } from '../domain/merge-next-action.mjs'
-import { validateBlockerResolutionBindings } from '../domain/merge-blocker-bindings.mjs'
 import { validateBlockerResolutionPostconditions } from '../domain/merge-blocker-postconditions.mjs'
 import { blockerResolutionCampaignPostconditions } from '../domain/merge-blocker-campaign-postconditions.mjs'
 import { renderFinalResultBody } from '../domain/merge-final-result.mjs'
@@ -39,7 +38,6 @@ import { blockedExternal, stateConflict } from '../domain/merge-errors.mjs'
 import { campaignParseFailure } from '../domain/merge-campaign-errors.mjs'
 import { sameTerminalBinding } from '../domain/merge-terminal-binding.mjs'
 import { stateBlockReplacement } from '../domain/merge-state-block-replacement.mjs'
-import { classifyCampaignOwnershipEvidence } from '../domain/merge-campaign-ownership.mjs'
 import { deriveCampaignExpansionAuthority } from '../domain/merge-campaign-expansion-authority.mjs'
 import {
   projectCampaignBlockerResolved,
@@ -62,9 +60,11 @@ import {
 } from '../domain/merge-safe-execution-bundle.mjs'
 import {
   CAMPAIGN_PROJECTION_KINDS,
-  hasMeaningfulBindingValue,
-  resolveCampaignProjectionKind,
 } from '../domain/merge-campaign-projection.mjs'
+import {
+  createCampaignOwnershipAdmission,
+  resolveCampaignMergeRoute,
+} from '../domain/merge-campaign-admission.mjs'
 import { flattenGhPages } from '../domain/merge-gh-pages.mjs'
 import {
   AUTHORIZATION_VALIDATION_FAILURE,
@@ -105,78 +105,6 @@ function defaultMergeCompletionBundle() {
     terminal_outcome: 'Task DONE and campaign slice DONE; next action selected but not started',
     steps: SAFE_EXECUTION_BUNDLES['merge-completion'],
   }
-}
-
-async function resolveCampaignMergeRoute({
-  deps,
-  repo,
-  issueNumber,
-  prNumber,
-  authorization,
-  state,
-}) {
-  const managedCampaignIssue = normalizeIssueNumber(state?.campaign_issue)
-  const hasManagedCampaignClaim = hasMeaningfulBindingValue(state?.campaign_issue) ||
-    hasMeaningfulBindingValue(state?.campaign_slice)
-
-  if (!hasManagedCampaignClaim) return null
-  if (!managedCampaignIssue) {
-    throw stateConflict('managed campaign binding has an invalid campaign Issue')
-  }
-
-  const managedCampaignSlice = state?.campaign_slice == null ? null : Number(state.campaign_slice)
-  const projectionClassification = resolveCampaignProjectionKind(authorization)
-  if (!projectionClassification.valid) throw stateConflict(projectionClassification.reason)
-  const projectionKind = projectionClassification.projectionKind
-  let blockerBinding = null
-
-  if (managedCampaignSlice != null) {
-    if (!Number.isInteger(managedCampaignSlice) || managedCampaignSlice <= 0) {
-      throw stateConflict('managed campaign binding has an invalid campaign slice')
-    }
-    if (projectionKind !== CAMPAIGN_PROJECTION_KINDS.SLICE) {
-      throw stateConflict('campaign projection kind differs from managed campaign slice binding')
-    }
-    if (normalizeIssueNumber(authorization.campaign_issue) !== managedCampaignIssue ||
-      Number(authorization.campaign_slice) !== managedCampaignSlice) {
-      throw stateConflict('campaign authorization tuple differs from managed state')
-    }
-  } else {
-    if (projectionKind !== CAMPAIGN_PROJECTION_KINDS.BLOCKER_RESOLUTION) {
-      throw stateConflict('managed campaign binding requires an exact slice or blocker-resolution tuple')
-    }
-    blockerBinding = validateBlockerResolutionBindings({ authorization, state })
-    if (blockerBinding.campaignIssue !== managedCampaignIssue) {
-      throw stateConflict('blocker-resolution campaign Issue binding differs from managed state')
-    }
-  }
-
-  if (typeof deps.readCampaignOwnership !== 'function') {
-    throw blockedExternal('verified durable campaign ownership evidence is unavailable')
-  }
-  const route = {
-    projectionKind,
-    campaignIssue: managedCampaignIssue,
-    campaignSlice: managedCampaignSlice,
-    blockerBinding,
-  }
-  const ownership = await deps.readCampaignOwnership({
-    repo,
-    taskIssue: issueNumber,
-    prNumber,
-    campaignIssue: route.campaignIssue,
-    campaignSlice: route.campaignSlice,
-    campaignBlockerId: route.blockerBinding?.campaignBlockerId ?? null,
-    projectionKind: route.projectionKind,
-  })
-  const ownershipClassification = classifyCampaignOwnershipEvidence({
-    ownership,
-    route,
-    issueNumber,
-    prNumber,
-  })
-  if (!ownershipClassification.valid) throw stateConflict(ownershipClassification.reason)
-  return route
 }
 
 export function validateMergeReviewVerdict({ reviewVerdict, expected }) {
@@ -812,51 +740,7 @@ function createProductionDeps() {
     return parsed
   }
 
-  const readCampaignOwnership = async ({
-    repo,
-    taskIssue,
-    prNumber,
-    campaignIssue,
-    campaignSlice,
-    campaignBlockerId,
-    projectionKind,
-  }) => {
-    const parsed = await readCampaignIssue(repo, campaignIssue)
-    if (projectionKind === CAMPAIGN_PROJECTION_KINDS.SLICE) {
-      const slice = parsed.campaign?.slices?.[String(campaignSlice)]
-      if (!slice ||
-        normalizeIssueNumber(slice.issue) !== taskIssue ||
-        normalizePrNumber(slice.pr) !== prNumber) {
-        throw stateConflict(`campaign Slice ${campaignSlice} is not durably allocated to Task Issue #${taskIssue} and PR #${prNumber}`)
-      }
-      return {
-        verified: true,
-        evidence_kind: 'campaign-projection',
-        projectionKind,
-        campaignIssue,
-        campaignSlice,
-        taskIssue,
-        prNumber,
-      }
-    }
-
-    const blocker = (parsed.campaign?.campaign_blockers ?? [])
-      .find((candidate) => candidate?.id === campaignBlockerId)
-    if (!blocker ||
-      normalizeIssueNumber(blocker.evidence?.issue) !== taskIssue ||
-      normalizePrNumber(blocker.evidence?.pr) !== prNumber) {
-      throw stateConflict(`campaign blocker ${campaignBlockerId} is not durably allocated to Task Issue #${taskIssue} and PR #${prNumber}`)
-    }
-    return {
-      verified: true,
-      evidence_kind: 'campaign-projection',
-      projectionKind,
-      campaignIssue,
-      campaignBlockerId,
-      taskIssue,
-      prNumber,
-    }
-  }
+  const readCampaignOwnership = createCampaignOwnershipAdmission({ readCampaignIssue })
 
   const readNextCampaignAction = async ({ repo, campaignIssue }) => {
     const parsed = await readCampaignIssue(repo, campaignIssue)
