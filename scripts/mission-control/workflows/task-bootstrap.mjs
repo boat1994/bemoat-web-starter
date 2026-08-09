@@ -23,9 +23,7 @@ import {
 import {
   buildTaskOwnershipPayload,
   createTaskOwnershipRecord,
-  parseTaskOwnershipRecord,
   renderTaskOwnershipRecord,
-  verifyTaskOwnershipRecord,
 } from '../domain/task-ownership-registry.mjs'
 import {
   canonicalManagedStateBinding,
@@ -33,6 +31,7 @@ import {
   runCanonicalManagedTaskPreflight,
 } from '../domain/task-bootstrap-preflight.mjs'
 import { classifyTaskBootstrapAllocation, matchesProvisional, registryForRequest } from '../domain/task-bootstrap-allocation.mjs'
+import { readRegistryRecords, verifyFinalTaskRegistryReadback } from '../domain/task-bootstrap-registry-readback.mjs'
 import { buildInitialTaskState } from '../domain/task-bootstrap-state.mjs'
 
 const REQUIRED_CI_NAMES = new Set(['ci', 'starter-ci'])
@@ -160,25 +159,6 @@ function validateGenesisEvidence({ repository, parentIssue, pullRequest, mainCom
     throw stateConflict('workflow was not loaded from protected main')
   }
   exactHeadCi(pullRequest)
-}
-
-async function readRegistryRecords(github, parentIssueNumber, publicKey, repository, signingKeyId, expected = {}) {
-  const comments = await github.getIssueComments(parentIssueNumber)
-  const records = []
-  for (const comment of comments) {
-    if (!String(comment?.body ?? '').includes('bemoat-mission-control-task-registry:v1')) continue
-    const parsed = parseTaskOwnershipRecord(comment.body)
-    if (!parsed.ok) throw stateConflict(`parent ownership registry comment ${comment.id} is unreadable`)
-    const verified = verifyTaskOwnershipRecord(parsed.envelope, {
-      publicKey,
-      repository,
-      signingKeyId,
-      ...expected,
-    })
-    if (!verified.ok) throw stateConflict(`parent ownership registry comment ${comment.id} failed verification: ${verified.reason}`)
-    records.push({ comment, ...verified })
-  }
-  return { comments, records }
 }
 
 async function scanTaskIssues({ github, request, publicKey, repository, signingKeyId, pullRequest, parentIssue, expectedWorkflow, policy, authorization }) {
@@ -322,24 +302,20 @@ async function verifyFinalTask({ github, issueNumber, context, authorization, re
   const parsedAttestation = parseTaskAttestation(issue.body)
   if (!parsedAttestation.ok || parsedAttestation.envelope.payload.request_id !== requestId) throw blockedExternal('readback Task attestation does not match the deterministic request')
   if (canonicalHash(parsedAttestation.envelope) !== canonicalHash(attestation)) throw blockedExternal('readback Task attestation changed after projection')
-  const registryVerification = verifyTaskOwnershipRecord(registryRecord, {
+  verifyFinalTaskRegistryReadback({
+    registryRecord,
     publicKey: context.publicKey,
     repository: context.repository.nameWithOwner,
     signingKeyId: context.signingKeyId,
-    expectedParentIssue: context.parentIssue,
-    expectedTaskIssue: issue,
-    expectedPullRequest: pullRequest,
-    expectedBase: BOOTSTRAP_CONTRACT.base,
-    expectedHead: BOOTSTRAP_CONTRACT.head,
-    expectedProtectedBaseSha: BOOTSTRAP_CONTRACT.protectedBaseSha,
-    expectedRequestId: requestId,
-    expectedAttestationSha256: canonicalHash(parsedAttestation.envelope),
+    parentIssue: context.parentIssue,
+    taskIssue: issue,
+    pullRequest,
+    base: BOOTSTRAP_CONTRACT.base,
+    head: BOOTSTRAP_CONTRACT.head,
+    protectedBaseSha: BOOTSTRAP_CONTRACT.protectedBaseSha,
+    requestId,
+    attestation: parsedAttestation.envelope,
   })
-  if (!registryVerification.ok || registryRecord.payload.attestation_sha256 !== canonicalHash(parsedAttestation.envelope) ||
-      Number(registryRecord.payload.task_issue_number) !== Number(issue.number) || registryRecord.payload.task_issue_id !== issue.id ||
-      registryRecord.payload.task_issue_node_id !== issue.node_id) {
-    throw blockedExternal('parent ownership registry readback does not match the allocated Task')
-  }
   return issue
 }
 
