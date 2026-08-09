@@ -38,6 +38,9 @@ export function matchesProvisional(provisional, { request, context } = {}) {
     provisional.policy_sha === context?.policy?.blobSha
 }
 
+/**
+ * @param {{ request?: any, context?: any, registryRecords?: any[], scanned?: any }} [input={}]
+ */
 export function classifyTaskBootstrapAllocation({
   request,
   context,
