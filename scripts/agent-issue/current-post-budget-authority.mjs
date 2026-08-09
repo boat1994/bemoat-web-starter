@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 
-import { parseCompleteGitHubPullUrl } from '../pr-identity.mjs'
+import { parseCompleteGitHubPullUrl } from '../mission-control/domain/pr-identity.mjs'
 import { parseMissionControlState } from '../mission-control-state.mjs'
 import { run } from './process-runner.mjs'
 

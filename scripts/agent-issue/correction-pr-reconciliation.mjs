@@ -3,7 +3,7 @@ import {
   extractVerdictPrBaseAndHead,
   parseCompleteGitHubPullUrl,
   resolveCanonicalVerdictPrIdentity,
-} from '../pr-identity.mjs'
+} from '../mission-control/domain/pr-identity.mjs'
 import { parseMissionControlState } from '../mission-control-state.mjs'
 import { checkOpenPrsForIssueOrBranch, fetchPrByReference } from './github-evidence.mjs'
 import { parsePrReference } from './issue-references.mjs'

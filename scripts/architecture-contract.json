@@ -309,7 +309,7 @@
       "facade_disposition": "stable_facade",
       "internal_destination": "scripts/mission-control/domain/pr-identity.mjs",
       "owning_slice": 5,
-      "migration_status": "planned"
+      "migration_status": "migrated"
     },
     {
       "path": "scripts/sync-boilerplate.mjs",
