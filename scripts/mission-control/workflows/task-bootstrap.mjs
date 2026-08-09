@@ -32,6 +32,7 @@ import {
   renderCanonicalBootstrapTaskBody,
   runCanonicalManagedTaskPreflight,
 } from '../domain/task-bootstrap-preflight.mjs'
+import { classifyTaskBootstrapAllocation, matchesProvisional } from '../domain/task-bootstrap-allocation.mjs'
 
 const REQUIRED_CI_NAMES = new Set(['ci', 'starter-ci'])
 
@@ -210,29 +211,6 @@ async function readRegistryRecords(github, parentIssueNumber, publicKey, reposit
     records.push({ comment, ...verified })
   }
   return { comments, records }
-}
-
-function matchesProvisional(provisional, { request, context }) {
-  return provisional?.request_id === request.requestId &&
-    provisional.repository === context.repository.nameWithOwner &&
-    Number(provisional.parent_issue) === BOOTSTRAP_CONTRACT.parentIssue &&
-    Number(provisional.pr) === BOOTSTRAP_CONTRACT.pullRequest &&
-    provisional.base === BOOTSTRAP_CONTRACT.base &&
-    provisional.head === BOOTSTRAP_CONTRACT.head &&
-    provisional.protected_base_sha === BOOTSTRAP_CONTRACT.protectedBaseSha &&
-    provisional.policy_source === context.policy.path &&
-    provisional.policy_version === context.policy.version &&
-    provisional.policy_sha === context.policy.blobSha
-}
-
-function recordForRequest(records, requestId) {
-  return records.find(({ record }) => record.payload.request_id === requestId) ?? null
-}
-
-function competingRecord(records, requestId) {
-  return records.find(({ record }) =>
-    record.payload.request_id !== requestId && String(record.payload.pr_number) === String(BOOTSTRAP_CONTRACT.pullRequest),
-  ) ?? null
 }
 
 async function scanTaskIssues({ github, request, publicKey, repository, signingKeyId, pullRequest, parentIssue, expectedWorkflow, policy, authorization }) {
@@ -487,8 +465,6 @@ export function createTaskBootstrapService({
         expectedProtectedBaseSha: BOOTSTRAP_CONTRACT.protectedBaseSha,
       }
       const registry = await readRegistryRecords(github, BOOTSTRAP_CONTRACT.parentIssue, publicKey, context.repository.nameWithOwner, signingKeyId, registryEvidence)
-      if (competingRecord(registry.records, request.requestId)) throw stateConflict('parent ownership registry already records a competing Task for PR #263')
-      const existingRegistry = recordForRequest(registry.records, request.requestId)
       const scanned = await scanTaskIssues({
         github,
         request,
@@ -502,9 +478,11 @@ export function createTaskBootstrapService({
         authorization: context.authorization,
       })
 
-      let taskIssue = null
-      let outcome = 'CREATED'
-      if (existingRegistry) {
+      const allocation = classifyTaskBootstrapAllocation({ request, context, registryRecords: registry.records, scanned })
+      const existingRegistry = allocation.registry
+      let taskIssue = allocation.issue
+      const outcome = allocation.outcome
+      if (allocation.kind === 'REGISTRY') {
         try {
           taskIssue = await github.getIssue(existingRegistry.record.payload.task_issue_number)
         } catch (error) {
@@ -512,14 +490,7 @@ export function createTaskBootstrapService({
         }
         const identity = issueIdentity(taskIssue)
         if (identity.id !== existingRegistry.record.payload.task_issue_id || identity.node_id !== existingRegistry.record.payload.task_issue_node_id) throw stateConflict('existing request registry points to a different Task identity')
-        outcome = 'RECOVERED'
-      } else if (scanned.signed) {
-        taskIssue = scanned.signed.issue
-        outcome = 'IDEMPOTENT'
-      } else if (scanned.provisional) {
-        taskIssue = scanned.provisional.issue
-        outcome = 'RECOVERED'
-      } else {
+      } else if (allocation.kind === 'CREATE_PROVISIONAL') {
         const created = await createProvisionalIssue({ github, request, context })
         taskIssue = created.issue
       }
