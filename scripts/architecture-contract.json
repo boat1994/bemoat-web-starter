@@ -183,7 +183,7 @@
       "facade_disposition": "stable_facade",
       "internal_destination": "scripts/guards/planning-contract.mjs",
       "owning_slice": 3,
-      "migration_status": "planned"
+      "migration_status": "migrated"
     },
     {
       "path": "scripts/guard-repo-safety.mjs",
