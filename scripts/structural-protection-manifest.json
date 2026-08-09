@@ -24,6 +24,7 @@
       { "path": "scripts/mission-control/domain/campaign-authority.mjs", "max_lines": 547 },
       { "path": "scripts/mission-control/domain/campaign-validator.mjs", "max_lines": 482 },
       { "path": "scripts/mission-control/domain/recover-state-projection.mjs", "max_lines": 37 },
+      { "path": "scripts/mission-control/domain/reopen-result-rendering.mjs", "max_lines": 176 },
       { "path": "scripts/mission-control/domain/review-recovery.mjs", "max_lines": 485 },
       { "path": "scripts/mission-control/domain/review-result-rendering.mjs", "max_lines": 164 },
       { "path": "scripts/mission-control/workflows/adopt-finding.mjs", "max_lines": 564 },

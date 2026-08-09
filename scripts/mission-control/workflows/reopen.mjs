@@ -13,6 +13,10 @@ import {
   buildNextState,
   sameReopenValue,
 } from '../domain/reopen-state-projection.mjs'
+import {
+  createResultRendering,
+  createRuntimeErrorRendering,
+} from '../domain/reopen-result-rendering.mjs'
 
 export { REOPEN_AUTHORIZATION_BUNDLE_KIND, parseFounderReopenAuthorization } from '../domain/reopen-authorization.mjs'
 
@@ -130,6 +134,7 @@ export function parseReopenArgs(argv = []) {
 
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index]
+    if (argument === '--json') continue
     if (argument === '--') continue
     const key = flags[argument]
     if (key) {
@@ -583,12 +588,35 @@ export async function runReopen({ options, deps }) {
 }
 
 export async function main(argv = process.argv.slice(2), deps = createProductionDeps()) {
-  const options = parseReopenArgs(argv)
-  if (options.help) {
-    process.stdout.write(`${REOPEN_USAGE}\n`)
-    return { outcome: 'HELP', state: null }
+  const format = argv.includes('--json') ? 'json' : 'text'
+  let options = null
+
+  try {
+    options = parseReopenArgs(argv)
+    if (options.help) {
+      process.stdout.write(`${REOPEN_USAGE}\n`)
+      return { outcome: 'HELP', state: null }
+    }
+    const result = await runReopen({ options, deps })
+    const rendering = createResultRendering({
+      command: REOPEN_COMMAND,
+      format,
+      options,
+      result,
+      observedPreState: options.expectedState,
+    })
+    process.stdout.write(rendering.output)
+    process.exitCode = rendering.exitCode
+    return rendering.envelope ?? result
+  } catch (error) {
+    const rendering = createRuntimeErrorRendering({
+      command: REOPEN_COMMAND,
+      format,
+      error,
+      options,
+    })
+    process[rendering.stream].write(rendering.output)
+    process.exitCode = rendering.exitCode
+    return rendering.envelope ?? { classification: rendering.output.split(':', 1)[0] }
   }
-  const result = await runReopen({ options, deps })
-  process.stdout.write(`Mission Control reopen ${result.outcome}: Task #${options.issueNumber} -> ${result.state.state} ${result.state.review_cycle}/${result.state.full_review_count}\n`)
-  return result
 }
