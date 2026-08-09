@@ -3,10 +3,7 @@ import { createHash } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
 
 import { createHelpEnvelopeV1, formatTextHelp } from '../../cli/command-help.mjs'
-import {
-  CliInvocationError,
-  parseCommandInvocation,
-} from '../../cli/command-invocation.mjs'
+import { parseCommandInvocation } from '../../cli/command-invocation.mjs'
 
 import { parseMissionControlState } from '../../mission-control-state.mjs'
 import { writeIssueBodyWithLease } from '../../mission-control-issue-body-cas.mjs'
@@ -54,6 +51,10 @@ import { commentSupersedesId } from '../domain/merge-comment-supersession.mjs'
 import { mergeCommitOid } from '../domain/merge-commit-oid.mjs'
 import { normalizeIssueReason, normalizeIssueState } from '../domain/merge-issue-state.mjs'
 import { parseMergeCliArgs } from '../domain/merge-cli-args.mjs'
+import {
+  renderMergeError,
+  renderMergeSuccess,
+} from '../domain/merge-cli-result-rendering.mjs'
 import {
   SAFE_EXECUTION_BUNDLES,
   SAFE_EXECUTION_BUNDLE_SCOPES,
@@ -1110,15 +1111,10 @@ export async function runProductionMerge() {
 
     const options = parseMergeCliArgs(argv)
     const result = await runFounderAuthorizedMerge({ ...options, deps: createProductionDeps() })
-    process.stdout.write(`Mission Control merge transport ${result.outcome}: PR #${result.prNumber} at ${result.reviewedHead} -> ${result.mergeCommit}; Issue #${result.issueNumber} DONE.\n`)
+    process.stdout.write(renderMergeSuccess(result))
   } catch (error) {
-    if (error instanceof CliInvocationError) {
-      process.stderr.write(`ERROR: [${error.classification}] ${error.message}\n`)
-      process.exitCode = 1
-      return
-    }
-    process.stderr.write(`ERROR: ${error instanceof Error ? error.message : String(error)}\n`)
-    process.exitCode = 1
+    const rendering = renderMergeError(error)
+    process[rendering.stream].write(rendering.output)
+    process.exitCode = rendering.exitCode
   }
 }
-
