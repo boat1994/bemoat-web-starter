@@ -16,7 +16,7 @@ const grandfathered = [
   ['scripts/cli/command-contract-registry.mjs', 1990], ['scripts/cli/command-contract.mjs', 577],
   ['scripts/correction-contract.mjs', 648], ['scripts/guard-planning-contract.mjs', 859],
   ['scripts/mission-control-dispatch.mjs', 545], ['scripts/mission-control-issue-body-cas.mjs', 438],
-  ['scripts/mission-control-reconcile.mjs', 567],
+  ['scripts/mission-control-reconcile.mjs', 143],
   ['scripts/mission-control-review.mjs', 470], ['scripts/mission-control-state.mjs', 548],
   ['scripts/mission-control/domain/campaign-authority.mjs', 547], ['scripts/mission-control/domain/campaign-validator.mjs', 482],
   ['scripts/mission-control/domain/review-recovery.mjs', 485], ['scripts/mission-control/workflows/adopt-finding.mjs', 728],
@@ -76,7 +76,7 @@ describe('structural protection guard', () => {
     expect((await guard()).map((entry: { rule: string }) => entry.rule)).toEqual([])
     expect(grandfathered).toHaveLength(25)
     expect(JSON.parse(readFileSync(join(root, 'scripts/structural-protection-manifest.json'), 'utf8'))).toEqual(manifest())
-    expect(scriptInventory(root)).toBe(161)
+    expect(scriptInventory(root)).toBe(162)
   })
 
   it('rejects malformed schema, types, unknown keys, ordering, duplicates, paths, and SHA values', async () => {
@@ -87,7 +87,7 @@ describe('structural protection guard', () => {
       { protected_oracle: { ...manifest().protected_oracle, files: [...manifest().protected_oracle.files, manifest().protected_oracle.files[0]] } },
       { protected_oracle: { ...manifest().protected_oracle, files: [{ path: '../bad', sha256: 'a'.repeat(64) }] } },
       { protected_oracle: { ...manifest().protected_oracle, files: [{ path: oracle[0][0], sha256: 'A'.repeat(64) }] } },
-      { production_scripts: { ...manifest().production_scripts, grandfathered: [{ path: grandfathered[0][0], max_lines: 400 }] } },
+      { production_scripts: { ...manifest().production_scripts, grandfathered: [{ path: grandfathered[0][0], max_lines: 0 }] } },
     ]
     for (const change of cases) {
       const path = fixture()
@@ -121,13 +121,13 @@ describe('structural protection guard', () => {
   it('rejects growth above an accepted ratcheted ceiling', async () => {
     const path = fixture()
     const target = 'scripts/mission-control-reconcile.mjs'
-    write(path, target, `${'x\n'.repeat(568)}`)
+    write(path, target, `${'x\n'.repeat(144)}`)
     expect(await guard(path)).toEqual([{
       rule: 'STRUCT012',
       file: target,
-      message: '568 physical lines exceeds the maximum of 567.',
+      message: '144 physical lines exceeds the maximum of 143.',
     }])
-    write(path, target, `${'x\n'.repeat(567)}`)
+    write(path, target, `${'x\n'.repeat(143)}`)
     expect(await guard(path)).toEqual([])
   })
 
