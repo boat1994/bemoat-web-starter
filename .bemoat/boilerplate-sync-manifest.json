@@ -42,6 +42,7 @@
     ".github/ISSUE_TEMPLATE/agent-task.yml",
     "scripts/sync-boilerplate.mjs",
     "scripts/boilerplate",
+    "scripts/boilerplate/workflows/check-boilerplate-drift.mjs",
     "scripts/check-boilerplate-drift.mjs",
     "scripts/deploy-smoke-test.mjs",
     "scripts/guard-repo-safety.mjs",

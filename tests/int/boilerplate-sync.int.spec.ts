@@ -1561,6 +1561,15 @@ describe('boilerplate sync modes', () => {
 describe('boilerplate drift check', () => {
   const fixtureRoot = resolve(process.cwd(), '.tmp-boilerplate-drift-test')
 
+  it('exposes deterministic drift comparison helpers from the owned workflow module', async () => {
+    const mod = await import('../../scripts/boilerplate/workflows/check-boilerplate-drift.mjs')
+
+    expect(mod.compareBoilerplateDrift).toBeTypeOf('function')
+    expect(mod.compareBoilerplateDriftByMode).toBeTypeOf('function')
+    expect(mod.stripJsoncComments).toBeTypeOf('function')
+    expect(mod.getDriftExitCode).toBeTypeOf('function')
+  })
+
   it('detects boilerplate source repository at git root from package name and origin', async () => {
     const mod = await import('../../scripts/check-boilerplate-drift.mjs')
 
