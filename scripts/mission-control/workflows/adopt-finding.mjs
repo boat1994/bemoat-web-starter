@@ -542,7 +542,7 @@ export async function main(argv = process.argv.slice(2), deps = createProduction
       })
       process[rendering.stream].write(rendering.output)
       process.exitCode = rendering.exitCode
-      return rendering.envelope
+      return rendering.envelope ?? { classification: 'INVALID_INVOCATION' }
     }
 
     const rendering = createRuntimeErrorRendering({

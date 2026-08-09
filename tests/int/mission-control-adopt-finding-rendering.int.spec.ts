@@ -135,8 +135,11 @@ describe('mission-control adopt-finding result rendering', () => {
       error: new CliInvocationError('issue_number', 'missing positional input: issue_number'),
       options: null,
     })
-    expect(invalid).toEqual({
-      envelope: null,
+    expect(invalid).toMatchObject({
+      envelope: {
+        classification: 'INVALID_INVOCATION',
+        outcome: 'STOP',
+      },
       output: 'INVALID_INVOCATION: missing positional input: issue_number\n',
       stream: 'stderr',
       exitCode: 2,
@@ -149,10 +152,13 @@ describe('mission-control adopt-finding result rendering', () => {
       error: external,
       options: OPTIONS,
     })
-    expect(blocked).toEqual({
-      envelope: null,
+    expect(blocked).toMatchObject({
+      envelope: {
+        classification: 'BLOCKED_EXTERNAL',
+        outcome: 'STOP',
+      },
       output: 'BLOCKED_EXTERNAL: GitHub CLI failed\n',
-      stream: 'stdout',
+      stream: 'stderr',
       exitCode: 3,
     })
   })
@@ -164,8 +170,11 @@ describe('mission-control adopt-finding result rendering', () => {
       error: Object.assign(new Error('write outcome conflict'), { code: 'CAS_CONFLICT' }),
       options: OPTIONS,
     })
-    expect(casConflict).toEqual({
-      envelope: null,
+    expect(casConflict).toMatchObject({
+      envelope: {
+        classification: 'STATE_CONFLICT',
+        outcome: 'STOP',
+      },
       output: 'STATE_CONFLICT: write outcome conflict\n',
       stream: 'stderr',
       exitCode: 3,
@@ -185,8 +194,11 @@ describe('mission-control adopt-finding result rendering', () => {
       error: new Error('although the local projection failed'),
       options: OPTIONS,
     })
-    expect(incidentalGh).toEqual({
-      envelope: null,
+    expect(incidentalGh).toMatchObject({
+      envelope: {
+        classification: 'INTERNAL_ERROR',
+        outcome: 'ERROR',
+      },
       output: 'INTERNAL_ERROR: although the local projection failed\n',
       stream: 'stderr',
       exitCode: 1,

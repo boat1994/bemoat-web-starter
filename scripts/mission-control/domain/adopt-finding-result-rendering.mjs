@@ -113,42 +113,33 @@ export function createRuntimeErrorRendering({ command, format, error, options })
   const details = runtimeDetails(error)
 
   if (error instanceof CliInvocationError) {
-    const envelope = format === 'json'
-      ? createResultEnvelopeV1({
-        command,
-        outcome: 'STOP',
-        classification: 'INVALID_INVOCATION',
-        mutation_performed: false,
-        observed_pre_state: null,
-        resulting_state: null,
-        repository: null,
-        issue_number: null,
-        pr_number: null,
-        exact_head: null,
-        evidence_ids: {},
-        next_action: { type: 'STOP', command: null, reason: error.message },
-        details: {
-          argument: error.details?.argument ?? null,
-          reason: error.message,
-        },
-      })
-      : null
-    return envelope
-      ? {
-        envelope,
-        output: `${JSON.stringify(envelope)}\n`,
-        stream: 'stdout',
-        exitCode: classificationExitCode('INVALID_INVOCATION'),
-      }
-      : {
-        envelope: null,
-        output: `INVALID_INVOCATION: ${error.message}\n`,
-        stream: 'stderr',
-        exitCode: classificationExitCode('INVALID_INVOCATION'),
-      }
+    const envelope = createResultEnvelopeV1({
+      command,
+      outcome: 'STOP',
+      classification: 'INVALID_INVOCATION',
+      mutation_performed: false,
+      observed_pre_state: null,
+      resulting_state: null,
+      repository: null,
+      issue_number: null,
+      pr_number: null,
+      exact_head: null,
+      evidence_ids: {},
+      next_action: { type: 'STOP', command: null, reason: error.message },
+      details: {
+        argument: error.details?.argument ?? null,
+        reason: error.message,
+      },
+    })
+    return {
+      envelope,
+      output: format === 'json' ? `${JSON.stringify(envelope)}\n` : `INVALID_INVOCATION: ${error.message}\n`,
+      stream: format === 'json' ? 'stdout' : 'stderr',
+      exitCode: classificationExitCode('INVALID_INVOCATION'),
+    }
   }
 
-  const envelope = options && format === 'json'
+  const envelope = options
     ? createResultEnvelopeV1({
       command,
       outcome: classification === 'INTERNAL_ERROR' ? 'ERROR' : 'STOP',
@@ -172,8 +163,8 @@ export function createRuntimeErrorRendering({ command, format, error, options })
   if (envelope) {
     return {
       envelope,
-      output: `${JSON.stringify(envelope)}\n`,
-      stream: 'stdout',
+      output: format === 'json' ? `${JSON.stringify(envelope)}\n` : `${classification}: ${details.reason}\n`,
+      stream: format === 'json' ? 'stdout' : 'stderr',
       exitCode: classificationExitCode(classification),
     }
   }
