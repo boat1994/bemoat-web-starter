@@ -27,7 +27,7 @@
       { "path": "scripts/mission-control/workflows/adopt-finding.mjs", "max_lines": 728 },
       { "path": "scripts/mission-control/workflows/merge.mjs", "max_lines": 1124 },
       { "path": "scripts/mission-control/workflows/recover-review.mjs", "max_lines": 828 },
-      { "path": "scripts/mission-control/workflows/recover-state.mjs", "max_lines": 1428 },
+      { "path": "scripts/mission-control/workflows/recover-state.mjs", "max_lines": 1127 },
       { "path": "scripts/mission-control/workflows/reopen.mjs", "max_lines": 988 },
       { "path": "scripts/mission-control/workflows/task-bootstrap.mjs", "max_lines": 658 },
       { "path": "scripts/post-role-comment.mjs", "max_lines": 690 }
