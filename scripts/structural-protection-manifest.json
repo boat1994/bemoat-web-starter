@@ -30,7 +30,7 @@
       { "path": "scripts/mission-control/workflows/recover-state.mjs", "max_lines": 1127 },
       { "path": "scripts/mission-control/workflows/reopen.mjs", "max_lines": 918 },
       { "path": "scripts/mission-control/workflows/task-bootstrap.mjs", "max_lines": 658 },
-      { "path": "scripts/post-role-comment.mjs", "max_lines": 690 }
+      { "path": "scripts/post-role-comment.mjs", "max_lines": 554 }
     ]
   },
   "protected_oracle": {
