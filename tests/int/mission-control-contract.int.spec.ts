@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process'
 import { mkdirSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 
@@ -7,6 +8,34 @@ const fixturesRoot = resolve(process.cwd(), 'tests/fixtures/mission-control')
 const tmpRoot = resolve(process.cwd(), '.tmp-mission-control-contract-test')
 
 describe('mission-control contract guard', () => {
+  it('runs the registered root facade directly for help and invalid invocation', () => {
+    const script = resolve(process.cwd(), 'scripts/guard-mission-control-contract.mjs')
+    const env = { ...process.env }
+    delete env.npm_lifecycle_event
+
+    const help = spawnSync(process.execPath, [script, '--help', '--json'], {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+      env,
+    })
+    expect(help.status).toBe(0)
+    expect(help.stderr).toBe('')
+    expect(JSON.parse(help.stdout)).toMatchObject({
+      command: 'bemoat:guard:mission-control-contract',
+      mode: 'help',
+      classification: 'HELP',
+    })
+
+    const invalid = spawnSync(process.execPath, [script, '--not-a-real-flag'], {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+      env,
+    })
+    expect(invalid.status).toBe(2)
+    expect(invalid.stdout).toBe('')
+    expect(invalid.stderr).toMatch(/^INVALID_INVOCATION: unknown flag: --not-a-real-flag\n$/)
+  })
+
   it('keeps the root facade exports while exposing CLI composition from the guard module', async () => {
     const facade = await import('../../scripts/guard-mission-control-contract.mjs')
     const cli = await import('../../scripts/guards/mission-control-contract/cli.mjs')

@@ -13,10 +13,10 @@ import {
 } from './diagnostics.mjs'
 import { runMissionControlContractGuard } from './runner.mjs'
 
-export function isDirectExecution() {
+export function isDirectExecution(callerModuleUrl = import.meta.url) {
   const entrypoint = process.argv[1]
   if (!entrypoint) return false
-  return import.meta.url === pathToFileURL(resolve(entrypoint)).href
+  return callerModuleUrl === pathToFileURL(resolve(entrypoint)).href
 }
 
 function renderHelp(invocation) {
@@ -74,3 +74,5 @@ export function main() {
 
   process.exitCode = getMissionControlContractExitCode(violations)
 }
+
+if (isDirectExecution()) main()

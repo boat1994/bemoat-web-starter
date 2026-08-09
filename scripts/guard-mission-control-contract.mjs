@@ -20,4 +20,4 @@ export {
   getMissionControlContractExitCode,
 } from './guards/mission-control-contract/diagnostics.mjs'
 
-if (isDirectExecution()) main()
+if (isDirectExecution(import.meta.url)) main()
