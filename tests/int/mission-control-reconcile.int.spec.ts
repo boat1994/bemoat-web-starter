@@ -1948,7 +1948,7 @@ Bounded implementation work.
       'utf8',
     )
     const deliverySource = readFileSync(
-      join(process.cwd(), 'scripts/agent-delivery.mjs'),
+      join(process.cwd(), 'scripts/mission-control/workflows/agent-delivery.mjs'),
       'utf8',
     )
     expect(dispatchSource).toContain('dispatchFounderAuthorizedCorrection')
