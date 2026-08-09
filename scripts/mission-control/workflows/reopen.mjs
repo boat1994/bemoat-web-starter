@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
 
 import {
@@ -7,13 +6,11 @@ import {
 } from '../../mission-control-state.mjs'
 import { writeIssueBodyWithLease } from '../../mission-control-issue-body-cas.mjs'
 import {
-  REOPEN_AUTHORIZATION_BUNDLE_KIND,
   assertFounderAuthorization,
   parseFounderReopenAuthorization,
 } from '../domain/reopen-authorization.mjs'
 import {
   buildNextState,
-  cloneReopenValue,
   sameReopenValue,
 } from '../domain/reopen-state-projection.mjs'
 
