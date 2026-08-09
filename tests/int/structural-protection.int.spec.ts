@@ -20,10 +20,11 @@ const grandfathered = [
   ['scripts/mission-control-reconcile.mjs', 143],
   ['scripts/mission-control-review.mjs', 346], ['scripts/mission-control-state.mjs', 548],
   ['scripts/mission-control/domain/campaign-authority.mjs', 547], ['scripts/mission-control/domain/campaign-validator.mjs', 482],
-  ['scripts/mission-control/domain/review-recovery.mjs', 485], ['scripts/mission-control/domain/review-result-rendering.mjs', 164],
+  ['scripts/mission-control/domain/recover-state-projection.mjs', 37], ['scripts/mission-control/domain/review-recovery.mjs', 485],
+  ['scripts/mission-control/domain/review-result-rendering.mjs', 164],
   ['scripts/mission-control/workflows/adopt-finding.mjs', 684],
   ['scripts/mission-control/workflows/merge.mjs', 1124],
-  ['scripts/mission-control/workflows/recover-review.mjs', 828], ['scripts/mission-control/workflows/recover-state.mjs', 1127],
+  ['scripts/mission-control/workflows/recover-review.mjs', 828], ['scripts/mission-control/workflows/recover-state.mjs', 1099],
   ['scripts/mission-control/workflows/reopen.mjs', 918], ['scripts/mission-control/workflows/task-bootstrap.mjs', 658],
   ['scripts/post-role-comment.mjs', 554],
 ] as const
@@ -76,9 +77,9 @@ async function guard(path = root) {
 describe('structural protection guard', () => {
   it('accepts the current repository with the exact inventory, baseline, and protected oracle', async () => {
     expect((await guard()).map((entry: { rule: string }) => entry.rule)).toEqual([])
-    expect(grandfathered).toHaveLength(26)
+    expect(grandfathered).toHaveLength(27)
     expect(JSON.parse(readFileSync(join(root, 'scripts/structural-protection-manifest.json'), 'utf8'))).toEqual(manifest())
-    expect(scriptInventory(root)).toBe(172)
+    expect(scriptInventory(root)).toBe(173)
   })
 
   it('rejects malformed schema, types, unknown keys, ordering, duplicates, paths, and SHA values', async () => {
