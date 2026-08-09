@@ -1957,7 +1957,7 @@ describe('issue #182 projection managed delivery regression', () => {
       expect(existsSync(join(childRoot, 'scripts/agent-issue.mjs'))).toBe(true)
       expect(existsSync(join(childRoot, 'scripts/pr-identity.mjs'))).toBe(true)
       expect(readFileSync(join(childRoot, 'scripts/agent-issue.mjs'), 'utf8')).toContain(
-        "./pr-identity.mjs'",
+        "./mission-control/domain/pr-identity.mjs'",
       )
 
       execFileSync(
