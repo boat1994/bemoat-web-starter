@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
@@ -97,7 +98,7 @@ describe('task bootstrap allocation classification', () => {
   })
 
   it('keeps the workflow registry readback wired to the canonical lookup helper', () => {
-    const workflow = readFileSync(new URL('../../scripts/mission-control/workflows/task-bootstrap.mjs', import.meta.url), 'utf8')
+    const workflow = readFileSync(resolve(process.cwd(), 'scripts/mission-control/workflows/task-bootstrap.mjs'), 'utf8')
     expect(workflow).toContain("import { classifyTaskBootstrapAllocation, matchesProvisional, registryForRequest } from '../domain/task-bootstrap-allocation.mjs'")
     expect(workflow).toContain('const duplicate = registryForRequest(refreshedRegistry.records, request.requestId)')
     expect(workflow).not.toContain('recordForRequest')
