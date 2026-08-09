@@ -18,9 +18,10 @@ const grandfathered = [
   ['scripts/correction-contract.mjs', 648], ['scripts/guard-planning-contract.mjs', 859],
   ['scripts/mission-control-dispatch.mjs', 545], ['scripts/mission-control-issue-body-cas.mjs', 438],
   ['scripts/mission-control-reconcile.mjs', 143],
-  ['scripts/mission-control-review.mjs', 470], ['scripts/mission-control-state.mjs', 548],
+  ['scripts/mission-control-review.mjs', 346], ['scripts/mission-control-state.mjs', 548],
   ['scripts/mission-control/domain/campaign-authority.mjs', 547], ['scripts/mission-control/domain/campaign-validator.mjs', 482],
-  ['scripts/mission-control/domain/review-recovery.mjs', 485], ['scripts/mission-control/workflows/adopt-finding.mjs', 684],
+  ['scripts/mission-control/domain/review-recovery.mjs', 485], ['scripts/mission-control/domain/review-result-rendering.mjs', 164],
+  ['scripts/mission-control/workflows/adopt-finding.mjs', 684],
   ['scripts/mission-control/workflows/merge.mjs', 1124],
   ['scripts/mission-control/workflows/recover-review.mjs', 828], ['scripts/mission-control/workflows/recover-state.mjs', 1127],
   ['scripts/mission-control/workflows/reopen.mjs', 918], ['scripts/mission-control/workflows/task-bootstrap.mjs', 658],
@@ -75,9 +76,9 @@ async function guard(path = root) {
 describe('structural protection guard', () => {
   it('accepts the current repository with the exact inventory, baseline, and protected oracle', async () => {
     expect((await guard()).map((entry: { rule: string }) => entry.rule)).toEqual([])
-    expect(grandfathered).toHaveLength(25)
+    expect(grandfathered).toHaveLength(26)
     expect(JSON.parse(readFileSync(join(root, 'scripts/structural-protection-manifest.json'), 'utf8'))).toEqual(manifest())
-    expect(scriptInventory(root)).toBe(171)
+    expect(scriptInventory(root)).toBe(172)
   })
 
   it('rejects malformed schema, types, unknown keys, ordering, duplicates, paths, and SHA values', async () => {

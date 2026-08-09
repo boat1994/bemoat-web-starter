@@ -33,21 +33,14 @@ import {
   resolveCommandIdentity,
 } from './cli/command-invocation.mjs'
 import {
-  CLI_EXIT_CODES,
-  classificationExitCode,
-  createResultEnvelopeV1,
-} from './cli/command-result.mjs'
+  createResultRendering,
+  createRuntimeErrorRendering,
+  runtimeError,
+} from './mission-control/domain/review-result-rendering.mjs'
 
 const COMMAND = 'bemoat:mission-control:review'
 const ENTRYPOINT = 'scripts/mission-control-review.mjs'
 const ROLE_COMMENT_ENTRYPOINT = fileURLToPath(new URL('./post-role-comment.mjs', import.meta.url))
-
-function runtimeError(classification, message, details = {}) {
-  const error = new Error(message)
-  error.classification = classification
-  Object.assign(error, details)
-  return error
-}
 
 function normalizeRepositoryOutput(value) {
   const trimmed = String(value ?? '').trim()
@@ -79,134 +72,6 @@ function renderHelp(invocation) {
   }
 
   process.stdout.write(formatTextHelp(invocation.contract))
-}
-
-function runtimeClassification(error) {
-  if (
-    error &&
-    typeof error === 'object' &&
-    typeof error.classification === 'string' &&
-    Object.hasOwn(CLI_EXIT_CODES, error.classification)
-  ) {
-    return error.classification
-  }
-
-  const reason = error instanceof Error ? error.message : String(error)
-  const prefix = reason.match(/^(?:ERROR:\s*)?([A-Z_]+):/)
-  if (prefix && Object.hasOwn(CLI_EXIT_CODES, prefix[1])) return prefix[1]
-  if (/\b(?:gh|GitHub|network|remote)\b/i.test(reason)) return 'BLOCKED_EXTERNAL'
-  return 'INTERNAL_ERROR'
-}
-
-function runtimeDetails(error) {
-  const details = error instanceof CliInvocationError
-    ? {
-      argument: error.details.argument,
-      reason: error.details.reason,
-    }
-    : {
-      argument: null,
-      reason: error instanceof Error ? error.message : String(error),
-    }
-
-  if (error && typeof error === 'object') {
-    if (Array.isArray(error.errors)) details.errors = error.errors
-    if (typeof error.legacyClassification === 'string') {
-      details.legacy_classification = error.legacyClassification
-    }
-  }
-
-  return details
-}
-
-function renderRuntimeError({
-  command,
-  format,
-  error,
-  mutationPerformed = false,
-  values = {},
-  parsedVerdict = null,
-}) {
-  const classification = runtimeClassification(error)
-  const details = runtimeDetails(error)
-  const mutated = Boolean(
-    mutationPerformed ||
-    (error && typeof error === 'object' && error.mutationPerformed === true),
-  )
-
-  if (format === 'json' && command) {
-    process.stdout.write(`${JSON.stringify(createResultEnvelopeV1({
-      command,
-      outcome: 'ERROR',
-      classification,
-      mutation_performed: mutated,
-      repository: values.repository ?? null,
-      issue_number: values.issue_number ?? null,
-      pr_number: parsedVerdict?.prNumber ?? null,
-      exact_head: /^[0-9a-f]{40}$/i.test(parsedVerdict?.headSha ?? values.expected_head ?? '')
-        ? (parsedVerdict?.headSha ?? values.expected_head).toLowerCase()
-        : null,
-      next_action: {
-        type: 'STOP',
-        command: null,
-        reason: details.reason,
-      },
-      details,
-    }))}\n`)
-  } else if (error instanceof CliInvocationError) {
-    process.stderr.write(`${classification}: ${details.reason}\n`)
-  } else if (classification === 'BLOCKED_EXTERNAL') {
-    process.stdout.write(`${classification}: ${details.reason}\n`)
-  } else {
-    const legacyPrefix = details.legacy_classification
-      ? `${details.legacy_classification}: `
-      : ''
-    process.stderr.write(`ERROR: ${classification}: ${legacyPrefix}${details.reason}\n`)
-  }
-
-  process.exitCode = classificationExitCode(classification)
-}
-
-function renderResult({ command, format, options, result, repository, observedPreState }) {
-  const replayed = result.replayed === true
-  const output = `Mission Control review ${replayed ? 'NO_OP_IDENTICAL_RETRY' : result.outcome}: ${result.state.state} + REVIEW_VERDICT comment ${result.comment.id}`
-  const envelope = createResultEnvelopeV1({
-    command,
-    outcome: replayed ? 'NO_OP' : 'SUCCESS',
-    classification: replayed ? 'NO_OP_IDENTICAL_RETRY' : 'SUCCESS',
-    mutation_performed: !replayed,
-    observed_pre_state: observedPreState,
-    resulting_state: result.state?.state ?? null,
-    repository,
-    issue_number: options.issue,
-    pr_number: options.prNumber,
-    exact_head: options.expectedHead.length === 40 ? options.expectedHead.toLowerCase() : null,
-    next_action: replayed
-      ? {
-        type: 'COMPLETE',
-        command: null,
-        reason: 'The identical REVIEW_VERDICT retry is already durable; no further dispatch is required.',
-      }
-      : {
-        type: 'COMMAND',
-        command: 'bemoat:mission-control:dispatch',
-        reason: 'The resulting review state determines the next bounded dispatch or Founder gate.',
-      },
-    details: {
-      legacy_classification: replayed ? 'NO_OP' : result.outcome,
-      legacy_output: [output],
-      comment_id: String(result.comment.id),
-      ...(replayed ? { replayed: true } : {}),
-    },
-  })
-
-  if (format === 'json') {
-    process.stdout.write(`${JSON.stringify(envelope)}\n`)
-  } else {
-    process.stdout.write(`${envelope.classification}: ${output}\n`)
-  }
-
-  process.exitCode = classificationExitCode(envelope.classification)
 }
 
 function replaceStateBlock(body, state) {
@@ -447,16 +312,21 @@ async function main() {
         },
       )
     }
-    renderResult({
+    const rendering = createResultRendering({
       command,
-      format: invocation.format,
       options: { ...options, prNumber: parsedVerdict.prNumber },
       result,
       repository: repo,
       observedPreState: original.state,
     })
+    if (invocation.format === 'json') {
+      process.stdout.write(`${JSON.stringify(rendering.envelope)}\n`)
+    } else {
+      process.stdout.write(`${rendering.envelope.classification}: ${rendering.output}\n`)
+    }
+    process.exitCode = rendering.exitCode
   } catch (error) {
-    renderRuntimeError({
+    const rendering = createRuntimeErrorRendering({
       command: command ?? COMMAND,
       format: invocation?.format ?? (process.argv.includes('--json') ? 'json' : 'text'),
       error,
@@ -464,6 +334,12 @@ async function main() {
       values: invocation?.values,
       parsedVerdict,
     })
+    if (rendering.stream === 'stdout') {
+      process.stdout.write(rendering.output)
+    } else {
+      process.stderr.write(rendering.output)
+    }
+    process.exitCode = rendering.exitCode
   }
 }
 
