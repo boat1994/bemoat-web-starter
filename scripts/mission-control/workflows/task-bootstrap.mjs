@@ -32,7 +32,7 @@ import {
   renderCanonicalBootstrapTaskBody,
   runCanonicalManagedTaskPreflight,
 } from '../domain/task-bootstrap-preflight.mjs'
-import { classifyTaskBootstrapAllocation, matchesProvisional } from '../domain/task-bootstrap-allocation.mjs'
+import { classifyTaskBootstrapAllocation, matchesProvisional, registryForRequest } from '../domain/task-bootstrap-allocation.mjs'
 
 const REQUIRED_CI_NAMES = new Set(['ci', 'starter-ci'])
 
@@ -570,7 +570,7 @@ export function createTaskBootstrapService({
         })
         const candidate = createTaskOwnershipRecord({ payload: registryPayload, ['privateKey']: signingPrivateKey, signingKeyId })
         const refreshedRegistry = await readRegistryRecords(github, BOOTSTRAP_CONTRACT.parentIssue, publicKey, context.repository.nameWithOwner, signingKeyId, registryEvidence)
-        const duplicate = recordForRequest(refreshedRegistry.records, request.requestId)
+        const duplicate = registryForRequest(refreshedRegistry.records, request.requestId)
         if (duplicate) {
           if (duplicate.record.payload.task_issue_number !== taskIdentity.number || duplicate.record.payload.task_issue_id !== taskIdentity.id) throw stateConflict('recovery found a conflicting parent registry owner')
           registryRecord = duplicate.record
