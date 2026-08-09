@@ -33,7 +33,7 @@ function registryEntry(overrides = {}) {
   }
 }
 
-function expectStateConflict(callback) {
+function expectStateConflict(callback: () => void) {
   try {
     callback()
   } catch (error) {
