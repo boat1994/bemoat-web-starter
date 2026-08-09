@@ -9,6 +9,7 @@ import {
   listRootScripts,
   validateArchitectureContract,
 } from '../../scripts/guard-scripts-architecture.mjs'
+import * as architectureGuard from '../../scripts/guards/scripts-architecture.mjs'
 import architectureContract from '../../scripts/architecture-contract.json'
 
 const tempRoots: string[] = []
@@ -45,6 +46,12 @@ function writeContract(
 }
 
 describe('scripts architecture ratchet', () => {
+  it('keeps the stable root facade exports backed by the guard-owned module', () => {
+    expect(buildScriptImportGraph).toBe(architectureGuard.buildScriptImportGraph)
+    expect(listRootScripts).toBe(architectureGuard.listRootScripts)
+    expect(validateArchitectureContract).toBe(architectureGuard.validateArchitectureContract)
+  })
+
   it('validates architecture contract (no unallowed cycles or edges, adapter constraints)', () => {
     const violations = validateArchitectureContract(process.cwd())
     expect(violations).toEqual([])
