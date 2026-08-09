@@ -43,7 +43,7 @@
       "facade_disposition": "composition_root",
       "internal_destination": "scripts/mission-control/workflows/agent-delivery.mjs",
       "owning_slice": 7,
-      "migration_status": "planned"
+      "migration_status": "retained"
     },
     {
       "path": "scripts/agent-issue.mjs",
