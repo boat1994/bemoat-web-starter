@@ -121,6 +121,7 @@
     "tests/int/planning-no-pr-lineage.int.spec.ts",
     "tests/fixtures/agent-issue",
     "tests/int/github-comment-projection.int.spec.ts",
+    "tests/int/github-comment-projection-boundary.int.spec.ts",
     "tests/int/agent-delivery.int.spec.ts",
     "tests/int/agent-delivery-workflow-boundary.int.spec.ts",
     "tests/int/post-role-comment.int.spec.ts",

@@ -8,6 +8,7 @@
     "scripts/agent-issue/issue-preflight.mjs",
     "scripts/agent-issue/progress-tracking.mjs",
     "scripts/github-comment-projection.mjs",
+    "scripts/mission-control/diagnostics/github-comment-projection.mjs",
     "scripts/mission-control-reconcile.mjs"
   ],
   "cycleEdges": [
@@ -25,7 +26,8 @@
     "scripts/agent-issue/issue-preflight.mjs -> scripts/agent-issue/progress-tracking.mjs",
     "scripts/agent-issue/progress-tracking.mjs -> scripts/agent-issue/github-evidence.mjs",
     "scripts/agent-issue/progress-tracking.mjs -> scripts/mission-control-reconcile.mjs",
-    "scripts/github-comment-projection.mjs -> scripts/mission-control-reconcile.mjs",
+    "scripts/github-comment-projection.mjs -> scripts/mission-control/diagnostics/github-comment-projection.mjs",
+    "scripts/mission-control/diagnostics/github-comment-projection.mjs -> scripts/mission-control-reconcile.mjs",
     "scripts/mission-control-reconcile.mjs -> scripts/agent-issue.mjs"
   ],
   "adapters": {
@@ -113,7 +115,7 @@
       "facade_disposition": "stable_facade",
       "internal_destination": "scripts/mission-control/diagnostics/github-comment-projection.mjs",
       "owning_slice": 5,
-      "migration_status": "planned"
+      "migration_status": "migrated"
     },
     {
       "path": "scripts/guard-build-script-contract.mjs",
