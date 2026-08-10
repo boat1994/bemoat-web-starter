@@ -319,7 +319,7 @@ describe('package manager guard facade boundary', () => {
   it('keeps package-manager policy diagnostics and exit mapping stable', async () => {
     const facade = await import('../../scripts/guard-package-manager.mjs')
     const violations = facade.runPackageManagerGuard({
-      files: ['package.json', 'package-lock.json'],
+      files: ['package.json', 'package-lock.json'] as unknown as null,
       readFile: () => JSON.stringify({}),
     })
 
