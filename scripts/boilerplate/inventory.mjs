@@ -25,7 +25,7 @@ export const managedPaths = [
   'scripts/deploy-smoke-test.mjs', 'scripts/guard-repo-safety.mjs',
   'scripts/guard-harness-contract.mjs', 'scripts/harness-contract',
   'scripts/guard-mission-control-contract.mjs', 'scripts/guards/mission-control-contract',
-  'scripts/guard-build-script-contract.mjs', 'scripts/build.mjs', 'scripts/agent-issue.mjs',
+  'scripts/guard-build-script-contract.mjs', 'scripts/guards/build-script-contract.mjs', 'scripts/build.mjs', 'scripts/agent-issue.mjs',
   'scripts/agent-issue', 'scripts/agent-delivery.mjs', 'scripts/correction-contract.mjs',
   'scripts/mission-control-reconcile.mjs', 'scripts/mission-control-task-create.mjs', 'scripts/command-runner.mjs',
   'scripts/adapters/command-runner.mjs', 'scripts/mission-control-review.mjs',

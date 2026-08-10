@@ -15,6 +15,15 @@ describe('build script contract guard', () => {
     expect(violations).toEqual([])
   })
 
+  it('preserves the root facade export surface and delegates implementation inward', async () => {
+    const facade = await import('../../scripts/guard-build-script-contract.mjs')
+    const destination = await import('../../scripts/guards/build-script-contract.mjs')
+
+    expect(Object.keys(facade).sort()).toEqual(Object.keys(destination).sort())
+    expect(facade.runBuildScriptContractGuard).toBe(destination.runBuildScriptContractGuard)
+    expect(facade.formatBuildScriptContractViolations).toBe(destination.formatBuildScriptContractViolations)
+  })
+
   it('flags recursive OpenNext build script fixture', async () => {
     const mod = await import('../../scripts/guard-build-script-contract.mjs')
     const pkg = JSON.parse(readFileSync(resolve(fixturesRoot, 'package-recursive-build.json'), 'utf8'))
@@ -120,6 +129,7 @@ describe('build script contract guard', () => {
     const syncMod = await import('../../scripts/sync-boilerplate.mjs')
 
     expect(syncMod.managedPaths).toContain('scripts/guard-build-script-contract.mjs')
+    expect(syncMod.managedPaths).toContain('scripts/guards/build-script-contract.mjs')
     expect(syncMod.managedPaths).toContain('scripts/build.mjs')
     expect(syncMod.managedPaths).toContain('tests/int/build-script-contract-guard.int.spec.ts')
     expect(syncMod.managedPaths).toContain('tests/int/build-wrapper.int.spec.ts')
