@@ -44,7 +44,7 @@ export const managedPaths = [
   'scripts/mission-control-brainstorming.mjs', 'scripts/guard-package-manager.mjs',
   'scripts/guard-toolchain-contract.mjs', 'scripts/bemoat-typecheck.mjs',
   'tsconfig.harness-strict.json', '.bemoat/toolchain-contract.json',
-  'scripts/guard-env-placeholder.mjs', 'scripts/guard-frontend-seo.mjs',
+  'scripts/guard-env-placeholder.mjs', 'scripts/guards/env-placeholder.mjs', 'scripts/guard-frontend-seo.mjs',
   'scripts/github-comment-projection.mjs', 'scripts/pr-identity.mjs',
   'scripts/check-branch-safety.sh', 'scripts/install-git-hooks.mjs',
   // Local harness hooks and integration tests
@@ -66,6 +66,7 @@ export const managedPaths = [
   'tests/int/agent-delivery-workflow-boundary.int.spec.ts',
   'tests/int/post-role-comment.int.spec.ts', 'tests/int/correction-contract.int.spec.ts',
   'tests/int/guard-pack.int.spec.ts', 'tests/int/guard-planning-contract.int.spec.ts',
+  'tests/int/env-placeholder-guard-boundary.int.spec.ts',
   'tests/int/guard-planning-contract-boundary.int.spec.ts',
   'tests/int/structural-protection.int.spec.ts',
   'tests/int/command-contract-transport.int.spec.ts',
