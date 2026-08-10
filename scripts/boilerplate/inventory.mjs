@@ -68,6 +68,7 @@ export const managedPaths = [
   'tests/int/guard-pack.int.spec.ts', 'tests/int/guard-planning-contract.int.spec.ts',
   'tests/int/env-placeholder-guard-boundary.int.spec.ts',
   'tests/int/guard-planning-contract-boundary.int.spec.ts',
+  'tests/int/frontend-seo-guard-boundary.int.spec.ts',
   'tests/int/structural-protection.int.spec.ts',
   'tests/int/command-contract-transport.int.spec.ts',
   'tests/int/guard-planning-contract-child-dev-base.int.spec.ts',
