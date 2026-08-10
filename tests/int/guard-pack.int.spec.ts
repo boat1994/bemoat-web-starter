@@ -303,3 +303,36 @@ export const metadata = { title: 'Example' }
     ).toEqual([])
   })
 })
+
+describe('package manager guard facade boundary', () => {
+  it('preserves the facade export surface while delegating policy to the inward destination', async () => {
+    const facade = await import('../../scripts/guard-package-manager.mjs')
+    const destination = await import('../../scripts/guards/package-manager.mjs')
+
+    expect(Object.keys(facade).sort()).toEqual(Object.keys(destination).sort())
+    expect(facade.runPackageManagerGuard).toBe(destination.runPackageManagerGuard)
+    expect(facade.formatPackageManagerViolations).toBe(destination.formatPackageManagerViolations)
+    expect(facade.getPackageManagerGuardExitCode).toBe(destination.getPackageManagerGuardExitCode)
+    expect(facade.isDirectExecution).not.toBe(destination.isDirectExecution)
+  })
+
+  it('keeps package-manager policy diagnostics and exit mapping stable', async () => {
+    const facade = await import('../../scripts/guard-package-manager.mjs')
+    const violations = facade.runPackageManagerGuard({
+      files: ['package.json', 'package-lock.json'],
+      readFile: () => JSON.stringify({}),
+    })
+
+    expect(violations.map((item: { rule: string }) => item.rule)).toEqual([
+      'forbidden-lockfile',
+      'missing-pnpm-engine',
+    ])
+    expect(facade.getPackageManagerGuardExitCode([])).toBe(0)
+    expect(facade.getPackageManagerGuardExitCode(violations)).toBe(1)
+    expect(facade.formatPackageManagerViolations([])).toEqual(['Package manager guard passed.'])
+    expect(facade.formatPackageManagerViolations(violations)[0]).toBe('Package manager guard failed:')
+    expect(facade.scanPackageManagerFile('.github/workflows/ci.yml', 'npm run check')).toEqual([
+      expect.objectContaining({ rule: 'non-pnpm-command', file: '.github/workflows/ci.yml' }),
+    ])
+  })
+})

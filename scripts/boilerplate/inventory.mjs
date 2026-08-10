@@ -41,7 +41,7 @@ export const managedPaths = [
   'scripts/guards/scripts-architecture.mjs',
   'scripts/architecture-contract.json', 'scripts/AGENTS.md', 'scripts/ARCHITECTURE.md',
   'scripts/mission-control', 'scripts/mission-control-state.mjs',
-  'scripts/mission-control-brainstorming.mjs', 'scripts/guard-package-manager.mjs',
+  'scripts/mission-control-brainstorming.mjs', 'scripts/guard-package-manager.mjs', 'scripts/guards/package-manager.mjs',
   'scripts/guard-toolchain-contract.mjs', 'scripts/bemoat-typecheck.mjs',
   'tsconfig.harness-strict.json', '.bemoat/toolchain-contract.json',
   'scripts/guard-env-placeholder.mjs', 'scripts/guards/env-placeholder.mjs', 'scripts/guard-frontend-seo.mjs', 'scripts/guards/frontend-seo.mjs',

@@ -178,7 +178,7 @@
       "facade_disposition": "stable_facade",
       "internal_destination": "scripts/guards/package-manager.mjs",
       "owning_slice": 7,
-      "migration_status": "planned"
+      "migration_status": "migrated"
     },
     {
       "path": "scripts/guard-planning-contract.mjs",
