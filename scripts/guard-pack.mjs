@@ -15,7 +15,7 @@ import {
 import {
   formatCloudflareDeployGuardViolations,
   runCloudflareDeployGuard,
-} from './guard-cloudflare-env.mjs'
+} from './guards/cloudflare-env.mjs'
 import {
   formatEnvPlaceholderViolations,
   runEnvPlaceholderGuard,

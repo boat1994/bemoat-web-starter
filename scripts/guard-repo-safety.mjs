@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { scanWranglerEnvironmentIsolation } from './guard-cloudflare-env.mjs'
+import { scanWranglerEnvironmentIsolation } from './guards/cloudflare-env.mjs'
 
 /** Human-approved destructive migrations must include this marker in the migration file. */
 export const APPROVAL_MARKER = 'bemoat:destructive-migration-approved'

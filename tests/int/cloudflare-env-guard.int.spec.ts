@@ -1,6 +1,29 @@
 import { describe, expect, it } from 'vitest'
 
 describe('Cloudflare deploy guard', () => {
+  it('keeps the root facade export surface and destination policy exports compatible', async () => {
+    const facade = await import('../../scripts/guard-cloudflare-env.mjs')
+    const destination = await import('../../scripts/guards/cloudflare-env.mjs')
+
+    expect(Object.keys(facade).sort()).toEqual([
+      'PRODUCTION_ENV_ERROR',
+      'assertCloudflareEnvNotProduction',
+      'collectD1DatabaseIds',
+      'collectR2BucketNames',
+      'formatCloudflareDeployGuardViolations',
+      'getCloudflareDeployGuardExitCode',
+      'isDirectExecution',
+      'isWranglerPlaceholderId',
+      'parseWranglerJsonc',
+      'runCloudflareDeployGuard',
+      'scanWranglerEnvironmentIsolation',
+      'stripJsoncComments',
+    ])
+    expect(destination.scanWranglerEnvironmentIsolation).toBe(facade.scanWranglerEnvironmentIsolation)
+    expect(destination.runCloudflareDeployGuard).toBe(facade.runCloudflareDeployGuard)
+    expect(destination.getCloudflareDeployGuardExitCode([{}])).toBe(1)
+  })
+
   it('blocks CLOUDFLARE_ENV=production', async () => {
     const mod = await import('../../scripts/guard-cloudflare-env.mjs')
 

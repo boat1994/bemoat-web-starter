@@ -72,6 +72,7 @@
     "scripts/post-role-comment.mjs",
     "scripts/cli",
     "scripts/guard-cloudflare-env.mjs",
+    "scripts/guards/cloudflare-env.mjs",
     "scripts/guard-pack.mjs",
     "scripts/guard-planning-contract.mjs",
     "scripts/guards/planning-contract.mjs",
