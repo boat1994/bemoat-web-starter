@@ -3,7 +3,18 @@ import { resolve } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
+import * as facade from '../../scripts/guard-toolchain-contract.mjs'
+import * as guard from '../../scripts/guards/toolchain-contract.mjs'
+
 describe('toolchain contract', () => {
+  it('keeps the root entrypoint as a stable facade over the guard owner', () => {
+    expect(facade.TOOLCHAIN_CONTRACT_PATH).toBe(guard.TOOLCHAIN_CONTRACT_PATH)
+    expect(facade.getExpectedRootStrictNullChecks).toBe(guard.getExpectedRootStrictNullChecks)
+    expect(facade.scanToolchainContract).toBe(guard.scanToolchainContract)
+    expect(facade.getToolchainContractExitCode).toBe(guard.getToolchainContractExitCode)
+    expect(facade.formatToolchainContractViolations).toBe(guard.formatToolchainContractViolations)
+  })
+
   it('requires the approved TypeScript, Node, and compiler invariants', async () => {
     const mod = await import('../../scripts/guard-toolchain-contract.mjs')
     const contract = JSON.parse(
