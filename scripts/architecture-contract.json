@@ -108,13 +108,6 @@
       "migration_status": "migrated"
     },
     {
-      "path": "scripts/guard-env-placeholder.mjs",
-      "facade_disposition": "stable_facade",
-      "internal_destination": "scripts/guards/env-placeholder.mjs",
-      "owning_slice": 7,
-      "migration_status": "migrated"
-    },
-    {
       "path": "scripts/guard-harness-contract.mjs",
       "facade_disposition": "stable_facade",
       "internal_destination": "scripts/guards/harness-contract.mjs",

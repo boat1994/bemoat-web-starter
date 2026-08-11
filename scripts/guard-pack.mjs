@@ -19,7 +19,7 @@ import {
 import {
   formatEnvPlaceholderViolations,
   runEnvPlaceholderGuard,
-} from './guard-env-placeholder.mjs'
+} from './guards/env-placeholder.mjs'
 import {
   formatFrontendSeoViolations,
   runFrontendSeoGuard,

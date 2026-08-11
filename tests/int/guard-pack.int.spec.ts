@@ -123,7 +123,7 @@ describe('central guard pack', () => {
     expect(syncMod.managedPaths).toContain('scripts/guard-toolchain-contract.mjs')
     expect(syncMod.managedPaths).toContain('tsconfig.harness-strict.json')
     expect(syncMod.managedPackageScripts).toContain('bemoat:typecheck')
-    expect(syncMod.managedPaths).toContain('scripts/guard-env-placeholder.mjs')
+    expect(syncMod.managedPaths).toContain('scripts/guards/env-placeholder.mjs')
     expect(syncMod.managedPaths).toContain('scripts/guards/frontend-seo.mjs')
     expect(syncMod.managedPaths).not.toContain('scripts/guard-frontend-seo.mjs')
     expect(syncMod.managedPaths).toContain('scripts/guard-mission-control-contract.mjs')
@@ -201,7 +201,7 @@ describe('package manager guard', () => {
 
 describe('env placeholder guard', () => {
   it('passes empty .env.example values', async () => {
-    const mod = await import('../../scripts/guard-env-placeholder.mjs')
+    const mod = await import('../../scripts/guards/env-placeholder.mjs')
 
     const violations = mod.scanEnvExampleContent('PAYLOAD_SECRET=\nDATABASE_URL=')
 
@@ -209,7 +209,7 @@ describe('env placeholder guard', () => {
   })
 
   it('flags real-looking secrets in .env.example', async () => {
-    const mod = await import('../../scripts/guard-env-placeholder.mjs')
+    const mod = await import('../../scripts/guards/env-placeholder.mjs')
 
     const violations = mod.scanEnvExampleContent(
       'PAYLOAD_SECRET=super-secret-production-value-should-not-be-here',
