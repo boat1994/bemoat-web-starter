@@ -51,7 +51,7 @@ import {
   formatToolchainContractViolations,
   scanToolchainContract,
 } from './guards/toolchain-contract.mjs'
-import { formatViolations, runRepoSafetyGuard } from './guard-repo-safety.mjs'
+import { formatViolations, runRepoSafetyGuard } from './guards/repo-safety.mjs'
 import { formatStructuralProtectionViolations, runStructuralProtectionGuard } from './guards/structural-protection.mjs'
 
 /** Ordered central guard pack — each entry is a reusable, deterministic check. */

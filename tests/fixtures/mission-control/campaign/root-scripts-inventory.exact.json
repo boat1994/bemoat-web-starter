@@ -11,7 +11,6 @@
   "scripts/guard-harness-contract.mjs",
   "scripts/guard-mission-control-contract.mjs",
   "scripts/guard-pack.mjs",
-  "scripts/guard-repo-safety.mjs",
   "scripts/guard-scripts-architecture.mjs",
   "scripts/install-git-hooks.mjs",
   "scripts/mission-control-adopt-finding.mjs",

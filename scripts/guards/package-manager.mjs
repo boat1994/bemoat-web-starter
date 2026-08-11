@@ -5,7 +5,7 @@ import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import { CHILD_FACING_HARNESS_PATHS } from '../guard-harness-contract.mjs'
-import { listProjectFiles } from '../guard-repo-safety.mjs'
+import { listProjectFiles } from './repo-safety.mjs'
 
 /** Alternate lockfiles that indicate package-manager drift from pnpm. */
 export const FORBIDDEN_LOCKFILES = [

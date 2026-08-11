@@ -114,6 +114,8 @@ describe('central guard pack', () => {
     const syncMod = await import('../../scripts/sync-boilerplate.mjs')
 
     expect(syncMod.managedPaths).toContain('scripts/guard-pack.mjs')
+    expect(syncMod.managedPaths).toContain('scripts/guards/repo-safety.mjs')
+    expect(syncMod.managedPaths).not.toContain('scripts/guard-repo-safety.mjs')
     expect(syncMod.managedPaths).toContain('scripts/guards/structural-protection.mjs')
     expect(syncMod.managedPaths).toContain('scripts/structural-protection-manifest.json')
     expect(syncMod.managedPaths).toContain('tests/int/structural-protection.int.spec.ts')
@@ -136,7 +138,7 @@ describe('central guard pack', () => {
 
 describe('destructive SQL fixture', () => {
   it('flags unapproved destructive migration fixture', async () => {
-    const repoSafety = await import('../../scripts/guard-repo-safety.mjs')
+    const repoSafety = await import('../../scripts/guards/repo-safety.mjs')
     const content = readFileSync(resolve(fixturesRoot, 'destructive-migration-unapproved.ts'), 'utf8')
 
     const violations = repoSafety.scanDestructiveMigration(
@@ -150,7 +152,7 @@ describe('destructive SQL fixture', () => {
   })
 
   it('allows approved destructive migration fixture', async () => {
-    const repoSafety = await import('../../scripts/guard-repo-safety.mjs')
+    const repoSafety = await import('../../scripts/guards/repo-safety.mjs')
     const content = readFileSync(resolve(fixturesRoot, 'destructive-migration-approved.ts'), 'utf8')
 
     const violations = repoSafety.scanDestructiveMigration(

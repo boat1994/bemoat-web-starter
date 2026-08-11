@@ -252,7 +252,7 @@ describe('boilerplate sync managed paths', () => {
       'docs/boilerplate-sync-command.md',
       'scripts/agent-issue.mjs',
       'scripts/post-role-comment.mjs',
-      'scripts/guard-repo-safety.mjs',
+      'scripts/guards/repo-safety.mjs',
       'scripts/guard-mission-control-contract.mjs',
       'scripts/guards/build-script-contract.mjs',
       'scripts/build.mjs',

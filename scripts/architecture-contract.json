@@ -122,13 +122,6 @@
       "migration_status": "retained"
     },
     {
-      "path": "scripts/guard-repo-safety.mjs",
-      "facade_disposition": "stable_facade",
-      "internal_destination": "scripts/guards/repo-safety.mjs",
-      "owning_slice": 7,
-      "migration_status": "planned"
-    },
-    {
       "path": "scripts/guard-scripts-architecture.mjs",
       "facade_disposition": "stable_facade",
       "internal_destination": "scripts/guards/scripts-architecture.mjs",

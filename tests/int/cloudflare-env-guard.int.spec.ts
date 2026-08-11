@@ -109,7 +109,7 @@ describe('Cloudflare deploy guard', () => {
   })
 
   it('passes on the current repository wrangler.jsonc via guard:safety', async () => {
-    const mod = await import('../../scripts/guard-repo-safety.mjs')
+    const mod = await import('../../scripts/guards/repo-safety.mjs')
 
     const violations = mod.runRepoSafetyGuard()
     expect(mod.getGuardExitCode(violations)).toBe(0)

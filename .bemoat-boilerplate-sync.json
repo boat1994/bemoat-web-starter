@@ -46,7 +46,7 @@
     "scripts/boilerplate",
     "scripts/check-boilerplate-drift.mjs",
     "scripts/deploy-smoke-test.mjs",
-    "scripts/guard-repo-safety.mjs",
+    "scripts/guards/repo-safety.mjs",
     "scripts/guard-harness-contract.mjs",
     "scripts/harness-contract",
     "scripts/guard-mission-control-contract.mjs",

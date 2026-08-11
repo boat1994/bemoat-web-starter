@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import { isPlaceholderSecret } from '../guard-repo-safety.mjs'
+import { isPlaceholderSecret } from './repo-safety.mjs'
 
 export const ENV_EXAMPLE_PATH = '.env.example'
 

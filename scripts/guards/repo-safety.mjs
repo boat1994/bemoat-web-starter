@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { scanWranglerEnvironmentIsolation } from './guards/cloudflare-env.mjs'
+import { scanWranglerEnvironmentIsolation } from './cloudflare-env.mjs'
 
 /** Human-approved destructive migrations must include this marker in the migration file. */
 export const APPROVAL_MARKER = 'bemoat:destructive-migration-approved'
@@ -23,7 +23,7 @@ export const SKIP_DIR_NAMES = new Set([
   '.tmp-repo-safety-test',
 ])
 
-export const SKIP_FILES = new Set(['pnpm-lock.yaml', 'scripts/guard-repo-safety.mjs'])
+export const SKIP_FILES = new Set(['pnpm-lock.yaml', 'scripts/guards/repo-safety.mjs'])
 
 /** Project-specific Cloudflare bindings belong here, not in shared starter files. */
 export const RESOURCE_ID_SAFE_FILES = new Set(['wrangler.jsonc'])
