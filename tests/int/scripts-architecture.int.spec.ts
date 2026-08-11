@@ -120,12 +120,11 @@ describe('scripts architecture ratchet', () => {
       cycleEdges: [],
       adapters: {
         'scripts/adapters/command-runner.mjs': {
-          importers: ['scripts/command-runner.mjs'],
+          importers: ['scripts/mission-control-review.mjs'],
         },
       },
     })
     writeScript(root, 'scripts/adapters/command-runner.mjs', 'export const run = () => {}\n')
-    writeScript(root, 'scripts/command-runner.mjs', "import { run } from './adapters/command-runner.mjs'\n")
     writeScript(root, 'scripts/rogue.mjs', "import { run } from './adapters/command-runner.mjs'\n")
 
     const violations = validateArchitectureContract(root)
@@ -141,12 +140,11 @@ describe('scripts architecture ratchet', () => {
       cycleEdges: [],
       adapters: {
         'scripts/adapters/command-runner.mjs': {
-          importers: ['scripts/command-runner.mjs', 'scripts/mission-control-review.mjs'],
+          importers: ['scripts/mission-control-review.mjs'],
         },
       },
     })
     writeScript(root, 'scripts/adapters/command-runner.mjs', 'export const run = () => {}\n')
-    writeScript(root, 'scripts/command-runner.mjs', "import { run } from './adapters/command-runner.mjs'\n")
 
     const violations = validateArchitectureContract(root)
     expect(violations).toContain(

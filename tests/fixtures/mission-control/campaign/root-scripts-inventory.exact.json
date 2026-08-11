@@ -6,7 +6,6 @@
   "scripts/capture-baseline.mjs",
   "scripts/check-boilerplate-drift.mjs",
   "scripts/check-branch-safety.sh",
-  "scripts/command-runner.mjs",
   "scripts/correction-contract.mjs",
   "scripts/deploy-smoke-test.mjs",
   "scripts/guard-build-script-contract.mjs",

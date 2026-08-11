@@ -31,7 +31,6 @@
   "adapters": {
     "scripts/adapters/command-runner.mjs": {
       "importers": [
-        "scripts/command-runner.mjs",
         "scripts/mission-control-review.mjs",
         "scripts/mission-control/adapters/task-bootstrap-github.mjs"
       ]
@@ -86,13 +85,6 @@
       "internal_destination": "scripts/tooling/check-branch-safety.sh",
       "owning_slice": 7,
       "migration_status": "planned"
-    },
-    {
-      "path": "scripts/command-runner.mjs",
-      "facade_disposition": "stable_facade",
-      "internal_destination": "scripts/adapters/command-runner.mjs",
-      "owning_slice": 1,
-      "migration_status": "migrated"
     },
     {
       "path": "scripts/correction-contract.mjs",

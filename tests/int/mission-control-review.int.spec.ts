@@ -248,7 +248,7 @@ describe('mission-control review transition', () => {
   it('keeps the review CLI as a sync-managed facade', async () => {
     const sync = await import('../../scripts/sync-boilerplate.mjs')
     expect(sync.managedPaths).toContain('scripts/mission-control-review.mjs')
-    expect(sync.managedPaths).toContain('scripts/command-runner.mjs')
+    expect(sync.managedPaths).not.toContain('scripts/command-runner.mjs')
     expect(sync.managedPaths).toContain('scripts/adapters/command-runner.mjs')
     expect(sync.managedPackageScripts).toContain('bemoat:mission-control:review')
     expect((await import('../../package.json', { with: { type: 'json' } })).default.scripts['bemoat:mission-control:review'])

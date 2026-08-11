@@ -2116,8 +2116,8 @@ describe('issue #182 projection managed delivery regression', () => {
   )
 })
 
-describe('issue #224 CommandRunner additive child delivery', () => {
-  it('delivers nested CommandRunner adapter in one harness-only sync without touching child-owned files', async () => {
+describe('issue #328 CommandRunner root closeout', () => {
+  it('delivers only the nested CommandRunner adapter in one harness-only sync without touching child-owned files', async () => {
     const mod = await import('../../scripts/sync-boilerplate.mjs')
     const tempRoot = mkdtempSync(join(tmpdir(), 'bemoat-224-command-runner-'))
     const sourceRoot = join(tempRoot, 'source')
@@ -2145,7 +2145,7 @@ describe('issue #224 CommandRunner additive child delivery', () => {
       )
       rmSync(join(childRoot, adapterRelativePath), { force: true })
       expect(existsSync(join(childRoot, adapterRelativePath))).toBe(false)
-      expect(existsSync(join(childRoot, 'scripts/command-runner.mjs'))).toBe(true)
+      expect(existsSync(join(childRoot, 'scripts/command-runner.mjs'))).toBe(false)
 
       mkdirSync(join(childRoot, dirname(childOwnedRelativePath)), { recursive: true })
       writeFileSync(join(childRoot, childOwnedRelativePath), `CHILD_OWNED:${childOwnedRelativePath}\n`)
@@ -2163,7 +2163,7 @@ describe('issue #224 CommandRunner additive child delivery', () => {
       })
 
       expect(result.seededFiles).toEqual([])
-      expect(existsSync(join(childRoot, 'scripts/command-runner.mjs'))).toBe(true)
+      expect(existsSync(join(childRoot, 'scripts/command-runner.mjs'))).toBe(false)
       expect(existsSync(join(childRoot, adapterRelativePath))).toBe(true)
 
       execFileSync(
@@ -2171,7 +2171,7 @@ describe('issue #224 CommandRunner additive child delivery', () => {
         [
           '--input-type=module',
           '-e',
-          "import('./scripts/command-runner.mjs').then((m) => { if (typeof m.runCommand !== 'function') throw new Error('missing compatibility export') })",
+          "import('./scripts/adapters/command-runner.mjs').then((m) => { if (typeof m.runCommand !== 'function') throw new Error('missing adapter export') })",
         ],
         { cwd: childRoot, stdio: 'pipe' },
       )
