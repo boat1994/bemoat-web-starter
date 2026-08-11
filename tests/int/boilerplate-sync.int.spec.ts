@@ -1897,7 +1897,7 @@ function writeIssue182ChildFixture(targetRoot: string) {
     writeFileSync(absolutePath, `OLD_SENTINEL:${relativePath}\n`)
   }
 
-  const projectionPath = join(targetRoot, 'scripts/github-comment-projection.mjs')
+  const projectionPath = join(targetRoot, 'scripts/mission-control/diagnostics/github-comment-projection.mjs')
   if (existsSync(projectionPath)) {
     rmSync(projectionPath, { force: true })
   }
@@ -1953,7 +1953,7 @@ describe('issue #182 projection managed delivery regression', () => {
       })
 
       expect(result.seededFiles).toEqual([])
-      expect(existsSync(join(childRoot, 'scripts/github-comment-projection.mjs'))).toBe(true)
+      expect(existsSync(join(childRoot, 'scripts/mission-control/diagnostics/github-comment-projection.mjs'))).toBe(true)
       expect(existsSync(join(childRoot, 'scripts/agent-issue.mjs'))).toBe(true)
       expect(existsSync(join(childRoot, 'scripts/pr-identity.mjs'))).toBe(true)
       expect(readFileSync(join(childRoot, 'scripts/agent-issue.mjs'), 'utf8')).toContain(
@@ -1998,40 +1998,40 @@ describe('issue #182 projection managed delivery regression', () => {
     [
       'missing dependency',
       (sourceRoot: string) => {
-        rmSync(join(sourceRoot, 'scripts/github-comment-projection.mjs'), { force: true })
+        rmSync(join(sourceRoot, 'scripts/mission-control/diagnostics/github-comment-projection.mjs'), { force: true })
       },
-      '- [missing-managed-runtime-source] importer="managedPaths" -> callee="scripts/github-comment-projection.mjs" specifier="scripts/github-comment-projection.mjs"',
+      '- [missing-managed-runtime-source] importer="managedPaths" -> callee="scripts/mission-control/diagnostics/github-comment-projection.mjs" specifier="scripts/mission-control/diagnostics/github-comment-projection.mjs"',
     ],
     [
       'renamed dependency',
       (sourceRoot: string) => {
-        const projectionPath = join(sourceRoot, 'scripts/github-comment-projection.mjs')
+        const projectionPath = join(sourceRoot, 'scripts/mission-control/diagnostics/github-comment-projection.mjs')
         writeFileSync(
           join(sourceRoot, 'scripts/github-comment-projection-renamed.mjs'),
           readFileSync(projectionPath, 'utf8'),
         )
         rmSync(projectionPath, { force: true })
       },
-      '- [missing-managed-runtime-source] importer="managedPaths" -> callee="scripts/github-comment-projection.mjs" specifier="scripts/github-comment-projection.mjs"',
+      '- [missing-managed-runtime-source] importer="managedPaths" -> callee="scripts/mission-control/diagnostics/github-comment-projection.mjs" specifier="scripts/mission-control/diagnostics/github-comment-projection.mjs"',
     ],
     [
       'deleted dependency',
       (sourceRoot: string) => {
-        rmSync(join(sourceRoot, 'scripts/github-comment-projection.mjs'), { force: true })
+        rmSync(join(sourceRoot, 'scripts/mission-control/diagnostics/github-comment-projection.mjs'), { force: true })
       },
-      '- [missing-managed-runtime-source] importer="managedPaths" -> callee="scripts/github-comment-projection.mjs" specifier="scripts/github-comment-projection.mjs"',
+      '- [missing-managed-runtime-source] importer="managedPaths" -> callee="scripts/mission-control/diagnostics/github-comment-projection.mjs" specifier="scripts/mission-control/diagnostics/github-comment-projection.mjs"',
     ],
     [
       'newly introduced unmanaged relative dependency',
       (sourceRoot: string) => {
         writeFileSync(join(sourceRoot, 'scripts/unmanaged-helper.mjs'), 'export const helper = 1\n')
-        const projectionPath = join(sourceRoot, 'scripts/github-comment-projection.mjs')
+        const projectionPath = join(sourceRoot, 'scripts/mission-control/diagnostics/github-comment-projection.mjs')
         writeFileSync(
           projectionPath,
           `${readFileSync(projectionPath, 'utf8')}import { helper } from './unmanaged-helper.mjs'\n`,
         )
       },
-      '- [unmanaged-relative-runtime-dependency] importer="scripts/github-comment-projection.mjs" -> callee="scripts/unmanaged-helper.mjs" specifier="./unmanaged-helper.mjs"',
+      '- [missing-relative-runtime-dependency] importer="scripts/mission-control/diagnostics/github-comment-projection.mjs" -> callee="scripts/mission-control/diagnostics/unmanaged-helper.mjs" specifier="./unmanaged-helper.mjs"',
     ],
     [
       'missing pr-identity dependency',

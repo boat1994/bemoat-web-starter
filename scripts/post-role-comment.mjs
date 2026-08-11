@@ -29,7 +29,7 @@ import {
   resolveProductionCommentTrust,
   verifyPostedCommentReadback,
 } from './mission-control-reconcile.mjs'
-import { projectComments, selectAuthoritativeRoleComments } from './github-comment-projection.mjs'
+import { projectComments, selectAuthoritativeRoleComments } from './mission-control/diagnostics/github-comment-projection.mjs'
 import {
   renderResult,
   renderRuntimeError,

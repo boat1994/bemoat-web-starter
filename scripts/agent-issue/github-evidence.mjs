@@ -1,4 +1,4 @@
-import { projectComments } from '../github-comment-projection.mjs'
+import { projectComments } from '../mission-control/diagnostics/github-comment-projection.mjs'
 import { run } from './process-runner.mjs'
 import { getDefaultRepo } from './local-git-evidence.mjs'
 import { parseIssueReference, parsePrReference } from './issue-references.mjs'

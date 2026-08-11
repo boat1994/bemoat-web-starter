@@ -48,7 +48,6 @@
     "scripts/agent-issue/process-runner.mjs",
     "scripts/agent-issue/progress-tracking.mjs",
     "scripts/agent-issue/pure-helpers.mjs",
-    "scripts/github-comment-projection.mjs",
     "scripts/mission-control-issue-body-cas.mjs",
     "scripts/pr-identity.mjs",
     "tests/fixtures/agent-issue/issue-171-finding-thread.md",

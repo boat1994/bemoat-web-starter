@@ -9,7 +9,6 @@
   "scripts/command-runner.mjs",
   "scripts/correction-contract.mjs",
   "scripts/deploy-smoke-test.mjs",
-  "scripts/github-comment-projection.mjs",
   "scripts/guard-build-script-contract.mjs",
   "scripts/guard-cloudflare-env.mjs",
   "scripts/guard-env-placeholder.mjs",

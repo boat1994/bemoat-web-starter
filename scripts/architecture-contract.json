@@ -7,7 +7,6 @@
     "scripts/agent-issue/historical-review3-authority.mjs",
     "scripts/agent-issue/issue-preflight.mjs",
     "scripts/agent-issue/progress-tracking.mjs",
-    "scripts/github-comment-projection.mjs",
     "scripts/mission-control/diagnostics/github-comment-projection.mjs",
     "scripts/mission-control-reconcile.mjs"
   ],
@@ -19,14 +18,13 @@
     "scripts/agent-issue/correction-preflight.mjs -> scripts/agent-issue/github-evidence.mjs",
     "scripts/agent-issue/correction-preflight.mjs -> scripts/agent-issue/historical-review3-authority.mjs",
     "scripts/agent-issue/correction-preflight.mjs -> scripts/mission-control-reconcile.mjs",
-    "scripts/agent-issue/github-evidence.mjs -> scripts/github-comment-projection.mjs",
+    "scripts/agent-issue/github-evidence.mjs -> scripts/mission-control/diagnostics/github-comment-projection.mjs",
     "scripts/agent-issue/historical-review3-authority.mjs -> scripts/mission-control-reconcile.mjs",
     "scripts/agent-issue/issue-preflight.mjs -> scripts/agent-issue/correction-preflight.mjs",
     "scripts/agent-issue/issue-preflight.mjs -> scripts/agent-issue/github-evidence.mjs",
     "scripts/agent-issue/issue-preflight.mjs -> scripts/agent-issue/progress-tracking.mjs",
     "scripts/agent-issue/progress-tracking.mjs -> scripts/agent-issue/github-evidence.mjs",
     "scripts/agent-issue/progress-tracking.mjs -> scripts/mission-control-reconcile.mjs",
-    "scripts/github-comment-projection.mjs -> scripts/mission-control/diagnostics/github-comment-projection.mjs",
     "scripts/mission-control/diagnostics/github-comment-projection.mjs -> scripts/mission-control-reconcile.mjs",
     "scripts/mission-control-reconcile.mjs -> scripts/agent-issue.mjs"
   ],
@@ -109,13 +107,6 @@
       "internal_destination": "scripts/tooling/deploy-smoke-test.mjs",
       "owning_slice": 7,
       "migration_status": "planned"
-    },
-    {
-      "path": "scripts/github-comment-projection.mjs",
-      "facade_disposition": "stable_facade",
-      "internal_destination": "scripts/mission-control/diagnostics/github-comment-projection.mjs",
-      "owning_slice": 5,
-      "migration_status": "migrated"
     },
     {
       "path": "scripts/guard-build-script-contract.mjs",

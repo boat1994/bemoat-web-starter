@@ -1,10 +1,9 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
 import { buildScriptImportGraph } from '../../scripts/guard-scripts-architecture.mjs'
-import * as rootProjection from '../../scripts/github-comment-projection.mjs'
 import { managedPaths } from '../../scripts/boilerplate/inventory.mjs'
 
 const rootPath = resolve(process.cwd(), 'scripts/github-comment-projection.mjs')
@@ -22,20 +21,13 @@ const publicExports = [
 ]
 
 describe('GitHub comment projection boundary', () => {
-  it('keeps the root facade export-compatible with the diagnostics owner', async () => {
+  it('keeps the diagnostics destination authoritative after root removal', async () => {
     const destinationProjection = await import(
       '../../scripts/mission-control/diagnostics/github-comment-projection.mjs'
     )
 
-    for (const name of publicExports) {
-      expect(rootProjection[name as keyof typeof rootProjection]).toBe(
-        destinationProjection[name as keyof typeof destinationProjection],
-      )
-    }
-
-    expect(readFileSync(rootPath, 'utf8')).toMatch(
-      /export \* from ['"]\.\/mission-control\/diagnostics\/github-comment-projection\.mjs['"]/
-    )
+    expect(existsSync(rootPath)).toBe(false)
+    expect(Object.keys(destinationProjection).sort()).toEqual(publicExports.sort())
     expect(readFileSync(destinationPath, 'utf8')).not.toMatch(
       /github-comment-projection\.mjs/,
     )
@@ -47,7 +39,7 @@ describe('GitHub comment projection boundary', () => {
 
     expect(imports).not.toContain('scripts/github-comment-projection.mjs')
     expect(imports).toContain('scripts/mission-control-reconcile.mjs')
-    expect(managedPaths).toContain('scripts/github-comment-projection.mjs')
+    expect(managedPaths).not.toContain('scripts/github-comment-projection.mjs')
     expect(managedPaths).toContain('scripts/mission-control')
   })
 

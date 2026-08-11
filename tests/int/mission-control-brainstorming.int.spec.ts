@@ -4,7 +4,7 @@ import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import { parseRoleCommentBody } from '../../scripts/mission-control-reconcile.mjs'
-import { projectComments, selectAuthoritativeRoleComments } from '../../scripts/github-comment-projection.mjs'
+import { projectComments, selectAuthoritativeRoleComments } from '../../scripts/mission-control/diagnostics/github-comment-projection.mjs'
 import {
   BRAINSTORMING_PROFILE_HEADINGS,
   classifyFounderAuthorizationReply,
