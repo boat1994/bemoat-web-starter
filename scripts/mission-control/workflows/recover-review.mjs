@@ -7,7 +7,7 @@ import yaml from 'yaml'
 import { analyzeExactHeadCi } from '../../agent-issue/exact-head-ci.mjs'
 import { parseCorrectionContract, parseCorrectionEvidenceMap, validateFindingIdentity } from '../domain/correction-contract.mjs'
 import { scanGuideContent } from '../../guards/mission-control-contract/scan-guide.mjs'
-import { parseMissionControlState, projectMissionControlStateBlock } from '../../mission-control-state.mjs'
+import { parseMissionControlState, projectMissionControlStateBlock } from '../domain/task-state.mjs'
 import {
   Coordinator,
   normalizeIssueComments,

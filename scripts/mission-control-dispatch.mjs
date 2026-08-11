@@ -26,7 +26,7 @@ import {
 import {
   classifyDelegatedFailure,
 } from './cli/command-result.mjs'
-import { parseMissionControlState, projectMissionControlStateBlock } from './mission-control-state.mjs'
+import { parseMissionControlState, projectMissionControlStateBlock } from './mission-control/domain/task-state.mjs'
 import { writeIssueBodyWithLease } from './mission-control-issue-body-cas.mjs'
 import { preflightCanonicalBootstrapTask } from './mission-control/domain/task-bootstrap-preflight.mjs'
 import {

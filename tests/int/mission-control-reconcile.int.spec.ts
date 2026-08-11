@@ -5,7 +5,7 @@ import { resolve } from 'node:path'
 /* eslint-disable @typescript-eslint/no-explicit-any -- untyped runtime .mjs boundary */
 import * as reconcileModule from '../../scripts/mission-control-reconcile.mjs'
 import * as coordinatorTransitions from '../../scripts/mission-control/coordinator-transitions.mjs'
-import { parseMissionControlState, renderMissionControlState } from '../../scripts/mission-control-state.mjs'
+import { parseMissionControlState, renderMissionControlState } from '../../scripts/mission-control/domain/task-state.mjs'
 
 // Shared .mjs scripts expose runtime behavior, not TypeScript declarations. Keep
 // the strict-project boundary explicit without changing the production API.

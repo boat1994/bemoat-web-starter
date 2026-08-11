@@ -6,7 +6,7 @@ import {
   runPlanningContractGuard,
   verifyLiveTaskIdentity,
 } from '../guard-planning-contract.mjs'
-import { parseMissionControlState } from '../mission-control-state.mjs'
+import { parseMissionControlState } from '../mission-control/domain/task-state.mjs'
 import { analyzeExactHeadCi } from './exact-head-ci.mjs'
 import {
   deriveWorkflowProfile,

@@ -19,7 +19,7 @@ import { isLeaseCasConflict, writeIssueBodyWithLease } from '../../mission-contr
 import {
   appendMissingMissionControlStateBlock,
   parseMissionControlState,
-} from '../../mission-control-state.mjs'
+} from '../domain/task-state.mjs'
 import {
   parseLineageCorrectionAuthorization,
   validateRecoverStateLineage,

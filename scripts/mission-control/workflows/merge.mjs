@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process'
 import { createHelpEnvelopeV1, formatTextHelp } from '../../cli/command-help.mjs'
 import { parseCommandInvocation } from '../../cli/command-invocation.mjs'
 
-import { parseMissionControlState } from '../../mission-control-state.mjs'
+import { parseMissionControlState } from '../domain/task-state.mjs'
 import { writeIssueBodyWithLease } from '../../mission-control-issue-body-cas.mjs'
 import {
   selectNextCampaignAction,

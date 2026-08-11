@@ -26,7 +26,7 @@ import {
 import {
   parseMissionControlState,
   renderMissionControlState,
-} from '../../scripts/mission-control-state.mjs'
+} from '../../scripts/mission-control/domain/task-state.mjs'
 import { validateFindingEvidence } from '../../scripts/mission-control/domain/correction-contract.mjs'
 
 const REPOSITORY = 'boat1994/bemoat-web-starter'

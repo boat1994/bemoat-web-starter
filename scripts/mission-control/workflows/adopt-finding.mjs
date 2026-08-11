@@ -15,7 +15,7 @@ import { writeIssueBodyWithLease, isLeaseCasConflict } from '../../mission-contr
 import {
   parseMissionControlState,
   projectMissionControlStateBlock,
-} from '../../mission-control-state.mjs'
+} from '../domain/task-state.mjs'
 import {
   ACTIVE_CORRECTION_CONTRACT_IDENTITY_KEY,
   buildActiveCorrectionContractIdentity,

@@ -220,13 +220,6 @@
       "migration_status": "planned"
     },
     {
-      "path": "scripts/mission-control-state.mjs",
-      "facade_disposition": "stable_facade",
-      "internal_destination": "scripts/mission-control/domain/task-state.mjs",
-      "owning_slice": 5,
-      "migration_status": "migrated"
-    },
-    {
       "path": "scripts/mission-control-task-create.mjs",
       "facade_disposition": "composition_root",
       "internal_destination": "scripts/mission-control/workflows/task-bootstrap.mjs",

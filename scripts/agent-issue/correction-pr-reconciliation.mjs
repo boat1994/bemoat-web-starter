@@ -4,7 +4,7 @@ import {
   parseCompleteGitHubPullUrl,
   resolveCanonicalVerdictPrIdentity,
 } from '../mission-control/domain/pr-identity.mjs'
-import { parseMissionControlState } from '../mission-control-state.mjs'
+import { parseMissionControlState } from '../mission-control/domain/task-state.mjs'
 import { checkOpenPrsForIssueOrBranch, fetchPrByReference } from './github-evidence.mjs'
 import { parsePrReference } from './issue-references.mjs'
 import { getDefaultRepo } from './local-git-evidence.mjs'

@@ -1,5 +1,5 @@
 import { analyzeExactHeadCi } from '../../agent-issue/exact-head-ci.mjs'
-import { parseMissionControlState } from '../../mission-control-state.mjs'
+import { parseMissionControlState } from '../domain/task-state.mjs'
 import { compareAndSwapIssueBody } from '../../mission-control-issue-body-cas.mjs'
 import {
   BOOTSTRAP_CONTRACT,

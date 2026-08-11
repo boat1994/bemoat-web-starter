@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
-import { parseMissionControlState, renderMissionControlState } from '../../mission-control-state.mjs'
+import { parseMissionControlState, renderMissionControlState } from './task-state.mjs'
 import { analyzeExactHeadCi } from '../../agent-issue/exact-head-ci.mjs'
 import { canonicalHash, parseTaskAttestation, renderSignedEnvelope, verifyTaskAttestation } from './task-attestation.mjs'
 import { parseProvisionalTaskBody } from './task-bootstrap-request.mjs'

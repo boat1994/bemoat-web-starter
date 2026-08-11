@@ -40,7 +40,7 @@ export const managedPaths = [
   'scripts/guard-mission-control-drift.mjs', 'scripts/guard-scripts-architecture.mjs',
   'scripts/guards/scripts-architecture.mjs',
   'scripts/architecture-contract.json', 'scripts/AGENTS.md', 'scripts/ARCHITECTURE.md',
-  'scripts/mission-control', 'scripts/mission-control/diagnostics/github-comment-projection.mjs', 'scripts/mission-control-state.mjs',
+  'scripts/mission-control', 'scripts/mission-control/domain/task-state.mjs', 'scripts/mission-control/diagnostics/github-comment-projection.mjs',
   'scripts/guards/package-manager.mjs',
   'scripts/guards/toolchain-contract.mjs', 'scripts/bemoat-typecheck.mjs',
   'tsconfig.harness-strict.json', '.bemoat/toolchain-contract.json',

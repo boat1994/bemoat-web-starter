@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process'
 import {
   parseMissionControlState,
   projectMissionControlStateBlock,
-} from '../../mission-control-state.mjs'
+} from '../domain/task-state.mjs'
 import { writeIssueBodyWithLease } from '../../mission-control-issue-body-cas.mjs'
 import {
   assertFounderAuthorization,

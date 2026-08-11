@@ -19,7 +19,6 @@
       { "path": "scripts/mission-control-issue-body-cas.mjs", "max_lines": 438 },
       { "path": "scripts/mission-control-reconcile.mjs", "max_lines": 143 },
       { "path": "scripts/mission-control-review.mjs", "max_lines": 346 },
-      { "path": "scripts/mission-control-state.mjs", "max_lines": 548 },
       { "path": "scripts/mission-control/domain/campaign-authority.mjs", "max_lines": 547 },
       { "path": "scripts/mission-control/domain/campaign-validator.mjs", "max_lines": 482 },
       { "path": "scripts/mission-control/domain/correction-contract.mjs", "max_lines": 650 },
@@ -39,7 +38,7 @@
   "protected_oracle": {
     "algorithm": "sha256",
     "files": [
-      { "path": "tests/int/mission-control-adopt-finding.int.spec.ts", "sha256": "1e3aeff3575d75c5fe2a4ca27c04ac6fd6747525c4a89d5b67fe26993da512fb" },
+      { "path": "tests/int/mission-control-adopt-finding.int.spec.ts", "sha256": "ba3ac34c02e6e05c0b94dff857db9d57a2bcc181b74a4d29bd8029f84e79739d" },
       { "path": "tests/int/mission-control-merge-verdict-binding-entrypoint.int.spec.ts", "sha256": "c780c36f4fcc3d386be6b3dcb5a86f16b1030a1446cfe59a9fefe83f1dc54b65" },
       { "path": "tests/int/mission-control-merge.int.spec.ts", "sha256": "2dfb92137dc35d5cd3ab718ff330bde87ae933891cbeaf077baf374a497f2d6e" }
     ]

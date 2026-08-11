@@ -215,7 +215,7 @@ describe('boilerplate sync managed paths', () => {
 
     const planningContractPaths = [
       'scripts/guard-planning-contract.mjs',
-      'scripts/mission-control-state.mjs',
+      'scripts/mission-control/domain/task-state.mjs',
       'tests/fixtures/planning',
       'tests/int/guard-planning-contract.int.spec.ts',
       'tests/int/guard-planning-contract-child-dev-base.int.spec.ts',

@@ -12,7 +12,7 @@ import {
   validateCommandContractRegistry,
 } from '../../scripts/cli/command-contract.mjs'
 import { managedPackageScripts, managedPaths } from '../../scripts/boilerplate/inventory.mjs'
-import { MISSION_CONTROL_STATES } from '../../scripts/mission-control-state.mjs'
+import { MISSION_CONTROL_STATES } from '../../scripts/mission-control/domain/task-state.mjs'
 import { CANONICAL_TRANSPORTS } from '../../scripts/mission-control/transport-registry.mjs'
 
 type JsonRecord = Record<string, unknown>

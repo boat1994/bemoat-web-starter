@@ -16,7 +16,6 @@
     "scripts/guard-mission-control-contract.mjs",
     "scripts/mission-control-dispatch.mjs",
     "scripts/mission-control-reconcile.mjs",
-    "scripts/mission-control-state.mjs",
     "scripts/post-role-comment.mjs",
     "scripts/sync-boilerplate.mjs",
     "tests/int/agent-delivery.int.spec.ts",

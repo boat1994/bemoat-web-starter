@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 const root = resolve(process.cwd())
 const tempRoots: string[] = []
 const oracle = [
-  ['tests/int/mission-control-adopt-finding.int.spec.ts', '1e3aeff3575d75c5fe2a4ca27c04ac6fd6747525c4a89d5b67fe26993da512fb'],
+  ['tests/int/mission-control-adopt-finding.int.spec.ts', 'ba3ac34c02e6e05c0b94dff857db9d57a2bcc181b74a4d29bd8029f84e79739d'],
   ['tests/int/mission-control-merge-verdict-binding-entrypoint.int.spec.ts', 'c780c36f4fcc3d386be6b3dcb5a86f16b1030a1446cfe59a9fefe83f1dc54b65'],
   ['tests/int/mission-control-merge.int.spec.ts', '2dfb92137dc35d5cd3ab718ff330bde87ae933891cbeaf077baf374a497f2d6e'],
 ] as const
@@ -18,7 +18,7 @@ const grandfathered = [
   ['scripts/guard-planning-contract.mjs', 467],
   ['scripts/mission-control-dispatch.mjs', 545], ['scripts/mission-control-issue-body-cas.mjs', 438],
   ['scripts/mission-control-reconcile.mjs', 143],
-  ['scripts/mission-control-review.mjs', 346], ['scripts/mission-control-state.mjs', 548],
+  ['scripts/mission-control-review.mjs', 346],
   ['scripts/mission-control/domain/campaign-authority.mjs', 547], ['scripts/mission-control/domain/campaign-validator.mjs', 482], ['scripts/mission-control/domain/correction-contract.mjs', 650],
   ['scripts/mission-control/domain/recover-state-projection.mjs', 37], ['scripts/mission-control/domain/reopen-result-rendering.mjs', 176], ['scripts/mission-control/domain/review-recovery.mjs', 485],
   ['scripts/mission-control/domain/review-result-rendering.mjs', 164],
@@ -77,9 +77,9 @@ async function guard(path = root) {
 describe('structural protection guard', () => {
   it('accepts the current repository with the exact inventory, baseline, and protected oracle', async () => {
     expect((await guard()).map((entry: { rule: string }) => entry.rule)).toEqual([])
-    expect(grandfathered).toHaveLength(28)
+    expect(grandfathered).toHaveLength(27)
     expect(JSON.parse(readFileSync(join(root, 'scripts/structural-protection-manifest.json'), 'utf8'))).toEqual(manifest())
-    expect(scriptInventory(root)).toBe(193)
+    expect(scriptInventory(root)).toBe(192)
   })
 
   it('rejects malformed schema, types, unknown keys, ordering, duplicates, paths, and SHA values', async () => {

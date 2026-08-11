@@ -1,4 +1,4 @@
-import { parseMissionControlState } from '../../mission-control-state.mjs'
+import { parseMissionControlState } from './task-state.mjs'
 import { parseCorrectionContract } from './correction-contract.mjs'
 import {
   fingerprintCorrectionContract,

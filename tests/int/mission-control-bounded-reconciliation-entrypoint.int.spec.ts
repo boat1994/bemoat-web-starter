@@ -3,7 +3,7 @@ import { join, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { parseMissionControlState, renderMissionControlState } from '../../scripts/mission-control-state.mjs'
+import { parseMissionControlState, renderMissionControlState } from '../../scripts/mission-control/domain/task-state.mjs'
 
 const reconcileScript = resolve(process.cwd(), 'scripts/mission-control-reconcile.mjs')
 const repo = 'boat1994/bemoat-web-starter'
