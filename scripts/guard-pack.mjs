@@ -38,7 +38,7 @@ import {
 import {
   formatPlanningContractViolations,
   runPlanningContractGuard,
-} from './guard-planning-contract.mjs'
+} from './guards/planning-contract-runtime.mjs'
 import {
   formatMissionControlDriftViolations,
   runMissionControlDriftGuard,

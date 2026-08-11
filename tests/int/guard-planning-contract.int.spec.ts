@@ -104,7 +104,7 @@ function violationRules(
 
 describe('guard-planning-contract static validation', () => {
   it('passes valid paired spec and plan fixtures', async () => {
-    const mod = await import('../../scripts/guard-planning-contract.mjs')
+    const mod = await import('../../scripts/guards/planning-contract-runtime.mjs')
 
     const violations = mod.runPlanningContractGuard({
       root: process.cwd(),
@@ -118,7 +118,7 @@ describe('guard-planning-contract static validation', () => {
   })
 
   it('flags closed issue #169 reuse with terminal transition conflicts', async () => {
-    const mod = await import('../../scripts/guard-planning-contract.mjs')
+    const mod = await import('../../scripts/guards/planning-contract-runtime.mjs')
 
     const violations = mod.runPlanningContractGuard({
       root: process.cwd(),
@@ -129,7 +129,7 @@ describe('guard-planning-contract static validation', () => {
   })
 
   it('flags mismatched active_task_issue across paired documents with PLAN002', async () => {
-    const mod = await import('../../scripts/guard-planning-contract.mjs')
+    const mod = await import('../../scripts/guards/planning-contract-runtime.mjs')
     const tempRoot = mkdtempSync(join(tmpdir(), 'planning-contract-'))
     const designPath = 'docs/superpowers/specs/test/design.md'
     const planPath = 'docs/superpowers/plans/test/implementation-plan.md'
@@ -160,7 +160,7 @@ describe('guard-planning-contract static validation', () => {
   })
 
   it('flags unrelated branch prefix with PLAN003', async () => {
-    const mod = await import('../../scripts/guard-planning-contract.mjs')
+    const mod = await import('../../scripts/guards/planning-contract-runtime.mjs')
 
     const violations = mod.runPlanningContractGuard({
       root: process.cwd(),
@@ -171,7 +171,7 @@ describe('guard-planning-contract static validation', () => {
   })
 
   it('flags terminal transition target conflicts with PLAN004', async () => {
-    const mod = await import('../../scripts/guard-planning-contract.mjs')
+    const mod = await import('../../scripts/guards/planning-contract-runtime.mjs')
 
     const violations = mod.runPlanningContractGuard({
       root: process.cwd(),
@@ -182,7 +182,7 @@ describe('guard-planning-contract static validation', () => {
   })
 
   it('flags missing task_issue_strategy with PLAN006', async () => {
-    const mod = await import('../../scripts/guard-planning-contract.mjs')
+    const mod = await import('../../scripts/guards/planning-contract-runtime.mjs')
 
     const violations = mod.runPlanningContractGuard({
       root: process.cwd(),
@@ -193,7 +193,7 @@ describe('guard-planning-contract static validation', () => {
   })
 
   it('flags unconditional planning base SHA rule with PLAN007', async () => {
-    const mod = await import('../../scripts/guard-planning-contract.mjs')
+    const mod = await import('../../scripts/guards/planning-contract-runtime.mjs')
 
     const violations = mod.runPlanningContractGuard({
       root: process.cwd(),
@@ -204,7 +204,7 @@ describe('guard-planning-contract static validation', () => {
   })
 
   it('passes create_before_execution strategy with null active_task_issue', async () => {
-    const mod = await import('../../scripts/guard-planning-contract.mjs')
+    const mod = await import('../../scripts/guards/planning-contract-runtime.mjs')
 
     const violations = mod.runPlanningContractGuard({
       root: process.cwd(),
@@ -217,7 +217,7 @@ describe('guard-planning-contract static validation', () => {
   })
 
   it('allows historical issue references outside identity block', async () => {
-    const mod = await import('../../scripts/guard-planning-contract.mjs')
+    const mod = await import('../../scripts/guards/planning-contract-runtime.mjs')
 
     const violations = mod.runPlanningContractGuard({
       root: process.cwd(),
@@ -228,7 +228,7 @@ describe('guard-planning-contract static validation', () => {
   })
 
   it('allows old planning_base_sha with live protected base resolution', async () => {
-    const mod = await import('../../scripts/guard-planning-contract.mjs')
+    const mod = await import('../../scripts/guards/planning-contract-runtime.mjs')
 
     const violations = mod.runPlanningContractGuard({
       root: process.cwd(),
@@ -240,7 +240,7 @@ describe('guard-planning-contract static validation', () => {
   })
 
   it('formats violations with structured diagnostics', async () => {
-    const mod = await import('../../scripts/guard-planning-contract.mjs')
+    const mod = await import('../../scripts/guards/planning-contract-runtime.mjs')
 
     const violations = mod.runPlanningContractGuard({
       root: process.cwd(),
@@ -254,7 +254,7 @@ describe('guard-planning-contract static validation', () => {
   })
 
   it('ignores marker mentions in prose and inline code when parsing identity blocks', async () => {
-    const mod = await import('../../scripts/guard-planning-contract.mjs')
+    const mod = await import('../../scripts/guards/planning-contract-runtime.mjs')
     const tempRoot = mkdtempSync(join(tmpdir(), 'planning-contract-prose-'))
     const designPath = 'docs/superpowers/specs/test/design.md'
     const absolutePath = join(tempRoot, designPath)
@@ -303,7 +303,7 @@ paired_plan: null
   })
 
   it('discovers committed branch planning files on a clean working tree', async () => {
-    const mod = await import('../../scripts/guard-planning-contract.mjs')
+    const mod = await import('../../scripts/guards/planning-contract-runtime.mjs')
     const root = mkdtempSync(join(tmpdir(), 'planning-contract-branch-'))
     tempRoots.push(root)
     const planPath = 'docs/superpowers/plans/test/implementation-plan.md'
@@ -355,7 +355,7 @@ paired_plan: null
 
 describe('guard-planning-contract live verification', () => {
   it('emits PLAN008 when active task issue #169 is closed', async () => {
-    const mod = await import('../../scripts/guard-planning-contract.mjs')
+    const mod = await import('../../scripts/guards/planning-contract-runtime.mjs')
     const cwd = createRepo()
     const pathValue = withStubbedGh(
       cwd,
@@ -395,7 +395,7 @@ esac
   })
 
   it('emits PLAN008 when gh issue lookup fails for repository mismatch', async () => {
-    const mod = await import('../../scripts/guard-planning-contract.mjs')
+    const mod = await import('../../scripts/guards/planning-contract-runtime.mjs')
     const cwd = createRepo()
     const pathValue = withStubbedGh(
       cwd,
@@ -427,7 +427,7 @@ esac
   })
 
   it('emits PLAN008 when gh returns an issue URL from a different repository', async () => {
-    const mod = await import('../../scripts/guard-planning-contract.mjs')
+    const mod = await import('../../scripts/guards/planning-contract-runtime.mjs')
     const cwd = createRepo()
     const pathValue = withStubbedGh(
       cwd,
@@ -458,7 +458,7 @@ esac
   })
 
   it('emits PLAN009 when open issue title/body does not identify task_key', async () => {
-    const mod = await import('../../scripts/guard-planning-contract.mjs')
+    const mod = await import('../../scripts/guards/planning-contract-runtime.mjs')
     const cwd = createRepo()
     const pathValue = withStubbedGh(
       cwd,
@@ -493,7 +493,7 @@ esac
   })
 
   it('emits PLAN010 when managed Mission Control state is DONE', async () => {
-    const mod = await import('../../scripts/guard-planning-contract.mjs')
+    const mod = await import('../../scripts/guards/planning-contract-runtime.mjs')
     const cwd = createRepo()
     const body = `${managedState({
       state: 'DONE',
@@ -538,7 +538,7 @@ esac
   })
 
   it('emits PLAN010 when managed active_task_issue conflicts with contract', async () => {
-    const mod = await import('../../scripts/guard-planning-contract.mjs')
+    const mod = await import('../../scripts/guards/planning-contract-runtime.mjs')
     const cwd = createRepo()
     const body = `${managedState({ active_task_issue: '"#999"' })}\nDedicated task issue for task-11`
     const pathValue = withStubbedGh(
@@ -575,7 +575,7 @@ esac
   })
 
   it('passes live verification for a valid open managed issue #140', async () => {
-    const mod = await import('../../scripts/guard-planning-contract.mjs')
+    const mod = await import('../../scripts/guards/planning-contract-runtime.mjs')
     const cwd = createRepo()
     const body = `${managedState()}\nPlanning package for issue-140`
     const pathValue = withStubbedGh(
@@ -621,7 +621,7 @@ esac
   })
 
   it('passes create_before_execution without calling gh issue view', async () => {
-    const mod = await import('../../scripts/guard-planning-contract.mjs')
+    const mod = await import('../../scripts/guards/planning-contract-runtime.mjs')
     const cwd = createRepo()
     let issueViewCalled = false
     const pathValue = withStubbedGh(
@@ -650,7 +650,7 @@ esac
         active_task_issue: null,
       }),
       env: { ...process.env, PATH: pathValue },
-      runGh: (args, options) => {
+      runGh: (args: string[], options: { cwd?: string; env?: NodeJS.ProcessEnv }) => {
         if (args.join(' ').includes('issue view')) {
           issueViewCalled = true
         }
@@ -667,7 +667,7 @@ esac
   })
 
   it('degrades offline when offline mode is requested', async () => {
-    const mod = await import('../../scripts/guard-planning-contract.mjs')
+    const mod = await import('../../scripts/guards/planning-contract-runtime.mjs')
     const cwd = createRepo()
 
     const result = mod.verifyLiveTaskIdentity({
@@ -685,7 +685,7 @@ esac
   })
 
   it('degrades offline when gh auth status is unavailable', async () => {
-    const mod = await import('../../scripts/guard-planning-contract.mjs')
+    const mod = await import('../../scripts/guards/planning-contract-runtime.mjs')
     const cwd = createRepo()
     const pathValue = withStubbedGh(
       cwd,

@@ -214,7 +214,7 @@ describe('boilerplate sync managed paths', () => {
     const mod = await import('../../scripts/sync-boilerplate.mjs')
 
     const planningContractPaths = [
-      'scripts/guard-planning-contract.mjs',
+      'scripts/guards/planning-contract-runtime.mjs',
       'scripts/mission-control/domain/task-state.mjs',
       'tests/fixtures/planning',
       'tests/int/guard-planning-contract.int.spec.ts',

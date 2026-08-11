@@ -14,7 +14,6 @@
       { "path": "scripts/check-boilerplate-drift.mjs", "max_lines": 552 },
       { "path": "scripts/cli/command-contract-registry.mjs", "max_lines": 837 },
       { "path": "scripts/cli/command-contract.mjs", "max_lines": 577 },
-      { "path": "scripts/guard-planning-contract.mjs", "max_lines": 467 },
       { "path": "scripts/mission-control-dispatch.mjs", "max_lines": 545 },
       { "path": "scripts/mission-control-issue-body-cas.mjs", "max_lines": 438 },
       { "path": "scripts/mission-control-reconcile.mjs", "max_lines": 143 },

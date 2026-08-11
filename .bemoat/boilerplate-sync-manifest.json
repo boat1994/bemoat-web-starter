@@ -71,7 +71,7 @@
     "scripts/guard-cloudflare-env.mjs",
     "scripts/guards/cloudflare-env.mjs",
     "scripts/guard-pack.mjs",
-    "scripts/guard-planning-contract.mjs",
+    "scripts/guards/planning-contract-runtime.mjs",
     "scripts/guards/planning-contract.mjs",
     "scripts/guards/structural-protection.mjs",
     "scripts/structural-protection-manifest.json",

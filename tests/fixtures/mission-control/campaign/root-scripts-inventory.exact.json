@@ -12,7 +12,6 @@
   "scripts/guard-mission-control-contract.mjs",
   "scripts/guard-mission-control-drift.mjs",
   "scripts/guard-pack.mjs",
-  "scripts/guard-planning-contract.mjs",
   "scripts/guard-repo-safety.mjs",
   "scripts/guard-scripts-architecture.mjs",
   "scripts/install-git-hooks.mjs",

@@ -15,7 +15,6 @@ const grandfathered = [
   ['scripts/agent-issue/progress-tracking.mjs', 462], ['scripts/boilerplate/filesystem.mjs', 635],
   ['scripts/boilerplate/workflow.mjs', 465], ['scripts/check-boilerplate-drift.mjs', 552],
   ['scripts/cli/command-contract-registry.mjs', 837], ['scripts/cli/command-contract.mjs', 577],
-  ['scripts/guard-planning-contract.mjs', 467],
   ['scripts/mission-control-dispatch.mjs', 545], ['scripts/mission-control-issue-body-cas.mjs', 438],
   ['scripts/mission-control-reconcile.mjs', 143],
   ['scripts/mission-control-review.mjs', 346],
@@ -77,7 +76,7 @@ async function guard(path = root) {
 describe('structural protection guard', () => {
   it('accepts the current repository with the exact inventory, baseline, and protected oracle', async () => {
     expect((await guard()).map((entry: { rule: string }) => entry.rule)).toEqual([])
-    expect(grandfathered).toHaveLength(27)
+    expect(grandfathered).toHaveLength(26)
     expect(JSON.parse(readFileSync(join(root, 'scripts/structural-protection-manifest.json'), 'utf8'))).toEqual(manifest())
     expect(scriptInventory(root)).toBe(192)
   })
