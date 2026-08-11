@@ -84,7 +84,7 @@
       "facade_disposition": "tooling_entrypoint",
       "internal_destination": "scripts/tooling/check-branch-safety.sh",
       "owning_slice": 7,
-      "migration_status": "planned"
+      "migration_status": "retained"
     },
     {
       "path": "scripts/correction-contract.mjs",
