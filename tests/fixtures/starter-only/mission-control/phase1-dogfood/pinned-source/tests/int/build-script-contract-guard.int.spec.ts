@@ -7,7 +7,7 @@ const fixturesRoot = resolve(process.cwd(), 'tests/fixtures/guard')
 
 describe('build script contract guard', () => {
   it('passes on the current repository package.json', async () => {
-    const mod = await import('../../scripts/guards/build-script-contract.mjs')
+    const mod = await import('../../scripts/guard-build-script-contract.mjs')
 
     const violations = mod.runBuildScriptContractGuard()
 
@@ -16,7 +16,7 @@ describe('build script contract guard', () => {
   })
 
   it('flags recursive OpenNext build script fixture', async () => {
-    const mod = await import('../../scripts/guards/build-script-contract.mjs')
+    const mod = await import('../../scripts/guard-build-script-contract.mjs')
     const pkg = JSON.parse(readFileSync(resolve(fixturesRoot, 'package-recursive-build.json'), 'utf8'))
 
     const violations = mod.scanBuildScriptContract(pkg.scripts, 'package.json')
@@ -37,7 +37,7 @@ describe('build script contract guard', () => {
   })
 
   it('passes correct build script fixture', async () => {
-    const mod = await import('../../scripts/guards/build-script-contract.mjs')
+    const mod = await import('../../scripts/guard-build-script-contract.mjs')
     const pkg = JSON.parse(readFileSync(resolve(fixturesRoot, 'package-correct-build.json'), 'utf8'))
 
     const violations = mod.scanBuildScriptContract(pkg.scripts, 'package.json')
@@ -46,7 +46,7 @@ describe('build script contract guard', () => {
   })
 
   it('flags deploy database migrations that do not opt into remote bindings', async () => {
-    const mod = await import('../../scripts/guards/build-script-contract.mjs')
+    const mod = await import('../../scripts/guard-build-script-contract.mjs')
 
     const violations = mod.scanBuildScriptContract(
       {
@@ -66,7 +66,7 @@ describe('build script contract guard', () => {
   })
 
   it('flags a missing build wrapper file', async () => {
-    const mod = await import('../../scripts/guards/build-script-contract.mjs')
+    const mod = await import('../../scripts/guard-build-script-contract.mjs')
 
     const violations = mod.scanBuildWrapperContract({
       root: fixturesRoot,
@@ -77,7 +77,7 @@ describe('build script contract guard', () => {
   })
 
   it('flags a build wrapper missing the OpenNext re-entry marker', async () => {
-    const mod = await import('../../scripts/guards/build-script-contract.mjs')
+    const mod = await import('../../scripts/guard-build-script-contract.mjs')
 
     const violations = mod.scanBuildWrapperContract({
       root: process.cwd(),
@@ -90,7 +90,7 @@ describe('build script contract guard', () => {
   })
 
   it('flags a recursive open-next.config.ts fixture', async () => {
-    const mod = await import('../../scripts/guards/build-script-contract.mjs')
+    const mod = await import('../../scripts/guard-build-script-contract.mjs')
 
     const violations = mod.scanOpenNextConfigContract({
       root: fixturesRoot,
@@ -109,7 +109,7 @@ describe('build script contract guard', () => {
   })
 
   it('passes the starter open-next.config.ts contract', async () => {
-    const mod = await import('../../scripts/guards/build-script-contract.mjs')
+    const mod = await import('../../scripts/guard-build-script-contract.mjs')
 
     const violations = mod.scanOpenNextConfigContract({ root: process.cwd() })
 
@@ -119,7 +119,7 @@ describe('build script contract guard', () => {
   it('is listed in managedPaths for boilerplate sync', async () => {
     const syncMod = await import('../../scripts/sync-boilerplate.mjs')
 
-    expect(syncMod.managedPaths).toContain('scripts/guards/build-script-contract.mjs')
+    expect(syncMod.managedPaths).toContain('scripts/guard-build-script-contract.mjs')
     expect(syncMod.managedPaths).toContain('scripts/build.mjs')
     expect(syncMod.managedPaths).toContain('tests/int/build-script-contract-guard.int.spec.ts')
     expect(syncMod.managedPaths).toContain('tests/int/build-wrapper.int.spec.ts')

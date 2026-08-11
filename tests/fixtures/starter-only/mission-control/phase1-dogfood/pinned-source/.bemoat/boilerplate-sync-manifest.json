@@ -43,7 +43,7 @@
     "scripts/guard-repo-safety.mjs",
     "scripts/guard-harness-contract.mjs",
     "scripts/guard-mission-control-contract.mjs",
-    "scripts/guards/build-script-contract.mjs",
+    "scripts/guard-build-script-contract.mjs",
     "scripts/build.mjs",
     "scripts/agent-issue.mjs",
     "scripts/agent-delivery.mjs",
