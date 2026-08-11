@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 const root = resolve(process.cwd())
 const tempRoots: string[] = []
 const oracle = [
-  ['tests/int/mission-control-adopt-finding.int.spec.ts', 'ff7722313a94b8cdcc219b1101423ab73691acdb099532475addb4fed0ff689b'],
+  ['tests/int/mission-control-adopt-finding.int.spec.ts', '1e3aeff3575d75c5fe2a4ca27c04ac6fd6747525c4a89d5b67fe26993da512fb'],
   ['tests/int/mission-control-merge-verdict-binding-entrypoint.int.spec.ts', 'c780c36f4fcc3d386be6b3dcb5a86f16b1030a1446cfe59a9fefe83f1dc54b65'],
   ['tests/int/mission-control-merge.int.spec.ts', '2dfb92137dc35d5cd3ab718ff330bde87ae933891cbeaf077baf374a497f2d6e'],
 ] as const
@@ -79,7 +79,7 @@ describe('structural protection guard', () => {
     expect((await guard()).map((entry: { rule: string }) => entry.rule)).toEqual([])
     expect(grandfathered).toHaveLength(28)
     expect(JSON.parse(readFileSync(join(root, 'scripts/structural-protection-manifest.json'), 'utf8'))).toEqual(manifest())
-    expect(scriptInventory(root)).toBe(194)
+    expect(scriptInventory(root)).toBe(193)
   })
 
   it('rejects malformed schema, types, unknown keys, ordering, duplicates, paths, and SHA values', async () => {

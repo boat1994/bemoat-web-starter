@@ -55,7 +55,6 @@
     "scripts/agent-issue.mjs",
     "scripts/agent-issue",
     "scripts/agent-delivery.mjs",
-    "scripts/correction-contract.mjs",
     "scripts/mission-control-reconcile.mjs",
     "scripts/mission-control-task-create.mjs",
     "scripts/adapters/command-runner.mjs",

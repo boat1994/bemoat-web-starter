@@ -17,7 +17,7 @@ import { describe, expect, it } from 'vitest'
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- untyped runtime .mjs boundary */
 import * as reconcileModule from '../../scripts/mission-control-reconcile.mjs'
-import * as correctionContractModule from '../../scripts/correction-contract.mjs'
+import * as correctionContractModule from '../../scripts/mission-control/domain/correction-contract.mjs'
 
 const {
   analyzeReconciliation,
