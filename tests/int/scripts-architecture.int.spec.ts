@@ -8,7 +8,7 @@ import {
   buildScriptImportGraph,
   listRootScripts,
   validateArchitectureContract,
-} from '../../scripts/guard-scripts-architecture.mjs'
+} from '../../scripts/guards/scripts-architecture.mjs'
 import * as architectureGuard from '../../scripts/guards/scripts-architecture.mjs'
 import architectureContract from '../../scripts/architecture-contract.json'
 

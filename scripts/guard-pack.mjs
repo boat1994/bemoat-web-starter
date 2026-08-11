@@ -30,7 +30,7 @@ import {
 } from './guard-harness-contract.mjs'
 import {
   validateArchitectureContract,
-} from './guard-scripts-architecture.mjs'
+} from './guards/scripts-architecture.mjs'
 import {
   formatMissionControlContractViolations,
   runMissionControlContractGuard,

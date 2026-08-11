@@ -3,7 +3,7 @@ import { resolve } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { buildScriptImportGraph } from '../../scripts/guard-scripts-architecture.mjs'
+import { buildScriptImportGraph } from '../../scripts/guards/scripts-architecture.mjs'
 import * as workflow from '../../scripts/mission-control/workflows/agent-delivery.mjs'
 
 const root = resolve(process.cwd())

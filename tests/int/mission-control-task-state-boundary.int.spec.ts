@@ -2,7 +2,7 @@ import { resolve } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { buildScriptImportGraph } from '../../scripts/guard-scripts-architecture.mjs'
+import { buildScriptImportGraph } from '../../scripts/guards/scripts-architecture.mjs'
 const domainPath = resolve(process.cwd(), 'scripts/mission-control/domain/task-state.mjs')
 const publicExports = [
   'MISSION_CONTROL_STATES',

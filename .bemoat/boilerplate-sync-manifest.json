@@ -76,7 +76,6 @@
     "scripts/guards/structural-protection.mjs",
     "scripts/structural-protection-manifest.json",
     "scripts/guards/mission-control-drift.mjs",
-    "scripts/guard-scripts-architecture.mjs",
     "scripts/guards/scripts-architecture.mjs",
     "scripts/architecture-contract.json",
     "scripts/AGENTS.md",
