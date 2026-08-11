@@ -44,7 +44,7 @@ Protocol writers (`mission-control-dispatch`, `agent-delivery`, and
 `mission-control-reconcile` `writeState`) must not call unconditional
 `gh issue edit` after a live reread. They win a GitHub Contents API file-`sha`
 lease (branch `bemoat/mission-control-leases`) bound to transition identity +
-observed body hash via `scripts/mission-control-issue-body-cas.mjs`, then
+observed body hash via `scripts/mission-control/workflows/issue-body-cas.mjs`, then
 project the Issue body. Losers fail closed as `STATE_CONFLICT`. Issue PATCH
 `If-Match` and GraphQL body version fields are unavailable (HTTP 400 / no
 input).

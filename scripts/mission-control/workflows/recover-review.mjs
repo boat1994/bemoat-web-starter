@@ -14,7 +14,7 @@ import {
   parseRoleCommentBody,
   projectReviewVerdictState,
 } from '../../mission-control-reconcile.mjs'
-import { writeIssueBodyWithLease } from '../../mission-control-issue-body-cas.mjs'
+import { writeIssueBodyWithLease } from './issue-body-cas.mjs'
 import {
   RECOVERY_FINDING_IDS,
   RECOVERY_SOURCE_COMMENT_IDS,

@@ -6,7 +6,7 @@ import { createHelpEnvelopeV1, formatTextHelp } from '../../cli/command-help.mjs
 import { parseCommandInvocation } from '../../cli/command-invocation.mjs'
 
 import { parseMissionControlState } from '../domain/task-state.mjs'
-import { writeIssueBodyWithLease } from '../../mission-control-issue-body-cas.mjs'
+import { writeIssueBodyWithLease } from './issue-body-cas.mjs'
 import {
   selectNextCampaignAction,
   validateCampaignTransition,

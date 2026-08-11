@@ -6,7 +6,7 @@ import {
   createMemoryLeaseStore,
   hashIssueBody,
   leasePathForIssue,
-} from '../../scripts/mission-control-issue-body-cas.mjs'
+} from '../../scripts/mission-control/workflows/issue-body-cas.mjs'
 import {
   Coordinator as CoordinatorClass,
   normalizeTransitionIdentity,

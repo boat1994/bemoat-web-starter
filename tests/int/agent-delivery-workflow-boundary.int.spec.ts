@@ -20,7 +20,7 @@ describe('agent delivery workflow boundary', () => {
     const inwardImports = graph.get('scripts/mission-control/workflows/agent-delivery.mjs') ?? new Set()
     expect(inwardImports).not.toContain('scripts/agent-delivery.mjs')
     expect(inwardImports).not.toContain('scripts/mission-control-reconcile.mjs')
-    expect(inwardImports).not.toContain('scripts/mission-control-issue-body-cas.mjs')
+    expect(inwardImports).not.toContain('scripts/mission-control/workflows/issue-body-cas.mjs')
     expect(inwardImports).not.toContain('scripts/mission-control-state.mjs')
   })
 })

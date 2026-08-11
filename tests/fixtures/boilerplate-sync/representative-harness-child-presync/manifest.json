@@ -47,7 +47,7 @@
     "scripts/agent-issue/process-runner.mjs",
     "scripts/agent-issue/progress-tracking.mjs",
     "scripts/agent-issue/pure-helpers.mjs",
-    "scripts/mission-control-issue-body-cas.mjs",
+    "scripts/mission-control/workflows/issue-body-cas.mjs",
     "tests/fixtures/agent-issue/issue-171-finding-thread.md",
     "tests/fixtures/agent-issue/issue-171-historical-handoff.md",
     "tests/fixtures/agent-issue/issue-171-replacement-dispatch.md",

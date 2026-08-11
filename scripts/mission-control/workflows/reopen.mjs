@@ -4,7 +4,7 @@ import {
   parseMissionControlState,
   projectMissionControlStateBlock,
 } from '../domain/task-state.mjs'
-import { writeIssueBodyWithLease } from '../../mission-control-issue-body-cas.mjs'
+import { writeIssueBodyWithLease } from './issue-body-cas.mjs'
 import {
   assertFounderAuthorization,
   parseFounderReopenAuthorization,

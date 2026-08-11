@@ -150,13 +150,6 @@
       "migration_status": "planned"
     },
     {
-      "path": "scripts/mission-control-issue-body-cas.mjs",
-      "facade_disposition": "composition_root",
-      "internal_destination": "scripts/mission-control/workflows/issue-body-cas.mjs",
-      "owning_slice": 5,
-      "migration_status": "planned"
-    },
-    {
       "path": "scripts/mission-control-merge.mjs",
       "facade_disposition": "composition_root",
       "internal_destination": "scripts/mission-control/workflows/merge.mjs",

@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process'
 
 import { createHelpEnvelopeV1, formatTextHelp } from '../../cli/command-help.mjs'
 import { parseCommandInvocation, resolveCommandIdentity } from '../../cli/command-invocation.mjs'
-import { writeIssueBodyWithLease } from '../../mission-control-issue-body-cas.mjs'
+import { writeIssueBodyWithLease } from './issue-body-cas.mjs'
 import { parseMissionControlState, projectMissionControlStateBlock } from '../domain/task-state.mjs'
 import { serializeTransitionIdentity } from '../transition-identity.mjs'
 import { selectLiveReviewVerdictComment } from '../review-verdict-binding.mjs'

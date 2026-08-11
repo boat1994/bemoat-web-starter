@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { Coordinator, parseRoleCommentBody } from './mission-control-reconcile.mjs'
-import { writeIssueBodyWithLease } from './mission-control-issue-body-cas.mjs'
+import { writeIssueBodyWithLease } from './mission-control/workflows/issue-body-cas.mjs'
 import { runAgentDeliveryWorkflow } from './mission-control/workflows/agent-delivery.mjs'
 import {
   createHelpEnvelopeV1,

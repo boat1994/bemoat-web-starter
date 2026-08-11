@@ -18,7 +18,7 @@ import {
   verifyPostedCommentReadback,
   normalizeAuthorityBase,
 } from './mission-control-reconcile.mjs'
-import { writeIssueBodyWithLease } from './mission-control-issue-body-cas.mjs'
+import { writeIssueBodyWithLease } from './mission-control/workflows/issue-body-cas.mjs'
 import {
   detectUnaccountedReviewEvidence,
   isReviewRecoveryIncident,

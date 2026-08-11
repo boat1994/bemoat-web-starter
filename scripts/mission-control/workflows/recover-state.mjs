@@ -15,7 +15,7 @@ import {
   classificationExitCode,
   createResultEnvelopeV1,
 } from '../../cli/command-result.mjs'
-import { isLeaseCasConflict, writeIssueBodyWithLease } from '../../mission-control-issue-body-cas.mjs'
+import { isLeaseCasConflict, writeIssueBodyWithLease } from './issue-body-cas.mjs'
 import {
   appendMissingMissionControlStateBlock,
   parseMissionControlState,
