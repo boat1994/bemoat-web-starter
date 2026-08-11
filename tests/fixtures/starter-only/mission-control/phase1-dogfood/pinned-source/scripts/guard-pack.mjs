@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url'
 import {
   formatBuildScriptContractViolations,
   runBuildScriptContractGuard,
-} from './guard-build-script-contract.mjs'
+} from './guards/build-script-contract.mjs'
 import {
   formatCloudflareDeployGuardViolations,
   runCloudflareDeployGuard,

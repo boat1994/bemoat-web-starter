@@ -8,7 +8,6 @@
   "scripts/check-branch-safety.sh",
   "scripts/correction-contract.mjs",
   "scripts/deploy-smoke-test.mjs",
-  "scripts/guard-build-script-contract.mjs",
   "scripts/guard-cloudflare-env.mjs",
   "scripts/guard-env-placeholder.mjs",
   "scripts/guard-harness-contract.mjs",

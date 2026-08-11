@@ -101,7 +101,6 @@
     "scripts/check-branch-safety.sh": "e011d3271c46c16ef6040083b13e31619450ebc991751ab12cbed16043a06d33",
     "scripts/correction-contract.mjs": "8a6854ce861456cc380c364cc9cff18a6840ad1e60339f1914e57b85aad6df2f",
     "scripts/deploy-smoke-test.mjs": "5c440edb87de33ba87a9fcd301e463d3d5823c24a07a65442eb21b6b746cf5cd",
-    "scripts/guard-build-script-contract.mjs": "a15c4862e5daab52f3f0a93c4c56f91d8a48f7a1c27c8fa24a8d57d4af16ddd1",
     "scripts/guard-cloudflare-env.mjs": "fbca043312985cf0b029bfe832fee1efd7d02089e8627d1fea4ca41a500b3122",
     "scripts/guard-env-placeholder.mjs": "6a45e99927f1c0928de8b67f39a0606a3954adc02256c5ae63f4d2bd65175b9f",
     "scripts/guard-frontend-seo.mjs": "b1514d2729f835f635ba2c4ce4e406dc2473481083a87ccf1b3e89cc4fe501d6",

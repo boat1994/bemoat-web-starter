@@ -51,7 +51,7 @@
     "scripts/harness-contract",
     "scripts/guard-mission-control-contract.mjs",
     "scripts/guards/mission-control-contract",
-    "scripts/guard-build-script-contract.mjs",
+    "scripts/guards/build-script-contract.mjs",
     "scripts/build.mjs",
     "scripts/agent-issue.mjs",
     "scripts/agent-issue",

@@ -212,7 +212,7 @@ describe('boilerplate sync managed paths', () => {
       'scripts/post-role-comment.mjs',
       'scripts/guard-repo-safety.mjs',
       'scripts/guard-mission-control-contract.mjs',
-      'scripts/guard-build-script-contract.mjs',
+      'scripts/guards/build-script-contract.mjs',
       'scripts/build.mjs',
       'scripts/guard-cloudflare-env.mjs',
       'scripts/guard-toolchain-contract.mjs',

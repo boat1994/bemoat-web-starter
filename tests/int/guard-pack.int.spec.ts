@@ -117,7 +117,8 @@ describe('central guard pack', () => {
     expect(syncMod.managedPaths).toContain('scripts/guards/structural-protection.mjs')
     expect(syncMod.managedPaths).toContain('scripts/structural-protection-manifest.json')
     expect(syncMod.managedPaths).toContain('tests/int/structural-protection.int.spec.ts')
-    expect(syncMod.managedPaths).toContain('scripts/guard-build-script-contract.mjs')
+    expect(syncMod.managedPaths).toContain('scripts/guards/build-script-contract.mjs')
+    expect(syncMod.managedPaths).not.toContain('scripts/guard-build-script-contract.mjs')
     expect(syncMod.managedPaths).toContain('scripts/guard-package-manager.mjs')
     expect(syncMod.managedPaths).toContain('scripts/guard-toolchain-contract.mjs')
     expect(syncMod.managedPaths).toContain('tsconfig.harness-strict.json')
@@ -221,7 +222,7 @@ describe('env placeholder guard', () => {
 
 describe('build script contract fixtures', () => {
   it('flags recursive OpenNext build script fixture', async () => {
-    const mod = await import('../../scripts/guard-build-script-contract.mjs')
+    const mod = await import('../../scripts/guards/build-script-contract.mjs')
     const pkg = JSON.parse(readFileSync(resolve(fixturesRoot, 'package-recursive-build.json'), 'utf8'))
 
     const violations = mod.scanBuildScriptContract(pkg.scripts, 'package.json')
@@ -234,7 +235,7 @@ describe('build script contract fixtures', () => {
   })
 
   it('passes correct build script fixture', async () => {
-    const mod = await import('../../scripts/guard-build-script-contract.mjs')
+    const mod = await import('../../scripts/guards/build-script-contract.mjs')
     const pkg = JSON.parse(readFileSync(resolve(fixturesRoot, 'package-correct-build.json'), 'utf8'))
 
     const violations = mod.scanBuildScriptContract(pkg.scripts, 'package.json')
