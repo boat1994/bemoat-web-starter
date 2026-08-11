@@ -3,9 +3,6 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { parseRoleCommentBody } from './mission-control-reconcile.mjs'
-// The dispatch workflow owns dispatchFounderAuthorizedCorrection, Coordinator,
-// new Coordinator(, listLiveComments, and resolveProductionCommentTrust; the
-// inward boundary remains the './mission-control-reconcile.mjs' dependency.
 import {
   createHelpEnvelopeV1,
   formatTextHelp,

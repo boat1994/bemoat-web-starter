@@ -1947,16 +1947,23 @@ Bounded implementation work.
       join(process.cwd(), 'scripts/mission-control-dispatch.mjs'),
       'utf8',
     )
+    const dispatchWorkflowSource = readFileSync(
+      join(process.cwd(), 'scripts/mission-control/workflows/dispatch.mjs'),
+      'utf8',
+    )
     const deliverySource = readFileSync(
       join(process.cwd(), 'scripts/mission-control/workflows/agent-delivery.mjs'),
       'utf8',
     )
-    expect(dispatchSource).toContain('dispatchFounderAuthorizedCorrection')
-    expect(dispatchSource).toContain('Coordinator')
-    expect(dispatchSource).toContain("from './mission-control-reconcile.mjs'")
-    expect(dispatchSource).toContain('listLiveComments')
-    expect(dispatchSource).toContain('new Coordinator(')
-    expect(dispatchSource).toContain('resolveProductionCommentTrust')
+    expect(dispatchSource).toContain("from './mission-control/workflows/dispatch.mjs'")
+    expect(dispatchSource).toContain('executeDispatchWorkflow')
+    expect(dispatchSource).toContain('executeDispatchWorkflow({')
+    expect(dispatchWorkflowSource).toContain("from '../../mission-control-reconcile.mjs'")
+    expect(dispatchWorkflowSource).toContain('dispatchFounderAuthorizedCorrection')
+    expect(dispatchWorkflowSource).toContain('Coordinator')
+    expect(dispatchWorkflowSource).toContain('listLiveComments')
+    expect(dispatchWorkflowSource).toContain('new Coordinator(')
+    expect(dispatchWorkflowSource).toContain('resolveProductionCommentTrust')
     expect(dispatchSource).not.toContain('const comments = []')
     expect(deliverySource).toContain('listLiveComments')
     expect(deliverySource).toContain('parsePaginatedGhApiJson')
