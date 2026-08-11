@@ -3,6 +3,10 @@ import {
   createCommandRunner,
   runCommand,
 } from '../../scripts/adapters/command-runner.mjs'
+import {
+  fetchIssueComments,
+  postIssueComment,
+} from '../../scripts/mission-control/adapters/github-transport.mjs'
 
 describe('scripts/adapters/command-runner.mjs', () => {
   it('returns trimmed stdout on success', () => {
@@ -64,5 +68,30 @@ describe('scripts/adapters/command-runner.mjs', () => {
     expect(sync.managedPaths).not.toContain('scripts/command-runner.mjs')
     expect(sync.managedPaths).toContain('scripts/adapters/command-runner.mjs')
     expect(sync.managedPaths).toContain('tests/int/command-runner.int.spec.ts')
+  })
+})
+
+describe('scripts/mission-control/adapters/github-transport.mjs', () => {
+  it('preserves raw issue-comment commands and returns the runner output', () => {
+    const calls: Array<{ command: string, args: string[] }> = []
+    const runGh = (command: string, args: string[]) => {
+      calls.push({ command, args })
+      return '{"id":123}'
+    }
+
+    expect(fetchIssueComments({ runGh, repository: 'boat1994/bemoat-web-starter', issueNumber: 328 })).toBe('{"id":123}')
+    expect(postIssueComment({ runGh, repository: 'boat1994/bemoat-web-starter', issueNumber: 328, payloadPath: '/tmp/payload.json' })).toBe('{"id":123}')
+    expect(calls).toEqual([
+      { command: 'gh', args: ['api', '--paginate', 'repos/boat1994/bemoat-web-starter/issues/328/comments'] },
+      { command: 'gh', args: ['api', '--method', 'POST', 'repos/boat1994/bemoat-web-starter/issues/328/comments', '--input', '/tmp/payload.json'] },
+    ])
+  })
+
+  it('propagates runner errors without transport wrapping', () => {
+    const transportError = new Error('transport failed')
+    const runGh = () => { throw transportError }
+
+    expect(() => fetchIssueComments({ runGh, repository: 'repo', issueNumber: 1 })).toThrow(transportError)
+    expect(() => postIssueComment({ runGh, repository: 'repo', issueNumber: 1, payloadPath: '/tmp/payload.json' })).toThrow(transportError)
   })
 })

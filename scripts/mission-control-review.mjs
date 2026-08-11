@@ -8,6 +8,7 @@ import { runCommand as run } from './adapters/command-runner.mjs'
 import { parseReviewVerdictContractFindings } from './mission-control/domain/correction-contract.mjs'
 import { parseMissionControlState, projectMissionControlStateBlock } from './mission-control/domain/task-state.mjs'
 import { preflightCanonicalBootstrapTask } from './mission-control/domain/task-bootstrap-preflight.mjs'
+import { fetchIssueComments, postIssueComment } from './mission-control/adapters/github-transport.mjs'
 import {
   Coordinator,
   normalizeIssueComments,
@@ -41,7 +42,6 @@ import {
 const COMMAND = 'bemoat:mission-control:review'
 const ENTRYPOINT = 'scripts/mission-control-review.mjs'
 const ROLE_COMMENT_ENTRYPOINT = fileURLToPath(new URL('./post-role-comment.mjs', import.meta.url))
-
 function normalizeRepositoryOutput(value) {
   const trimmed = String(value ?? '').trim()
   try {
@@ -182,11 +182,11 @@ async function main() {
     }
     const listComments = () => {
       verifyLivePullRequest()
-      return normalizeIssueComments(parsePaginatedGhApiJson(run('gh', ['api', '--paginate', `repos/${repo}/issues/${options.issue}/comments`])))
+      return normalizeIssueComments(parsePaginatedGhApiJson(fetchIssueComments({ repository: repo, issueNumber: options.issue, runGh: run })))
     }
     const listPrComments = () =>
       isReviewRecoveryIncident({ taskIssue: options.issue, activePr: parsedVerdict.prNumber })
-        ? normalizeIssueComments(parsePaginatedGhApiJson(run('gh', ['api', '--paginate', `repos/${repo}/issues/${parsedVerdict.prNumber}/comments`])))
+        ? normalizeIssueComments(parsePaginatedGhApiJson(fetchIssueComments({ repository: repo, issueNumber: parsedVerdict.prNumber, runGh: run })))
         : []
     const commentTrust = resolveProductionCommentTrust()
     const postComment = (commentBody) => {
@@ -197,7 +197,7 @@ async function main() {
         mutationPerformed = true
         let posted = null
         try {
-          posted = JSON.parse(run('gh', ['api', '--method', 'POST', `repos/${repo}/issues/${options.issue}/comments`, '--input', payload]))
+          posted = JSON.parse(postIssueComment({ repository: repo, issueNumber: options.issue, payloadPath: payload, runGh: run }))
           if (posted?.id == null) {
             throw new Error('review verdict comment did not return a durable comment identifier')
           }
