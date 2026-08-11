@@ -96,7 +96,6 @@
     "scripts/guard-env-placeholder.mjs",
     "scripts/guards/env-placeholder.mjs",
     "scripts/guards/frontend-seo.mjs",
-    "scripts/pr-identity.mjs",
     "scripts/check-branch-safety.sh",
     "scripts/install-git-hooks.mjs",
     ".githooks",

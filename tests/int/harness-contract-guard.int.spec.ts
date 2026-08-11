@@ -95,7 +95,6 @@ describe('harness contract guard', () => {
     expect(syncMod.managedPaths).toContain('scripts/harness-contract')
     expect(syncMod.managedPaths).toContain('tests/int/harness-contract/facade-exports.int.spec.ts')
     expect(syncMod.managedPaths).toContain('scripts/mission-control')
-    expect(syncMod.managedPaths).toContain('scripts/pr-identity.mjs')
     expect(syncMod.managedPackageScripts).toContain('bemoat:branch:check')
     expect(syncMod.managedPackageScripts).toContain('bemoat:guard:harness-contract')
   })
@@ -419,34 +418,34 @@ describe('managed runtime delivery closure', () => {
     }
   })
 
-  it('fails closed when pr-identity is missing from managed delivery', async () => {
+  it('fails closed when the PR identity domain module is missing from managed delivery', async () => {
     const guardMod = await import('../../scripts/guard-harness-contract.mjs')
     const tempRoot = mkdtempSync(join(tmpdir(), 'bemoat-182-missing-pr-identity-'))
 
     try {
-      mkdirSync(join(tempRoot, 'scripts'), { recursive: true })
+      mkdirSync(join(tempRoot, 'scripts/mission-control/domain'), { recursive: true })
       writeFileSync(
         join(tempRoot, 'scripts/agent-issue.mjs'),
-        "import { parseCompleteGitHubPullUrl } from './pr-identity.mjs'\nexport {}\n",
+        "import { parseCompleteGitHubPullUrl } from './mission-control/domain/pr-identity.mjs'\nexport {}\n",
       )
 
       const violations = guardMod.scanManagedRuntimeDeliveryClosure({
         root: tempRoot,
-        managedPaths: ['scripts/agent-issue.mjs', 'scripts/pr-identity.mjs'],
+        managedPaths: ['scripts/agent-issue.mjs', 'scripts/mission-control/domain/pr-identity.mjs'],
       })
 
       expect(violations).toEqual([
         {
           type: 'missing-managed-runtime-source',
           importer: 'managedPaths',
-          callee: 'scripts/pr-identity.mjs',
-          specifier: 'scripts/pr-identity.mjs',
+          callee: 'scripts/mission-control/domain/pr-identity.mjs',
+          specifier: 'scripts/mission-control/domain/pr-identity.mjs',
         },
         {
           type: 'missing-relative-runtime-dependency',
           importer: 'scripts/agent-issue.mjs',
-          callee: 'scripts/pr-identity.mjs',
-          specifier: './pr-identity.mjs',
+          callee: 'scripts/mission-control/domain/pr-identity.mjs',
+          specifier: './mission-control/domain/pr-identity.mjs',
         },
       ])
     } finally {

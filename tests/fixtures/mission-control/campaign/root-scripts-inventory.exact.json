@@ -33,6 +33,5 @@
   "scripts/mission-control-state.mjs",
   "scripts/mission-control-task-create.mjs",
   "scripts/post-role-comment.mjs",
-  "scripts/pr-identity.mjs",
   "scripts/sync-boilerplate.mjs"
 ]
