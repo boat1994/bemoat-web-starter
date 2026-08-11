@@ -63,7 +63,7 @@
       "facade_disposition": "tooling_entrypoint",
       "internal_destination": "scripts/tooling/build.mjs",
       "owning_slice": 7,
-      "migration_status": "planned"
+      "migration_status": "retained"
     },
     {
       "path": "scripts/capture-baseline.mjs",
