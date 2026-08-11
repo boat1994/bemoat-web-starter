@@ -257,7 +257,7 @@ describe('boilerplate sync managed paths', () => {
       'scripts/guards/build-script-contract.mjs',
       'scripts/build.mjs',
       'scripts/guard-cloudflare-env.mjs',
-      'scripts/guard-toolchain-contract.mjs',
+      'scripts/guards/toolchain-contract.mjs',
       'scripts/bemoat-typecheck.mjs',
       'tsconfig.harness-strict.json',
       '.bemoat/toolchain-contract.json',

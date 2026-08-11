@@ -157,13 +157,6 @@
       "migration_status": "migrated"
     },
     {
-      "path": "scripts/guard-toolchain-contract.mjs",
-      "facade_disposition": "stable_facade",
-      "internal_destination": "scripts/guards/toolchain-contract.mjs",
-      "owning_slice": 7,
-      "migration_status": "migrated"
-    },
-    {
       "path": "scripts/install-git-hooks.mjs",
       "facade_disposition": "tooling_entrypoint",
       "internal_destination": "scripts/tooling/install-git-hooks.mjs",

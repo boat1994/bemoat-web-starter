@@ -16,7 +16,6 @@
   "scripts/guard-planning-contract.mjs",
   "scripts/guard-repo-safety.mjs",
   "scripts/guard-scripts-architecture.mjs",
-  "scripts/guard-toolchain-contract.mjs",
   "scripts/install-git-hooks.mjs",
   "scripts/mission-control-adopt-finding.mjs",
   "scripts/mission-control-dispatch.mjs",

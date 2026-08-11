@@ -1,22 +1,24 @@
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import * as facade from '../../scripts/guard-toolchain-contract.mjs'
 import * as guard from '../../scripts/guards/toolchain-contract.mjs'
 
 describe('toolchain contract', () => {
-  it('keeps the root entrypoint as a stable facade over the guard owner', () => {
-    expect(facade.TOOLCHAIN_CONTRACT_PATH).toBe(guard.TOOLCHAIN_CONTRACT_PATH)
-    expect(facade.getExpectedRootStrictNullChecks).toBe(guard.getExpectedRootStrictNullChecks)
-    expect(facade.scanToolchainContract).toBe(guard.scanToolchainContract)
-    expect(facade.getToolchainContractExitCode).toBe(guard.getToolchainContractExitCode)
-    expect(facade.formatToolchainContractViolations).toBe(guard.formatToolchainContractViolations)
+  it('keeps the owned destination authoritative after root facade removal', () => {
+    expect(existsSync(resolve(process.cwd(), 'scripts/guard-toolchain-contract.mjs'))).toBe(false)
+    expect(Object.keys(guard).sort()).toEqual([
+      'TOOLCHAIN_CONTRACT_PATH',
+      'formatToolchainContractViolations',
+      'getExpectedRootStrictNullChecks',
+      'getToolchainContractExitCode',
+      'scanToolchainContract',
+    ])
   })
 
   it('requires the approved TypeScript, Node, and compiler invariants', async () => {
-    const mod = await import('../../scripts/guard-toolchain-contract.mjs')
+    const mod = guard
     const contract = JSON.parse(
       readFileSync(resolve(process.cwd(), '.bemoat/toolchain-contract.json'), 'utf8'),
     )
@@ -29,7 +31,7 @@ describe('toolchain contract', () => {
   })
 
   it('fails closed when a required harness root is omitted', async () => {
-    const mod = await import('../../scripts/guard-toolchain-contract.mjs')
+    const mod = guard
     const config = JSON.parse(readFileSync(resolve(process.cwd(), 'tsconfig.harness-strict.json'), 'utf8'))
     config.include = config.include.filter((path: string) => path !== 'cloudflare-env.d.ts')
 
@@ -40,7 +42,7 @@ describe('toolchain contract', () => {
   })
 
   it('fails when the root pnpm importer resolves a different TypeScript version', async () => {
-    const mod = await import('../../scripts/guard-toolchain-contract.mjs')
+    const mod = guard
     const packageJSON = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf8'))
     const lockfile = readFileSync(resolve(process.cwd(), 'pnpm-lock.yaml'), 'utf8')
       .replace('specifier: 6.0.3\n        version: 6.0.3', 'specifier: 5.8.0\n        version: 5.8.0')
@@ -56,7 +58,7 @@ describe('toolchain contract', () => {
   })
 
   it('fails when only a later workspace importer declares the approved TypeScript', async () => {
-    const mod = await import('../../scripts/guard-toolchain-contract.mjs')
+    const mod = guard
     const lockfile = readFileSync(resolve(process.cwd(), 'pnpm-lock.yaml'), 'utf8')
       .replace(/\n      typescript:\n        specifier: 6\.0\.3\n        version: 6\.0\.3/, '')
       .replace('\npackages:', '\n\n  packages/child:\n    devDependencies:\n      typescript:\n        specifier: 6.0.3\n        version: 6.0.3\n\npackages:')
@@ -68,7 +70,7 @@ describe('toolchain contract', () => {
   })
 
   it('uses the starter-only nullability exception only for the contract root', async () => {
-    const mod = await import('../../scripts/guard-toolchain-contract.mjs')
+    const mod = guard
     const contract = JSON.parse(readFileSync(resolve(process.cwd(), '.bemoat/toolchain-contract.json'), 'utf8'))
 
     expect(mod.getExpectedRootStrictNullChecks({
@@ -92,7 +94,7 @@ describe('toolchain contract', () => {
   })
 
   it('fails when an inherited exclusion removes a managed harness root', async () => {
-    const mod = await import('../../scripts/guard-toolchain-contract.mjs')
+    const mod = guard
     const strictConfig = JSON.parse(readFileSync(resolve(process.cwd(), 'tsconfig.harness-strict.json'), 'utf8'))
     strictConfig.exclude = ['tests/int/toolchain-contract.int.spec.ts']
 

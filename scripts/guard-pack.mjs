@@ -50,7 +50,7 @@ import {
 import {
   formatToolchainContractViolations,
   scanToolchainContract,
-} from './guard-toolchain-contract.mjs'
+} from './guards/toolchain-contract.mjs'
 import { formatViolations, runRepoSafetyGuard } from './guard-repo-safety.mjs'
 import { formatStructuralProtectionViolations, runStructuralProtectionGuard } from './guards/structural-protection.mjs'
 

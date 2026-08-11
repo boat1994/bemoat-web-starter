@@ -1,6 +1,7 @@
 # Central guard pack v1
 
-The pack includes the managed toolchain-contract guard: it fails closed when
+The pack includes the managed toolchain-contract guard at
+`scripts/guards/toolchain-contract.mjs`: it fails closed when
 the exact TypeScript pin, Node floor, installed/lockfile proof, or strict
 harness compiler roots diverge from `.bemoat/toolchain-contract.json`.
 
