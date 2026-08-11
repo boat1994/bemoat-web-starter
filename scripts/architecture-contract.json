@@ -70,7 +70,7 @@
       "facade_disposition": "tooling_entrypoint",
       "internal_destination": "scripts/tooling/capture-baseline.mjs",
       "owning_slice": 7,
-      "migration_status": "planned"
+      "migration_status": "retained"
     },
     {
       "path": "scripts/check-boilerplate-drift.mjs",
