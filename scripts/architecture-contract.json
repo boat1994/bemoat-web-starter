@@ -77,7 +77,7 @@
       "facade_disposition": "composition_root",
       "internal_destination": "scripts/boilerplate/workflows/check-boilerplate-drift.mjs",
       "owning_slice": 4,
-      "migration_status": "planned"
+      "migration_status": "retained"
     },
     {
       "path": "scripts/check-branch-safety.sh",
