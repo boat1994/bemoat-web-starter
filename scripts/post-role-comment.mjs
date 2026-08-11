@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 import { readFileSync } from 'node:fs'
-import { spawnSync } from 'node:child_process'
 import {
   isCorrectionPhaseResult,
   validateCorrectionRoleComment,
@@ -28,6 +27,7 @@ import {
   verifyPostedCommentReadback,
 } from './mission-control-reconcile.mjs'
 import { projectComments, selectAuthoritativeRoleComments } from './mission-control/diagnostics/github-comment-projection.mjs'
+import { collectGitDiffFiles } from './mission-control/adapters/git-transport.mjs'
 import {
   renderResult,
   renderRuntimeError,
@@ -249,19 +249,16 @@ function reconstructCanonicalContract({ issue, repo }) {
  * @param {{ reviewedHead: string }} options
  */
 function reconstructCorrectionDiffFiles({ reviewedHead }) {
-  const result = spawnSync('git', ['diff', '--name-only', reviewedHead, 'HEAD'], { encoding: 'utf8' })
-  if (result.error || result.status !== 0) {
+  const result = collectGitDiffFiles(reviewedHead)
+  if (!result.ok) {
     return {
       ok: false,
-      errors: [
-        `unable to reconstruct the actual correction diff against reviewed_head ${reviewedHead}: ${
-          result.stderr?.trim() || result.error?.message || 'git diff failed'
-        }`,
-      ],
+      errors: result.errors.map(
+        (error) => `unable to reconstruct the actual correction diff against reviewed_head ${reviewedHead}: ${error}`,
+      ),
     }
   }
-  const files = result.stdout.split('\n').map((line) => line.trim()).filter(Boolean)
-  return { ok: true, files }
+  return result
 }
 
 function hasNonEmptyField(body, field) {
