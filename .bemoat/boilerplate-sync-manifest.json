@@ -86,7 +86,6 @@
     "scripts/ARCHITECTURE.md",
     "scripts/mission-control",
     "scripts/mission-control-state.mjs",
-    "scripts/mission-control-brainstorming.mjs",
     "scripts/guard-package-manager.mjs",
     "scripts/guards/package-manager.mjs",
     "scripts/guard-toolchain-contract.mjs",
