@@ -1,7 +1,5 @@
 #!/usr/bin/env node
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { readFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import {
   isCorrectionPhaseResult,
@@ -34,6 +32,10 @@ import {
   renderResult,
   renderRuntimeError,
 } from './mission-control/domain/role-comment-rendering.mjs'
+import {
+  postRoleComment,
+  readRoleCommentIssue,
+} from './mission-control/adapters/github-transport.mjs'
 
 
 const MAX_COMPACT_LENGTH = 6_000
@@ -192,9 +194,7 @@ function validationErrors(body, contract) {
  * @param {{ issue: string, repo: string | null }} options
  */
 function reconstructCanonicalContract({ issue, repo }) {
-  const args = ['issue', 'view', issue, '--json', 'body,comments']
-  if (repo) args.push('--repo', repo)
-  const result = spawnSync('gh', args, { encoding: 'utf8' })
+  const result = readRoleCommentIssue({ issue, repo, fields: 'body,comments' })
   if (result.error || result.status !== 0) {
     return {
       ok: false,
@@ -277,17 +277,8 @@ function readFieldValue(body, field) {
   return new RegExp(`^[ \\t]*${escapedField}[ \\t]*(.+?)\\s*$`, 'mi').exec(body)?.[1]?.trim() ?? ''
 }
 
-function createBodyFile(body) {
-  const directory = mkdtempSync(join(tmpdir(), 'bemoat-role-comment-'))
-  const path = join(directory, 'comment.md')
-  writeFileSync(path, body, 'utf8')
-  return { directory, path }
-}
-
 function readLiveRoleComments({ issue, repo }) {
-  const args = ['issue', 'view', issue, '--json', 'comments']
-  if (repo) args.push('--repo', repo)
-  const result = spawnSync('gh', args, { encoding: 'utf8' })
+  const result = readRoleCommentIssue({ issue, repo, fields: 'comments' })
   if (result.error || result.status !== 0) {
     throw new Error(
       result.stderr || result.stdout || result.error?.message || 'live role-comment readback failed',
@@ -460,16 +451,7 @@ function main() {
       return
     }
 
-    const temporary = createBodyFile(body)
-    const args = ['issue', 'comment', options.issue]
-    if (options.repo) args.push('--repo', options.repo)
-    args.push('--body-file', temporary.path)
-    let postResult
-    try {
-      postResult = spawnSync('gh', args, { encoding: 'utf8' })
-    } finally {
-      rmSync(temporary.directory, { recursive: true, force: true })
-    }
+    const postResult = postRoleComment({ issue: options.issue, repo: options.repo, body })
     if (postResult.error || postResult.status !== 0) {
       throw runtimeError(
         'AMBIGUOUS_RESULT',
