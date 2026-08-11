@@ -46,7 +46,7 @@ import {
 import {
   formatPackageManagerViolations,
   runPackageManagerGuard,
-} from './guard-package-manager.mjs'
+} from './guards/package-manager.mjs'
 import {
   formatToolchainContractViolations,
   scanToolchainContract,

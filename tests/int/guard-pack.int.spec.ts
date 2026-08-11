@@ -119,7 +119,7 @@ describe('central guard pack', () => {
     expect(syncMod.managedPaths).toContain('tests/int/structural-protection.int.spec.ts')
     expect(syncMod.managedPaths).toContain('scripts/guards/build-script-contract.mjs')
     expect(syncMod.managedPaths).not.toContain('scripts/guard-build-script-contract.mjs')
-    expect(syncMod.managedPaths).toContain('scripts/guard-package-manager.mjs')
+    expect(syncMod.managedPaths).toContain('scripts/guards/package-manager.mjs')
     expect(syncMod.managedPaths).toContain('scripts/guard-toolchain-contract.mjs')
     expect(syncMod.managedPaths).toContain('tsconfig.harness-strict.json')
     expect(syncMod.managedPackageScripts).toContain('bemoat:typecheck')
@@ -185,7 +185,7 @@ describe('direct script call fixtures', () => {
 
 describe('package manager guard', () => {
   it('flags alternate lockfiles and npm commands in harness content', async () => {
-    const mod = await import('../../scripts/guard-package-manager.mjs')
+    const mod = await import('../../scripts/guards/package-manager.mjs')
 
     expect(mod.scanTrackedLockfiles(['package-lock.json', 'pnpm-lock.yaml'])).toHaveLength(1)
 
@@ -306,21 +306,28 @@ export const metadata = { title: 'Example' }
   })
 })
 
-describe('package manager guard facade boundary', () => {
-  it('preserves the facade export surface while delegating policy to the inward destination', async () => {
-    const facade = await import('../../scripts/guard-package-manager.mjs')
+describe('package manager guard destination boundary', () => {
+  it('preserves the destination export surface and direct-execution boundary', async () => {
     const destination = await import('../../scripts/guards/package-manager.mjs')
 
-    expect(Object.keys(facade).sort()).toEqual(Object.keys(destination).sort())
-    expect(facade.runPackageManagerGuard).toBe(destination.runPackageManagerGuard)
-    expect(facade.formatPackageManagerViolations).toBe(destination.formatPackageManagerViolations)
-    expect(facade.getPackageManagerGuardExitCode).toBe(destination.getPackageManagerGuardExitCode)
-    expect(facade.isDirectExecution).not.toBe(destination.isDirectExecution)
+    expect(Object.keys(destination).sort()).toEqual([
+      'FORBIDDEN_LOCKFILES',
+      'PACKAGE_MANAGER_SCAN_PATHS',
+      'findNonPnpmCommands',
+      'formatPackageManagerViolations',
+      'getPackageManagerGuardExitCode',
+      'isDirectExecution',
+      'runPackageManagerGuard',
+      'scanPackageJsonEngines',
+      'scanPackageManagerFile',
+      'scanTrackedLockfiles',
+    ])
+    expect(destination.isDirectExecution).toBeTypeOf('function')
   })
 
   it('keeps package-manager policy diagnostics and exit mapping stable', async () => {
-    const facade = await import('../../scripts/guard-package-manager.mjs')
-    const violations = facade.runPackageManagerGuard({
+    const destination = await import('../../scripts/guards/package-manager.mjs')
+    const violations = destination.runPackageManagerGuard({
       files: ['package.json', 'package-lock.json'] as unknown as null,
       readFile: () => JSON.stringify({}),
     })
@@ -329,11 +336,11 @@ describe('package manager guard facade boundary', () => {
       'forbidden-lockfile',
       'missing-pnpm-engine',
     ])
-    expect(facade.getPackageManagerGuardExitCode([])).toBe(0)
-    expect(facade.getPackageManagerGuardExitCode(violations)).toBe(1)
-    expect(facade.formatPackageManagerViolations([])).toEqual(['Package manager guard passed.'])
-    expect(facade.formatPackageManagerViolations(violations)[0]).toBe('Package manager guard failed:')
-    expect(facade.scanPackageManagerFile('.github/workflows/ci.yml', 'npm run check')).toEqual([
+    expect(destination.getPackageManagerGuardExitCode([])).toBe(0)
+    expect(destination.getPackageManagerGuardExitCode(violations)).toBe(1)
+    expect(destination.formatPackageManagerViolations([])).toEqual(['Package manager guard passed.'])
+    expect(destination.formatPackageManagerViolations(violations)[0]).toBe('Package manager guard failed:')
+    expect(destination.scanPackageManagerFile('.github/workflows/ci.yml', 'npm run check')).toEqual([
       expect.objectContaining({ rule: 'non-pnpm-command', file: '.github/workflows/ci.yml' }),
     ])
   })

@@ -88,7 +88,7 @@ describe('scripts entrypoints contract', () => {
   })
 
   it('freezes guard-package-manager success stdout structure and exit 0', () => {
-    const result = runNode('scripts/guard-package-manager.mjs')
+    const result = runNode('scripts/guards/package-manager.mjs')
     expect(result.status).toBe(0)
     expect(result.stdout.trim().split('\n')).toEqual(['Package manager guard passed.'])
     expect(result.stderr).toBe('')

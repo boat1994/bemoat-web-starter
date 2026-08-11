@@ -148,3 +148,14 @@ export function isDirectExecution() {
   if (!entrypoint) return false
   return import.meta.url === pathToFileURL(resolve(entrypoint)).href
 }
+
+function main() {
+  const violations = runPackageManagerGuard()
+  const lines = formatPackageManagerViolations(violations)
+
+  for (const line of lines) console.log(line)
+
+  process.exit(getPackageManagerGuardExitCode(violations))
+}
+
+if (isDirectExecution()) main()

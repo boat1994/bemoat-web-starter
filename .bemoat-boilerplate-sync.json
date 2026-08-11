@@ -77,7 +77,7 @@
     "scripts/mission-control",
     "scripts/mission-control/diagnostics/github-comment-projection.mjs",
     "scripts/mission-control-state.mjs",
-    "scripts/guard-package-manager.mjs",
+    "scripts/guards/package-manager.mjs",
     "scripts/guard-toolchain-contract.mjs",
     "scripts/bemoat-typecheck.mjs",
     "tsconfig.harness-strict.json",

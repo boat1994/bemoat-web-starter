@@ -136,13 +136,6 @@
       "migration_status": "planned"
     },
     {
-      "path": "scripts/guard-package-manager.mjs",
-      "facade_disposition": "stable_facade",
-      "internal_destination": "scripts/guards/package-manager.mjs",
-      "owning_slice": 7,
-      "migration_status": "migrated"
-    },
-    {
       "path": "scripts/guard-planning-contract.mjs",
       "facade_disposition": "stable_facade",
       "internal_destination": "scripts/guards/planning-contract.mjs",
