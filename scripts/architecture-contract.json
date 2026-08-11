@@ -115,13 +115,6 @@
       "migration_status": "retained"
     },
     {
-      "path": "scripts/guard-mission-control-drift.mjs",
-      "facade_disposition": "stable_facade",
-      "internal_destination": "scripts/guards/mission-control-drift.mjs",
-      "owning_slice": 3,
-      "migration_status": "planned"
-    },
-    {
       "path": "scripts/guard-pack.mjs",
       "facade_disposition": "composition_root",
       "internal_destination": "scripts/guards/pack.mjs",

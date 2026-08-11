@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { proposeReviewReconciliation as canonicalReconcile } from './mission-control-reconcile.mjs'
-import { parseMissionControlState as canonicalParse, renderMissionControlState as canonicalRender } from './mission-control/domain/task-state.mjs'
+import { proposeReviewReconciliation as canonicalReconcile } from '../mission-control-reconcile.mjs'
+import { parseMissionControlState as canonicalParse, renderMissionControlState as canonicalRender } from '../mission-control/domain/task-state.mjs'
 
 export const RECONCILE_SCRIPT_PATH = 'scripts/mission-control-reconcile.mjs'
 

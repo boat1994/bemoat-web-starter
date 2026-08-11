@@ -69,7 +69,7 @@
     "scripts/guard-cloudflare-env.mjs",
     "scripts/guard-pack.mjs",
     "scripts/guard-planning-contract.mjs",
-    "scripts/guard-mission-control-drift.mjs",
+    "scripts/guards/mission-control-drift.mjs",
     "scripts/guard-scripts-architecture.mjs",
     "scripts/architecture-contract.json",
     "scripts/AGENTS.md",

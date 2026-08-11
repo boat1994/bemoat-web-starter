@@ -59,7 +59,7 @@ describe('central guard pack', () => {
   })
 
   it('enforces the complete Mission Control state/counter and Review 3 matrices', async () => {
-    const mod = await import('../../scripts/guard-mission-control-drift.mjs')
+    const mod = await import('../../scripts/guards/mission-control-drift.mjs')
 
     expect(mod.MISSION_CONTROL_STATE_COUNTER_MATRIX).toHaveLength(13 * 4 * 2)
     expect(mod.MISSION_CONTROL_REVIEW_MATRIX.filter((entry: { cycle: number }) => entry.cycle === 2))
@@ -73,7 +73,7 @@ describe('central guard pack', () => {
   })
 
   it('detects semantic reconciler tampering assembled dynamically', async () => {
-    const mod = await import('../../scripts/guard-mission-control-drift.mjs')
+    const mod = await import('../../scripts/guards/mission-control-drift.mjs')
     const canonical = await import('../../scripts/mission-control-reconcile.mjs')
 
     const tamperedReconcile = (input: Record<string, unknown>) => {
@@ -94,7 +94,7 @@ describe('central guard pack', () => {
   })
 
   it('detects a parser tampered to accept invalid state/counter combinations', async () => {
-    const mod = await import('../../scripts/guard-mission-control-drift.mjs')
+    const mod = await import('../../scripts/guards/mission-control-drift.mjs')
     const violations = mod.runMissionControlDriftGuard({
       parseMissionControlState: () => ({ present: true, valid: true, state: null }),
     })

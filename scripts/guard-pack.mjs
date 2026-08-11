@@ -42,7 +42,7 @@ import {
 import {
   formatMissionControlDriftViolations,
   runMissionControlDriftGuard,
-} from './guard-mission-control-drift.mjs'
+} from './guards/mission-control-drift.mjs'
 import {
   formatPackageManagerViolations,
   runPackageManagerGuard,
