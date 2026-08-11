@@ -123,7 +123,8 @@ describe('central guard pack', () => {
     expect(syncMod.managedPaths).toContain('tsconfig.harness-strict.json')
     expect(syncMod.managedPackageScripts).toContain('bemoat:typecheck')
     expect(syncMod.managedPaths).toContain('scripts/guard-env-placeholder.mjs')
-    expect(syncMod.managedPaths).toContain('scripts/guard-frontend-seo.mjs')
+    expect(syncMod.managedPaths).toContain('scripts/guards/frontend-seo.mjs')
+    expect(syncMod.managedPaths).not.toContain('scripts/guard-frontend-seo.mjs')
     expect(syncMod.managedPaths).toContain('scripts/guard-mission-control-contract.mjs')
     expect(syncMod.managedPaths).toContain('docs/guard-pack.md')
     expect(syncMod.managedPackageScripts).toContain('bemoat:guard:pack')
@@ -281,7 +282,7 @@ describe('planning contract guard pack integration', () => {
 
 describe('frontend SEO guard', () => {
   it('requires metadata title and description in frontend layout', async () => {
-    const mod = await import('../../scripts/guard-frontend-seo.mjs')
+    const mod = await import('../../scripts/guards/frontend-seo.mjs')
 
     const violations = mod.scanFrontendLayoutMetadata(`
 export const metadata = { title: 'Example' }
@@ -293,7 +294,7 @@ export const metadata = { title: 'Example' }
   })
 
   it('validates optional sitemap and robots exports when present', async () => {
-    const mod = await import('../../scripts/guard-frontend-seo.mjs')
+    const mod = await import('../../scripts/guards/frontend-seo.mjs')
 
     expect(mod.scanOptionalSeoFile('src/app/sitemap.ts', 'export const dynamic = "force-static"')).toHaveLength(
       1,

@@ -19,7 +19,7 @@ Actionable symptoms from current guards and CI. For guard internals see [guard-p
 | `starter-acceptance.int.spec.ts` fails | Missing `bemoat:*` scripts, contract drift, or sync boundary regression | Read Vitest output; fix `package.json` scripts, CI/hooks, or `managedPaths` in sync script | [starter-acceptance-tests.md](../starter-acceptance-tests.md) |
 | Local `check` green but CI strict fails | Only ran child-safe subset; starter PR needs full gate | Run `pnpm run check` locally; ensure ci-starter steps pass (importmap, types, lint, build) | `.github/workflows/ci-starter.yml` |
 | `pnpm run check` fails on lint warnings | ESLint `--max-warnings 0` | Fix every warning in touched files (and unrelated warnings when practical) | [AGENTS.md](../../AGENTS.md#lint-policy) |
-| Frontend SEO guard fails | Missing `metadata` in `src/app/(frontend)/layout.tsx` | Export `metadata` with `title` and `description` | `scripts/guard-frontend-seo.mjs` |
+| Frontend SEO guard fails | Missing `metadata` in `src/app/(frontend)/layout.tsx` | Export `metadata` with `title` and `description` | `scripts/guards/frontend-seo.mjs` |
 | Boilerplate drift after starter merge | Child not synced | In child: `boilerplate:check` then `boilerplate:sync -- --harness-only` via PR | [harness-sync.md](./harness-sync.md) |
 | Sync overwrote intentional child harness edit | Edited rails-managed file only in child | Upstream fix to starter, then sync; don't one-off edit managed paths in child | [source-of-truth.md](../agent-loop/source-of-truth.md) |
 

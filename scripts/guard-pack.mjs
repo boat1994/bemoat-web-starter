@@ -23,7 +23,7 @@ import {
 import {
   formatFrontendSeoViolations,
   runFrontendSeoGuard,
-} from './guard-frontend-seo.mjs'
+} from './guards/frontend-seo.mjs'
 import {
   formatHarnessContractViolations,
   runHarnessContractGuard,

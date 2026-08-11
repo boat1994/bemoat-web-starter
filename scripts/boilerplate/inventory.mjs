@@ -44,7 +44,7 @@ export const managedPaths = [
   'scripts/mission-control-brainstorming.mjs', 'scripts/guard-package-manager.mjs', 'scripts/guards/package-manager.mjs',
   'scripts/guard-toolchain-contract.mjs', 'scripts/guards/toolchain-contract.mjs', 'scripts/bemoat-typecheck.mjs',
   'tsconfig.harness-strict.json', '.bemoat/toolchain-contract.json',
-  'scripts/guard-env-placeholder.mjs', 'scripts/guards/env-placeholder.mjs', 'scripts/guard-frontend-seo.mjs', 'scripts/guards/frontend-seo.mjs',
+  'scripts/guard-env-placeholder.mjs', 'scripts/guards/env-placeholder.mjs', 'scripts/guards/frontend-seo.mjs',
   'scripts/github-comment-projection.mjs', 'scripts/pr-identity.mjs',
   'scripts/check-branch-safety.sh', 'scripts/install-git-hooks.mjs',
   // Local harness hooks and integration tests

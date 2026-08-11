@@ -96,7 +96,6 @@
     ".bemoat/toolchain-contract.json",
     "scripts/guard-env-placeholder.mjs",
     "scripts/guards/env-placeholder.mjs",
-    "scripts/guard-frontend-seo.mjs",
     "scripts/guards/frontend-seo.mjs",
     "scripts/github-comment-projection.mjs",
     "scripts/pr-identity.mjs",
