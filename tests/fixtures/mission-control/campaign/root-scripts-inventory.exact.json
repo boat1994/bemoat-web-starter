@@ -13,7 +13,6 @@
   "scripts/guard-build-script-contract.mjs",
   "scripts/guard-cloudflare-env.mjs",
   "scripts/guard-env-placeholder.mjs",
-  "scripts/guard-frontend-seo.mjs",
   "scripts/guard-harness-contract.mjs",
   "scripts/guard-mission-control-contract.mjs",
   "scripts/guard-mission-control-drift.mjs",
