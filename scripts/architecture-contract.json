@@ -49,7 +49,7 @@
       "facade_disposition": "composition_root",
       "internal_destination": "scripts/agent-issue/issue-preflight.mjs",
       "owning_slice": 6,
-      "migration_status": "planned"
+      "migration_status": "retained"
     },
     {
       "path": "scripts/bemoat-typecheck.mjs",
@@ -98,7 +98,7 @@
       "facade_disposition": "tooling_entrypoint",
       "internal_destination": "scripts/tooling/deploy-smoke-test.mjs",
       "owning_slice": 7,
-      "migration_status": "planned"
+      "migration_status": "retained"
     },
     {
       "path": "scripts/guard-cloudflare-env.mjs",
@@ -119,7 +119,7 @@
       "facade_disposition": "stable_facade",
       "internal_destination": "scripts/guards/mission-control-contract.mjs",
       "owning_slice": 3,
-      "migration_status": "planned"
+      "migration_status": "retained"
     },
     {
       "path": "scripts/guard-mission-control-drift.mjs",
@@ -161,7 +161,7 @@
       "facade_disposition": "tooling_entrypoint",
       "internal_destination": "scripts/tooling/install-git-hooks.mjs",
       "owning_slice": 7,
-      "migration_status": "planned"
+      "migration_status": "retained"
     },
     {
       "path": "scripts/mission-control-adopt-finding.mjs",
@@ -203,7 +203,7 @@
       "facade_disposition": "composition_root",
       "internal_destination": "scripts/mission-control/workflows/recover-review.mjs",
       "owning_slice": 5,
-      "migration_status": "planned"
+      "migration_status": "retained"
     },
     {
       "path": "scripts/mission-control-recover-state.mjs",
@@ -238,7 +238,7 @@
       "facade_disposition": "composition_root",
       "internal_destination": "scripts/mission-control/workflows/task-bootstrap.mjs",
       "owning_slice": 5,
-      "migration_status": "planned"
+      "migration_status": "retained"
     },
     {
       "path": "scripts/post-role-comment.mjs",
@@ -252,7 +252,7 @@
       "facade_disposition": "composition_root",
       "internal_destination": "scripts/boilerplate/workflows/sync-boilerplate.mjs",
       "owning_slice": 4,
-      "migration_status": "planned"
+      "migration_status": "retained"
     }
   ],
   "transitionalDirectories": [
