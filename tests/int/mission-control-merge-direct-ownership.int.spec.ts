@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { validateDirectOwnership } from '../../scripts/mission-control/domain/merge-direct-ownership.mjs'
+import { validateDirectOwnership } from '../../scripts/mission-control/domain/merge-direct-ownership.ts'
 
 describe('validateDirectOwnership', () => {
   const issue = {

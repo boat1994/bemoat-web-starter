@@ -1,18 +1,43 @@
 import { resolveIssueNumber, resolvePrNumber } from '../../agent-issue/issue-references.mjs'
 
-function normalizeIssueNumber(value) {
+type ManagedState = {
+  active_task_issue?: unknown
+  active_pr?: unknown
+}
+
+type Issue = {
+  managedState?: ManagedState | null
+} | null | undefined
+
+type PullRequest = {
+  number?: unknown
+} | null | undefined
+
+type DirectOwnershipInput = {
+  issueNumber: number
+  issue: Issue
+  pr: PullRequest
+}
+
+type DirectOwnershipResult = {
+  valid: boolean
+  prNumber: number | null
+  reason: string | null
+}
+
+function normalizeIssueNumber(value: unknown) {
   return resolveIssueNumber(value)
 }
 
-function normalizePrNumber(value) {
+function normalizePrNumber(value: unknown) {
   return resolvePrNumber(value)
 }
 
-function invalid(reason) {
+function invalid(reason: string): DirectOwnershipResult {
   return { valid: false, prNumber: null, reason }
 }
 
-export function validateDirectOwnership({ issueNumber, issue, pr }) {
+export function validateDirectOwnership({ issueNumber, issue, pr }: DirectOwnershipInput): DirectOwnershipResult {
   const state = issue?.managedState
   if (!state) return invalid('managed Issue state is unavailable')
   if (normalizeIssueNumber(state.active_task_issue) !== issueNumber) {

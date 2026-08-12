@@ -3,7 +3,35 @@ import { resolveIssueNumber } from '../../agent-issue/issue-references.mjs'
 const NO_AUTOMATIC_CLOSURE_FAILURE_REASON =
   'PR contains an automatic closing reference to the managed Issue; use Refs so merge transport remains the closure owner'
 
-export function classifyNoAutomaticClosure(pr, issueNumber, repo) {
+type ClosingReference = {
+  number?: unknown
+  repository?: {
+    nameWithOwner?: unknown
+  } | null
+}
+
+type CommitMessage = {
+  messageHeadline?: unknown
+  messageBody?: unknown
+}
+
+type PullRequest = {
+  closingIssuesReferences?: ClosingReference[] | null
+  title?: unknown
+  body?: unknown
+  commits?: CommitMessage[] | null
+} | null | undefined
+
+type NoAutomaticClosureResult = {
+  valid: boolean
+  reason: string | null
+}
+
+export function classifyNoAutomaticClosure(
+  pr: PullRequest,
+  issueNumber: number,
+  repo: string,
+): NoAutomaticClosureResult {
   const linkedClosure = (pr?.closingIssuesReferences ?? []).some((reference) =>
     resolveIssueNumber(reference.number) === issueNumber &&
     (reference.repository?.nameWithOwner ?? repo) === repo
