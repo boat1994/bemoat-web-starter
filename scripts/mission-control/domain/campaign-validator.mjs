@@ -24,7 +24,7 @@ import {
   normalizeRootScriptMapValidationStatus,
   normalizeSliceStatus,
   normalizeStringIdList,
-} from './campaign-normalize.mjs'
+} from './campaign-normalize.ts'
 
 /**
  * @param {unknown} authority

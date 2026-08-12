@@ -7,7 +7,7 @@ import {
   ROOT_SCRIPT_MAP_VALIDATION_STATUSES,
   SLICE_STATUSES,
 } from '../../scripts/mission-control/domain/campaign-enums.ts'
-import * as normalize from '../../scripts/mission-control/domain/campaign-normalize.mjs'
+import * as normalize from '../../scripts/mission-control/domain/campaign-normalize.ts'
 
 const validSha = 'ABCDEF0123456789ABCDEF0123456789ABCDEF01'
 
