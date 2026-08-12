@@ -41,7 +41,7 @@ import { deriveCampaignExpansionAuthority } from '../domain/merge-campaign-expan
 import {
   projectCampaignBlockerResolved,
   projectCampaignSliceDone,
-} from '../domain/merge-campaign-state-projection.mjs'
+} from '../domain/merge-campaign-state-projection.ts'
 import { projectTaskDoneState } from '../domain/merge-task-done-projection.mjs'
 import { validateDirectOwnership } from '../domain/merge-direct-ownership.mjs'
 import { commentSupersedesId } from '../domain/merge-comment-supersession.mjs'

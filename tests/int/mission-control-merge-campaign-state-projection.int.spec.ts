@@ -4,7 +4,7 @@ import {
   emptyCampaignSlice,
   projectCampaignBlockerResolved,
   projectCampaignSliceDone,
-} from '../../scripts/mission-control/domain/merge-campaign-state-projection.mjs'
+} from '../../scripts/mission-control/domain/merge-campaign-state-projection.ts'
 
 const UPDATED_AT = '2026-08-09T00:00:00.000Z'
 

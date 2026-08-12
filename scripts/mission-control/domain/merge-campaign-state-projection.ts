@@ -8,7 +8,38 @@ import { normalizeIssueNumber } from './merge-issue-references.mjs'
 const BLOCKER_RESOLUTION_MAX_SLICE = 11
 const MERGE_TRANSPORT_UPDATED_BY = 'Founder-authorized merge transport'
 
-export function emptyCampaignSlice() {
+type Mapping = Record<string, unknown>
+type CampaignSlice = Mapping & {
+  blocker_ids: string[]
+  authority_comment_ids?: string[] | null
+  issue?: string | null
+  status?: string
+}
+type CampaignBlocker = Mapping & { id?: unknown }
+type Campaign = Mapping & {
+  campaign_blockers: CampaignBlocker[]
+  root_script_map: Mapping
+  slices: Record<string, CampaignSlice>
+}
+type CampaignAuthority = Mapping & { authorized_max_slice?: unknown }
+type SliceDoneOptions = {
+  campaignSlice: string | number
+  taskIssue: number
+  prNumber: number
+  reviewedHead: string
+  mergeCommit: string
+  authorizationCommentId: string | number
+  updatedAt?: string
+  updatedBy?: string
+}
+type BlockerResolutionOptions = {
+  campaignBlockerId: string
+  authority: CampaignAuthority
+  updatedAt?: string
+  updatedBy?: string
+}
+
+export function emptyCampaignSlice(): CampaignSlice {
   return {
     status: 'NOT_STARTED',
     issue: null,
@@ -20,7 +51,7 @@ export function emptyCampaignSlice() {
   }
 }
 
-export function projectCampaignSliceDone(campaign, {
+export function projectCampaignSliceDone(campaign: Campaign, {
   campaignSlice,
   taskIssue,
   prNumber,
@@ -29,7 +60,7 @@ export function projectCampaignSliceDone(campaign, {
   authorizationCommentId,
   updatedAt = new Date().toISOString(),
   updatedBy = MERGE_TRANSPORT_UPDATED_BY,
-}) {
+}: SliceDoneOptions): Campaign {
   const key = String(campaignSlice)
   const priorSlice = campaign?.slices?.[key]
   if (!priorSlice || (priorSlice.issue != null && normalizeIssueNumber(priorSlice.issue) !== taskIssue)) {
@@ -55,12 +86,12 @@ export function projectCampaignSliceDone(campaign, {
   }
 }
 
-export function projectCampaignBlockerResolved(campaign, {
+export function projectCampaignBlockerResolved(campaign: Campaign, {
   campaignBlockerId,
   authority,
   updatedAt = new Date().toISOString(),
   updatedBy = MERGE_TRANSPORT_UPDATED_BY,
-}) {
+}: BlockerResolutionOptions): Campaign {
   const priorCampaign = structuredClone(campaign)
   const currentMaxSlice = Math.max(...Object.keys(priorCampaign.slices).map(Number))
   const authorizedMaxSlice = Number(authority.authorized_max_slice)
