@@ -6,6 +6,11 @@ const TERMINAL_BINDING_KEYS = [
   'last_reviewed_head',
 ]
 
-export function sameTerminalBinding(left, right) {
+type TerminalBinding = Record<string, unknown>
+
+export function sameTerminalBinding(
+  left: TerminalBinding | null | undefined,
+  right: TerminalBinding | null | undefined,
+): boolean {
   return TERMINAL_BINDING_KEYS.every((key) => left?.[key] === right?.[key])
 }

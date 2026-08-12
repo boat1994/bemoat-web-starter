@@ -1,4 +1,4 @@
-import { normalizeIssueNumber, normalizePrNumber } from './merge-issue-references.mjs'
+import { normalizeIssueNumber, normalizePrNumber } from './merge-issue-references.ts'
 import { validateBlockerResolutionBindings } from './merge-blocker-bindings.ts'
 import { blockedExternal, stateConflict } from './merge-errors.mjs'
 import { classifyCampaignOwnershipEvidence } from './merge-campaign-ownership.ts'

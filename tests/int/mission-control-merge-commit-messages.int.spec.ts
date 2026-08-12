@@ -3,12 +3,12 @@ import { describe, expect, it } from 'vitest'
 import { mergeCommitOid } from '../../scripts/mission-control/domain/merge-commit-oid.mjs'
 import { normalizePaginatedCommitMessages } from '../../scripts/mission-control/domain/merge-commit-messages.mjs'
 import { renderFinalResultBody } from '../../scripts/mission-control/domain/merge-final-result.mjs'
-import { normalizeIssueNumber, normalizePrNumber } from '../../scripts/mission-control/domain/merge-issue-references.mjs'
-import { resultCommentId } from '../../scripts/mission-control/domain/merge-result-comment-id.mjs'
+import { normalizeIssueNumber, normalizePrNumber } from '../../scripts/mission-control/domain/merge-issue-references.ts'
+import { resultCommentId } from '../../scripts/mission-control/domain/merge-result-comment-id.ts'
 import {
   normalizeIssueReason,
   normalizeIssueState,
-} from '../../scripts/mission-control/domain/merge-issue-state.mjs'
+} from '../../scripts/mission-control/domain/merge-issue-state.ts'
 
 describe('merge domain normalization', () => {
   it('resolves the first available merge commit identity', () => {

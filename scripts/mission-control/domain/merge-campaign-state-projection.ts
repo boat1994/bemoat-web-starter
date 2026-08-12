@@ -3,7 +3,7 @@ import {
   expectedSliceKeys,
 } from './campaign-authority.ts'
 import { stateConflict } from './merge-errors.mjs'
-import { normalizeIssueNumber } from './merge-issue-references.mjs'
+import { normalizeIssueNumber } from './merge-issue-references.ts'
 
 const BLOCKER_RESOLUTION_MAX_SLICE = 11
 const MERGE_TRANSPORT_UPDATED_BY = 'Founder-authorized merge transport'
