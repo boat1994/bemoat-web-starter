@@ -64,7 +64,7 @@ import {
   createCampaignOwnershipAdmission,
   resolveCampaignMergeRoute,
 } from '../domain/merge-campaign-admission.ts'
-import { flattenGhPages } from '../domain/merge-gh-pages.mjs'
+import { flattenGhPages } from '../domain/merge-gh-pages.ts'
 import {
   AUTHORIZATION_VALIDATION_FAILURE,
   authorizationValidationFailure,

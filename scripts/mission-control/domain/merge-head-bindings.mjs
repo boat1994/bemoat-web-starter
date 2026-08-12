@@ -1,4 +1,4 @@
-import { classifyRequiredExactHeadCi } from './merge-exact-head-ci.mjs'
+import { classifyRequiredExactHeadCi } from './merge-exact-head-ci.ts'
 
 const FULL_SHA_RE = /^[0-9a-f]{40}$/i
 const STARTER_REPOSITORY = 'boat1994/bemoat-web-starter'
