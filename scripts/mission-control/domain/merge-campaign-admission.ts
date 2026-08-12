@@ -8,6 +8,52 @@ import {
   resolveCampaignProjectionKind,
 } from './merge-campaign-projection.ts'
 
+type Mapping = Record<string, unknown>
+type CampaignRoute = {
+  projectionKind: string
+  campaignIssue: number
+  campaignSlice: number | null
+  blockerBinding: { campaignIssue: number; campaignBlockerId: string } | null
+}
+type OwnershipReader = (input: {
+  repo: string
+  taskIssue: number
+  prNumber: number
+  campaignIssue: number
+  campaignSlice: number | null
+  campaignBlockerId: string | null
+  projectionKind: string
+}) => Promise<unknown>
+type MergeRouteDeps = { readCampaignOwnership?: OwnershipReader }
+type MergeRouteInput = {
+  deps: MergeRouteDeps
+  repo: string
+  issueNumber: number
+  prNumber: number
+  authorization: Mapping
+  state: Mapping
+}
+type ParsedCampaignIssue = {
+  campaign?: {
+    slices?: Record<string, Mapping>
+    campaign_blockers?: Mapping[]
+  } | null
+}
+type CampaignIssueReader = (repo: string, campaignIssue: number) => Promise<ParsedCampaignIssue>
+type OwnershipAdmissionInput = {
+  repo: string
+  taskIssue: number
+  prNumber: number
+  campaignIssue: number
+  campaignSlice: number | null
+  campaignBlockerId: string | null
+  projectionKind: string
+}
+
+function isMapping(value: unknown): value is Mapping {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
 export async function resolveCampaignMergeRoute({
   deps,
   repo,
@@ -15,7 +61,7 @@ export async function resolveCampaignMergeRoute({
   prNumber,
   authorization,
   state,
-}) {
+}: MergeRouteInput): Promise<CampaignRoute | null> {
   const managedCampaignIssue = normalizeIssueNumber(state?.campaign_issue)
   const hasManagedCampaignClaim = hasMeaningfulBindingValue(state?.campaign_issue) ||
     hasMeaningfulBindingValue(state?.campaign_slice)
@@ -27,9 +73,9 @@ export async function resolveCampaignMergeRoute({
 
   const managedCampaignSlice = state?.campaign_slice == null ? null : Number(state.campaign_slice)
   const projectionClassification = resolveCampaignProjectionKind(authorization)
-  if (!projectionClassification.valid) throw stateConflict(projectionClassification.reason)
+  if (projectionClassification.valid !== true) throw stateConflict(projectionClassification.reason)
   const projectionKind = projectionClassification.projectionKind
-  let blockerBinding = null
+  let blockerBinding: CampaignRoute['blockerBinding'] = null
 
   if (managedCampaignSlice != null) {
     if (!Number.isInteger(managedCampaignSlice) || managedCampaignSlice <= 0) {
@@ -80,7 +126,11 @@ export async function resolveCampaignMergeRoute({
   return route
 }
 
-export function createCampaignOwnershipAdmission({ readCampaignIssue }) {
+export function createCampaignOwnershipAdmission({
+  readCampaignIssue,
+}: {
+  readCampaignIssue: CampaignIssueReader
+}): (input: OwnershipAdmissionInput) => Promise<Mapping> {
   return async function readCampaignOwnership({
     repo,
     taskIssue,
@@ -89,7 +139,7 @@ export function createCampaignOwnershipAdmission({ readCampaignIssue }) {
     campaignSlice,
     campaignBlockerId,
     projectionKind,
-  }) {
+  }: OwnershipAdmissionInput): Promise<Mapping> {
     const parsed = await readCampaignIssue(repo, campaignIssue)
     if (projectionKind === CAMPAIGN_PROJECTION_KINDS.SLICE) {
       const slice = parsed.campaign?.slices?.[String(campaignSlice)]
@@ -110,10 +160,11 @@ export function createCampaignOwnershipAdmission({ readCampaignIssue }) {
     }
 
     const blocker = (parsed.campaign?.campaign_blockers ?? [])
-      .find((candidate) => candidate?.id === campaignBlockerId)
+      .find((candidate) => candidate.id === campaignBlockerId)
     if (!blocker ||
-      normalizeIssueNumber(blocker.evidence?.issue) !== taskIssue ||
-      normalizePrNumber(blocker.evidence?.pr) !== prNumber) {
+      !isMapping(blocker.evidence) ||
+      normalizeIssueNumber(blocker.evidence.issue) !== taskIssue ||
+      normalizePrNumber(blocker.evidence.pr) !== prNumber) {
       throw stateConflict(`campaign blocker ${campaignBlockerId} is not durably allocated to Task Issue #${taskIssue} and PR #${prNumber}`)
     }
     return {
