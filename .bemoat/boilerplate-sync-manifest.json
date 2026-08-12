@@ -149,6 +149,7 @@
     "tests/int/command-runner.int.spec.ts",
     "tests/int/scripts-architecture.int.spec.ts",
     "tests/int/campaign-schema.int.spec.ts",
+    "tests/int/campaign-normalize.int.spec.ts",
     "tests/int/scripts-entrypoints-contract.int.spec.ts",
     "tests/int/mission-control-review.int.spec.ts",
     "tests/int/mission-control-merge.int.spec.ts",
