@@ -4,7 +4,7 @@ import {
   CAMPAIGN_EXPANSION_POLICY_VERSION,
   LEGACY_MAX_SLICE,
   expectedSliceKeys,
-} from './campaign-authority.mjs'
+} from './campaign-authority.ts'
 import { blockedExternal, stateConflict } from './merge-errors.mjs'
 
 const BLOCKER_RESOLUTION_MAX_SLICE = 11

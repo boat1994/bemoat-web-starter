@@ -17,7 +17,7 @@
       { "path": "scripts/mission-control-dispatch.mjs", "max_lines": 545 },
       { "path": "scripts/mission-control-reconcile.mjs", "max_lines": 143 },
       { "path": "scripts/mission-control-review.mjs", "max_lines": 346 },
-      { "path": "scripts/mission-control/domain/campaign-authority.mjs", "max_lines": 547 },
+      { "path": "scripts/mission-control/domain/campaign-authority.ts", "max_lines": 630 },
       { "path": "scripts/mission-control/domain/campaign-validator.mjs", "max_lines": 482 },
       { "path": "scripts/mission-control/domain/correction-contract.mjs", "max_lines": 650 },
       { "path": "scripts/mission-control/domain/recover-state-projection.mjs", "max_lines": 37 },

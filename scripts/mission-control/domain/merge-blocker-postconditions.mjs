@@ -1,6 +1,6 @@
 import { resolveIssueNumber, resolvePrNumber } from '../../agent-issue/issue-references.mjs'
 
-import { expectedSliceKeys } from './campaign-authority.mjs'
+import { expectedSliceKeys } from './campaign-authority.ts'
 import { sameCampaignValue } from './campaign-equality.ts'
 import { validateNextAction } from './merge-next-action.mjs'
 

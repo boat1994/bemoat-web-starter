@@ -1,7 +1,7 @@
 import {
   LEGACY_MAX_SLICE,
   expectedSliceKeys,
-} from './campaign-authority.mjs'
+} from './campaign-authority.ts'
 import { stateConflict } from './merge-errors.mjs'
 import { normalizeIssueNumber } from './merge-issue-references.mjs'
 

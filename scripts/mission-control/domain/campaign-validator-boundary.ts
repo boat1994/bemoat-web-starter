@@ -1,7 +1,7 @@
 import {
   CAMPAIGN_DIAGNOSTIC_CODES as AUTHORITY_DIAGNOSTIC_CODES,
   validateCampaignExpansionAuthority,
-} from './campaign-authority.mjs'
+} from './campaign-authority.ts'
 import {
   INTERNAL_DESTINATION_PREFIXES,
   SLICE_REQUIRED_KEYS,

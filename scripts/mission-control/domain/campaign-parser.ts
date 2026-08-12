@@ -11,7 +11,7 @@ import {
   TASK_MARKER_END_RE,
   TASK_MARKER_START_RE,
 } from './campaign-enums.ts'
-import { CAMPAIGN_DIAGNOSTIC_CODES } from './campaign-authority.mjs'
+import { CAMPAIGN_DIAGNOSTIC_CODES } from './campaign-authority.ts'
 import { validateCampaign } from './campaign-validator.ts'
 import type { CampaignInput } from './campaign-validator-schemas.ts'
 

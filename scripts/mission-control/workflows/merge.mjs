@@ -9,7 +9,7 @@ import { writeIssueBodyWithLease } from './issue-body-cas.mjs'
 import {
   selectNextCampaignAction,
   validateCampaignTransition,
-} from '../domain/campaign-authority.mjs'
+} from '../domain/campaign-authority.ts'
 import { sameCampaignValue } from '../domain/campaign-equality.ts'
 import { parseCampaign } from '../domain/campaign-parser.ts'
 import { replaceCampaignBlock } from '../domain/campaign-renderer.ts'

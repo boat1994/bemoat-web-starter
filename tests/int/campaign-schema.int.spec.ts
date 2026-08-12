@@ -10,7 +10,7 @@ import { sameCampaignValue } from '../../scripts/mission-control/domain/campaign
 import {
   selectNextCampaignAction,
   validateCampaignTransition,
-} from '../../scripts/mission-control/domain/campaign-authority.mjs'
+} from '../../scripts/mission-control/domain/campaign-authority.ts'
 import { parseCampaign } from '../../scripts/mission-control/domain/campaign-parser.ts'
 import { renderCampaign, replaceCampaignBlock } from '../../scripts/mission-control/domain/campaign-renderer.ts'
 import {

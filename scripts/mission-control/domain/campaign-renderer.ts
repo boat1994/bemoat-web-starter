@@ -6,7 +6,7 @@
 import yaml from 'yaml'
 
 import { CAMPAIGN_MARKER_END, CAMPAIGN_MARKER_START } from './campaign-enums.ts'
-import { sortedSliceKeys } from './campaign-authority.mjs'
+import { sortedSliceKeys } from './campaign-authority.ts'
 import { sameCampaignValue } from './campaign-equality.ts'
 import { parseCampaign } from './campaign-parser.ts'
 

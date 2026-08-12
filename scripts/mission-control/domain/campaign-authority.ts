@@ -8,6 +8,27 @@ import { createHash } from 'node:crypto'
 import { FULL_COMMIT_SHA } from './campaign-enums.ts'
 import { sameCampaignValue } from './campaign-equality.ts'
 
+type Mapping = Record<string, unknown>
+type InvalidResult = {
+  valid: false
+  code: string
+  reason: string
+  classification: string
+}
+type SliceRangeResult = InvalidResult | { valid: true; keys: string[]; maxSlice: number }
+type AuthorityShapeResult = InvalidResult | { valid: true; expectedAppendKeys: string[] }
+type AuthorityVerificationResult = InvalidResult | { valid: true; authority: Mapping; maxSlice: number }
+type AuthorityValidationResult =
+  | InvalidResult
+  | { valid: true; expanded: boolean; maxSlice: number; authority: Mapping | null }
+type TransitionOptions = {
+  blockerId?: unknown
+  evidence?: unknown
+  mode?: unknown
+  targetSlice?: unknown
+}
+type TransitionResult = InvalidResult | { valid: true }
+
 export const LEGACY_MAX_SLICE = 7
 export const CAMPAIGN_EXPANSION_POLICY_VERSION = '1.3.0'
 export const CAMPAIGN_EXPANSION_APPROVED_BASE = 'main'
@@ -30,35 +51,59 @@ export const CAMPAIGN_DIAGNOSTIC_CODES = Object.freeze({
   BLOCKER_SLICE_MUTATION: 'CAMPAIGN_BLOCKER_RESOLUTION_SLICE_MUTATION',
 })
 
-function invalid(code, reason, classification = 'STATE_CONFLICT') {
+function invalid(code: string, reason: string, classification = 'STATE_CONFLICT'): InvalidResult {
   return { valid: false, code, reason, classification }
 }
 
-function isMapping(value) {
+function isMapping(value: unknown): value is Mapping {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
-function isDecimalId(value) {
+function isDecimalId(value: unknown): value is string {
   return typeof value === 'string' && /^[1-9]\d*$/.test(value)
 }
 
-function isSha256(value) {
+function isSha256(value: unknown): value is string {
   return typeof value === 'string' && /^[0-9a-f]{64}$/.test(value)
 }
 
-function isCanonicalSliceKey(value) {
+function isCanonicalSliceKey(value: unknown): value is string {
   return typeof value === 'string' && /^[1-9]\d*$/.test(value) && String(Number(value)) === value
 }
 
-export function expectedSliceKeys(maxSlice) {
+function field(value: unknown, key: string): unknown {
+  return isMapping(value) ? value[key] : undefined
+}
+
+function sliceAt(campaign: Mapping, key: string): unknown {
+  const slices = field(campaign, 'slices')
+  return isMapping(slices) ? slices[key] : undefined
+}
+
+function rootValidationStatus(campaign: Mapping): unknown {
+  return field(field(campaign, 'root_script_map'), 'validation_status')
+}
+
+function objectKeys(value: unknown): string[] {
+  const objectLike = value !== null && typeof value === 'object' ? value : {}
+  return Object.keys(objectLike)
+}
+
+function hasSlice(campaign: Mapping, key: string): boolean {
+  const slices = field(campaign, 'slices')
+  return isMapping(slices) && Object.hasOwn(slices, key)
+}
+
+export function expectedSliceKeys(maxSlice: number): string[] {
   return Array.from({ length: maxSlice }, (_, index) => String(index + 1))
 }
 
-export function sortedSliceKeys(slices) {
-  return Object.keys(slices ?? {}).sort((left, right) => Number(left) - Number(right))
+export function sortedSliceKeys(slices: unknown): string[] {
+  const sortable = slices !== null && typeof slices === 'object' ? slices : {}
+  return Object.keys(sortable).sort((left, right) => Number(left) - Number(right))
 }
 
-export function inspectSliceRange(slices) {
+export function inspectSliceRange(slices: unknown): SliceRangeResult {
   if (!isMapping(slices)) {
     return invalid(CAMPAIGN_DIAGNOSTIC_CODES.SLICE_KEYS_NOT_CONTIGUOUS, 'campaign slices must be contiguous starting at "1"')
   }
@@ -77,7 +122,11 @@ export function inspectSliceRange(slices) {
   return { valid: true, keys: expected, maxSlice }
 }
 
-function normalizeStringList(value, fieldName, { allowEmpty = true } = {}) {
+function normalizeStringList(
+  value: unknown,
+  fieldName: string,
+  { allowEmpty = true }: { allowEmpty?: boolean } = {},
+): InvalidResult | { valid: true } {
   if (!Array.isArray(value) || (!allowEmpty && value.length === 0)) {
     return invalid(CAMPAIGN_DIAGNOSTIC_CODES.AUTHORITY_INVALID, `${fieldName} must be a ${allowEmpty ? '' : 'non-empty '}array`)
   }
@@ -90,25 +139,26 @@ function normalizeStringList(value, fieldName, { allowEmpty = true } = {}) {
   return { valid: true }
 }
 
-function validateAuthorityShape(authority) {
+function validateAuthorityShape(authority: unknown): AuthorityShapeResult {
   if (!isMapping(authority)) {
     return invalid(CAMPAIGN_DIAGNOSTIC_CODES.AUTHORITY_INVALID, 'campaign_expansion_authority must be a mapping')
   }
   if (authority.schema_version !== 1 || authority.decision !== 'APPROVED' || authority.scope !== 'campaign_slice_range' || authority.action !== 'append_only_expand') {
     return invalid(CAMPAIGN_DIAGNOSTIC_CODES.AUTHORITY_INVALID, 'campaign expansion authority decision lineage is invalid')
   }
-  if (!isMapping(authority.source) || authority.source.kind !== 'github_issue_comment') {
+  const source = authority.source
+  if (!isMapping(source) || source.kind !== 'github_issue_comment') {
     return invalid(CAMPAIGN_DIAGNOSTIC_CODES.AUTHORITY_INVALID, 'campaign expansion authority source must be a GitHub issue comment')
   }
   if (
-    typeof authority.source.repository !== 'string' ||
-    !/^[^/\s]+\/[^/\s]+$/.test(authority.source.repository) ||
-    typeof authority.source.issue !== 'string' ||
-    !/^#\d+$/.test(authority.source.issue) ||
-    !isDecimalId(authority.source.comment_id) ||
-    typeof authority.source.author_login !== 'string' ||
-    !/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/.test(authority.source.author_login) ||
-    !isSha256(authority.source.body_sha256)
+    typeof source.repository !== 'string' ||
+    !/^[^/\s]+\/[^/\s]+$/.test(source.repository) ||
+    typeof source.issue !== 'string' ||
+    !/^#\d+$/.test(source.issue) ||
+    !isDecimalId(source.comment_id) ||
+    typeof source.author_login !== 'string' ||
+    !/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/.test(source.author_login) ||
+    !isSha256(source.body_sha256)
   ) {
     return invalid(CAMPAIGN_DIAGNOSTIC_CODES.AUTHORITY_INVALID, 'campaign expansion authority source provenance is invalid')
   }
@@ -123,18 +173,19 @@ function validateAuthorityShape(authority) {
   ) {
     return invalid(CAMPAIGN_DIAGNOSTIC_CODES.AUTHORITY_INVALID, 'campaign expansion authority base or policy binding is invalid')
   }
-  if (!Number.isInteger(authority.authorized_max_slice) || authority.authorized_max_slice < LEGACY_MAX_SLICE + 1) {
+  const authorizedMaxSlice = authority.authorized_max_slice
+  if (typeof authorizedMaxSlice !== 'number' || !Number.isInteger(authorizedMaxSlice) || authorizedMaxSlice < LEGACY_MAX_SLICE + 1) {
     return invalid(CAMPAIGN_DIAGNOSTIC_CODES.AUTHORITY_INVALID, 'campaign expansion authority must authorize a slice beyond the legacy maximum')
   }
 
-  const expectedAppendKeys = expectedSliceKeys(authority.authorized_max_slice).slice(LEGACY_MAX_SLICE)
+  const expectedAppendKeys = expectedSliceKeys(authorizedMaxSlice).slice(LEGACY_MAX_SLICE)
   if (!Array.isArray(authority.authorized_append_keys) ||
       !sameCampaignValue(authority.authorized_append_keys, expectedAppendKeys)) {
     return invalid(CAMPAIGN_DIAGNOSTIC_CODES.AUTHORITY_INVALID, 'campaign expansion authority append keys must equal the authorized contiguous range')
   }
 
   const related = normalizeStringList(authority.related_authority_comment_ids, 'related_authority_comment_ids', { allowEmpty: false })
-  if (!related.valid) return related
+  if (related.valid !== true) return related
 
   return {
     valid: true,
@@ -142,70 +193,79 @@ function validateAuthorityShape(authority) {
   }
 }
 
-function commentAuthor(comment) {
-  return comment?.user?.login ?? comment?.author_login ?? null
+function commentAuthor(comment: unknown): unknown {
+  return field(field(comment, 'user'), 'login') ?? field(comment, 'author_login') ?? null
 }
 
-function commentIssueUrl(comment) {
-  return comment?.issue_url ?? comment?.issue_url_html ?? null
+function commentIssueUrl(comment: unknown): unknown {
+  return field(comment, 'issue_url') ?? field(comment, 'issue_url_html') ?? null
 }
 
-function commentSupersedes(comment, commentId) {
-  const body = String(comment?.body ?? '')
+function commentSupersedes(comment: unknown, commentId: string): boolean {
+  const body = String(field(comment, 'body') ?? '')
   if (!body.includes(String(commentId))) return false
   return /supersed|not authoritative|replaced|revoked/i.test(body)
 }
 
-function expectedIssueUrl(repository, issue) {
+function expectedIssueUrl(repository: string, issue: string): string {
   return `https://api.github.com/repos/${repository}/issues/${String(issue).replace(/^#/, '')}`
 }
 
-function findAuthorityComments(evidence) {
-  const envelope = evidence?.campaignExpansionAuthority
+function findAuthorityComments(evidence: unknown): unknown[] | null {
+  const envelope = field(evidence, 'campaignExpansionAuthority')
   if (!isMapping(envelope)) return null
   if (Array.isArray(envelope.comments)) return envelope.comments
   if (isMapping(envelope.comment)) return [envelope.comment]
   return null
 }
 
-export function verifyCampaignExpansionAuthority(authority, evidence = null) {
+export function verifyCampaignExpansionAuthority(authority: unknown, evidence: unknown = null): AuthorityVerificationResult {
   const shape = validateAuthorityShape(authority)
-  if (!shape.valid) return shape
+  if (shape.valid !== true) return shape
+
+  if (!isMapping(authority)) {
+    return invalid(CAMPAIGN_DIAGNOSTIC_CODES.AUTHORITY_INVALID, 'campaign_expansion_authority must be a mapping')
+  }
 
   const comments = findAuthorityComments(evidence)
-  const envelope = evidence?.campaignExpansionAuthority
-  if (!comments || !Array.isArray(envelope.trustedFounderLogins) || typeof envelope.currentProtectedBaseSha !== 'string') {
+  const envelope = field(evidence, 'campaignExpansionAuthority')
+  if (!comments || !isMapping(envelope) || !Array.isArray(envelope.trustedFounderLogins) || typeof envelope.currentProtectedBaseSha !== 'string') {
     return invalid(CAMPAIGN_DIAGNOSTIC_CODES.AUTHORITY_UNAVAILABLE, 'required live campaign expansion authority evidence is unavailable', 'BLOCKED_EXTERNAL')
   }
   if (envelope.contradictory === true) {
     return invalid(CAMPAIGN_DIAGNOSTIC_CODES.AUTHORITY_INVALID, 'campaign expansion authority evidence is contradictory')
   }
 
-  const source = comments.find((comment) => String(comment?.id) === authority.source.comment_id)
-  if (!source || typeof source.body !== 'string') {
+  const source = comments.find((comment) => String(field(comment, 'id')) === String(field(authority.source, 'comment_id')))
+  const sourceBody = source ? field(source, 'body') : undefined
+  if (!source || typeof sourceBody !== 'string') {
     return invalid(CAMPAIGN_DIAGNOSTIC_CODES.AUTHORITY_UNAVAILABLE, 'campaign expansion authority source comment is unavailable', 'BLOCKED_EXTERNAL')
   }
 
   const sourceAuthor = commentAuthor(source)
   const sourceIssueUrl = commentIssueUrl(source)
+  const authoritySource = authority.source
+  if (!isMapping(authoritySource) || typeof authoritySource.author_login !== 'string' || typeof authoritySource.repository !== 'string' || typeof authoritySource.issue !== 'string' || typeof authoritySource.body_sha256 !== 'string') {
+    return invalid(CAMPAIGN_DIAGNOSTIC_CODES.AUTHORITY_INVALID, 'campaign expansion authority source provenance is invalid')
+  }
   if (
-    sourceAuthor !== authority.source.author_login ||
+    sourceAuthor !== authoritySource.author_login ||
     !envelope.trustedFounderLogins.includes(sourceAuthor) ||
-    sourceIssueUrl !== expectedIssueUrl(authority.source.repository, authority.source.issue)
+    sourceIssueUrl !== expectedIssueUrl(authoritySource.repository, authoritySource.issue)
   ) {
     return invalid(CAMPAIGN_DIAGNOSTIC_CODES.AUTHORITY_INVALID, 'campaign expansion authority source identity does not match its binding')
   }
 
-  const bodySha = createHash('sha256').update(source.body, 'utf8').digest('hex')
-  if (bodySha !== authority.source.body_sha256) {
+  const bodySha = createHash('sha256').update(sourceBody, 'utf8').digest('hex')
+  if (bodySha !== authoritySource.body_sha256) {
     return invalid(CAMPAIGN_DIAGNOSTIC_CODES.AUTHORITY_STALE, 'campaign expansion authority source comment body has changed')
   }
-  if (!/CAMPAIGN EXPANSION/i.test(source.body) || !/APPEND SLICES/i.test(source.body)) {
+  if (!/CAMPAIGN EXPANSION/i.test(sourceBody) || !/APPEND SLICES/i.test(sourceBody)) {
     return invalid(CAMPAIGN_DIAGNOSTIC_CODES.AUTHORITY_INVALID, 'campaign expansion authority source comment is not an expansion decision')
   }
   if (
     envelope.superseded === true ||
-    comments.some((comment) => String(comment?.id) !== authority.source.comment_id && commentSupersedes(comment, authority.source.comment_id))
+    comments.some((comment) => String(field(comment, 'id')) !== String(authoritySource.comment_id) && commentSupersedes(comment, String(authoritySource.comment_id)))
   ) {
     return invalid(CAMPAIGN_DIAGNOSTIC_CODES.AUTHORITY_STALE, 'campaign expansion authority source comment is superseded')
   }
@@ -213,49 +273,57 @@ export function verifyCampaignExpansionAuthority(authority, evidence = null) {
     return invalid(CAMPAIGN_DIAGNOSTIC_CODES.AUTHORITY_STALE, 'campaign expansion authority protected base is no longer current')
   }
 
-  for (const commentId of authority.related_authority_comment_ids) {
-    const related = comments.find((comment) => String(comment?.id) === commentId)
+  const relatedCommentIds = authority.related_authority_comment_ids
+  if (!Array.isArray(relatedCommentIds)) {
+    return invalid(CAMPAIGN_DIAGNOSTIC_CODES.AUTHORITY_INVALID, 'related_authority_comment_ids must be a non-empty array')
+  }
+  for (const commentId of relatedCommentIds) {
+    const related = comments.find((comment) => String(field(comment, 'id')) === String(commentId))
     if (!related) {
       return invalid(CAMPAIGN_DIAGNOSTIC_CODES.AUTHORITY_UNAVAILABLE, `related campaign authority comment ${commentId} is unavailable`, 'BLOCKED_EXTERNAL')
     }
-    if (commentAuthor(related) !== authority.source.author_login || commentIssueUrl(related) !== sourceIssueUrl) {
+    if (commentAuthor(related) !== authoritySource.author_login || commentIssueUrl(related) !== sourceIssueUrl) {
       return invalid(CAMPAIGN_DIAGNOSTIC_CODES.AUTHORITY_INVALID, `related campaign authority comment ${commentId} has mismatched provenance`)
     }
   }
 
-  return { valid: true, authority, maxSlice: authority.authorized_max_slice }
+  const authorizedMaxSlice = authority.authorized_max_slice
+  if (typeof authorizedMaxSlice !== 'number' || !Number.isInteger(authorizedMaxSlice)) {
+    return invalid(CAMPAIGN_DIAGNOSTIC_CODES.AUTHORITY_INVALID, 'campaign expansion authority must authorize a slice beyond the legacy maximum')
+  }
+  return { valid: true, authority, maxSlice: authorizedMaxSlice }
 }
 
-/** @param {unknown} authority @param {unknown} [evidence] */ export function validateCampaignExpansionAuthority(authority, evidence = null) {
+export function validateCampaignExpansionAuthority(authority: unknown, evidence: unknown = null): AuthorityValidationResult {
   if (authority == null) {
     return { valid: true, expanded: false, maxSlice: LEGACY_MAX_SLICE, authority: null }
   }
   const verified = verifyCampaignExpansionAuthority(authority, evidence)
-  if (!verified.valid) return verified
+  if (verified.valid !== true) return verified
   return { ...verified, expanded: true }
 }
 
-function copyWithout(value, keys) {
-  const copy = { ...(value ?? {}) }
+function copyWithout(value: unknown, keys: string[]): Mapping {
+  const copy = { ...(isMapping(value) ? value : {}) }
   for (const key of keys) delete copy[key]
   return copy
 }
 
-function sameExpansionRoot(left, right) {
+function sameExpansionRoot(left: Mapping, right: Mapping): boolean {
   const leftRoot = copyWithout(left, ['campaign_expansion_authority', 'root_script_map', 'slices', 'updated_at', 'updated_by'])
   const rightRoot = copyWithout(right, ['campaign_expansion_authority', 'root_script_map', 'slices', 'updated_at', 'updated_by'])
   if (!sameCampaignValue(leftRoot, rightRoot)) return false
 
-  const leftMap = copyWithout(left?.root_script_map, ['validation_status'])
-  const rightMap = copyWithout(right?.root_script_map, ['validation_status'])
+  const leftMap = copyWithout(field(left, 'root_script_map'), ['validation_status'])
+  const rightMap = copyWithout(field(right, 'root_script_map'), ['validation_status'])
   return sameCampaignValue(leftMap, rightMap)
 }
 
-function sameAuthority(left, right) {
+function sameAuthority(left: unknown, right: unknown): boolean {
   return sameCampaignValue(left ?? null, right ?? null)
 }
 
-function sameBlockerResolutionRoot(left, right) {
+function sameBlockerResolutionRoot(left: Mapping, right: Mapping): boolean {
   const leftRoot = copyWithout(left, [
     'campaign_blockers',
     'campaign_lifecycle',
@@ -276,28 +344,30 @@ function sameBlockerResolutionRoot(left, right) {
   ])
   if (!sameCampaignValue(leftRoot, rightRoot)) return false
 
-  const leftMap = copyWithout(left?.root_script_map, ['validation_status'])
-  const rightMap = copyWithout(right?.root_script_map, ['validation_status'])
+  const leftMap = copyWithout(field(left, 'root_script_map'), ['validation_status'])
+  const rightMap = copyWithout(field(right, 'root_script_map'), ['validation_status'])
   return sameCampaignValue(leftMap, rightMap)
 }
 
-function changedKeys(left, right, keys) {
-  return keys.filter((key) => !sameCampaignValue(left?.slices?.[key], right?.slices?.[key]))
+function changedKeys(left: Mapping, right: Mapping, keys: string[]): string[] {
+  return keys.filter((key) => !sameCampaignValue(sliceAt(left, key), sliceAt(right, key)))
 }
 
-function validateNewExpansionRows(campaign, keys) {
+function validateNewExpansionRows(campaign: Mapping, keys: string[]): TransitionResult {
   for (const key of keys) {
-    const slice = campaign.slices[key]
+    const slice = sliceAt(campaign, key)
+    const authorityCommentIds = field(slice, 'authority_comment_ids')
+    const blockerIds = field(slice, 'blocker_ids')
     if (
-      slice?.status !== 'NOT_STARTED' ||
-      slice.issue != null ||
-      slice.pr != null ||
-      slice.reviewed_head != null ||
-      slice.merged_commit != null ||
-      !Array.isArray(slice.authority_comment_ids) ||
-      slice.authority_comment_ids.length !== 0 ||
-      !Array.isArray(slice.blocker_ids) ||
-      slice.blocker_ids.length !== 0
+      field(slice, 'status') !== 'NOT_STARTED' ||
+      field(slice, 'issue') != null ||
+      field(slice, 'pr') != null ||
+      field(slice, 'reviewed_head') != null ||
+      field(slice, 'merged_commit') != null ||
+      !Array.isArray(authorityCommentIds) ||
+      authorityCommentIds.length !== 0 ||
+      !Array.isArray(blockerIds) ||
+      blockerIds.length !== 0
     ) {
       return invalid(CAMPAIGN_DIAGNOSTIC_CODES.EXPANSION_ROW_INVALID, `new campaign slice ${key} must be an empty NOT_STARTED row`)
     }
@@ -305,28 +375,30 @@ function validateNewExpansionRows(campaign, keys) {
   return { valid: true }
 }
 
-function validateExactBlockerRemoval(previous, next, blockerId) {
+function validateExactBlockerRemoval(previous: Mapping, next: Mapping, blockerId: unknown): TransitionResult {
   if (typeof blockerId !== 'string' || blockerId.length === 0) {
     return invalid(CAMPAIGN_DIAGNOSTIC_CODES.BLOCKER_BINDING_INVALID, 'blocker-resolution requires one exact blocker id')
   }
-  if (!Array.isArray(previous.campaign_blockers) || !Array.isArray(next.campaign_blockers)) {
+  const previousBlockers = field(previous, 'campaign_blockers')
+  const nextBlockers = field(next, 'campaign_blockers')
+  if (!Array.isArray(previousBlockers) || !Array.isArray(nextBlockers)) {
     return invalid(CAMPAIGN_DIAGNOSTIC_CODES.BLOCKER_BINDING_INVALID, 'campaign blocker bindings must be arrays')
   }
-  const matches = previous.campaign_blockers.filter((blocker) => blocker?.id === blockerId)
+  const matches = previousBlockers.filter((blocker) => field(blocker, 'id') === blockerId)
   if (matches.length !== 1) {
     return invalid(CAMPAIGN_DIAGNOSTIC_CODES.BLOCKER_BINDING_INVALID, `campaign blocker ${blockerId} is not bound exactly once`)
   }
-  const expected = previous.campaign_blockers.filter((blocker) => blocker?.id !== blockerId)
-  if (!sameCampaignValue(expected, next.campaign_blockers)) {
+  const expected = previousBlockers.filter((blocker) => field(blocker, 'id') !== blockerId)
+  if (!sameCampaignValue(expected, nextBlockers)) {
     return invalid(CAMPAIGN_DIAGNOSTIC_CODES.BLOCKER_BINDING_INVALID, 'blocker-resolution may remove only the exactly bound campaign blocker')
   }
   return { valid: true }
 }
 
-function validateBlockerResolutionSlices(previous, next, priorRange, blockerId) {
+function validateBlockerResolutionSlices(previous: Mapping, next: Mapping, priorRange: { keys: string[] }, blockerId: unknown): TransitionResult {
   for (const key of priorRange.keys) {
-    const priorSlice = previous.slices[key]
-    const nextSlice = next.slices[key]
+    const priorSlice = sliceAt(previous, key)
+    const nextSlice = sliceAt(next, key)
     if (!nextSlice) {
       return invalid(CAMPAIGN_DIAGNOSTIC_CODES.RANGE_RENUMBERED, `existing campaign slice ${key} cannot be replaced or removed`)
     }
@@ -334,7 +406,7 @@ function validateBlockerResolutionSlices(previous, next, priorRange, blockerId) 
     const priorWithoutBlockers = copyWithout(priorSlice, ['blocker_ids'])
     const nextWithoutBlockers = copyWithout(nextSlice, ['blocker_ids'])
     if (!sameCampaignValue(priorWithoutBlockers, nextWithoutBlockers)) {
-      if (priorSlice?.status !== nextSlice?.status) {
+      if (field(priorSlice, 'status') !== field(nextSlice, 'status')) {
         return invalid(
           CAMPAIGN_DIAGNOSTIC_CODES.BLOCKER_SLICE_STATUS_MUTATION,
           `blocker-resolution may not mutate campaign slice ${key} status`,
@@ -346,8 +418,10 @@ function validateBlockerResolutionSlices(previous, next, priorRange, blockerId) 
       )
     }
 
-    const priorBlockerIds = Array.isArray(priorSlice?.blocker_ids) ? priorSlice.blocker_ids : null
-    const nextBlockerIds = Array.isArray(nextSlice?.blocker_ids) ? nextSlice.blocker_ids : null
+    const priorBlockerIdsValue = field(priorSlice, 'blocker_ids')
+    const nextBlockerIdsValue = field(nextSlice, 'blocker_ids')
+    const priorBlockerIds = Array.isArray(priorBlockerIdsValue) ? priorBlockerIdsValue : null
+    const nextBlockerIds = Array.isArray(nextBlockerIdsValue) ? nextBlockerIdsValue : null
     const expectedBlockerIds = priorBlockerIds?.filter((id) => id !== blockerId) ?? null
     if (!sameCampaignValue(expectedBlockerIds, nextBlockerIds)) {
       return invalid(
@@ -359,7 +433,11 @@ function validateBlockerResolutionSlices(previous, next, priorRange, blockerId) 
   return { valid: true }
 }
 
-export function validateCampaignBlockerResolutionTransition(previous, next, options = {}) {
+export function validateCampaignBlockerResolutionTransition(
+  previous: unknown,
+  next: unknown,
+  options: TransitionOptions = {},
+): TransitionResult {
   if (!isMapping(previous) || !isMapping(next)) {
     return invalid(CAMPAIGN_DIAGNOSTIC_CODES.BLOCKER_BINDING_INVALID, 'blocker-resolution requires two campaign mappings')
   }
@@ -367,27 +445,27 @@ export function validateCampaignBlockerResolutionTransition(previous, next, opti
   const blockerRemoval = validateExactBlockerRemoval(previous, next, options.blockerId)
   if (!blockerRemoval.valid) return blockerRemoval
 
-  const priorRange = inspectSliceRange(previous.slices)
+  const priorRange = inspectSliceRange(field(previous, 'slices'))
   if (!priorRange.valid) return priorRange
-  const nextRange = inspectSliceRange(next.slices)
+  const nextRange = inspectSliceRange(field(next, 'slices'))
   if (!nextRange.valid) return nextRange
 
-  const nextAuthority = validateCampaignExpansionAuthority(next.campaign_expansion_authority, options.evidence ?? null)
+  const nextAuthority = validateCampaignExpansionAuthority(field(next, 'campaign_expansion_authority'), options.evidence ?? null)
   if (!nextAuthority.valid) return nextAuthority
-  const priorAuthority = validateCampaignExpansionAuthority(previous.campaign_expansion_authority, options.evidence ?? null)
+  const priorAuthority = validateCampaignExpansionAuthority(field(previous, 'campaign_expansion_authority'), options.evidence ?? null)
   if (!priorAuthority.valid) return priorAuthority
 
   if (!sameBlockerResolutionRoot(previous, next)) {
     return invalid(CAMPAIGN_DIAGNOSTIC_CODES.EXPANSION_ROOT_MUTATION, 'blocker-resolution may not mutate unrelated campaign root fields')
   }
   if (
-    previous.campaign_lifecycle !== next.campaign_lifecycle &&
-    !(previous.campaign_lifecycle === 'BLOCKED' && next.campaign_lifecycle === 'ACTIVE')
+    field(previous, 'campaign_lifecycle') !== field(next, 'campaign_lifecycle') &&
+    !(field(previous, 'campaign_lifecycle') === 'BLOCKED' && field(next, 'campaign_lifecycle') === 'ACTIVE')
   ) {
     return invalid(CAMPAIGN_DIAGNOSTIC_CODES.EXPANSION_ROOT_MUTATION, 'blocker-resolution may only clear the blocking campaign lifecycle')
   }
 
-  const missingPriorKeys = priorRange.keys.filter((key) => !Object.hasOwn(next.slices, key))
+  const missingPriorKeys = priorRange.keys.filter((key) => !hasSlice(next, key))
   if (missingPriorKeys.length > 0 || nextRange.maxSlice < priorRange.maxSlice) {
     return invalid(CAMPAIGN_DIAGNOSTIC_CODES.RANGE_SHRINK, 'blocker-resolution may not shrink or renumber campaign slices')
   }
@@ -395,7 +473,7 @@ export function validateCampaignBlockerResolutionTransition(previous, next, opti
   if (nextRange.maxSlice > LEGACY_MAX_SLICE && !nextAuthority.expanded) {
     return invalid(CAMPAIGN_DIAGNOSTIC_CODES.RANGE_UNAUTHORIZED, 'campaign slice range exceeds Founder-authorized maximum')
   }
-  if (priorRange.maxSlice > LEGACY_MAX_SLICE && !sameAuthority(previous.campaign_expansion_authority, next.campaign_expansion_authority)) {
+  if (priorRange.maxSlice > LEGACY_MAX_SLICE && !sameAuthority(field(previous, 'campaign_expansion_authority'), field(next, 'campaign_expansion_authority'))) {
     return invalid(CAMPAIGN_DIAGNOSTIC_CODES.AUTHORITY_INVALID, 'campaign expansion authority cannot change during blocker-resolution')
   }
 
@@ -409,24 +487,24 @@ export function validateCampaignBlockerResolutionTransition(previous, next, opti
       return invalid(CAMPAIGN_DIAGNOSTIC_CODES.RANGE_RENUMBERED, 'new campaign slice keys must be appended contiguously')
     }
     if (
-      previous.root_script_map?.validation_status === 'PENDING_IMPLEMENTATION' &&
-      next.root_script_map?.validation_status !== 'PENDING_EXPANDED_IMPLEMENTATION'
+      rootValidationStatus(previous) === 'PENDING_IMPLEMENTATION' &&
+      rootValidationStatus(next) !== 'PENDING_EXPANDED_IMPLEMENTATION'
     ) {
       return invalid(CAMPAIGN_DIAGNOSTIC_CODES.ROOT_SCRIPT_MAP_STATUS_INVALID, 'expanded campaign requires PENDING_EXPANDED_IMPLEMENTATION root status')
     }
     if (
-      previous.root_script_map?.validation_status !== 'PENDING_IMPLEMENTATION' &&
-      previous.root_script_map?.validation_status !== next.root_script_map?.validation_status
+      rootValidationStatus(previous) !== 'PENDING_IMPLEMENTATION' &&
+      rootValidationStatus(previous) !== rootValidationStatus(next)
     ) {
       return invalid(CAMPAIGN_DIAGNOSTIC_CODES.ROOT_SCRIPT_MAP_STATUS_INVALID, 'campaign root validation status may not change during blocker-resolution expansion')
     }
     const newRows = validateNewExpansionRows(next, actualNewKeys)
     if (!newRows.valid) return newRows
   } else {
-    if (!sameAuthority(previous.campaign_expansion_authority, next.campaign_expansion_authority)) {
+    if (!sameAuthority(field(previous, 'campaign_expansion_authority'), field(next, 'campaign_expansion_authority'))) {
       return invalid(CAMPAIGN_DIAGNOSTIC_CODES.AUTHORITY_INVALID, 'campaign expansion authority is immutable during blocker-resolution')
     }
-    if (previous.root_script_map?.validation_status !== next.root_script_map?.validation_status) {
+    if (rootValidationStatus(previous) !== rootValidationStatus(next)) {
       return invalid(CAMPAIGN_DIAGNOSTIC_CODES.ROOT_SCRIPT_MAP_STATUS_INVALID, 'campaign root validation status may not change during blocker-resolution')
     }
   }
@@ -434,7 +512,11 @@ export function validateCampaignBlockerResolutionTransition(previous, next, opti
   return validateBlockerResolutionSlices(previous, next, priorRange, options.blockerId)
 }
 
-export function validateCampaignTransition(previous, next, options = {}) {
+export function validateCampaignTransition(
+  previous: unknown,
+  next: unknown,
+  options: TransitionOptions = {},
+): TransitionResult {
   const mode = options.mode ?? 'lifecycle'
   if (!isMapping(previous) || !isMapping(next)) {
     return invalid(CAMPAIGN_DIAGNOSTIC_CODES.RANGE_RENUMBERED, 'campaign transition requires two campaign mappings')
@@ -444,10 +526,10 @@ export function validateCampaignTransition(previous, next, options = {}) {
     return validateCampaignBlockerResolutionTransition(previous, next, options)
   }
 
-  const priorRange = inspectSliceRange(previous.slices)
+  const priorRange = inspectSliceRange(field(previous, 'slices'))
   if (!priorRange.valid) return priorRange
 
-  const nextKeys = Object.keys(next.slices ?? {})
+  const nextKeys = objectKeys(field(next, 'slices'))
   const nextCanonicalKeys = nextKeys.filter((key) => isCanonicalSliceKey(key))
   const nextRawMax = nextCanonicalKeys.length === 0 ? 0 : Math.max(...nextCanonicalKeys.map(Number))
   if (nextCanonicalKeys.length === nextKeys.length && nextRawMax < priorRange.maxSlice) {
@@ -457,12 +539,12 @@ export function validateCampaignTransition(previous, next, options = {}) {
   if (missingPriorKeys.length > 0) {
     return invalid(CAMPAIGN_DIAGNOSTIC_CODES.RANGE_RENUMBERED, 'existing campaign slice keys cannot be renumbered or replaced')
   }
-  const nextRange = inspectSliceRange(next.slices)
+  const nextRange = inspectSliceRange(field(next, 'slices'))
   if (!nextRange.valid) return nextRange
 
-  const nextAuthority = validateCampaignExpansionAuthority(next.campaign_expansion_authority, options.evidence ?? null)
+  const nextAuthority = validateCampaignExpansionAuthority(field(next, 'campaign_expansion_authority'), options.evidence ?? null)
   if (!nextAuthority.valid) return nextAuthority
-  const priorAuthority = validateCampaignExpansionAuthority(previous.campaign_expansion_authority, options.evidence ?? null)
+  const priorAuthority = validateCampaignExpansionAuthority(field(previous, 'campaign_expansion_authority'), options.evidence ?? null)
   if (!priorAuthority.valid) return priorAuthority
 
   if (nextRange.maxSlice > LEGACY_MAX_SLICE && !nextAuthority.expanded) {
@@ -476,7 +558,7 @@ export function validateCampaignTransition(previous, next, options = {}) {
     if (!nextAuthority.expanded || nextRange.maxSlice > nextAuthority.maxSlice) {
       return invalid(CAMPAIGN_DIAGNOSTIC_CODES.RANGE_UNAUTHORIZED, 'campaign slice range exceeds Founder-authorized maximum')
     }
-    if (priorRange.maxSlice > LEGACY_MAX_SLICE && !sameAuthority(previous.campaign_expansion_authority, next.campaign_expansion_authority)) {
+    if (priorRange.maxSlice > LEGACY_MAX_SLICE && !sameAuthority(field(previous, 'campaign_expansion_authority'), field(next, 'campaign_expansion_authority'))) {
       return invalid(CAMPAIGN_DIAGNOSTIC_CODES.AUTHORITY_INVALID, 'campaign expansion authority cannot change during append-only expansion')
     }
     const expectedNewKeys = expectedSliceKeys(nextRange.maxSlice).slice(priorRange.maxSlice)
@@ -488,20 +570,20 @@ export function validateCampaignTransition(previous, next, options = {}) {
       return invalid(CAMPAIGN_DIAGNOSTIC_CODES.EXPANSION_ROOT_MUTATION, 'campaign expansion may not mutate unrelated root fields')
     }
     if (
-      previous.root_script_map?.validation_status === 'PENDING_IMPLEMENTATION' &&
-      next.root_script_map?.validation_status !== 'PENDING_EXPANDED_IMPLEMENTATION'
+      rootValidationStatus(previous) === 'PENDING_IMPLEMENTATION' &&
+      rootValidationStatus(next) !== 'PENDING_EXPANDED_IMPLEMENTATION'
     ) {
       return invalid(CAMPAIGN_DIAGNOSTIC_CODES.ROOT_SCRIPT_MAP_STATUS_INVALID, 'expanded campaign requires PENDING_EXPANDED_IMPLEMENTATION root status')
     }
     if (
-      previous.root_script_map?.validation_status !== 'PENDING_IMPLEMENTATION' &&
-      previous.root_script_map?.validation_status !== next.root_script_map?.validation_status
+      rootValidationStatus(previous) !== 'PENDING_IMPLEMENTATION' &&
+      rootValidationStatus(previous) !== rootValidationStatus(next)
     ) {
       return invalid(CAMPAIGN_DIAGNOSTIC_CODES.ROOT_SCRIPT_MAP_STATUS_INVALID, 'campaign root validation status may not change during append-only expansion')
     }
     for (const key of priorRange.keys) {
-      if (!sameCampaignValue(previous.slices[key], next.slices[key])) {
-        if (previous.slices[key]?.status === 'DONE') {
+      if (!sameCampaignValue(sliceAt(previous, key), sliceAt(next, key))) {
+        if (field(sliceAt(previous, key), 'status') === 'DONE') {
           return invalid(CAMPAIGN_DIAGNOSTIC_CODES.COMPLETED_SLICE_MUTATION, `completed campaign slice ${key} cannot be changed`)
         }
         return invalid(CAMPAIGN_DIAGNOSTIC_CODES.RANGE_RENUMBERED, `existing campaign slice ${key} cannot be replaced during expansion`)
@@ -516,7 +598,7 @@ export function validateCampaignTransition(previous, next, options = {}) {
   if (nextRange.maxSlice !== priorRange.maxSlice) {
     return invalid(CAMPAIGN_DIAGNOSTIC_CODES.RANGE_UNAUTHORIZED, 'lifecycle transition may not expand the campaign slice range')
   }
-  if (!sameAuthority(previous.campaign_expansion_authority, next.campaign_expansion_authority)) {
+  if (!sameAuthority(field(previous, 'campaign_expansion_authority'), field(next, 'campaign_expansion_authority'))) {
     return invalid(CAMPAIGN_DIAGNOSTIC_CODES.AUTHORITY_INVALID, 'campaign expansion authority is immutable during lifecycle projection')
   }
   if (!sameExpansionRoot(previous, next)) {
@@ -529,16 +611,17 @@ export function validateCampaignTransition(previous, next, options = {}) {
   if (!targetSlice || differing.length !== 1 || differing[0] !== targetSlice) {
     return invalid(CAMPAIGN_DIAGNOSTIC_CODES.RANGE_RENUMBERED, 'lifecycle projection may update only one selected campaign slice')
   }
-  if (previous.slices[targetSlice]?.status === 'DONE') {
+  if (field(sliceAt(previous, targetSlice), 'status') === 'DONE') {
     return invalid(CAMPAIGN_DIAGNOSTIC_CODES.COMPLETED_SLICE_MUTATION, `completed campaign slice ${targetSlice} cannot be changed`)
   }
   return { valid: true }
 }
 
-export function selectNextCampaignAction(campaign) {
-  const range = inspectSliceRange(campaign?.slices)
+export function selectNextCampaignAction(campaign: unknown): { slice: string | null; action: string; started: false } {
+  const slices = field(campaign, 'slices')
+  const range = inspectSliceRange(slices)
   if (!range.valid) return { slice: null, action: 'none on this campaign', started: false }
-  const next = range.keys.find((key) => campaign.slices[key]?.status === 'NOT_STARTED')
+  const next = range.keys.find((key) => field(isMapping(slices) ? slices[key] : undefined, 'status') === 'NOT_STARTED')
   return {
     slice: next ?? null,
     action: next ? `Campaign slice ${next} is selected for a future bounded action.` : 'none on this campaign',

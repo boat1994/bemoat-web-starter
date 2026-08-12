@@ -10,7 +10,7 @@ import {
 import {
   CAMPAIGN_DIAGNOSTIC_CODES as AUTHORITY_DIAGNOSTIC_CODES,
   inspectSliceRange,
-} from './campaign-authority.mjs'
+} from './campaign-authority.ts'
 import {
   normalizeFacadeDisposition,
   normalizeMigrationStatus,
