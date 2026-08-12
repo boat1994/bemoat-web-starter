@@ -13,12 +13,21 @@ import { parseCampaign } from './campaign-parser.ts'
 const CAMPAIGN_BLOCK_RE =
   /<!--\s*bemoat-mission-control-campaign:start\s*-->[\s\S]*?<!--\s*bemoat-mission-control-campaign:end\s*-->/
 
-/**
- * Deterministically render a campaign block. Known keys first; slices in numeric order.
- * @param {Record<string, unknown>} campaign
- * @returns {string}
- */
-export function renderCampaign(campaign) {
+type CampaignMap = Record<string, unknown>
+
+export type CampaignReplacementResult = {
+  body: string
+  replaced: boolean
+  appended: boolean
+  unchanged: boolean
+}
+
+function isRecord(value: unknown): value is CampaignMap {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+/** Deterministically render a campaign block. Known keys first; slices in numeric order. */
+export function renderCampaign(campaign: CampaignMap): string {
   const orderedKeys = [
     'schema_version',
     'campaign_issue',
@@ -34,19 +43,20 @@ export function renderCampaign(campaign) {
     'updated_by',
   ]
 
-  const ordered = {}
+  const ordered: CampaignMap = {}
   for (const key of orderedKeys) {
     if (!Object.hasOwn(campaign, key)) continue
-    if (key === 'slices' && campaign.slices && typeof campaign.slices === 'object') {
-      const orderedSlices = {}
-      for (const sliceKey of sortedSliceKeys(campaign.slices)) {
-        if (Object.hasOwn(campaign.slices, sliceKey)) {
-          orderedSlices[sliceKey] = campaign.slices[sliceKey]
+    const slices = campaign.slices
+    if (key === 'slices' && isRecord(slices)) {
+      const orderedSlices: CampaignMap = {}
+      for (const sliceKey of sortedSliceKeys(slices)) {
+        if (Object.hasOwn(slices, sliceKey)) {
+          orderedSlices[sliceKey] = slices[sliceKey]
         }
       }
-      for (const extraKey of Object.keys(campaign.slices)) {
+      for (const extraKey of Object.keys(slices)) {
         if (!Object.hasOwn(orderedSlices, extraKey)) {
-          orderedSlices[extraKey] = campaign.slices[extraKey]
+          orderedSlices[extraKey] = slices[extraKey]
         }
       }
       ordered.slices = orderedSlices
@@ -69,17 +79,15 @@ export function renderCampaign(campaign) {
   ].join('\n')
 }
 
-/**
- * Replace an existing campaign block, or append one when absent.
- * Touches only campaign-marker bytes (or appends). Task/unrelated bytes stay intact.
- * @param {string} body
- * @param {Record<string, unknown>} campaign
- * @returns {{ body: string, replaced: boolean, appended: boolean, unchanged: boolean }}
- */
-export function replaceCampaignBlock(body, campaign, options = {}) {
+/** Replace an existing campaign block, or append one when absent. */
+export function replaceCampaignBlock(
+  body: unknown,
+  campaign: CampaignMap,
+  optionsInput: unknown = {},
+): CampaignReplacementResult {
   const nextBlock = renderCampaign(campaign)
   const text = String(body ?? '')
-  const existing = parseCampaign(text, options)
+  const existing = parseCampaign(text, optionsInput)
 
   if (existing.present && !existing.valid) {
     throw new Error(`cannot replace invalid campaign block: ${existing.reason ?? 'invalid'}`)
@@ -91,7 +99,6 @@ export function replaceCampaignBlock(body, campaign, options = {}) {
     return { body: appended, replaced: false, appended: true, unchanged: false }
   }
 
-  // Reset lastIndex because the regex is stateful with /g-like behavior via test().
   CAMPAIGN_BLOCK_RE.lastIndex = 0
   const currentBlock = text.match(CAMPAIGN_BLOCK_RE)?.[0] ?? null
   if (currentBlock === nextBlock) {
@@ -99,7 +106,6 @@ export function replaceCampaignBlock(body, campaign, options = {}) {
   }
 
   if (existing.valid && sameCampaignValue(existing.campaign, campaign)) {
-    // Semantic no-op even if whitespace differs: keep prior bytes for idempotency.
     return { body: text, replaced: false, appended: false, unchanged: true }
   }
 

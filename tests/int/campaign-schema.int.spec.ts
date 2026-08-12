@@ -12,7 +12,7 @@ import {
   validateCampaignTransition,
 } from '../../scripts/mission-control/domain/campaign-authority.mjs'
 import { parseCampaign } from '../../scripts/mission-control/domain/campaign-parser.ts'
-import { renderCampaign, replaceCampaignBlock } from '../../scripts/mission-control/domain/campaign-renderer.mjs'
+import { renderCampaign, replaceCampaignBlock } from '../../scripts/mission-control/domain/campaign-renderer.ts'
 import {
   validateCampaign,
   validateRootScriptMappingRecord,

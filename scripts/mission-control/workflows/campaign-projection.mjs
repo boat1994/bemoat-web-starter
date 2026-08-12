@@ -7,7 +7,7 @@
 import { sameCampaignValue } from '../domain/campaign-equality.ts'
 import { validateCampaignTransition } from '../domain/campaign-authority.mjs'
 import { parseCampaign } from '../domain/campaign-parser.ts'
-import { renderCampaign, replaceCampaignBlock } from '../domain/campaign-renderer.mjs'
+import { renderCampaign, replaceCampaignBlock } from '../domain/campaign-renderer.ts'
 import { validateCampaign } from '../domain/campaign-validator.ts'
 
 /**
