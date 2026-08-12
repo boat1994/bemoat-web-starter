@@ -10,7 +10,7 @@ import {
   CAMPAIGN_MARKER_START_RE,
   TASK_MARKER_END_RE,
   TASK_MARKER_START_RE,
-} from './campaign-enums.mjs'
+} from './campaign-enums.ts'
 import { CAMPAIGN_DIAGNOSTIC_CODES } from './campaign-authority.mjs'
 import { validateCampaign } from './campaign-validator.mjs'
 

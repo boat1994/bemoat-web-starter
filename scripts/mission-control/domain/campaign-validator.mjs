@@ -8,7 +8,7 @@ import {
   FULL_COMMIT_SHA,
   INTERNAL_DESTINATION_PREFIXES,
   SLICE_REQUIRED_KEYS,
-} from './campaign-enums.mjs'
+} from './campaign-enums.ts'
 import {
   CAMPAIGN_DIAGNOSTIC_CODES as AUTHORITY_DIAGNOSTIC_CODES,
   inspectSliceRange,
