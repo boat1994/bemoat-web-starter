@@ -8,7 +8,7 @@ import { sameCampaignValue } from '../domain/campaign-equality.mjs'
 import { validateCampaignTransition } from '../domain/campaign-authority.mjs'
 import { parseCampaign } from '../domain/campaign-parser.mjs'
 import { renderCampaign, replaceCampaignBlock } from '../domain/campaign-renderer.mjs'
-import { validateCampaign } from '../domain/campaign-validator.mjs'
+import { validateCampaign } from '../domain/campaign-validator.ts'
 
 /**
  * @param {{

@@ -16,7 +16,16 @@ import { renderCampaign, replaceCampaignBlock } from '../../scripts/mission-cont
 import {
   validateCampaign,
   validateRootScriptMappingRecord,
-} from '../../scripts/mission-control/domain/campaign-validator.mjs'
+} from '../../scripts/mission-control/domain/campaign-validator.ts'
+import {
+  campaignAuthorityEvidenceSchema,
+  campaignBlockerSchema,
+  campaignBoundarySchema,
+  campaignExpansionAuthoritySchema,
+  rootScriptMapSchema,
+  sliceSchema,
+  slicesSchema,
+} from '../../scripts/mission-control/domain/campaign-validator-schemas.ts'
 import { projectCampaign } from '../../scripts/mission-control/workflows/campaign-projection.mjs'
 
 const fixtureRoot = 'tests/fixtures/mission-control/campaign'
@@ -119,6 +128,147 @@ function withIssue254Blocker(campaign: Record<string, unknown>): Record<string, 
   slices['5'].blocker_ids = [issue254BlockerId]
   return next
 }
+
+describe('campaign validator Zod runtime boundary', () => {
+  it('exposes field-level schemas while preserving arbitrary campaign fields', async () => {
+    const { campaignBoundarySchema } = await import(
+      '../../scripts/mission-control/domain/campaign-validator.ts'
+    )
+    expect(typeof campaignBoundarySchema?.safeParse).toBe('function')
+    if (typeof campaignBoundarySchema?.safeParse !== 'function') return
+
+    const parsed = campaignBoundarySchema.safeParse({
+      ...loadExactCampaignFixture(),
+      custom_campaign_field: { preserve: true },
+    })
+
+    expect(parsed.success).toBe(true)
+    if (!parsed.success) return
+    expect(parsed.data.custom_campaign_field).toEqual({ preserve: true })
+    expect(parsed.data.slices).toBeDefined()
+    expect(parsed.data.root_script_map).toBeDefined()
+  })
+
+  it('rejects malformed nested runtime containers at the Zod boundary', async () => {
+    const {
+      campaignBlockersSchema,
+      campaignAuthorityEvidenceSchema,
+      campaignBoundarySchema,
+      campaignEvidenceSchema,
+      campaignExpansionAuthoritySchema,
+      slicesSchema,
+    } = await import('../../scripts/mission-control/domain/campaign-validator.ts')
+    expect(typeof campaignBoundarySchema?.safeParse).toBe('function')
+    expect(typeof campaignBlockersSchema?.safeParse).toBe('function')
+    expect(typeof campaignAuthorityEvidenceSchema?.safeParse).toBe('function')
+    expect(typeof campaignEvidenceSchema?.safeParse).toBe('function')
+    expect(typeof campaignExpansionAuthoritySchema?.safeParse).toBe('function')
+    expect(typeof slicesSchema?.safeParse).toBe('function')
+    if (
+      typeof campaignBoundarySchema?.safeParse !== 'function' ||
+      typeof campaignBlockersSchema?.safeParse !== 'function' ||
+      typeof campaignAuthorityEvidenceSchema?.safeParse !== 'function' ||
+      typeof campaignEvidenceSchema?.safeParse !== 'function' ||
+      typeof campaignExpansionAuthoritySchema?.safeParse !== 'function' ||
+      typeof slicesSchema?.safeParse !== 'function'
+    ) return
+
+    expect(slicesSchema.safeParse([]).success).toBe(false)
+    expect(campaignBlockersSchema.safeParse({}).success).toBe(false)
+    expect(campaignAuthorityEvidenceSchema.safeParse([]).success).toBe(false)
+    expect(campaignEvidenceSchema.safeParse([]).success).toBe(false)
+    expect(campaignExpansionAuthoritySchema.safeParse([]).success).toBe(false)
+  })
+
+  it('rejects malformed known nested field shapes before semantic validation', () => {
+    const campaign = loadExactCampaignFixture()
+    expect(campaignBoundarySchema.safeParse({ ...campaign, slices: [] }).success).toBe(false)
+    expect(slicesSchema.safeParse({ '1': { status: {} } }).success).toBe(false)
+    expect(campaignBlockerSchema.safeParse({ id: {} }).success).toBe(false)
+    expect(rootScriptMapSchema.safeParse({ contract_path: {} }).success).toBe(false)
+
+    const expanded = loadExpandedCampaignFixture()
+    expect(campaignExpansionAuthoritySchema.safeParse({
+      ...(expanded.campaign_expansion_authority as Record<string, unknown>),
+      source: {
+        ...((expanded.campaign_expansion_authority as Record<string, unknown>).source as Record<string, unknown>),
+        comment_id: {},
+      },
+    }).success).toBe(false)
+    expect(campaignAuthorityEvidenceSchema.safeParse({
+      campaignExpansionAuthority: { trustedFounderLogins: {} },
+    }).success).toBe(false)
+    expect(sliceSchema.safeParse({ status: {} }).success).toBe(false)
+  })
+
+  it('maps malformed nested shapes to the pre-migration canonical results', () => {
+    const slicesArray = loadExactCampaignFixture({ slices: [] })
+    expect(validateCampaign(slicesArray)).toEqual({
+      valid: false,
+      reason: 'slices must be a mapping',
+      classification: 'STATE_CONFLICT',
+      campaign: null,
+    })
+
+    const malformedSlice = loadExactCampaignFixture()
+    ;(malformedSlice.slices as Record<string, Record<string, unknown>>)['1'].status = {}
+    expect(validateCampaign(malformedSlice)).toEqual({
+      valid: false,
+      reason: 'slice 1: slice status is invalid',
+      classification: 'STATE_CONFLICT',
+      campaign: null,
+    })
+
+    const malformedBlocker = loadExactCampaignFixture({
+      campaign_blockers: [{
+        id: {},
+        summary: 'blocked',
+        evidence: { issue: '#215', comment_ids: [] },
+        resolution_scope: 'bounded',
+      }],
+    })
+    expect(validateCampaign(malformedBlocker)).toEqual({
+      valid: false,
+      reason: 'campaign blocker id is required',
+      campaign: null,
+    })
+
+    const malformedRootMap = loadExactCampaignFixture({
+      root_script_map: { contract_path: {}, validation_status: 'PENDING_IMPLEMENTATION' },
+    })
+    expect(validateCampaign(malformedRootMap)).toEqual({
+      valid: false,
+      reason: 'root_script_map.contract_path must be scripts/architecture-contract.json',
+      classification: 'STATE_CONFLICT',
+      campaign: null,
+    })
+
+    const malformedAuthority = loadExpandedCampaignFixture()
+    const authority = malformedAuthority.campaign_expansion_authority as Record<string, unknown>
+    malformedAuthority.campaign_expansion_authority = {
+      ...authority,
+      source: { ...(authority.source as Record<string, unknown>), comment_id: {} },
+    }
+    expect(validateCampaign(malformedAuthority, { evidence: campaignAuthorityEvidence() })).toEqual({
+      valid: false,
+      code: 'CAMPAIGN_AUTHORITY_INVALID',
+      reason: 'campaign expansion authority source provenance is invalid',
+      classification: 'STATE_CONFLICT',
+      campaign: null,
+    })
+
+    const malformedEvidence = loadExpandedCampaignFixture()
+    const evidence = campaignAuthorityEvidence()
+    ;(evidence.campaignExpansionAuthority as Record<string, unknown>).trustedFounderLogins = {}
+    expect(validateCampaign(malformedEvidence, { evidence })).toEqual({
+      valid: false,
+      code: 'CAMPAIGN_AUTHORITY_UNAVAILABLE',
+      reason: 'required live campaign expansion authority evidence is unavailable',
+      classification: 'BLOCKED_EXTERNAL',
+      campaign: null,
+    })
+  })
+})
 
 describe('campaign schema characterization (Issue #243)', () => {
   it('captures exact Issue #215 body and task schema v1 block as byte fixtures', () => {
@@ -283,7 +433,9 @@ describe('campaign schema v1 domain', () => {
       expect(result).toEqual({ valid: false, reason, campaign: null })
       return
     }
-    if (_label === 'non-string campaign issue') campaign.campaign_issue = value.value
+    if (_label === 'non-string campaign issue' && typeof value === 'object' && value !== null && 'value' in value) {
+      campaign.campaign_issue = value.value
+    }
     if (_label === 'invalid lifecycle') campaign.campaign_lifecycle = value
     if (_label === 'invalid slice status') (campaign.slices as Record<string, Record<string, unknown>>)['1'].status = value
     if (_label === 'invalid full SHA') (campaign.slices as Record<string, Record<string, unknown>>)['1'].reviewed_head = value

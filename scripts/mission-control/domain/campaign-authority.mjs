@@ -226,7 +226,7 @@ export function verifyCampaignExpansionAuthority(authority, evidence = null) {
   return { valid: true, authority, maxSlice: authority.authorized_max_slice }
 }
 
-export function validateCampaignExpansionAuthority(authority, evidence = null) {
+/** @param {unknown} authority @param {unknown} [evidence] */ export function validateCampaignExpansionAuthority(authority, evidence = null) {
   if (authority == null) {
     return { valid: true, expanded: false, maxSlice: LEGACY_MAX_SLICE, authority: null }
   }
