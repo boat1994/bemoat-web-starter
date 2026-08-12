@@ -141,7 +141,7 @@
       "facade_disposition": "composition_root",
       "internal_destination": "scripts/mission-control/workflows/dispatch.mjs",
       "owning_slice": 5,
-      "migration_status": "planned"
+      "migration_status": "migrated"
     },
     {
       "path": "scripts/mission-control-merge.mjs",
