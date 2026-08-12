@@ -13,7 +13,10 @@ import {
 } from '../../scripts/mission-control/domain/campaign-authority.mjs'
 import { parseCampaign } from '../../scripts/mission-control/domain/campaign-parser.mjs'
 import { renderCampaign, replaceCampaignBlock } from '../../scripts/mission-control/domain/campaign-renderer.mjs'
-import { validateCampaign } from '../../scripts/mission-control/domain/campaign-validator.mjs'
+import {
+  validateCampaign,
+  validateRootScriptMappingRecord,
+} from '../../scripts/mission-control/domain/campaign-validator.mjs'
 import { projectCampaign } from '../../scripts/mission-control/workflows/campaign-projection.mjs'
 
 const fixtureRoot = 'tests/fixtures/mission-control/campaign'
@@ -183,6 +186,117 @@ describe('campaign schema characterization (Issue #243)', () => {
 })
 
 describe('campaign schema v1 domain', () => {
+  it('preserves custom fields at the root, slice, and root_script_map without mutation', () => {
+    const campaign = loadExactCampaignFixture()
+    campaign.custom_root = { source: 'characterization' }
+    ;(campaign.slices as Record<string, Record<string, unknown>>)['1'].custom_slice = ['kept']
+    ;(campaign.root_script_map as Record<string, unknown>).custom_mapping = { kept: true }
+    const before = structuredClone(campaign)
+
+    const result = validateCampaign(campaign, {
+      evidence: {
+        approvedBaseMergedCommits: {
+          '5d04124cb135ffc66642dc4a168c58062af384ed': true,
+        },
+      },
+    })
+
+    expect(result).toMatchObject({ valid: true })
+    expect(result.campaign?.custom_root).toEqual({ source: 'characterization' })
+    expect((result.campaign?.slices as Record<string, Record<string, unknown>>)['1'].custom_slice).toEqual(['kept'])
+    expect((result.campaign?.root_script_map as Record<string, unknown>).custom_mapping).toEqual({ kept: true })
+    expect(campaign).toEqual(before)
+  })
+
+  it('filters root script mapping records to the canonical output fields', () => {
+    const result = validateRootScriptMappingRecord({
+      path: 'scripts/example.mjs',
+      facade_disposition: 'stable_facade',
+      internal_destination: 'scripts/mission-control/example.mjs',
+      owning_slice: 1,
+      migration_status: 'migrated',
+      custom_field: 'discarded',
+    })
+
+    expect(result).toEqual({
+      valid: true,
+      record: {
+        path: 'scripts/example.mjs',
+        facade_disposition: 'stable_facade',
+        internal_destination: 'scripts/mission-control/example.mjs',
+        owning_slice: 1,
+        migration_status: 'migrated',
+      },
+    })
+  })
+
+  it('distinguishes missing required keys from present null values', () => {
+    for (const key of [
+      'schema_version',
+      'campaign_issue',
+      'campaign_lifecycle',
+      'approved_base',
+      'architecture_authority',
+      'slices',
+      'root_script_map',
+      'campaign_blockers',
+      'next_permitted_action',
+      'updated_at',
+      'updated_by',
+    ]) {
+      const missing = loadExactCampaignFixture()
+      delete missing[key]
+      expect(validateCampaign(missing)).toMatchObject({ valid: false, campaign: null })
+      expect(validateCampaign(missing).reason).toContain(`missing required campaign key(s): ${key}`)
+
+      const nullable = loadExactCampaignFixture({ [key]: null })
+      expect(validateCampaign(nullable)).toMatchObject({ valid: false, campaign: null })
+      expect(validateCampaign(nullable).reason).not.toContain('missing required campaign key(s)')
+    }
+  })
+
+  it('freezes the exact valid and invalid result shapes at the validator boundary', () => {
+    const valid = validateCampaign(loadExactCampaignFixture())
+    expect(Object.keys(valid).sort()).toEqual(['campaign', 'valid'])
+    expect(valid.valid).toBe(true)
+
+    const invalid = validateCampaign(loadExactCampaignFixture({ schema_version: 99 }))
+    expect(invalid).toEqual({
+      valid: false,
+      reason: 'unsupported campaign schema_version',
+      classification: 'STATE_MIGRATION_REQUIRED',
+      campaign: null,
+    })
+  })
+
+  it.each([
+    ['non-mapping root', [] as unknown, 'campaign root must be a mapping', undefined, 'STATE_CONFLICT'],
+    ['non-string campaign issue', { value: 215 }, 'campaign_issue is required', undefined, undefined],
+    ['invalid lifecycle', 'UNKNOWN', 'campaign_lifecycle must be PLANNING, ACTIVE, BLOCKED, or COMPLETE', undefined, undefined],
+    ['invalid slice status', 'UNKNOWN', 'slice status is invalid', undefined, 'STATE_CONFLICT'],
+    ['invalid full SHA', 'not-a-sha', 'commit sha must be null or an exact full commit SHA', undefined, 'STATE_CONFLICT'],
+    ['invalid root map status', 'UNKNOWN', 'root_script_map.validation_status must be', 'CAMPAIGN_ROOT_SCRIPT_MAP_STATUS_INVALID', 'STATE_CONFLICT'],
+  ])('rejects representative invalid boundary value: %s', (_label, value, reason, code, classification) => {
+    const campaign = loadExactCampaignFixture()
+    if (_label === 'non-mapping root') {
+      const result = validateCampaign(value)
+      expect(result).toEqual({ valid: false, reason, campaign: null })
+      return
+    }
+    if (_label === 'non-string campaign issue') campaign.campaign_issue = value.value
+    if (_label === 'invalid lifecycle') campaign.campaign_lifecycle = value
+    if (_label === 'invalid slice status') (campaign.slices as Record<string, Record<string, unknown>>)['1'].status = value
+    if (_label === 'invalid full SHA') (campaign.slices as Record<string, Record<string, unknown>>)['1'].reviewed_head = value
+    if (_label === 'invalid root map status') (campaign.root_script_map as Record<string, unknown>).validation_status = value
+
+    const result = validateCampaign(campaign)
+    expect(result.valid).toBe(false)
+    expect(result.campaign).toBeNull()
+    expect(result.reason).toContain(reason)
+    if (code) expect(result.code).toBe(code)
+    if (classification) expect(result.classification).toBe(classification)
+  })
+
   it('parses, validates, and deterministically renders the exact Issue #215 campaign fixture', () => {
     const campaign = loadExactCampaignFixture()
     const validated = validateCampaign(campaign, {
