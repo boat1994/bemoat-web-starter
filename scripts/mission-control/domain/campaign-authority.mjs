@@ -6,7 +6,7 @@
 import { createHash } from 'node:crypto'
 
 import { FULL_COMMIT_SHA } from './campaign-enums.ts'
-import { sameCampaignValue } from './campaign-equality.mjs'
+import { sameCampaignValue } from './campaign-equality.ts'
 
 export const LEGACY_MAX_SLICE = 7
 export const CAMPAIGN_EXPANSION_POLICY_VERSION = '1.3.0'

@@ -1,7 +1,7 @@
 import { resolveIssueNumber, resolvePrNumber } from '../../agent-issue/issue-references.mjs'
 
 import { expectedSliceKeys } from './campaign-authority.mjs'
-import { sameCampaignValue } from './campaign-equality.mjs'
+import { sameCampaignValue } from './campaign-equality.ts'
 import { validateNextAction } from './merge-next-action.mjs'
 
 const BLOCKER_RESOLUTION_MAX_SLICE = 11
