@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import { mergeCommitOid } from '../../scripts/mission-control/domain/merge-commit-oid.mjs'
-import { normalizePaginatedCommitMessages } from '../../scripts/mission-control/domain/merge-commit-messages.mjs'
+import { mergeCommitOid } from '../../scripts/mission-control/domain/merge-commit-oid.ts'
+import { normalizePaginatedCommitMessages } from '../../scripts/mission-control/domain/merge-commit-messages.ts'
 import { renderFinalResultBody } from '../../scripts/mission-control/domain/merge-final-result.mjs'
 import { normalizeIssueNumber, normalizePrNumber } from '../../scripts/mission-control/domain/merge-issue-references.ts'
 import { resultCommentId } from '../../scripts/mission-control/domain/merge-result-comment-id.ts'

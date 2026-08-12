@@ -23,7 +23,7 @@ import {
   parseProductionMergeReviewVerdict,
   resolveMergeReviewVerdictBinding,
 } from '../domain/merge-review-verdict.mjs'
-import { normalizePaginatedCommitMessages } from '../domain/merge-commit-messages.mjs'
+import { normalizePaginatedCommitMessages } from '../domain/merge-commit-messages.ts'
 import { classifyHeadBindings } from '../domain/merge-head-bindings.mjs'
 import { classifyMergeability } from '../domain/merge-mergeability.mjs'
 import { classifyNoAutomaticClosure } from '../domain/merge-no-automatic-closure.mjs'
@@ -45,7 +45,7 @@ import {
 import { projectTaskDoneState } from '../domain/merge-task-done-projection.ts'
 import { validateDirectOwnership } from '../domain/merge-direct-ownership.mjs'
 import { commentSupersedesId } from '../domain/merge-comment-supersession.mjs'
-import { mergeCommitOid } from '../domain/merge-commit-oid.mjs'
+import { mergeCommitOid } from '../domain/merge-commit-oid.ts'
 import { normalizeIssueReason, normalizeIssueState } from '../domain/merge-issue-state.ts'
 import { parseMergeCliArgs } from '../domain/merge-cli-args.mjs'
 import {
