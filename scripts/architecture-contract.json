@@ -197,7 +197,7 @@
       "facade_disposition": "composition_root",
       "internal_destination": "scripts/mission-control/workflows/post-role-comment.mjs",
       "owning_slice": 5,
-      "migration_status": "planned"
+      "migration_status": "migrated"
     },
     {
       "path": "scripts/sync-boilerplate.mjs",
