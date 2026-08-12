@@ -11,7 +11,7 @@ import {
   validateCampaignTransition,
 } from '../domain/campaign-authority.mjs'
 import { sameCampaignValue } from '../domain/campaign-equality.mjs'
-import { parseCampaign } from '../domain/campaign-parser.mjs'
+import { parseCampaign } from '../domain/campaign-parser.ts'
 import { replaceCampaignBlock } from '../domain/campaign-renderer.mjs'
 import { preflightCanonicalBootstrapTask } from '../domain/task-bootstrap-preflight.mjs'
 import {

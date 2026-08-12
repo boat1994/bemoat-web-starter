@@ -13,12 +13,18 @@ import {
 } from './campaign-enums.ts'
 import { CAMPAIGN_DIAGNOSTIC_CODES } from './campaign-authority.mjs'
 import { validateCampaign } from './campaign-validator.ts'
+import type { CampaignInput } from './campaign-validator-schemas.ts'
 
-/**
- * @param {string} body
- * @returns {{ present: boolean, valid: boolean, reason?: string, code?: string, classification?: string, campaign: Record<string, unknown> | null }}
- */
-export function parseCampaign(body = '', options = {}) {
+export type CampaignParseResult = {
+  present: boolean
+  valid: boolean
+  reason?: string
+  code?: string
+  classification?: string
+  campaign: CampaignInput | null
+}
+
+export function parseCampaign(body: unknown = '', optionsInput: unknown = {}): CampaignParseResult {
   const text = String(body ?? '')
 
   const campaignStarts = [...text.matchAll(CAMPAIGN_MARKER_START_RE)]
@@ -52,10 +58,6 @@ export function parseCampaign(body = '', options = {}) {
     }
   }
 
-  // Reject nested campaign markers (second start inside the pair) — already covered by count.
-  // Reject mixed/crossed markers: any task marker strictly inside the campaign span, or
-  // campaign start paired with a task end (detected when a task end sits in campaign span
-  // without a corresponding task start in the same span).
   const campaignSpanStart = start.index
   const campaignSpanEnd = end.index + end[0].length
   const taskMarkerInside = [...taskStarts, ...taskEnds].some((match) => {
@@ -71,22 +73,6 @@ export function parseCampaign(body = '', options = {}) {
     }
   }
 
-  // Detect mismatched end marker immediately after campaign start content when the end
-  // marker regex matched a campaign end, but a task end comment appears as the closer
-  // via malformed fixtures that use task end text — handled above when task end is in span.
-  // Also reject when campaign start is followed by task end outside normal campaign end:
-  // covered by malformed-mixed fixtures where campaign end regex won't match task end,
-  // so those look like partial-start. Treat partials as fail-closed.
-  if (campaignStarts.length === 1 && campaignEnds.length === 0) {
-    return {
-      present: true,
-      valid: false,
-      reason: 'partial campaign markers are not allowed',
-      classification: 'STATE_CONFLICT',
-      campaign: null,
-    }
-  }
-
   const raw = text
     .slice(start.index + start[0].length, end.index)
     .replace(/```yaml\s*|```/g, '')
@@ -94,7 +80,7 @@ export function parseCampaign(body = '', options = {}) {
   let document
   try {
     document = yaml.parseDocument(raw, { uniqueKeys: false })
-  } catch (error) {
+  } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error)
     return {
       present: true,
@@ -127,10 +113,10 @@ export function parseCampaign(body = '', options = {}) {
     }
   }
 
-  let parsed
+  let parsed: unknown
   try {
     parsed = document.toJS()
-  } catch (error) {
+  } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error)
     return {
       present: true,
@@ -141,7 +127,7 @@ export function parseCampaign(body = '', options = {}) {
     }
   }
 
-  const validated = validateCampaign(parsed, options)
+  const validated = validateCampaign(parsed, optionsInput)
   if (!validated.valid) {
     return {
       present: true,
@@ -156,18 +142,28 @@ export function parseCampaign(body = '', options = {}) {
   return { present: true, valid: true, campaign: validated.campaign }
 }
 
-function isMappingNode(node) {
-  return Boolean(node) && Array.isArray(node.items) && node.items.every((item) => item && Object.hasOwn(item, 'key'))
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
-function scalarKey(node) {
-  if (!node || !Object.hasOwn(node, 'value')) return null
+function isMappingNode(node: unknown): node is { items: Record<string, unknown>[] } {
+  return isRecord(node) && Array.isArray(node.items) && node.items.every(
+    (item) => isRecord(item) && Object.hasOwn(item, 'key'),
+  )
+}
+
+function hasItems(node: unknown): node is { items: unknown[] } {
+  return isRecord(node) && Array.isArray(node.items)
+}
+
+function scalarKey(node: unknown): string | null {
+  if (!isRecord(node) || !Object.hasOwn(node, 'value')) return null
   return String(node.value)
 }
 
-function findDuplicateYamlKey(node) {
+function findDuplicateYamlKey(node: unknown): string | null {
   if (isMappingNode(node)) {
-    const seen = new Set()
+    const seen = new Set<string>()
     for (const pair of node.items) {
       const key = scalarKey(pair.key)
       if (key != null) {
@@ -179,7 +175,7 @@ function findDuplicateYamlKey(node) {
     }
     return null
   }
-  if (node && Array.isArray(node.items)) {
+  if (hasItems(node)) {
     for (const child of node.items) {
       const nested = findDuplicateYamlKey(child)
       if (nested != null) return nested

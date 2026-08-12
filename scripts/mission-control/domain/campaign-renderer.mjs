@@ -8,7 +8,7 @@ import yaml from 'yaml'
 import { CAMPAIGN_MARKER_END, CAMPAIGN_MARKER_START } from './campaign-enums.ts'
 import { sortedSliceKeys } from './campaign-authority.mjs'
 import { sameCampaignValue } from './campaign-equality.mjs'
-import { parseCampaign } from './campaign-parser.mjs'
+import { parseCampaign } from './campaign-parser.ts'
 
 const CAMPAIGN_BLOCK_RE =
   /<!--\s*bemoat-mission-control-campaign:start\s*-->[\s\S]*?<!--\s*bemoat-mission-control-campaign:end\s*-->/
