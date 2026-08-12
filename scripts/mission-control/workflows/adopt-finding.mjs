@@ -1,6 +1,4 @@
 #!/usr/bin/env node
-import { spawnSync } from 'node:child_process'
-
 import {
   createHelpEnvelopeV1,
   formatTextHelp,
@@ -42,6 +40,7 @@ import {
   createRuntimeErrorRendering,
   exactNextAction,
 } from '../domain/adopt-finding-result-rendering.mjs'
+import { createProductionDeps as createGithubTransport } from '../adapters/adopt-finding-github.mjs'
 
 export const ADOPT_FINDING_COMMAND = 'bemoat:mission-control:adopt-finding'
 export const ADOPT_FINDING_ENTRYPOINT = 'scripts/mission-control-adopt-finding.mjs'
@@ -368,54 +367,22 @@ export async function runAdoptFinding({ options, deps, checkOnly = false }) {
   }
 }
 
-export function createProductionDeps() {
-  const runGh = (args, options = {}) => {
-    const result = spawnSync('gh', args, {
-      encoding: 'utf8',
-      input: options.input,
-      env: options.env ?? process.env,
-    })
-    if (result.error || result.status !== 0) {
-      throw classifiedError(
-        'BLOCKED_EXTERNAL',
-        result.stderr || result.stdout || result.error?.message || 'GitHub CLI failed',
-      )
-    }
-    return result.stdout.trim()
-  }
-
+export function createProductionDeps({ runGh } = {}) {
+  const transport = createGithubTransport({ runGh })
   return {
     readManagedIssue: async (issueNumber, repo) => {
-      const issue = JSON.parse(runGh([
-        'issue', 'view', String(issueNumber), '--repo', repo, '--json', 'number,id,title,body,state',
-      ]))
+      const issue = await transport.readIssue(issueNumber, repo)
       const parsed = parseMissionControlState(issue.body)
       if (!parsed.present || !parsed.valid) {
         throw classifiedError('STATE_CONFLICT', `Issue has invalid managed state: ${parsed.reason ?? 'missing state block'}`)
       }
       return { ...issue, managedState: parsed.state }
     },
-    readPullRequest: async (prNumber, repo) => JSON.parse(runGh([
-      'pr', 'view', String(prNumber), '--repo', repo,
-      '--json', 'number,state,isDraft,headRefOid,baseRefName,baseRefOid',
-    ])),
-    readComment: async (repo, commentId) => JSON.parse(runGh([
-      'api', `repos/${repo}/issues/comments/${commentId}`,
-    ])),
-    readIssueComments: async (repo, issueNumber) => {
-      const pages = JSON.parse(runGh([
-        'api', '--paginate', '--slurp',
-        `repos/${repo}/issues/${issueNumber}/comments?per_page=100`,
-      ]))
-      if (!Array.isArray(pages) || pages.some((page) => !Array.isArray(page))) {
-        throw classifiedError('BLOCKED_EXTERNAL', 'live Issue comment pagination is incomplete')
-      }
-      return pages.flat()
-    },
+    readPullRequest: transport.readPullRequest,
+    readComment: transport.readComment,
+    readIssueComments: transport.readIssueComments,
     readTrustedFounderLogins: async (repo) => {
-      const variable = JSON.parse(runGh([
-        'api', `repos/${repo}/actions/variables/BEMOAT_FOUNDER_LOGINS`,
-      ]))
+      const variable = await transport.readFounderLoginsVariable(repo)
       const logins = String(variable.value ?? '')
         .split(',')
         .map((login) => login.trim())
@@ -434,7 +401,7 @@ export function createProductionDeps() {
         transitionIdentity,
         holder: 'mission-control-adopt-finding',
         repoFlag: repo,
-        deps: { runGh },
+        deps: { runGh: transport.runGh },
       }),
   }
 }
