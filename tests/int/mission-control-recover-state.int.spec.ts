@@ -6,6 +6,7 @@ import {
   main,
   runRecoverState,
 } from '../../scripts/mission-control/workflows/recover-state.mjs'
+import { createProductionRecoverStateDeps } from '../../scripts/mission-control/adapters/recover-state-github.mjs'
 import { buildReconstructedState } from '../../scripts/mission-control/domain/recover-state-projection.mjs'
 import {
   parseMissionControlState,
@@ -44,6 +45,15 @@ const LINEAGE_CORRECTION_AUTHORIZATION_COMMENT = '5218182829'
 const CORRECTION_RESULT_COMMENT = '5218673559'
 const CORRECTION_REVIEW_COMMENT = '5218763552'
 const COUNTER_EVIDENCE_COMMENT = '5212960343'
+
+describe('recover-state GitHub adapter boundary', () => {
+  it('maps GitHub transport failures to BLOCKED_EXTERNAL', async () => {
+    const deps = createProductionRecoverStateDeps({
+      runGh: () => { throw new Error('gh: network unavailable') },
+    })
+    await expect(deps.readManagedIssue(ISSUE, REPOSITORY)).rejects.toMatchObject({ classification: 'BLOCKED_EXTERNAL' })
+  })
+})
 
 const FINDINGS = [
   {

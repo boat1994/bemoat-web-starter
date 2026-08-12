@@ -1,10 +1,9 @@
-import { spawnSync } from 'node:child_process'
-
 import {
   parseMissionControlState,
   projectMissionControlStateBlock,
 } from '../domain/task-state.mjs'
 import { writeIssueBodyWithLease } from './issue-body-cas.mjs'
+import { createProductionReopenTransport } from '../adapters/reopen-github.mjs'
 import {
   assertFounderAuthorization,
   parseFounderReopenAuthorization,
@@ -179,13 +178,14 @@ export function parseReopenArgs(argv = []) {
 async function readAuthorizationEvidence({ deps, options, state, pr }) {
   if (typeof deps.readComment !== 'function' ||
       typeof deps.readIssueComments !== 'function' ||
-      typeof deps.readTrustedFounderLogins !== 'function') {
+      (typeof deps.readTrustedFounderLogins !== 'function' &&
+       typeof deps.readFounderLoginsVariable !== 'function')) {
     throw blockedExternal('reopen transport dependencies cannot prove complete Founder authorization evidence')
   }
   const [comment, comments, trustedFounderLogins] = await Promise.all([
     deps.readComment(options.repo, options.authorizationComment),
     deps.readIssueComments(options.repo, options.issueNumber),
-    deps.readTrustedFounderLogins(options.repo),
+    readTrustedFounderLogins(deps, options.repo),
   ])
   if (!Array.isArray(comments)) {
     throw blockedExternal('live Issue comments are unavailable for authorization verification')
@@ -207,6 +207,24 @@ async function readAuthorizationEvidence({ deps, options, state, pr }) {
     throw stateConflict('immutable Founder authorization comment is not present in the live Issue comment set')
   }
   return evidence
+}
+
+async function readTrustedFounderLogins(deps, repo) {
+  if (typeof deps.readTrustedFounderLogins === 'function') {
+    return deps.readTrustedFounderLogins(repo)
+  }
+  const variable = await deps.readFounderLoginsVariable(repo)
+  const logins = String(variable.value ?? '')
+    .split(',')
+    .map((login) => login.trim())
+    .filter(Boolean)
+  if (
+    logins.length === 0 ||
+    logins.some((login) => !/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/.test(login))
+  ) {
+    throw stateConflict('repository Actions variable BEMOAT_FOUNDER_LOGINS is invalid')
+  }
+  return logins
 }
 
 function assertIssueIdentity(issue, options) {
@@ -400,65 +418,18 @@ async function runNoOp({ deps, options, issue, state, pr }) {
 }
 
 export function createProductionDeps() {
-  const runGh = defaultRunGh
+  const transport = createProductionReopenTransport()
   const readManagedIssue = async (issueNumber, repo) => {
-    const issue = JSON.parse(runGh([
-      'issue',
-      'view',
-      String(issueNumber),
-      '--repo',
-      repo,
-      '--json',
-      'number,id,title,body,state,stateReason',
-    ]))
+    const issue = await transport.readManagedIssue(issueNumber, repo)
     const parsed = parseMissionControlState(issue.body)
     if (!parsed.present || !parsed.valid) {
       throw stateConflict(`Issue has invalid managed state: ${parsed.reason ?? 'missing state block'}`)
     }
     return { ...issue, managedState: parsed.state }
   }
-  const readPullRequest = async (prNumber, repo) => JSON.parse(runGh([
-    'pr',
-    'view',
-    String(prNumber),
-    '--repo',
-    repo,
-    '--json',
-    'number,state,isDraft,headRefOid,baseRefName,baseRefOid,statusCheckRollup',
-  ]))
-  const readComment = async (repo, commentId) => JSON.parse(runGh([
-    'api',
-    `repos/${repo}/issues/comments/${commentId}`,
-  ]))
-  const readIssueComments = async (repo, issueNumber) => {
-    const pages = JSON.parse(runGh([
-      'api',
-      '--paginate',
-      '--slurp',
-      `repos/${repo}/issues/${issueNumber}/comments?per_page=100`,
-    ]))
-    if (!Array.isArray(pages) || pages.some((page) => !Array.isArray(page))) {
-      throw blockedExternal('live Issue comment pagination is incomplete')
-    }
-    return pages.flat()
-  }
-  const readTrustedFounderLogins = async (repo) => {
-    const variable = JSON.parse(runGh([
-      'api',
-      `repos/${repo}/actions/variables/BEMOAT_FOUNDER_LOGINS`,
-    ]))
-    const logins = String(variable.value ?? '')
-      .split(',')
-      .map((login) => login.trim())
-      .filter(Boolean)
-    if (
-      logins.length === 0 ||
-      logins.some((login) => !/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/.test(login))
-    ) {
-      throw stateConflict('repository Actions variable BEMOAT_FOUNDER_LOGINS is invalid')
-    }
-    return logins
-  }
+  const readPullRequest = transport.readPullRequest
+  const readComment = transport.readComment
+  const readIssueComments = transport.readIssueComments
   const writeIssueBody = async ({ repo, issueNumber, expectedBody, nextBody, transitionIdentity }) =>
     writeIssueBodyWithLease({
       repo,
@@ -468,31 +439,16 @@ export function createProductionDeps() {
       transitionIdentity,
       holder: 'mission-control-reopen',
       repoFlag: repo,
-      deps: { runGh },
+      deps: { runGh: transport.runGh },
     })
   return {
     readManagedIssue,
     readPullRequest,
     readComment,
     readIssueComments,
-    readTrustedFounderLogins,
+    readFounderLoginsVariable: transport.readFounderLoginsVariable,
     writeIssueBody,
   }
-}
-
-function defaultRunGh(args, options = {}) {
-  const result = spawnSync('gh', args, {
-    encoding: 'utf8',
-    input: options.input,
-    env: options.env ?? process.env,
-  })
-  if (result.error || result.status !== 0) {
-    if (options.allowNotFound && /\b404\b|not found/i.test(`${result.stderr ?? ''}\n${result.stdout ?? ''}`)) {
-      return null
-    }
-    throw blockedExternal(result.stderr || result.stdout || result.error?.message || 'GitHub CLI failed')
-  }
-  return result.stdout.trim()
 }
 
 export async function runReopen({ options, deps }) {
