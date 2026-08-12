@@ -2,7 +2,7 @@ import {
   LEGACY_MAX_SLICE,
   expectedSliceKeys,
 } from './campaign-authority.ts'
-import { stateConflict } from './merge-errors.mjs'
+import { stateConflict } from './merge-errors.ts'
 import { normalizeIssueNumber } from './merge-issue-references.ts'
 
 const BLOCKER_RESOLUTION_MAX_SLICE = 11

@@ -5,7 +5,7 @@ import {
   LEGACY_MAX_SLICE,
   expectedSliceKeys,
 } from './campaign-authority.ts'
-import { blockedExternal, stateConflict } from './merge-errors.mjs'
+import { blockedExternal, stateConflict } from './merge-errors.ts'
 
 const BLOCKER_RESOLUTION_MAX_SLICE = 11
 

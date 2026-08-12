@@ -1,6 +1,6 @@
 import { normalizeIssueNumber, normalizePrNumber } from './merge-issue-references.ts'
 import { validateBlockerResolutionBindings } from './merge-blocker-bindings.ts'
-import { blockedExternal, stateConflict } from './merge-errors.mjs'
+import { blockedExternal, stateConflict } from './merge-errors.ts'
 import { classifyCampaignOwnershipEvidence } from './merge-campaign-ownership.ts'
 import {
   CAMPAIGN_PROJECTION_KINDS,
