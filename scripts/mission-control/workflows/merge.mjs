@@ -29,7 +29,7 @@ import { classifyMergeability } from '../domain/merge-mergeability.mjs'
 import { classifyNoAutomaticClosure } from '../domain/merge-no-automatic-closure.mjs'
 import { validateNextAction } from '../domain/merge-next-action.mjs'
 import { validateBlockerResolutionPostconditions } from '../domain/merge-blocker-postconditions.ts'
-import { blockerResolutionCampaignPostconditions } from '../domain/merge-blocker-campaign-postconditions.mjs'
+import { blockerResolutionCampaignPostconditions } from '../domain/merge-blocker-campaign-postconditions.ts'
 import { renderFinalResultBody } from '../domain/merge-final-result.mjs'
 import { normalizeIssueNumber, normalizePrNumber } from '../domain/merge-issue-references.mjs'
 import { resultCommentId } from '../domain/merge-result-comment-id.mjs'
@@ -42,7 +42,7 @@ import {
   projectCampaignBlockerResolved,
   projectCampaignSliceDone,
 } from '../domain/merge-campaign-state-projection.ts'
-import { projectTaskDoneState } from '../domain/merge-task-done-projection.mjs'
+import { projectTaskDoneState } from '../domain/merge-task-done-projection.ts'
 import { validateDirectOwnership } from '../domain/merge-direct-ownership.mjs'
 import { commentSupersedesId } from '../domain/merge-comment-supersession.mjs'
 import { mergeCommitOid } from '../domain/merge-commit-oid.mjs'

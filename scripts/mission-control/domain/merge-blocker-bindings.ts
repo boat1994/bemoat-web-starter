@@ -1,14 +1,37 @@
 import { resolveIssueNumber } from '../../agent-issue/issue-references.mjs'
 
-function stateConflict(message) {
+type BlockerResolutionAuthorization = {
+  campaign_issue?: unknown
+  campaign_blocker_id?: unknown
+}
+
+type ManagedState = {
+  campaign_issue?: unknown
+  campaign_slice?: unknown
+}
+
+type BlockerResolutionBindingInput = {
+  authorization: BlockerResolutionAuthorization
+  state?: ManagedState | null
+}
+
+type BlockerResolutionBindings = {
+  campaignIssue: number
+  campaignBlockerId: string
+}
+
+function stateConflict(message: string) {
   return new Error(`STATE_CONFLICT: ${message}`)
 }
 
-function normalizeIssueNumber(value) {
+function normalizeIssueNumber(value: unknown): number | null {
   return resolveIssueNumber(value)
 }
 
-export function validateBlockerResolutionBindings({ authorization, state }) {
+export function validateBlockerResolutionBindings({
+  authorization,
+  state,
+}: BlockerResolutionBindingInput): BlockerResolutionBindings {
   const campaignIssue = normalizeIssueNumber(authorization.campaign_issue)
   if (!campaignIssue) {
     throw stateConflict('blocker-resolution requires an exact campaign Issue binding')

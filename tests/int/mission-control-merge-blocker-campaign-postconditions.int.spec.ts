@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   blockerResolutionCampaignPostconditions,
-} from '../../scripts/mission-control/domain/merge-blocker-campaign-postconditions.mjs'
+} from '../../scripts/mission-control/domain/merge-blocker-campaign-postconditions.ts'
 
 describe('blockerResolutionCampaignPostconditions', () => {
   it('projects the resolved blocker, ordered slices, and durable next action', () => {
