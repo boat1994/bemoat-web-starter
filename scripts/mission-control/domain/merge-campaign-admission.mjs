@@ -1,7 +1,7 @@
 import { normalizeIssueNumber, normalizePrNumber } from './merge-issue-references.mjs'
 import { validateBlockerResolutionBindings } from './merge-blocker-bindings.mjs'
 import { blockedExternal, stateConflict } from './merge-errors.mjs'
-import { classifyCampaignOwnershipEvidence } from './merge-campaign-ownership.mjs'
+import { classifyCampaignOwnershipEvidence } from './merge-campaign-ownership.ts'
 import {
   CAMPAIGN_PROJECTION_KINDS,
   hasMeaningfulBindingValue,
