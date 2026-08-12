@@ -12,7 +12,7 @@ import {
   validateCommandContractRegistry,
 } from '../../scripts/cli/command-contract.mjs'
 import { managedPackageScripts, managedPaths } from '../../scripts/boilerplate/inventory.mjs'
-import { MISSION_CONTROL_STATES } from '../../scripts/mission-control-state.mjs'
+import { MISSION_CONTROL_STATES } from '../../scripts/mission-control/domain/task-state.mjs'
 import { CANONICAL_TRANSPORTS } from '../../scripts/mission-control/transport-registry.mjs'
 
 type JsonRecord = Record<string, unknown>
@@ -364,6 +364,12 @@ describe('Task 1 command contract registry', () => {
       expect(Object.keys(route).sort()).toEqual([...ROUTE_FIELDS].sort())
     }
     expectRegistryValid()
+  })
+
+  it('keeps the public registry containers frozen', () => {
+    expect(Object.isFrozen(COMMAND_CONTRACT_REGISTRY)).toBe(true)
+    expect(Object.isFrozen(COMMAND_CONTRACT_REGISTRY.commands)).toBe(true)
+    expect(Object.isFrozen(COMMAND_CONTRACT_REGISTRY.routes)).toBe(true)
   })
 
   it('proves Tier C delegates without a repository parser', () => {

@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 const root = resolve(process.cwd())
 const tempRoots: string[] = []
 const oracle = [
+  ['tests/int/mission-control-adopt-finding.int.spec.ts', 'ba3ac34c02e6e05c0b94dff857db9d57a2bcc181b74a4d29bd8029f84e79739d'],
   ['tests/int/mission-control-merge-verdict-binding-entrypoint.int.spec.ts', 'c780c36f4fcc3d386be6b3dcb5a86f16b1030a1446cfe59a9fefe83f1dc54b65'],
   ['tests/int/mission-control-merge.int.spec.ts', '2dfb92137dc35d5cd3ab718ff330bde87ae933891cbeaf077baf374a497f2d6e'],
 ] as const
@@ -13,17 +14,19 @@ const grandfathered = [
   ['scripts/agent-delivery.mjs', 686], ['scripts/agent-issue/current-post-budget-authority.mjs', 646],
   ['scripts/agent-issue/progress-tracking.mjs', 462], ['scripts/boilerplate/filesystem.mjs', 635],
   ['scripts/boilerplate/workflow.mjs', 465], ['scripts/check-boilerplate-drift.mjs', 552],
-  ['scripts/cli/command-contract-registry.mjs', 1990], ['scripts/cli/command-contract.mjs', 577],
-  ['scripts/correction-contract.mjs', 648], ['scripts/guard-planning-contract.mjs', 859],
-  ['scripts/mission-control-dispatch.mjs', 545], ['scripts/mission-control-issue-body-cas.mjs', 438],
+  ['scripts/cli/command-contract-registry.mjs', 837], ['scripts/cli/command-contract.mjs', 577],
+  ['scripts/mission-control-dispatch.mjs', 545],
   ['scripts/mission-control-reconcile.mjs', 143],
-  ['scripts/mission-control-review.mjs', 470], ['scripts/mission-control-state.mjs', 548],
-  ['scripts/mission-control/domain/campaign-authority.mjs', 547], ['scripts/mission-control/domain/campaign-validator.mjs', 482],
-  ['scripts/mission-control/domain/review-recovery.mjs', 485], ['scripts/mission-control/workflows/adopt-finding.mjs', 728],
+  ['scripts/mission-control-review.mjs', 346],
+  ['scripts/mission-control/domain/campaign-authority.mjs', 547], ['scripts/mission-control/domain/campaign-validator.mjs', 482], ['scripts/mission-control/domain/correction-contract.mjs', 650],
+  ['scripts/mission-control/domain/recover-state-projection.mjs', 37], ['scripts/mission-control/domain/reopen-result-rendering.mjs', 176], ['scripts/mission-control/domain/review-recovery.mjs', 485],
+  ['scripts/mission-control/domain/review-result-rendering.mjs', 164],
+  ['scripts/mission-control/workflows/adopt-finding.mjs', 564],
+  ['scripts/mission-control/workflows/issue-body-cas.mjs', 438],
   ['scripts/mission-control/workflows/merge.mjs', 1124],
-  ['scripts/mission-control/workflows/recover-review.mjs', 828], ['scripts/mission-control/workflows/recover-state.mjs', 1428],
-  ['scripts/mission-control/workflows/reopen.mjs', 988], ['scripts/mission-control/workflows/task-bootstrap.mjs', 658],
-  ['scripts/post-role-comment.mjs', 690],
+  ['scripts/mission-control/workflows/recover-review.mjs', 828], ['scripts/mission-control/workflows/recover-state.mjs', 1099],
+  ['scripts/mission-control/workflows/reopen.mjs', 918], ['scripts/mission-control/workflows/task-bootstrap.mjs', 658],
+  ['scripts/post-role-comment.mjs', 554],
 ] as const
 
 afterEach(() => tempRoots.splice(0).forEach((path) => rmSync(path, { recursive: true, force: true })))
@@ -74,9 +77,9 @@ async function guard(path = root) {
 describe('structural protection guard', () => {
   it('accepts the current repository with the exact inventory, baseline, and protected oracle', async () => {
     expect((await guard()).map((entry: { rule: string }) => entry.rule)).toEqual([])
-    expect(grandfathered).toHaveLength(25)
+    expect(grandfathered).toHaveLength(26)
     expect(JSON.parse(readFileSync(join(root, 'scripts/structural-protection-manifest.json'), 'utf8'))).toEqual(manifest())
-    expect(scriptInventory(root)).toBe(162)
+    expect(scriptInventory(root)).toBe(202)
   })
 
   it('rejects malformed schema, types, unknown keys, ordering, duplicates, paths, and SHA values', async () => {

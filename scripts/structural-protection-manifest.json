@@ -12,30 +12,32 @@
       { "path": "scripts/boilerplate/filesystem.mjs", "max_lines": 635 },
       { "path": "scripts/boilerplate/workflow.mjs", "max_lines": 465 },
       { "path": "scripts/check-boilerplate-drift.mjs", "max_lines": 552 },
-      { "path": "scripts/cli/command-contract-registry.mjs", "max_lines": 1990 },
+      { "path": "scripts/cli/command-contract-registry.mjs", "max_lines": 837 },
       { "path": "scripts/cli/command-contract.mjs", "max_lines": 577 },
-      { "path": "scripts/correction-contract.mjs", "max_lines": 648 },
-      { "path": "scripts/guard-planning-contract.mjs", "max_lines": 859 },
       { "path": "scripts/mission-control-dispatch.mjs", "max_lines": 545 },
-      { "path": "scripts/mission-control-issue-body-cas.mjs", "max_lines": 438 },
       { "path": "scripts/mission-control-reconcile.mjs", "max_lines": 143 },
-      { "path": "scripts/mission-control-review.mjs", "max_lines": 470 },
-      { "path": "scripts/mission-control-state.mjs", "max_lines": 548 },
+      { "path": "scripts/mission-control-review.mjs", "max_lines": 346 },
       { "path": "scripts/mission-control/domain/campaign-authority.mjs", "max_lines": 547 },
       { "path": "scripts/mission-control/domain/campaign-validator.mjs", "max_lines": 482 },
+      { "path": "scripts/mission-control/domain/correction-contract.mjs", "max_lines": 650 },
+      { "path": "scripts/mission-control/domain/recover-state-projection.mjs", "max_lines": 37 },
+      { "path": "scripts/mission-control/domain/reopen-result-rendering.mjs", "max_lines": 176 },
       { "path": "scripts/mission-control/domain/review-recovery.mjs", "max_lines": 485 },
-      { "path": "scripts/mission-control/workflows/adopt-finding.mjs", "max_lines": 728 },
+      { "path": "scripts/mission-control/domain/review-result-rendering.mjs", "max_lines": 164 },
+      { "path": "scripts/mission-control/workflows/adopt-finding.mjs", "max_lines": 564 },
+      { "path": "scripts/mission-control/workflows/issue-body-cas.mjs", "max_lines": 438 },
       { "path": "scripts/mission-control/workflows/merge.mjs", "max_lines": 1124 },
       { "path": "scripts/mission-control/workflows/recover-review.mjs", "max_lines": 828 },
-      { "path": "scripts/mission-control/workflows/recover-state.mjs", "max_lines": 1428 },
-      { "path": "scripts/mission-control/workflows/reopen.mjs", "max_lines": 988 },
+      { "path": "scripts/mission-control/workflows/recover-state.mjs", "max_lines": 1099 },
+      { "path": "scripts/mission-control/workflows/reopen.mjs", "max_lines": 918 },
       { "path": "scripts/mission-control/workflows/task-bootstrap.mjs", "max_lines": 658 },
-      { "path": "scripts/post-role-comment.mjs", "max_lines": 690 }
+      { "path": "scripts/post-role-comment.mjs", "max_lines": 554 }
     ]
   },
   "protected_oracle": {
     "algorithm": "sha256",
     "files": [
+      { "path": "tests/int/mission-control-adopt-finding.int.spec.ts", "sha256": "ba3ac34c02e6e05c0b94dff857db9d57a2bcc181b74a4d29bd8029f84e79739d" },
       { "path": "tests/int/mission-control-merge-verdict-binding-entrypoint.int.spec.ts", "sha256": "c780c36f4fcc3d386be6b3dcb5a86f16b1030a1446cfe59a9fefe83f1dc54b65" },
       { "path": "tests/int/mission-control-merge.int.spec.ts", "sha256": "2dfb92137dc35d5cd3ab718ff330bde87ae933891cbeaf077baf374a497f2d6e" }
     ]

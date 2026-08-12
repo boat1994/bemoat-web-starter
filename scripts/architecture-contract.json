@@ -7,7 +7,7 @@
     "scripts/agent-issue/historical-review3-authority.mjs",
     "scripts/agent-issue/issue-preflight.mjs",
     "scripts/agent-issue/progress-tracking.mjs",
-    "scripts/github-comment-projection.mjs",
+    "scripts/mission-control/diagnostics/github-comment-projection.mjs",
     "scripts/mission-control-reconcile.mjs"
   ],
   "cycleEdges": [
@@ -18,20 +18,19 @@
     "scripts/agent-issue/correction-preflight.mjs -> scripts/agent-issue/github-evidence.mjs",
     "scripts/agent-issue/correction-preflight.mjs -> scripts/agent-issue/historical-review3-authority.mjs",
     "scripts/agent-issue/correction-preflight.mjs -> scripts/mission-control-reconcile.mjs",
-    "scripts/agent-issue/github-evidence.mjs -> scripts/github-comment-projection.mjs",
+    "scripts/agent-issue/github-evidence.mjs -> scripts/mission-control/diagnostics/github-comment-projection.mjs",
     "scripts/agent-issue/historical-review3-authority.mjs -> scripts/mission-control-reconcile.mjs",
     "scripts/agent-issue/issue-preflight.mjs -> scripts/agent-issue/correction-preflight.mjs",
     "scripts/agent-issue/issue-preflight.mjs -> scripts/agent-issue/github-evidence.mjs",
     "scripts/agent-issue/issue-preflight.mjs -> scripts/agent-issue/progress-tracking.mjs",
     "scripts/agent-issue/progress-tracking.mjs -> scripts/agent-issue/github-evidence.mjs",
     "scripts/agent-issue/progress-tracking.mjs -> scripts/mission-control-reconcile.mjs",
-    "scripts/github-comment-projection.mjs -> scripts/mission-control-reconcile.mjs",
+    "scripts/mission-control/diagnostics/github-comment-projection.mjs -> scripts/mission-control-reconcile.mjs",
     "scripts/mission-control-reconcile.mjs -> scripts/agent-issue.mjs"
   ],
   "adapters": {
     "scripts/adapters/command-runner.mjs": {
       "importers": [
-        "scripts/command-runner.mjs",
         "scripts/mission-control-review.mjs",
         "scripts/mission-control/adapters/task-bootstrap-github.mjs"
       ]
@@ -43,105 +42,56 @@
       "facade_disposition": "composition_root",
       "internal_destination": "scripts/mission-control/workflows/agent-delivery.mjs",
       "owning_slice": 7,
-      "migration_status": "planned"
+      "migration_status": "migrated"
     },
     {
       "path": "scripts/agent-issue.mjs",
       "facade_disposition": "composition_root",
       "internal_destination": "scripts/agent-issue/issue-preflight.mjs",
       "owning_slice": 6,
-      "migration_status": "planned"
+      "migration_status": "migrated"
     },
     {
       "path": "scripts/bemoat-typecheck.mjs",
       "facade_disposition": "tooling_entrypoint",
       "internal_destination": "scripts/tooling/bemoat-typecheck.mjs",
       "owning_slice": 7,
-      "migration_status": "planned"
+      "migration_status": "retained"
     },
     {
       "path": "scripts/build.mjs",
       "facade_disposition": "tooling_entrypoint",
       "internal_destination": "scripts/tooling/build.mjs",
       "owning_slice": 7,
-      "migration_status": "planned"
-    },
-    {
-      "path": "scripts/capture-baseline.mjs",
-      "facade_disposition": "tooling_entrypoint",
-      "internal_destination": "scripts/tooling/capture-baseline.mjs",
-      "owning_slice": 7,
-      "migration_status": "planned"
+      "migration_status": "retained"
     },
     {
       "path": "scripts/check-boilerplate-drift.mjs",
       "facade_disposition": "composition_root",
       "internal_destination": "scripts/boilerplate/workflows/check-boilerplate-drift.mjs",
       "owning_slice": 4,
-      "migration_status": "planned"
+      "migration_status": "migrated"
     },
     {
       "path": "scripts/check-branch-safety.sh",
       "facade_disposition": "tooling_entrypoint",
       "internal_destination": "scripts/tooling/check-branch-safety.sh",
       "owning_slice": 7,
-      "migration_status": "planned"
-    },
-    {
-      "path": "scripts/command-runner.mjs",
-      "facade_disposition": "stable_facade",
-      "internal_destination": "scripts/adapters/command-runner.mjs",
-      "owning_slice": 1,
-      "migration_status": "migrated"
-    },
-    {
-      "path": "scripts/correction-contract.mjs",
-      "facade_disposition": "stable_facade",
-      "internal_destination": "scripts/mission-control/domain/correction-contract.mjs",
-      "owning_slice": 5,
-      "migration_status": "planned"
+      "migration_status": "retained"
     },
     {
       "path": "scripts/deploy-smoke-test.mjs",
       "facade_disposition": "tooling_entrypoint",
       "internal_destination": "scripts/tooling/deploy-smoke-test.mjs",
       "owning_slice": 7,
-      "migration_status": "planned"
-    },
-    {
-      "path": "scripts/github-comment-projection.mjs",
-      "facade_disposition": "stable_facade",
-      "internal_destination": "scripts/mission-control/diagnostics/github-comment-projection.mjs",
-      "owning_slice": 5,
-      "migration_status": "planned"
-    },
-    {
-      "path": "scripts/guard-build-script-contract.mjs",
-      "facade_disposition": "stable_facade",
-      "internal_destination": "scripts/guards/build-script-contract.mjs",
-      "owning_slice": 7,
-      "migration_status": "planned"
+      "migration_status": "retained"
     },
     {
       "path": "scripts/guard-cloudflare-env.mjs",
       "facade_disposition": "stable_facade",
       "internal_destination": "scripts/guards/cloudflare-env.mjs",
       "owning_slice": 7,
-      "migration_status": "planned"
-    },
-    {
-      "path": "scripts/guard-env-placeholder.mjs",
-      "facade_disposition": "stable_facade",
-      "internal_destination": "scripts/guards/env-placeholder.mjs",
-      "owning_slice": 7,
-      "migration_status": "planned"
-    },
-    {
-      "path": "scripts/guard-frontend-seo.mjs",
-      "facade_disposition": "stable_facade",
-      "internal_destination": "scripts/guards/frontend-seo.mjs",
-      "owning_slice": 7,
-      "migration_status": "planned"
+      "migration_status": "migrated"
     },
     {
       "path": "scripts/guard-harness-contract.mjs",
@@ -153,93 +103,38 @@
     {
       "path": "scripts/guard-mission-control-contract.mjs",
       "facade_disposition": "stable_facade",
-      "internal_destination": "scripts/guards/mission-control-contract.mjs",
+      "internal_destination": "scripts/guards/mission-control-contract/",
       "owning_slice": 3,
-      "migration_status": "planned"
-    },
-    {
-      "path": "scripts/guard-mission-control-drift.mjs",
-      "facade_disposition": "stable_facade",
-      "internal_destination": "scripts/guards/mission-control-drift.mjs",
-      "owning_slice": 3,
-      "migration_status": "planned"
+      "migration_status": "migrated"
     },
     {
       "path": "scripts/guard-pack.mjs",
       "facade_disposition": "composition_root",
       "internal_destination": "scripts/guards/pack.mjs",
       "owning_slice": 7,
-      "migration_status": "planned"
+      "migration_status": "migrated"
     },
-    {
-      "path": "scripts/guard-package-manager.mjs",
-      "facade_disposition": "stable_facade",
-      "internal_destination": "scripts/guards/package-manager.mjs",
-      "owning_slice": 7,
-      "migration_status": "planned"
-    },
-    {
-      "path": "scripts/guard-planning-contract.mjs",
-      "facade_disposition": "stable_facade",
-      "internal_destination": "scripts/guards/planning-contract.mjs",
-      "owning_slice": 3,
-      "migration_status": "planned"
-    },
-    {
-      "path": "scripts/guard-repo-safety.mjs",
-      "facade_disposition": "stable_facade",
-      "internal_destination": "scripts/guards/repo-safety.mjs",
-      "owning_slice": 7,
-      "migration_status": "planned"
-    },
-    {
-      "path": "scripts/guard-scripts-architecture.mjs",
-      "facade_disposition": "stable_facade",
-      "internal_destination": "scripts/guards/scripts-architecture.mjs",
-      "owning_slice": 1,
-      "migration_status": "planned"
-    },
-    {
-      "path": "scripts/guard-toolchain-contract.mjs",
-      "facade_disposition": "stable_facade",
-      "internal_destination": "scripts/guards/toolchain-contract.mjs",
-      "owning_slice": 7,
-      "migration_status": "planned"
-    },
+
     {
       "path": "scripts/install-git-hooks.mjs",
       "facade_disposition": "tooling_entrypoint",
       "internal_destination": "scripts/tooling/install-git-hooks.mjs",
       "owning_slice": 7,
-      "migration_status": "planned"
+      "migration_status": "retained"
     },
     {
       "path": "scripts/mission-control-adopt-finding.mjs",
       "facade_disposition": "composition_root",
-      "internal_destination": "scripts/mission-control/workflows/adopt-finding.mjs",
+      "internal_destination": "scripts/mission-control/domain/adopt-finding-result-rendering.mjs",
       "owning_slice": 5,
-      "migration_status": "planned"
-    },
-    {
-      "path": "scripts/mission-control-brainstorming.mjs",
-      "facade_disposition": "stable_facade",
-      "internal_destination": "scripts/mission-control/domain/brainstorming.mjs",
-      "owning_slice": 5,
-      "migration_status": "planned"
+      "migration_status": "migrated"
     },
     {
       "path": "scripts/mission-control-dispatch.mjs",
       "facade_disposition": "composition_root",
       "internal_destination": "scripts/mission-control/workflows/dispatch.mjs",
       "owning_slice": 5,
-      "migration_status": "planned"
-    },
-    {
-      "path": "scripts/mission-control-issue-body-cas.mjs",
-      "facade_disposition": "composition_root",
-      "internal_destination": "scripts/mission-control/workflows/issue-body-cas.mjs",
-      "owning_slice": 5,
-      "migration_status": "planned"
+      "migration_status": "migrated"
     },
     {
       "path": "scripts/mission-control-merge.mjs",
@@ -260,63 +155,49 @@
       "facade_disposition": "composition_root",
       "internal_destination": "scripts/mission-control/workflows/recover-review.mjs",
       "owning_slice": 5,
-      "migration_status": "planned"
+      "migration_status": "migrated"
     },
     {
       "path": "scripts/mission-control-recover-state.mjs",
       "facade_disposition": "composition_root",
       "internal_destination": "scripts/mission-control/workflows/recover-state.mjs",
       "owning_slice": 5,
-      "migration_status": "planned"
+      "migration_status": "migrated"
     },
     {
       "path": "scripts/mission-control-reopen.mjs",
       "facade_disposition": "composition_root",
       "internal_destination": "scripts/mission-control/workflows/reopen.mjs",
       "owning_slice": 5,
-      "migration_status": "planned"
+      "migration_status": "migrated"
     },
     {
       "path": "scripts/mission-control-review.mjs",
       "facade_disposition": "composition_root",
       "internal_destination": "scripts/mission-control/workflows/review.mjs",
       "owning_slice": 5,
-      "migration_status": "planned"
-    },
-    {
-      "path": "scripts/mission-control-state.mjs",
-      "facade_disposition": "stable_facade",
-      "internal_destination": "scripts/mission-control/domain/task-state.mjs",
-      "owning_slice": 5,
-      "migration_status": "planned"
+      "migration_status": "migrated"
     },
     {
       "path": "scripts/mission-control-task-create.mjs",
       "facade_disposition": "composition_root",
       "internal_destination": "scripts/mission-control/workflows/task-bootstrap.mjs",
       "owning_slice": 5,
-      "migration_status": "planned"
+      "migration_status": "migrated"
     },
     {
       "path": "scripts/post-role-comment.mjs",
       "facade_disposition": "composition_root",
       "internal_destination": "scripts/mission-control/workflows/post-role-comment.mjs",
       "owning_slice": 5,
-      "migration_status": "planned"
-    },
-    {
-      "path": "scripts/pr-identity.mjs",
-      "facade_disposition": "stable_facade",
-      "internal_destination": "scripts/mission-control/domain/pr-identity.mjs",
-      "owning_slice": 5,
-      "migration_status": "planned"
+      "migration_status": "migrated"
     },
     {
       "path": "scripts/sync-boilerplate.mjs",
       "facade_disposition": "composition_root",
-      "internal_destination": "scripts/boilerplate/workflows/sync-boilerplate.mjs",
+      "internal_destination": "scripts/boilerplate/workflow.mjs",
       "owning_slice": 4,
-      "migration_status": "planned"
+      "migration_status": "migrated"
     }
   ],
   "transitionalDirectories": [

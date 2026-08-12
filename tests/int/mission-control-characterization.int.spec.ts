@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
 import { afterEach, describe, it, expect } from 'vitest'
-import { parseMissionControlState, renderMissionControlState } from '../../scripts/mission-control-state.mjs'
-import * as missionControlStateModule from '../../scripts/mission-control-state.mjs'
+import { parseMissionControlState, renderMissionControlState } from '../../scripts/mission-control/domain/task-state.mjs'
+import * as missionControlStateModule from '../../scripts/mission-control/domain/task-state.mjs'
 import {
   analyzeProgressTracking,
   analyzeExactHeadCi,
@@ -34,7 +34,7 @@ const dogfoodRoot = resolve(process.cwd(), 'docs/mission-control/dogfood')
 // structural contract (avoid helpers whose args contain ')' before the path).
 const hasStarterOnlyCorpus =
   existsSync('docs/mission-control/dogfood') &&
-  existsSync('scripts/capture-baseline.mjs')
+  existsSync('scripts/tooling/capture-baseline.mjs')
 const renderStateBody = (state: Record<string, unknown>) => renderMissionControlState(state)
 const projectMissionControlStateBlock = missionControlStateModule.projectMissionControlStateBlock as unknown as (
   body: string,
@@ -131,7 +131,7 @@ updated_by: "Mission Control"
 
       const stdout = execFileSync(
         process.execPath,
-        ['scripts/capture-baseline.mjs', '--classify-loader', fixturePath],
+        ['scripts/tooling/capture-baseline.mjs', '--classify-loader', fixturePath],
         { cwd: process.cwd(), encoding: 'utf8' },
       )
       const classification = JSON.parse(stdout)
@@ -253,7 +253,7 @@ updated_by: "Delta Reviewer"
     })
 
     it('deterministically round-trips nested objects and arrays of objects including future keys', async () => {
-      const { renderMissionControlState } = await import('../../scripts/mission-control-state.mjs')
+      const { renderMissionControlState } = await import('../../scripts/mission-control/domain/task-state.mjs')
       const complexState = {
         schema_version: 1,
         state: 'IN_PROGRESS',

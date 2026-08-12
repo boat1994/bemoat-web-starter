@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -8,7 +8,8 @@ import {
   buildScriptImportGraph,
   listRootScripts,
   validateArchitectureContract,
-} from '../../scripts/guard-scripts-architecture.mjs'
+} from '../../scripts/guards/scripts-architecture.mjs'
+import * as architectureGuard from '../../scripts/guards/scripts-architecture.mjs'
 import architectureContract from '../../scripts/architecture-contract.json'
 
 const tempRoots: string[] = []
@@ -45,6 +46,28 @@ function writeContract(
 }
 
 describe('scripts architecture ratchet', () => {
+  it('keeps mission-control GitHub adapters transport-only', () => {
+    const adapterRoot = join(process.cwd(), 'scripts/mission-control/adapters')
+    const adapters = [
+      'merge-github.mjs',
+      'recover-review-github.mjs',
+      'recover-state-github.mjs',
+      'reopen-github.mjs',
+    ]
+
+    for (const adapter of adapters) {
+      const source = readFileSync(join(adapterRoot, adapter), 'utf8')
+      expect(source).not.toMatch(/from ['"]\.\.\/(?:domain|workflows)\//)
+      expect(source).not.toMatch(/from ['"]\.\.\/\.\.\/domain\//)
+    }
+  })
+
+  it('keeps the stable root facade exports backed by the guard-owned module', () => {
+    expect(buildScriptImportGraph).toBe(architectureGuard.buildScriptImportGraph)
+    expect(listRootScripts).toBe(architectureGuard.listRootScripts)
+    expect(validateArchitectureContract).toBe(architectureGuard.validateArchitectureContract)
+  })
+
   it('validates architecture contract (no unallowed cycles or edges, adapter constraints)', () => {
     const violations = validateArchitectureContract(process.cwd())
     expect(violations).toEqual([])
@@ -85,6 +108,11 @@ describe('scripts architecture ratchet', () => {
     expect(harness?.migration_status).toBe('transitional')
   })
 
+  it('keeps capture-baseline implementation out of the scripts root', () => {
+    expect(existsSync(join(process.cwd(), 'scripts/capture-baseline.mjs'))).toBe(false)
+    expect(existsSync(join(process.cwd(), 'scripts/tooling/capture-baseline.mjs'))).toBe(true)
+  })
+
   it('captures side-effect static imports in the production architecture graph (F-SLICE1-02)', () => {
     const root = createTempRoot('bemoat-arch-side-effect-')
     writeContract(root, { cycleNodes: [], cycleEdges: [], adapters: {} })
@@ -113,12 +141,11 @@ describe('scripts architecture ratchet', () => {
       cycleEdges: [],
       adapters: {
         'scripts/adapters/command-runner.mjs': {
-          importers: ['scripts/command-runner.mjs'],
+          importers: ['scripts/mission-control-review.mjs'],
         },
       },
     })
     writeScript(root, 'scripts/adapters/command-runner.mjs', 'export const run = () => {}\n')
-    writeScript(root, 'scripts/command-runner.mjs', "import { run } from './adapters/command-runner.mjs'\n")
     writeScript(root, 'scripts/rogue.mjs', "import { run } from './adapters/command-runner.mjs'\n")
 
     const violations = validateArchitectureContract(root)
@@ -134,12 +161,11 @@ describe('scripts architecture ratchet', () => {
       cycleEdges: [],
       adapters: {
         'scripts/adapters/command-runner.mjs': {
-          importers: ['scripts/command-runner.mjs', 'scripts/mission-control-review.mjs'],
+          importers: ['scripts/mission-control-review.mjs'],
         },
       },
     })
     writeScript(root, 'scripts/adapters/command-runner.mjs', 'export const run = () => {}\n')
-    writeScript(root, 'scripts/command-runner.mjs', "import { run } from './adapters/command-runner.mjs'\n")
 
     const violations = validateArchitectureContract(root)
     expect(violations).toContain(

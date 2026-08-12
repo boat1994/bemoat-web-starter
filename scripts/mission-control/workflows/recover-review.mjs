@@ -5,16 +5,16 @@ import { createHash } from 'node:crypto'
 import yaml from 'yaml'
 
 import { analyzeExactHeadCi } from '../../agent-issue/exact-head-ci.mjs'
-import { parseCorrectionContract, parseCorrectionEvidenceMap, validateFindingIdentity } from '../../correction-contract.mjs'
+import { parseCorrectionContract, parseCorrectionEvidenceMap, validateFindingIdentity } from '../domain/correction-contract.mjs'
 import { scanGuideContent } from '../../guards/mission-control-contract/scan-guide.mjs'
-import { parseMissionControlState, projectMissionControlStateBlock } from '../../mission-control-state.mjs'
+import { parseMissionControlState, projectMissionControlStateBlock } from '../domain/task-state.mjs'
 import {
   Coordinator,
   normalizeIssueComments,
   parseRoleCommentBody,
   projectReviewVerdictState,
 } from '../../mission-control-reconcile.mjs'
-import { writeIssueBodyWithLease } from '../../mission-control-issue-body-cas.mjs'
+import { writeIssueBodyWithLease } from './issue-body-cas.mjs'
 import {
   RECOVERY_FINDING_IDS,
   RECOVERY_SOURCE_COMMENT_IDS,
@@ -22,6 +22,7 @@ import {
   parseOrdinaryReviewEvidence,
   validateRecoveryRecord,
 } from '../domain/review-recovery.mjs'
+import { defaultRunGh as transportRunGh } from '../adapters/recover-review-github.mjs'
 
 const FULL_SHA_RE = /^[0-9a-f]{40}$/i
 const POSITIVE_ID_RE = /^[1-9]\d*$/
@@ -670,22 +671,9 @@ export async function runReviewRecovery({ options, body, deps }) {
   return { ...result, outcome: 'RECOVERED', recoveryComments: recoveryComments() }
 }
 
-function defaultRunGh(args, options = {}) {
-  const result = spawnSync('gh', args, {
-    encoding: 'utf8',
-    input: options.input,
-    env: options.env ?? process.env,
-  })
-  if (result.error || result.status !== 0) {
-    if (options.allowNotFound && /\b404\b|not found/i.test(`${result.stderr ?? ''}\n${result.stdout ?? ''}`)) {
-      return null
-    }
-    throw blockedExternal(result.stderr || result.stdout || result.error?.message || 'GitHub CLI failed')
-  }
-  return result.stdout.trim()
-}
+const defaultRunGh = transportRunGh
 
-function createProductionDeps() {
+export function createProductionDeps() {
   const runGh = defaultRunGh
   const readGitOutput = (args) => {
     const result = spawnSync('git', args, {
@@ -825,4 +813,3 @@ export async function main(argv = process.argv.slice(2), deps = createProduction
   process.stdout.write(`Mission Control review recovery ${result.outcome}: Task #274 -> ${result.state.state} ${result.state.review_cycle}/${result.state.full_review_count}\n`)
   return result
 }
-

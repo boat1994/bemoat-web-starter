@@ -3,14 +3,14 @@ import {
   derivePlanningArtifactAllowlist,
   parseCorrectionContract,
   validateCorrectionScope,
-} from '../correction-contract.mjs'
+} from '../mission-control/domain/correction-contract.mjs'
 import {
   resolveAuthoritativeCorrectionContract,
 } from '../mission-control/domain/active-correction-contract.mjs'
 import { findLatestRoleComment } from '../mission-control-reconcile.mjs'
 import {
   extractVerdictPrBaseAndHead,
-} from '../pr-identity.mjs'
+} from '../mission-control/domain/pr-identity.mjs'
 import { recoverCurrentAuthority as recoverCurrentAuthorityGrant } from './current-post-budget-authority.mjs'
 import { analyzeExactHeadCi } from './exact-head-ci.mjs'
 import {

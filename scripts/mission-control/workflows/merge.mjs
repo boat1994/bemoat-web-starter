@@ -1,15 +1,11 @@
 #!/usr/bin/env node
 import { createHash } from 'node:crypto'
-import { spawnSync } from 'node:child_process'
 
 import { createHelpEnvelopeV1, formatTextHelp } from '../../cli/command-help.mjs'
-import {
-  CliInvocationError,
-  parseCommandInvocation,
-} from '../../cli/command-invocation.mjs'
+import { parseCommandInvocation } from '../../cli/command-invocation.mjs'
 
-import { parseMissionControlState } from '../../mission-control-state.mjs'
-import { writeIssueBodyWithLease } from '../../mission-control-issue-body-cas.mjs'
+import { parseMissionControlState } from '../domain/task-state.mjs'
+import { writeIssueBodyWithLease } from './issue-body-cas.mjs'
 import {
   selectNextCampaignAction,
   validateCampaignTransition,
@@ -32,7 +28,6 @@ import { classifyHeadBindings } from '../domain/merge-head-bindings.mjs'
 import { classifyMergeability } from '../domain/merge-mergeability.mjs'
 import { classifyNoAutomaticClosure } from '../domain/merge-no-automatic-closure.mjs'
 import { validateNextAction } from '../domain/merge-next-action.mjs'
-import { validateBlockerResolutionBindings } from '../domain/merge-blocker-bindings.mjs'
 import { validateBlockerResolutionPostconditions } from '../domain/merge-blocker-postconditions.mjs'
 import { blockerResolutionCampaignPostconditions } from '../domain/merge-blocker-campaign-postconditions.mjs'
 import { renderFinalResultBody } from '../domain/merge-final-result.mjs'
@@ -42,7 +37,6 @@ import { blockedExternal, stateConflict } from '../domain/merge-errors.mjs'
 import { campaignParseFailure } from '../domain/merge-campaign-errors.mjs'
 import { sameTerminalBinding } from '../domain/merge-terminal-binding.mjs'
 import { stateBlockReplacement } from '../domain/merge-state-block-replacement.mjs'
-import { classifyCampaignOwnershipEvidence } from '../domain/merge-campaign-ownership.mjs'
 import { deriveCampaignExpansionAuthority } from '../domain/merge-campaign-expansion-authority.mjs'
 import {
   projectCampaignBlockerResolved,
@@ -55,15 +49,21 @@ import { mergeCommitOid } from '../domain/merge-commit-oid.mjs'
 import { normalizeIssueReason, normalizeIssueState } from '../domain/merge-issue-state.mjs'
 import { parseMergeCliArgs } from '../domain/merge-cli-args.mjs'
 import {
+  renderMergeError,
+  renderMergeSuccess,
+} from '../domain/merge-cli-result-rendering.mjs'
+import {
   SAFE_EXECUTION_BUNDLES,
   SAFE_EXECUTION_BUNDLE_SCOPES,
   validateSafeExecutionBundle,
 } from '../domain/merge-safe-execution-bundle.mjs'
 import {
   CAMPAIGN_PROJECTION_KINDS,
-  hasMeaningfulBindingValue,
-  resolveCampaignProjectionKind,
 } from '../domain/merge-campaign-projection.mjs'
+import {
+  createCampaignOwnershipAdmission,
+  resolveCampaignMergeRoute,
+} from '../domain/merge-campaign-admission.mjs'
 import { flattenGhPages } from '../domain/merge-gh-pages.mjs'
 import {
   AUTHORIZATION_VALIDATION_FAILURE,
@@ -75,6 +75,7 @@ import {
   validateFounderMergeAuthorization,
   validateFounderMergeAuthorizationEvidence,
 } from '../domain/merge-founder-authority.mjs'
+import { defaultRunGh as transportRunGh, runNodeTransport } from '../adapters/merge-github.mjs'
 
 export {
   AUTHORIZATION_VALIDATION_FAILURE,
@@ -104,78 +105,6 @@ function defaultMergeCompletionBundle() {
     terminal_outcome: 'Task DONE and campaign slice DONE; next action selected but not started',
     steps: SAFE_EXECUTION_BUNDLES['merge-completion'],
   }
-}
-
-async function resolveCampaignMergeRoute({
-  deps,
-  repo,
-  issueNumber,
-  prNumber,
-  authorization,
-  state,
-}) {
-  const managedCampaignIssue = normalizeIssueNumber(state?.campaign_issue)
-  const hasManagedCampaignClaim = hasMeaningfulBindingValue(state?.campaign_issue) ||
-    hasMeaningfulBindingValue(state?.campaign_slice)
-
-  if (!hasManagedCampaignClaim) return null
-  if (!managedCampaignIssue) {
-    throw stateConflict('managed campaign binding has an invalid campaign Issue')
-  }
-
-  const managedCampaignSlice = state?.campaign_slice == null ? null : Number(state.campaign_slice)
-  const projectionClassification = resolveCampaignProjectionKind(authorization)
-  if (!projectionClassification.valid) throw stateConflict(projectionClassification.reason)
-  const projectionKind = projectionClassification.projectionKind
-  let blockerBinding = null
-
-  if (managedCampaignSlice != null) {
-    if (!Number.isInteger(managedCampaignSlice) || managedCampaignSlice <= 0) {
-      throw stateConflict('managed campaign binding has an invalid campaign slice')
-    }
-    if (projectionKind !== CAMPAIGN_PROJECTION_KINDS.SLICE) {
-      throw stateConflict('campaign projection kind differs from managed campaign slice binding')
-    }
-    if (normalizeIssueNumber(authorization.campaign_issue) !== managedCampaignIssue ||
-      Number(authorization.campaign_slice) !== managedCampaignSlice) {
-      throw stateConflict('campaign authorization tuple differs from managed state')
-    }
-  } else {
-    if (projectionKind !== CAMPAIGN_PROJECTION_KINDS.BLOCKER_RESOLUTION) {
-      throw stateConflict('managed campaign binding requires an exact slice or blocker-resolution tuple')
-    }
-    blockerBinding = validateBlockerResolutionBindings({ authorization, state })
-    if (blockerBinding.campaignIssue !== managedCampaignIssue) {
-      throw stateConflict('blocker-resolution campaign Issue binding differs from managed state')
-    }
-  }
-
-  if (typeof deps.readCampaignOwnership !== 'function') {
-    throw blockedExternal('verified durable campaign ownership evidence is unavailable')
-  }
-  const route = {
-    projectionKind,
-    campaignIssue: managedCampaignIssue,
-    campaignSlice: managedCampaignSlice,
-    blockerBinding,
-  }
-  const ownership = await deps.readCampaignOwnership({
-    repo,
-    taskIssue: issueNumber,
-    prNumber,
-    campaignIssue: route.campaignIssue,
-    campaignSlice: route.campaignSlice,
-    campaignBlockerId: route.blockerBinding?.campaignBlockerId ?? null,
-    projectionKind: route.projectionKind,
-  })
-  const ownershipClassification = classifyCampaignOwnershipEvidence({
-    ownership,
-    route,
-    issueNumber,
-    prNumber,
-  })
-  if (!ownershipClassification.valid) throw stateConflict(ownershipClassification.reason)
-  return route
 }
 
 export function validateMergeReviewVerdict({ reviewVerdict, expected }) {
@@ -719,23 +648,10 @@ export async function runFounderAuthorizedMerge({
   }
 }
 
-function runGh(args, options = {}) {
-  const result = spawnSync('gh', args, { encoding: 'utf8', input: options.input, env: options.env ?? process.env })
-  if (result.error || result.status !== 0) {
-    throw blockedExternal(result.stderr || result.stdout || result.error?.message || 'GitHub CLI failed')
-  }
-  return result.stdout.trim()
-}
+const runGh = transportRunGh
+const runNode = runNodeTransport
 
-function runNode(args, env = process.env) {
-  const result = spawnSync(process.execPath, args, { encoding: 'utf8', env })
-  if (result.error || result.status !== 0) {
-    throw new Error(result.stderr || result.stdout || result.error?.message || 'Mission Control reconciler failed')
-  }
-  return result.stdout.trim()
-}
-
-function createProductionDeps() {
+export function createProductionDeps() {
   const readManagedIssue = async (issueNumber, repo) => {
     const issue = JSON.parse(runGh(['issue', 'view', String(issueNumber), '--repo', repo, '--json', 'number,id,title,body,state,stateReason']))
     const parsed = parseMissionControlState(issue.body)
@@ -811,51 +727,7 @@ function createProductionDeps() {
     return parsed
   }
 
-  const readCampaignOwnership = async ({
-    repo,
-    taskIssue,
-    prNumber,
-    campaignIssue,
-    campaignSlice,
-    campaignBlockerId,
-    projectionKind,
-  }) => {
-    const parsed = await readCampaignIssue(repo, campaignIssue)
-    if (projectionKind === CAMPAIGN_PROJECTION_KINDS.SLICE) {
-      const slice = parsed.campaign?.slices?.[String(campaignSlice)]
-      if (!slice ||
-        normalizeIssueNumber(slice.issue) !== taskIssue ||
-        normalizePrNumber(slice.pr) !== prNumber) {
-        throw stateConflict(`campaign Slice ${campaignSlice} is not durably allocated to Task Issue #${taskIssue} and PR #${prNumber}`)
-      }
-      return {
-        verified: true,
-        evidence_kind: 'campaign-projection',
-        projectionKind,
-        campaignIssue,
-        campaignSlice,
-        taskIssue,
-        prNumber,
-      }
-    }
-
-    const blocker = (parsed.campaign?.campaign_blockers ?? [])
-      .find((candidate) => candidate?.id === campaignBlockerId)
-    if (!blocker ||
-      normalizeIssueNumber(blocker.evidence?.issue) !== taskIssue ||
-      normalizePrNumber(blocker.evidence?.pr) !== prNumber) {
-      throw stateConflict(`campaign blocker ${campaignBlockerId} is not durably allocated to Task Issue #${taskIssue} and PR #${prNumber}`)
-    }
-    return {
-      verified: true,
-      evidence_kind: 'campaign-projection',
-      projectionKind,
-      campaignIssue,
-      campaignBlockerId,
-      taskIssue,
-      prNumber,
-    }
-  }
+  const readCampaignOwnership = createCampaignOwnershipAdmission({ readCampaignIssue })
 
   const readNextCampaignAction = async ({ repo, campaignIssue }) => {
     const parsed = await readCampaignIssue(repo, campaignIssue)
@@ -1110,15 +982,10 @@ export async function runProductionMerge() {
 
     const options = parseMergeCliArgs(argv)
     const result = await runFounderAuthorizedMerge({ ...options, deps: createProductionDeps() })
-    process.stdout.write(`Mission Control merge transport ${result.outcome}: PR #${result.prNumber} at ${result.reviewedHead} -> ${result.mergeCommit}; Issue #${result.issueNumber} DONE.\n`)
+    process.stdout.write(renderMergeSuccess(result))
   } catch (error) {
-    if (error instanceof CliInvocationError) {
-      process.stderr.write(`ERROR: [${error.classification}] ${error.message}\n`)
-      process.exitCode = 1
-      return
-    }
-    process.stderr.write(`ERROR: ${error instanceof Error ? error.message : String(error)}\n`)
-    process.exitCode = 1
+    const rendering = renderMergeError(error)
+    process[rendering.stream].write(rendering.output)
+    process.exitCode = rendering.exitCode
   }
 }
-

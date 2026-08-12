@@ -3,7 +3,7 @@ import {
   normalizeAuthorityHead,
   parseRoleCommentBody,
 } from './review-verdict-binding.mjs'
-import { populateOrPreservePlanningAuthorizationBaseSha } from '../mission-control-state.mjs'
+import { populateOrPreservePlanningAuthorizationBaseSha } from './domain/task-state.mjs'
 import { serializeTransitionIdentity } from './transition-identity.mjs'
 
 const COORDINATOR_OWNED_LINEAGE_KEYS = Object.freeze([
@@ -121,4 +121,3 @@ export function routingDriftClassification({ prior = {}, identity, comment, role
   }
   return null
 }
-

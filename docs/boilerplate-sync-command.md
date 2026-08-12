@@ -124,7 +124,7 @@ Starter modules are **not** harness. Use `harness-only` when the child project a
 - `.github/workflows/ci.yml`, PR template, and agent issue template (child-safe CI: `bemoat:guard:safety`, `bemoat:test:int` only)
 - `docs/agent-loop/*`, `docs/hardening.md`, `docs/releases.md`, `docs/deploy-smoke-test.md`, `docs/cloudflare-environments.md`, `docs/schema-evolution.md`
 - `scripts/sync-boilerplate.mjs`, `scripts/check-boilerplate-drift.mjs`, `scripts/deploy-smoke-test.mjs`
-- `scripts/guard-repo-safety.mjs`, `scripts/guard-cloudflare-env.mjs`, `scripts/install-git-hooks.mjs`
+- `scripts/guards/repo-safety.mjs`, `scripts/guard-cloudflare-env.mjs`, `scripts/install-git-hooks.mjs`
 - `.githooks/pre-commit` and `.githooks/pre-push` (optional local branch safety and pre-push harness)
 - `vitest.config.mts`, `vitest.setup.ts`, and shared harness tests under `tests/int/`:
   - `tests/int/api.int.spec.ts`

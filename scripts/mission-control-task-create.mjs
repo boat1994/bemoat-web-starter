@@ -16,7 +16,7 @@ import {
 import { createTaskBootstrapGithubAdapter } from './mission-control/adapters/task-bootstrap-github.mjs'
 import { BOOTSTRAP_CONTRACT } from './mission-control/domain/task-bootstrap-authorization.mjs'
 import { createTaskBootstrapService } from './mission-control/workflows/task-bootstrap.mjs'
-import { parseMissionControlState } from './mission-control-state.mjs'
+import { parseMissionControlState } from './mission-control/domain/task-state.mjs'
 
 const COMMAND = 'bemoat:mission-control:task-bootstrap'
 const ENTRYPOINT = 'scripts/mission-control-task-create.mjs'

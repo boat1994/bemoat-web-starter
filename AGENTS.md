@@ -93,17 +93,25 @@ conflict.
 ## Bemoat CLI Discovery
 
 Before invoking, recommending, or bypassing a registered `bemoat:*` command,
-inspect its public command contract:
+resolve the registered command contract first. Use that contract to determine
+accepted pre-states, required caller inputs, trusted-derived values, required
+evidence, mutation behavior, success and stop classifications, retry behavior,
+and next-action routing. Do not infer a command contract from memory, prompt
+examples, or internal implementation source.
+
+If `help_meaningful === true`, invoke the registry-declared
+`safe_help_invocation`. Repository-owned commands normally expose machine-
+readable help with `--help --json`:
 
 ```bash
 pnpm run <bemoat-command> -- --help --json
 ```
 
-Use the returned contract to determine accepted pre-states, required caller
-inputs, trusted-derived values, required evidence, mutation behavior, success
-and stop classifications, retry behavior, and next-action routing. Do not infer
-a command contract from memory, prompt examples, or internal implementation
-source.
+If `help_meaningful === false`, this is an explicit Tier C delegation boundary:
+invoke the registry-declared `safe_help_invocation` and do not require the
+wrapper itself to implement repository-owned JSON help. Tier C remains
+registry-defined and delegated; it is not reclassified as a repository-owned
+command tier.
 
 Do not directly invoke internal workflow functions or raw GitHub mutation
 commands when a registered Bemoat command owns the operation. Raw GitHub reads
@@ -117,10 +125,10 @@ projection helpers. Internal imports remain valid for automated tests, but do
 not prove public CLI usability.
 
 A help invocation must perform no mutation: it creates no comment, changes no
-state, and creates no branch, issue, or PR. It must return machine-readable
-output when `--json` is requested. If help is missing, unsafe,
-non-machine-readable, or materially contradicts runtime behavior, stop with
-`CLI_DISCOVERY_DEFECT`.
+state, and creates no branch, issue, or PR. For contracts whose
+`help_meaningful === true`, it must return machine-readable output when
+`--json` is requested. A mismatch between runtime behavior and the command's
+actual registered contract remains `CLI_DISCOVERY_DEFECT`.
 
 ## Required First Steps Before File Edits
 

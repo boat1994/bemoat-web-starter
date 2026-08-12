@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- executable .mjs boundary */
-import * as correctionContractModule from '../../scripts/correction-contract.mjs'
+import * as correctionContractModule from '../../scripts/mission-control/domain/correction-contract.mjs'
 import * as reconcileModule from '../../scripts/mission-control-reconcile.mjs'
+import {
+  createResultRendering,
+  createRuntimeErrorRendering,
+  runtimeError,
+} from '../../scripts/mission-control/domain/review-result-rendering.mjs'
 
 const {
   findingsFieldDeclaresUnresolvedImplementationFindings,
@@ -243,7 +248,7 @@ describe('mission-control review transition', () => {
   it('keeps the review CLI as a sync-managed facade', async () => {
     const sync = await import('../../scripts/sync-boilerplate.mjs')
     expect(sync.managedPaths).toContain('scripts/mission-control-review.mjs')
-    expect(sync.managedPaths).toContain('scripts/command-runner.mjs')
+    expect(sync.managedPaths).not.toContain('scripts/command-runner.mjs')
     expect(sync.managedPaths).toContain('scripts/adapters/command-runner.mjs')
     expect(sync.managedPackageScripts).toContain('bemoat:mission-control:review')
     expect((await import('../../package.json', { with: { type: 'json' } })).default.scripts['bemoat:mission-control:review'])
@@ -547,6 +552,51 @@ describe('Issue #229 Review 3 blocker-projection hotfix', () => {
       latest_handoff_comment_id: 'handoff-255',
       latest_result_comment_id: 'result-255',
       latest_review_verdict_comment_id: 'verdict-255',
+    })
+  })
+
+  it('preserves the successful retry envelope and legacy text output', () => {
+    const { envelope, output, exitCode } = createResultRendering({
+      command: 'bemoat:mission-control:review',
+      options: { issue: '229', prNumber: '230', expectedHead: 'ABCDEF0123456789ABCDEF0123456789ABCDEF01' },
+      result: {
+        replayed: true,
+        outcome: 'REVIEWED',
+        state: { state: 'ELIGIBLE_FOR_FOUNDER_REVIEW' },
+        comment: { id: '9001' },
+      },
+      repository: 'acme/repo',
+      observedPreState: 'AWAITING_REVIEW_3',
+    })
+
+    expect(envelope).toMatchObject({
+      outcome: 'NO_OP',
+      classification: 'NO_OP_IDENTICAL_RETRY',
+      mutation_performed: false,
+      details: {
+        legacy_classification: 'NO_OP',
+        legacy_output: ['Mission Control review NO_OP_IDENTICAL_RETRY: ELIGIBLE_FOR_FOUNDER_REVIEW + REVIEW_VERDICT comment 9001'],
+        comment_id: '9001',
+        replayed: true,
+      },
+    })
+    expect(output).toBe('Mission Control review NO_OP_IDENTICAL_RETRY: ELIGIBLE_FOR_FOUNDER_REVIEW + REVIEW_VERDICT comment 9001')
+    expect(exitCode).toBe(0)
+  })
+
+  it('preserves classified error details, stream, legacy prefix, and exit code', () => {
+    const rendering = createRuntimeErrorRendering({
+      command: 'bemoat:mission-control:review',
+      format: 'text',
+      error: runtimeError('STATE_CONFLICT', 'concurrent Issue body change detected', { legacyClassification: 'STATE_CONFLICT' }),
+      values: { repository: 'acme/repo', issue_number: '229', expected_head: 'not-a-sha' },
+    })
+
+    expect(rendering).toEqual({
+      envelope: null,
+      output: 'ERROR: STATE_CONFLICT: STATE_CONFLICT: concurrent Issue body change detected\n',
+      stream: 'stderr',
+      exitCode: 3,
     })
   })
 })

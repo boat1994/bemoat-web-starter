@@ -22,7 +22,7 @@ import {
 } from '../../scripts/mission-control/domain/task-ownership-registry.mjs'
 import { buildTaskBootstrapRequestIdentity } from '../../scripts/mission-control/domain/task-bootstrap-request.mjs'
 import { preflightCanonicalBootstrapTask } from '../../scripts/mission-control/domain/task-bootstrap-preflight.mjs'
-import { parseMissionControlState } from '../../scripts/mission-control-state.mjs'
+import { parseMissionControlState } from '../../scripts/mission-control/domain/task-state.mjs'
 
 const REPO = 'boat1994/bemoat-web-starter'
 const MAIN_SHA = 'f6ac355b98aa281dda2a49bcf2ddaeb279d8173d'

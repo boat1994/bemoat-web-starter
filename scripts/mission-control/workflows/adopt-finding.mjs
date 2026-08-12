@@ -1,6 +1,4 @@
 #!/usr/bin/env node
-import { spawnSync } from 'node:child_process'
-
 import {
   createHelpEnvelopeV1,
   formatTextHelp,
@@ -10,17 +8,12 @@ import {
   parseCommandInvocation,
   resolveCommandIdentity,
 } from '../../cli/command-invocation.mjs'
-import {
-  CLI_EXIT_CODES,
-  classificationExitCode,
-  createResultEnvelopeV1,
-} from '../../cli/command-result.mjs'
-import { parseCorrectionContract } from '../../correction-contract.mjs'
-import { writeIssueBodyWithLease, isLeaseCasConflict } from '../../mission-control-issue-body-cas.mjs'
+import { parseCorrectionContract } from '../domain/correction-contract.mjs'
+import { writeIssueBodyWithLease, isLeaseCasConflict } from './issue-body-cas.mjs'
 import {
   parseMissionControlState,
   projectMissionControlStateBlock,
-} from '../../mission-control-state.mjs'
+} from '../domain/task-state.mjs'
 import {
   ACTIVE_CORRECTION_CONTRACT_IDENTITY_KEY,
   buildActiveCorrectionContractIdentity,
@@ -28,7 +21,6 @@ import {
   reconstructDeltaReviewFindingUnion,
   resolveAuthoritativeCorrectionContract,
   sameValue,
-  validateActiveCorrectionContractIdentity,
 } from '../domain/active-correction-contract.mjs'
 import {
   assertFounderAdoptFindingAuthorization,
@@ -38,6 +30,17 @@ import {
   fingerprintCorrectionContract,
   hashExactBody,
 } from '../domain/correction-contract-fingerprint.mjs'
+import {
+  assertOnlyIdentityMutation,
+  buildNextState,
+  isIdenticalCompletedProjection,
+} from '../domain/adopt-finding-projection.mjs'
+import {
+  createResultRendering,
+  createRuntimeErrorRendering,
+  exactNextAction,
+} from '../domain/adopt-finding-result-rendering.mjs'
+import { createProductionDeps as createGithubTransport } from '../adapters/adopt-finding-github.mjs'
 
 export const ADOPT_FINDING_COMMAND = 'bemoat:mission-control:adopt-finding'
 export const ADOPT_FINDING_ENTRYPOINT = 'scripts/mission-control-adopt-finding.mjs'
@@ -65,10 +68,6 @@ function normalizeId(value) {
   return match?.[1] ?? null
 }
 
-function exactNextAction(issueNumber) {
-  return `pnpm run bemoat:agent:issue -- ${issueNumber} --phase correction`
-}
-
 function resolveAdoptCommand() {
   const env = process.env.npm_lifecycle_event === 'test:int'
     ? { ...process.env, npm_lifecycle_event: undefined }
@@ -86,96 +85,6 @@ function renderHelp(invocation) {
     return
   }
   process.stdout.write(formatTextHelp(invocation.contract))
-}
-
-function runtimeClassification(error) {
-  if (
-    error &&
-    typeof error === 'object' &&
-    typeof error.classification === 'string' &&
-    Object.hasOwn(CLI_EXIT_CODES, error.classification)
-  ) {
-    return error.classification
-  }
-  const reason = error instanceof Error ? error.message : String(error)
-  const prefix = reason.match(/^(?:ERROR:\s*)?([A-Z_]+):/)
-  if (prefix && Object.hasOwn(CLI_EXIT_CODES, prefix[1])) return prefix[1]
-  if (isLeaseCasConflict(error) || /\blease\b/i.test(reason)) return 'STATE_CONFLICT'
-  if (/\b(?:gh|GitHub|network|remote)\b/i.test(reason)) return 'BLOCKED_EXTERNAL'
-  return 'INTERNAL_ERROR'
-}
-
-function renderResult({
-  command,
-  format,
-  options,
-  classification,
-  outcome,
-  mutationPerformed,
-  observedPreState,
-  resultingState,
-  repository,
-  exactHead,
-  evidenceIds,
-  details,
-}) {
-  const envelope = createResultEnvelopeV1({
-    command,
-    outcome,
-    classification,
-    mutation_performed: mutationPerformed,
-    observed_pre_state: observedPreState,
-    resulting_state: resultingState,
-    repository,
-    issue_number: String(options.issueNumber),
-    pr_number: String(options.expectedPr),
-    exact_head: exactHead,
-    evidence_ids: evidenceIds,
-    next_action: classification === 'SUCCESS' || classification === 'NO_OP_IDENTICAL_RETRY'
-      ? {
-        type: 'COMMAND',
-        command: 'bemoat:agent:issue',
-        reason: `Exact next permitted action: ${exactNextAction(options.issueNumber)}`,
-      }
-      : {
-        type: 'STOP',
-        command: null,
-        reason: `Stop on ${classification}; do not retry unless the classification is identically completed.`,
-      },
-    details: {
-      ...details,
-      exact_next_permitted_action: exactNextAction(options.issueNumber),
-    },
-  })
-
-  if (format === 'json') {
-    process.stdout.write(`${JSON.stringify(envelope)}\n`)
-  } else {
-    process.stdout.write(`${envelope.classification}: adopt-finding Task #${options.issueNumber}\n`)
-  }
-  process.exitCode = classificationExitCode(envelope.classification)
-  return envelope
-}
-
-function assertOnlyIdentityMutation(before, after) {
-  const keys = new Set([...Object.keys(before ?? {}), ...Object.keys(after ?? {})])
-  const allowed = new Set([
-    ACTIVE_CORRECTION_CONTRACT_IDENTITY_KEY,
-    'updated_at',
-    'updated_by',
-    'next_permitted_action',
-  ])
-  for (const key of keys) {
-    if (allowed.has(key)) continue
-    if (!sameValue(before?.[key], after?.[key])) {
-      throw classifiedError('STATE_CONFLICT', `adopt-finding changed unrelated managed-state field ${key}`)
-    }
-  }
-  for (const key of ['state', 'review_cycle', 'full_review_count', 'last_reviewed_head', 'current_head']) {
-    if (!sameValue(before?.[key], after?.[key])) {
-      throw classifiedError('STATE_CONFLICT', `adopt-finding must preserve ${key}`)
-    }
-  }
 }
 
 function assertPredecessorBindings({
@@ -225,33 +134,6 @@ function assertPredecessorBindings({
     contract: parsed.contract,
     authorizationBinding: predecessorAuthorization ?? null,
   }
-}
-
-function buildNextState(state, identity) {
-  return {
-    ...structuredClone(state),
-    [ACTIVE_CORRECTION_CONTRACT_IDENTITY_KEY]: identity,
-    next_permitted_action: exactNextAction(
-      String(state.active_task_issue ?? '').match(/#?(\d+)/)?.[1] ?? '',
-    ),
-    updated_at: new Date().toISOString(),
-    updated_by: 'Mission Control adopt-finding',
-  }
-}
-
-function isIdenticalCompletedProjection({ state, identity, options, authorization }) {
-  const existing = state?.[ACTIVE_CORRECTION_CONTRACT_IDENTITY_KEY]
-  if (!existing) return false
-  const validated = validateActiveCorrectionContractIdentity(existing)
-  if (!validated.ok) return false
-  return (
-    String(validated.identity.founder_authorization_comment_id) === String(options.authorizationComment) &&
-    String(validated.identity.predecessor_comment_id) === String(options.predecessorComment) &&
-    validated.identity.founder_authorization_body_sha256 === authorization.body_sha256 &&
-    validated.identity.adoption_head === normalizeSha(options.expectedAdoptionHead) &&
-    validated.identity.contract_fingerprint === identity.contract_fingerprint &&
-    sameValue(validated.identity.contract, identity.contract)
-  )
 }
 
 export async function runAdoptFinding({ options, deps, checkOnly = false }) {
@@ -485,54 +367,22 @@ export async function runAdoptFinding({ options, deps, checkOnly = false }) {
   }
 }
 
-export function createProductionDeps() {
-  const runGh = (args, options = {}) => {
-    const result = spawnSync('gh', args, {
-      encoding: 'utf8',
-      input: options.input,
-      env: options.env ?? process.env,
-    })
-    if (result.error || result.status !== 0) {
-      throw classifiedError(
-        'BLOCKED_EXTERNAL',
-        result.stderr || result.stdout || result.error?.message || 'GitHub CLI failed',
-      )
-    }
-    return result.stdout.trim()
-  }
-
+export function createProductionDeps({ runGh } = {}) {
+  const transport = createGithubTransport({ runGh })
   return {
     readManagedIssue: async (issueNumber, repo) => {
-      const issue = JSON.parse(runGh([
-        'issue', 'view', String(issueNumber), '--repo', repo, '--json', 'number,id,title,body,state',
-      ]))
+      const issue = await transport.readIssue(issueNumber, repo)
       const parsed = parseMissionControlState(issue.body)
       if (!parsed.present || !parsed.valid) {
         throw classifiedError('STATE_CONFLICT', `Issue has invalid managed state: ${parsed.reason ?? 'missing state block'}`)
       }
       return { ...issue, managedState: parsed.state }
     },
-    readPullRequest: async (prNumber, repo) => JSON.parse(runGh([
-      'pr', 'view', String(prNumber), '--repo', repo,
-      '--json', 'number,state,isDraft,headRefOid,baseRefName,baseRefOid',
-    ])),
-    readComment: async (repo, commentId) => JSON.parse(runGh([
-      'api', `repos/${repo}/issues/comments/${commentId}`,
-    ])),
-    readIssueComments: async (repo, issueNumber) => {
-      const pages = JSON.parse(runGh([
-        'api', '--paginate', '--slurp',
-        `repos/${repo}/issues/${issueNumber}/comments?per_page=100`,
-      ]))
-      if (!Array.isArray(pages) || pages.some((page) => !Array.isArray(page))) {
-        throw classifiedError('BLOCKED_EXTERNAL', 'live Issue comment pagination is incomplete')
-      }
-      return pages.flat()
-    },
+    readPullRequest: transport.readPullRequest,
+    readComment: transport.readComment,
+    readIssueComments: transport.readIssueComments,
     readTrustedFounderLogins: async (repo) => {
-      const variable = JSON.parse(runGh([
-        'api', `repos/${repo}/actions/variables/BEMOAT_FOUNDER_LOGINS`,
-      ]))
+      const variable = await transport.readFounderLoginsVariable(repo)
       const logins = String(variable.value ?? '')
         .split(',')
         .map((login) => login.trim())
@@ -551,7 +401,7 @@ export function createProductionDeps() {
         transitionIdentity,
         holder: 'mission-control-adopt-finding',
         repoFlag: repo,
-        deps: { runGh },
+        deps: { runGh: transport.runGh },
       }),
   }
 }
@@ -624,7 +474,7 @@ export async function main(argv = process.argv.slice(2), deps = createProduction
       checkOnly: options.check === true,
     })
 
-    return renderResult({
+    const rendering = createResultRendering({
       command,
       format: invocation.format,
       options,
@@ -646,78 +496,31 @@ export async function main(argv = process.argv.slice(2), deps = createProduction
         mutation_boundary: 'active_correction_contract_identity_only',
       },
     })
+    process.stdout.write(rendering.output)
+    process.exitCode = rendering.exitCode
+    return rendering.envelope
   } catch (error) {
     if (error instanceof CliInvocationError) {
-      const envelope = createResultEnvelopeV1({
+      const rendering = createRuntimeErrorRendering({
         command: command ?? ADOPT_FINDING_COMMAND,
-        outcome: 'STOP',
-        classification: 'INVALID_INVOCATION',
-        mutation_performed: false,
-        observed_pre_state: null,
-        resulting_state: null,
-        repository: options?.repo?.toLowerCase?.() ?? null,
-        issue_number: options?.issueNumber ? String(options.issueNumber) : null,
-        pr_number: options?.expectedPr ? String(options.expectedPr) : null,
-        exact_head: null,
-        evidence_ids: {},
-        next_action: {
-          type: 'STOP',
-          command: null,
-          reason: error.message,
-        },
-        details: {
-          argument: error.details?.argument ?? null,
-          reason: error.message,
-        },
+        format: invocation?.format === 'json' || argv.includes('--json') ? 'json' : 'text',
+        error,
+        options,
       })
-      if (invocation?.format === 'json' || argv.includes('--json')) {
-        process.stdout.write(`${JSON.stringify(envelope)}\n`)
-      } else {
-        process.stderr.write(`INVALID_INVOCATION: ${error.message}\n`)
-      }
-      process.exitCode = classificationExitCode('INVALID_INVOCATION')
-      return envelope
+      process[rendering.stream].write(rendering.output)
+      process.exitCode = rendering.exitCode
+      return rendering.envelope ?? { classification: 'INVALID_INVOCATION' }
     }
 
-    const classification = runtimeClassification(error)
-    const message = error instanceof Error ? error.message : String(error)
-    if (options) {
-      const envelope = createResultEnvelopeV1({
-        command: command ?? ADOPT_FINDING_COMMAND,
-        outcome: classification === 'INTERNAL_ERROR' ? 'ERROR' : 'STOP',
-        classification,
-        mutation_performed: false,
-        observed_pre_state: options.expectedState ?? null,
-        resulting_state: null,
-        repository: options.repo.toLowerCase(),
-        issue_number: String(options.issueNumber),
-        pr_number: String(options.expectedPr),
-        exact_head: normalizeSha(options.expectedAdoptionHead),
-        evidence_ids: {
-          founder_authorization_comment_id: String(options.authorizationComment),
-          predecessor_comment_id: String(options.predecessorComment),
-        },
-        next_action: {
-          type: 'STOP',
-          command: null,
-          reason: message,
-        },
-        details: {
-          reason: message,
-        },
-      })
-      if (invocation?.format === 'json' || argv.includes('--json')) {
-        process.stdout.write(`${JSON.stringify(envelope)}\n`)
-      } else {
-        process.stderr.write(`${classification}: ${message}\n`)
-      }
-      process.exitCode = classificationExitCode(classification)
-      return envelope
-    }
-
-    process.stderr.write(`${classification}: ${message}\n`)
-    process.exitCode = classificationExitCode(classification)
-    return { classification }
+    const rendering = createRuntimeErrorRendering({
+      command: command ?? ADOPT_FINDING_COMMAND,
+      format: invocation?.format === 'json' || argv.includes('--json') ? 'json' : 'text',
+      error,
+      options,
+    })
+    process[rendering.stream].write(rendering.output)
+    process.exitCode = rendering.exitCode
+    return rendering.envelope ?? { classification: rendering.output.split(':', 1)[0] }
   }
 }
 

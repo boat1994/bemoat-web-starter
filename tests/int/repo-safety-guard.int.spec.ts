@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 describe('repository safety guard', () => {
   it('exports guard helpers for reuse', async () => {
-    const mod = await import('../../scripts/guard-repo-safety.mjs')
+    const mod = await import('../../scripts/guards/repo-safety.mjs')
 
     expect(mod.APPROVAL_MARKER).toBe('bemoat:destructive-migration-approved')
     expect(mod.ALLOWED_ENV_FILES.has('.env.example')).toBe(true)
@@ -11,7 +11,7 @@ describe('repository safety guard', () => {
   })
 
   it('flags tracked env files except .env.example', async () => {
-    const mod = await import('../../scripts/guard-repo-safety.mjs')
+    const mod = await import('../../scripts/guards/repo-safety.mjs')
 
     expect(mod.isForbiddenEnvFile('.env')).toBe(true)
     expect(mod.isForbiddenEnvFile('.env.local')).toBe(true)
@@ -19,7 +19,7 @@ describe('repository safety guard', () => {
   })
 
   it('detects obvious secret patterns', async () => {
-    const mod = await import('../../scripts/guard-repo-safety.mjs')
+    const mod = await import('../../scripts/guards/repo-safety.mjs')
 
     const violations = mod.scanSecrets('scripts/example.sh', 'export TOKEN=ghp_abcdefghijklmnopqrstuvwxyz1234567890')
 
@@ -27,7 +27,7 @@ describe('repository safety guard', () => {
   })
 
   it('ignores placeholder secret assignments', async () => {
-    const mod = await import('../../scripts/guard-repo-safety.mjs')
+    const mod = await import('../../scripts/guards/repo-safety.mjs')
 
     const violations = mod.scanSecrets('scripts/example.sh', 'PAYLOAD_SECRET=ignore')
 
@@ -35,7 +35,7 @@ describe('repository safety guard', () => {
   })
 
   it('flags Cloudflare resource IDs outside wrangler.jsonc', async () => {
-    const mod = await import('../../scripts/guard-repo-safety.mjs')
+    const mod = await import('../../scripts/guards/repo-safety.mjs')
 
     const violations = mod.scanResourceIds(
       'scripts/example.json',
@@ -47,7 +47,7 @@ describe('repository safety guard', () => {
   })
 
   it('flags destructive migration keywords in up sections only', async () => {
-    const mod = await import('../../scripts/guard-repo-safety.mjs')
+    const mod = await import('../../scripts/guards/repo-safety.mjs')
 
     const migration = `
 export async function up() {
@@ -69,7 +69,7 @@ export async function down() {
   })
 
   it('flags rename and alter column SQL in migration up sections', async () => {
-    const mod = await import('../../scripts/guard-repo-safety.mjs')
+    const mod = await import('../../scripts/guards/repo-safety.mjs')
 
     const renameColumn = `
 export async function up() {
@@ -97,7 +97,7 @@ export async function up() {
   })
 
   it('ignores tests directory during repository scans', async () => {
-    const mod = await import('../../scripts/guard-repo-safety.mjs')
+    const mod = await import('../../scripts/guards/repo-safety.mjs')
 
     expect(mod.isTestPath('tests/int/repo-safety-guard.int.spec.ts')).toBe(true)
     expect(mod.isSecretScanPath('tests/int/repo-safety-guard.int.spec.ts')).toBe(false)
@@ -105,7 +105,7 @@ export async function up() {
   })
 
   it('passes on the current repository', async () => {
-    const mod = await import('../../scripts/guard-repo-safety.mjs')
+    const mod = await import('../../scripts/guards/repo-safety.mjs')
 
     const violations = mod.runRepoSafetyGuard()
     expect(mod.getGuardExitCode(violations)).toBe(0)

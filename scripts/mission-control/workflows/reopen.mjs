@@ -1,17 +1,24 @@
-import { createHash } from 'node:crypto'
-import { spawnSync } from 'node:child_process'
-
-import {
-  parseFounderMergeAuthorization,
-  validateFounderAuthorizationRecord,
-} from '../../mission-control-merge.mjs'
 import {
   parseMissionControlState,
   projectMissionControlStateBlock,
-} from '../../mission-control-state.mjs'
-import { writeIssueBodyWithLease } from '../../mission-control-issue-body-cas.mjs'
+} from '../domain/task-state.mjs'
+import { writeIssueBodyWithLease } from './issue-body-cas.mjs'
+import { defaultRunGh as transportRunGh } from '../adapters/reopen-github.mjs'
+import {
+  assertFounderAuthorization,
+  parseFounderReopenAuthorization,
+} from '../domain/reopen-authorization.mjs'
+import {
+  buildNextState,
+  sameReopenValue,
+} from '../domain/reopen-state-projection.mjs'
+import {
+  createResultRendering,
+  createRuntimeErrorRendering,
+} from '../domain/reopen-result-rendering.mjs'
 
-export const REOPEN_AUTHORIZATION_BUNDLE_KIND = 'founder-reopen'
+export { REOPEN_AUTHORIZATION_BUNDLE_KIND, parseFounderReopenAuthorization } from '../domain/reopen-authorization.mjs'
+
 export const REOPEN_NEXT_ACTION = 'Execute exactly one bounded correction RESULT, then one Delta Review.'
 export const REOPEN_USAGE = `Usage:
   pnpm run bemoat:mission-control:reopen -- <issue-number> [flags]
@@ -69,10 +76,6 @@ function blockedExternal(message) {
   return new Error(`BLOCKED_EXTERNAL: ${message}`)
 }
 
-function clone(value) {
-  return structuredClone(value)
-}
-
 function normalizeId(value) {
   const match = String(value ?? '').match(/^#?([1-9]\d*)$/)
   return match?.[1] ?? null
@@ -82,50 +85,14 @@ function normalizeSha(value) {
   return typeof value === 'string' && FULL_SHA_RE.test(value) ? value.toLowerCase() : null
 }
 
-function hashBody(body) {
-  return createHash('sha256').update(String(body ?? ''), 'utf8').digest('hex')
-}
-
 function isObject(value) {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function sameValue(left, right) {
-  if (Object.is(left, right)) return true
-  if (typeof left !== typeof right || left === null || right === null) return false
-  if (Array.isArray(left)) {
-    return Array.isArray(right) &&
-      left.length === right.length &&
-      left.every((value, index) => sameValue(value, right[index]))
-  }
-  if (Array.isArray(right)) return false
-  if (typeof left === 'object') {
-    const leftKeys = Object.keys(left).sort()
-    const rightKeys = Object.keys(right).sort()
-    return leftKeys.length === rightKeys.length &&
-      leftKeys.every((key, index) => key === rightKeys[index] && sameValue(left[key], right[key]))
-  }
-  return false
 }
 
 function requireValue(options, key) {
   if (options[key] === null || options[key] === undefined || options[key] === '') {
     throw new Error(`--${key.replace(/[A-Z]/g, (char) => `-${char.toLowerCase()}`)} is required`)
   }
-}
-
-function requiredAlias(record, names, label) {
-  const entries = names
-    .filter((name) => Object.hasOwn(record, name))
-    .map((name) => record[name])
-  if (entries.length === 0 || entries.some((value) => value === null || value === undefined || value === '')) {
-    throw stateConflict(`Founder authorization ${label} is required`)
-  }
-  const normalized = entries.map((value) => String(value))
-  if (new Set(normalized).size !== 1) {
-    throw stateConflict(`Founder authorization ${label} is conflicting`)
-  }
-  return normalized[0]
 }
 
 function parseExpectedNumber(value, label) {
@@ -166,6 +133,7 @@ export function parseReopenArgs(argv = []) {
 
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index]
+    if (argument === '--json') continue
     if (argument === '--') continue
     const key = flags[argument]
     if (key) {
@@ -205,311 +173,6 @@ export function parseReopenArgs(argv = []) {
   }
 
   return options
-}
-
-export function parseFounderReopenAuthorization(body = '') {
-  try {
-    const authorization = parseFounderMergeAuthorization(String(body))
-    if (!isObject(authorization)) throw new Error('record must be one JSON object')
-    return authorization
-  } catch (error) {
-    throw stateConflict(`Founder authorization evidence is not canonical: ${error instanceof Error ? error.message : String(error)}`)
-  }
-}
-
-function commentAuthor(comment) {
-  return comment?.user?.login ?? comment?.author?.login ?? comment?.author_login ?? null
-}
-
-function commentSupersedesId(comment, targetId) {
-  const body = String(comment?.body ?? '')
-  if (
-    body.includes(`supersedes: ${targetId}`) ||
-    body.includes(`superseded_comment_id: ${targetId}`) ||
-    (body.includes(String(targetId)) && /superseded|not authoritative/i.test(body))
-  ) {
-    return true
-  }
-  try {
-    const record = parseFounderReopenAuthorization(body)
-    const ids = [
-      record.supersedes_comment_id,
-      ...(Array.isArray(record.supersedes_comment_ids) ? record.supersedes_comment_ids : []),
-    ].filter((id) => id !== null && id !== undefined).map(String)
-    return ids.includes(String(targetId))
-  } catch {
-    return false
-  }
-}
-
-function assertCommentIdentity(comment, options) {
-  if (!comment || String(comment.id) !== String(options.authorizationComment)) {
-    throw stateConflict('Founder authorization comment ID is not the immutable live comment')
-  }
-  const expectedIssueUrl = `https://api.github.com/repos/${options.repo}/issues/${options.issueNumber}`
-  if (comment.issue_url !== expectedIssueUrl) {
-    throw stateConflict('Founder authorization comment is not attached to the Task Issue')
-  }
-  const author = commentAuthor(comment)
-  if (!author || comment.author_association !== 'OWNER') {
-    throw stateConflict('Founder authorization comment is not authored by an authenticated OWNER')
-  }
-  return author
-}
-
-function assertNoCompetingAuthorization(comments, targetComment, options) {
-  const targetId = String(targetComment.id)
-  for (const comment of comments) {
-    if (String(comment?.id) === targetId) continue
-    if (commentSupersedesId(comment, targetId)) {
-      throw stateConflict(`Founder authorization ${targetId} is superseded by comment ${comment.id}`)
-    }
-
-    let candidate
-    try {
-      candidate = parseFounderReopenAuthorization(comment.body)
-    } catch {
-      candidate = null
-    }
-    if (
-      candidate?.bundle_kind === REOPEN_AUTHORIZATION_BUNDLE_KIND &&
-      normalizeId(candidate.task_issue) === String(options.issueNumber) &&
-      normalizeId(candidate.pr) === String(options.expectedPr)
-    ) {
-      throw stateConflict(`competing Founder reopen authorization comment ${comment.id} exists`)
-    }
-  }
-}
-
-function assertBoundedScope(value) {
-  if (typeof value === 'string') {
-    if (value.trim()) return value
-  } else if (
-    Array.isArray(value) &&
-    value.length > 0 &&
-    value.every((entry) => typeof entry === 'string' && entry.trim())
-  ) {
-    return clone(value)
-  }
-  throw stateConflict('Founder authorization bounded correction scope is required')
-}
-
-function assertFindingIds(value) {
-  if (
-    !Array.isArray(value) ||
-    value.length === 0 ||
-    value.some((entry) => typeof entry !== 'string' || !entry.trim()) ||
-    new Set(value).size !== value.length
-  ) {
-    throw stateConflict('Founder authorization finding_ids must be a non-empty unique array')
-  }
-  return [...value]
-}
-
-function assertFounderAuthorization({
-  authorization,
-  comment,
-  comments,
-  trustedFounderLogins,
-  state,
-  pr,
-  options,
-}) {
-  const author = assertCommentIdentity(comment, options)
-  if (authorization.author_login !== author) {
-    throw stateConflict('Founder authorization author_login does not match the live comment author')
-  }
-  if (!Array.isArray(trustedFounderLogins) || trustedFounderLogins.length === 0) {
-    throw blockedExternal('repository-owned Founder identity configuration is unavailable')
-  }
-
-  const commentId = requiredAlias(authorization, ['comment_id', 'immutable_comment_id'], 'comment_id')
-  if (commentId !== String(options.authorizationComment)) {
-    throw stateConflict('Founder authorization comment_id does not match the immutable comment')
-  }
-  if (authorization.comment_id != null && authorization.immutable_comment_id != null &&
-      String(authorization.comment_id) !== String(authorization.immutable_comment_id)) {
-    throw stateConflict('Founder authorization comment IDs conflict')
-  }
-  if (authorization.immutable_comment_reference !== true) {
-    throw stateConflict('Founder authorization immutable_comment_reference must be true')
-  }
-  if (authorization.non_superseded !== true || authorization.superseded_by != null) {
-    throw stateConflict('Founder authorization is already superseded')
-  }
-
-  const bodyHash = hashBody(comment.body)
-  if (authorization.comment_sha256 != null && authorization.comment_sha256 !== bodyHash) {
-    throw stateConflict('Founder authorization comment_sha256 does not match the immutable comment body')
-  }
-  assertNoCompetingAuthorization(comments, comment, options)
-
-  if (
-    authorization.schema_version !== 1 ||
-    authorization.status !== 'approved' ||
-    authorization.authority !== 'Founder' ||
-    authorization.repository !== options.repo ||
-    authorization.bundle_kind !== REOPEN_AUTHORIZATION_BUNDLE_KIND ||
-    authorization.scope !== 'correction' ||
-    authorization.action !== 'reopen'
-  ) {
-    throw stateConflict('Founder authorization record has an invalid status, repository, bundle, scope, or action')
-  }
-  const taskIssue = requiredAlias(authorization, ['task_issue'], 'Task Issue')
-  if (normalizeId(taskIssue) !== String(options.issueNumber)) {
-    throw stateConflict('Founder authorization Task Issue does not match the requested Issue')
-  }
-  const pullRequest = requiredAlias(authorization, ['pr'], 'PR')
-  if (normalizeId(pullRequest) !== String(options.expectedPr)) {
-    throw stateConflict('Founder authorization PR does not match the requested PR')
-  }
-  if (
-    authorization.base !== options.expectedBase ||
-    authorization.approved_base !== options.expectedBase ||
-    authorization.policy_source_sha !== state.guide_source_sha ||
-    authorization.policy_version !== state.guide_version ||
-    authorization.protected_base_sha !== pr.baseRefOid
-  ) {
-    throw stateConflict('Founder authorization policy or protected-base evidence does not match live evidence')
-  }
-
-  const oldHead = requiredAlias(
-    authorization,
-    ['old_reviewed_head', 'previous_reviewed_head', 'prior_reviewed_head'],
-    'old_reviewed_head',
-  )
-  if (normalizeSha(oldHead) !== normalizeSha(options.expectedOldHead)) {
-    throw stateConflict('Founder authorization old_reviewed_head does not match the reviewed head')
-  }
-  if (normalizeSha(authorization.exact_head) !== normalizeSha(options.expectedNewHead) ||
-      normalizeSha(authorization.reviewed_head) !== normalizeSha(options.expectedNewHead)) {
-    throw stateConflict('Founder authorization exact_head/reviewed_head must bind the authorized new live head')
-  }
-
-  const base = requiredAlias(authorization, ['base'], 'approved_base')
-  if (authorization.base != null && authorization.approved_base != null &&
-      authorization.base !== authorization.approved_base) {
-    throw stateConflict('Founder authorization base bindings conflict')
-  }
-  if (base !== options.expectedBase || state.approved_base !== options.expectedBase || pr.baseRefName !== options.expectedBase) {
-    throw stateConflict('Founder authorization approved base does not match live state and PR')
-  }
-
-  const reviewCycle = requiredAlias(authorization, ['review_cycle', 'for_review_number'], 'review_cycle')
-  if (reviewCycle !== String(options.expectedReviewCycle)) {
-    throw stateConflict('Founder authorization review cycle does not match managed state')
-  }
-  const reviewCommentId = requiredAlias(
-    authorization,
-    ['review_verdict_comment_id'],
-    'original REVIEW_VERDICT comment ID',
-  )
-  if (reviewCommentId !== String(state.latest_review_verdict_comment_id)) {
-    throw stateConflict('Founder authorization REVIEW_VERDICT lineage does not match managed state')
-  }
-  const resultCommentId = requiredAlias(
-    authorization,
-    ['original_result_comment_id'],
-    'original RESULT comment ID',
-  )
-  if (resultCommentId !== String(state.latest_result_comment_id)) {
-    throw stateConflict('Founder authorization RESULT lineage does not match managed state')
-  }
-
-  const boundedScope = assertBoundedScope(
-    authorization.bounded_correction_scope ?? authorization.bounded_scope,
-  )
-  const correctionReason = authorization.correction_reason ?? authorization.reason
-  if (typeof correctionReason !== 'string' || !correctionReason.trim()) {
-    throw stateConflict('Founder authorization correction reason is required')
-  }
-  if (
-    authorization.delta_review_requirement !== true &&
-    authorization.delta_review_requirement !== 'Delta Review'
-  ) {
-    throw stateConflict('Founder authorization must require exactly one Delta Review')
-  }
-  if (authorization.required_next_review != null && authorization.required_next_review !== 'Delta Review') {
-    throw stateConflict('Founder authorization required_next_review must be Delta Review')
-  }
-  if (authorization.maximum_correction_deliveries !== 1) {
-    throw stateConflict('Founder authorization maximum_correction_deliveries must be 1')
-  }
-  const authorizationId = authorization.authorization_id
-  if (typeof authorizationId !== 'string' || !authorizationId.trim()) {
-    throw stateConflict('Founder authorization authorization_id is required and must not be synthesized')
-  }
-
-  const normalized = {
-    ...clone(authorization),
-    comment_id: String(options.authorizationComment),
-    immutable_comment_id: String(options.authorizationComment),
-    comment_sha256: bodyHash,
-    immutable_comment_reference: true,
-    non_superseded: true,
-    superseded_by: null,
-    repository: options.repo,
-    task_issue: Number(options.issueNumber),
-    pr: Number(options.expectedPr),
-    exact_head: normalizeSha(options.expectedNewHead),
-    reviewed_head: normalizeSha(options.expectedNewHead),
-    old_reviewed_head: normalizeSha(oldHead),
-    base: options.expectedBase,
-    approved_base: options.expectedBase,
-    policy_source_sha: state.guide_source_sha,
-    protected_base_sha: pr.baseRefOid,
-    policy_version: state.guide_version,
-    bundle_kind: REOPEN_AUTHORIZATION_BUNDLE_KIND,
-    scope: 'correction',
-    action: 'reopen',
-    review_cycle: Number(options.expectedReviewCycle),
-    for_review_number: Number(options.expectedReviewCycle),
-    review_verdict_comment_id: reviewCommentId,
-    original_review_verdict_comment_id: reviewCommentId,
-    original_result_comment_id: resultCommentId,
-    correction_reason: correctionReason,
-    bounded_correction_scope: boundedScope,
-    required_next_review: 'Delta Review',
-    delta_review_requirement: true,
-    maximum_correction_deliveries: 1,
-    finding_ids: assertFindingIds(authorization.finding_ids),
-    authorization_id: authorizationId,
-    authorized_at: authorization.authorized_at ?? comment.created_at ?? comment.createdAt,
-  }
-  if (typeof normalized.authorized_at !== 'string' || !normalized.authorized_at) {
-    throw stateConflict('Founder authorization authorized_at is required')
-  }
-
-  try {
-    validateFounderAuthorizationRecord({
-      authorization: normalized,
-      authorizationCommentId: options.authorizationComment,
-      trustedFounderLogins,
-      expected: {
-        repository: options.repo,
-        taskIssue: Number(options.issueNumber),
-        pr: Number(options.expectedPr),
-        exactHead: normalizeSha(options.expectedNewHead),
-        base: options.expectedBase,
-        bundleKind: REOPEN_AUTHORIZATION_BUNDLE_KIND,
-        policySourceSha: state.guide_source_sha,
-        protectedBaseSha: pr.baseRefOid,
-        policyVersion: state.guide_version,
-        reviewCommentId,
-        scope: 'correction',
-        action: 'reopen',
-      },
-    })
-  } catch (error) {
-    throw stateConflict(`Founder authorization canonical verification failed: ${error instanceof Error ? error.message : String(error)}`)
-  }
-
-  return {
-    comment: clone(comment),
-    authorization: normalized,
-    comments: clone(comments),
-    trustedFounderLogins: [...trustedFounderLogins],
-  }
 }
 
 async function readAuthorizationEvidence({ deps, options, state, pr }) {
@@ -627,62 +290,6 @@ function assertPrPreflight(pr, options, expectedHead) {
   }
 }
 
-function assertOnlyBoundedStateChanges(before, after) {
-  const allowed = new Set([
-    'state',
-    'current_head',
-    'founder_correction_authorization',
-    'next_permitted_action',
-    'updated_at',
-    'updated_by',
-  ])
-  const keys = new Set([...Object.keys(before ?? {}), ...Object.keys(after ?? {})])
-  for (const key of keys) {
-    if (!allowed.has(key) && !sameValue(before?.[key], after?.[key])) {
-      throw stateConflict(`reopen projection changed unrelated state field ${key}`)
-    }
-  }
-}
-
-function buildNextState(state, evidence, options) {
-  const authorization = evidence.authorization
-  const nextAuthorization = {
-    ...clone(authorization),
-    schema_version: 2,
-    status: 'authorized',
-    authority: 'Founder',
-    scope: 'correction',
-    action: 'reopen',
-    for_review_number: Number(options.expectedReviewCycle),
-    review_cycle: Number(options.expectedReviewCycle),
-    authorization_id: authorization.authorization_id,
-    reviewed_head: normalizeSha(options.expectedNewHead),
-    old_reviewed_head: normalizeSha(options.expectedOldHead),
-    exact_head: normalizeSha(options.expectedNewHead),
-    finding_ids: clone(authorization.finding_ids),
-    maximum_correction_deliveries: 1,
-    correction_deliveries: 0,
-    delta_review_requirement: true,
-    required_next_review: 'Delta Review',
-    delta_review_count: 0,
-    correction_result_comment_id: null,
-    delta_review_comment_id: null,
-    merge_authorization_invalidated_head: normalizeSha(options.expectedOldHead),
-    authorization_record: clone(authorization),
-  }
-  const nextState = {
-    ...clone(state),
-    state: CORRECTION_STATE,
-    current_head: normalizeSha(options.expectedNewHead),
-    next_permitted_action: REOPEN_NEXT_ACTION,
-    founder_correction_authorization: nextAuthorization,
-    updated_at: new Date().toISOString(),
-    updated_by: 'Founder-authorized Reopen Transport',
-  }
-  assertOnlyBoundedStateChanges(state, nextState)
-  return nextState
-}
-
 function assertPostState(issue, state, pr, evidence, options) {
   assertIssueIdentity(issue, options)
   if (!isObject(state) || state.state !== CORRECTION_STATE) {
@@ -729,7 +336,7 @@ function assertPostState(issue, state, pr, evidence, options) {
       authorization.correction_result_comment_id !== null ||
       authorization.delta_review_comment_id !== null ||
       !isObject(authorization.authorization_record) ||
-      !sameValue(authorization.authorization_record, evidence.authorization)) {
+      !sameReopenValue(authorization.authorization_record, evidence.authorization)) {
     throw stateConflict('post-write Founder authorization record is incomplete or changed')
   }
   assertReviewLineage(state)
@@ -872,20 +479,7 @@ export function createProductionDeps() {
   }
 }
 
-function defaultRunGh(args, options = {}) {
-  const result = spawnSync('gh', args, {
-    encoding: 'utf8',
-    input: options.input,
-    env: options.env ?? process.env,
-  })
-  if (result.error || result.status !== 0) {
-    if (options.allowNotFound && /\b404\b|not found/i.test(`${result.stderr ?? ''}\n${result.stdout ?? ''}`)) {
-      return null
-    }
-    throw blockedExternal(result.stderr || result.stdout || result.error?.message || 'GitHub CLI failed')
-  }
-  return result.stdout.trim()
-}
+const defaultRunGh = transportRunGh
 
 export async function runReopen({ options, deps }) {
   assertOptions(options)
@@ -919,10 +513,13 @@ export async function runReopen({ options, deps }) {
   }
   assertPreState(latest.issue, latest.state, options)
   assertPrPreflight(latest.pr, options, options.expectedNewHead)
-  if (!sameValue(latest.state, state) || latest.issue.body !== issue.body) {
+  if (!sameReopenValue(latest.state, state) || latest.issue.body !== issue.body) {
     throw stateConflict('managed Issue changed during authorization preflight')
   }
-  const nextState = buildNextState(latest.state, evidence, options)
+  const nextState = buildNextState(latest.state, evidence, options, {
+    correctionState: CORRECTION_STATE,
+    nextAction: REOPEN_NEXT_ACTION,
+  })
   let nextBody
   try {
     nextBody = projectMissionControlStateBlock(latest.issue.body, nextState)
@@ -963,26 +560,49 @@ export async function runReopen({ options, deps }) {
     state: verified.state,
     pr: verified.pr,
   })
-  if (!sameValue(postEvidence.authorization, evidence.authorization)) {
+  if (!sameReopenValue(postEvidence.authorization, evidence.authorization)) {
     throw stateConflict('Founder authorization evidence changed during the state write')
   }
   if (verified.issue.body !== nextBody) {
     throw stateConflict('post-write Issue body readback does not match the projected body')
   }
   assertPostState(verified.issue, verified.state, verified.pr, postEvidence, options)
-  if (!sameValue(verified.state, nextState)) {
+  if (!sameReopenValue(verified.state, nextState)) {
     throw stateConflict('post-write managed state readback does not match the canonical projection')
   }
   return { outcome: 'REOPENED', state: verified.state }
 }
 
 export async function main(argv = process.argv.slice(2), deps = createProductionDeps()) {
-  const options = parseReopenArgs(argv)
-  if (options.help) {
-    process.stdout.write(`${REOPEN_USAGE}\n`)
-    return { outcome: 'HELP', state: null }
+  const format = argv.includes('--json') ? 'json' : 'text'
+  let options = null
+
+  try {
+    options = parseReopenArgs(argv)
+    if (options.help) {
+      process.stdout.write(`${REOPEN_USAGE}\n`)
+      return { outcome: 'HELP', state: null }
+    }
+    const result = await runReopen({ options, deps })
+    const rendering = createResultRendering({
+      command: REOPEN_COMMAND,
+      format,
+      options,
+      result,
+      observedPreState: options.expectedState,
+    })
+    process.stdout.write(rendering.output)
+    process.exitCode = rendering.exitCode
+    return rendering.envelope ?? result
+  } catch (error) {
+    const rendering = createRuntimeErrorRendering({
+      command: REOPEN_COMMAND,
+      format,
+      error,
+      options,
+    })
+    process[rendering.stream].write(rendering.output)
+    process.exitCode = rendering.exitCode
+    return rendering.envelope ?? { classification: rendering.output.split(':', 1)[0] }
   }
-  const result = await runReopen({ options, deps })
-  process.stdout.write(`Mission Control reopen ${result.outcome}: Task #${options.issueNumber} -> ${result.state.state} ${result.state.review_cycle}/${result.state.full_review_count}\n`)
-  return result
 }

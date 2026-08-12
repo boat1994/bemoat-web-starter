@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 /* eslint-disable @typescript-eslint/no-explicit-any -- untyped runtime .mjs boundary */
 import * as agentIssueModule from '../../scripts/agent-issue.mjs'
 import * as reconcileModule from '../../scripts/mission-control-reconcile.mjs'
-import * as missionControlStateModule from '../../scripts/mission-control-state.mjs'
+import * as missionControlStateModule from '../../scripts/mission-control/domain/task-state.mjs'
 
 // Shared .mjs scripts expose runtime behavior, not TypeScript declarations. Keep
 // the strict-project boundary explicit without changing the production API.

@@ -87,6 +87,13 @@ describe('scripts entrypoints contract', () => {
     expect(result.stderr).toBe('')
   })
 
+  it('freezes guard-package-manager success stdout structure and exit 0', () => {
+    const result = runNode('scripts/guards/package-manager.mjs')
+    expect(result.status).toBe(0)
+    expect(result.stdout.trim().split('\n')).toEqual(['Package manager guard passed.'])
+    expect(result.stderr).toBe('')
+  })
+
   it('freezes guard-mission-control-contract failure diagnostics ordering and exit mapping', () => {
     expect(getMissionControlContractExitCode([])).toBe(0)
     expect(getMissionControlContractExitCode([{ rule: 'x', file: 'f', message: 'm' }])).toBe(1)

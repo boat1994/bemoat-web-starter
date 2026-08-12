@@ -1,7 +1,10 @@
+import { existsSync } from 'node:fs'
+import { resolve } from 'node:path'
+
 import { describe, expect, it } from 'vitest'
 
 import { parseRoleCommentBody } from '../../scripts/mission-control-reconcile.mjs'
-import { projectComments, selectAuthoritativeRoleComments } from '../../scripts/github-comment-projection.mjs'
+import { projectComments, selectAuthoritativeRoleComments } from '../../scripts/mission-control/diagnostics/github-comment-projection.mjs'
 import {
   BRAINSTORMING_PROFILE_HEADINGS,
   classifyFounderAuthorizationReply,
@@ -9,7 +12,7 @@ import {
   guardBrainstormingStateMutation,
   isBrainstormingProfileResponse,
   parseBrainstormingProfileBody,
-} from '../../scripts/mission-control-brainstorming.mjs'
+} from '../../scripts/mission-control/domain/brainstorming.mjs'
 
 const SAMPLE_BRAINSTORMING = [
   '## BRAINSTORMING',
@@ -64,6 +67,21 @@ const SAMPLE_DESIGN_RESULT = [
 ].join('\n')
 
 describe('Mission Control brainstorming profile contract (#144)', () => {
+  it('keeps the destination authoritative after root facade removal', async () => {
+    const destination = await import('../../scripts/mission-control/domain/brainstorming.mjs')
+
+    expect(existsSync(resolve(process.cwd(), 'scripts/mission-control-brainstorming.mjs'))).toBe(false)
+    expect(Object.keys(destination).sort()).toEqual([
+      'BRAINSTORMING_PROFILE_HEADINGS',
+      'classifyFounderAuthorizationReply',
+      'evaluateBrainstormingTransition',
+      'guardBrainstormingStateMutation',
+      'hasRoleTransportHeading',
+      'isBrainstormingProfileResponse',
+      'parseBrainstormingProfileBody',
+    ])
+  })
+
   it('exposes the approved brainstorming profile headings', () => {
     expect(BRAINSTORMING_PROFILE_HEADINGS).toEqual(['BRAINSTORMING', 'DESIGN RESULT'])
   })

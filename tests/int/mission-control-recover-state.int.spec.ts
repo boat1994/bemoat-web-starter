@@ -6,11 +6,13 @@ import {
   main,
   runRecoverState,
 } from '../../scripts/mission-control/workflows/recover-state.mjs'
+import { createProductionRecoverStateDeps } from '../../scripts/mission-control/adapters/recover-state-github.mjs'
+import { buildReconstructedState } from '../../scripts/mission-control/domain/recover-state-projection.mjs'
 import {
   parseMissionControlState,
   projectMissionControlStateBlock,
   renderMissionControlState,
-} from '../../scripts/mission-control-state.mjs'
+} from '../../scripts/mission-control/domain/task-state.mjs'
 import { getCommandContract } from '../../scripts/cli/command-contract.mjs'
 import { createHelpEnvelopeV1 } from '../../scripts/cli/command-help.mjs'
 import { getTransportRoute } from '../../scripts/mission-control/transport-registry.mjs'
@@ -43,6 +45,15 @@ const LINEAGE_CORRECTION_AUTHORIZATION_COMMENT = '5218182829'
 const CORRECTION_RESULT_COMMENT = '5218673559'
 const CORRECTION_REVIEW_COMMENT = '5218763552'
 const COUNTER_EVIDENCE_COMMENT = '5212960343'
+
+describe('recover-state GitHub adapter boundary', () => {
+  it('maps GitHub transport failures to BLOCKED_EXTERNAL', async () => {
+    const deps = createProductionRecoverStateDeps({
+      runGh: () => { throw new Error('gh: network unavailable') },
+    })
+    await expect(deps.readIssue(ISSUE, REPOSITORY)).rejects.toThrow('gh: network unavailable')
+  })
+})
 
 const FINDINGS = [
   {
@@ -498,6 +509,78 @@ function createHarness(overrides: JsonObject = {}) {
 }
 
 describe(COMMAND, () => {
+  it('projects the reconstructed state from validated evidence without mutating inputs', () => {
+    const predecessor = {
+      counters: { reviewCycle: 1, fullReviewCount: 1 },
+      updatedAt: '2026-08-08T01:02:03Z',
+      reviewedHead: REVIEWED_HEAD,
+      contract: { mode: 'implementation_pr' },
+      findingIds: ['CLI-IDEMPOTENCY-001', 'CLI-SCHEMA-001'],
+    }
+    const pr = {
+      baseRefName: BASE,
+      headRefOid: CURRENT_HEAD,
+    }
+    const policy = {
+      guideVersion: '1.3.0',
+      ref: 'main',
+      sha: POLICY_BLOB_SHA,
+    }
+    const options = { issueNumber: ISSUE, expectedPr: PR, predecessorComment: PREDECESSOR_COMMENT }
+    const before = structuredClone({ predecessor, pr, policy, options })
+
+    const state = buildReconstructedState({
+      options,
+      pr,
+      predecessor,
+      policy,
+      evidenceFingerprint: 'e'.repeat(64),
+    })
+
+    expect(state).toEqual({
+      schema_version: 1,
+      state: 'CORRECTION_REQUIRED_1',
+      review_cycle: 1,
+      full_review_count: 1,
+      approved_base: BASE,
+      active_task_issue: '#276',
+      active_pr: '#292',
+      current_head: CURRENT_HEAD,
+      last_reviewed_head: REVIEWED_HEAD,
+      workflow_mode: 'implementation_pr',
+      guide_version: '1.3.0',
+      guide_source_ref: 'main',
+      guide_source_sha: POLICY_BLOB_SHA,
+      latest_review_verdict_comment_id: PREDECESSOR_COMMENT,
+      open_blockers: predecessor.findingIds,
+      follow_up_issues: [],
+      next_permitted_action: 'Re-attempt Founder-authorized bemoat:mission-control:adopt-finding for Issue #276 after fresh live verification; do not execute automatically.',
+      material_change_status: 'none',
+      updated_at: '2026-08-08T01:02:03Z',
+      updated_by: 'Mission Control Missing-State Recovery',
+      recovery_evidence_fingerprint: 'e'.repeat(64),
+    })
+    expect({ predecessor, pr, policy, options }).toEqual(before)
+  })
+
+  it('does not write to frozen validated evidence while projecting state', () => {
+    const predecessor = Object.freeze({
+      counters: Object.freeze({ reviewCycle: 2, fullReviewCount: 1 }),
+      updatedAt: '2026-08-08T01:02:03Z',
+      reviewedHead: REVIEWED_HEAD,
+      contract: Object.freeze({ mode: 'planning_no_pr' }),
+      findingIds: Object.freeze(['CLI-IDEMPOTENCY-001']),
+    })
+
+    expect(() => buildReconstructedState({
+      options: { issueNumber: ISSUE, expectedPr: PR, predecessorComment: PREDECESSOR_COMMENT },
+      pr: Object.freeze({ baseRefName: BASE, headRefOid: CURRENT_HEAD }),
+      predecessor,
+      policy: Object.freeze({ guideVersion: '1.3.0', ref: 'main', sha: POLICY_BLOB_SHA }),
+      evidenceFingerprint: 'f'.repeat(64),
+    })).not.toThrow()
+  })
+
   it('accepts an immutable recovery anchor when the correction-reviewed live head is a later descendant', async () => {
     const harness = createHarness({
       pullRequest: { headRefOid: CORRECTION_REVIEWED_HEAD },

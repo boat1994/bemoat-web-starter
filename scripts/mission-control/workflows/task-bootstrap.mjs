@@ -1,6 +1,6 @@
 import { analyzeExactHeadCi } from '../../agent-issue/exact-head-ci.mjs'
-import { parseMissionControlState } from '../../mission-control-state.mjs'
-import { compareAndSwapIssueBody } from '../../mission-control-issue-body-cas.mjs'
+import { parseMissionControlState } from '../domain/task-state.mjs'
+import { compareAndSwapIssueBody } from './issue-body-cas.mjs'
 import {
   BOOTSTRAP_CONTRACT,
   parseFounderTaskBootstrapAuthorization,
@@ -15,7 +15,6 @@ import {
   TASK_ATTESTATION_OPERATION,
   TASK_ATTESTATION_OPERATION_VERSION,
   TASK_ATTESTATION_SCHEMA,
-  canonicalHash,
   createSignedEnvelope,
   parseTaskAttestation,
   sha256Hex,
@@ -23,15 +22,17 @@ import {
 import {
   buildTaskOwnershipPayload,
   createTaskOwnershipRecord,
-  parseTaskOwnershipRecord,
   renderTaskOwnershipRecord,
-  verifyTaskOwnershipRecord,
 } from '../domain/task-ownership-registry.mjs'
 import {
   canonicalManagedStateBinding,
   renderCanonicalBootstrapTaskBody,
   runCanonicalManagedTaskPreflight,
 } from '../domain/task-bootstrap-preflight.mjs'
+import { classifyTaskBootstrapAllocation, matchesProvisional, registryForRequest } from '../domain/task-bootstrap-allocation.mjs'
+import { readRegistryRecords } from '../domain/task-bootstrap-registry-readback.mjs'
+import { verifyFinalTask } from '../domain/task-bootstrap-final-readback.mjs'
+import { buildInitialTaskState } from '../domain/task-bootstrap-state.mjs'
 
 const REQUIRED_CI_NAMES = new Set(['ci', 'starter-ci'])
 
@@ -100,39 +101,6 @@ function finalTaskBody({ state, attestation }) {
   return renderCanonicalBootstrapTaskBody(state, attestation)
 }
 
-export function buildInitialTaskState({ issueNumber, requestId, attestation, managedStateSha256 = null, now = null } = {}) {
-  const payload = attestation?.payload ?? {}
-  return {
-    schema_version: 1,
-    state: 'AWAITING_REVIEW_1',
-    review_cycle: 0,
-    full_review_count: 0,
-    approved_base: BOOTSTRAP_CONTRACT.base,
-    active_task_issue: `#${issueNumber}`,
-    active_pr: `#${BOOTSTRAP_CONTRACT.pullRequest}`,
-    current_head: BOOTSTRAP_CONTRACT.head,
-    last_reviewed_head: null,
-    guide_version: BOOTSTRAP_CONTRACT.policyVersion,
-    guide_source_ref: 'main',
-    guide_source_sha: BOOTSTRAP_CONTRACT.policySha,
-    open_blockers: [],
-    follow_up_issues: [],
-    next_permitted_action: 'Run read-only Review 1 preflight; do not start Review 1.',
-    material_change_status: 'none',
-    updated_at: now,
-    updated_by: 'Mission Control Task Bootstrap',
-    parent_issue: `#${BOOTSTRAP_CONTRACT.parentIssue}`,
-    policy_source: BOOTSTRAP_CONTRACT.policySource,
-    policy_version: BOOTSTRAP_CONTRACT.policyVersion,
-    policy_sha: BOOTSTRAP_CONTRACT.policySha,
-    bootstrap_request_id: requestId,
-    task_attestation_schema: payload.attestation_schema ?? TASK_ATTESTATION_SCHEMA,
-    task_attestation_key_id: attestation?.key_id ?? null,
-    task_attestation_sha256: attestation ? canonicalHash(attestation) : null,
-    managed_state_sha256: managedStateSha256,
-  }
-}
-
 function buildTaskAttestation({ repository, parentIssue, taskIssue, pullRequest, authorization, requestId, workflow, policy, signingKeyId, privateKey, managedStateSha256 = null }) {
   const payload = {
     attestation_schema: TASK_ATTESTATION_SCHEMA,
@@ -191,48 +159,6 @@ function validateGenesisEvidence({ repository, parentIssue, pullRequest, mainCom
     throw stateConflict('workflow was not loaded from protected main')
   }
   exactHeadCi(pullRequest)
-}
-
-async function readRegistryRecords(github, parentIssueNumber, publicKey, repository, signingKeyId, expected = {}) {
-  const comments = await github.getIssueComments(parentIssueNumber)
-  const records = []
-  for (const comment of comments) {
-    if (!String(comment?.body ?? '').includes('bemoat-mission-control-task-registry:v1')) continue
-    const parsed = parseTaskOwnershipRecord(comment.body)
-    if (!parsed.ok) throw stateConflict(`parent ownership registry comment ${comment.id} is unreadable`)
-    const verified = verifyTaskOwnershipRecord(parsed.envelope, {
-      publicKey,
-      repository,
-      signingKeyId,
-      ...expected,
-    })
-    if (!verified.ok) throw stateConflict(`parent ownership registry comment ${comment.id} failed verification: ${verified.reason}`)
-    records.push({ comment, ...verified })
-  }
-  return { comments, records }
-}
-
-function matchesProvisional(provisional, { request, context }) {
-  return provisional?.request_id === request.requestId &&
-    provisional.repository === context.repository.nameWithOwner &&
-    Number(provisional.parent_issue) === BOOTSTRAP_CONTRACT.parentIssue &&
-    Number(provisional.pr) === BOOTSTRAP_CONTRACT.pullRequest &&
-    provisional.base === BOOTSTRAP_CONTRACT.base &&
-    provisional.head === BOOTSTRAP_CONTRACT.head &&
-    provisional.protected_base_sha === BOOTSTRAP_CONTRACT.protectedBaseSha &&
-    provisional.policy_source === context.policy.path &&
-    provisional.policy_version === context.policy.version &&
-    provisional.policy_sha === context.policy.blobSha
-}
-
-function recordForRequest(records, requestId) {
-  return records.find(({ record }) => record.payload.request_id === requestId) ?? null
-}
-
-function competingRecord(records, requestId) {
-  return records.find(({ record }) =>
-    record.payload.request_id !== requestId && String(record.payload.pr_number) === String(BOOTSTRAP_CONTRACT.pullRequest),
-  ) ?? null
 }
 
 async function scanTaskIssues({ github, request, publicKey, repository, signingKeyId, pullRequest, parentIssue, expectedWorkflow, policy, authorization }) {
@@ -353,50 +279,6 @@ async function projectWithCas({ github, issue, nextBody, requestId }) {
   }
 }
 
-async function verifyFinalTask({ github, issueNumber, context, authorization, requestId, attestation, registryRecord, expectedBody }) {
-  let issue
-  try { issue = await github.getIssue(issueNumber) } catch (error) { throw blockedExternal(`allocated Task Issue #${issueNumber} could not be read back`, error) }
-  if (expectedBody != null && issue.body !== expectedBody) throw blockedExternal('Task Issue body readback differs from the body projected by the winning lease')
-  let pullRequest
-  try { pullRequest = await github.getPullRequest(BOOTSTRAP_CONTRACT.pullRequest) } catch (error) { throw blockedExternal('PR evidence was unavailable during final Task readback', error) }
-  const preflight = runCanonicalManagedTaskPreflight({
-    issue,
-    pullRequest,
-    repository: context.repository.nameWithOwner,
-    publicKey: context.publicKey,
-    signingKeyId: context.signingKeyId,
-    expectedProtectedBaseSha: BOOTSTRAP_CONTRACT.protectedBaseSha,
-    expectedAuthorization: { ...authorization, parentIssue: context.parentIssue },
-    expectedWorkflow: context.workflow,
-    policy: context.policy,
-    repositoryIdentity: context.repository,
-    requireBootstrapAttestation: true,
-  })
-  if (!preflight.ok) throw blockedExternal(`canonical managed-task preflight failed after projection: ${preflight.reason}`)
-  const parsedAttestation = parseTaskAttestation(issue.body)
-  if (!parsedAttestation.ok || parsedAttestation.envelope.payload.request_id !== requestId) throw blockedExternal('readback Task attestation does not match the deterministic request')
-  if (canonicalHash(parsedAttestation.envelope) !== canonicalHash(attestation)) throw blockedExternal('readback Task attestation changed after projection')
-  const registryVerification = verifyTaskOwnershipRecord(registryRecord, {
-    publicKey: context.publicKey,
-    repository: context.repository.nameWithOwner,
-    signingKeyId: context.signingKeyId,
-    expectedParentIssue: context.parentIssue,
-    expectedTaskIssue: issue,
-    expectedPullRequest: pullRequest,
-    expectedBase: BOOTSTRAP_CONTRACT.base,
-    expectedHead: BOOTSTRAP_CONTRACT.head,
-    expectedProtectedBaseSha: BOOTSTRAP_CONTRACT.protectedBaseSha,
-    expectedRequestId: requestId,
-    expectedAttestationSha256: canonicalHash(parsedAttestation.envelope),
-  })
-  if (!registryVerification.ok || registryRecord.payload.attestation_sha256 !== canonicalHash(parsedAttestation.envelope) ||
-      Number(registryRecord.payload.task_issue_number) !== Number(issue.number) || registryRecord.payload.task_issue_id !== issue.id ||
-      registryRecord.payload.task_issue_node_id !== issue.node_id) {
-    throw blockedExternal('parent ownership registry readback does not match the allocated Task')
-  }
-  return issue
-}
-
 /**
  * Canonical one-time Task bootstrap. All mutation is behind live evidence and
  * a repository-wide workflow concurrency gate; retries resume only the exact
@@ -487,8 +369,6 @@ export function createTaskBootstrapService({
         expectedProtectedBaseSha: BOOTSTRAP_CONTRACT.protectedBaseSha,
       }
       const registry = await readRegistryRecords(github, BOOTSTRAP_CONTRACT.parentIssue, publicKey, context.repository.nameWithOwner, signingKeyId, registryEvidence)
-      if (competingRecord(registry.records, request.requestId)) throw stateConflict('parent ownership registry already records a competing Task for PR #263')
-      const existingRegistry = recordForRequest(registry.records, request.requestId)
       const scanned = await scanTaskIssues({
         github,
         request,
@@ -502,9 +382,11 @@ export function createTaskBootstrapService({
         authorization: context.authorization,
       })
 
-      let taskIssue = null
-      let outcome = 'CREATED'
-      if (existingRegistry) {
+      const allocation = classifyTaskBootstrapAllocation({ request, context, registryRecords: registry.records, scanned })
+      const existingRegistry = allocation.registry
+      let taskIssue = allocation.issue
+      const outcome = allocation.outcome
+      if (allocation.kind === 'REGISTRY') {
         try {
           taskIssue = await github.getIssue(existingRegistry.record.payload.task_issue_number)
         } catch (error) {
@@ -512,14 +394,7 @@ export function createTaskBootstrapService({
         }
         const identity = issueIdentity(taskIssue)
         if (identity.id !== existingRegistry.record.payload.task_issue_id || identity.node_id !== existingRegistry.record.payload.task_issue_node_id) throw stateConflict('existing request registry points to a different Task identity')
-        outcome = 'RECOVERED'
-      } else if (scanned.signed) {
-        taskIssue = scanned.signed.issue
-        outcome = 'IDEMPOTENT'
-      } else if (scanned.provisional) {
-        taskIssue = scanned.provisional.issue
-        outcome = 'RECOVERED'
-      } else {
+      } else if (allocation.kind === 'CREATE_PROVISIONAL') {
         const created = await createProvisionalIssue({ github, request, context })
         taskIssue = created.issue
       }
@@ -599,7 +474,7 @@ export function createTaskBootstrapService({
         })
         const candidate = createTaskOwnershipRecord({ payload: registryPayload, ['privateKey']: signingPrivateKey, signingKeyId })
         const refreshedRegistry = await readRegistryRecords(github, BOOTSTRAP_CONTRACT.parentIssue, publicKey, context.repository.nameWithOwner, signingKeyId, registryEvidence)
-        const duplicate = recordForRequest(refreshedRegistry.records, request.requestId)
+        const duplicate = registryForRequest(refreshedRegistry.records, request.requestId)
         if (duplicate) {
           if (duplicate.record.payload.task_issue_number !== taskIdentity.number || duplicate.record.payload.task_issue_id !== taskIdentity.id) throw stateConflict('recovery found a conflicting parent registry owner')
           registryRecord = duplicate.record
@@ -655,4 +530,4 @@ export function createTaskBootstrapService({
   return { bootstrap }
 }
 
-export { bootstrapError, exactHeadCi, finalTaskBody }
+export { bootstrapError, buildInitialTaskState, exactHeadCi, finalTaskBody }

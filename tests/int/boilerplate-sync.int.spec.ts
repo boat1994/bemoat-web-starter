@@ -214,8 +214,8 @@ describe('boilerplate sync managed paths', () => {
     const mod = await import('../../scripts/sync-boilerplate.mjs')
 
     const planningContractPaths = [
-      'scripts/guard-planning-contract.mjs',
-      'scripts/mission-control-state.mjs',
+      'scripts/guards/planning-contract-runtime.mjs',
+      'scripts/mission-control/domain/task-state.mjs',
       'tests/fixtures/planning',
       'tests/int/guard-planning-contract.int.spec.ts',
       'tests/int/guard-planning-contract-child-dev-base.int.spec.ts',
@@ -252,12 +252,12 @@ describe('boilerplate sync managed paths', () => {
       'docs/boilerplate-sync-command.md',
       'scripts/agent-issue.mjs',
       'scripts/post-role-comment.mjs',
-      'scripts/guard-repo-safety.mjs',
+      'scripts/guards/repo-safety.mjs',
       'scripts/guard-mission-control-contract.mjs',
-      'scripts/guard-build-script-contract.mjs',
+      'scripts/guards/build-script-contract.mjs',
       'scripts/build.mjs',
       'scripts/guard-cloudflare-env.mjs',
-      'scripts/guard-toolchain-contract.mjs',
+      'scripts/guards/toolchain-contract.mjs',
       'scripts/bemoat-typecheck.mjs',
       'tsconfig.harness-strict.json',
       '.bemoat/toolchain-contract.json',
@@ -1561,6 +1561,15 @@ describe('boilerplate sync modes', () => {
 describe('boilerplate drift check', () => {
   const fixtureRoot = resolve(process.cwd(), '.tmp-boilerplate-drift-test')
 
+  it('exposes deterministic drift comparison helpers from the owned workflow module', async () => {
+    const mod = await import('../../scripts/boilerplate/workflows/check-boilerplate-drift.mjs')
+
+    expect(mod.compareBoilerplateDrift).toBeTypeOf('function')
+    expect(mod.compareBoilerplateDriftByMode).toBeTypeOf('function')
+    expect(mod.stripJsoncComments).toBeTypeOf('function')
+    expect(mod.getDriftExitCode).toBeTypeOf('function')
+  })
+
   it('detects boilerplate source repository at git root from package name and origin', async () => {
     const mod = await import('../../scripts/check-boilerplate-drift.mjs')
 
@@ -1888,12 +1897,12 @@ function writeIssue182ChildFixture(targetRoot: string) {
     writeFileSync(absolutePath, `OLD_SENTINEL:${relativePath}\n`)
   }
 
-  const projectionPath = join(targetRoot, 'scripts/github-comment-projection.mjs')
+  const projectionPath = join(targetRoot, 'scripts/mission-control/diagnostics/github-comment-projection.mjs')
   if (existsSync(projectionPath)) {
     rmSync(projectionPath, { force: true })
   }
 
-  const prIdentityPath = join(targetRoot, 'scripts/pr-identity.mjs')
+  const prIdentityPath = join(targetRoot, 'scripts/mission-control/domain/pr-identity.mjs')
   if (existsSync(prIdentityPath)) {
     rmSync(prIdentityPath, { force: true })
   }
@@ -1906,7 +1915,7 @@ function writeIssue182ChildFixture(targetRoot: string) {
 }
 
 describe('issue #182 projection managed delivery regression', () => {
-  it('delivers github-comment-projection and pr-identity during harness-only sync without touching child-owned paths', async () => {
+  it('delivers github-comment-projection and the PR identity domain module during harness-only sync without touching child-owned paths', async () => {
     const mod = await import('../../scripts/sync-boilerplate.mjs')
     const guardMod = await import('../../scripts/guard-harness-contract.mjs')
     const tempRoot = mkdtempSync(join(tmpdir(), 'bemoat-182-'))
@@ -1944,11 +1953,12 @@ describe('issue #182 projection managed delivery regression', () => {
       })
 
       expect(result.seededFiles).toEqual([])
-      expect(existsSync(join(childRoot, 'scripts/github-comment-projection.mjs'))).toBe(true)
+      expect(existsSync(join(childRoot, 'scripts/mission-control/diagnostics/github-comment-projection.mjs'))).toBe(true)
       expect(existsSync(join(childRoot, 'scripts/agent-issue.mjs'))).toBe(true)
-      expect(existsSync(join(childRoot, 'scripts/pr-identity.mjs'))).toBe(true)
+      expect(existsSync(join(childRoot, 'scripts/pr-identity.mjs'))).toBe(false)
+      expect(existsSync(join(childRoot, 'scripts/mission-control/domain/pr-identity.mjs'))).toBe(true)
       expect(readFileSync(join(childRoot, 'scripts/agent-issue.mjs'), 'utf8')).toContain(
-        "./pr-identity.mjs'",
+        "./mission-control/domain/pr-identity.mjs'",
       )
 
       execFileSync(
@@ -1956,7 +1966,7 @@ describe('issue #182 projection managed delivery regression', () => {
         [
           '--input-type=module',
           '-e',
-          "import('./scripts/pr-identity.mjs').then((module) => { if (typeof module.parseCompleteGitHubPullUrl !== 'function') { throw new Error('missing parseCompleteGitHubPullUrl export') } })",
+          "import('./scripts/mission-control/domain/pr-identity.mjs').then((module) => { if (typeof module.parseCompleteGitHubPullUrl !== 'function') { throw new Error('missing parseCompleteGitHubPullUrl export') } })",
         ],
         { cwd: childRoot, stdio: 'pipe' },
       )
@@ -1989,66 +1999,66 @@ describe('issue #182 projection managed delivery regression', () => {
     [
       'missing dependency',
       (sourceRoot: string) => {
-        rmSync(join(sourceRoot, 'scripts/github-comment-projection.mjs'), { force: true })
+        rmSync(join(sourceRoot, 'scripts/mission-control/diagnostics/github-comment-projection.mjs'), { force: true })
       },
-      '- [missing-managed-runtime-source] importer="managedPaths" -> callee="scripts/github-comment-projection.mjs" specifier="scripts/github-comment-projection.mjs"',
+      '- [missing-managed-runtime-source] importer="managedPaths" -> callee="scripts/mission-control/diagnostics/github-comment-projection.mjs" specifier="scripts/mission-control/diagnostics/github-comment-projection.mjs"',
     ],
     [
       'renamed dependency',
       (sourceRoot: string) => {
-        const projectionPath = join(sourceRoot, 'scripts/github-comment-projection.mjs')
+        const projectionPath = join(sourceRoot, 'scripts/mission-control/diagnostics/github-comment-projection.mjs')
         writeFileSync(
           join(sourceRoot, 'scripts/github-comment-projection-renamed.mjs'),
           readFileSync(projectionPath, 'utf8'),
         )
         rmSync(projectionPath, { force: true })
       },
-      '- [missing-managed-runtime-source] importer="managedPaths" -> callee="scripts/github-comment-projection.mjs" specifier="scripts/github-comment-projection.mjs"',
+      '- [missing-managed-runtime-source] importer="managedPaths" -> callee="scripts/mission-control/diagnostics/github-comment-projection.mjs" specifier="scripts/mission-control/diagnostics/github-comment-projection.mjs"',
     ],
     [
       'deleted dependency',
       (sourceRoot: string) => {
-        rmSync(join(sourceRoot, 'scripts/github-comment-projection.mjs'), { force: true })
+        rmSync(join(sourceRoot, 'scripts/mission-control/diagnostics/github-comment-projection.mjs'), { force: true })
       },
-      '- [missing-managed-runtime-source] importer="managedPaths" -> callee="scripts/github-comment-projection.mjs" specifier="scripts/github-comment-projection.mjs"',
+      '- [missing-managed-runtime-source] importer="managedPaths" -> callee="scripts/mission-control/diagnostics/github-comment-projection.mjs" specifier="scripts/mission-control/diagnostics/github-comment-projection.mjs"',
     ],
     [
       'newly introduced unmanaged relative dependency',
       (sourceRoot: string) => {
         writeFileSync(join(sourceRoot, 'scripts/unmanaged-helper.mjs'), 'export const helper = 1\n')
-        const projectionPath = join(sourceRoot, 'scripts/github-comment-projection.mjs')
+        const projectionPath = join(sourceRoot, 'scripts/mission-control/diagnostics/github-comment-projection.mjs')
         writeFileSync(
           projectionPath,
           `${readFileSync(projectionPath, 'utf8')}import { helper } from './unmanaged-helper.mjs'\n`,
         )
       },
-      '- [unmanaged-relative-runtime-dependency] importer="scripts/github-comment-projection.mjs" -> callee="scripts/unmanaged-helper.mjs" specifier="./unmanaged-helper.mjs"',
+      '- [missing-relative-runtime-dependency] importer="scripts/mission-control/diagnostics/github-comment-projection.mjs" -> callee="scripts/mission-control/diagnostics/unmanaged-helper.mjs" specifier="./unmanaged-helper.mjs"',
     ],
     [
-      'missing pr-identity dependency',
+      'missing PR identity domain dependency',
       (sourceRoot: string) => {
-        rmSync(join(sourceRoot, 'scripts/pr-identity.mjs'), { force: true })
+        rmSync(join(sourceRoot, 'scripts/mission-control/domain/pr-identity.mjs'), { force: true })
       },
-      '- [missing-managed-runtime-source] importer="managedPaths" -> callee="scripts/pr-identity.mjs" specifier="scripts/pr-identity.mjs"',
+      '- [missing-relative-runtime-dependency] importer="scripts/agent-issue.mjs" -> callee="scripts/mission-control/domain/pr-identity.mjs" specifier="./mission-control/domain/pr-identity.mjs"',
     ],
     [
-      'deleted pr-identity dependency',
+      'deleted PR identity domain dependency',
       (sourceRoot: string) => {
-        rmSync(join(sourceRoot, 'scripts/pr-identity.mjs'), { force: true })
+        rmSync(join(sourceRoot, 'scripts/mission-control/domain/pr-identity.mjs'), { force: true })
       },
-      '- [missing-managed-runtime-source] importer="managedPaths" -> callee="scripts/pr-identity.mjs" specifier="scripts/pr-identity.mjs"',
+      '- [missing-relative-runtime-dependency] importer="scripts/agent-issue.mjs" -> callee="scripts/mission-control/domain/pr-identity.mjs" specifier="./mission-control/domain/pr-identity.mjs"',
     ],
     [
-      'renamed pr-identity dependency',
+      'renamed PR identity domain dependency',
       (sourceRoot: string) => {
-        const prIdentityPath = join(sourceRoot, 'scripts/pr-identity.mjs')
+        const prIdentityPath = join(sourceRoot, 'scripts/mission-control/domain/pr-identity.mjs')
         writeFileSync(
-          join(sourceRoot, 'scripts/pr-identity-renamed.mjs'),
+          join(sourceRoot, 'scripts/mission-control/domain/pr-identity-renamed.mjs'),
           readFileSync(prIdentityPath, 'utf8'),
         )
         rmSync(prIdentityPath, { force: true })
       },
-      '- [missing-managed-runtime-source] importer="managedPaths" -> callee="scripts/pr-identity.mjs" specifier="scripts/pr-identity.mjs"',
+      '- [missing-relative-runtime-dependency] importer="scripts/agent-issue.mjs" -> callee="scripts/mission-control/domain/pr-identity.mjs" specifier="./mission-control/domain/pr-identity.mjs"',
     ],
   ])(
     'fails closed before copy for %s and leaves the child byte-for-byte unchanged',
@@ -2107,8 +2117,8 @@ describe('issue #182 projection managed delivery regression', () => {
   )
 })
 
-describe('issue #224 CommandRunner additive child delivery', () => {
-  it('delivers nested CommandRunner adapter in one harness-only sync without touching child-owned files', async () => {
+describe('issue #328 CommandRunner root closeout', () => {
+  it('delivers only the nested CommandRunner adapter in one harness-only sync without touching child-owned files', async () => {
     const mod = await import('../../scripts/sync-boilerplate.mjs')
     const tempRoot = mkdtempSync(join(tmpdir(), 'bemoat-224-command-runner-'))
     const sourceRoot = join(tempRoot, 'source')
@@ -2136,7 +2146,7 @@ describe('issue #224 CommandRunner additive child delivery', () => {
       )
       rmSync(join(childRoot, adapterRelativePath), { force: true })
       expect(existsSync(join(childRoot, adapterRelativePath))).toBe(false)
-      expect(existsSync(join(childRoot, 'scripts/command-runner.mjs'))).toBe(true)
+      expect(existsSync(join(childRoot, 'scripts/command-runner.mjs'))).toBe(false)
 
       mkdirSync(join(childRoot, dirname(childOwnedRelativePath)), { recursive: true })
       writeFileSync(join(childRoot, childOwnedRelativePath), `CHILD_OWNED:${childOwnedRelativePath}\n`)
@@ -2154,7 +2164,7 @@ describe('issue #224 CommandRunner additive child delivery', () => {
       })
 
       expect(result.seededFiles).toEqual([])
-      expect(existsSync(join(childRoot, 'scripts/command-runner.mjs'))).toBe(true)
+      expect(existsSync(join(childRoot, 'scripts/command-runner.mjs'))).toBe(false)
       expect(existsSync(join(childRoot, adapterRelativePath))).toBe(true)
 
       execFileSync(
@@ -2162,7 +2172,7 @@ describe('issue #224 CommandRunner additive child delivery', () => {
         [
           '--input-type=module',
           '-e',
-          "import('./scripts/command-runner.mjs').then((m) => { if (typeof m.runCommand !== 'function') throw new Error('missing compatibility export') })",
+          "import('./scripts/adapters/command-runner.mjs').then((m) => { if (typeof m.runCommand !== 'function') throw new Error('missing adapter export') })",
         ],
         { cwd: childRoot, stdio: 'pipe' },
       )

@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process'
 import { mkdirSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 
@@ -7,6 +8,105 @@ const fixturesRoot = resolve(process.cwd(), 'tests/fixtures/mission-control')
 const tmpRoot = resolve(process.cwd(), '.tmp-mission-control-contract-test')
 
 describe('mission-control contract guard', () => {
+  it('runs the registered root facade directly for help and invalid invocation', () => {
+    const script = resolve(process.cwd(), 'scripts/guard-mission-control-contract.mjs')
+    const env = { ...process.env }
+    delete env.npm_lifecycle_event
+
+    const help = spawnSync(process.execPath, [script, '--help', '--json'], {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+      env,
+    })
+    expect(help.status).toBe(0)
+    expect(help.stderr).toBe('')
+    expect(JSON.parse(help.stdout)).toMatchObject({
+      command: 'bemoat:guard:mission-control-contract',
+      mode: 'help',
+      classification: 'HELP',
+    })
+
+    const invalid = spawnSync(process.execPath, [script, '--not-a-real-flag'], {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+      env,
+    })
+    expect(invalid.status).toBe(2)
+    expect(invalid.stdout).toBe('')
+    expect(invalid.stderr).toMatch(/^INVALID_INVOCATION: unknown flag: --not-a-real-flag\n$/)
+  })
+
+  it('keeps the root facade exports while exposing CLI composition from the guard module', async () => {
+    const facade = await import('../../scripts/guard-mission-control-contract.mjs')
+    const cli = await import('../../scripts/guards/mission-control-contract/cli.mjs')
+
+    expect(typeof cli.main).toBe('function')
+    expect(facade.isDirectExecution).toBe(cli.isDirectExecution)
+    expect(Object.keys(facade).sort()).toEqual([
+      'AGENTS_PATH',
+      'BOILERPLATE_INVENTORY_PATH',
+      'COMMAND_REFERENCE_PATH',
+      'DOUBLE_LOOP_ALLOWED_DECISIONS',
+      'DOUBLE_LOOP_FAILURE_CLASSES',
+      'FIXTURES_PATH',
+      'GUARD_SCRIPT_PATH',
+      'GUIDE_PATH',
+      'HANDOFF_PATH',
+      'INT_TEST_PATH',
+      'LEGACY_BARE_CORE_VERDICT_RE',
+      'LIVE_OVERRIDE_PATH',
+      'LOADER_FORBIDDEN_TITLES',
+      'LOADER_MAX_LINES',
+      'LOADER_PATH',
+      'MANIFEST_PATH',
+      'MC_MANAGED_MODULES',
+      'MC_MANAGED_PATHS',
+      'MODULE_CHECKLISTS_PATH',
+      'MODULE_CHILD_SYNC_PATH',
+      'MODULE_MIGRATION_PATH',
+      'MODULE_PROCEDURES_PATH',
+      'MODULE_SECTION_MAP',
+      'MODULE_TEMPLATES_PATH',
+      'MODULE_TROUBLESHOOTING_PATH',
+      'OVERRIDE_EXAMPLE_PATH',
+      'README_PATH',
+      'RECONCILE_SCRIPT_PATH',
+      'RECONCILE_TEST_PATH',
+      'REQUIRED_BRAINSTORMING_GUIDE_PHRASES',
+      'REQUIRED_CLI_PROMPT_GUIDE_PHRASES',
+      'REQUIRED_CLI_PROMPT_LOADER_PHRASES',
+      'REQUIRED_CORRECTION_GUIDE_PHRASES',
+      'REQUIRED_CORRECTION_HANDOFF_PHRASES',
+      'REQUIRED_COST_AWARE_GUIDE_PHRASES',
+      'REQUIRED_DOUBLE_LOOP_TRANSPORT_FIELDS',
+      'REQUIRED_HANDOFF_FIELDS',
+      'REQUIRED_LEAN_FOUNDER_DECISION_PHRASES',
+      'REQUIRED_LEAN_FOUNDER_LOADER_PHRASES',
+      'REQUIRED_PLANNING_MIGRATION_PHRASES',
+      'REQUIRED_RESULT_FIELDS',
+      'REQUIRED_SAFE_BUNDLE_GUIDE_PHRASES',
+      'REQUIRED_SAFE_BUNDLE_LOADER_PHRASES',
+      'REQUIRED_SAFE_BUNDLE_PROCEDURE_PHRASES',
+      'REQUIRED_SAFE_BUNDLE_TEMPLATE_PHRASES',
+      'REQUIRED_VERDICTS',
+      'RESULT_PATH',
+      'ROLE_HANDOFF_PATH',
+      'SYNC_SCRIPT_PATH',
+      'formatMissionControlContractViolations',
+      'getMissionControlContractExitCode',
+      'isDirectExecution',
+      'runMissionControlContractGuard',
+      'scanAgentsPointer',
+      'scanGuideContent',
+      'scanHandoffTemplate',
+      'scanLoaderContent',
+      'scanManagedPathsContract',
+      'scanModuleContent',
+      'scanResultTemplate',
+      'scanRoleHandoffContract',
+    ])
+  })
+
   it('enforces deterministic ordering of required modules', async () => {
     const mod = await import('../../scripts/guard-mission-control-contract.mjs')
 

@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import ts from 'typescript'
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- untyped runtime .mjs boundary */
 import * as reconcileModule from '../../scripts/mission-control-reconcile.mjs'
 import * as coordinatorTransitions from '../../scripts/mission-control/coordinator-transitions.mjs'
-import { parseMissionControlState, renderMissionControlState } from '../../scripts/mission-control-state.mjs'
+import { parseMissionControlState, renderMissionControlState } from '../../scripts/mission-control/domain/task-state.mjs'
 
 // Shared .mjs scripts expose runtime behavior, not TypeScript declarations. Keep
 // the strict-project boundary explicit without changing the production API.
@@ -57,6 +58,48 @@ const CoordinatorClass = reconcileModule.Coordinator as unknown as new (transpor
   reconcileReviewVerdict: (input: Record<string, unknown>) => Promise<Record<string, unknown>>
   resumeProjection: (input: Record<string, unknown>) => Promise<Record<string, unknown>>
   assertCompatibleSnapshot: (input: Record<string, unknown>) => Promise<Record<string, unknown>>
+}
+
+function hasExecutableBoundary(
+  source: string,
+  expected: {
+    moduleSpecifier: string
+    importedNames: string[]
+    calledNames: string[]
+    calledWithObjectNames?: string[]
+    constructedNames?: string[]
+  },
+) {
+  const sourceFile = ts.createSourceFile('boundary-fixture.mjs', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS)
+
+  const imports = sourceFile.statements
+    .filter(ts.isImportDeclaration)
+    .filter((statement) => ts.isStringLiteral(statement.moduleSpecifier) && statement.moduleSpecifier.text === expected.moduleSpecifier)
+    .flatMap((statement) => {
+      const bindings = statement.importClause?.namedBindings
+      return bindings && ts.isNamedImports(bindings)
+        ? bindings.elements.map((element) => element.name.text)
+        : []
+    })
+  const calledNames = new Set<string>()
+  const calledWithObjectNames = new Set<string>()
+  const constructedNames = new Set<string>()
+  const visit = (node: ts.Node) => {
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
+      calledNames.add(node.expression.text)
+      if (node.arguments[0] && ts.isObjectLiteralExpression(node.arguments[0])) {
+        calledWithObjectNames.add(node.expression.text)
+      }
+    }
+    if (ts.isNewExpression(node) && ts.isIdentifier(node.expression)) constructedNames.add(node.expression.text)
+    ts.forEachChild(node, visit)
+  }
+  visit(sourceFile)
+
+  return expected.importedNames.every((name) => imports.includes(name)) &&
+    expected.calledNames.every((name) => calledNames.has(name)) &&
+    (expected.calledWithObjectNames ?? []).every((name) => calledWithObjectNames.has(name)) &&
+    (expected.constructedNames ?? []).every((name) => constructedNames.has(name))
 }
 
 const sampleResult = `## RESULT
@@ -1947,16 +1990,34 @@ Bounded implementation work.
       join(process.cwd(), 'scripts/mission-control-dispatch.mjs'),
       'utf8',
     )
-    const deliverySource = readFileSync(
-      join(process.cwd(), 'scripts/agent-delivery.mjs'),
+    const dispatchWorkflowSource = readFileSync(
+      join(process.cwd(), 'scripts/mission-control/workflows/dispatch.mjs'),
       'utf8',
     )
-    expect(dispatchSource).toContain('dispatchFounderAuthorizedCorrection')
-    expect(dispatchSource).toContain('Coordinator')
-    expect(dispatchSource).toContain("from './mission-control-reconcile.mjs'")
-    expect(dispatchSource).toContain('listLiveComments')
-    expect(dispatchSource).toContain('new Coordinator(')
-    expect(dispatchSource).toContain('resolveProductionCommentTrust')
+    const deliverySource = readFileSync(
+      join(process.cwd(), 'scripts/mission-control/workflows/agent-delivery.mjs'),
+      'utf8',
+    )
+    expect(hasExecutableBoundary(dispatchSource, {
+      moduleSpecifier: './mission-control/workflows/dispatch.mjs',
+      importedNames: ['executeDispatchWorkflow'],
+      calledNames: ['executeDispatchWorkflow'],
+      calledWithObjectNames: ['executeDispatchWorkflow'],
+    })).toBe(true)
+    expect(hasExecutableBoundary(dispatchWorkflowSource, {
+      moduleSpecifier: '../../mission-control-reconcile.mjs',
+      importedNames: [
+        'dispatchFounderAuthorizedCorrection',
+        'Coordinator',
+        'resolveProductionCommentTrust',
+      ],
+      calledNames: [
+        'dispatchFounderAuthorizedCorrection',
+        'listLiveComments',
+        'resolveProductionCommentTrust',
+      ],
+      constructedNames: ['Coordinator'],
+    })).toBe(true)
     expect(dispatchSource).not.toContain('const comments = []')
     expect(deliverySource).toContain('listLiveComments')
     expect(deliverySource).toContain('parsePaginatedGhApiJson')
@@ -1966,6 +2027,39 @@ Bounded implementation work.
     expect(reconcileModule.Coordinator).toBeTruthy()
     expect(reconcileModule.normalizeTransitionIdentity).toBeTruthy()
     expect(reconcileModule.resolveProductionCommentTrust).toBeTruthy()
+  })
+
+  it('rejects comment-only dispatch boundary fixtures', () => {
+    const commentOnlyRoot = `
+      // import { executeDispatchWorkflow } from './mission-control/workflows/dispatch.mjs'
+      // executeDispatchWorkflow({
+    `
+    const commentOnlyWorkflow = `
+      // import { Coordinator, dispatchFounderAuthorizedCorrection, resolveProductionCommentTrust } from '../../mission-control-reconcile.mjs'
+      // listLiveComments
+      // new Coordinator(
+    `
+
+    expect(hasExecutableBoundary(commentOnlyRoot, {
+      moduleSpecifier: './mission-control/workflows/dispatch.mjs',
+      importedNames: ['executeDispatchWorkflow'],
+      calledNames: ['executeDispatchWorkflow'],
+      calledWithObjectNames: ['executeDispatchWorkflow'],
+    })).toBe(false)
+    expect(hasExecutableBoundary(commentOnlyWorkflow, {
+      moduleSpecifier: '../../mission-control-reconcile.mjs',
+      importedNames: [
+        'dispatchFounderAuthorizedCorrection',
+        'Coordinator',
+        'resolveProductionCommentTrust',
+      ],
+      calledNames: [
+        'dispatchFounderAuthorizedCorrection',
+        'listLiveComments',
+        'resolveProductionCommentTrust',
+      ],
+      constructedNames: ['Coordinator'],
+    })).toBe(false)
   })
 
   it('requires #182 and #184 merged/green and fresh child-sync HANDOFF', async () => {

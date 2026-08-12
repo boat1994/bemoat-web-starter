@@ -1,9 +1,9 @@
-import { randomBytes } from 'node:crypto'
-
 import { runCommand } from '../../adapters/command-runner.mjs'
 import { BOOTSTRAP_CONTRACT } from '../domain/task-bootstrap-authorization.mjs'
-
-const LEASE_MARKER = '<!-- bemoat-mission-control-task-bootstrap-lease:v1 -->'
+import {
+  LEASE_MARKER,
+  createTaskBootstrapLeaseProtocol,
+} from '../domain/task-bootstrap-lease.mjs'
 
 function parseJson(value, label) {
   try { return JSON.parse(value) } catch (error) { throw externalError(`${label} returned invalid JSON`, error) }
@@ -62,29 +62,6 @@ function commentFromRest(comment, repo) {
   }
 }
 
-function workflowLeaseBody({ scope, requestId, status, leaseToken, issueNumber, observedBodySha256 = null }) {
-  return [LEASE_MARKER, '```json', JSON.stringify({
-    schema_version: 1,
-    scope,
-    issue_number: Number(issueNumber),
-    request_id: requestId,
-    status,
-    ['token']: leaseToken,
-    observed_body_sha256: observedBodySha256,
-  }), '```', LEASE_MARKER.replace(':v1', ':end')].join('\n')
-}
-
-function parseLeaseComment(comment) {
-  if (!String(comment?.body ?? '').includes(LEASE_MARKER)) return null
-  const raw = String(comment.body).replace(LEASE_MARKER, '').replace(LEASE_MARKER.replace(':v1', ':end'), '').replace(/```json\s*|```/g, '').trim()
-  try {
-    const parsed = JSON.parse(raw)
-    return parsed?.schema_version === 1 && parsed.status && parsed.scope && parsed.request_id && parsed.token
-      ? { ...parsed, commentId: comment.id }
-      : null
-  } catch { return null }
-}
-
 /**
  * GitHub REST/CLI adapter for the bootstrap workflow. It intentionally exposes
  * only Issue writes; the workflow does not receive Contents write access.
@@ -116,36 +93,7 @@ export function createTaskBootstrapGithubAdapter({ repository, env = process.env
   const getIssueComments = async (issueNumber) => apiPaginated(`repos/${repository}/issues/${issueNumber}/comments?per_page=100`, `Issue #${issueNumber} comments`).map((comment) => commentFromRest(comment, repository))
 
   const postComment = async (issueNumber, body) => commentFromRest(api(`repos/${repository}/issues/${issueNumber}/comments`, { method: 'POST', input: JSON.stringify({ body }), label: `Issue #${issueNumber} comment` }), repository)
-
-  async function acquireLease({ issueNumber, requestId, scope, expectedBodySha256 = null }) {
-    const comments = await getIssueComments(issueNumber)
-    const events = comments.map(parseLeaseComment).filter((event) => event && event.scope === scope && Number(event.issue_number) === Number(issueNumber))
-    const latestByRequest = new Map()
-    for (const event of events) latestByRequest.set(`${event.request_id}:${event.scope}`, event)
-    const heldByOther = [...latestByRequest.values()].find((event) => event.status === 'held' && event.request_id !== requestId)
-    if (heldByOther) {
-      const error = new Error('CAS_CONFLICT: another bootstrap writer holds the Issue lease')
-      error.code = 'CAS_CONFLICT'
-      throw error
-    }
-    const sameHeld = latestByRequest.get(`${requestId}:${scope}`)
-    if (sameHeld?.status === 'held') return { ['token']: sameHeld.token, commentId: sameHeld.commentId }
-    const leaseToken = `${scope}:${requestId}:${Date.now()}:${randomBytes(8).toString('hex')}`
-    const comment = await postComment(issueNumber, workflowLeaseBody({ scope, requestId, status: 'held', leaseToken, issueNumber, observedBodySha256: expectedBodySha256 }))
-    const reread = (await getIssueComments(issueNumber)).map(parseLeaseComment).filter((event) => event && event.scope === scope && Number(event.issue_number) === Number(issueNumber))
-    const active = reread.filter((event) => event.status === 'held')
-    if (active.length !== 1 || active[0].token !== leaseToken) {
-      const error = new Error('CAS_CONFLICT: Issue-only lease winner could not be proven')
-      error.code = 'CAS_CONFLICT'
-      throw error
-    }
-    return { ['token']: leaseToken, commentId: comment.id }
-  }
-
-  async function releaseLease({ issueNumber, requestId, scope, lease }) {
-    if (!lease?.token) return
-    await postComment(issueNumber, workflowLeaseBody({ scope, requestId, status: 'released', leaseToken: lease.token, issueNumber }))
-  }
+  const leaseProtocol = createTaskBootstrapLeaseProtocol({ readComments: getIssueComments, postComment })
 
   return {
     async getRepository() {
@@ -210,23 +158,22 @@ export function createTaskBootstrapGithubAdapter({ repository, env = process.env
     },
     postIssueComment: postComment,
     async acquireCreationLease({ requestId }) {
-      return acquireLease({ issueNumber: 262, requestId, scope: 'repository-task-creation' })
+      return leaseProtocol.acquireLease({ issueNumber: 262, requestId, scope: 'repository-task-creation' })
     },
     async releaseCreationLease({ requestId, lease }) {
-      return releaseLease({ issueNumber: 262, requestId, scope: 'repository-task-creation', lease })
+      return leaseProtocol.releaseLease({ issueNumber: 262, requestId, scope: 'repository-task-creation', lease })
     },
     async acquireIssueLease({ issueNumber, requestId, scope = 'task-bootstrap-projection', expectedBodySha256 }) {
-      return acquireLease({ issueNumber, requestId, scope, expectedBodySha256 })
+      return leaseProtocol.acquireLease({ issueNumber, requestId, scope, expectedBodySha256 })
     },
     async releaseIssueLease({ issueNumber, requestId, lease, scope = 'task-bootstrap-projection' }) {
-      return releaseLease({ issueNumber, requestId, scope, lease })
+      return leaseProtocol.releaseLease({ issueNumber, requestId, scope, lease })
     },
     async issueBodyLeaseStore({ issueNumber }) {
       const scope = 'task-bootstrap-projection'
       return {
         async read() {
-          const events = (await getIssueComments(issueNumber)).map(parseLeaseComment).filter((event) => event && event.scope === scope && Number(event.issue_number) === Number(issueNumber))
-          const event = events.at(-1)
+          const event = await leaseProtocol.readLatestLease({ issueNumber, scope })
           if (!event) return null
           return {
             sha: String(event.commentId),
@@ -250,8 +197,12 @@ export function createTaskBootstrapGithubAdapter({ repository, env = process.env
           }
           const requestId = content.transition_identity
           const lease = content.status === 'held'
-            ? await acquireLease({ issueNumber, requestId, scope, expectedBodySha256: content.observed_body_sha256 })
-            : await (async () => { await releaseLease({ issueNumber, requestId, scope, lease: { ['token']: requestId } }); return { ['token']: requestId } })()
+            ? await leaseProtocol.acquireLease({ issueNumber, requestId, scope, expectedBodySha256: content.observed_body_sha256 })
+            : await (async () => {
+              const held = await leaseProtocol.readHeldLease({ issueNumber, requestId, scope })
+              await leaseProtocol.releaseLease({ issueNumber, requestId, scope, lease: held })
+              return { ['token']: held.token, commentId: held.commentId }
+            })()
           return { sha: lease.commentId ?? lease.token, content }
         },
       }

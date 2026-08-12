@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process'
 import { afterEach, describe, expect, it } from 'vitest'
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- executable .mjs boundary */
-import * as stateModule from '../../scripts/mission-control-state.mjs'
+import * as stateModule from '../../scripts/mission-control/domain/task-state.mjs'
 
 const { renderMissionControlState, parseMissionControlState } = stateModule as unknown as Record<string, (...args: any[]) => any>
 const reconcileScript = resolve(process.cwd(), 'scripts/mission-control-reconcile.mjs')

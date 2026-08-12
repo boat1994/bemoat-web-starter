@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { renderMissionControlState } from '../../scripts/mission-control-state.mjs'
+import { renderMissionControlState } from '../../scripts/mission-control/domain/task-state.mjs'
 import { stateBlockReplacement } from '../../scripts/mission-control/domain/merge-state-block-replacement.mjs'
 
 describe('stateBlockReplacement', () => {

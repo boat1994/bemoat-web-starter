@@ -2,11 +2,11 @@ import { readFileSync } from 'node:fs'
 import { analyzeReconciliation, findLatestRoleComment } from '../mission-control-reconcile.mjs'
 import {
   formatPlanningContractViolations,
-  parseTaskIdentityBlock,
   runPlanningContractGuard,
   verifyLiveTaskIdentity,
-} from '../guard-planning-contract.mjs'
-import { parseMissionControlState } from '../mission-control-state.mjs'
+} from '../guards/planning-contract-runtime.mjs'
+import { parseTaskIdentityBlock } from '../guards/planning-contract.mjs'
+import { parseMissionControlState } from '../mission-control/domain/task-state.mjs'
 import { analyzeExactHeadCi } from './exact-head-ci.mjs'
 import {
   deriveWorkflowProfile,

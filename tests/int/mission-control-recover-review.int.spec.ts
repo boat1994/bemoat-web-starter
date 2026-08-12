@@ -20,7 +20,7 @@ const recoveryModulePromise = import('../../scripts/mission-control/domain/revie
 const registryModulePromise = import('../../scripts/mission-control/transport-registry.mjs')
 const workflowModulePromise = import('../../scripts/mission-control/workflows/recover-review.mjs')
 const reconcileModulePromise = import('../../scripts/mission-control-reconcile.mjs')
-const stateModulePromise = import('../../scripts/mission-control-state.mjs')
+const stateModulePromise = import('../../scripts/mission-control/domain/task-state.mjs')
 
 function sha256(value: string): string {
   return createHash('sha256').update(value, 'utf8').digest('hex')

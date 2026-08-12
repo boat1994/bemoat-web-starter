@@ -35,11 +35,13 @@ const PRODUCTION_IMPORTERS = [
     symbols: ['formatHarnessContractViolations', 'runHarnessContractGuard'],
   },
   {
-    path: 'scripts/guard-package-manager.mjs',
+    path: 'scripts/guards/package-manager.mjs',
+    facadeImport: '../guard-harness-contract.mjs',
     symbols: ['CHILD_FACING_HARNESS_PATHS'],
   },
   {
     path: 'scripts/sync-boilerplate.mjs',
+    facadeImport: './guard-harness-contract.mjs',
     symbols: ['assertManagedRuntimeDeliveryClosure'],
   },
 ] as const
@@ -82,7 +84,10 @@ describe('harness-contract facade exports', () => {
 
     for (const importer of PRODUCTION_IMPORTERS) {
       const source = readFileSync(join(process.cwd(), importer.path), 'utf8')
-      expect(source).toContain("./guard-harness-contract.mjs'")
+      const facadeImport = 'facadeImport' in importer
+        ? importer.facadeImport
+        : './guard-harness-contract.mjs'
+      expect(source).toContain(`${facadeImport}'`)
 
       for (const symbol of importer.symbols) {
         expect(source).toContain(symbol)

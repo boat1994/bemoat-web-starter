@@ -48,7 +48,11 @@ describe('Bemoat CLI discovery guidance', () => {
     expect(semanticGuidance).toMatch(/Do not infer.*memory.*prompt examples.*internal implementation source/i)
     expect(semanticGuidance).toMatch(/Raw GitHub reads remain permitted/i)
     expect(semanticGuidance).toMatch(/Raw GitHub mutation is permitted only when no registered Bemoat command owns the operation/i)
-    expect(semanticGuidance).toMatch(/help invocation.*no mutation.*no comment.*no state.*no branch.*issue.*PR.*machine-readable/i)
+    expect(semanticGuidance).toMatch(/resolve the registered command contract first/i)
+    expect(semanticGuidance).toMatch(/help_meaningful === true.*safe_help_invocation.*repository-owned.*--help --json/i)
+    expect(semanticGuidance).toMatch(/help_meaningful === false.*explicit Tier C delegation boundary.*safe_help_invocation.*do not require.*wrapper.*JSON help/i)
+    expect(semanticGuidance).toMatch(/help invocation.*no mutation.*no comment.*no state.*no branch.*issue.*PR/i)
+    expect(semanticGuidance).toMatch(/mismatch between runtime behavior and the command's actual registered contract.*CLI_DISCOVERY_DEFECT/i)
     for (const forbiddenImport of [
       'Coordinator',
       'Productive-Only policy helpers',
@@ -115,6 +119,20 @@ describe('Bemoat CLI discovery guidance', () => {
       expect(contract.safe_help_invocation, command).toBe(
         `pnpm run ${command} -- --help --json`,
       )
+    }
+  })
+
+  it('preserves the registry-defined Tier C delegation and safe-help boundary', () => {
+    const tierC = Object.values(COMMAND_CONTRACT_REGISTRY.commands)
+      .filter((contract) => contract.tier === 'C')
+
+    expect(tierC.length).toBeGreaterThan(0)
+    for (const contract of tierC) {
+      expect(contract.help_meaningful, contract.command).toBe(false)
+      expect(contract.safe_help_invocation, contract.command).toEqual(
+        expect.any(String),
+      )
+      expect(contract.safe_help_invocation?.trim(), contract.command).not.toBe('')
     }
   })
 

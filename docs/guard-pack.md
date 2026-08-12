@@ -1,6 +1,7 @@
 # Central guard pack v1
 
-The pack includes the managed toolchain-contract guard: it fails closed when
+The pack includes the managed toolchain-contract guard at
+`scripts/guards/toolchain-contract.mjs`: it fails closed when
 the exact TypeScript pin, Node floor, installed/lockfile proof, or strict
 harness compiler roots diverge from `.bemoat/toolchain-contract.json`.
 
@@ -23,18 +24,18 @@ Child-facing automation (`.github/workflows/ci.yml`, `.githooks/pre-commit`, `.g
 
 | Guard | Module | What it checks | How to fix |
 |-------|--------|----------------|------------|
-| **Secret leak** | `scripts/guard-repo-safety.mjs` | Obvious tokens/keys, secret-like env assignments, tracked `.env*` files (except `.env.example`), Cloudflare resource IDs outside `wrangler.jsonc` | Remove secrets from tracked files; use `.env.example` with empty values; keep D1/R2 IDs in `wrangler.jsonc` only |
-| **Destructive SQL** | `scripts/guard-repo-safety.mjs` | `DROP`, `DELETE FROM`, `TRUNCATE`, `RENAME`, `ALTER COLUMN` in migration `up` sections | Use additive migrations; add `bemoat:destructive-migration-approved` only with human approval |
+| **Secret leak** | `scripts/guards/repo-safety.mjs` | Obvious tokens/keys, secret-like env assignments, tracked `.env*` files (except `.env.example`), Cloudflare resource IDs outside `wrangler.jsonc` | Remove secrets from tracked files; use `.env.example` with empty values; keep D1/R2 IDs in `wrangler.jsonc` only |
+| **Destructive SQL** | `scripts/guards/repo-safety.mjs` | `DROP`, `DELETE FROM`, `TRUNCATE`, `RENAME`, `ALTER COLUMN` in migration `up` sections | Use additive migrations; add `bemoat:destructive-migration-approved` only with human approval |
 | **Direct script calls** | `scripts/guard-harness-contract.mjs` | Synced CI/hooks calling raw scripts (`lint`, `build`, `check`, `guard:safety`, …) | Call `bemoat:*` scripts from child-facing harness files |
-| **Build script contract** | `scripts/guard-build-script-contract.mjs` | `scripts.build` calling OpenNext directly; missing wrapper, `build:next`, `build:cloudflare`, or `cf:build` alias; `open-next.config.ts` missing universal build re-entry | `build` → `node scripts/build.mjs`; `build:next` → `next build`; `build:cloudflare` → `opennextjs-cloudflare build`; `cf:build` → `pnpm run build`; `open-next.config.ts` `buildCommand` → `cross-env BEMOAT_BUILD_CONTEXT=opennext-next-build pnpm run build` |
-| **Package manager drift** | `scripts/guard-package-manager.mjs` | Tracked `package-lock.json` / `yarn.lock` / `bun.lockb`; `npm`/`yarn`/`bun` install/run in harness workflows; missing `engines.pnpm` | Use pnpm only; keep `pnpm-lock.yaml`; declare `engines.pnpm` in `package.json` |
-| **Env placeholder** | `scripts/guard-env-placeholder.mjs` | Missing `.env.example`; non-placeholder values in `.env.example` | Track `.env.example` with empty or obvious placeholder values only |
+| **Build script contract** | `scripts/guards/build-script-contract.mjs` | `scripts.build` calling OpenNext directly; missing wrapper, `build:next`, `build:cloudflare`, or `cf:build` alias; `open-next.config.ts` missing universal build re-entry | `build` → `node scripts/build.mjs`; `build:next` → `next build`; `build:cloudflare` → `opennextjs-cloudflare build`; `cf:build` → `pnpm run build`; `open-next.config.ts` `buildCommand` → `cross-env BEMOAT_BUILD_CONTEXT=opennext-next-build pnpm run build` |
+| **Package manager drift** | `scripts/guards/package-manager.mjs` | Tracked `package-lock.json` / `yarn.lock` / `bun.lockb`; `npm`/`yarn`/`bun` install/run in harness workflows; missing `engines.pnpm` | Use pnpm only; keep `pnpm-lock.yaml`; declare `engines.pnpm` in `package.json` |
+| **Env placeholder** | `scripts/guards/env-placeholder.mjs` | Missing `.env.example`; non-placeholder values in `.env.example` | Track `.env.example` with empty or obvious placeholder values only |
 | **Cloudflare config** | `scripts/guard-cloudflare-env.mjs` | `CLOUDFLARE_ENV=production`; `env.production` in `wrangler.jsonc`; dev D1/R2 IDs matching production | Use top-level `wrangler.jsonc` for production; isolate `env.dev` bindings |
-| **Frontend SEO** | `scripts/guard-frontend-seo.mjs` | Missing `metadata`/`generateMetadata` in `src/app/(frontend)/layout.tsx`; invalid `sitemap.ts`/`robots.ts` when present | Export `metadata` with `title` and `description`; add App Router SEO files when ready |
+| **Frontend SEO** | `scripts/guards/frontend-seo.mjs` | Missing `metadata`/`generateMetadata` in `src/app/(frontend)/layout.tsx`; invalid `sitemap.ts`/`robots.ts` when present | Export `metadata` with `title` and `description`; add App Router SEO files when ready |
 | **Mission Control contract** | `scripts/guard-mission-control-contract.mjs` | Missing/invalid guide frontmatter; review budget ≠ 3; missing required sections/templates; thin loader broken or oversized; `AGENTS.md` pointer missing; managed-path omissions; live `.bemoat/mission-control-overrides.md` accidentally managed; forbidden Review-4 / silent-reset / Minor-as-blocker markers | Restore canonical guide/loader/templates; keep loader thin; sync managed paths without managing the live override |
 | **Planning contract** | `scripts/guard-planning-contract.mjs` | Missing or malformed `<!-- bemoat-task-identity:start -->` blocks; paired spec/plan identity mismatch; branch template or transition conflicts; invalid `task_issue_strategy`; unconditional planning SHA execution rule; live GitHub issue or Mission Control state conflicts when `gh` is available | Add balanced task-identity YAML to new or modified planning files under `docs/superpowers/specs/**` and `docs/superpowers/plans/**`; align paired documents; use `resolve_live_protected_base_at_dispatch`; keep executable issue references open |
 | **Structural protection** | `scripts/guards/structural-protection.mjs` | Production `scripts/**/*.mjs` physical-line ceilings, immutable grandfathered maxima, manifest shape, symlinks, and SHA-256 fingerprints for protected test oracles | Keep new or moved scripts at 400 physical lines or fewer; do not alter the protected tests; change `scripts/structural-protection-manifest.json` only with Founder authorization |
-| **Scripts architecture** | `scripts/guard-scripts-architecture.mjs` | Scripts architecture dependency graph contains unallowed cycles, unallowed edges, or violates adapter constraints | Ensure scripts dependency graph matches `scripts/architecture-contract.json` |
+| **Scripts architecture** | `scripts/guards/scripts-architecture.mjs` | Scripts architecture dependency graph contains unallowed cycles, unallowed edges, or violates adapter constraints | Ensure scripts dependency graph matches `scripts/architecture-contract.json` |
 
 Orchestrator: `scripts/guard-pack.mjs` runs guards in the order above and aggregates failures.
 

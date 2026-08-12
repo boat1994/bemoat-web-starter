@@ -15,6 +15,37 @@ afterEach(() => {
 })
 
 describe('central guard pack', () => {
+  it('keeps the public facade re-exporting the inward composition module', async () => {
+    const facade = await import('../../scripts/guard-pack.mjs')
+    const destination = await import('../../scripts/guards/pack.mjs')
+
+    expect(Object.keys(destination).sort()).toEqual([
+      'GUARD_PACK',
+      'flattenGuardPackViolations',
+      'formatGuardPackResults',
+      'getGuardPackExitCode',
+      'runGuardPack',
+    ])
+    expect(facade.GUARD_PACK).toBe(destination.GUARD_PACK)
+    expect(facade.runGuardPack).toBe(destination.runGuardPack)
+    expect(facade.flattenGuardPackViolations).toBe(destination.flattenGuardPackViolations)
+    expect(facade.getGuardPackExitCode).toBe(destination.getGuardPackExitCode)
+    expect(facade.formatGuardPackResults).toBe(destination.formatGuardPackResults)
+  })
+
+  it('keeps the harness-contract pack entry wired to stable facade exports', async () => {
+    const destination = await import('../../scripts/guards/pack.mjs')
+    const harnessFacade = await import('../../scripts/guard-harness-contract.mjs')
+    const harnessContractGuard = destination.GUARD_PACK.find(
+      (guard: { id: string }) => guard.id === 'harness-contract',
+    )
+
+    expect([harnessContractGuard?.run, harnessContractGuard?.format]).toEqual([
+      harnessFacade.runHarnessContractGuard,
+      harnessFacade.formatHarnessContractViolations,
+    ])
+  })
+
   it('exports all v1 guards in deterministic order', async () => {
     const mod = await import('../../scripts/guard-pack.mjs')
 
@@ -59,7 +90,7 @@ describe('central guard pack', () => {
   })
 
   it('enforces the complete Mission Control state/counter and Review 3 matrices', async () => {
-    const mod = await import('../../scripts/guard-mission-control-drift.mjs')
+    const mod = await import('../../scripts/guards/mission-control-drift.mjs')
 
     expect(mod.MISSION_CONTROL_STATE_COUNTER_MATRIX).toHaveLength(13 * 4 * 2)
     expect(mod.MISSION_CONTROL_REVIEW_MATRIX.filter((entry: { cycle: number }) => entry.cycle === 2))
@@ -73,7 +104,7 @@ describe('central guard pack', () => {
   })
 
   it('detects semantic reconciler tampering assembled dynamically', async () => {
-    const mod = await import('../../scripts/guard-mission-control-drift.mjs')
+    const mod = await import('../../scripts/guards/mission-control-drift.mjs')
     const canonical = await import('../../scripts/mission-control-reconcile.mjs')
 
     const tamperedReconcile = (input: Record<string, unknown>) => {
@@ -94,7 +125,7 @@ describe('central guard pack', () => {
   })
 
   it('detects a parser tampered to accept invalid state/counter combinations', async () => {
-    const mod = await import('../../scripts/guard-mission-control-drift.mjs')
+    const mod = await import('../../scripts/guards/mission-control-drift.mjs')
     const violations = mod.runMissionControlDriftGuard({
       parseMissionControlState: () => ({ present: true, valid: true, state: null }),
     })
@@ -114,16 +145,22 @@ describe('central guard pack', () => {
     const syncMod = await import('../../scripts/sync-boilerplate.mjs')
 
     expect(syncMod.managedPaths).toContain('scripts/guard-pack.mjs')
+    expect(syncMod.managedPaths).toContain('scripts/guards/pack.mjs')
+    expect(syncMod.managedPaths).toContain('scripts/guards/repo-safety.mjs')
+    expect(syncMod.managedPaths).not.toContain('scripts/guard-repo-safety.mjs')
     expect(syncMod.managedPaths).toContain('scripts/guards/structural-protection.mjs')
     expect(syncMod.managedPaths).toContain('scripts/structural-protection-manifest.json')
     expect(syncMod.managedPaths).toContain('tests/int/structural-protection.int.spec.ts')
-    expect(syncMod.managedPaths).toContain('scripts/guard-build-script-contract.mjs')
-    expect(syncMod.managedPaths).toContain('scripts/guard-package-manager.mjs')
-    expect(syncMod.managedPaths).toContain('scripts/guard-toolchain-contract.mjs')
+    expect(syncMod.managedPaths).toContain('scripts/guards/build-script-contract.mjs')
+    expect(syncMod.managedPaths).not.toContain('scripts/guard-build-script-contract.mjs')
+    expect(syncMod.managedPaths).toContain('scripts/guards/package-manager.mjs')
+    expect(syncMod.managedPaths).toContain('scripts/guards/toolchain-contract.mjs')
+    expect(syncMod.managedPaths).not.toContain('scripts/guard-toolchain-contract.mjs')
     expect(syncMod.managedPaths).toContain('tsconfig.harness-strict.json')
     expect(syncMod.managedPackageScripts).toContain('bemoat:typecheck')
-    expect(syncMod.managedPaths).toContain('scripts/guard-env-placeholder.mjs')
-    expect(syncMod.managedPaths).toContain('scripts/guard-frontend-seo.mjs')
+    expect(syncMod.managedPaths).toContain('scripts/guards/env-placeholder.mjs')
+    expect(syncMod.managedPaths).toContain('scripts/guards/frontend-seo.mjs')
+    expect(syncMod.managedPaths).not.toContain('scripts/guard-frontend-seo.mjs')
     expect(syncMod.managedPaths).toContain('scripts/guard-mission-control-contract.mjs')
     expect(syncMod.managedPaths).toContain('docs/guard-pack.md')
     expect(syncMod.managedPackageScripts).toContain('bemoat:guard:pack')
@@ -133,7 +170,7 @@ describe('central guard pack', () => {
 
 describe('destructive SQL fixture', () => {
   it('flags unapproved destructive migration fixture', async () => {
-    const repoSafety = await import('../../scripts/guard-repo-safety.mjs')
+    const repoSafety = await import('../../scripts/guards/repo-safety.mjs')
     const content = readFileSync(resolve(fixturesRoot, 'destructive-migration-unapproved.ts'), 'utf8')
 
     const violations = repoSafety.scanDestructiveMigration(
@@ -147,7 +184,7 @@ describe('destructive SQL fixture', () => {
   })
 
   it('allows approved destructive migration fixture', async () => {
-    const repoSafety = await import('../../scripts/guard-repo-safety.mjs')
+    const repoSafety = await import('../../scripts/guards/repo-safety.mjs')
     const content = readFileSync(resolve(fixturesRoot, 'destructive-migration-approved.ts'), 'utf8')
 
     const violations = repoSafety.scanDestructiveMigration(
@@ -183,7 +220,7 @@ describe('direct script call fixtures', () => {
 
 describe('package manager guard', () => {
   it('flags alternate lockfiles and npm commands in harness content', async () => {
-    const mod = await import('../../scripts/guard-package-manager.mjs')
+    const mod = await import('../../scripts/guards/package-manager.mjs')
 
     expect(mod.scanTrackedLockfiles(['package-lock.json', 'pnpm-lock.yaml'])).toHaveLength(1)
 
@@ -199,7 +236,7 @@ describe('package manager guard', () => {
 
 describe('env placeholder guard', () => {
   it('passes empty .env.example values', async () => {
-    const mod = await import('../../scripts/guard-env-placeholder.mjs')
+    const mod = await import('../../scripts/guards/env-placeholder.mjs')
 
     const violations = mod.scanEnvExampleContent('PAYLOAD_SECRET=\nDATABASE_URL=')
 
@@ -207,7 +244,7 @@ describe('env placeholder guard', () => {
   })
 
   it('flags real-looking secrets in .env.example', async () => {
-    const mod = await import('../../scripts/guard-env-placeholder.mjs')
+    const mod = await import('../../scripts/guards/env-placeholder.mjs')
 
     const violations = mod.scanEnvExampleContent(
       'PAYLOAD_SECRET=super-secret-production-value-should-not-be-here',
@@ -220,7 +257,7 @@ describe('env placeholder guard', () => {
 
 describe('build script contract fixtures', () => {
   it('flags recursive OpenNext build script fixture', async () => {
-    const mod = await import('../../scripts/guard-build-script-contract.mjs')
+    const mod = await import('../../scripts/guards/build-script-contract.mjs')
     const pkg = JSON.parse(readFileSync(resolve(fixturesRoot, 'package-recursive-build.json'), 'utf8'))
 
     const violations = mod.scanBuildScriptContract(pkg.scripts, 'package.json')
@@ -233,7 +270,7 @@ describe('build script contract fixtures', () => {
   })
 
   it('passes correct build script fixture', async () => {
-    const mod = await import('../../scripts/guard-build-script-contract.mjs')
+    const mod = await import('../../scripts/guards/build-script-contract.mjs')
     const pkg = JSON.parse(readFileSync(resolve(fixturesRoot, 'package-correct-build.json'), 'utf8'))
 
     const violations = mod.scanBuildScriptContract(pkg.scripts, 'package.json')
@@ -281,7 +318,7 @@ describe('planning contract guard pack integration', () => {
 
 describe('frontend SEO guard', () => {
   it('requires metadata title and description in frontend layout', async () => {
-    const mod = await import('../../scripts/guard-frontend-seo.mjs')
+    const mod = await import('../../scripts/guards/frontend-seo.mjs')
 
     const violations = mod.scanFrontendLayoutMetadata(`
 export const metadata = { title: 'Example' }
@@ -293,7 +330,7 @@ export const metadata = { title: 'Example' }
   })
 
   it('validates optional sitemap and robots exports when present', async () => {
-    const mod = await import('../../scripts/guard-frontend-seo.mjs')
+    const mod = await import('../../scripts/guards/frontend-seo.mjs')
 
     expect(mod.scanOptionalSeoFile('src/app/sitemap.ts', 'export const dynamic = "force-static"')).toHaveLength(
       1,
@@ -301,5 +338,45 @@ export const metadata = { title: 'Example' }
     expect(
       mod.scanOptionalSeoFile('src/app/robots.ts', 'export default function robots() { return {} }'),
     ).toEqual([])
+  })
+})
+
+describe('package manager guard destination boundary', () => {
+  it('preserves the destination export surface and direct-execution boundary', async () => {
+    const destination = await import('../../scripts/guards/package-manager.mjs')
+
+    expect(Object.keys(destination).sort()).toEqual([
+      'FORBIDDEN_LOCKFILES',
+      'PACKAGE_MANAGER_SCAN_PATHS',
+      'findNonPnpmCommands',
+      'formatPackageManagerViolations',
+      'getPackageManagerGuardExitCode',
+      'isDirectExecution',
+      'runPackageManagerGuard',
+      'scanPackageJsonEngines',
+      'scanPackageManagerFile',
+      'scanTrackedLockfiles',
+    ])
+    expect(destination.isDirectExecution).toBeTypeOf('function')
+  })
+
+  it('keeps package-manager policy diagnostics and exit mapping stable', async () => {
+    const destination = await import('../../scripts/guards/package-manager.mjs')
+    const violations = destination.runPackageManagerGuard({
+      files: ['package.json', 'package-lock.json'] as unknown as null,
+      readFile: () => JSON.stringify({}),
+    })
+
+    expect(violations.map((item: { rule: string }) => item.rule)).toEqual([
+      'forbidden-lockfile',
+      'missing-pnpm-engine',
+    ])
+    expect(destination.getPackageManagerGuardExitCode([])).toBe(0)
+    expect(destination.getPackageManagerGuardExitCode(violations)).toBe(1)
+    expect(destination.formatPackageManagerViolations([])).toEqual(['Package manager guard passed.'])
+    expect(destination.formatPackageManagerViolations(violations)[0]).toBe('Package manager guard failed:')
+    expect(destination.scanPackageManagerFile('.github/workflows/ci.yml', 'npm run check')).toEqual([
+      expect.objectContaining({ rule: 'non-pnpm-command', file: '.github/workflows/ci.yml' }),
+    ])
   })
 })

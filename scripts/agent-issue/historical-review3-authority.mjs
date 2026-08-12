@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { findLatestRoleComment } from '../mission-control-reconcile.mjs'
-import { parseMissionControlState } from '../mission-control-state.mjs'
+import { parseMissionControlState } from '../mission-control/domain/task-state.mjs'
 import { validatePinnedFounderDecision } from './current-post-budget-authority.mjs'
 
 export function parseHandoffCommentSemanticPayload(body, expectedRepo, expectedIssue) {

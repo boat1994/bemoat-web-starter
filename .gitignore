@@ -58,3 +58,4 @@ node_modules/
 # Bemoat boilerplate temp directories
 .bemoat-check-tmp/
 .bemoat-sync-tmp/
+/.bemoat/sdd/
