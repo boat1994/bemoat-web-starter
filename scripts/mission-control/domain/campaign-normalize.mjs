@@ -10,7 +10,7 @@ import {
   MIGRATION_STATUSES,
   ROOT_SCRIPT_MAP_VALIDATION_STATUSES,
   SLICE_STATUSES,
-} from './campaign-enums.mjs'
+} from './campaign-enums.ts'
 
 /**
  * @param {unknown} value

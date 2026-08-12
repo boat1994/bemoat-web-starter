@@ -5,7 +5,7 @@ import {
   FACADE_DISPOSITIONS,
   INTERNAL_DESTINATION_PREFIXES,
   MIGRATION_STATUSES,
-} from '../mission-control/domain/campaign-enums.mjs'
+} from '../mission-control/domain/campaign-enums.ts'
 import { validateRootScriptMappingRecord } from '../mission-control/domain/campaign-validator.mjs'
 
 export class ArchitectureContractError extends Error {

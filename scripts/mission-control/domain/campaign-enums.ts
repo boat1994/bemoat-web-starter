@@ -12,9 +12,9 @@ export const CAMPAIGN_MARKER_END_RE = /<!--\s*bemoat-mission-control-campaign:en
 export const TASK_MARKER_START_RE = /<!--\s*bemoat-mission-control-state:start\s*-->/g
 export const TASK_MARKER_END_RE = /<!--\s*bemoat-mission-control-state:end\s*-->/g
 
-export const CAMPAIGN_LIFECYCLES = new Set(['PLANNING', 'ACTIVE', 'BLOCKED', 'COMPLETE'])
+export const CAMPAIGN_LIFECYCLES = new Set<string>(['PLANNING', 'ACTIVE', 'BLOCKED', 'COMPLETE'])
 
-export const SLICE_STATUSES = new Set([
+export const SLICE_STATUSES = new Set<string>([
   'NOT_STARTED',
   'PLANNING',
   'IN_PROGRESS',
@@ -24,20 +24,20 @@ export const SLICE_STATUSES = new Set([
   'DONE',
 ])
 
-export const ROOT_SCRIPT_MAP_VALIDATION_STATUSES = new Set([
+export const ROOT_SCRIPT_MAP_VALIDATION_STATUSES = new Set<string>([
   'PENDING_IMPLEMENTATION',
   'PENDING_EXPANDED_IMPLEMENTATION',
   'VALID',
   'INVALID',
 ])
 
-export const FACADE_DISPOSITIONS = new Set([
+export const FACADE_DISPOSITIONS = new Set<string>([
   'stable_facade',
   'composition_root',
   'tooling_entrypoint',
 ])
 
-export const MIGRATION_STATUSES = new Set([
+export const MIGRATION_STATUSES = new Set<string>([
   'unmapped',
   'planned',
   'transitional',
