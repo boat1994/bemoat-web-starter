@@ -6,7 +6,7 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const root = join(__dirname, '..')
+const root = join(__dirname, '..', '..')
 
 const EXPECTED_DOCS_FILES = 85
 const EXPECTED_DOCS_LINES = 12236

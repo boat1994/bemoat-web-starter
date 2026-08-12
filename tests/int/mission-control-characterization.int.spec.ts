@@ -34,7 +34,7 @@ const dogfoodRoot = resolve(process.cwd(), 'docs/mission-control/dogfood')
 // structural contract (avoid helpers whose args contain ')' before the path).
 const hasStarterOnlyCorpus =
   existsSync('docs/mission-control/dogfood') &&
-  existsSync('scripts/capture-baseline.mjs')
+  existsSync('scripts/tooling/capture-baseline.mjs')
 const renderStateBody = (state: Record<string, unknown>) => renderMissionControlState(state)
 const projectMissionControlStateBlock = missionControlStateModule.projectMissionControlStateBlock as unknown as (
   body: string,
@@ -131,7 +131,7 @@ updated_by: "Mission Control"
 
       const stdout = execFileSync(
         process.execPath,
-        ['scripts/capture-baseline.mjs', '--classify-loader', fixturePath],
+        ['scripts/tooling/capture-baseline.mjs', '--classify-loader', fixturePath],
         { cwd: process.cwd(), encoding: 'utf8' },
       )
       const classification = JSON.parse(stdout)

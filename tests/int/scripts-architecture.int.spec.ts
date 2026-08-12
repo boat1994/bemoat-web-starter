@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -106,6 +106,11 @@ describe('scripts architecture ratchet', () => {
       (entry) => entry.path === 'scripts/harness-contract/',
     )
     expect(harness?.migration_status).toBe('transitional')
+  })
+
+  it('keeps capture-baseline implementation out of the scripts root', () => {
+    expect(existsSync(join(process.cwd(), 'scripts/capture-baseline.mjs'))).toBe(false)
+    expect(existsSync(join(process.cwd(), 'scripts/tooling/capture-baseline.mjs'))).toBe(true)
   })
 
   it('captures side-effect static imports in the production architecture graph (F-SLICE1-02)', () => {

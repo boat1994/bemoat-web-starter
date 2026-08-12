@@ -11,7 +11,7 @@ const reconcilePath = resolve(repoRoot, 'tests/int/mission-control-reconcile.int
 const processEnvFixtureRoot = join(childShapeRoot, 'process-env')
 
 const STARTER_ONLY_DOGFOOD_PATH = 'docs/mission-control/dogfood'
-const STARTER_ONLY_CAPTURE_BASELINE_PATH = 'scripts/capture-baseline.mjs'
+const STARTER_ONLY_CAPTURE_BASELINE_PATH = 'scripts/tooling/capture-baseline.mjs'
 
 function readSource(path: string): string {
   return readFileSync(path, 'utf8')
@@ -90,7 +90,7 @@ describe('Mission Control child portability regressions (Issue #216)', () => {
   describe('defect 1: starter-only corpus dependency', () => {
     it('child shape lacks dogfood corpus and capture-baseline.mjs while managed tests are present', () => {
       expect(existsSync(join(childShapeRoot, 'docs/mission-control/dogfood'))).toBe(false)
-      expect(existsSync(join(childShapeRoot, 'scripts/capture-baseline.mjs'))).toBe(false)
+      expect(existsSync(join(childShapeRoot, STARTER_ONLY_CAPTURE_BASELINE_PATH))).toBe(false)
       expect(existsSync(characterizationPath)).toBe(true)
     })
 
@@ -98,7 +98,7 @@ describe('Mission Control child portability regressions (Issue #216)', () => {
       const source = readSource(characterizationPath)
 
       expect(existsSync(join(childShapeRoot, 'docs/mission-control/dogfood'))).toBe(false)
-      expect(existsSync(join(childShapeRoot, 'scripts/capture-baseline.mjs'))).toBe(false)
+      expect(existsSync(join(childShapeRoot, STARTER_ONLY_CAPTURE_BASELINE_PATH))).toBe(false)
       expect(referencesStarterOnlyDogfood(source)).toBe(true)
       expect(referencesCaptureBaselineScript(source)).toBe(true)
 

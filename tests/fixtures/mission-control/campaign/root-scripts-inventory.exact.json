@@ -3,7 +3,6 @@
   "scripts/agent-issue.mjs",
   "scripts/bemoat-typecheck.mjs",
   "scripts/build.mjs",
-  "scripts/capture-baseline.mjs",
   "scripts/check-boilerplate-drift.mjs",
   "scripts/check-branch-safety.sh",
   "scripts/deploy-smoke-test.mjs",
