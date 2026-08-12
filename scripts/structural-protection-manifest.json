@@ -22,7 +22,7 @@
       { "path": "scripts/mission-control/domain/correction-contract.mjs", "max_lines": 650 },
       { "path": "scripts/mission-control/domain/recover-state-projection.mjs", "max_lines": 37 },
       { "path": "scripts/mission-control/domain/review-recovery.mjs", "max_lines": 485 },
-      { "path": "scripts/mission-control/domain/review-result-rendering.mjs", "max_lines": 164 },
+      { "path": "scripts/mission-control/domain/review-result-rendering.ts", "max_lines": 200 },
       { "path": "scripts/mission-control/workflows/adopt-finding.mjs", "max_lines": 564 },
       { "path": "scripts/mission-control/workflows/issue-body-cas.mjs", "max_lines": 438 },
       { "path": "scripts/mission-control/workflows/merge.mjs", "max_lines": 1124 },
