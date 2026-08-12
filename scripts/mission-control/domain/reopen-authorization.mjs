@@ -351,4 +351,3 @@ export function assertFounderAuthorization({
     trustedFounderLogins: [...trustedFounderLogins],
   }
 }
-

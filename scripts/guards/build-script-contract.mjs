@@ -252,4 +252,3 @@ export function isDirectExecution() {
   if (!entrypoint) return false
   return import.meta.url === pathToFileURL(resolve(entrypoint)).href
 }
-
