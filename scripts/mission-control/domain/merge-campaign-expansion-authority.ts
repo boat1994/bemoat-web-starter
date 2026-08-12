@@ -9,20 +9,36 @@ import { blockedExternal, stateConflict } from './merge-errors.mjs'
 
 const BLOCKER_RESOLUTION_MAX_SLICE = 11
 
-export function deriveCampaignExpansionAuthority(repo, campaignIssue, evidence) {
-  const envelope = evidence?.campaignExpansionAuthority
-  const comments = envelope?.comments
+type Mapping = Record<string, unknown>
+
+function isMapping(value: unknown): value is Mapping {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function field(value: unknown, key: string): unknown {
+  return isMapping(value) ? value[key] : undefined
+}
+
+export function deriveCampaignExpansionAuthority(
+  repo: string,
+  campaignIssue: string | number,
+  evidence: unknown,
+): Mapping {
+  const envelope = field(evidence, 'campaignExpansionAuthority')
+  const comments = field(envelope, 'comments')
   if (!Array.isArray(comments)) {
     throw blockedExternal('live campaign expansion authority evidence is unavailable')
   }
   const source = comments.find((comment) =>
-    /CAMPAIGN EXPANSION/i.test(String(comment?.body ?? '')) &&
-    /APPEND SLICES/i.test(String(comment?.body ?? '')),
+    /CAMPAIGN EXPANSION/i.test(String(field(comment, 'body') ?? '')) &&
+    /APPEND SLICES/i.test(String(field(comment, 'body') ?? '')),
   )
-  if (!source || !source.user?.login || !source.body) {
+  const sourceLogin = field(field(source, 'user'), 'login')
+  const sourceBody = field(source, 'body')
+  if (!source || !sourceLogin || !sourceBody) {
     throw blockedExternal('Founder campaign expansion authority comment is unavailable')
   }
-  const range = String(source.body).match(/APPEND SLICES\s+(\d+)\s*[–-]\s*(\d+)/i)
+  const range = String(sourceBody).match(/APPEND SLICES\s+(\d+)\s*[–-]\s*(\d+)/i)
   const startSlice = Number(range?.[1])
   const authorizedMaxSlice = Number(range?.[2])
   if (
@@ -32,8 +48,8 @@ export function deriveCampaignExpansionAuthority(repo, campaignIssue, evidence) 
     throw stateConflict('Founder campaign expansion authority does not bind the contiguous approved range')
   }
   const relatedAuthorityCommentIds = comments
-    .filter((comment) => /FOUNDER_(?:DIRECTIVE|ARCHITECTURE_DIRECTIVE)/i.test(String(comment?.body ?? '')))
-    .map((comment) => String(comment.id))
+    .filter((comment) => /FOUNDER_(?:DIRECTIVE|ARCHITECTURE_DIRECTIVE)/i.test(String(field(comment, 'body') ?? '')))
+    .map((comment) => String(field(comment, 'id')))
     .filter((id) => /^[1-9]\d*$/.test(id))
   if (relatedAuthorityCommentIds.length === 0) {
     throw blockedExternal('related Founder campaign expansion authority comments are unavailable')
@@ -47,12 +63,12 @@ export function deriveCampaignExpansionAuthority(repo, campaignIssue, evidence) 
       kind: 'github_issue_comment',
       repository: repo,
       issue: `#${campaignIssue}`,
-      comment_id: String(source.id),
-      author_login: source.user.login,
-      body_sha256: createHash('sha256').update(String(source.body), 'utf8').digest('hex'),
+      comment_id: String(field(source, 'id')),
+      author_login: sourceLogin,
+      body_sha256: createHash('sha256').update(String(sourceBody), 'utf8').digest('hex'),
     },
     approved_base: 'main',
-    protected_base_sha: String(envelope.currentProtectedBaseSha).toLowerCase(),
+    protected_base_sha: String(field(envelope, 'currentProtectedBaseSha')).toLowerCase(),
     policy_version: CAMPAIGN_EXPANSION_POLICY_VERSION,
     legacy_max_slice: LEGACY_MAX_SLICE,
     authorized_max_slice: authorizedMaxSlice,

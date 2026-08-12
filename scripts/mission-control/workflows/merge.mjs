@@ -37,7 +37,7 @@ import { blockedExternal, stateConflict } from '../domain/merge-errors.mjs'
 import { campaignParseFailure } from '../domain/merge-campaign-errors.mjs'
 import { sameTerminalBinding } from '../domain/merge-terminal-binding.mjs'
 import { stateBlockReplacement } from '../domain/merge-state-block-replacement.mjs'
-import { deriveCampaignExpansionAuthority } from '../domain/merge-campaign-expansion-authority.mjs'
+import { deriveCampaignExpansionAuthority } from '../domain/merge-campaign-expansion-authority.ts'
 import {
   projectCampaignBlockerResolved,
   projectCampaignSliceDone,
