@@ -15,6 +15,37 @@ afterEach(() => {
 })
 
 describe('central guard pack', () => {
+  it('keeps the public facade re-exporting the inward composition module', async () => {
+    const facade = await import('../../scripts/guard-pack.mjs')
+    const destination = await import('../../scripts/guards/pack.mjs')
+
+    expect(Object.keys(destination).sort()).toEqual([
+      'GUARD_PACK',
+      'flattenGuardPackViolations',
+      'formatGuardPackResults',
+      'getGuardPackExitCode',
+      'runGuardPack',
+    ])
+    expect(facade.GUARD_PACK).toBe(destination.GUARD_PACK)
+    expect(facade.runGuardPack).toBe(destination.runGuardPack)
+    expect(facade.flattenGuardPackViolations).toBe(destination.flattenGuardPackViolations)
+    expect(facade.getGuardPackExitCode).toBe(destination.getGuardPackExitCode)
+    expect(facade.formatGuardPackResults).toBe(destination.formatGuardPackResults)
+  })
+
+  it('keeps the harness-contract pack entry wired to stable facade exports', async () => {
+    const destination = await import('../../scripts/guards/pack.mjs')
+    const harnessFacade = await import('../../scripts/guard-harness-contract.mjs')
+    const harnessContractGuard = destination.GUARD_PACK.find(
+      (guard: { id: string }) => guard.id === 'harness-contract',
+    )
+
+    expect([harnessContractGuard?.run, harnessContractGuard?.format]).toEqual([
+      harnessFacade.runHarnessContractGuard,
+      harnessFacade.formatHarnessContractViolations,
+    ])
+  })
+
   it('exports all v1 guards in deterministic order', async () => {
     const mod = await import('../../scripts/guard-pack.mjs')
 
@@ -114,6 +145,7 @@ describe('central guard pack', () => {
     const syncMod = await import('../../scripts/sync-boilerplate.mjs')
 
     expect(syncMod.managedPaths).toContain('scripts/guard-pack.mjs')
+    expect(syncMod.managedPaths).toContain('scripts/guards/pack.mjs')
     expect(syncMod.managedPaths).toContain('scripts/guards/repo-safety.mjs')
     expect(syncMod.managedPaths).not.toContain('scripts/guard-repo-safety.mjs')
     expect(syncMod.managedPaths).toContain('scripts/guards/structural-protection.mjs')

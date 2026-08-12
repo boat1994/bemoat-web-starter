@@ -34,7 +34,7 @@ export const managedPaths = [
   'scripts/mission-control-adopt-finding.mjs', 'scripts/mission-control-recover-state.mjs',
   'scripts/mission-control/workflows/issue-body-cas.mjs', 'scripts/post-role-comment.mjs',
   'scripts/cli',
-  'scripts/guard-cloudflare-env.mjs', 'scripts/guards/cloudflare-env.mjs', 'scripts/guard-pack.mjs', 'scripts/guards/planning-contract-runtime.mjs',
+  'scripts/guard-cloudflare-env.mjs', 'scripts/guards/cloudflare-env.mjs', 'scripts/guard-pack.mjs', 'scripts/guards/pack.mjs', 'scripts/guards/planning-contract-runtime.mjs',
   'scripts/guards/planning-contract.mjs',
   'scripts/guards/structural-protection.mjs', 'scripts/structural-protection-manifest.json',
   'scripts/guards/mission-control-drift.mjs',
