@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { spawnSync } from 'node:child_process'
+
 import {
   createHelpEnvelopeV1,
   formatTextHelp,
@@ -13,10 +15,8 @@ import {
   classificationExitCode,
   createResultEnvelopeV1,
 } from '../../cli/command-result.mjs'
-import { isLeaseCasConflict } from './issue-body-cas.mjs'
-import { createProductionRecoverStateDeps } from '../adapters/recover-state-github.mjs'
-
-export { createProductionRecoverStateDeps as createProductionDeps } from '../adapters/recover-state-github.mjs'
+import { isLeaseCasConflict, writeIssueBodyWithLease } from './issue-body-cas.mjs'
+import { defaultRunGh as transportRunGh } from '../adapters/recover-state-github.mjs'
 import {
   appendMissingMissionControlStateBlock,
   parseMissionControlState,
@@ -480,7 +480,7 @@ function renderResult({ command, format, options, result }) {
   return envelope
 }
 
-export async function main(argv = process.argv.slice(2), deps = createProductionRecoverStateDeps()) {
+export async function main(argv = process.argv.slice(2), deps = createProductionDeps()) {
   let command = null
   let invocation = null
   let options = null
@@ -539,5 +539,78 @@ export async function main(argv = process.argv.slice(2), deps = createProduction
     else process.stderr.write(`${classification}: ${message}\n`)
     process.exitCode = classificationExitCode(classification)
     return envelope
+  }
+}
+
+export function createProductionDeps() {
+  const runGh = transportRunGh
+
+  return {
+    readManagedIssue: async (issueNumber, repo) => JSON.parse(runGh([
+      'issue', 'view', String(issueNumber), '--repo', repo, '--json', 'number,id,title,body,state',
+    ])),
+    readPullRequest: async (prNumber, repo) => JSON.parse(runGh([
+      'pr', 'view', String(prNumber), '--repo', repo,
+      '--json', 'number,state,isDraft,headRefName,headRefOid,baseRefName,baseRefOid',
+    ])),
+    readComment: async (repo, commentId) => JSON.parse(runGh([
+      'api', `repos/${repo}/issues/comments/${commentId}`,
+    ])),
+    readIssueComments: async (repo, issueNumber) => {
+      const pages = JSON.parse(runGh([
+        'api', '--paginate', '--slurp',
+        `repos/${repo}/issues/${issueNumber}/comments?per_page=100`,
+      ]))
+      if (!Array.isArray(pages) || pages.some((page) => !Array.isArray(page))) {
+        throw classifiedError('BLOCKED_EXTERNAL', 'live Issue comment pagination is incomplete')
+      }
+      return pages.flat()
+    },
+    readTrustedFounderLogins: async (repo) => {
+      const variable = JSON.parse(runGh(['api', `repos/${repo}/actions/variables/BEMOAT_FOUNDER_LOGINS`]))
+      const logins = String(variable.value ?? '').split(',').map((login) => login.trim()).filter(Boolean)
+      if (logins.length === 0) throw classifiedError('BLOCKED_EXTERNAL', 'Founder identity configuration is unavailable')
+      return logins
+    },
+    readProtectedPolicy: async (repo, ref, expectedSha) => {
+      const commit = JSON.parse(runGh([
+        'api', `repos/${repo}/commits/${expectedSha}`,
+      ]))
+      if (normalizeSha(commit.sha) !== normalizeSha(expectedSha)) {
+        throw classifiedError('HEAD_DRIFT', 'protected Mission Control policy commit does not match the requested base SHA')
+      }
+      const file = JSON.parse(runGh([
+        'api', `repos/${repo}/contents/docs/mission-control/mission-control-guide.md?ref=${expectedSha}`,
+      ]))
+      const body = Buffer.from(String(file.content ?? '').replace(/\s+/g, ''), 'base64').toString('utf8')
+      const version = body.match(/(?:version|Guide version)\s*[`:]\s*([0-9]+\.[0-9]+\.[0-9]+)/i)?.[1] ?? null
+      if (!normalizeSha(file.sha)) {
+        throw classifiedError('BLOCKED_EXTERNAL', 'protected Mission Control guide blob identity is unavailable')
+      }
+      return { ref, commitSha: expectedSha, sha: file.sha, guideVersion: version }
+    },
+    verifyCommitAncestry: async ({ repository, base, baseSha, ancestor, descendant }) => {
+      const ancestryScope = `${repository} ${base}@${baseSha}`
+      const result = spawnSync('git', ['merge-base', '--is-ancestor', ancestor, descendant], {
+        encoding: 'utf8',
+      })
+      if (result.status === 0) return true
+      if (result.status === 1) return false
+      throw classifiedError(
+        'BLOCKED_EXTERNAL',
+        result.stderr || result.stdout || result.error?.message || `trusted Git ancestry verification failed for ${ancestryScope}`,
+      )
+    },
+    writeIssueBody: async ({ repo, issueNumber, expectedBody, nextBody, transitionIdentity }) =>
+      writeIssueBodyWithLease({
+        repo,
+        issueNumber,
+        expectedBody,
+        nextBody,
+        transitionIdentity,
+        holder: 'mission-control-recover-state',
+        repoFlag: repo,
+        deps: { runGh },
+      }),
   }
 }

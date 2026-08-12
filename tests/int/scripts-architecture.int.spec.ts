@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -46,6 +46,22 @@ function writeContract(
 }
 
 describe('scripts architecture ratchet', () => {
+  it('keeps mission-control GitHub adapters transport-only', () => {
+    const adapterRoot = join(process.cwd(), 'scripts/mission-control/adapters')
+    const adapters = [
+      'merge-github.mjs',
+      'recover-review-github.mjs',
+      'recover-state-github.mjs',
+      'reopen-github.mjs',
+    ]
+
+    for (const adapter of adapters) {
+      const source = readFileSync(join(adapterRoot, adapter), 'utf8')
+      expect(source).not.toMatch(/from ['"]\.\.\/(?:domain|workflows)\//)
+      expect(source).not.toMatch(/from ['"]\.\.\/\.\.\/domain\//)
+    }
+  })
+
   it('keeps the stable root facade exports backed by the guard-owned module', () => {
     expect(buildScriptImportGraph).toBe(architectureGuard.buildScriptImportGraph)
     expect(listRootScripts).toBe(architectureGuard.listRootScripts)

@@ -177,7 +177,14 @@ describe('reopen GitHub transport adapter', () => {
       readPullRequest: (pr: number, repository: string) => transport.readPullRequest(pr, repository),
       readComment: transport.readComment,
       readIssueComments: transport.readIssueComments,
-      readFounderLoginsVariable: transport.readFounderLoginsVariable,
+      readTrustedFounderLogins: async (repository: string) => {
+        const variable = await transport.readFounderLoginsVariable(repository)
+        const logins = String(variable.value ?? '').split(',').map((login) => login.trim()).filter(Boolean)
+        if (logins.length === 0 || logins.some((login) => !/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/.test(login))) {
+          throw new Error('STATE_CONFLICT: repository Actions variable BEMOAT_FOUNDER_LOGINS is invalid')
+        }
+        return logins
+      },
       writeIssueBody: async () => {
         writes += 1
         throw new Error('unexpected write')

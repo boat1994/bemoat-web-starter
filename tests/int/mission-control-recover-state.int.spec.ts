@@ -51,7 +51,7 @@ describe('recover-state GitHub adapter boundary', () => {
     const deps = createProductionRecoverStateDeps({
       runGh: () => { throw new Error('gh: network unavailable') },
     })
-    await expect(deps.readManagedIssue(ISSUE, REPOSITORY)).rejects.toMatchObject({ classification: 'BLOCKED_EXTERNAL' })
+    await expect(deps.readIssue(ISSUE, REPOSITORY)).rejects.toThrow('gh: network unavailable')
   })
 })
 

@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 
 import yaml from 'yaml'
@@ -6,14 +7,14 @@ import yaml from 'yaml'
 import { analyzeExactHeadCi } from '../../agent-issue/exact-head-ci.mjs'
 import { parseCorrectionContract, parseCorrectionEvidenceMap, validateFindingIdentity } from '../domain/correction-contract.mjs'
 import { scanGuideContent } from '../../guards/mission-control-contract/scan-guide.mjs'
-import { projectMissionControlStateBlock } from '../domain/task-state.mjs'
+import { parseMissionControlState, projectMissionControlStateBlock } from '../domain/task-state.mjs'
 import {
   Coordinator,
   normalizeIssueComments,
   parseRoleCommentBody,
   projectReviewVerdictState,
 } from '../../mission-control-reconcile.mjs'
-import { createProductionDeps } from '../adapters/recover-review-github.mjs'
+import { writeIssueBodyWithLease } from './issue-body-cas.mjs'
 import {
   RECOVERY_FINDING_IDS,
   RECOVERY_SOURCE_COMMENT_IDS,
@@ -21,6 +22,7 @@ import {
   parseOrdinaryReviewEvidence,
   validateRecoveryRecord,
 } from '../domain/review-recovery.mjs'
+import { defaultRunGh as transportRunGh } from '../adapters/recover-review-github.mjs'
 
 const FULL_SHA_RE = /^[0-9a-f]{40}$/i
 const POSITIVE_ID_RE = /^[1-9]\d*$/
@@ -61,6 +63,16 @@ export const RECOVERY_USAGE =
 
 function stateConflict(message) {
   return new Error(`STATE_CONFLICT: ${message}`)
+}
+
+function blockedExternal(message) {
+  return new Error(`BLOCKED_EXTERNAL: ${message}`)
+}
+
+function flattenPages(value) {
+  return Array.isArray(value)
+    ? value.flat(Infinity).filter((entry) => entry && typeof entry === 'object')
+    : []
 }
 
 function bodySha256(body) {
@@ -657,6 +669,141 @@ export async function runReviewRecovery({ options, body, deps }) {
     return { ...result, recoveryComments: recoveryComments() }
   }
   return { ...result, outcome: 'RECOVERED', recoveryComments: recoveryComments() }
+}
+
+const defaultRunGh = transportRunGh
+
+export function createProductionDeps() {
+  const runGh = defaultRunGh
+  const readGitOutput = (args) => {
+    const result = spawnSync('git', args, {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+    })
+    if (result.error || result.status !== 0) {
+      throw blockedExternal(result.stderr || result.stdout || result.error?.message || 'Git checkout inspection failed')
+    }
+    return result.stdout.trim()
+  }
+  const readExecutingCheckout = async (_repo, trustedSha) => {
+    const headSha = readGitOutput(['rev-parse', 'HEAD'])
+    const ref = readGitOutput(['symbolic-ref', '--short', 'HEAD'])
+    const status = readGitOutput(['status', '--porcelain', '--untracked-files=all'])
+    const baseSha = readGitOutput(['merge-base', trustedSha, headSha])
+    const implementationPaths = readGitOutput(['ls-tree', '-r', '--name-only', headSha])
+      .split('\n')
+      .filter(Boolean)
+    return {
+      ref,
+      head_sha: headSha,
+      base_sha: baseSha,
+      ancestor_verified: baseSha === trustedSha,
+      clean: status === '',
+      implementation_paths: implementationPaths,
+    }
+  }
+  const readFileAtRef = async (repo, path, ref, { optional = false } = {}) => {
+    const raw = runGh([
+      'api',
+      `repos/${repo}/contents/${path}?ref=${encodeURIComponent(ref)}`,
+    ], optional ? { allowNotFound: true } : {})
+    if (!raw) return null
+    const file = JSON.parse(raw)
+    const content = file.encoding === 'base64'
+      ? Buffer.from(String(file.content ?? '').replace(/\s/g, ''), 'base64').toString('utf8')
+      : String(file.content ?? '')
+    return {
+      path: file.path ?? path,
+      sha: file.sha,
+      content,
+    }
+  }
+  const readManagedIssue = async (issueNumber, repo) => {
+    const issue = JSON.parse(runGh(['issue', 'view', String(issueNumber), '--repo', repo, '--json', 'number,id,title,body,state,stateReason']))
+    const parsed = parseMissionControlState(issue.body)
+    if (!parsed.present || !parsed.valid) throw stateConflict(`Issue has invalid managed state: ${parsed.reason ?? 'missing state block'}`)
+    return { ...issue, managedState: parsed.state }
+  }
+  const readPullRequest = async (prNumber, repo) => JSON.parse(runGh([
+    'pr', 'view', String(prNumber), '--repo', repo,
+    '--json', 'number,state,isDraft,headRefOid,baseRefName,baseRefOid,statusCheckRollup',
+  ]))
+  const readIssueComments = async (repo, issueNumber) => flattenPages(JSON.parse(runGh([
+    'api', '--paginate', '--slurp', `repos/${repo}/issues/${issueNumber}/comments?per_page=100`,
+  ])))
+  const readComment = async (repo, commentId) => JSON.parse(runGh(['api', `repos/${repo}/issues/comments/${commentId}`]))
+  const readExactHeadChecks = async (repo, _prNumber, head) => {
+    const payload = JSON.parse(runGh([
+      'api', `repos/${repo}/commits/${head}/check-runs?per_page=100`,
+    ]))
+    const checks = Array.isArray(payload) ? payload : payload.check_runs
+    return (Array.isArray(checks) ? checks : []).map((check) => ({
+    id: check.id,
+    name: check.name,
+    context: check.name,
+    conclusion: check.conclusion,
+    head_sha: check.head_sha,
+    }))
+  }
+  const readProtectedBase = async (repo, base) => JSON.parse(runGh(['api', `repos/${repo}/git/ref/heads/${base}`]))
+    .object ?? {}
+  const readPolicySource = async (repo, ref) => {
+    const guide = JSON.parse(runGh([
+      'api', `repos/${repo}/contents/${GUIDE_PATH}?ref=${encodeURIComponent(ref)}`,
+    ]))
+    const guideContent = guide.encoding === 'base64'
+      ? Buffer.from(String(guide.content ?? '').replace(/\s/g, ''), 'base64').toString('utf8')
+      : String(guide.content ?? '')
+    const [recoveryFacade, recoveryWorkflow, transportRegistry, childOverride] = await Promise.all([
+      readFileAtRef(repo, RECOVERY_FACADE_PATH, ref),
+      readFileAtRef(repo, RECOVERY_WORKFLOW_PATH, ref),
+      readFileAtRef(repo, TRANSPORT_REGISTRY_PATH, ref),
+      readFileAtRef(repo, CHILD_OVERRIDE_PATH, ref, { optional: true }),
+    ])
+    const frontmatter = parseGuideFrontmatter(guideContent)
+    return {
+      path: guide.path ?? GUIDE_PATH,
+      sha: guide.sha,
+      content: guideContent,
+      source_commit: ref,
+      version: frontmatter?.version,
+      recovery_facade: recoveryFacade,
+      recovery_workflow: recoveryWorkflow,
+      transport_registry: transportRegistry,
+      child_override: childOverride,
+      executing_checkout: {
+        ref: 'refs/heads/main',
+        sha: ref,
+        based_on_sha: ref,
+      },
+    }
+  }
+  const postComment = async (repo, issueNumber, body) => JSON.parse(runGh([
+    'api', '--method', 'POST', `repos/${repo}/issues/${issueNumber}/comments`, '--input', '-',
+  ], { input: JSON.stringify({ body }) }))
+  const writeIssueBody = async ({ repo, issueNumber, expectedBody, nextBody, transitionIdentity }) =>
+    writeIssueBodyWithLease({
+      repo,
+      issueNumber,
+      expectedBody,
+      nextBody,
+      transitionIdentity,
+      holder: 'mission-control-recover-review',
+      repoFlag: repo,
+      deps: { runGh },
+    })
+  return {
+    readManagedIssue,
+    readPullRequest,
+    readIssueComments,
+    readComment,
+    readExactHeadChecks,
+    readProtectedBase,
+    readExecutingCheckout,
+    readPolicySource,
+    postComment,
+    writeIssueBody,
+  }
 }
 
 export async function main(argv = process.argv.slice(2), deps = createProductionDeps()) {
