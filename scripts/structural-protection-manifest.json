@@ -2,7 +2,7 @@
   "schema_version": 1,
   "production_scripts": {
     "root": "scripts",
-    "extension": ".mjs",
+    "extensions": [".mjs", ".ts"],
     "line_count_algorithm": "physical-lines-v1",
     "soft_ceiling": 400,
     "grandfathered": [

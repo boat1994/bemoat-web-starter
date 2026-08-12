@@ -4,7 +4,7 @@ import { join, relative } from 'node:path'
 
 const MANIFEST_PATH = 'scripts/structural-protection-manifest.json'
 const TOP_LEVEL_KEYS = ['schema_version', 'production_scripts', 'protected_oracle']
-const SCRIPTS_KEYS = ['root', 'extension', 'line_count_algorithm', 'soft_ceiling', 'grandfathered']
+const SCRIPTS_KEYS = ['root', 'extensions', 'line_count_algorithm', 'soft_ceiling', 'grandfathered']
 const ORACLE_KEYS = ['algorithm', 'files']
 const ENTRY_KEYS = ['path', 'max_lines']
 const HASH_ENTRY_KEYS = ['path', 'sha256']
@@ -45,7 +45,7 @@ export function validateStructuralProtectionManifest(manifest) {
   if (!hasExactKeys(scripts, SCRIPTS_KEYS)) {
     violations.push(violation('STRUCT003', MANIFEST_PATH, 'production_scripts must use exactly the required keys.'))
   } else {
-    if (scripts.root !== 'scripts' || scripts.extension !== '.mjs' || scripts.line_count_algorithm !== 'physical-lines-v1' || scripts.soft_ceiling !== 400) {
+    if (scripts.root !== 'scripts' || JSON.stringify(scripts.extensions) !== JSON.stringify(['.mjs', '.ts']) || scripts.line_count_algorithm !== 'physical-lines-v1' || scripts.soft_ceiling !== 400) {
       violations.push(violation('STRUCT004', MANIFEST_PATH, 'production_scripts values do not match the v1 contract.'))
     }
     if (!Array.isArray(scripts.grandfathered) || !scripts.grandfathered.every((entry) => hasExactKeys(entry, ENTRY_KEYS) && isSafePath(entry.path) && entry.path.startsWith('scripts/') && Number.isSafeInteger(entry.max_lines) && entry.max_lines > 0) || !isSortedUnique(scripts.grandfathered || [])) {
@@ -61,15 +61,15 @@ export function validateStructuralProtectionManifest(manifest) {
   return violations
 }
 
-function walkScripts(root, directory, files, violations) {
+function walkScripts(root, directory, files, violations, extensions) {
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     const fullPath = join(directory, entry.name)
     const relativePath = relative(root, fullPath).split('\\').join('/')
     if (entry.isSymbolicLink()) {
       violations.push(violation('STRUCT008', relativePath, 'Symlinks are not allowed in the production script inventory.'))
     } else if (entry.isDirectory()) {
-      walkScripts(root, fullPath, files, violations)
-    } else if (entry.isFile() && relativePath.endsWith('.mjs')) {
+      walkScripts(root, fullPath, files, violations, extensions)
+    } else if (entry.isFile() && extensions.some((extension) => relativePath.endsWith(extension))) {
       files.push(relativePath)
     }
   }
@@ -89,7 +89,7 @@ export function runStructuralProtectionGuard(root = process.cwd()) {
   const scriptsRoot = join(root, manifest.production_scripts.root)
   const files = []
   try {
-    walkScripts(root, scriptsRoot, files, violations)
+    walkScripts(root, scriptsRoot, files, violations, manifest.production_scripts.extensions)
   } catch (error) {
     return [...violations, violation('STRUCT011', 'scripts', `Unable to inventory production scripts: ${error.message}`)]
   }

@@ -10,6 +10,7 @@ const oracle = [
   ['tests/int/mission-control-merge-verdict-binding-entrypoint.int.spec.ts', 'c780c36f4fcc3d386be6b3dcb5a86f16b1030a1446cfe59a9fefe83f1dc54b65'],
   ['tests/int/mission-control-merge.int.spec.ts', '2dfb92137dc35d5cd3ab718ff330bde87ae933891cbeaf077baf374a497f2d6e'],
 ] as const
+const productionExtensions = ['.mjs', '.ts'] as const
 const grandfathered = [
   ['scripts/agent-delivery.mjs', 686], ['scripts/agent-issue/current-post-budget-authority.mjs', 646],
   ['scripts/agent-issue/progress-tracking.mjs', 462], ['scripts/boilerplate/filesystem.mjs', 635],
@@ -35,7 +36,7 @@ function manifest(overrides: Record<string, unknown> = {}) {
   return {
     schema_version: 1,
     production_scripts: {
-      root: 'scripts', extension: '.mjs', line_count_algorithm: 'physical-lines-v1', soft_ceiling: 400,
+      root: 'scripts', extensions: [...productionExtensions], line_count_algorithm: 'physical-lines-v1', soft_ceiling: 400,
       grandfathered: grandfathered.map(([path, max_lines]) => ({ path, max_lines })),
     },
     protected_oracle: { algorithm: 'sha256', files: oracle.map(([path, sha256]) => ({ path, sha256 })) },
@@ -50,7 +51,7 @@ function write(rootPath: string, path: string, content: string) {
 
 function scriptInventory(path: string) {
   return readdirSync(join(path, 'scripts'), { recursive: true, withFileTypes: true })
-    .filter((entry) => entry.isFile() && entry.name.endsWith('.mjs')).length
+    .filter((entry) => entry.isFile() && productionExtensions.some((extension) => entry.name.endsWith(extension))).length
 }
 
 function fixture() {
@@ -79,7 +80,7 @@ describe('structural protection guard', () => {
     expect((await guard()).map((entry: { rule: string }) => entry.rule)).toEqual([])
     expect(grandfathered).toHaveLength(26)
     expect(JSON.parse(readFileSync(join(root, 'scripts/structural-protection-manifest.json'), 'utf8'))).toEqual(manifest())
-    expect(scriptInventory(root)).toBe(202)
+    expect(scriptInventory(root)).toBe(204)
   })
 
   it('rejects malformed schema, types, unknown keys, ordering, duplicates, paths, and SHA values', async () => {
@@ -112,6 +113,10 @@ describe('structural protection guard', () => {
     write(path, 'scripts/new.mjs', `${'x\n'.repeat(401)}`)
     expect(await guard(path)).not.toEqual([])
     write(path, 'scripts/new.mjs', `${'x\n'.repeat(400)}`)
+    expect(await guard(path)).toEqual([])
+    write(path, 'scripts/new.ts', `${'x\n'.repeat(401)}`)
+    expect(await guard(path)).not.toEqual([])
+    write(path, 'scripts/new.ts', `${'x\n'.repeat(400)}`)
     expect(await guard(path)).toEqual([])
     write(path, grandfathered[0][0], `${'x\n'.repeat(grandfathered[0][1] + 1)}`)
     expect(await guard(path)).not.toEqual([])
