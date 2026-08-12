@@ -3,12 +3,18 @@ export const CAMPAIGN_PROJECTION_KINDS = Object.freeze({
   BLOCKER_RESOLUTION: 'blocker-resolution',
 })
 
-export function hasMeaningfulBindingValue(value) {
+type Mapping = Record<string, unknown>
+type ProjectionKind = typeof CAMPAIGN_PROJECTION_KINDS[keyof typeof CAMPAIGN_PROJECTION_KINDS]
+type ProjectionResult =
+  | { valid: true; projectionKind: ProjectionKind; reason: null }
+  | { valid: false; projectionKind: null; reason: string }
+
+export function hasMeaningfulBindingValue(value: unknown): boolean {
   return value !== null && value !== undefined &&
     !(typeof value === 'string' && value.trim().length === 0)
 }
 
-export function resolveCampaignProjectionKind(authorization = {}) {
+export function resolveCampaignProjectionKind(authorization: Mapping = {}): ProjectionResult {
   const explicitKind = authorization.projection_kind
   const hasBlockerBinding = hasMeaningfulBindingValue(authorization.campaign_blocker_id)
 

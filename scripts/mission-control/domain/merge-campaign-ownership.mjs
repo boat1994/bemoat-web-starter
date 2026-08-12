@@ -1,6 +1,6 @@
 import { resolveIssueNumber, resolvePrNumber } from '../../agent-issue/issue-references.mjs'
 
-import { CAMPAIGN_PROJECTION_KINDS } from './merge-campaign-projection.mjs'
+import { CAMPAIGN_PROJECTION_KINDS } from './merge-campaign-projection.ts'
 
 const OWNERSHIP_EVIDENCE_KINDS = new Set(['campaign-projection', 'task-ownership-registry'])
 

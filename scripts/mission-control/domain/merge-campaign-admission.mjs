@@ -6,7 +6,7 @@ import {
   CAMPAIGN_PROJECTION_KINDS,
   hasMeaningfulBindingValue,
   resolveCampaignProjectionKind,
-} from './merge-campaign-projection.mjs'
+} from './merge-campaign-projection.ts'
 
 export async function resolveCampaignMergeRoute({
   deps,

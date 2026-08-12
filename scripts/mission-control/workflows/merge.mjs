@@ -59,7 +59,7 @@ import {
 } from '../domain/merge-safe-execution-bundle.mjs'
 import {
   CAMPAIGN_PROJECTION_KINDS,
-} from '../domain/merge-campaign-projection.mjs'
+} from '../domain/merge-campaign-projection.ts'
 import {
   createCampaignOwnershipAdmission,
   resolveCampaignMergeRoute,

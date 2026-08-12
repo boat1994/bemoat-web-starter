@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   CAMPAIGN_PROJECTION_KINDS,
   resolveCampaignProjectionKind,
-} from '../../scripts/mission-control/domain/merge-campaign-projection.mjs'
+} from '../../scripts/mission-control/domain/merge-campaign-projection.ts'
 import { classifyCampaignOwnershipEvidence } from '../../scripts/mission-control/domain/merge-campaign-ownership.mjs'
 import { campaignParseFailure } from '../../scripts/mission-control/domain/merge-campaign-errors.mjs'
 
