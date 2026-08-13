@@ -1,9 +1,19 @@
+import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
 import { buildScriptImportGraph } from '../../scripts/guards/scripts-architecture.mjs'
 const domainPath = resolve(process.cwd(), 'scripts/mission-control/domain/task-state.mjs')
+const canonicalDomainPath = resolve(process.cwd(), 'scripts/mission-control/domain/task-state.ts')
+const authorizationFacadePath = resolve(
+  process.cwd(),
+  'scripts/mission-control/domain/task-state-authorization.mjs',
+)
+const canonicalAuthorizationPath = resolve(
+  process.cwd(),
+  'scripts/mission-control/domain/task-state-authorization.ts',
+)
 const publicExports = [
   'MISSION_CONTROL_STATES',
   'MISSION_CONTROL_WORKFLOW_MODES',
@@ -29,8 +39,22 @@ describe('Mission Control task-state boundary', () => {
     expect((await import('../../scripts/mission-control/domain/task-state.mjs')).parseMissionControlState)
       .toBe(domainExports.parseMissionControlState)
 
+    expect(readFileSync(domainPath, 'utf8')).toBe("export * from './task-state.ts'\n")
+    expect(readFileSync(authorizationFacadePath, 'utf8')).toBe(
+      "export * from './task-state-authorization.ts'\n",
+    )
+    expect(readFileSync(canonicalDomainPath, 'utf8')).toContain(
+      "from './task-state-authorization.ts'",
+    )
+    expect(readFileSync(canonicalAuthorizationPath, 'utf8')).toContain(
+      'export function validatePostBudgetReviews',
+    )
+
+    const canonicalTaskState = await import(/* @vite-ignore */ `file://${canonicalDomainPath}`)
+    expect(canonicalTaskState.parseMissionControlState)
+      .toBe(domainExports.parseMissionControlState)
+
     const graph = buildScriptImportGraph(process.cwd())
-    const domainImports = graph.get('scripts/mission-control/domain/task-state.mjs') ?? new Set()
-    expect(domainImports).toContain('scripts/mission-control/domain/task-state-authorization.mjs')
+    expect(graph.get('scripts/mission-control/domain/task-state.mjs') ?? new Set()).toEqual(new Set())
   })
 })
