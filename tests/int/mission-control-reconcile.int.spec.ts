@@ -136,6 +136,19 @@ const sampleVerdict = `## REVIEW_VERDICT
 const FULL_SAMPLE_HEAD = 'abc1234'.padEnd(40, '0')
 
 describe('mission-control reconcile classifiers', () => {
+  it('keeps comment evidence canonical TypeScript behind an exact logic-free facade', async () => {
+    const facade = await import('../../scripts/mission-control/comment-evidence.mjs')
+    const typed = await import('../../scripts/mission-control/comment-evidence.ts')
+
+    expect(readFileSync('scripts/mission-control/comment-evidence.mjs', 'utf8')).toBe(
+      "export * from './comment-evidence.ts'\n",
+    )
+    expect(Object.keys(facade).sort()).toEqual(Object.keys(typed).sort())
+    for (const name of Object.keys(facade) as Array<keyof typeof facade>) {
+      expect(facade[name]).toBe(typed[name])
+    }
+  })
+
   it('exposes the extracted Coordinator transition boundary', () => {
     expect(coordinatorTransitions.integrateHandoff).toBeTypeOf('function')
     expect(coordinatorTransitions.integrateResult).toBeTypeOf('function')
