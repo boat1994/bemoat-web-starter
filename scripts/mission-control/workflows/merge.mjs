@@ -24,7 +24,7 @@ import {
   resolveMergeReviewVerdictBinding,
 } from '../domain/merge-review-verdict.mjs'
 import { normalizePaginatedCommitMessages } from '../domain/merge-commit-messages.ts'
-import { classifyHeadBindings } from '../domain/merge-head-bindings.mjs'
+import { classifyHeadBindings } from '../domain/merge-head-bindings.ts'
 import { classifyMergeability } from '../domain/merge-mergeability.ts'
 import { classifyNoAutomaticClosure } from '../domain/merge-no-automatic-closure.ts'
 import { validateNextAction } from '../domain/merge-next-action.mjs'

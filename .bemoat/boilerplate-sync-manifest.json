@@ -155,6 +155,7 @@
     "tests/int/mission-control-review.int.spec.ts",
     "tests/int/mission-control-merge.int.spec.ts",
     "tests/int/mission-control-merge-github-adapter.int.spec.ts",
+    "tests/int/mission-control-merge-head-bindings.int.spec.ts",
     "tests/int/merge-cli-args.int.spec.ts",
     "tests/int/mission-control-merge-campaign-expansion-authority.int.spec.ts",
     "tests/int/mission-control-merge-campaign-projection.int.spec.ts",
