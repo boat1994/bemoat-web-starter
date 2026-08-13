@@ -3,9 +3,14 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { CliInvocationError } from '../../scripts/cli/command-invocation.mjs'
 import { assertResultEnvelopeV1 } from '../../scripts/cli/command-result.mjs'
 import { getCommandContract } from '../../scripts/cli/command-contract.mjs'
+import {
+  renderResult,
+  renderRuntimeError,
+} from '../../scripts/mission-control/domain/role-comment-rendering.mjs'
 
 const scriptPath = resolve(process.cwd(), 'scripts/post-role-comment.mjs')
 const tempPaths: string[] = []
@@ -127,6 +132,27 @@ function tempFile(name: string, content: string) {
   const path = join(directory, name)
   writeFileSync(path, content)
   return path
+}
+
+const RESULT_RENDER_INPUT: Parameters<typeof renderResult>[0] = {
+  command: 'bemoat:issue:comment',
+  format: 'text',
+  options: {
+    repo: 'acme/repo',
+    issue: '123',
+  },
+  role: 'RESULT',
+  legacyClassification: null,
+  legacyOutput: [],
+  mutationPerformed: false,
+  parsedBody: {
+    headSha: 'ABCDEF0123456789ABCDEF0123456789ABCDEF01',
+    prNumber: '456',
+  },
+}
+
+function invokeRuntimeResult(input: Record<string, unknown>) {
+  return Reflect.apply(renderResult, undefined, [input])
 }
 
 function stubGh(options: {
@@ -256,6 +282,8 @@ function run(args: string[], options: { input?: string; env?: Record<string, str
 
 afterEach(() => {
   for (const path of tempPaths.splice(0)) rmSync(path, { recursive: true, force: true })
+  vi.restoreAllMocks()
+  process.exitCode = undefined
 })
 
 describe('bemoat:issue:comment', () => {
@@ -1040,5 +1068,46 @@ ${JSON.stringify({ schema_version: 1, correction_base: correctionBase, finding_r
 
     expect(result.status, result.stderr).toBe(0)
     expect(() => readFileSync(gh.capture, 'utf8')).toThrow()
+  })
+
+  it('preserves the parent throw for a missing parsedBody', () => {
+    expect(() => invokeRuntimeResult({
+      ...RESULT_RENDER_INPUT,
+      parsedBody: undefined,
+    })).toThrow("Cannot read properties of undefined (reading 'headSha')")
+  })
+
+  it('preserves the parent throw for missing options', () => {
+    expect(() => invokeRuntimeResult({
+      ...RESULT_RENDER_INPUT,
+      options: undefined,
+    })).toThrow("Cannot read properties of undefined (reading 'repo')")
+  })
+
+  it('preserves the parent throw for malformed CliInvocationError details', () => {
+    const error = new CliInvocationError('issue_number', 'missing positional input: issue_number')
+    Object.defineProperty(error, 'details', { value: undefined })
+
+    expect(() => renderRuntimeError({
+      command: RESULT_RENDER_INPUT.command,
+      format: 'text',
+      error,
+    })).toThrow("Cannot read properties of undefined (reading 'argument')")
+  })
+
+  it('treats a truthy check value as validation in the legacy text output', () => {
+    const stdout = vi.spyOn(process.stdout, 'write').mockImplementation(() => true)
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+
+    renderResult({
+      ...RESULT_RENDER_INPUT,
+      options: {
+        ...RESULT_RENDER_INPUT.options,
+        check: 'truthy',
+      },
+    })
+
+    expect(stdout).toHaveBeenCalledWith('SUCCESS: validated RESULT comment for Issue #123\n')
+    expect(stderr).not.toHaveBeenCalled()
   })
 })
