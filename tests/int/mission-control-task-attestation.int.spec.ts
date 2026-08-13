@@ -158,6 +158,30 @@ describe('Mission Control task-attestation typed boundary', () => {
     expect(typed.canonicalSerialize({ hole: [, 1], negativeZero: -0 })).toBe('{"hole":[null,1],"negativeZero":0}')
   })
 
+  it('reads canonicalizer getters in sorted-key order before reporting errors', () => {
+    const accessOrder: string[] = []
+    const value = {}
+    Object.defineProperties(value, {
+      z: {
+        enumerable: true,
+        get: () => {
+          accessOrder.push('z')
+          throw new Error('z getter accessed')
+        },
+      },
+      a: {
+        enumerable: true,
+        get: () => {
+          accessOrder.push('a')
+          return undefined
+        },
+      },
+    })
+
+    expect(() => typed.canonicalSerialize(value)).toThrowError('canonical payload cannot contain undefined key a')
+    expect(accessOrder).toEqual(['a'])
+  })
+
   it.each([
     ['undefined object value', { value: { bad: undefined } }, 'canonical payload cannot contain undefined key bad'],
     ['undefined array value', { value: [undefined] }, 'canonical payload contains unsupported value type undefined'],
@@ -303,6 +327,37 @@ describe('Mission Control task-attestation typed boundary', () => {
 
     expect(result).toMatchObject({ ok: false, envelope: null })
     expect(typeof result.reason).toBe('string')
+  })
+
+  it('preserves the historical thrown boundary for a null repository binding', () => {
+    const material = keyMaterial()
+    const envelope = createEnvelope(taskPayload(), material)
+
+    expect(() => typed.verifyTaskAttestation(envelope, {
+      publicKey: material.publicKey,
+      repository: null as never,
+      signingKeyId: KEY_ID,
+    })).toThrowError(/Cannot read properties of null/)
+  })
+
+  it('rejects malformed task-payload field types at the runtime trust boundary', () => {
+    const material = keyMaterial()
+    const envelope = createEnvelope({
+      attestation_schema: typed.TASK_ATTESTATION_SCHEMA,
+      operation: typed.TASK_ATTESTATION_OPERATION,
+      operation_version: typed.TASK_ATTESTATION_OPERATION_VERSION,
+      repository: REPOSITORY,
+      repository_id: { unexpected: true },
+      signing_key_id: KEY_ID,
+    }, material)
+
+    const result = typed.verifyTaskAttestation(envelope, {
+      publicKey: material.publicKey,
+      signingKeyId: KEY_ID,
+    })
+
+    expect(result.ok).toBe(false)
+    expect(result).toMatchObject({ envelope: null })
   })
 
   it('accepts a fully bound task attestation and keeps returned and thrown boundaries distinct', () => {

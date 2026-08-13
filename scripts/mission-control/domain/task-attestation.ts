@@ -1,4 +1,5 @@
 import { createHash, createPrivateKey, createPublicKey, sign, verify } from 'node:crypto'
+import { z } from 'zod'
 const TASK_ATTESTATION_SCHEMA = 'bemoat-mission-control-task-bootstrap-attestation'
 const TASK_ATTESTATION_OPERATION = 'task-bootstrap'
 const TASK_ATTESTATION_OPERATION_VERSION = 1
@@ -21,23 +22,15 @@ type Policy = {
   sourceCommit?: string | null
   blobSha?: string | null
 }
-type SignedEnvelope = {
-  schema_version: number
-  attestation_schema: string
-  operation: string
-  operation_version: number
-  algorithm: string
-  key_id: string
-  payload: Record<string, JsonValue>
-  payload_sha256: string
-  signature_base64: string
-}
-type ParseResult =
-  | { ok: true; envelope: Record<string, unknown> }
-  | { ok: false; reason: string; envelope: null }
-type VerificationResult =
-  | { ok: true; reason: null; envelope: unknown; payload?: unknown }
-  | { ok: false; reason: string; envelope: null }
+const optionalString = z.string().nullable().optional()
+const optionalNumber = z.number().nullable().optional()
+const optionalIdentityValue = z.union([z.string(), z.number()]).nullable().optional()
+const signedEnvelopeSchema = z.looseObject({ schema_version: z.number(), attestation_schema: z.string(), operation: z.string(), operation_version: z.number(), algorithm: z.string(), key_id: z.string(), payload: z.record(z.string(), z.json()), payload_sha256: z.string(), signature_base64: z.string() })
+const taskPayloadSchema = z.looseObject({ attestation_schema: optionalString, operation: optionalString, operation_version: optionalNumber, managed_state_sha256: optionalString, repository: optionalString, repository_id: optionalIdentityValue, repository_node_id: optionalIdentityValue, protected_base_sha: optionalString, founder_login: optionalString, authorization_comment_id: optionalIdentityValue, authorization_body_sha256: optionalString, parent_issue_number: optionalIdentityValue, parent_issue_id: optionalIdentityValue, parent_issue_node_id: optionalIdentityValue, task_issue_number: optionalIdentityValue, task_issue_id: optionalIdentityValue, task_issue_node_id: optionalIdentityValue, pr_number: optionalIdentityValue, pr_id: optionalIdentityValue, pr_node_id: optionalIdentityValue, base: optionalString, head: optionalString, policy_path: optionalString, policy_version: z.union([z.string(), z.number()]).nullable().optional(), policy_source_commit: optionalString, policy_blob_sha: optionalString, request_id: optionalString, workflow_file: optionalString, workflow_ref: optionalString, workflow_sha: optionalString, workflow_run_id: optionalIdentityValue, signing_key_id: optionalString })
+type SignedEnvelope = z.infer<typeof signedEnvelopeSchema>
+type TaskPayload = z.infer<typeof taskPayloadSchema>
+type ParseResult = { ok: true; envelope: Record<string, unknown> } | { ok: false; reason: string; envelope: null }
+type VerificationResult = { ok: true; reason: null; envelope: unknown; payload?: unknown } | { ok: false; reason: string; envelope: null }
 type GenericVerificationOptions = {
   publicKey?: string
   expectedSchema?: string
@@ -91,12 +84,8 @@ function sortValue(value: unknown): JsonValue {
   if (Array.isArray(value)) return value.map(sortValue)
   if (typeof value === 'object') {
     const output: { [key: string]: JsonValue } = {}
-    const entries = Object.entries(value).sort(([left], [right]) => {
-      if (left < right) return -1
-      if (left > right) return 1
-      return 0
-    })
-    for (const [key, entry] of entries) {
+    for (const key of Object.keys(value).sort()) {
+      const entry = Reflect.get(value, key)
       if (entry === undefined) fail(`canonical payload cannot contain undefined key ${key}`)
       output[key] = sortValue(entry)
     }
@@ -229,37 +218,42 @@ function verifySignedEnvelope(envelope: unknown, {
   repository,
 }: GenericVerificationOptions = {}): VerificationResult {
   if (!isRecord(envelope)) return bindingFailure('signed envelope is missing')
-  if (envelope.schema_version !== 1 || (expectedSchema != null && envelope.attestation_schema !== expectedSchema) ||
-      (expectedOperation != null && envelope.operation !== expectedOperation) ||
-      (expectedOperationVersion != null && envelope.operation_version !== expectedOperationVersion) ||
-      envelope.algorithm !== 'Ed25519' || typeof envelope.key_id !== 'string' || !envelope.key_id ||
-      typeof envelope.signature_base64 !== 'string' || !envelope.signature_base64 || !validSha(envelope.payload_sha256)) {
+  const parsedEnvelope = signedEnvelopeSchema.safeParse(envelope)
+  if (!parsedEnvelope.success) {
     return bindingFailure('signed envelope schema, algorithm, key ID, or signature fields are invalid')
   }
-  if (signingKeyId != null && envelope.key_id !== signingKeyId) return bindingFailure('signed envelope key ID does not match protected configuration')
+  const signedEnvelope = parsedEnvelope.data
+  if (expectedSchema != null && signedEnvelope.attestation_schema !== expectedSchema ||
+      expectedOperation != null && signedEnvelope.operation !== expectedOperation ||
+      expectedOperationVersion != null && signedEnvelope.operation_version !== expectedOperationVersion ||
+      signedEnvelope.schema_version !== 1 || signedEnvelope.algorithm !== 'Ed25519' || !signedEnvelope.key_id ||
+      !signedEnvelope.signature_base64 || !validSha(signedEnvelope.payload_sha256)) {
+    return bindingFailure('signed envelope schema, algorithm, key ID, or signature fields are invalid')
+  }
+  if (signingKeyId != null && signedEnvelope.key_id !== signingKeyId) return bindingFailure('signed envelope key ID does not match protected configuration')
   if (!publicKey || typeof publicKey !== 'string') return bindingFailure('committed public verification key is unavailable')
   let input: string
   try {
     input = signingInput({
-      schema: envelope.attestation_schema,
-      operation: envelope.operation,
-      operationVersion: envelope.operation_version,
-      keyId: envelope.key_id,
-      payload: envelope.payload,
+      schema: signedEnvelope.attestation_schema,
+      operation: signedEnvelope.operation,
+      operationVersion: signedEnvelope.operation_version,
+      keyId: signedEnvelope.key_id,
+      payload: signedEnvelope.payload,
     })
   } catch (error) {
     return bindingFailure(errorMessage(error))
   }
-  if (sha256Hex(input) !== envelope.payload_sha256) return bindingFailure('signed envelope canonical payload hash does not match')
+  if (sha256Hex(input) !== signedEnvelope.payload_sha256) return bindingFailure('signed envelope canonical payload hash does not match')
   try {
-    if (!verify(null, Buffer.from(input, 'utf8'), createPublicKey(publicKey), Buffer.from(envelope.signature_base64, 'base64'))) {
+    if (!verify(null, Buffer.from(input, 'utf8'), createPublicKey(publicKey), Buffer.from(signedEnvelope.signature_base64, 'base64'))) {
       return bindingFailure('signed envelope signature is invalid')
     }
   } catch (error) {
     return bindingFailure(`signed envelope signature could not be verified: ${errorMessage(error)}`)
   }
-  if (repository != null && (!isRecord(envelope.payload) || envelope.payload.repository !== repository)) return bindingFailure('signed envelope repository binding does not match')
-  return { ok: true, reason: null, envelope, payload: envelope.payload }
+  if (repository != null && (!isRecord(signedEnvelope.payload) || signedEnvelope.payload.repository !== repository)) return bindingFailure('signed envelope repository binding does not match')
+  return { ok: true, reason: null, envelope, payload: signedEnvelope.payload }
 }
 function verifyTaskAttestation(envelope: unknown, {
   publicKey,
@@ -280,44 +274,51 @@ function verifyTaskAttestation(envelope: unknown, {
   signingKeyId,
 }: TaskVerificationOptions = {}): VerificationResult {
   if (!isRecord(envelope)) return bindingFailure('attestation envelope is missing')
-  if (envelope.schema_version !== 1 || envelope.attestation_schema !== TASK_ATTESTATION_SCHEMA ||
-      envelope.operation !== TASK_ATTESTATION_OPERATION || envelope.operation_version !== TASK_ATTESTATION_OPERATION_VERSION ||
-      envelope.algorithm !== 'Ed25519' || typeof envelope.key_id !== 'string' || !envelope.key_id ||
-      typeof envelope.signature_base64 !== 'string' || !envelope.signature_base64 ||
-      !validSha(envelope.payload_sha256)) {
+  const parsedEnvelope = signedEnvelopeSchema.safeParse(envelope)
+  if (!parsedEnvelope.success) {
     return bindingFailure('attestation envelope schema, algorithm, key ID, or signature fields are invalid')
   }
-  if (signingKeyId != null && envelope.key_id !== signingKeyId) return bindingFailure('attestation signing-key ID does not match protected configuration')
+  const signedEnvelope = parsedEnvelope.data
+  const parsedPayload = taskPayloadSchema.safeParse(signedEnvelope.payload)
+  if (!parsedPayload.success) {
+    return bindingFailure(isRecord(signedEnvelope.payload) ? 'attestation payload schema is invalid' : 'attestation payload is missing')
+  }
+  const payload: TaskPayload = parsedPayload.data
+  if (signedEnvelope.schema_version !== 1 || signedEnvelope.attestation_schema !== TASK_ATTESTATION_SCHEMA ||
+      signedEnvelope.operation !== TASK_ATTESTATION_OPERATION || signedEnvelope.operation_version !== TASK_ATTESTATION_OPERATION_VERSION ||
+      signedEnvelope.algorithm !== 'Ed25519' || !signedEnvelope.key_id ||
+      !signedEnvelope.signature_base64 || !validSha(signedEnvelope.payload_sha256)) {
+    return bindingFailure('attestation envelope schema, algorithm, key ID, or signature fields are invalid')
+  }
+  if (signingKeyId != null && signedEnvelope.key_id !== signingKeyId) return bindingFailure('attestation signing-key ID does not match protected configuration')
   if (!publicKey || typeof publicKey !== 'string') return bindingFailure('committed public verification key is unavailable')
   let input: string
   try {
     input = signingInput({
-      schema: envelope.attestation_schema,
-      operation: envelope.operation,
-      operationVersion: envelope.operation_version,
-      keyId: envelope.key_id,
-      payload: envelope.payload,
+      schema: signedEnvelope.attestation_schema,
+      operation: signedEnvelope.operation,
+      operationVersion: signedEnvelope.operation_version,
+      keyId: signedEnvelope.key_id,
+      payload: signedEnvelope.payload,
     })
   } catch (error) {
     return bindingFailure(errorMessage(error))
   }
-  if (sha256Hex(input) !== envelope.payload_sha256) return bindingFailure('attestation canonical payload hash does not match')
+  if (sha256Hex(input) !== signedEnvelope.payload_sha256) return bindingFailure('attestation canonical payload hash does not match')
   try {
-    const signature = Buffer.from(envelope.signature_base64, 'base64')
+    const signature = Buffer.from(signedEnvelope.signature_base64, 'base64')
     if (!verify(null, Buffer.from(input, 'utf8'), createPublicKey(publicKey), signature)) {
       return bindingFailure('attestation signature is invalid')
     }
   } catch (error) {
     return bindingFailure(`attestation signature could not be verified: ${errorMessage(error)}`)
   }
-  const payload = envelope.payload
-  if (!isRecord(payload)) return bindingFailure('attestation payload is missing')
-  const expectedRepository = typeof repository === 'object' && repository !== null ? repository.nameWithOwner : repository
+  const expectedRepository = typeof repository === 'object' ? repository.nameWithOwner : repository
   if (expectedRepository != null && payload.repository !== expectedRepository) return bindingFailure('attestation repository binding does not match live evidence')
-  const liveRepository = repositoryIdentity ?? (typeof repository === 'object' && repository !== null ? repository : null)
+  const liveRepository = repositoryIdentity ?? (typeof repository === 'object' ? repository : null)
   if (liveRepository?.id != null && String(payload.repository_id) !== String(liveRepository.id)) return bindingFailure('attestation repository ID does not match live evidence')
   if (liveRepository?.node_id != null && String(payload.repository_node_id) !== String(liveRepository.node_id)) return bindingFailure('attestation repository node ID does not match live evidence')
-  if (payload.operation !== TASK_ATTESTATION_OPERATION || payload.signing_key_id !== envelope.key_id) {
+  if (payload.operation !== TASK_ATTESTATION_OPERATION || payload.signing_key_id !== signedEnvelope.key_id) {
     return bindingFailure('attestation operation or signing-key binding is invalid')
   }
   if (payload.authorization_body_sha256 != null && !validSha(payload.authorization_body_sha256)) {
