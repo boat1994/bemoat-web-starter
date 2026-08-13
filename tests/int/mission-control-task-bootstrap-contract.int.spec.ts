@@ -321,6 +321,31 @@ describe('Mission Control bootstrap transport contract', () => {
     }
   })
 
+  it('keeps the preflight typed implementation behind an exact logic-free facade', async () => {
+    const facade = await import('../../scripts/mission-control/domain/task-bootstrap-preflight.mjs')
+    const typed = await import('../../scripts/mission-control/domain/task-bootstrap-preflight.ts')
+
+    expect(readFileSync('scripts/mission-control/domain/task-bootstrap-preflight.mjs', 'utf8')).toBe("export * from './task-bootstrap-preflight.ts'\n")
+    expect(Object.keys(facade).sort()).toEqual(Object.keys(typed).sort())
+    for (const name of Object.keys(facade) as Array<keyof typeof facade>) {
+      expect(facade[name]).toBe(typed[name])
+    }
+  })
+
+  it('preserves preflight input immutability and historical body conversion failures', () => {
+    const issue = { number: 300, body: 'human-authored legacy task', extra: { untouched: true } }
+    const snapshot = structuredClone(issue)
+
+    expect(preflightCanonicalBootstrapTask({ issue })).toEqual({
+      ok: true,
+      reason: null,
+      classification: null,
+      evidence: { legacy: true },
+    })
+    expect(issue).toEqual(snapshot)
+    expect(() => preflightCanonicalBootstrapTask({ issue: { body: { toString: () => { throw new TypeError('body conversion') } } } })).toThrowError('body conversion')
+  })
+
   it('exposes only the approved workflow input and Issues write boundary', () => {
     const workflow = readFileSync(workflowPath, 'utf8')
     expect(workflow).toContain('founder_authorization_comment_id:')
