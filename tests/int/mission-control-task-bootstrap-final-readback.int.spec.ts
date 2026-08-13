@@ -154,6 +154,9 @@ function fixture() {
     context,
     authorization,
     requestId: REQUEST_ID,
+    detachedState,
+    state,
+    managedStateSha256,
     attestation,
     registryRecord,
     issue: taskIssue,
@@ -183,6 +186,14 @@ function readbackArgs(overrides: any = {}) {
 }
 
 describe('task bootstrap final readback boundary', () => {
+  it('binds detached and projected initial states to the same managed-state hash', () => {
+    const base = fixture()
+
+    expect(canonicalManagedStateBinding(base.detachedState)).toBe(base.managedStateSha256)
+    expect(base.state.managed_state_sha256).toBe(base.managedStateSha256)
+    expect(canonicalManagedStateBinding(base.state)).toBe(base.managedStateSha256)
+  })
+
   it('keeps terminal Task admission in the dedicated domain module', () => {
     const workflow = readFileSync('scripts/mission-control/workflows/task-bootstrap.mjs', 'utf8')
 
