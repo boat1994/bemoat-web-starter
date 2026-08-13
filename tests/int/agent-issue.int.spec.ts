@@ -738,10 +738,38 @@ const MATRIX_PR = '200'
 const MATRIX_HEAD = 'abc1234'
 const MATRIX_CANONICAL = `https://github.com/${MATRIX_OWNER}/${MATRIX_REPO}/pull/${MATRIX_PR}`
 
+function correctionPreflightIssueBody(options: { activeIdentity?: unknown } = {}) {
+  const state: Record<string, unknown> = {
+    schema_version: 1,
+    state: 'IN_PROGRESS',
+    review_cycle: 0,
+    full_review_count: 0,
+    approved_base: 'main',
+    active_task_issue: '#136',
+    active_pr: '#200',
+    current_head: MATRIX_HEAD,
+    last_reviewed_head: MATRIX_HEAD,
+    guide_version: '1.0.0',
+    guide_source_ref: 'main',
+    guide_source_sha: null,
+    open_blockers: [],
+    follow_up_issues: [],
+    next_permitted_action: 'Implement',
+    material_change_status: 'none',
+    updated_at: null,
+    updated_by: null,
+  }
+  if (Object.hasOwn(options, 'activeIdentity')) {
+    state.active_correction_contract_identity = options.activeIdentity
+  }
+  return `Mission Control mode: required\n\n${renderMissionControlState(state)}`
+}
+
 type LiveUrlMatrixCase = {
   id: number
   name: string
   expected: 'ACCEPT' | 'REJECT'
+  issueBody?: string
   liveUrl?: string | null
   livePrExtra?: Record<string, unknown>
   omitUrl?: boolean
@@ -825,7 +853,7 @@ function runLiveUrlMatrixCase(matrixCase: LiveUrlMatrixCase) {
     JSON.stringify({
       title: 'Immutable correction contract',
       url: 'https://github.com/boat1994/bemoat-web-starter/issues/136',
-      body: '',
+      body: matrixCase.issueBody ?? '',
       labels: [],
     }),
   )
@@ -3186,6 +3214,29 @@ esac
     expectMatrixOutcome(result, 'ACCEPT', 'matrix #51 repeated same verdict URL/PR #N in prose')
   })
 
+  it('fails closed when an invalid active correction identity cannot authorize through a stale verdict (MC-R3-001)', () => {
+    const result = runLiveUrlMatrixCase({
+      id: 52,
+      name: 'invalid active identity with stale correction verdict',
+      expected: 'REJECT',
+      issueBody: correctionPreflightIssueBody({ activeIdentity: {} }),
+    })
+
+    expectMatrixOutcome(result, 'REJECT', 'invalid active identity with stale correction verdict')
+    expect(result.stdout).toMatch(/active correction-contract identity/i)
+  })
+
+  it('retains historical correction fallback when the active identity is absent (MC-R3-001)', () => {
+    const result = runLiveUrlMatrixCase({
+      id: 53,
+      name: 'absent active identity with latest correction verdict',
+      expected: 'ACCEPT',
+      issueBody: correctionPreflightIssueBody(),
+    })
+
+    expectMatrixOutcome(result, 'ACCEPT', 'absent active identity with latest correction verdict')
+  })
+
   describe('MC-R1-002 malformed secondary identity-like verdict candidates', () => {
     const malformedSecondaryCases: Array<{
       name: string
@@ -3731,7 +3782,8 @@ esac
     })
 
     expect(result.status).toBe(1)
-    expect(result.stdout).toContain('canonical finding evidence is missing')
+    expect(result.stdout).toContain('authoritative correction contract resolution failed')
+    expect(result.stdout).toContain('missing correction finding contract JSON block')
   })
 
   describe('Issue #175 canonical REVIEW_VERDICT PR-target regressions', () => {
