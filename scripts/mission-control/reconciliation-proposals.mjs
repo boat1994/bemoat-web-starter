@@ -3,6 +3,7 @@ import {
   normalizeAuthorityBase,
   normalizeAuthorityHead,
 } from './review-verdict-binding.mjs'
+export { proposeReviewReconciliation } from './review-verdict-projection.mjs'
 
 const PRE_DELIVERY_STATES = new Set(['READY', 'IN_PROGRESS', 'CORRECTION_REQUIRED_1', 'CORRECTION_REQUIRED_2'])
 const CORE_VERDICTS = new Set([
@@ -204,50 +205,6 @@ export function resolveVerdictState(verdict, currentReviewCycle = 0) {
     return VERDICT_TO_STATE['CORRECTION REQUIRED'][nextCycle] ?? 'STATE_CONFLICT'
   }
   return VERDICT_TO_STATE[verdict] ?? 'STATE_CONFLICT'
-}
-
-export function proposeReviewReconciliation(input) {
-  const reviewCycle = input.reviewCycle ?? 0
-  const reviewedHead = normalizeAuthorityHead(input.reviewedHead)
-
-  if (input.verdict === 'CORRECTION REQUIRED' && reviewCycle >= 2) {
-    return {
-      state: 'STATE_CONFLICT',
-      review_cycle: reviewCycle,
-      full_review_count: Math.min(input.fullReviewCount ?? 0, 1),
-      last_reviewed_head: reviewedHead,
-      next_permitted_action: 'Mission Control must classify contradictory evidence.',
-    }
-  }
-
-  const nextCycle = Math.min(reviewCycle + 1, 3)
-
-  let currentFull = input.fullReviewCount ?? 0
-  const nextFullReviewCount = Math.min(currentFull + (reviewCycle === 0 ? 1 : 0), 1)
-
-  return {
-    state: resolveVerdictState(input.verdict, reviewCycle),
-    review_cycle: nextCycle,
-    full_review_count: nextFullReviewCount,
-    last_reviewed_head: reviewedHead,
-    next_permitted_action: nextActionForVerdict(input.verdict, nextCycle),
-  }
-}
-
-function nextActionForVerdict(verdict, reviewCycle) {
-  if (verdict === 'CORRECTION REQUIRED') {
-    return `Dev posts correction ## RESULT, then Review ${Math.min(reviewCycle + 1, 3)} on the corrected head.`
-  }
-  if (verdict === 'ELIGIBLE FOR FOUNDER REVIEW') {
-    return 'Founder merge authorization required before merge.'
-  }
-  if (verdict === 'BLOCKED FOR FOUNDER DECISION') {
-    return 'Founder Approve or Decline on remaining Blocker/Critical; no implementation prompt until Approve.'
-  }
-  if (verdict === 'BLOCKED EXTERNAL') {
-    return 'Resolve external blocker before continuing.'
-  }
-  return 'Mission Control must classify contradictory evidence.'
 }
 
 function bindDeliveryHead(resultHead, liveHead) {
