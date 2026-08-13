@@ -1,7 +1,8 @@
-import { readFileSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import { afterAll, describe, expect, it } from 'vitest'
+import { readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-
-import { describe, expect, it } from 'vitest'
+import { pathToFileURL } from 'node:url'
 
 import * as allocationFacade from '../../scripts/mission-control/domain/task-bootstrap-allocation.mjs'
 import { BOOTSTRAP_CONTRACT } from '../../scripts/mission-control/domain/task-bootstrap-authorization.mjs'
@@ -20,6 +21,40 @@ const CONTEXT = {
   policy: { path: 'policy.md', version: '1.3.0', blobSha: 'p'.repeat(40) },
 }
 const ISSUE = { number: 300, id: 'task-id', node_id: 'task-node' }
+
+const LEGACY_COMMIT = '17bf1de65eba9f2c798ab531b25c1f8c2619fa63^'
+const ALLOCATION_MODULE = 'scripts/mission-control/domain/task-bootstrap-allocation.mjs'
+let legacyModulePath: string | undefined
+
+async function loadLegacyAllocation() {
+  if (!legacyModulePath) {
+    const legacySource = execFileSync('git', ['show', `${LEGACY_COMMIT}:${ALLOCATION_MODULE}`], {
+      encoding: 'utf8',
+    }).replace(
+      "from './task-bootstrap-authorization.mjs'",
+      `from ${JSON.stringify(pathToFileURL(resolve(process.cwd(), 'scripts/mission-control/domain/task-bootstrap-authorization.mjs')).href)}`,
+    )
+    legacyModulePath = resolve(process.cwd(), 'tests/.task-bootstrap-allocation-legacy.mjs')
+    writeFileSync(legacyModulePath, legacySource)
+  }
+  return import(/* @vite-ignore */ legacyModulePath)
+}
+
+function capture(callback: () => unknown) {
+  try {
+    return { kind: 'return' as const, value: callback() }
+  } catch (error) {
+    return {
+      kind: 'throw' as const,
+      name: error instanceof Error ? error.constructor.name : typeof error,
+      message: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
+afterAll(() => {
+  if (legacyModulePath) rmSync(legacyModulePath, { force: true })
+})
 
 function registryEntry(overrides = {}) {
   return {
@@ -65,6 +100,140 @@ function provisional(overrides: Record<string, unknown> = {}): Record<string, un
 }
 
 describe('task bootstrap allocation classification', () => {
+  it('matches legacy native null TypeErrors and exact messages', async () => {
+    const legacy = await loadLegacyAllocation()
+    const cases = [
+      {
+        name: 'null matches options',
+        invoke: (module: typeof legacy) => module.matchesProvisional(provisional(), null as never),
+        message: "Cannot destructure property 'request' of '(intermediate value)(intermediate value)(intermediate value)' as it is null.",
+      },
+      {
+        name: 'null scanned input',
+        invoke: (module: typeof legacy) => module.classifyTaskBootstrapAllocation({ request: REQUEST, context: CONTEXT, scanned: null }),
+        message: "Cannot read properties of null (reading 'signed')",
+      },
+      {
+        name: 'null registry entry',
+        invoke: (module: typeof legacy) => module.registryForRequest([null], REQUEST.requestId),
+        message: "Cannot destructure property 'record' of 'object null' as it is null.",
+      },
+    ]
+
+    for (const testCase of cases) {
+      const legacyOutcome = capture(() => testCase.invoke(legacy))
+      const typedOutcome = capture(() => testCase.invoke(allocationFacade))
+      expect(legacyOutcome, testCase.name).toMatchObject({ kind: 'throw', name: 'TypeError', message: testCase.message })
+      expect(typedOutcome, testCase.name).toEqual(legacyOutcome)
+    }
+  })
+
+  it('preserves legacy varying pull-request and policy getter results and access order', async () => {
+    const legacy = await loadLegacyAllocation()
+
+    function createVaryingContext(log: string[]) {
+      let pullRequestRead = 0
+      let policyRead = 0
+      const pullRequests = [
+        { number: CONTEXT.pullRequest.number },
+        { baseRefName: CONTEXT.pullRequest.baseRefName },
+        { headRefOid: CONTEXT.pullRequest.headRefOid },
+        { baseRefOid: CONTEXT.pullRequest.baseRefOid },
+      ]
+      const policies = [
+        { path: CONTEXT.policy.path },
+        { version: CONTEXT.policy.version },
+        { blobSha: CONTEXT.policy.blobSha },
+      ]
+      return {
+        get repository() {
+          log.push('context.repository')
+          return new Proxy(CONTEXT.repository, {
+            get(target, key, receiver) {
+              log.push(`repository.${String(key)}`)
+              return Reflect.get(target, key, receiver)
+            },
+          })
+        },
+        get parentIssue() {
+          log.push('context.parentIssue')
+          return new Proxy(CONTEXT.parentIssue, {
+            get(target, key, receiver) {
+              log.push(`parentIssue.${String(key)}`)
+              return Reflect.get(target, key, receiver)
+            },
+          })
+        },
+        get pullRequest() {
+          log.push(`context.pullRequest.${pullRequestRead}`)
+          return pullRequests[pullRequestRead++]
+        },
+        get policy() {
+          log.push(`context.policy.${policyRead}`)
+          return policies[policyRead++]
+        },
+      }
+    }
+
+    function invoke(module: typeof legacy) {
+      const log: string[] = []
+      const result = module.matchesProvisional(provisional(), {
+        request: REQUEST,
+        context: createVaryingContext(log),
+      })
+      return { result, log }
+    }
+
+    const legacyOutcome = capture(() => invoke(legacy))
+    const typedOutcome = capture(() => invoke(allocationFacade))
+    expect(legacyOutcome).toEqual({
+      kind: 'return',
+      value: {
+        result: true,
+        log: [
+          'context.repository',
+          'repository.nameWithOwner',
+          'context.parentIssue',
+          'parentIssue.number',
+          'context.pullRequest.0',
+          'context.pullRequest.1',
+          'context.pullRequest.2',
+          'context.pullRequest.3',
+          'context.policy.0',
+          'context.policy.1',
+          'context.policy.2',
+        ],
+      },
+    })
+    expect(typedOutcome).toEqual(legacyOutcome)
+  })
+
+  it('preserves legacy varying signed-scan getter behavior', async () => {
+    const legacy = await loadLegacyAllocation()
+    const issue = { number: 301 }
+
+    function invoke(module: typeof legacy) {
+      let signedRead = 0
+      const scanned: { signed?: { issue: typeof issue }, provisional?: undefined } = {
+        get signed() {
+          signedRead += 1
+          return signedRead === 1 ? { issue } : undefined
+        },
+        provisional: undefined,
+      }
+      return module.classifyTaskBootstrapAllocation({ request: REQUEST, context: CONTEXT, scanned })
+    }
+
+    const legacyOutcome = capture(() => invoke(legacy))
+    const typedOutcome = capture(() => invoke(allocationFacade))
+    expect(legacyOutcome).toMatchObject({
+      kind: 'throw',
+      name: 'TypeError',
+      message: "Cannot read properties of undefined (reading 'issue')",
+    })
+    expect(typedOutcome).toEqual(legacyOutcome)
+  })
+
   it('keeps the frozen allocation kinds and exact result shapes', () => {
     expect(ALLOCATION_KINDS).toEqual({
       REGISTRY: 'REGISTRY',

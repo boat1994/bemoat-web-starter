@@ -8,20 +8,50 @@ type AllocationInput = {
   [key: string]: unknown
 }
 
-type AllocationResult = {
-  kind: string
-  outcome: string
-  registry: unknown
-  issue: unknown
+type RequestRecord = {
+  requestId?: unknown
 }
 
-function readOptional(value: unknown, key: string): unknown {
-  return value == null ? undefined : Reflect.get(Object(value), key)
+type ContextRecord = {
+  repository?: { nameWithOwner?: unknown } | null
+  parentIssue?: { number?: unknown } | null
+  pullRequest?: {
+    number?: unknown
+    baseRefName?: unknown
+    headRefOid?: unknown
+    baseRefOid?: unknown
+  } | null
+  policy?: { path?: unknown, version?: unknown, blobSha?: unknown } | null
 }
 
-function readRequired(value: unknown, key: string): unknown {
-  if (value == null) return Reflect.get(value as unknown as object, key)
-  return Reflect.get(Object(value), key)
+type ProvisionalRecord = {
+  request_id?: unknown
+  repository?: unknown
+  parent_issue?: unknown
+  pr?: unknown
+  base?: unknown
+  head?: unknown
+  protected_base_sha?: unknown
+  policy_source?: unknown
+  policy_version?: unknown
+  policy_sha?: unknown
+}
+
+type TaskIdentityPayload = {
+  task_issue_number?: number
+  task_issue_id?: unknown
+  task_issue_node_id?: unknown
+  pr_number?: unknown
+  request_id?: unknown
+}
+
+type RegistryEntry = {
+  record?: { payload?: TaskIdentityPayload | null } | null
+}
+
+type ScannedRecord = {
+  signed?: { issue?: unknown }
+  provisional?: { provisional?: unknown, issue?: unknown }
 }
 
 export const ALLOCATION_KINDS = Object.freeze({
@@ -31,6 +61,12 @@ export const ALLOCATION_KINDS = Object.freeze({
   CREATE_PROVISIONAL: 'CREATE_PROVISIONAL',
 } as const)
 
+type AllocationResult =
+  | { kind: typeof ALLOCATION_KINDS.REGISTRY, outcome: 'RECOVERED', registry: unknown, issue: null }
+  | { kind: typeof ALLOCATION_KINDS.SIGNED_ISSUE, outcome: 'IDEMPOTENT', registry: null, issue: unknown }
+  | { kind: typeof ALLOCATION_KINDS.PROVISIONAL_ISSUE, outcome: 'RECOVERED', registry: null, issue: unknown }
+  | { kind: typeof ALLOCATION_KINDS.CREATE_PROVISIONAL, outcome: 'CREATED', registry: null, issue: null }
+
 function allocationConflict(message: string) {
   const error = new Error(message) as Error & { code?: string, classification?: string }
   error.code = 'STATE_CONFLICT'
@@ -39,22 +75,22 @@ function allocationConflict(message: string) {
 }
 
 function completeTaskIdentity(payload: unknown) {
-  const taskIssueNumber = readOptional(payload, 'task_issue_number')
-  if (!Number.isInteger(taskIssueNumber) || (taskIssueNumber as number) < 1 ||
-      typeof readRequired(payload, 'task_issue_id') !== 'string' || !readRequired(payload, 'task_issue_id') ||
-      typeof readRequired(payload, 'task_issue_node_id') !== 'string' || !readRequired(payload, 'task_issue_node_id')) {
+  const payloadRecord = payload as TaskIdentityPayload | null | undefined
+  if (!Number.isInteger(payloadRecord?.task_issue_number) || payloadRecord!.task_issue_number! < 1 ||
+      typeof payloadRecord!.task_issue_id !== 'string' || !payloadRecord!.task_issue_id ||
+      typeof payloadRecord!.task_issue_node_id !== 'string' || !payloadRecord!.task_issue_node_id) {
     return null
   }
   return {
-    number: taskIssueNumber,
-    id: readRequired(payload, 'task_issue_id'),
-    node_id: readRequired(payload, 'task_issue_node_id'),
+    number: payloadRecord!.task_issue_number,
+    id: payloadRecord!.task_issue_id,
+    node_id: payloadRecord!.task_issue_node_id,
   }
 }
 
 function sameTaskIdentity(left: unknown, right: unknown) {
-  const leftIdentity = completeTaskIdentity(readOptional(readOptional(left, 'record'), 'payload'))
-  const rightIdentity = completeTaskIdentity(readOptional(readOptional(right, 'record'), 'payload'))
+  const leftIdentity = completeTaskIdentity((left as RegistryEntry | null | undefined)?.record?.payload)
+  const rightIdentity = completeTaskIdentity((right as RegistryEntry | null | undefined)?.record?.payload)
   return leftIdentity != null &&
     rightIdentity != null &&
     leftIdentity.number === rightIdentity.number &&
@@ -71,10 +107,7 @@ function sameTaskIdentity(left: unknown, right: unknown) {
  * @returns {any|null}
  */
 export function registryForRequest(records: readonly unknown[] = [], requestId?: unknown) {
-  const matches = records.filter((entry) => {
-    const record = readRequired(entry, 'record')
-    return readOptional(readOptional(record, 'payload'), 'request_id') === requestId
-  })
+  const matches = (records as readonly RegistryEntry[]).filter(({ record }) => record?.payload?.request_id === requestId)
   if (matches.length <= 1) return matches[0] ?? null
   const owner = matches[0]
   if (!matches.every((candidate) => sameTaskIdentity(owner, candidate))) {
@@ -84,26 +117,26 @@ export function registryForRequest(records: readonly unknown[] = [], requestId?:
 }
 
 function competingRegistry(records: readonly unknown[], requestId: unknown, pullRequest: unknown) {
-  return records.find((entry) => {
-    const record = readRequired(entry, 'record')
-    return readOptional(readOptional(record, 'payload'), 'request_id') !== requestId &&
-      String(readOptional(readOptional(record, 'payload'), 'pr_number')) === String(pullRequest)
-  }) ?? null
+  return (records as readonly RegistryEntry[]).find(({ record }) =>
+    record?.payload?.request_id !== requestId &&
+    String(record?.payload?.pr_number) === String(pullRequest),
+  ) ?? null
 }
 
 export function matchesProvisional(provisional?: unknown, { request, context }: { request?: unknown, context?: unknown } = {}) {
-  const pullRequest = readOptional(context, 'pullRequest')
-  const policy = readOptional(context, 'policy')
-  return readOptional(provisional, 'request_id') === readOptional(request, 'requestId') &&
-    readRequired(provisional, 'repository') === readOptional(readOptional(context, 'repository'), 'nameWithOwner') &&
-    Number(readRequired(provisional, 'parent_issue')) === Number(readOptional(readOptional(context, 'parentIssue'), 'number') ?? BOOTSTRAP_CONTRACT.parentIssue) &&
-    Number(readRequired(provisional, 'pr')) === Number(readOptional(pullRequest, 'number') ?? BOOTSTRAP_CONTRACT.pullRequest) &&
-    readRequired(provisional, 'base') === (readOptional(pullRequest, 'baseRefName') ?? BOOTSTRAP_CONTRACT.base) &&
-    readRequired(provisional, 'head') === (readOptional(pullRequest, 'headRefOid') ?? BOOTSTRAP_CONTRACT.head) &&
-    readRequired(provisional, 'protected_base_sha') === (readOptional(pullRequest, 'baseRefOid') ?? BOOTSTRAP_CONTRACT.protectedBaseSha) &&
-    readRequired(provisional, 'policy_source') === readOptional(policy, 'path') &&
-    readRequired(provisional, 'policy_version') === readOptional(policy, 'version') &&
-    readRequired(provisional, 'policy_sha') === readOptional(policy, 'blobSha')
+  const provisionalRecord = provisional as ProvisionalRecord | null | undefined
+  const requestRecord = request as RequestRecord | null | undefined
+  const contextRecord = context as ContextRecord | null | undefined
+  return provisionalRecord?.request_id === requestRecord?.requestId &&
+    provisionalRecord!.repository === contextRecord?.repository?.nameWithOwner &&
+    Number(provisionalRecord!.parent_issue) === Number(contextRecord?.parentIssue?.number ?? BOOTSTRAP_CONTRACT.parentIssue) &&
+    Number(provisionalRecord!.pr) === Number(contextRecord?.pullRequest?.number ?? BOOTSTRAP_CONTRACT.pullRequest) &&
+    provisionalRecord!.base === (contextRecord?.pullRequest?.baseRefName ?? BOOTSTRAP_CONTRACT.base) &&
+    provisionalRecord!.head === (contextRecord?.pullRequest?.headRefOid ?? BOOTSTRAP_CONTRACT.head) &&
+    provisionalRecord!.protected_base_sha === (contextRecord?.pullRequest?.baseRefOid ?? BOOTSTRAP_CONTRACT.protectedBaseSha) &&
+    provisionalRecord!.policy_source === contextRecord?.policy?.path &&
+    provisionalRecord!.policy_version === contextRecord?.policy?.version &&
+    provisionalRecord!.policy_sha === contextRecord?.policy?.blobSha
 }
 
 /**
@@ -115,19 +148,20 @@ export function classifyTaskBootstrapAllocation({
   registryRecords = [],
   scanned = {},
 }: AllocationInput = {}): AllocationResult {
-  const requestId = readOptional(request, 'requestId')
-  const pullRequest = readOptional(readOptional(context, 'pullRequest'), 'number')
+  const requestRecord = request as RequestRecord | null | undefined
+  const contextRecord = context as ContextRecord | null | undefined
+  const scannedRecord = scanned as ScannedRecord
+  const requestId = requestRecord?.requestId
+  const pullRequest = contextRecord?.pullRequest?.number
   const competing = competingRegistry(registryRecords, requestId, pullRequest)
   if (competing) throw allocationConflict('parent ownership registry already records a competing Task for PR #263')
 
   const registry = registryForRequest(registryRecords, requestId)
   if (registry) return { kind: ALLOCATION_KINDS.REGISTRY, outcome: 'RECOVERED', registry, issue: null }
-  const signed = readRequired(scanned, 'signed')
-  if (signed) return { kind: ALLOCATION_KINDS.SIGNED_ISSUE, outcome: 'IDEMPOTENT', registry: null, issue: readRequired(signed, 'issue') }
-  const provisionalScan = readRequired(scanned, 'provisional')
-  if (provisionalScan) {
-    if (!matchesProvisional(readRequired(provisionalScan, 'provisional'), { request, context })) throw allocationConflict('provisional Task Issue has a mismatched deterministic binding')
-    return { kind: ALLOCATION_KINDS.PROVISIONAL_ISSUE, outcome: 'RECOVERED', registry: null, issue: readRequired(provisionalScan, 'issue') }
+  if (scannedRecord.signed) return { kind: ALLOCATION_KINDS.SIGNED_ISSUE, outcome: 'IDEMPOTENT', registry: null, issue: scannedRecord.signed.issue }
+  if (scannedRecord.provisional) {
+    if (!matchesProvisional(scannedRecord.provisional.provisional, { request, context })) throw allocationConflict('provisional Task Issue has a mismatched deterministic binding')
+    return { kind: ALLOCATION_KINDS.PROVISIONAL_ISSUE, outcome: 'RECOVERED', registry: null, issue: scannedRecord.provisional.issue }
   }
   return { kind: ALLOCATION_KINDS.CREATE_PROVISIONAL, outcome: 'CREATED', registry: null, issue: null }
 }
