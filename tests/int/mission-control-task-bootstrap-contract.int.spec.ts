@@ -4,7 +4,13 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
 import { canonicalSerialize, createSignedEnvelope, sha256Hex, verifySignedEnvelope } from '../../scripts/mission-control/domain/task-attestation.mjs'
-import { parseProvisionalTaskBody, renderProvisionalTaskBody } from '../../scripts/mission-control/domain/task-bootstrap-request.mjs'
+import {
+  PROVISIONAL_TASK_END,
+  PROVISIONAL_TASK_MARKER,
+  buildTaskBootstrapRequestIdentity,
+  parseProvisionalTaskBody,
+  renderProvisionalTaskBody,
+} from '../../scripts/mission-control/domain/task-bootstrap-request.mjs'
 import { BOOTSTRAP_CONTRACT } from '../../scripts/mission-control/domain/task-bootstrap-authorization.mjs'
 import { createTaskOwnershipRecord, verifyTaskOwnershipRecord } from '../../scripts/mission-control/domain/task-ownership-registry.mjs'
 import { preflightCanonicalBootstrapTask, runCanonicalManagedTaskPreflight } from '../../scripts/mission-control/domain/task-bootstrap-preflight.mjs'
@@ -13,6 +19,19 @@ const workflowPath = '.github/workflows/mission-control-task-bootstrap.yml'
 
 const AUTHORIZATION_COMMENT_ID = '9001'
 const FOUNDER_LOGIN = 'boat1994'
+const REQUEST_INPUT = {
+  repository: BOOTSTRAP_CONTRACT.repository,
+  authorizationCommentId: AUTHORIZATION_COMMENT_ID,
+  authorizationBodySha256: 'b'.repeat(64),
+  parentIssue: '262',
+  pullRequest: '263',
+  base: BOOTSTRAP_CONTRACT.base,
+  head: BOOTSTRAP_CONTRACT.head,
+  protectedBaseSha: BOOTSTRAP_CONTRACT.protectedBaseSha,
+  policyPath: BOOTSTRAP_CONTRACT.policySource,
+  policyVersion: BOOTSTRAP_CONTRACT.policyVersion,
+  policySha: BOOTSTRAP_CONTRACT.policySha,
+}
 
 function keys() {
   const pair = generateKeyPairSync('ed25519')
@@ -104,6 +123,59 @@ describe('Mission Control bootstrap transport contract', () => {
       sha256Hex(canonicalSerialize({ ...authorization, comment_sha256: null })),
     )
     expect(typed.createFounderAuthorizationBody({ commentId: null })).toContain('"comment_id": "<immutable-comment-id>"')
+  })
+
+  it('preserves the exact request-ID tuple field order, canonical serialization, hash, and result shape', () => {
+    const result = buildTaskBootstrapRequestIdentity(REQUEST_INPUT)
+
+    expect(Object.keys(result)).toEqual(['requestId', 'tuple'])
+    expect(Object.keys(result.tuple)).toEqual([
+      'operation',
+      'operation_version',
+      'repository',
+      'authorization_comment_id',
+      'authorization_body_sha256',
+      'parent_issue',
+      'pull_request',
+      'base',
+      'head',
+      'protected_base_sha',
+      'policy_path',
+      'policy_version',
+      'policy_sha',
+    ])
+    expect(result.tuple).toEqual({
+      operation: 'task-bootstrap',
+      operation_version: 1,
+      repository: BOOTSTRAP_CONTRACT.repository,
+      authorization_comment_id: AUTHORIZATION_COMMENT_ID,
+      authorization_body_sha256: 'b'.repeat(64),
+      parent_issue: 262,
+      pull_request: 263,
+      base: BOOTSTRAP_CONTRACT.base,
+      head: BOOTSTRAP_CONTRACT.head,
+      protected_base_sha: BOOTSTRAP_CONTRACT.protectedBaseSha,
+      policy_path: BOOTSTRAP_CONTRACT.policySource,
+      policy_version: BOOTSTRAP_CONTRACT.policyVersion,
+      policy_sha: BOOTSTRAP_CONTRACT.policySha,
+    })
+    expect(canonicalSerialize(result.tuple)).toBe(
+      '{"authorization_body_sha256":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","authorization_comment_id":"9001","base":"main","head":"d5f0d1edf86f0c0f94a4891558ae6fcea7bfb73f","operation":"task-bootstrap","operation_version":1,"parent_issue":262,"policy_path":"docs/mission-control/mission-control-guide.md","policy_sha":"f46f5de1d5ee17669c7c4663893164ffb835b339","policy_version":"1.3.0","protected_base_sha":"f6ac355b98aa281dda2a49bcf2ddaeb279d8173d","pull_request":263,"repository":"boat1994/bemoat-web-starter"}',
+    )
+    expect(result.requestId).toBe('mc-task-bootstrap-v1-a31107f39c003e07a26938cddc506fffdd46f5324bb06155820e4a3ea75dd37e')
+  })
+
+  it('preserves numeric coercion and rejects undefined or non-finite numeric tuple values', () => {
+    expect(buildTaskBootstrapRequestIdentity({ ...REQUEST_INPUT, parentIssue: null, pullRequest: '' }).tuple).toMatchObject({
+      parent_issue: 0,
+      pull_request: 0,
+    })
+
+    for (const value of [undefined, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+      expect(() => buildTaskBootstrapRequestIdentity({ ...REQUEST_INPUT, parentIssue: value })).toThrow(
+        'canonical payload cannot contain a non-finite number',
+      )
+    }
   })
 
   it('accepts the exact valid Founder genesis authorization and preserves the success shape', async () => {
@@ -238,6 +310,17 @@ describe('Mission Control bootstrap transport contract', () => {
     }
   })
 
+  it('keeps the request typed implementation behind an exact logic-free facade', async () => {
+    const facade = await import('../../scripts/mission-control/domain/task-bootstrap-request.mjs')
+    const typed = await import('../../scripts/mission-control/domain/task-bootstrap-request.ts')
+
+    expect(readFileSync('scripts/mission-control/domain/task-bootstrap-request.mjs', 'utf8')).toBe("export * from './task-bootstrap-request.ts'\n")
+    expect(Object.keys(facade).sort()).toEqual(Object.keys(typed).sort())
+    for (const name of Object.keys(facade) as Array<keyof typeof facade>) {
+      expect(facade[name]).toBe(typed[name])
+    }
+  })
+
   it('exposes only the approved workflow input and Issues write boundary', () => {
     const workflow = readFileSync(workflowPath, 'utf8')
     expect(workflow).toContain('founder_authorization_comment_id:')
@@ -287,8 +370,110 @@ describe('Mission Control bootstrap transport contract', () => {
       policySha: BOOTSTRAP_CONTRACT.policySha,
     })
     expect(parseProvisionalTaskBody(body)).toMatchObject({ present: true, valid: true })
-    expect(preflightCanonicalBootstrapTask({ issue: { number: 300, body }, pullRequest: { number: 263, headRefOid: BOOTSTRAP_CONTRACT.head, baseRefName: 'main' }, repository: BOOTSTRAP_CONTRACT.repository }).ok).toBe(false)
-    expect(runCanonicalManagedTaskPreflight({ issue: { number: 300, body }, pullRequest: { number: 263, headRefOid: BOOTSTRAP_CONTRACT.head, baseRefName: 'main' }, repository: BOOTSTRAP_CONTRACT.repository }).ok).toBe(false)
+    expect(preflightCanonicalBootstrapTask({ issue: { number: 300, body }, pullRequest: { number: 263, headRefOid: BOOTSTRAP_CONTRACT.head, baseRefName: 'main' }, repository: BOOTSTRAP_CONTRACT.repository })).toEqual({
+      ok: false,
+      reason: 'provisional allocation is not a managed Task',
+      classification: 'STATE_CONFLICT',
+      evidence: null,
+    })
+    expect(runCanonicalManagedTaskPreflight({ issue: { number: 300, body }, pullRequest: { number: 263, headRefOid: BOOTSTRAP_CONTRACT.head, baseRefName: 'main' }, repository: BOOTSTRAP_CONTRACT.repository })).toEqual({
+      ok: false,
+      reason: 'managed state is missing or unreadable',
+      classification: 'STATE_CONFLICT',
+      evidence: null,
+    })
+  })
+
+  it('preserves exact provisional rendering, parser permissiveness, marker pairing, and result reasons', () => {
+    const renderInput = {
+      requestId: `mc-task-bootstrap-v1-${'a'.repeat(64)}`,
+      repository: BOOTSTRAP_CONTRACT.repository,
+      parentIssue: '262',
+      pullRequest: '263',
+      base: BOOTSTRAP_CONTRACT.base,
+      head: BOOTSTRAP_CONTRACT.head,
+      protectedBaseSha: BOOTSTRAP_CONTRACT.protectedBaseSha,
+      policyPath: BOOTSTRAP_CONTRACT.policySource,
+      policyVersion: BOOTSTRAP_CONTRACT.policyVersion,
+      policySha: BOOTSTRAP_CONTRACT.policySha,
+    }
+    const body = renderProvisionalTaskBody(renderInput)
+    expect(body).toBe([
+      PROVISIONAL_TASK_MARKER,
+      '```json',
+      '{',
+      '  "schema_version": 1,',
+      '  "status": "provisional",',
+      `  "request_id": "${renderInput.requestId}",`,
+      `  "repository": "${renderInput.repository}",`,
+      '  "parent_issue": 262,',
+      '  "pr": 263,',
+      '  "base": "main",',
+      `  "head": "${BOOTSTRAP_CONTRACT.head}",`,
+      `  "protected_base_sha": "${BOOTSTRAP_CONTRACT.protectedBaseSha}",`,
+      `  "policy_source": "${BOOTSTRAP_CONTRACT.policySource}",`,
+      '  "policy_version": "1.3.0",',
+      `  "policy_sha": "${BOOTSTRAP_CONTRACT.policySha}"`,
+      '}',
+      '```',
+      PROVISIONAL_TASK_END,
+      '',
+      'This Issue is a recoverable provisional allocation. It is not a managed Task and must fail preflight until the signed canonical projection is complete.',
+    ].join('\n'))
+
+    expect(parseProvisionalTaskBody(`prefix\n${body}\nsuffix`)).toMatchObject({ present: true, valid: true, provisional: { parent_issue: 262, pr: 263 } })
+    expect(parseProvisionalTaskBody(body.replace('"policy_sha":', '"extra": true,\n  "policy_sha":'))).toMatchObject({ present: true, valid: true, provisional: { extra: true } })
+    expect(parseProvisionalTaskBody('')).toEqual({ present: false, valid: false, provisional: null })
+    expect(parseProvisionalTaskBody(`${PROVISIONAL_TASK_MARKER}\n{}\n${PROVISIONAL_TASK_END}`)).toEqual({
+      present: true,
+      valid: false,
+      reason: 'provisional allocation fields are invalid',
+      provisional: null,
+    })
+    expect(parseProvisionalTaskBody(`${PROVISIONAL_TASK_MARKER}\n{\n${PROVISIONAL_TASK_END}`)).toEqual({
+      present: true,
+      valid: false,
+      reason: "provisional allocation is not valid JSON: Expected property name or '}' in JSON at position 1 (line 1 column 2)",
+      provisional: null,
+    })
+    expect(parseProvisionalTaskBody(`${PROVISIONAL_TASK_MARKER}\n{}\n${PROVISIONAL_TASK_END}\n${PROVISIONAL_TASK_END}`)).toEqual({
+      present: true,
+      valid: false,
+      reason: 'provisional marker pair is unbalanced',
+      provisional: null,
+    })
+    expect(parseProvisionalTaskBody(`${PROVISIONAL_TASK_MARKER}\n${PROVISIONAL_TASK_MARKER}\n{}\n${PROVISIONAL_TASK_END}`)).toEqual({
+      present: true,
+      valid: false,
+      reason: 'provisional marker pair is unbalanced',
+      provisional: null,
+    })
+    expect(parseProvisionalTaskBody(`${PROVISIONAL_TASK_END}\n{}\n${PROVISIONAL_TASK_MARKER}`)).toEqual({
+      present: true,
+      valid: false,
+      reason: 'provisional marker pair is unbalanced',
+      provisional: null,
+    })
+  })
+
+  it('keeps request and provisional helpers pure and non-mutating', () => {
+    const requestInput = structuredClone(REQUEST_INPUT)
+    const before = structuredClone(requestInput)
+    const body = renderProvisionalTaskBody({
+      requestId: `mc-task-bootstrap-v1-${'c'.repeat(64)}`,
+      repository: requestInput.repository,
+      parentIssue: requestInput.parentIssue,
+      pullRequest: requestInput.pullRequest,
+      base: requestInput.base,
+      head: requestInput.head,
+      protectedBaseSha: requestInput.protectedBaseSha,
+      policyPath: requestInput.policyPath,
+      policyVersion: requestInput.policyVersion,
+      policySha: requestInput.policySha,
+    })
+    buildTaskBootstrapRequestIdentity(requestInput)
+    parseProvisionalTaskBody(body)
+    expect(requestInput).toEqual(before)
   })
 
   it('signs and verifies parent registry ownership without exposing a write credential', () => {

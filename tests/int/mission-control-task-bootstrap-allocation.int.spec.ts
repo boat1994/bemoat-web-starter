@@ -94,7 +94,7 @@ describe('task bootstrap allocation classification', () => {
     expect(() => classifyTaskBootstrapAllocation({
       request: REQUEST, context: CONTEXT,
       scanned: { provisional: { issue: ISSUE, provisional: { ...provisional(), head: 'x'.repeat(40) } } },
-    })).toThrow(/mismatched deterministic binding/)
+    })).toThrow('provisional Task Issue has a mismatched deterministic binding')
   })
 
   it('keeps the workflow registry readback wired to the canonical lookup helper', () => {
@@ -129,6 +129,8 @@ describe('task bootstrap allocation classification', () => {
 
   it('keeps provisional identity distinct from signed ownership', () => {
     expect(matchesProvisional(provisional(), { request: REQUEST, context: CONTEXT })).toBe(true)
+    expect(matchesProvisional({ ...provisional(), parent_issue: '262', pr: '263' }, { request: REQUEST, context: CONTEXT })).toBe(true)
+    expect(matchesProvisional({ ...provisional(), parent_issue: undefined }, { request: REQUEST, context: CONTEXT })).toBe(false)
     expect(classifyTaskBootstrapAllocation({
       request: REQUEST, context: CONTEXT,
       scanned: { provisional: { issue: ISSUE, provisional: provisional() } },

@@ -20,7 +20,11 @@ import {
   createTaskOwnershipRecord,
   renderTaskOwnershipRecord,
 } from '../../scripts/mission-control/domain/task-ownership-registry.mjs'
-import { buildTaskBootstrapRequestIdentity } from '../../scripts/mission-control/domain/task-bootstrap-request.mjs'
+import {
+  PROVISIONAL_TASK_END,
+  PROVISIONAL_TASK_MARKER,
+  buildTaskBootstrapRequestIdentity,
+} from '../../scripts/mission-control/domain/task-bootstrap-request.mjs'
 import { preflightCanonicalBootstrapTask } from '../../scripts/mission-control/domain/task-bootstrap-preflight.mjs'
 import { parseMissionControlState } from '../../scripts/mission-control/domain/task-state.mjs'
 
@@ -236,6 +240,26 @@ function serviceFor(world: ReturnType<typeof createWorld>, overrides: any = {}) 
 }
 
 describe('canonical Mission Control Task bootstrap', () => {
+  it('fails the workflow scan closed for invalid provisional metadata with the exact conflict reason', async () => {
+    const world = createWorld()
+    world.issues.set(300, {
+      number: 300,
+      id: 'I_invalid_provisional',
+      node_id: 'MDU6SXNzdWV300',
+      state: 'OPEN',
+      title: 'invalid provisional allocation',
+      body: `${PROVISIONAL_TASK_MARKER}\n{}\n${PROVISIONAL_TASK_END}`,
+    })
+    const { service } = serviceFor(world)
+
+    await expect(service.bootstrap({ founderAuthorizationCommentId: '9001' })).rejects.toMatchObject({
+      code: 'STATE_CONFLICT',
+      classification: 'STATE_CONFLICT',
+      message: 'STATE_CONFLICT: provisional Issue #300 has invalid recovery metadata',
+    })
+    expect(world.calls.createIssue).toBe(0)
+  })
+
   it('creates one valid Task with the exact initial state and 0/0 counters', async () => {
     const world = createWorld()
     const { service, keys } = serviceFor(world)
