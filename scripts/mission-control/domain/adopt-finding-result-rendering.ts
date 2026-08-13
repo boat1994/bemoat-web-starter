@@ -36,8 +36,8 @@ function runtimeClassification(error: unknown): string {
 
 function runtimeDetails(error: unknown): RuntimeObject {
   if (error instanceof CliInvocationError) {
-    const invocationDetails = property(error, 'details')
-    return { argument: property(invocationDetails, 'argument'), reason: property(invocationDetails, 'reason') }
+    const invocationDetails = error.details
+    return { argument: invocationDetails.argument, reason: invocationDetails.reason }
   }
   return { reason: error instanceof Error ? error.message : String(error) }
 }
@@ -100,7 +100,7 @@ export type AdoptFindingRuntimeErrorRenderingOptions = {
   command: unknown
   format: unknown
   error: unknown
-  options?: RuntimeObject | null
+  options?: (RuntimeObject & { repo: string }) | null
 }
 
 export function createRuntimeErrorRendering({ command, format, error, options }: AdoptFindingRuntimeErrorRenderingOptions) {
@@ -122,16 +122,16 @@ export function createRuntimeErrorRendering({ command, format, error, options }:
       exitCode: classificationExitCode('INVALID_INVOCATION'),
     }
   }
-  const repository = property(options, 'repo')
-  const envelope = options
-    ? createResultEnvelopeV1({
+  if (options) {
+    const repository = options.repo
+    const envelope = createResultEnvelopeV1({
       command,
       outcome: classification === 'INTERNAL_ERROR' ? 'ERROR' : 'STOP',
       classification,
       mutation_performed: false,
       observed_pre_state: property(options, 'expectedState') ?? null,
       resulting_state: null,
-      repository: typeof repository === 'string' ? repository.toLowerCase() : String(repository).toLowerCase(),
+      repository: repository.toLowerCase(),
       issue_number: String(property(options, 'issueNumber')),
       pr_number: String(property(options, 'expectedPr')),
       exact_head: normalizedHead(property(options, 'expectedAdoptionHead')),
@@ -142,8 +142,6 @@ export function createRuntimeErrorRendering({ command, format, error, options }:
       next_action: { type: 'STOP', command: null, reason: details.reason },
       details,
     })
-    : null
-  if (envelope) {
     return {
       envelope,
       output: format === 'json' ? `${JSON.stringify(envelope)}\n` : `${classification}: ${details.reason}\n`,

@@ -584,6 +584,57 @@ describe('Issue #229 Review 3 blocker-projection hotfix', () => {
     expect(exitCode).toBe(0)
   })
 
+  it('preserves parent throws for malformed result state, comment, and expected head', () => {
+    const malformedStateResult = {
+      outcome: 'REVIEWED',
+      state: { state: 'ELIGIBLE_FOR_FOUNDER_REVIEW' },
+      comment: { id: '9001' },
+    }
+    Object.defineProperty(malformedStateResult, 'state', { value: undefined })
+
+    const malformedCommentResult = {
+      outcome: 'REVIEWED',
+      state: { state: 'ELIGIBLE_FOR_FOUNDER_REVIEW' },
+      comment: { id: '9001' },
+    }
+    Object.defineProperty(malformedCommentResult, 'comment', { value: undefined })
+
+    const malformedExpectedHeadOptions = {
+      issue: '229',
+      prNumber: '230',
+      expectedHead: 'a'.repeat(40),
+    }
+    Object.defineProperty(malformedExpectedHeadOptions, 'expectedHead', { value: undefined })
+
+    expect(() => createResultRendering({
+      command: 'bemoat:mission-control:review',
+      options: { issue: '229', prNumber: '230', expectedHead: 'a'.repeat(40) },
+      result: malformedStateResult,
+      repository: 'acme/repo',
+      observedPreState: 'AWAITING_REVIEW_3',
+    })).toThrow("Cannot read properties of undefined (reading 'state')")
+
+    expect(() => createResultRendering({
+      command: 'bemoat:mission-control:review',
+      options: { issue: '229', prNumber: '230', expectedHead: 'a'.repeat(40) },
+      result: malformedCommentResult,
+      repository: 'acme/repo',
+      observedPreState: 'AWAITING_REVIEW_3',
+    })).toThrow("Cannot read properties of undefined (reading 'id')")
+
+    expect(() => createResultRendering({
+      command: 'bemoat:mission-control:review',
+      options: malformedExpectedHeadOptions,
+      result: {
+        outcome: 'REVIEWED',
+        state: { state: 'ELIGIBLE_FOR_FOUNDER_REVIEW' },
+        comment: { id: '9001' },
+      },
+      repository: 'acme/repo',
+      observedPreState: 'AWAITING_REVIEW_3',
+    })).toThrow("Cannot read properties of undefined (reading 'length')")
+  })
+
   it('preserves classified error details, stream, legacy prefix, and exit code', () => {
     const rendering = createRuntimeErrorRendering({
       command: 'bemoat:mission-control:review',

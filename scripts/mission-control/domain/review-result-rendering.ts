@@ -116,19 +116,22 @@ export function createRuntimeErrorRendering({
 
 export type ReviewResultRenderingOptions = {
   command: unknown
-  options: RuntimeObject
-  result: RuntimeObject
+  options: RuntimeObject & { expectedHead: string }
+  result: RuntimeObject & {
+    state: { state: unknown }
+    comment: { id: unknown }
+  }
   repository: unknown
   observedPreState: unknown
 }
 
 export function createResultRendering({ command, options, result, repository, observedPreState }: ReviewResultRenderingOptions) {
   const replayed = property(result, 'replayed') === true
-  const state = property(result, 'state')
-  const comment = property(result, 'comment')
+  const state = result.state
+  const comment = result.comment
   const outcome = property(result, 'outcome')
   const classification = replayed ? 'NO_OP_IDENTICAL_RETRY' : 'SUCCESS'
-  const output = `Mission Control review ${replayed ? 'NO_OP_IDENTICAL_RETRY' : outcome}: ${property(state, 'state')} + REVIEW_VERDICT comment ${property(comment, 'id')}`
+  const output = `Mission Control review ${replayed ? 'NO_OP_IDENTICAL_RETRY' : outcome}: ${state.state} + REVIEW_VERDICT comment ${comment.id}`
   const envelope = createResultEnvelopeV1({
     command,
     outcome: replayed ? 'NO_OP' : 'SUCCESS',
@@ -139,7 +142,9 @@ export function createResultRendering({ command, options, result, repository, ob
     repository,
     issue_number: property(options, 'issue'),
     pr_number: property(options, 'prNumber'),
-    exact_head: normalizedHead(property(options, 'expectedHead')),
+    exact_head: options.expectedHead.length === 40
+      ? options.expectedHead.toLowerCase()
+      : null,
     next_action: replayed
       ? { type: 'COMPLETE', command: null, reason: 'The identical REVIEW_VERDICT retry is already durable; no further dispatch is required.' }
       : { type: 'COMMAND', command: 'bemoat:mission-control:dispatch', reason: 'The resulting review state determines the next bounded dispatch or Founder gate.' },

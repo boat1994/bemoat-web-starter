@@ -163,6 +163,28 @@ describe('mission-control adopt-finding result rendering', () => {
     })
   })
 
+  it('preserves parent throws for malformed invocation details and missing repository', () => {
+    const malformedInvocation = new CliInvocationError('issue_number', 'missing positional input: issue_number')
+    Object.defineProperty(malformedInvocation, 'details', { value: undefined })
+
+    const malformedOptions = { ...OPTIONS }
+    Object.defineProperty(malformedOptions, 'repo', { value: undefined })
+
+    expect(() => renderers.createRuntimeErrorRendering({
+      command: 'bemoat:mission-control:adopt-finding',
+      format: 'text',
+      error: malformedInvocation,
+      options: null,
+    })).toThrow("Cannot read properties of undefined (reading 'argument')")
+
+    expect(() => renderers.createRuntimeErrorRendering({
+      command: 'bemoat:mission-control:adopt-finding',
+      format: 'json',
+      error: new Error('local projection failed'),
+      options: malformedOptions,
+    })).toThrow("Cannot read properties of undefined (reading 'toLowerCase')")
+  })
+
   it('preserves lease/CAS classification and bounded external matching', () => {
     const casConflict = renderers.createRuntimeErrorRendering({
       command: 'bemoat:mission-control:adopt-finding',
