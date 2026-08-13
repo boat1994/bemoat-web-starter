@@ -61,6 +61,10 @@ const STARTER_ONLY_INT_TESTS: { path: string; reason: string }[] = [
     path: 'tests/int/mission-control-task-attestation.int.spec.ts',
     reason: 'Direct task-attestation typed-boundary characterization is starter harness validation only',
   },
+  {
+    path: 'tests/int/correction-contract-fingerprint.int.spec.ts',
+    reason: 'Direct correction-contract fingerprint boundary characterization is starter harness validation only',
+  },
 ]
 
 /** Fixture trees that are starter-only and intentionally not synced. */
