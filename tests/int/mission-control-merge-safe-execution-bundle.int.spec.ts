@@ -147,6 +147,24 @@ describe('canonical safe execution bundles', () => {
     })
   })
 
+  it('rejects a constructor-shaped bundle identically through the legacy facade and typed implementation', () => {
+    const malformedConstructorBundle: Record<string, unknown> = {
+      kind: 'constructor',
+      authority_scope: Object,
+      terminal_outcome: 'done',
+      steps: [undefined],
+    }
+
+    const legacyResult = facade.validateSafeExecutionBundle(malformedConstructorBundle)
+    const typedResult = validateSafeExecutionBundle(malformedConstructorBundle)
+
+    expect(legacyResult).toEqual({
+      valid: false,
+      reason: 'safe execution bundle steps are prohibited or cross an independent gate; use one canonical bundle shape',
+    })
+    expect(typedResult).toEqual(legacyResult)
+  })
+
   it('does not mutate the input or canonical constants', () => {
     const input = {
       kind: 'merge-completion',

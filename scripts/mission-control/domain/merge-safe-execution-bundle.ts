@@ -38,7 +38,7 @@ export const SAFE_EXECUTION_BUNDLE_SCOPES = Object.freeze({
 type SafeExecutionBundle = Record<string, unknown>
 
 function sameArray(left: unknown, right: readonly string[]): boolean {
-  return Array.isArray(left) && left.length === right.length && left.every((value, index) => value === right[index])
+  return Array.isArray(left) && Array.isArray(right) && left.length === right.length && left.every((value, index) => value === right[index])
 }
 
 export function validateSafeExecutionBundle(bundle: unknown = {}):
