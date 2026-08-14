@@ -54,11 +54,16 @@ const decodedRawJsonObjectSchema = z.object({}).passthrough()
 
 export const AUTHORIZATION_VALIDATION_FAILURE = 'AUTHORIZATION_VALIDATION_FAILURE'
 
+function isAuthorizationRecord(value: unknown): value is AuthorizationRecord {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
 export function authorizationValidationFailure(message: string): AuthorizationValidationError {
-  const error = new Error(`${AUTHORIZATION_VALIDATION_FAILURE}: ${message}`) as AuthorizationValidationError
-  error.code = AUTHORIZATION_VALIDATION_FAILURE
-  error.classification = AUTHORIZATION_VALIDATION_FAILURE
-  return error
+  const details: Pick<AuthorizationValidationError, 'code' | 'classification'> = {
+    code: AUTHORIZATION_VALIDATION_FAILURE,
+    classification: AUTHORIZATION_VALIDATION_FAILURE,
+  }
+  return Object.assign(new Error(`${AUTHORIZATION_VALIDATION_FAILURE}: ${message}`), details)
 }
 
 function normalizeIssueNumber(value: unknown): unknown {
@@ -89,14 +94,14 @@ export function parseFounderMergeAuthorization(body: unknown = ''): Authorizatio
     } catch {
       throw authorizationValidationFailure('Founder merge authorization comment does not contain valid raw JSON evidence')
     }
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    if (!isAuthorizationRecord(parsed)) {
       throw authorizationValidationFailure('Founder merge authorization evidence must decode to one JSON object, not a string or array')
     }
     const decoded = decodedRawJsonObjectSchema.safeParse(parsed)
     if (!decoded.success) {
       throw authorizationValidationFailure('Founder merge authorization evidence must decode to one JSON object, not a string or array')
     }
-    return parsed as AuthorizationRecord
+    return parsed
   }
 
   const lines = source.split('\n')
@@ -157,15 +162,15 @@ export function parseFounderMergeAuthorization(body: unknown = ''): Authorizatio
 }
 
 export function generateFounderMergeAuthorization(authorization: unknown): string {
-  if (!authorization || typeof authorization !== 'object' || Array.isArray(authorization)) {
+  if (!isAuthorizationRecord(authorization)) {
     throw authorizationValidationFailure('Founder merge authorization generator requires an object, not a string or array')
   }
-  const input = authorization as AuthorizationRecord
+  const input = authorization
   if (input.non_superseded === false || input.superseded_by != null) {
     throw authorizationValidationFailure('Founder merge authorization generator cannot emit a superseded record')
   }
   const record: AuthorizationRecord = {
-    ...(structuredClone(input) as AuthorizationRecord),
+    ...structuredClone(input),
     non_superseded: true,
     superseded_by: null,
   }
@@ -206,10 +211,10 @@ export function validateFounderAuthorizationRecord({
   if (!Array.isArray(trustedFounderLogins) || trustedFounderLogins.length === 0) {
     throw authorizationValidationFailure('repository-owned Founder identity configuration is missing or empty')
   }
-  if (!authorization || typeof authorization !== 'object' || Array.isArray(authorization)) {
+  if (!isAuthorizationRecord(authorization)) {
     throw authorizationValidationFailure('Founder authorization record is missing, stringified, or ambiguous')
   }
-  const record = authorization as AuthorizationRecord
+  const record = authorization
   const required = [
     record.schema_version === 1,
     record.status === 'approved',
@@ -217,7 +222,7 @@ export function validateFounderAuthorizationRecord({
     typeof record.author_login === 'string' && record.author_login.length > 0,
     String(record.comment_id) === String(authorizationCommentId),
     record.immutable_comment_reference === true,
-    typeof record.comment_sha256 === 'string' && COMMENT_SHA_RE.test(record.comment_sha256 as string),
+    typeof record.comment_sha256 === 'string' && COMMENT_SHA_RE.test(record.comment_sha256),
     record.non_superseded === true,
     record.superseded_by == null,
     record.repository === expected.repository,
