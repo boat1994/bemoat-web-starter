@@ -299,6 +299,29 @@ export function normalizeCommonValue(field: string, value: unknown): string | nu
   return value as string | null
 }
 
+function readDelegatedFailureField(value: unknown): string {
+  return typeof value === 'string' ? value : ''
+}
+
+function readDelegatedFailureError(
+  value: unknown,
+): { message?: string } | null {
+  if (value === undefined) return null
+  if (value === null) return null
+  if (typeof value === 'object' && !Array.isArray(value)) {
+    const message = Reflect.get(value, 'message')
+    return typeof message === 'string' ? { message } : {}
+  }
+  return null
+}
+
+function readCreateResultField<K extends keyof CreateResultInput>(
+  source: Record<string, unknown>,
+  key: K,
+): CreateResultInput[K] {
+  return source[key]
+}
+
 export function parseDelegatedFailureInput(
   input: unknown = {},
 ): Required<Pick<DelegatedFailureInput, 'command' | 'stdout' | 'stderr'>> & {
@@ -309,17 +332,30 @@ export function parseDelegatedFailureInput(
   }
 
   const parsed = delegatedFailureInputSchema.safeParse(input)
-  const source = parsed.success
-    ? parsed.data
-    : (input as DelegatedFailureInput)
+  if (parsed.success) {
+    const source = parsed.data
+    return {
+      command: readDelegatedFailureField(source.command),
+      stdout: readDelegatedFailureField(source.stdout),
+      stderr: readDelegatedFailureField(source.stderr),
+      error: readDelegatedFailureError(source.error),
+    }
+  }
+
+  if (!isRecord(input)) {
+    return {
+      command: '',
+      stdout: '',
+      stderr: '',
+      error: null,
+    }
+  }
 
   return {
-    command: (source.command ?? '') as string,
-    stdout: (source.stdout ?? '') as string,
-    stderr: (source.stderr ?? '') as string,
-    error: source.error === undefined
-      ? null
-      : (source.error as { message?: string } | null),
+    command: readDelegatedFailureField(input.command),
+    stdout: readDelegatedFailureField(input.stdout),
+    stderr: readDelegatedFailureField(input.stderr),
+    error: readDelegatedFailureError(input.error),
   }
 }
 
@@ -329,23 +365,27 @@ export function parseCreateResultInput(input: unknown = {}): CreateResultInput {
   }
 
   const parsed = createResultInputSchema.safeParse(input)
-  const source = parsed.success
-    ? parsed.data
-    : (input as CreateResultInput)
+  if (parsed.success) {
+    return parsed.data
+  }
+
+  if (!isRecord(input)) {
+    return {}
+  }
 
   return {
-    command: source.command,
-    outcome: source.outcome,
-    classification: source.classification,
-    mutation_performed: source.mutation_performed,
-    observed_pre_state: source.observed_pre_state,
-    resulting_state: source.resulting_state,
-    repository: source.repository,
-    issue_number: source.issue_number,
-    pr_number: source.pr_number,
-    exact_head: source.exact_head,
-    evidence_ids: source.evidence_ids,
-    next_action: source.next_action,
-    details: source.details,
+    command: readCreateResultField(input, 'command'),
+    outcome: readCreateResultField(input, 'outcome'),
+    classification: readCreateResultField(input, 'classification'),
+    mutation_performed: readCreateResultField(input, 'mutation_performed'),
+    observed_pre_state: readCreateResultField(input, 'observed_pre_state'),
+    resulting_state: readCreateResultField(input, 'resulting_state'),
+    repository: readCreateResultField(input, 'repository'),
+    issue_number: readCreateResultField(input, 'issue_number'),
+    pr_number: readCreateResultField(input, 'pr_number'),
+    exact_head: readCreateResultField(input, 'exact_head'),
+    evidence_ids: readCreateResultField(input, 'evidence_ids'),
+    next_action: readCreateResultField(input, 'next_action'),
+    details: readCreateResultField(input, 'details'),
   }
 }

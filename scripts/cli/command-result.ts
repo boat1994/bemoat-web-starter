@@ -6,6 +6,7 @@ import {
   parseDelegatedFailureInput,
   resultEnvelopeV1Schema,
   throwTypeErrorFromZod,
+  validateResultEnvelopeV1Shape,
   type CliClassification,
   type CreateResultInput,
 } from './command-result-schemas.ts'
@@ -47,7 +48,7 @@ export function assertResultEnvelopeV1(value: unknown): Record<string, unknown> 
   if (!result.success) {
     throwTypeErrorFromZod(result.error)
   }
-  return value as Record<string, unknown>
+  return validateResultEnvelopeV1Shape(result.data)
 }
 
 export function createResultEnvelopeV1(input: CreateResultInput = {}): Record<string, unknown> {

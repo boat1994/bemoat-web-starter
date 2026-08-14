@@ -67,7 +67,34 @@ function registeredContract(command: unknown, argument: unknown = command): Comm
     )
   }
 
-  return getCommandContract(command as string) as CommandContract
+  const commandName = result.data
+  if (typeof commandName !== 'string') {
+    invalidInvocation(
+      typeof argument === 'string' ? argument : null,
+      'command identity is required',
+    )
+  }
+
+  const contract = getCommandContract(commandName)
+  if (contract === null) {
+    invalidInvocation(
+      typeof argument === 'string' ? argument : null,
+      `command is not registered: ${commandName}`,
+    )
+  }
+
+  return contract
+}
+
+function asEnvRecord(value: unknown): Record<string, unknown> {
+  if (!isEnvLike(value)) {
+    return {}
+  }
+  return value
+}
+
+function isEnvLike(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function commandEntrypointMatches(expected: unknown, actual: unknown): boolean {
@@ -83,7 +110,7 @@ function commandEntrypointMatches(expected: unknown, actual: unknown): boolean {
 
 export function resolveCommandIdentity(input: {
   fallback: string
-  env?: Record<string, string | undefined>
+  env?: Record<string, unknown>
   entrypoint?: string
 }): string {
   const {
@@ -92,8 +119,8 @@ export function resolveCommandIdentity(input: {
     entrypoint,
   } = parseResolveCommandIdentityInput(input)
   const fallbackContract = registeredContract(fallbackInput)
-  const fallback = fallbackInput as string
-  const env = envInput as Record<string, unknown>
+  const fallback = fallbackContract.command
+  const env = asEnvRecord(envInput)
   const actualEntrypoint = entrypoint ?? fallbackContract.entrypoint
 
   if (typeof actualEntrypoint !== 'string' || actualEntrypoint.trim() === '') {
@@ -115,7 +142,7 @@ export function resolveCommandIdentity(input: {
     invalidInvocation(null, 'npm_lifecycle_event must be a registered command')
   }
 
-  const lifecycleContract = getCommandContract(lifecycleEvent) as CommandContract | null
+  const lifecycleContract = getCommandContract(lifecycleEvent)
   if (lifecycleContract === null) {
     invalidInvocation(
       lifecycleEvent,
@@ -233,7 +260,7 @@ type RawFlagValue =
       input: CommandInput
     }
 
-export function parseCommandInvocation(command: string, argv: string[] = []): ParsedInvocation {
+export function parseCommandInvocation(command: string, argv: unknown = []): ParsedInvocation {
   const boundary = parseCommandInvocationBoundary(command, argv)
   const contract = registeredContract(boundary.command)
   const tokens = normalizeArgv(boundary.argv)

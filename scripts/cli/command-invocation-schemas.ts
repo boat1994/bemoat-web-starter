@@ -51,6 +51,10 @@ export type ParsedInvocation =
       contract: CommandContract
     }
 
+function isEnvLike(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
 export const argvBoundarySchema = z.array(z.string())
 
 export function parseArgvBoundary(argv: unknown): string[] | null {
@@ -69,15 +73,14 @@ export type ResolveCommandIdentityInput = z.infer<typeof resolveCommandIdentityI
 export function parseResolveCommandIdentityInput(input: unknown): ResolveCommandIdentityInput {
   const result = resolveCommandIdentityInputSchema.safeParse(input)
   if (!result.success) {
-    if (input && typeof input === 'object' && !Array.isArray(input)) {
-      const source = input as ResolveCommandIdentityInput
+    if (isEnvLike(input)) {
       return {
-        fallback: source.fallback,
-        env: source.env,
-        entrypoint: source.entrypoint,
+        fallback: input.fallback,
+        env: isEnvLike(input.env) ? input.env : undefined,
+        entrypoint: input.entrypoint,
       }
     }
-    return { fallback: undefined as unknown as string }
+    return { fallback: undefined }
   }
   return result.data
 }
@@ -93,9 +96,5 @@ export function parseCommandInvocationBoundary(
   command: unknown,
   argv: unknown = [],
 ): ParseCommandInvocationBoundary {
-  const result = parseCommandInvocationBoundarySchema.safeParse({ command, argv })
-  if (!result.success) {
-    return { command, argv }
-  }
-  return result.data
+  return parseCommandInvocationBoundarySchema.parse({ command, argv })
 }

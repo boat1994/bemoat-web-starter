@@ -2,9 +2,10 @@ import { z } from 'zod'
 
 import { getCommandContract } from './command-contract.mjs'
 import {
-  parseCommandHelpArgv,
+  legacyArgvIncludes,
   parseFacadeIdentityEnv,
   parseHelpContractInput,
+  readArgvTokens,
 } from './command-help-schemas.ts'
 import {
   CliInvocationError,
@@ -37,7 +38,16 @@ function registeredContract(contract: unknown): CommandContract {
   if (!result.success) {
     throw new TypeError(result.error.issues[0]?.message ?? 'help requires a registered command contract')
   }
-  return contract as CommandContract
+
+  const parsed = parseHelpContractInput(result.data)
+  if (typeof parsed.command !== 'string') {
+    throw new TypeError('help requires a registered command contract')
+  }
+  const registered = getCommandContract(parsed.command)
+  if (registered === null) {
+    throw new TypeError('help requires a registered command contract')
+  }
+  return registered
 }
 
 function copyValue(value: unknown): unknown {
@@ -245,15 +255,14 @@ export function formatTextHelp(inputContract: Record<string, unknown>): string {
   return `${lines.join('\n')}\n`
 }
 
-function directHelpRequest(argv: unknown): { command: string; argv: string[] } {
-  const validatedArgv = parseCommandHelpArgv(argv)
-  const [requestedCommand, ...commandArgv] = validatedArgv
+function directHelpRequest(argv: unknown): { command: string; argv: unknown[] } {
+  const [requestedCommand, ...commandArgv] = readArgvTokens(argv)
   if (
     typeof requestedCommand !== 'string' ||
     requestedCommand.startsWith('-')
   ) {
     throw new CliInvocationError(
-      requestedCommand ?? null,
+      typeof requestedCommand === 'string' ? requestedCommand : null,
       'command-help requires a registry command before its flags',
     )
   }
@@ -276,16 +285,25 @@ function validateRunningFacadeIdentity(env: unknown): void {
   if (facadeCommand === undefined && facadeEntrypoint === undefined) return
   if (typeof facadeCommand !== 'string' || facadeCommand.trim() === '') {
     throw new CliInvocationError(
-      facadeCommand ?? null,
+      typeof facadeCommand === 'string' ? facadeCommand : null,
       'BEMOAT_FACADE_COMMAND is required with a running facade identity',
     )
   }
 
-  const facadeContract = getCommandContract(facadeCommand) as CommandContract | null
+  const facadeContract = getCommandContract(facadeCommand)
+  if (facadeContract === null) {
+    throw new CliInvocationError(
+      facadeCommand,
+      `command is not registered: ${facadeCommand}`,
+    )
+  }
+
   resolveCommandIdentity({
     fallback: facadeCommand,
     env: validatedEnv,
-    entrypoint: facadeEntrypoint ?? facadeContract?.entrypoint,
+    entrypoint: typeof facadeEntrypoint === 'string'
+      ? facadeEntrypoint
+      : facadeContract.entrypoint,
   })
 }
 
@@ -350,11 +368,10 @@ function renderError({
 export function runCommandHelpMain(argv: string[] = process.argv.slice(2)): number {
   let command: string | null = null
   let classification: keyof typeof CLI_EXIT_CODES = 'HELP'
-  const validatedArgv = parseCommandHelpArgv(argv)
-  const json = validatedArgv.includes('--json')
+  const json = legacyArgvIncludes(argv, '--json')
 
   try {
-    const request = directHelpRequest(validatedArgv)
+    const request = directHelpRequest(argv)
     command = request.command
     validateRunningFacadeIdentity(process.env)
     const invocation = parseCommandInvocation(command, request.argv)
