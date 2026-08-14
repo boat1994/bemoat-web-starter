@@ -5576,3 +5576,309 @@ describe('Cluster A characterization (issue #333)', () => {
     ])
   })
 })
+
+describe('Cluster B characterization (issue #333)', () => {
+  it('parseAgentIssueArgs preserves success, error, argv, and TypeError contracts', async () => {
+    const { parseAgentIssueArgs } = await import('../../scripts/agent-issue/cli-args.mjs')
+
+    expect(parseAgentIssueArgs(['333'])).toEqual({ issueNumber: '333', phase: null })
+    expect(parseAgentIssueArgs(['42', '--phase', 'correction'])).toEqual({
+      issueNumber: '42',
+      phase: 'correction',
+    })
+    expect(parseAgentIssueArgs(['--', '7', '--phase', 'correction'])).toEqual({
+      issueNumber: '7',
+      phase: 'correction',
+    })
+    expect(parseAgentIssueArgs(['9007199254740993'])).toEqual({
+      issueNumber: '9007199254740993',
+      phase: null,
+    })
+
+    const boxedIssue = Object(new String('55'))
+    expect(parseAgentIssueArgs([boxedIssue])).toEqual({ issueNumber: boxedIssue, phase: null })
+
+    const argv = ['12', '--phase', 'correction']
+    const argvCopy = [...argv]
+    parseAgentIssueArgs(argv)
+    expect(argv).toEqual(argvCopy)
+
+    expect(parseAgentIssueArgs([])).toEqual({ error: 'missing or invalid issue number' })
+    expect(parseAgentIssueArgs(['0'])).toEqual({ error: 'missing or invalid issue number' })
+    expect(parseAgentIssueArgs(['01'])).toEqual({ error: 'missing or invalid issue number' })
+    expect(parseAgentIssueArgs(['12', '34'])).toEqual({ error: 'missing or invalid issue number' })
+    expect(parseAgentIssueArgs(['--phase'])).toEqual({ error: '--phase requires a value' })
+    expect(parseAgentIssueArgs(['12', '--phase'])).toEqual({ error: '--phase requires a value' })
+    expect(parseAgentIssueArgs(['12', '--phase', ''])).toEqual({ error: '--phase requires a value' })
+    expect(parseAgentIssueArgs(['12', '--phase', 0 as never])).toEqual({ error: '--phase requires a value' })
+    expect(parseAgentIssueArgs(['12', '--phase', '--help'])).toEqual({
+      error: '--phase requires a value',
+    })
+    expect(parseAgentIssueArgs(['12', '--phase', 'correction', '--phase', 'correction'])).toEqual({
+      error: '--phase may be provided only once',
+    })
+    expect(parseAgentIssueArgs(['12', '--help'])).toEqual({ error: 'unexpected argument: --help' })
+    expect(parseAgentIssueArgs(['12', '--phase=correction'])).toEqual({
+      error: 'unexpected argument: --phase=correction',
+    })
+    expect(parseAgentIssueArgs(['12', '--phase', 'review'])).toEqual({
+      error: '--phase supports only correction',
+    })
+
+    expect(() => parseAgentIssueArgs(null)).toThrow(TypeError)
+    expect(() => parseAgentIssueArgs('not-an-array' as never)).toThrow(TypeError)
+    expect(() => parseAgentIssueArgs([123])).toThrow(TypeError)
+    expect(() => parseAgentIssueArgs([null])).toThrow(TypeError)
+    expect(() => parseAgentIssueArgs(['12', '--phase', 42 as never])).toThrow(TypeError)
+  })
+
+  it('buildNextStep preserves priority, branch examples, suggestedBranchName, and TypeErrors', async () => {
+    const { buildNextStep } = await import('../../scripts/agent-issue/presentation.mjs')
+
+    const baseInput = {
+      branchSafetyOk: true,
+      dirty: false,
+      branchName: 'feature/333-issue',
+      issueNumber: '333',
+      suggestedBranchName: null as string | null,
+      devBranchAvailable: true,
+      progressBlockers: [] as string[],
+    }
+
+    expect(buildNextStep({ ...baseInput, dirty: true })).toEqual({
+      label: 'Next manual step',
+      value: 'Report the dirty working tree blocker and do not edit files.',
+    })
+
+    expect(
+      buildNextStep({
+        ...baseInput,
+        branchSafetyOk: false,
+        progressBlockers: ['blocker one'],
+      }),
+    ).toEqual({
+      label: 'Next manual step',
+      value:
+        'Resolve the progress-tracking blockers above before continuing implementation.',
+    })
+
+    expect(
+      buildNextStep({
+        ...baseInput,
+        branchSafetyOk: false,
+        branchName: 'main',
+        devBranchAvailable: false,
+        suggestedBranchName: 'feature/333-slug',
+      }),
+    ).toEqual({
+      label: 'Next manual step',
+      value:
+        "Create a topic branch from the repo's current integration baseline.\nExample when dev is unavailable: git switch -c feature/333-slug",
+    })
+
+    expect(
+      buildNextStep({
+        ...baseInput,
+        branchSafetyOk: false,
+        branchName: 'main',
+        devBranchAvailable: true,
+      }),
+    ).toEqual({
+      label: 'Next manual step',
+      value:
+        "Create a topic branch from the repo's current integration baseline.\nExample when dev exists: git switch dev && git pull origin dev && git switch -c feature/333-issue",
+    })
+
+    expect(
+      buildNextStep({
+        ...baseInput,
+        branchSafetyOk: false,
+        branchName: 'dev',
+      }),
+    ).toEqual({
+      label: 'Next manual step',
+      value:
+        "Create a topic branch from the repo's current integration baseline.\nExample from the current dev branch: git switch -c feature/333-issue",
+    })
+
+    expect(
+      buildNextStep({
+        ...baseInput,
+        branchSafetyOk: false,
+        branchName: 'feature/other',
+      }),
+    ).toEqual({
+      label: 'Next manual step',
+      value:
+        "Create a topic branch from the repo's current integration baseline.\nExample: git switch -c feature/333-issue",
+    })
+
+    expect(
+      buildNextStep({
+        ...baseInput,
+        branchSafetyOk: false,
+        suggestedBranchName: '',
+      }),
+    ).toEqual({
+      label: 'Next manual step',
+      value:
+        "Create a topic branch from the repo's current integration baseline.\nExample: git switch -c ",
+    })
+
+    expect(buildNextStep(baseInput)).toEqual({
+      label: 'Next manual step',
+      value:
+        'Read the listed docs, implement only the scoped issue change on this branch, then run the required validation tier from AGENTS.md.',
+    })
+
+    expect(() => buildNextStep(null as never)).toThrow(TypeError)
+    expect(() =>
+      buildNextStep({
+        ...baseInput,
+        progressBlockers: undefined as never,
+      }),
+    ).toThrow(TypeError)
+  })
+
+  it('formatProgressSection preserves line templates, ordering, footer rules, and TypeErrors', async () => {
+    const { formatProgressSection } = await import('../../scripts/agent-issue/presentation.mjs')
+
+    const minimal = {
+      blockers: [] as string[],
+      warnings: [] as string[],
+      report: {
+        declarations: {
+          declaresMainIssue: false,
+          declaresImplementationPlan: false,
+        },
+        durableProgress: { hasChecklist: false },
+      },
+    }
+
+    expect(formatProgressSection(minimal)).toEqual([
+      'Progress tracking:',
+      'No Main Issue or Implementation Plan declared — normal standalone workflow.',
+    ])
+    expect(Array.isArray(formatProgressSection(minimal))).toBe(true)
+
+    const full = {
+      blockers: ['blocker alpha'],
+      warnings: ['warning beta'],
+      report: {
+        workflowProfile: { name: 'standalone', nextAction: 'implement scoped change' },
+        declarations: {
+          declaresMainIssue: true,
+          declaresImplementationPlan: true,
+          mainIssueRef: '#100',
+          implementationPlanPath: 'docs/plan.md',
+        },
+        mainIssue: { title: 'Main title', url: 'https://github.com/example/100' },
+        plan: { ok: true, planPath: 'docs/plan.md' },
+        relevantPlanSection: 'Slice A',
+        firstIncompleteMilestone: { slice: 'Slice B', label: 'Finish tests' },
+        durableProgress: { hasChecklist: true },
+        currentStageSummary: {
+          slice: 'Slice C',
+          taskOrGate: 'Gate 1',
+          activeTaskIssue: '#121',
+          activePr: '#55',
+          relevantPlanSection: 'Slice D',
+          approvedBase: 'main@abc',
+          founderGate: 'pending',
+        },
+        pr: { headRefName: 'feature/x', baseRefName: 'main', headRefOid: 'sha123' },
+        exactHeadCi: { summary: 'CI verified' },
+        nextPermittedAction: 'continue implementation',
+      },
+    }
+
+    expect(formatProgressSection(full)).toEqual([
+      'Progress tracking:',
+      'Workflow profile: standalone',
+      'Profile next action: implement scoped change',
+      'Declared Main Issue: #100',
+      'Main Issue title: Main title',
+      'Main Issue URL: https://github.com/example/100',
+      'Declared Implementation Plan: docs/plan.md',
+      'Implementation Plan: found at docs/plan.md',
+      'Relevant plan section: Slice A',
+      'First incomplete milestone: Slice B — Finish tests',
+      'Current Slice: Slice C',
+      'Current Task or gate: Gate 1',
+      'Active Task Issue: #121',
+      'Active PR: #55',
+      'Relevant plan section: Slice D',
+      'Approved base: main@abc',
+      'Founder gate: pending',
+      'PR branch: feature/x -> main',
+      'Current head SHA: sha123',
+      'Exact-head CI: CI verified',
+      'Next permitted action: continue implementation',
+      '',
+      'Hard blockers:',
+      '- blocker alpha',
+      '',
+      'Warnings:',
+      '- warning beta',
+    ])
+
+    const completeChecklist = {
+      blockers: [] as string[],
+      warnings: [] as string[],
+      report: {
+        declarations: {
+          declaresMainIssue: false,
+          declaresImplementationPlan: false,
+        },
+        durableProgress: { hasChecklist: true },
+      },
+    }
+    expect(formatProgressSection(completeChecklist)).toEqual([
+      'Progress tracking:',
+      'First incomplete milestone: none — durable checklist appears complete.',
+      'No Main Issue or Implementation Plan declared — normal standalone workflow.',
+    ])
+
+    const warningsOnly = {
+      blockers: [] as string[],
+      warnings: ['watch this'],
+      report: {
+        declarations: {
+          declaresMainIssue: false,
+          declaresImplementationPlan: false,
+        },
+        durableProgress: { hasChecklist: false },
+      },
+    }
+    const warningLines = formatProgressSection(warningsOnly)
+    expect(warningLines).toContain('Warnings:')
+    expect(warningLines).not.toContain(
+      'No Main Issue or Implementation Plan declared — normal standalone workflow.',
+    )
+
+    const truthyEmptyPr = {
+      blockers: [] as string[],
+      warnings: [] as string[],
+      report: {
+        declarations: {
+          declaresMainIssue: false,
+          declaresImplementationPlan: false,
+        },
+        durableProgress: { hasChecklist: false },
+        pr: {},
+      },
+    }
+    expect(formatProgressSection(truthyEmptyPr)).toEqual([
+      'Progress tracking:',
+      'PR branch: undefined -> undefined',
+      'Current head SHA: undefined',
+      'No Main Issue or Implementation Plan declared — normal standalone workflow.',
+    ])
+
+    const inputSnapshot = structuredClone(minimal)
+    formatProgressSection(minimal)
+    expect(minimal).toEqual(inputSnapshot)
+
+    expect(() => formatProgressSection(null as never)).toThrow(TypeError)
+  })
+})
