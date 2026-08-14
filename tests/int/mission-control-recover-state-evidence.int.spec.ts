@@ -434,6 +434,19 @@ describe('recover-state-evidence boundary', () => {
       predecessor: { reviewedHead: REVIEWED_HEAD },
       historicalHead: HISTORICAL_HEAD,
     })).toThrow(TypeError)
+    const malformedCommentsInput = {
+      comments: { filter: 1 },
+      selectedIds: {},
+      options,
+      predecessor: { reviewedHead: REVIEWED_HEAD },
+      historicalHead: HISTORICAL_HEAD,
+    }
+    expect(() => facade.assertNoCompetingEvidence(malformedCommentsInput)).toThrow(
+      'comments.filter is not a function',
+    )
+    expect(() => assertNoCompetingEvidence(malformedCommentsInput)).toThrow(
+      'comments.filter is not a function',
+    )
     expect(comments).toEqual(before)
   })
 })
