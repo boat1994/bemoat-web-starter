@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- untyped runtime .mjs boundary */
 import * as correctionContractModule from '../../scripts/mission-control/domain/correction-contract.mjs'
-import * as correctionContractDomain from '../../scripts/mission-control/domain/correction-contract.mjs'
+import * as correctionContractDomain from '../../scripts/mission-control/domain/correction-contract.ts'
 
 const {
   parseCorrectionContract,
@@ -13,6 +13,11 @@ const {
   validateCorrectionScope,
   isCorrectionPhaseResult,
   validateCorrectionRoleComment,
+  extractJsonObjects,
+  isCorrectionEligibleVerdict,
+  findingsFieldDeclaresUnresolvedImplementationFindings,
+  requiresCorrectionFindingContract,
+  parseReviewVerdictContractFindings,
   CORRECTION_EVIDENCE_CONTRACT,
   CORRECTION_EVIDENCE_SCHEMA_VERSION,
 } = correctionContractModule as unknown as {
@@ -24,6 +29,11 @@ const {
   validateCorrectionScope: (...args: any[]) => any
   isCorrectionPhaseResult: (...args: any[]) => any
   validateCorrectionRoleComment: (...args: any[]) => any
+  extractJsonObjects: (...args: any[]) => any
+  isCorrectionEligibleVerdict: (...args: any[]) => any
+  findingsFieldDeclaresUnresolvedImplementationFindings: (...args: any[]) => any
+  requiresCorrectionFindingContract: (...args: any[]) => any
+  parseReviewVerdictContractFindings: (...args: any[]) => any
   CORRECTION_EVIDENCE_CONTRACT: {
     canonical_example: string
     schema_version: number
@@ -101,7 +111,7 @@ function evidenceMap(overrides: Record<string, unknown> = {}) {
   }
 }
 
-function resultBody(map = evidenceMap(), extras = '') {
+function resultBody(map: Record<string, unknown> = evidenceMap(), extras = '') {
   return `## RESULT
 ### Task log
 - Timestamp: 2026-07-20T13:00:00+07:00
@@ -121,6 +131,26 @@ ${JSON.stringify(map, null, 2)}
 describe('correction-contract pure module', () => {
   it('keeps the stable facade exports backed by the Slice 5 domain module', () => {
     expect(Object.keys(correctionContractDomain).sort()).toEqual(Object.keys(correctionContractModule).sort())
+    expect(Object.keys(correctionContractDomain).sort()).toEqual([
+      'CORRECTION_CONTRACT_SCHEMA_VERSION',
+      'CORRECTION_EVIDENCE_CONTRACT',
+      'CORRECTION_EVIDENCE_SCHEMA_VERSION',
+      'FINDING_STATUS',
+      'buildCorrectionCapsule',
+      'derivePlanningArtifactAllowlist',
+      'extractJsonObjects',
+      'findingsFieldDeclaresUnresolvedImplementationFindings',
+      'isCorrectionEligibleVerdict',
+      'isCorrectionPhaseResult',
+      'parseCorrectionContract',
+      'parseCorrectionEvidenceMap',
+      'parseReviewVerdictContractFindings',
+      'requiresCorrectionFindingContract',
+      'validateCorrectionRoleComment',
+      'validateCorrectionScope',
+      'validateFindingEvidence',
+      'validateFindingIdentity',
+    ])
     expect(correctionContractDomain.parseCorrectionContract(verdictBody()).ok).toBe(true)
   })
 
@@ -562,5 +592,129 @@ describe('correction-contract pure module', () => {
 
     expect(result.ok).toBe(false)
     expect(result.errors.join(' ')).toContain('prohibited scope present in correction diff: src/app/page.tsx (outside canonical planning-artifact allowlist)')
+  })
+
+  it('parses only fenced JSON objects and preserves unknown decoded keys only until normalization', () => {
+    const object = {
+      schema_version: 1,
+      reviewed_head: reviewedHead,
+      findings,
+      ignored: { nested: true },
+    }
+    const fenced = `before {"bare":true}\n\n\`\`\`json\n${JSON.stringify(object)}\n\`\`\``
+
+    expect(extractJsonObjects(fenced)).toHaveLength(1)
+    expect(parseCorrectionContract(fenced)).toEqual({
+      ok: true,
+      contract: {
+        schema_version: 1,
+        mode: 'implementation_pr',
+        reviewed_head: reviewedHead,
+        findings: findings.map(({ id, canonical_summary, source_thread, required_evidence, expected_areas, prohibited_areas }) => ({
+          id,
+          canonical_summary,
+          source_thread,
+          required_evidence,
+          expected_areas,
+          prohibited_areas,
+        })),
+      },
+    })
+    expect(parseCorrectionContract('{"findings":[]}').ok).toBe(false)
+    expect(extractJsonObjects('```json\n[1,2]\n```')).toEqual([])
+    expect(extractJsonObjects('```yaml\na: b\n```')).toEqual([])
+  })
+
+  it('keeps native TypeError boundaries for null and non-string raw text', () => {
+    expect(() => extractJsonObjects(null)).toThrow(TypeError)
+    expect(() => parseCorrectionContract(null)).toThrow(TypeError)
+    expect(() => parseCorrectionEvidenceMap(42)).toThrow(TypeError)
+  })
+
+  it('keeps JSON.parse duplicate-key behavior and exact matching-block multiplicity errors', () => {
+    const duplicateEvidenceBody = `\`\`\`json
+{"schema_version":2,"correction_base":"${reviewedHead}","finding_results":{},"finding_results":${JSON.stringify(evidenceMap().finding_results)}}
+\`\`\``
+    expect(parseCorrectionEvidenceMap(duplicateEvidenceBody).ok).toBe(true)
+    expect(parseCorrectionContract(`${verdictBody()}\n${verdictBody()}`)).toEqual({
+      ok: false,
+      errors: ['multiple correction finding contract JSON blocks are not allowed'],
+    })
+    expect(parseCorrectionEvidenceMap(`${resultBody()}\n${resultBody()}`)).toEqual({
+      ok: false,
+      errors: ['multiple correction finding evidence map JSON blocks are not allowed'],
+    })
+  })
+
+  it('accepts evidence schema 1 and 2 while retaining undefined optional mode', () => {
+    const schemaOne = parseCorrectionEvidenceMap(resultBody({ ...evidenceMap(), schema_version: 1 }))
+    expect(schemaOne).toEqual({
+      ok: true,
+      evidence: expect.objectContaining({ schema_version: 1, mode: undefined }),
+    })
+    const schemaTwo = parseCorrectionEvidenceMap(resultBody({ ...evidenceMap(), mode: '  implementation_pr  ' }))
+    expect(schemaTwo.ok).toBe(true)
+    if (schemaTwo.ok) expect(schemaTwo.evidence.mode).toBe('implementation_pr')
+  })
+
+  it('keeps direct validator bypass quirks and stable fail-closed ordering', () => {
+    const contract = parseCorrectionContract(verdictBody()).contract
+    const bypassed = validateFindingEvidence(
+      contract,
+      {
+        correction_base: null,
+        finding_results: {
+          'MC-R1-001': { changed_files: [], tests: [], status: 'CLAIMED_RESOLVED' },
+          'MC-R1-002': { changed_files: [], tests: [], status: 'UNPROVEN' },
+        },
+      },
+      [],
+    )
+
+    expect(bypassed.errors).toEqual([
+      'CLAIMED_RESOLVED requires non-empty changed_files and tests evidence for MC-R1-001',
+    ])
+    expect(validateFindingEvidence(contract, {
+      finding_results: {
+        'MC-R1-001': { changed_files: [], tests: [], status: 'LEGACY_UNKNOWN_STATUS' },
+        'MC-R1-002': { changed_files: [], tests: [], status: 'UNPROVEN' },
+      },
+    }, []).ok).toBe(true)
+    expect(validateFindingEvidence(contract, null, []).errors).toEqual(['finding_results are required'])
+  })
+
+  it('does not bind correction identity to issue, PR, base SHA, or source-thread metadata', () => {
+    const canonical = parseCorrectionContract(verdictBody()).contract
+    const candidate = {
+      findings: canonical.findings.map((finding: Record<string, unknown>) => ({
+        id: finding.id,
+        canonical_summary: finding.canonical_summary,
+        source_thread: 'different source thread',
+        required_evidence: ['different evidence'],
+      })),
+    }
+
+    expect(validateFindingIdentity(canonical, candidate).ok).toBe(true)
+  })
+
+  it('keeps exact scope matching without path canonicalization or trimming', () => {
+    const contract = {
+      ...parseCorrectionContract(verdictBody()).contract,
+      findings: [{ ...findings[0], prohibited_areas: ['src/private/file.ts', 'docs/'] }],
+    }
+
+    expect(validateCorrectionScope(contract, ['src/private/file.ts']).ok).toBe(false)
+    expect(validateCorrectionScope(contract, ['src/private/file.ts.bak']).ok).toBe(false)
+    expect(validateCorrectionScope(contract, ['src/private/ file.ts']).ok).toBe(true)
+    expect(validateCorrectionScope(contract, ['docs/notes.md']).ok).toBe(false)
+  })
+
+  it('keeps verdict and findings-field parsing independent from contract metadata', () => {
+    const body = '**Verdict:** BLOCKED FOR FOUNDER DECISION\n**Findings:** Critical: None · Important: None'
+    expect(isCorrectionEligibleVerdict('**Verdict:** CORRECTION REQUIRED')).toBe(true)
+    expect(isCorrectionEligibleVerdict('**Verdict:** BLOCKED FOR FOUNDER DECISION')).toBe(false)
+    expect(findingsFieldDeclaresUnresolvedImplementationFindings(body)).toBe(false)
+    expect(requiresCorrectionFindingContract(body)).toBe(false)
+    expect(parseReviewVerdictContractFindings(body)).toEqual({ ok: true, findings: [] })
   })
 })
