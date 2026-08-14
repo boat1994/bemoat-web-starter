@@ -4,6 +4,33 @@ function isEnvLike(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+function isIterableValue(value: unknown): value is Iterable<unknown> {
+  return (
+    value !== null &&
+    typeof value === 'object' &&
+    typeof Reflect.get(value, Symbol.iterator) === 'function'
+  )
+}
+
+function callLegacyIncludes(argv: unknown, flag: string): boolean {
+  const owner =
+    argv !== null && typeof argv === 'object' ? argv : Object.create(null)
+  const includes = Reflect.get(owner, 'includes')
+  return Reflect.apply(includes, owner, [flag]) as boolean
+}
+
+function spreadUnknownValue(value: unknown): unknown[] {
+  if (isIterableValue(value)) {
+    return [...value]
+  }
+  const iteratorMethod =
+    value !== null && typeof value === 'object'
+      ? Reflect.get(value, Symbol.iterator)
+      : undefined
+  Reflect.apply(iteratorMethod, value, [])
+  throw new TypeError('value is not iterable')
+}
+
 export const helpContractInputSchema = z.looseObject({
   command: z.unknown().optional(),
 })
@@ -60,8 +87,7 @@ export function legacyArgvIncludes(argv: unknown, flag: string): boolean {
   if (typeof argv === 'string') {
     return argv.includes(flag)
   }
-  const candidate = argv as { includes?: (search: string) => boolean }
-  return candidate.includes!(flag)
+  return callLegacyIncludes(argv, flag)
 }
 
 export function readArgvTokens(argv: unknown): unknown[] {
@@ -75,5 +101,5 @@ export function readArgvTokens(argv: unknown): unknown[] {
   if (typeof argv === 'string') {
     return [...argv]
   }
-  return [...argv as Iterable<unknown>]
+  return spreadUnknownValue(argv)
 }
