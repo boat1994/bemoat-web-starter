@@ -140,10 +140,9 @@ function legacyIterable(value: unknown, fallback?: LegacyIterable): LegacyIterab
   throw new TypeError('value is not iterable')
 }
 
-function legacyLength(value: LegacyIterable): number {
+function legacyLength(value: LegacyIterable): number | undefined {
   const length = value.length
-  if (typeof length !== 'number') throw new TypeError('findings.length is not a number')
-  return length
+  return typeof length === 'number' ? length : undefined
 }
 
 function requireText(value: unknown): string {
@@ -331,7 +330,7 @@ export function validateFindingIdentity(canonical: unknown, candidate: unknown):
   return validationResult(errors)
 }
 
-export function buildCorrectionCapsule(contract: unknown, meta: unknown = {}): { lines: string[]; playbackLine: string; findingCount: number } {
+export function buildCorrectionCapsule(contract: unknown, meta: unknown = {}): { lines: string[]; playbackLine: string; findingCount: number | undefined } {
   const findingsValue = readProperty(contract, 'findings')
   const findings = legacyIterable(findingsValue, [])
   const findingCount = legacyLength(findings)

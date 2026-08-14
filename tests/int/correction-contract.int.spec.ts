@@ -362,6 +362,15 @@ describe('correction-contract pure module', () => {
     expect(capsule.lines.join('\n')).not.toMatch(/full Issue body|command transcript/i)
   })
 
+  it('preserves the legacy undefined playback count for lengthless iterable findings', () => {
+    const contract = parseCorrectionContract(verdictBody()).contract
+    const capsule = buildCorrectionCapsule({ ...contract, findings: new Set(contract.findings) })
+
+    expect(capsule.lines.join('\n')).toContain('MC-R1-001')
+    expect(capsule.findingCount).toBeUndefined()
+    expect(capsule.playbackLine).toBe('Playback verified: undefined/undefined canonical findings')
+  })
+
   it('leaves non-correction comments untouched', () => {
     const normalResult = `## RESULT
 ### Task log
