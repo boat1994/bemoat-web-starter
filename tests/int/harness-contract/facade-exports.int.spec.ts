@@ -1,7 +1,8 @@
-import { readFileSync, readdirSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join, posix } from 'node:path'
 
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 
 import architectureContract from '../../../scripts/architecture-contract.json'
 
@@ -47,6 +48,14 @@ const PRODUCTION_IMPORTERS = [
 ] as const
 
 const SCC_NODES = new Set(architectureContract.cycleNodes)
+const tempRoots: string[] = []
+
+afterEach(() => {
+  while (tempRoots.length > 0) {
+    const root = tempRoots.pop()
+    if (root) rmSync(root, { recursive: true, force: true })
+  }
+})
 
 function listHarnessContractModules() {
   return readdirSync(join(process.cwd(), 'scripts/harness-contract'))
@@ -129,5 +138,83 @@ describe('harness-contract facade exports', () => {
     expect(edges).toEqual([
       'scripts/harness-contract/managed-runtime-closure.mjs -> scripts/harness-contract/runtime-import-parser.mjs',
     ])
+  })
+})
+
+describe('harness-contract manifest', () => {
+  async function loadManifest() {
+    return import('../../../scripts/harness-contract/manifest.mjs')
+  }
+
+  function writeManifest(root: string, body: string) {
+    mkdirSync(join(root, '.bemoat'), { recursive: true })
+    writeFileSync(join(root, '.bemoat/boilerplate-sync-manifest.json'), body)
+  }
+
+  it('returns the live starter managedPaths array when the canonical manifest exists', async () => {
+    const mod = await loadManifest()
+    const managedPaths = mod.loadManagedPathsFromManifest()
+
+    expect(Array.isArray(managedPaths)).toBe(true)
+    expect(managedPaths).toContain('scripts/harness-contract')
+  })
+
+  it('returns null when the manifest file is missing', async () => {
+    const mod = await loadManifest()
+    const root = mkdtempSync(join(tmpdir(), 'bemoat-333-manifest-missing-'))
+    tempRoots.push(root)
+
+    expect(mod.loadManagedPathsFromManifest(root)).toBeNull()
+  })
+
+  it('returns managedPaths when it is an array, including mixed element types', async () => {
+    const mod = await loadManifest()
+    const root = mkdtempSync(join(tmpdir(), 'bemoat-333-manifest-array-'))
+    tempRoots.push(root)
+
+    writeManifest(root, JSON.stringify({ managedPaths: ['a', 'b'] }))
+    expect(mod.loadManagedPathsFromManifest(root)).toEqual(['a', 'b'])
+
+    writeManifest(root, JSON.stringify({ managedPaths: [] }))
+    expect(mod.loadManagedPathsFromManifest(root)).toEqual([])
+
+    writeManifest(root, JSON.stringify({ managedPaths: [1, { x: 1 }, 'ok'] }))
+    expect(mod.loadManagedPathsFromManifest(root)).toEqual([1, { x: 1 }, 'ok'])
+  })
+
+  it('returns null when managedPaths is missing or not an array', async () => {
+    const mod = await loadManifest()
+    const root = mkdtempSync(join(tmpdir(), 'bemoat-333-manifest-nullish-'))
+    tempRoots.push(root)
+
+    writeManifest(root, JSON.stringify({}))
+    expect(mod.loadManagedPathsFromManifest(root)).toBeNull()
+
+    writeManifest(root, JSON.stringify({ managedPaths: 'nope' }))
+    expect(mod.loadManagedPathsFromManifest(root)).toBeNull()
+
+    writeManifest(root, 'true')
+    expect(mod.loadManagedPathsFromManifest(root)).toBeNull()
+
+    writeManifest(root, '0')
+    expect(mod.loadManagedPathsFromManifest(root)).toBeNull()
+
+    writeManifest(root, '[]')
+    expect(mod.loadManagedPathsFromManifest(root)).toBeNull()
+  })
+
+  it('throws SyntaxError for invalid JSON and TypeError when JSON null is parsed', async () => {
+    const mod = await loadManifest()
+    const root = mkdtempSync(join(tmpdir(), 'bemoat-333-manifest-throw-'))
+    tempRoots.push(root)
+
+    writeManifest(root, '{')
+    expect(() => mod.loadManagedPathsFromManifest(root)).toThrow(SyntaxError)
+
+    writeManifest(root, '')
+    expect(() => mod.loadManagedPathsFromManifest(root)).toThrow(SyntaxError)
+
+    writeManifest(root, 'null')
+    expect(() => mod.loadManagedPathsFromManifest(root)).toThrow(TypeError)
   })
 })

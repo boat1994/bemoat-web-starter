@@ -146,4 +146,85 @@ describe('harness-contract runtime-import-parser', () => {
       ],
     })
   })
+
+  it('collects static imports, then export-from, then dynamic imports rather than source order', async () => {
+    const mod = await loadParser()
+
+    expect(
+      mod.parseRuntimeImportSpecifiers(
+        "const d = await import('./dyn.mjs')\nimport s from './stat.mjs'\nexport { x } from './exp.mjs'\n",
+      ),
+    ).toEqual({
+      specifiers: [
+        { specifier: './stat.mjs', sourceExpression: './stat.mjs' },
+        { specifier: './exp.mjs', sourceExpression: './exp.mjs' },
+        { specifier: './dyn.mjs', sourceExpression: "import('./dyn.mjs')" },
+      ],
+      unverifiable: [],
+    })
+  })
+
+  it('parses side-effect imports, import type, export *, and export * as', async () => {
+    const mod = await loadParser()
+
+    expect(mod.parseRuntimeImportSpecifiers("import './side.mjs'\n")).toEqual({
+      specifiers: [{ specifier: './side.mjs', sourceExpression: './side.mjs' }],
+      unverifiable: [],
+    })
+    expect(mod.parseRuntimeImportSpecifiers("import type { X } from './t.mjs'\n")).toEqual({
+      specifiers: [{ specifier: './t.mjs', sourceExpression: './t.mjs' }],
+      unverifiable: [],
+    })
+    expect(mod.parseRuntimeImportSpecifiers("export * from './star.mjs'\n")).toEqual({
+      specifiers: [{ specifier: './star.mjs', sourceExpression: './star.mjs' }],
+      unverifiable: [],
+    })
+    expect(mod.parseRuntimeImportSpecifiers("export * as ns from './star-as.mjs'\n")).toEqual({
+      specifiers: [{ specifier: './star-as.mjs', sourceExpression: './star-as.mjs' }],
+      unverifiable: [],
+    })
+    expect(mod.parseRuntimeImportSpecifiers("export { default } from './x.mjs'\n")).toEqual({
+      specifiers: [{ specifier: './x.mjs', sourceExpression: './x.mjs' }],
+      unverifiable: [],
+    })
+  })
+
+  it('does not observe export type { } from re-exports', async () => {
+    const mod = await loadParser()
+
+    expect(mod.parseRuntimeImportSpecifiers("export type { Bar } from './y.mjs'\n")).toEqual({
+      specifiers: [],
+      unverifiable: [],
+    })
+  })
+
+  it('treats whitespace-padded exact dynamic import literals as verifiable', async () => {
+    const mod = await loadParser()
+
+    expect(mod.parseRuntimeImportSpecifiers("const m = await import( './leaf.mjs' )\n")).toEqual({
+      specifiers: [
+        { specifier: './leaf.mjs', sourceExpression: "import( './leaf.mjs' )" },
+      ],
+      unverifiable: [],
+    })
+  })
+
+  it('ignores empty content and import.meta, and fails closed for unclosed dynamic imports', async () => {
+    const mod = await loadParser()
+
+    expect(mod.parseRuntimeImportSpecifiers('')).toEqual({ specifiers: [], unverifiable: [] })
+    expect(mod.parseRuntimeImportSpecifiers('const u = import.meta.url\n')).toEqual({
+      specifiers: [],
+      unverifiable: [],
+    })
+    expect(mod.parseRuntimeImportSpecifiers("const m = await import('./x.mjs'")).toEqual({
+      specifiers: [],
+      unverifiable: [
+        {
+          specifier: "import('./x.mjs'",
+          sourceExpression: "import('./x.mjs'",
+        },
+      ],
+    })
+  })
 })
