@@ -59,6 +59,7 @@ export const managedPaths = [
   'tests/int/harness-contract/facade-exports.int.spec.ts',
   'tests/int/build-script-contract-guard.int.spec.ts', 'tests/int/build-wrapper.int.spec.ts',
   'tests/int/branch-safety.int.spec.ts', 'tests/int/agent-issue.int.spec.ts',
+  'tests/int/agent-issue/process-runner.int.spec.ts',
   'tests/int/pr-identity-extraction.int.spec.ts',
   'tests/int/planning-no-pr-lineage.int.spec.ts', 'tests/fixtures/agent-issue',
   'tests/int/github-comment-projection.int.spec.ts', 'tests/int/github-comment-projection-boundary.int.spec.ts', 'tests/int/agent-delivery.int.spec.ts',

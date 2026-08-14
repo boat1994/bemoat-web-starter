@@ -114,6 +114,7 @@
     "tests/int/build-wrapper.int.spec.ts",
     "tests/int/branch-safety.int.spec.ts",
     "tests/int/agent-issue.int.spec.ts",
+    "tests/int/agent-issue/process-runner.int.spec.ts",
     "tests/int/pr-identity-extraction.int.spec.ts",
     "tests/int/planning-no-pr-lineage.int.spec.ts",
     "tests/fixtures/agent-issue",
