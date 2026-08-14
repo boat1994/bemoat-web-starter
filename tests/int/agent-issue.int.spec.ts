@@ -5412,3 +5412,167 @@ updated_by: Reviewer
     })
   })
 })
+
+describe('Cluster A characterization (issue #333)', () => {
+  it('issue-references unwraps quoted layers and rejects unsafe reference shapes', async () => {
+    const { parseIssueReference, parsePrReference } = await import(
+      '../../scripts/agent-issue/issue-references.mjs'
+    )
+
+    expect(parseIssueReference('\'"#226"\'', 'boat1994/bemoat-web-starter')).toEqual({
+      repo: 'boat1994/bemoat-web-starter',
+      number: '226',
+    })
+    expect(parseIssueReference('9007199254740993')).toBeNull()
+    expect(parseIssueReference(0)).toBeNull()
+    expect(parseIssueReference('01')).toBeNull()
+    expect(parseIssueReference({ value: '#12' })).toBeNull()
+    expect(parseIssueReference(42, 'boat1994/bemoat-web-starter')).toEqual({
+      repo: 'boat1994/bemoat-web-starter',
+      number: '42',
+    })
+    expect(parsePrReference('#55')).toEqual({ number: '55' })
+    expect('repo' in (parsePrReference('#55') ?? {})).toBe(false)
+  })
+
+  it('exact-head-ci preserves null PR, missing head, rollup shapes, and native TypeError paths', async () => {
+    const { analyzeExactHeadCi } = await import('../../scripts/agent-issue/exact-head-ci.mjs')
+
+    expect(analyzeExactHeadCi(null)).toEqual({
+      available: false,
+      exactHeadVerified: false,
+      headSha: null,
+      ciSha: null,
+      summary: 'PR evidence unavailable.',
+    })
+
+    expect(analyzeExactHeadCi({ statusCheckRollup: [] })).toEqual({
+      available: false,
+      exactHeadVerified: false,
+      headSha: null,
+      ciSha: null,
+      summary: 'Current PR head SHA could not be determined.',
+    })
+
+    const emptyChecks = analyzeExactHeadCi({
+      headRefOid: 'abcdef1234567890abcdef1234567890abcdef12',
+      statusCheckRollup: [],
+    })
+    expect(emptyChecks.available).toBe(true)
+    expect(emptyChecks.exactHeadVerified).toBe(false)
+    expect(emptyChecks.summary).toBe('No CI checks reported for the active PR.')
+    expect(emptyChecks.olderShaSuccess).toBe(false)
+
+    const productionRollup = analyzeExactHeadCi({
+      headRefOid: '0e02e42e9c6953bd4a18e8f78f44ca6044e4b5d2',
+      statusCheckRollup: PRODUCTION_PR103_ROLLUP,
+    })
+    expect(productionRollup.exactHeadVerified).toBe(true)
+
+    const contextsRollup = analyzeExactHeadCi({
+      headRefOid: 'abc123def4567890abc123def4567890abc12345',
+      statusCheckRollup: {
+        contexts: [{ state: 'SUCCESS', targetUrl: 'https://github.com/runs/abc123def456' }],
+      },
+    })
+    expect(contextsRollup.exactHeadVerified).toBe(true)
+
+    const failed = analyzeExactHeadCi({
+      headRefOid: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef',
+      statusCheckRollup: [{ conclusion: 'FAILURE' }],
+    })
+    expect(failed.exactHeadVerified).toBe(false)
+    expect(failed.summary).toBe('CI checks failed for the current PR head.')
+
+    const cancelled = analyzeExactHeadCi({
+      headRefOid: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef',
+      statusCheckRollup: [{ conclusion: 'CANCELLED' }],
+    })
+    expect(cancelled.exactHeadVerified).toBe(false)
+    expect(cancelled.summary).toBe('CI checks failed for the current PR head.')
+
+    const olderSha = analyzeExactHeadCi({
+      headRefOid: 'currentheadsha1111111111111111111111111111',
+      statusCheckRollup: {
+        contexts: [{ state: 'SUCCESS', targetUrl: 'https://github.com/runs/oldsha999' }],
+      },
+    })
+    expect(olderSha.exactHeadVerified).toBe(false)
+    expect(olderSha.olderShaSuccess).toBe(true)
+
+    const ciShaFromDescription = analyzeExactHeadCi({
+      headRefOid: '1111111111111111111111111111111111111111',
+      statusCheckRollup: [
+        {
+          state: 'SUCCESS',
+          description: 'completed for commit fedcba9876543210fedcba9876543210fedcba98',
+        },
+      ],
+    })
+    expect(ciShaFromDescription.ciSha).toBe('fedcba9876543210fedcba9876543210fedcba98')
+
+    expect(() =>
+      analyzeExactHeadCi({
+        headRefOid: '1111111111111111111111111111111111111111',
+        statusCheckRollup: [
+          {
+            state: 'SUCCESS',
+            description: 42,
+          },
+        ],
+      }),
+    ).toThrow(TypeError)
+
+    expect(() =>
+      analyzeExactHeadCi({
+        headRefOid: 12345,
+        statusCheckRollup: [{ state: 'SUCCESS' }],
+      }),
+    ).toThrow(TypeError)
+  })
+
+  it('pure-helpers preserves slugify TypeError, fence stripping, none assignment, and empty slug branch names', async () => {
+    const {
+      assignDeclarationValue,
+      buildSuggestedBranchName,
+      slugify,
+      stripFencedCodeBlocks,
+    } = await import('../../scripts/agent-issue/pure-helpers.mjs')
+    type IssueDeclarations = import('../../scripts/agent-issue/pure-helpers.ts').IssueDeclarations
+
+    expect(() => slugify(42 as never)).toThrow(TypeError)
+
+    const fenced = 'before\n```yaml\nsecret: true\n```\nafter'
+    expect(stripFencedCodeBlocks(fenced)).toBe('before\n\nafter')
+
+    const declarations: IssueDeclarations = {
+      mainIssueRef: null,
+      implementationPlanPath: null,
+      relevantPlanSection: null,
+      activeTaskIssueRef: null,
+      activePrRef: null,
+      approvedBase: null,
+      currentStage: {},
+      declaresMainIssue: false,
+      declaresImplementationPlan: false,
+    }
+    assignDeclarationValue(declarations, 'mainIssueRef', 'none')
+    assignDeclarationValue(declarations, 'approvedBase', 'None for now')
+    expect(declarations.declaresMainIssue).toBe(false)
+    expect(declarations.mainIssueRef).toBeNull()
+    expect(declarations.approvedBase).toBeNull()
+
+    expect(buildSuggestedBranchName(333, '!!!')).toBeNull()
+  })
+
+  it('constants docsToRead lists the exact four canonical paths', async () => {
+    const { docsToRead } = await import('../../scripts/agent-issue/constants.mjs')
+
+    expect(docsToRead).toEqual([
+      'AGENTS.md',
+      'docs/agent-loop/README.md',
+      'docs/agent-loop/issue-driven-branch-workflow.md',
+      'docs/agent-loop/project-progress-tracking.md',
+    ])
+  })
+})
