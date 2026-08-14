@@ -105,13 +105,12 @@ function isRuntimeObject(value: unknown): value is RuntimeObject {
 }
 
 function readProperty(value: unknown, key: string): unknown {
-  if (value === null || (typeof value !== 'object' && typeof value !== 'function')) return undefined
-  return Reflect.get(value, key)
+  if (value === null || value === undefined) return undefined
+  return (value as RuntimeObject)[key]
 }
 
 function directProperty(value: unknown, key: string): unknown {
-  if (value === null || value === undefined) throw new TypeError(`Cannot read properties of ${value}`)
-  return Reflect.get(Object(value), key)
+  return (value as RuntimeObject)[key]
 }
 
 function requireText(value: unknown): string {
@@ -280,17 +279,16 @@ export function validateFindingIdentity(canonical: unknown, candidate: unknown):
   const canonicalFindings = readProperty(canonical, 'findings')
   const candidateFindings = readProperty(candidate, 'findings')
   if (!canonicalFindings || !candidateFindings) return { ok: false, errors: ['canonical and candidate findings are required'] }
-  if (!Array.isArray(canonicalFindings) || !Array.isArray(candidateFindings)) throw new TypeError('findings.map is not a function')
-  const canonicalIds = canonicalFindings.map((finding) => directProperty(finding, 'id'))
-  const candidateIds = candidateFindings.map((finding) => directProperty(finding, 'id'))
+  const canonicalIds = (canonicalFindings as unknown[]).map((finding) => directProperty(finding, 'id'))
+  const candidateIds = (candidateFindings as unknown[]).map((finding) => directProperty(finding, 'id'))
   const canonicalSet = new Set(canonicalIds)
   const candidateSet = new Set(candidateIds)
   const errors: string[] = []
   for (const id of candidateIds) if (!canonicalSet.has(id)) errors.push(`unknown or substituted finding id: ${id}`)
   for (const id of canonicalIds) if (!candidateSet.has(id)) errors.push(`omitted finding id: ${id}`)
   if (canonicalIds.length !== candidateIds.length) errors.push('finding set size changed by rename, addition, or omission')
-  const candidateById = new Map(candidateFindings.map((finding) => [directProperty(finding, 'id'), finding]))
-  for (const finding of canonicalFindings) {
+  const candidateById = new Map((candidateFindings as unknown[]).map((finding) => [directProperty(finding, 'id'), finding]))
+  for (const finding of canonicalFindings as unknown[]) {
     const match = candidateById.get(directProperty(finding, 'id'))
     if (!match) continue
     if (directProperty(match, 'canonical_summary') !== directProperty(finding, 'canonical_summary')) {
@@ -302,27 +300,27 @@ export function validateFindingIdentity(canonical: unknown, candidate: unknown):
 
 export function buildCorrectionCapsule(contract: unknown, meta: unknown = {}): { lines: string[]; playbackLine: string; findingCount: number } {
   const findingsValue = readProperty(contract, 'findings')
-  const findings = Array.isArray(findingsValue) ? findingsValue : []
-  const mode = readProperty(meta, 'mode') ?? readProperty(contract, 'mode') ?? 'implementation_pr'
-  const issueNumber = readProperty(meta, 'issueNumber')
-  const prUrl = readProperty(meta, 'prUrl')
+  const findings = (findingsValue ?? []) as unknown[]
+  const mode = directProperty(meta, 'mode') ?? readProperty(contract, 'mode') ?? 'implementation_pr'
+  const issueNumber = directProperty(meta, 'issueNumber')
+  const prUrl = directProperty(meta, 'prUrl')
   const lines = ['Correction capsule', issueNumber ? `Issue: #${issueNumber}` : 'Issue: (not provided)', prUrl ? `PR: ${prUrl}` : mode === 'planning_no_pr' ? 'PR: none' : 'PR: (not provided)']
   if (mode === 'planning_no_pr') lines.push('Mode: planning_no_pr')
   lines.push(`Reviewed head / correction base: ${readProperty(contract, 'reviewed_head') ?? '(missing)'}`, 'Canonical findings:')
   for (const finding of findings) {
-    const id = readProperty(finding, 'id')
-    const summary = readProperty(finding, 'canonical_summary')
-    const sourceThread = readProperty(finding, 'source_thread')
-    const evidence = readProperty(finding, 'required_evidence')
-    const expected = readProperty(finding, 'expected_areas')
-    const prohibited = readProperty(finding, 'prohibited_areas')
-    lines.push(`- ${id}: ${summary}`, `  source_thread: ${sourceThread}`, `  required_evidence: ${(Array.isArray(evidence) ? evidence : []).join('; ')}`)
-    if (Array.isArray(expected) && expected.length) lines.push(`  expected_areas: ${expected.join('; ')}`)
+    const id = directProperty(finding, 'id')
+    const summary = directProperty(finding, 'canonical_summary')
+    const sourceThread = directProperty(finding, 'source_thread')
+    const evidence = directProperty(finding, 'required_evidence') as string[]
+    const expected = directProperty(finding, 'expected_areas') as string[] | undefined
+    const prohibited = directProperty(finding, 'prohibited_areas') as string[] | undefined
+    lines.push(`- ${id}: ${summary}`, `  source_thread: ${sourceThread}`, `  required_evidence: ${evidence.join('; ')}`)
+    if (expected?.length) lines.push(`  expected_areas: ${expected.join('; ')}`)
     if (mode === 'planning_no_pr') {
-      const extra = Array.isArray(prohibited) && prohibited.length ? ` (${prohibited.join('; ')})` : ''
+      const extra = prohibited?.length ? ` (${prohibited.join('; ')})` : ''
       const allowlist = derivePlanningArtifactAllowlist(contract)
       lines.push(`  prohibited_areas: planning canonical-artifact allowlist only (${allowlist.length ? allowlist.join('; ') : 'none declared'})${extra}`)
-    } else if (Array.isArray(prohibited) && prohibited.length) lines.push(`  prohibited_areas: ${prohibited.join('; ')}`)
+    } else if (prohibited?.length) lines.push(`  prohibited_areas: ${prohibited.join('; ')}`)
   }
   if (mode === 'planning_no_pr') {
     const allowlist = derivePlanningArtifactAllowlist(contract)
@@ -337,11 +335,9 @@ export function buildCorrectionCapsule(contract: unknown, meta: unknown = {}): {
 export function derivePlanningArtifactAllowlist(contract: unknown): string[] {
   const allowlist = new Set<string>()
   const findings = readProperty(contract, 'findings')
-  if (!Array.isArray(findings)) return [...allowlist]
-  for (const finding of findings) {
-    const areas = readProperty(finding, 'expected_areas')
-    if (!Array.isArray(areas)) continue
-    for (const area of areas) { const trimmed = typeof area === 'string' ? area.trim() : ''; if (trimmed) allowlist.add(trimmed) }
+  for (const finding of (findings ?? []) as unknown[]) {
+    const areas = directProperty(finding, 'expected_areas') as unknown[] | undefined
+    for (const area of areas ?? []) { const trimmed = typeof area === 'string' ? area.trim() : ''; if (trimmed) allowlist.add(trimmed) }
   }
   return [...allowlist]
 }
@@ -362,7 +358,7 @@ function pathMatchesProhibitedArea(area: string, filePath: string): boolean {
 
 export function validateFindingEvidence(contract: unknown, result: unknown, diffFiles: unknown = [], options: unknown = {}): ValidationResult {
   const findings = readProperty(contract, 'findings')
-  if (!Array.isArray(findings) || findings.length === 0) return { ok: false, errors: ['correction contract findings are required'] }
+  if (!(findings as { length?: unknown } | undefined)?.length) return { ok: false, errors: ['correction contract findings are required'] }
   const findingResults = readProperty(result, 'finding_results')
   if (!findingResults || typeof findingResults !== 'object') return { ok: false, errors: ['finding_results are required'] }
   const errors: string[] = []
@@ -370,18 +366,19 @@ export function validateFindingEvidence(contract: unknown, result: unknown, diff
   const reviewedHead = readProperty(contract, 'reviewed_head')
   if (typeof correctionBase === 'string' && correctionBase.trim() && correctionBase.trim() !== reviewedHead) errors.push('correction_base must match reviewed_head')
   const resultIds = Object.keys(findingResults)
+  const findingList = findings as RuntimeObject[]
   const identity = validateFindingIdentity({ findings }, {
     findings: resultIds.map((id) => ({
       id,
-      canonical_summary: readProperty(findings.find((finding) => readProperty(finding, 'id') === id), 'canonical_summary') ?? `__missing__:${id}`,
+      canonical_summary: readProperty(findingList.find((finding) => readProperty(finding, 'id') === id), 'canonical_summary') ?? `__missing__:${id}`,
     })),
   })
   if (!identity.ok) errors.push(...identity.errors)
-  const diffList = Array.isArray(diffFiles) ? diffFiles : []
+  const diffList = diffFiles as string[]
   const scopeCheck = validateCorrectionScope(contract, diffList, { mode: readProperty(options, 'mode') ?? readProperty(contract, 'mode') })
   if (!scopeCheck.ok) errors.push(...scopeCheck.errors)
   const diffSet = new Set(diffList)
-  for (const finding of findings) {
+  for (const finding of findingList) {
     const id = readProperty(finding, 'id')
     const entry = readProperty(findingResults, String(id))
     if (!entry) continue
@@ -434,14 +431,14 @@ export function requiresCorrectionFindingContract(body: unknown = ''): boolean {
 }
 
 export function parseReviewVerdictContractFindings(body: unknown = '', verdict: unknown = null): { ok: true; findings: Array<{ finding_id: string; severity: string; disposition: string }> } | Failure {
-  const source = requireText(body)
-  const resolvedVerdict = verdict ?? source.match(/^\*\*Verdict:\*\*\s*(.+?)\s*$/m)?.[1]?.trim()
+  const resolvedVerdict = verdict ?? requireText(body).match(/^\*\*Verdict:\*\*\s*(.+?)\s*$/m)?.[1]?.trim()
   if (resolvedVerdict === 'CORRECTION REQUIRED') {
-    const parsed = parseCorrectionContract(source)
+    const parsed = parseCorrectionContract(body)
     if (parsed.ok === false) return { ok: false, errors: parsed.errors }
     return { ok: true, findings: parsed.contract.findings.map((finding) => ({ finding_id: finding.id, severity: 'Important', disposition: 'open' })) }
   }
   if (resolvedVerdict === 'BLOCKED FOR FOUNDER DECISION') {
+    const source = requireText(body)
     const hasContractShape = extractJsonObjects(source).some((object) => Object.hasOwn(object, 'findings') && Object.hasOwn(object, 'reviewed_head'))
     if (!hasContractShape) {
       if (findingsFieldDeclaresUnresolvedImplementationFindings(source)) return { ok: false, errors: ['missing correction finding contract JSON block'] }
@@ -480,16 +477,15 @@ export function validateCorrectionRoleComment(input: unknown = {}): ValidationRe
 
 export function validateCorrectionScope(contract: unknown, diffFiles: unknown = [], options: unknown = {}): ValidationResult {
   const errors: string[] = []
-  const mode = readProperty(options, 'mode') ?? readProperty(contract, 'mode') ?? 'implementation_pr'
+  const mode = directProperty(options, 'mode') ?? readProperty(contract, 'mode') ?? 'implementation_pr'
   const findings = readProperty(contract, 'findings')
   const prohibited: string[] = []
-  if (Array.isArray(findings)) for (const finding of findings) {
-    const areas = readProperty(finding, 'prohibited_areas')
-    if (Array.isArray(areas)) prohibited.push(...areas.filter((area): area is string => typeof area === 'string'))
+  if (findings != null) for (const finding of findings as unknown[]) {
+    const areas = directProperty(finding, 'prohibited_areas') as unknown[] | undefined
+    if (areas != null) prohibited.push(...areas.filter((area): area is string => typeof area === 'string'))
   }
   const planningAllowlist = mode === 'planning_no_pr' ? derivePlanningArtifactAllowlist(contract) : []
-  const files = Array.isArray(diffFiles) ? diffFiles : []
-  for (const filePath of files) {
+  for (const filePath of diffFiles as string[]) {
     if (typeof filePath !== 'string') continue
     if (mode === 'planning_no_pr') {
       if (planningAllowlist.length === 0) { errors.push('planning_no_pr correction requires at least one expected_areas entry in the immutable finding contract'); continue }

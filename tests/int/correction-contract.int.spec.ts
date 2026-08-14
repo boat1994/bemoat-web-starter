@@ -683,6 +683,20 @@ describe('correction-contract pure module', () => {
     expect(validateFindingEvidence(contract, null, []).errors).toEqual(['finding_results are required'])
   })
 
+  it('preserves legacy direct-call TypeError boundaries and iteration failures', () => {
+    const contract = parseCorrectionContract(verdictBody()).contract
+    const result = evidenceMap()
+
+    expect(() => buildCorrectionCapsule(contract, null)).toThrow(TypeError)
+    expect(() => buildCorrectionCapsule({ ...contract, findings: {} }, {})).toThrow(TypeError)
+    expect(() => validateFindingIdentity({ ...contract, findings: {} }, contract)).toThrow(TypeError)
+    expect(() => validateFindingEvidence(contract, result, null)).toThrow(TypeError)
+    expect(() => validateCorrectionScope(contract, [], null)).toThrow(TypeError)
+    expect(() => validateCorrectionScope({ ...contract, findings: {} }, [])).toThrow(TypeError)
+
+    expect(parseReviewVerdictContractFindings(null, 'OTHER')).toEqual({ ok: true, findings: [] })
+  })
+
   it('does not bind correction identity to issue, PR, base SHA, or source-thread metadata', () => {
     const canonical = parseCorrectionContract(verdictBody()).contract
     const candidate = {
