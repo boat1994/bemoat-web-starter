@@ -180,6 +180,7 @@
     "tests/int/mission-control-adopt-finding-github-adapter.int.spec.ts",
     "tests/int/mission-control-adopt-finding-rendering.int.spec.ts",
     "tests/int/mission-control-recover-state.int.spec.ts",
+    "tests/int/mission-control-recover-state-evidence.int.spec.ts",
     "tests/int/mission-control-correction-entrypoints.int.spec.ts",
     "tests/int/mission-control-reopen-result-rendering.int.spec.ts",
     "tests/int/mission-control-dispatch-result-rendering.int.spec.ts",

@@ -408,9 +408,25 @@ describe('recover-state-evidence boundary', () => {
   it('preserves native wrong-type and null/undefined behavior without input mutation or side effects', () => {
     const comments = baseComments()
     const before = structuredClone(comments)
-    expect(() => parsePredecessor(null)).toThrow(TypeError)
-    expect(() => parsePredecessor(undefined)).toThrow(TypeError)
+    expect(() => parsePredecessor(null)).toThrow(
+      "Cannot destructure property 'comment' of 'object null' as it is null.",
+    )
+    expect(() => parsePredecessor(undefined)).toThrow(
+      "Cannot destructure property 'comment' of 'undefined' as it is undefined.",
+    )
     expect(() => normalizeId(Symbol('id'))).not.toThrow()
+    expect(() => parsePredecessor({
+      comment: comments[0],
+      comments: null,
+      options,
+      trustedFounderLogins: TRUSTED_FOUNDERS,
+    })).toThrow("Cannot read properties of null (reading 'filter')")
+    expect(() => parsePredecessor({
+      comment: comments[0],
+      comments: { filter: (): null => null },
+      options,
+      trustedFounderLogins: TRUSTED_FOUNDERS,
+    })).toThrow("Cannot read properties of null (reading 'length')")
     expect(() => assertNoCompetingEvidence({
       comments: 'not-an-array',
       selectedIds: {},

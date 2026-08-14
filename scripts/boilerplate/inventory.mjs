@@ -94,7 +94,7 @@ export const managedPaths = [
   'tests/int/mission-control-reopen.int.spec.ts', 'tests/int/mission-control-reopen-github-adapter.int.spec.ts',
   'tests/int/active-correction-contract.int.spec.ts',
   'tests/int/mission-control-adopt-finding.int.spec.ts', 'tests/int/mission-control-adopt-finding-github-adapter.int.spec.ts', 'tests/int/mission-control-adopt-finding-rendering.int.spec.ts',
-  'tests/int/mission-control-recover-state.int.spec.ts',
+  'tests/int/mission-control-recover-state.int.spec.ts', 'tests/int/mission-control-recover-state-evidence.int.spec.ts',
   'tests/int/mission-control-correction-entrypoints.int.spec.ts', 'tests/int/mission-control-reopen-result-rendering.int.spec.ts',
   'tests/int/mission-control-dispatch-result-rendering.int.spec.ts',
   'tests/int/mission-control-characterization.int.spec.ts', 'tests/int/mission-control-task-bootstrap-contract.int.spec.ts', 'tests/int/mission-control-task-bootstrap-allocation.int.spec.ts', 'tests/int/mission-control-task-bootstrap-state.int.spec.ts', 'tests/int/mission-control-task-bootstrap-registry-readback.int.spec.ts', 'tests/int/mission-control-task-bootstrap-lease.int.spec.ts', 'tests/int/mission-control-task-bootstrap-final-readback.int.spec.ts', 'tests/int/mission-control-task-initialization.int.spec.ts', 'tests/int/mission-control-task-state-boundary.int.spec.ts',
