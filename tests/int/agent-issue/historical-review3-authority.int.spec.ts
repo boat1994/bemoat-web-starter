@@ -37,7 +37,7 @@ describe('Cluster E characterization (issue #333) — historical-review3-authori
 
   it('parseHandoffCommentSemanticPayload throws TypeError on non-string body', async () => {
     const { parseHandoffCommentSemanticPayload } = await loadModule()
-    expect(() => parseHandoffCommentSemanticPayload(null, 'boat1994/test', '#92')).toThrow(TypeError)
+    expect(() => parseHandoffCommentSemanticPayload(null as unknown as string, 'boat1994/test', '#92')).toThrow(TypeError)
   })
 
   it('parseHandoffCommentSemanticPayload reports duplicate keys as STATE CONFLICT', async () => {
@@ -45,7 +45,9 @@ describe('Cluster E characterization (issue #333) — historical-review3-authori
     const body = `${handoffBodyV1}\n* Phase: duplicate`
     const result = parseHandoffCommentSemanticPayload(body, 'boat1994/test', '#92')
     expect(result.ok).toBe(false)
-    expect(result.errors).toContain('STATE CONFLICT: duplicate phase in HANDOFF')
+    if (result.ok === false) {
+      expect(result.errors).toContain('STATE CONFLICT: duplicate phase in HANDOFF')
+    }
   })
 
   it('schema v1 skips hash and binding checks after earlier gates pass', async () => {
@@ -100,6 +102,8 @@ describe('Cluster E characterization (issue #333) — historical-review3-authori
       fetchIssueCommentById: () => ({ ok: false, reason: 'unused' }),
     })
     expect(result.ok).toBe(true)
-    expect(result.reviewThree).toBe(true)
+    if (result.ok) {
+      expect(result.reviewThree).toBe(true)
+    }
   })
 })

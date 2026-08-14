@@ -1,17 +1,25 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment -- Cluster E oracle port preserves legacy .mjs implicit typing */
-// @ts-nocheck
 import { createHash } from 'node:crypto'
 import { findLatestRoleComment } from '../mission-control-reconcile.mjs'
 import { parseMissionControlState } from '../mission-control/domain/task-state.ts'
+import type {
+  HandoffParseResult,
+  HandoffSemanticPayload,
+  ReviewThreeAuthorizationResult,
+  VerifyReviewThreeCorrectionAuthorizationInput,
+} from './authority-domain-types.ts'
+import { isPlainObject, readLegacyField, readStringArrayField } from './authority-domain-types.ts'
 import { validatePinnedFounderDecision } from './current-post-budget-authority.ts'
-
-export function parseHandoffCommentSemanticPayload(body, expectedRepo, expectedIssue) {
+export function parseHandoffCommentSemanticPayload(
+  body: string,
+  expectedRepo: string,
+  expectedIssue: string,
+): HandoffParseResult {
   const lines = body.split('\n')
-  const payload = {}
-  const stateKeys = new Set()
-  const errors = []
+  const payload: HandoffSemanticPayload = {}
+  const stateKeys = new Set<string>()
+  const errors: string[] = []
 
-  const addKey = (key, value) => {
+  const addKey = <K extends keyof HandoffSemanticPayload>(key: K, value: HandoffSemanticPayload[K]) => {
     if (stateKeys.has(key)) {
       errors.push(`STATE CONFLICT: duplicate ${key} in HANDOFF`)
     } else {
@@ -24,7 +32,7 @@ export function parseHandoffCommentSemanticPayload(body, expectedRepo, expectedI
     const trimmed = line.trim()
     if (!trimmed) continue
 
-    let match
+    let match: RegExpMatchArray | null
 
     if ((match = trimmed.match(/^[* -]?\s*Phase:\s*(.+)$/i))) {
       addKey('phase', match[1].trim())
@@ -118,7 +126,18 @@ export function parseHandoffCommentSemanticPayload(body, expectedRepo, expectedI
     if (uniquePullIdentities.length > 1) errors.push('STATE CONFLICT: conflicting PR identities in HANDOFF')
   }
 
-  const requiredKeys = ['phase', 'authorization_id', 'task_issue', 'target', 'scope', 'exact_reviewed_head', 'findings', 'review_4_prohibition', 'pr_repository', 'pr_number']
+  const requiredKeys = [
+    'phase',
+    'authorization_id',
+    'task_issue',
+    'target',
+    'scope',
+    'exact_reviewed_head',
+    'findings',
+    'review_4_prohibition',
+    'pr_repository',
+    'pr_number',
+  ] as const
   for (const key of requiredKeys) {
     if (!stateKeys.has(key)) {
       errors.push(`STATE CONFLICT: missing ${key} in HANDOFF`)
@@ -151,7 +170,7 @@ export function verifyReviewThreeCorrectionAuthorization({
   cwd,
   env,
   fetchIssueCommentById,
-}) {
+}: VerifyReviewThreeCorrectionAuthorizationInput): ReviewThreeAuthorizationResult {
   const parsed = parseMissionControlState(issueBody ?? '')
   const managedRequired = /Mission\s+Control\s+mode:\s*required/i.test(issueBody ?? '')
   if (!parsed.present || !parsed.valid || !parsed.state) {
@@ -161,97 +180,114 @@ export function verifyReviewThreeCorrectionAuthorization({
     return { ok: true, errors: [], reviewThree: false }
   }
   const state = parsed.state
-  const authorization = state.founder_correction_authorization
-  const requiresReviewThreeAuthority = Boolean(authorization) || state.review_cycle === 3 ||
+  const authorizationValue = state.founder_correction_authorization
+  const requiresReviewThreeAuthority = Boolean(authorizationValue) || state.review_cycle === 3 ||
     (state.full_review_count === 1 && state.state === 'IN_PROGRESS')
   if (!requiresReviewThreeAuthority) return { ok: true, errors: [], reviewThree: false }
 
   if (state.review_cycle !== 3 || state.full_review_count !== 1) {
     return { ok: false, errors: ['STATE CONFLICT: Review 3 correction must preserve counters 3/1'] }
   }
-  if (state.state !== 'IN_PROGRESS' || !authorization || authorization.status !== 'consumed') {
+  if (state.state !== 'IN_PROGRESS' || !authorizationValue || readLegacyField(authorizationValue, 'status') !== 'consumed') {
     return { ok: false, errors: ['STATE CONFLICT: Review 3 correction requires a consumed Founder correction authorization'] }
   }
 
-  const s8 = state.founder_migration_authority
-  if (authorization.schema_version === 2 && !s8) {
+  const s8Value = state.founder_migration_authority
+  if (readLegacyField(authorizationValue, 'schema_version') === 2 && !s8Value) {
     return { ok: false, errors: ['STATE MIGRATION REQUIRED: historical authorization action and timestamp lack immutable Founder approval'] }
   }
-  if (s8) {
-    const s8StateErrors = []
-    if (s8.schema_version !== 3 || s8.status !== 'consumed' || s8.authority !== 'Founder' || s8.scope !== 'correction') {
+  if (s8Value) {
+    const s8StateErrors: string[] = []
+    if (readLegacyField(s8Value, 'schema_version') !== 3 || readLegacyField(s8Value, 'status') !== 'consumed' ||
+        readLegacyField(s8Value, 'authority') !== 'Founder' || readLegacyField(s8Value, 'scope') !== 'correction') {
       s8StateErrors.push('STATE CONFLICT: historical migration proof must be a consumed Founder schema-version 3 correction authority')
     }
-    if (s8.canonical_repository !== defaultRepo || s8.issue !== `#${issueNumber}` || s8.pr !== state.active_pr) {
+    if (readLegacyField(s8Value, 'canonical_repository') !== defaultRepo || readLegacyField(s8Value, 'issue') !== `#${issueNumber}` ||
+        readLegacyField(s8Value, 'pr') !== state.active_pr) {
       s8StateErrors.push('STATE CONFLICT: historical migration proof does not bind the canonical repository, issue, and PR')
     }
-    if (!/^[0-9a-f]{64}$/.test(String(s8.content_sha256 ?? '')) ||
-        !/^[1-9]\d*$/.test(String(s8.comment_id ?? '')) ||
-        !/^[1-9]\d*$/.test(String(s8.specification_result_comment_id ?? '')) ||
-        !/^[1-9]\d*$/.test(String(s8.review_7_verdict_comment_id ?? '')) ||
-        !/^[1-9]\d*$/.test(String(s8.historical_review_3_source_comment_id ?? '')) ||
-        String(s8.historical_handoff_comment_id) !== String(authorization.handoff_comment_id)) {
+    if (!/^[0-9a-f]{64}$/.test(String(readLegacyField(s8Value, 'content_sha256') ?? '')) ||
+        !/^[1-9]\d*$/.test(String(readLegacyField(s8Value, 'comment_id') ?? '')) ||
+        !/^[1-9]\d*$/.test(String(readLegacyField(s8Value, 'specification_result_comment_id') ?? '')) ||
+        !/^[1-9]\d*$/.test(String(readLegacyField(s8Value, 'review_7_verdict_comment_id') ?? '')) ||
+        !/^[1-9]\d*$/.test(String(readLegacyField(s8Value, 'historical_review_3_source_comment_id') ?? '')) ||
+        String(readLegacyField(s8Value, 'historical_handoff_comment_id')) !== String(readLegacyField(authorizationValue, 'handoff_comment_id'))) {
       s8StateErrors.push('STATE CONFLICT: historical migration proof is missing an immutable source ID or content hash')
     }
-    if (s8.historical_authorization_id !== authorization.authorization_id ||
-        s8.historical_reviewed_head !== authorization.reviewed_head ||
-        s8.historical_action !== authorization.action || s8.historical_authorized_at !== authorization.authorized_at ||
-        JSON.stringify(s8.historical_finding_ids) !== JSON.stringify(authorization.finding_ids) ||
-        JSON.stringify(s8.finding_ids) !== JSON.stringify(contract.findings.map((finding) => finding.id))) {
+    if (readLegacyField(s8Value, 'historical_authorization_id') !== readLegacyField(authorizationValue, 'authorization_id') ||
+        readLegacyField(s8Value, 'historical_reviewed_head') !== readLegacyField(authorizationValue, 'reviewed_head') ||
+        readLegacyField(s8Value, 'historical_action') !== readLegacyField(authorizationValue, 'action') ||
+        readLegacyField(s8Value, 'historical_authorized_at') !== readLegacyField(authorizationValue, 'authorized_at') ||
+        JSON.stringify(readLegacyField(s8Value, 'historical_finding_ids')) !== JSON.stringify(readLegacyField(authorizationValue, 'finding_ids')) ||
+        JSON.stringify(readLegacyField(s8Value, 'finding_ids')) !== JSON.stringify(contract.findings.map((finding) => finding.id))) {
       s8StateErrors.push('STATE CONFLICT: historical migration proof does not bind the exact Review 3 authorization and finding set')
     }
     if (s8StateErrors.length > 0) return { ok: false, errors: s8StateErrors }
     if (typeof fetchIssueCommentById !== 'function') {
       return { ok: false, errors: ['STATE CONFLICT: historical migration proof source lookup is unavailable'] }
     }
-    const s8Source = fetchIssueCommentById(cwd, s8.comment_id, env)
+    const s8Source = fetchIssueCommentById(cwd, String(readLegacyField(s8Value, 'comment_id')), env)
     if (!s8Source.ok) {
       return { ok: false, errors: ['STATE CONFLICT: pinned Founder migration authority source is unavailable'] }
     }
-    const sourceCheck = validatePinnedFounderDecision({ authority: s8, source: s8Source, issueNumber, defaultRepo })
+    const sourceCheck = validatePinnedFounderDecision({
+      authority: isPlainObject(s8Value) ? s8Value : {},
+      source: s8Source,
+      issueNumber,
+      defaultRepo,
+    })
     if (!sourceCheck.ok) return { ok: false, errors: sourceCheck.errors }
 
-    const reviewThreeSource = fetchIssueCommentById(cwd, s8.historical_review_3_source_comment_id, env)
-    const reviewThreeBody = String(reviewThreeSource.comment?.body ?? '')
+    const reviewThreeSource = fetchIssueCommentById(
+      cwd,
+      String(readLegacyField(s8Value, 'historical_review_3_source_comment_id')),
+      env,
+    )
+    const reviewThreeBody = reviewThreeSource.ok ? String(reviewThreeSource.comment?.body ?? '') : ''
+    const historicalFindingIds = readStringArrayField(isPlainObject(s8Value) ? s8Value : {}, 'historical_finding_ids')
     if (!reviewThreeSource.ok ||
-        String(reviewThreeSource.comment?.id) !== String(s8.historical_review_3_source_comment_id) ||
+        String(reviewThreeSource.ok ? reviewThreeSource.comment?.id : undefined) !== String(readLegacyField(s8Value, 'historical_review_3_source_comment_id')) ||
         !/^##\s+REVIEW_VERDICT\s*$/m.test(reviewThreeBody) ||
         !reviewThreeBody.includes('Phase: Bounded Delta Review 3') ||
         !reviewThreeBody.includes('BLOCKED FOR FOUNDER DECISION') ||
-        !reviewThreeBody.includes(`/pull/${String(s8.pr).slice(1)}`) ||
-        !reviewThreeBody.includes(s8.historical_reviewed_head) ||
-        !s8.historical_finding_ids.every((findingId) => reviewThreeBody.includes(findingId)) ||
+        !reviewThreeBody.includes(`/pull/${String(readLegacyField(s8Value, 'pr')).slice(1)}`) ||
+        !reviewThreeBody.includes(String(readLegacyField(s8Value, 'historical_reviewed_head'))) ||
+        !historicalFindingIds.every((findingId) => reviewThreeBody.includes(findingId)) ||
         !/Do not start Review 4/i.test(reviewThreeBody)) {
       return { ok: false, errors: ['STATE CONFLICT: pinned historical Review 3 source is missing or semantically inconsistent'] }
     }
   }
 
-  if (authorization.for_review_number !== 3 || authorization.reviewed_head !== contract.reviewed_head ||
-      authorization.reviewed_head !== state.last_reviewed_head || authorization.reviewed_head !== state.current_head) {
+  if (readLegacyField(authorizationValue, 'for_review_number') !== 3 ||
+      readLegacyField(authorizationValue, 'reviewed_head') !== contract.reviewed_head ||
+      readLegacyField(authorizationValue, 'reviewed_head') !== state.last_reviewed_head ||
+      readLegacyField(authorizationValue, 'reviewed_head') !== state.current_head) {
     return { ok: false, errors: ['STATE CONFLICT: Founder correction authorization does not bind the Review 3 exact head'] }
   }
-  const authorizedIds = [...authorization.finding_ids ?? []].sort()
+  const authorizedIds = [...readStringArrayField(isPlainObject(authorizationValue) ? authorizationValue : {}, 'finding_ids')].sort()
   const contractIds = contract.findings.map((finding) => finding.id).sort()
   if (JSON.stringify(authorizedIds) !== JSON.stringify(contractIds)) {
     return { ok: false, errors: ['STATE CONFLICT: Founder correction authorization finding IDs do not match the immutable contract'] }
   }
 
   const latestHandoff = findLatestRoleComment(comments, 'HANDOFF')
-  const handoff = comments.find((comment) => String(comment.id) === String(authorization.handoff_comment_id))
+  const latestHandoffCommentId = readLegacyField(readLegacyField(latestHandoff, 'comment'), 'id')
+  const handoff = comments.find((comment) => String(comment.id) === String(readLegacyField(authorizationValue, 'handoff_comment_id')))
 
-  if (!handoff || String(latestHandoff?.comment?.id) !== String(authorization.handoff_comment_id) ||
+  if (!handoff || String(latestHandoffCommentId) !== String(readLegacyField(authorizationValue, 'handoff_comment_id')) ||
       !/##\s+HANDOFF\s*$/m.test(handoff.body ?? '')) {
     return { ok: false, errors: ['STATE CONFLICT: Founder correction authorization is not bound to its exact active HANDOFF'] }
   }
 
-  const binding = authorization.handoff_binding
+  const bindingValue = readLegacyField(authorizationValue, 'handoff_binding')
+  const binding = isPlainObject(bindingValue) ? bindingValue : null
 
-  if (authorization.schema_version === 2 || authorization.schema_version === 3) {
+  if (readLegacyField(authorizationValue, 'schema_version') === 2 || readLegacyField(authorizationValue, 'schema_version') === 3) {
     const handoffBody = handoff.body ?? ''
     const contentSha256 = createHash('sha256').update(handoffBody).digest('hex')
 
     const parsedHandoff = parseHandoffCommentSemanticPayload(handoffBody, defaultRepo, `#${issueNumber}`)
-    if (!parsedHandoff.ok) {
+    if (parsedHandoff.ok === false) {
       return { ok: false, errors: parsedHandoff.errors }
     }
     const payload = parsedHandoff.payload
@@ -262,43 +298,43 @@ export function verifyReviewThreeCorrectionAuthorization({
     if (expectedPrNumber && payload.pr_number !== expectedPrNumber) {
       return { ok: false, errors: [`STATE CONFLICT: HANDOFF PR identity does not match active PR ${expectedPr} in ${defaultRepo}`] }
     }
-    if (payload.authorization_id !== authorization.authorization_id) {
+    if (payload.authorization_id !== readLegacyField(authorizationValue, 'authorization_id')) {
       return { ok: false, errors: ['STATE CONFLICT: HANDOFF authorization ID must occur exactly once and match historical authorization'] }
     }
 
     if (payload.phase !== 'Founder-authorized correction after Review 3') {
       return { ok: false, errors: ['STATE CONFLICT: HANDOFF Phase does not match Founder-authorized correction after Review 3'] }
     }
-    if (payload.target !== binding?.target) {
+    if (payload.target !== readLegacyField(binding, 'target')) {
       return { ok: false, errors: ['STATE CONFLICT: HANDOFF Target does not match the immutable dispatch target'] }
     }
     const correctionScope = payload.scope === 'correction' ||
-      (/Bind the planning contract/i.test(payload.scope) && /canonical repository/i.test(payload.scope) &&
-       /protected branch/i.test(payload.scope) && /preserve/i.test(payload.scope))
+      (Boolean(payload.scope && /Bind the planning contract/i.test(payload.scope) && /canonical repository/i.test(payload.scope) &&
+       /protected branch/i.test(payload.scope) && /preserve/i.test(payload.scope)))
     if (!correctionScope) {
       return { ok: false, errors: ['STATE CONFLICT: HANDOFF Scope does not describe the authorized correction scope'] }
     }
-    if (payload.exact_reviewed_head !== authorization.reviewed_head) {
+    if (payload.exact_reviewed_head !== readLegacyField(authorizationValue, 'reviewed_head')) {
       return { ok: false, errors: ['STATE CONFLICT: HANDOFF exact head does not match the historical Review 3 authorization'] }
     }
-    if (JSON.stringify(payload.findings) !== JSON.stringify(authorization.finding_ids)) {
+    if (JSON.stringify(payload.findings) !== JSON.stringify(readLegacyField(authorizationValue, 'finding_ids'))) {
       return { ok: false, errors: ['STATE CONFLICT: HANDOFF finding set does not match the exact historical authorization finding set'] }
     }
     if (payload.review_4_prohibition !== true) {
       return { ok: false, errors: ['STATE CONFLICT: HANDOFF does not preserve the Review 4 prohibition'] }
     }
 
-    if (s8) {
-      if (s8.historical_authorization_id !== payload.authorization_id) {
+    if (s8Value) {
+      if (readLegacyField(s8Value, 'historical_authorization_id') !== payload.authorization_id) {
         return { ok: false, errors: ['STATE CONFLICT: authorization snapshot authority does not match HANDOFF Founder-authorized phase'] }
       }
-      if (s8.historical_reviewed_head !== payload.exact_reviewed_head) {
+      if (readLegacyField(s8Value, 'historical_reviewed_head') !== payload.exact_reviewed_head) {
         return { ok: false, errors: ['STATE CONFLICT: authorization snapshot review number does not match Review 3 HANDOFF'] }
       }
-      if (s8.historical_action !== authorization.action) {
+      if (readLegacyField(s8Value, 'historical_action') !== readLegacyField(authorizationValue, 'action')) {
         return { ok: false, errors: ['STATE CONFLICT: authorization snapshot action does not match Founder-approved migration'] }
       }
-      if (s8.historical_authorized_at !== authorization.authorized_at) {
+      if (readLegacyField(s8Value, 'historical_authorized_at') !== readLegacyField(authorizationValue, 'authorized_at')) {
         return { ok: false, errors: ['STATE CONFLICT: authorization snapshot timestamp does not match Founder-approved migration'] }
       }
     }
@@ -308,29 +344,29 @@ export function verifyReviewThreeCorrectionAuthorization({
     }
 
     const expectedSnapshot = {
-      authorization_id: authorization.authorization_id,
+      authorization_id: readLegacyField(authorizationValue, 'authorization_id'),
       authority: 'Founder',
       status: 'authorized',
-      action: authorization.action,
-      authorized_at: authorization.authorized_at,
+      action: readLegacyField(authorizationValue, 'action'),
+      authorized_at: readLegacyField(authorizationValue, 'authorized_at'),
       scope: 'correction',
       for_review_number: 3,
-      reviewed_head: authorization.reviewed_head,
-      finding_ids: authorization.finding_ids,
+      reviewed_head: readLegacyField(authorizationValue, 'reviewed_head'),
+      finding_ids: readLegacyField(authorizationValue, 'finding_ids'),
     }
     if (JSON.stringify(binding.authorization_snapshot) !== JSON.stringify(expectedSnapshot)) {
       return { ok: false, errors: ['STATE CONFLICT: authorization snapshot does not match the complete historical Founder authorization'] }
     }
     const expectedBindingFields = {
-      authorization_id: authorization.authorization_id,
+      authorization_id: readLegacyField(authorizationValue, 'authorization_id'),
       target: payload.target,
       active_pr: state.active_pr,
-      exact_head: authorization.reviewed_head,
-      correction_base: authorization.reviewed_head,
+      exact_head: readLegacyField(authorizationValue, 'reviewed_head'),
+      correction_base: readLegacyField(authorizationValue, 'reviewed_head'),
       review_number: 3,
       scope: 'correction',
-      finding_ids: authorization.finding_ids,
-      handoff_comment_id: String(authorization.handoff_comment_id),
+      finding_ids: readLegacyField(authorizationValue, 'finding_ids'),
+      handoff_comment_id: String(readLegacyField(authorizationValue, 'handoff_comment_id')),
     }
     for (const [key, value] of Object.entries(expectedBindingFields)) {
       if (JSON.stringify(binding[key]) !== JSON.stringify(value)) {

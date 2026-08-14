@@ -54,6 +54,7 @@ describe('Cluster E characterization (issue #333) — current-post-budget-author
     const ok = validatePinnedFounderDecision({
       authority,
       source: {
+        ok: true as const,
         comment: {
           id: '9001',
           html_url: 'https://github.com/boat1994/test/issues/92#issuecomment-9001',
@@ -72,6 +73,7 @@ describe('Cluster E characterization (issue #333) — current-post-budget-author
     const badHash = validatePinnedFounderDecision({
       authority: { ...authority, content_sha256: 'f'.repeat(64) },
       source: {
+        ok: true as const,
         comment: {
           id: '9001',
           html_url: 'https://github.com/boat1994/test/issues/92#issuecomment-9001',
