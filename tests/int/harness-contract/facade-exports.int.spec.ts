@@ -128,7 +128,13 @@ describe('harness-contract facade exports', () => {
         ).toBe(false)
 
         if (normalized.startsWith('scripts/harness-contract/')) {
-          edges.push(`${modulePath} -> ${normalized}`)
+          const facadeReExport =
+            modulePath.endsWith('.mjs') &&
+            normalized.endsWith('.ts') &&
+            modulePath.slice(0, -4) === normalized.slice(0, -3)
+          if (!facadeReExport) {
+            edges.push(`${modulePath} -> ${normalized}`)
+          }
         } else {
           expect.fail(`${modulePath} must not import outside harness-contract: ${specifier}`)
         }
