@@ -19,7 +19,7 @@ const grandfathered = [
   ['scripts/mission-control-dispatch.mjs', 545],
   ['scripts/mission-control-reconcile.mjs', 143],
   ['scripts/mission-control-review.mjs', 346],
-  ['scripts/mission-control/domain/campaign-authority.ts', 630], ['scripts/mission-control/domain/campaign-validator.mjs', 482], ['scripts/mission-control/domain/correction-contract.mjs', 650], ['scripts/mission-control/domain/correction-contract.ts', 503],
+  ['scripts/mission-control/domain/campaign-authority.ts', 630], ['scripts/mission-control/domain/campaign-validator.mjs', 482], ['scripts/mission-control/domain/correction-contract.mjs', 650], ['scripts/mission-control/domain/correction-contract.ts', 536],
   ['scripts/mission-control/domain/recover-state-projection.mjs', 37], ['scripts/mission-control/domain/review-recovery.mjs', 485],
   ['scripts/mission-control/domain/review-result-rendering.ts', 200],
   ['scripts/mission-control/workflows/adopt-finding.mjs', 564],

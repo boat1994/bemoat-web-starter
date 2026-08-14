@@ -697,6 +697,31 @@ describe('correction-contract pure module', () => {
     expect(parseReviewVerdictContractFindings(null, 'OTHER')).toEqual({ ok: true, findings: [] })
   })
 
+  it('forwards validateFindingEvidence options unchanged to preserve legacy result checks', () => {
+    const contract = parseCorrectionContract(verdictBody()).contract
+    const options = { body: '**AC audit:** Done\n', mode: 'implementation_pr' }
+    const result = validateFindingEvidence(contract, {
+      finding_results: {
+        'MC-R1-001': { changed_files: [], tests: [], status: 'UNPROVEN' },
+        'MC-R1-002': { changed_files: [], tests: [], status: 'UNPROVEN' },
+      },
+    }, [], options)
+
+    expect(result.ok).toBe(false)
+    expect(result.errors).toContain('unsupported free-form Done claim conflicts with UNPROVEN finding evidence')
+    expect(() => validateFindingEvidence(contract, evidenceMap(), [], null)).toThrow(TypeError)
+  })
+
+  it('preserves direct scope method boundaries for malformed findings and prohibited areas', () => {
+    const contract = parseCorrectionContract(verdictBody()).contract
+
+    expect(() => validateCorrectionScope({ ...contract, findings: 'legacy-string' }, [])).toThrow(TypeError)
+    expect(() => validateCorrectionScope({
+      ...contract,
+      findings: [{ ...contract.findings[0], prohibited_areas: 'legacy-string' }],
+    }, ['src/private/file.ts'])).toThrow(TypeError)
+  })
+
   it('does not bind correction identity to issue, PR, base SHA, or source-thread metadata', () => {
     const canonical = parseCorrectionContract(verdictBody()).contract
     const candidate = {

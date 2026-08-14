@@ -106,11 +106,44 @@ function isRuntimeObject(value: unknown): value is RuntimeObject {
 
 function readProperty(value: unknown, key: string): unknown {
   if (value === null || value === undefined) return undefined
-  return (value as RuntimeObject)[key]
+  return Reflect.get(Object(value), key)
 }
 
 function directProperty(value: unknown, key: string): unknown {
-  return (value as RuntimeObject)[key]
+  if (value === null || value === undefined) throw new TypeError(`Cannot read properties of ${value}`)
+  return Reflect.get(Object(value), key)
+}
+
+function requireArray(value: unknown, operation: string): unknown[] {
+  if (!Array.isArray(value)) throw new TypeError(`${operation} is not a function`)
+  return value
+}
+
+function optionalArray(value: unknown, operation: string): unknown[] | undefined {
+  if (value === null || value === undefined) return undefined
+  return requireArray(value, operation)
+}
+
+type LegacyIterable = Iterable<unknown> & { length?: unknown }
+
+function isIterable(value: unknown): value is LegacyIterable {
+  if (value === null || value === undefined) return false
+  return typeof Reflect.get(Object(value), Symbol.iterator) === 'function'
+}
+
+function legacyIterable(value: unknown, fallback?: LegacyIterable): LegacyIterable {
+  if (value === null || value === undefined) {
+    if (fallback !== undefined) return fallback
+    throw new TypeError('value is not iterable')
+  }
+  if (isIterable(value)) return value
+  throw new TypeError('value is not iterable')
+}
+
+function legacyLength(value: LegacyIterable): number {
+  const length = value.length
+  if (typeof length !== 'number') throw new TypeError('findings.length is not a number')
+  return length
 }
 
 function requireText(value: unknown): string {
@@ -279,16 +312,16 @@ export function validateFindingIdentity(canonical: unknown, candidate: unknown):
   const canonicalFindings = readProperty(canonical, 'findings')
   const candidateFindings = readProperty(candidate, 'findings')
   if (!canonicalFindings || !candidateFindings) return { ok: false, errors: ['canonical and candidate findings are required'] }
-  const canonicalIds = (canonicalFindings as unknown[]).map((finding) => directProperty(finding, 'id'))
-  const candidateIds = (candidateFindings as unknown[]).map((finding) => directProperty(finding, 'id'))
+  const canonicalIds = requireArray(canonicalFindings, 'findings.map').map((finding) => directProperty(finding, 'id'))
+  const candidateIds = requireArray(candidateFindings, 'findings.map').map((finding) => directProperty(finding, 'id'))
   const canonicalSet = new Set(canonicalIds)
   const candidateSet = new Set(candidateIds)
   const errors: string[] = []
   for (const id of candidateIds) if (!canonicalSet.has(id)) errors.push(`unknown or substituted finding id: ${id}`)
   for (const id of canonicalIds) if (!candidateSet.has(id)) errors.push(`omitted finding id: ${id}`)
   if (canonicalIds.length !== candidateIds.length) errors.push('finding set size changed by rename, addition, or omission')
-  const candidateById = new Map((candidateFindings as unknown[]).map((finding) => [directProperty(finding, 'id'), finding]))
-  for (const finding of canonicalFindings as unknown[]) {
+  const candidateById = new Map(requireArray(candidateFindings, 'findings.map').map((finding) => [directProperty(finding, 'id'), finding]))
+  for (const finding of requireArray(canonicalFindings, 'findings.map')) {
     const match = candidateById.get(directProperty(finding, 'id'))
     if (!match) continue
     if (directProperty(match, 'canonical_summary') !== directProperty(finding, 'canonical_summary')) {
@@ -300,7 +333,8 @@ export function validateFindingIdentity(canonical: unknown, candidate: unknown):
 
 export function buildCorrectionCapsule(contract: unknown, meta: unknown = {}): { lines: string[]; playbackLine: string; findingCount: number } {
   const findingsValue = readProperty(contract, 'findings')
-  const findings = (findingsValue ?? []) as unknown[]
+  const findings = legacyIterable(findingsValue, [])
+  const findingCount = legacyLength(findings)
   const mode = directProperty(meta, 'mode') ?? readProperty(contract, 'mode') ?? 'implementation_pr'
   const issueNumber = directProperty(meta, 'issueNumber')
   const prUrl = directProperty(meta, 'prUrl')
@@ -311,9 +345,9 @@ export function buildCorrectionCapsule(contract: unknown, meta: unknown = {}): {
     const id = directProperty(finding, 'id')
     const summary = directProperty(finding, 'canonical_summary')
     const sourceThread = directProperty(finding, 'source_thread')
-    const evidence = directProperty(finding, 'required_evidence') as string[]
-    const expected = directProperty(finding, 'expected_areas') as string[] | undefined
-    const prohibited = directProperty(finding, 'prohibited_areas') as string[] | undefined
+    const evidence = requireArray(directProperty(finding, 'required_evidence'), 'required_evidence.join')
+    const expected = optionalArray(directProperty(finding, 'expected_areas'), 'expected_areas.join')
+    const prohibited = optionalArray(directProperty(finding, 'prohibited_areas'), 'prohibited_areas.join')
     lines.push(`- ${id}: ${summary}`, `  source_thread: ${sourceThread}`, `  required_evidence: ${evidence.join('; ')}`)
     if (expected?.length) lines.push(`  expected_areas: ${expected.join('; ')}`)
     if (mode === 'planning_no_pr') {
@@ -327,17 +361,19 @@ export function buildCorrectionCapsule(contract: unknown, meta: unknown = {}): {
     lines.push(`Authorized scope: only the immutable finding set above within canonical planning artifacts (${allowlist.length ? allowlist.join('; ') : 'expected_areas required'})`)
   } else lines.push('Authorized scope: only the immutable finding set above')
   lines.push('Stop conditions: missing/malformed/conflicting findings; identity drift; incomplete evidence map', 'Thread ownership: Delta Reviewer resolves original review threads after corrected exact-head CI')
-  const playbackLine = `Playback verified: ${findings.length}/${findings.length} canonical findings`
+  const playbackLine = `Playback verified: ${findingCount}/${findingCount} canonical findings`
   lines.push(playbackLine)
-  return { lines, playbackLine, findingCount: findings.length }
+  return { lines, playbackLine, findingCount }
 }
 
 export function derivePlanningArtifactAllowlist(contract: unknown): string[] {
   const allowlist = new Set<string>()
   const findings = readProperty(contract, 'findings')
-  for (const finding of (findings ?? []) as unknown[]) {
-    const areas = directProperty(finding, 'expected_areas') as unknown[] | undefined
-    for (const area of areas ?? []) { const trimmed = typeof area === 'string' ? area.trim() : ''; if (trimmed) allowlist.add(trimmed) }
+  for (const finding of legacyIterable(findings, [])) {
+    for (const area of legacyIterable(directProperty(finding, 'expected_areas'), [])) {
+      const trimmed = typeof area === 'string' ? area.trim() : ''
+      if (trimmed) allowlist.add(trimmed)
+    }
   }
   return [...allowlist]
 }
@@ -358,7 +394,7 @@ function pathMatchesProhibitedArea(area: string, filePath: string): boolean {
 
 export function validateFindingEvidence(contract: unknown, result: unknown, diffFiles: unknown = [], options: unknown = {}): ValidationResult {
   const findings = readProperty(contract, 'findings')
-  if (!(findings as { length?: unknown } | undefined)?.length) return { ok: false, errors: ['correction contract findings are required'] }
+  if (!readProperty(findings, 'length')) return { ok: false, errors: ['correction contract findings are required'] }
   const findingResults = readProperty(result, 'finding_results')
   if (!findingResults || typeof findingResults !== 'object') return { ok: false, errors: ['finding_results are required'] }
   const errors: string[] = []
@@ -366,7 +402,7 @@ export function validateFindingEvidence(contract: unknown, result: unknown, diff
   const reviewedHead = readProperty(contract, 'reviewed_head')
   if (typeof correctionBase === 'string' && correctionBase.trim() && correctionBase.trim() !== reviewedHead) errors.push('correction_base must match reviewed_head')
   const resultIds = Object.keys(findingResults)
-  const findingList = findings as RuntimeObject[]
+  const findingList = requireArray(findings, 'findings.find')
   const identity = validateFindingIdentity({ findings }, {
     findings: resultIds.map((id) => ({
       id,
@@ -374,8 +410,8 @@ export function validateFindingEvidence(contract: unknown, result: unknown, diff
     })),
   })
   if (!identity.ok) errors.push(...identity.errors)
-  const diffList = diffFiles as string[]
-  const scopeCheck = validateCorrectionScope(contract, diffList, { mode: readProperty(options, 'mode') ?? readProperty(contract, 'mode') })
+  const diffList = legacyIterable(diffFiles)
+  const scopeCheck = validateCorrectionScope(contract, diffList, options)
   if (!scopeCheck.ok) errors.push(...scopeCheck.errors)
   const diffSet = new Set(diffList)
   for (const finding of findingList) {
@@ -479,13 +515,14 @@ export function validateCorrectionScope(contract: unknown, diffFiles: unknown = 
   const errors: string[] = []
   const mode = directProperty(options, 'mode') ?? readProperty(contract, 'mode') ?? 'implementation_pr'
   const findings = readProperty(contract, 'findings')
-  const prohibited: string[] = []
-  if (findings != null) for (const finding of findings as unknown[]) {
-    const areas = directProperty(finding, 'prohibited_areas') as unknown[] | undefined
-    if (areas != null) prohibited.push(...areas.filter((area): area is string => typeof area === 'string'))
-  }
+  const prohibited = findings == null ? [] : requireArray(findings, 'findings.flatMap').flatMap((finding) => {
+    const areas = directProperty(finding, 'prohibited_areas')
+    return areas == null
+      ? []
+      : requireArray(areas, 'prohibited_areas.filter').filter((area): area is string => typeof area === 'string')
+  })
   const planningAllowlist = mode === 'planning_no_pr' ? derivePlanningArtifactAllowlist(contract) : []
-  for (const filePath of diffFiles as string[]) {
+  for (const filePath of legacyIterable(diffFiles)) {
     if (typeof filePath !== 'string') continue
     if (mode === 'planning_no_pr') {
       if (planningAllowlist.length === 0) { errors.push('planning_no_pr correction requires at least one expected_areas entry in the immutable finding contract'); continue }
