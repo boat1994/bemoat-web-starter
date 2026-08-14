@@ -1,3 +1,5 @@
+import { z } from 'zod'
+
 export const POSITIVE_INTEGER_RE = /^[1-9]\d*$/
 export const REPOSITORY_RE = /^[^/\s:]+\/[^/\s:]+$/
 export const FULL_SHA_RE = /^[0-9a-f]{40}$/i
@@ -49,9 +51,51 @@ export type ParsedInvocation =
       contract: CommandContract
     }
 
+export const argvBoundarySchema = z.array(z.string())
+
 export function parseArgvBoundary(argv: unknown): string[] | null {
-  if (!Array.isArray(argv) || argv.some((argument) => typeof argument !== 'string')) {
-    return null
+  const result = argvBoundarySchema.safeParse(argv)
+  return result.success ? result.data : null
+}
+
+export const resolveCommandIdentityInputSchema = z.object({
+  fallback: z.unknown(),
+  env: z.record(z.string(), z.unknown()).optional(),
+  entrypoint: z.unknown().optional(),
+})
+
+export type ResolveCommandIdentityInput = z.infer<typeof resolveCommandIdentityInputSchema>
+
+export function parseResolveCommandIdentityInput(input: unknown): ResolveCommandIdentityInput {
+  const result = resolveCommandIdentityInputSchema.safeParse(input)
+  if (!result.success) {
+    if (input && typeof input === 'object' && !Array.isArray(input)) {
+      const source = input as ResolveCommandIdentityInput
+      return {
+        fallback: source.fallback,
+        env: source.env,
+        entrypoint: source.entrypoint,
+      }
+    }
+    return { fallback: undefined as unknown as string }
   }
-  return argv
+  return result.data
+}
+
+export const parseCommandInvocationBoundarySchema = z.object({
+  command: z.unknown(),
+  argv: z.unknown().optional(),
+})
+
+export type ParseCommandInvocationBoundary = z.infer<typeof parseCommandInvocationBoundarySchema>
+
+export function parseCommandInvocationBoundary(
+  command: unknown,
+  argv: unknown = [],
+): ParseCommandInvocationBoundary {
+  const result = parseCommandInvocationBoundarySchema.safeParse({ command, argv })
+  if (!result.success) {
+    return { command, argv }
+  }
+  return result.data
 }

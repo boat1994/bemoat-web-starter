@@ -1,3 +1,7 @@
+import { z } from 'zod'
+
+import { getCommandContract } from './command-contract.mjs'
+
 export const CLI_EXIT_CODES = Object.freeze({
   HELP: 0,
   SUCCESS: 0,
@@ -74,22 +78,274 @@ export type ResultEnvelopeV1 = {
   details: Record<string, unknown>
 }
 
-export type DelegatedFailureInput = {
-  command?: string
-  stdout?: string
-  stderr?: string
-  error?: { message?: string } | null
+export const delegatedFailureInputSchema = z.looseObject({
+  command: z.unknown().optional(),
+  stdout: z.unknown().optional(),
+  stderr: z.unknown().optional(),
+  error: z.unknown().optional(),
+})
+
+export type DelegatedFailureInput = z.infer<typeof delegatedFailureInputSchema>
+
+export const createResultInputSchema = z.looseObject({
+  command: z.unknown().optional(),
+  outcome: z.unknown().optional(),
+  classification: z.unknown().optional(),
+  mutation_performed: z.unknown().optional(),
+  observed_pre_state: z.unknown().optional(),
+  resulting_state: z.unknown().optional(),
+  repository: z.unknown().optional(),
+  issue_number: z.unknown().optional(),
+  pr_number: z.unknown().optional(),
+  exact_head: z.unknown().optional(),
+  evidence_ids: z.unknown().optional(),
+  next_action: z.unknown().optional(),
+  details: z.unknown().optional(),
+})
+
+export type CreateResultInput = z.infer<typeof createResultInputSchema>
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
+  const prototype = Object.getPrototypeOf(value)
+  return prototype === Object.prototype || prototype === null
+}
+
+function exactKeys(value: Record<string, unknown>, expected: readonly string[]): boolean {
+  return Object.keys(value).sort().join('\u0000') === [...expected].sort().join('\u0000')
+}
+
+function typeError(message: string): never {
+  throw new TypeError(message)
+}
+
+export function throwTypeErrorFromZod(error: z.ZodError): never {
+  const message = error.issues[0]?.message
+  typeError(message ?? 'validation failed')
+}
+
+function assertNullableString(value: unknown, field: string): void {
+  if (value !== null && (typeof value !== 'string' || value.trim() === '')) {
+    typeError(`${field} must be a non-empty string or null`)
+  }
+}
+
+function assertPositiveInteger(value: unknown, field: string): void {
+  if (value === null) return
+  if (typeof value !== 'string' || !POSITIVE_INTEGER_RE.test(value)) {
+    typeError(`${field} must be a canonical positive integer string or null`)
+  }
+  try {
+    if (BigInt(value) > BigInt(Number.MAX_SAFE_INTEGER)) {
+      typeError(`${field} exceeds JavaScript safe integer range`)
+    }
+  } catch {
+    typeError(`${field} must be a canonical positive integer string or null`)
+  }
+}
+
+function assertRepository(value: unknown): void {
+  if (value !== null && (
+    typeof value !== 'string' ||
+    !REPOSITORY_RE.test(value) ||
+    value !== value.toLowerCase()
+  )) {
+    typeError('repository must be a lowercase owner/repository string or null')
+  }
+}
+
+function assertExactHead(value: unknown): void {
+  if (value !== null && (
+    typeof value !== 'string' ||
+    !FULL_SHA_RE.test(value)
+  )) {
+    typeError('exact_head must be a lowercase full SHA or null')
+  }
+}
+
+function assertEvidenceIds(value: unknown): void {
+  if (!isRecord(value)) typeError('evidence_ids must be an object')
+  for (const [key, evidenceId] of Object.entries(value)) {
+    if (key.trim() === '' || typeof evidenceId !== 'string' || evidenceId.trim() === '') {
+      typeError('evidence_ids must contain non-empty string values')
+    }
+  }
+}
+
+function assertNextAction(value: unknown): asserts value is NextAction {
+  if (!isRecord(value) || !exactKeys(value, NEXT_ACTION_KEYS)) {
+    typeError('next_action must contain exactly type, command, and reason')
+  }
+  if (!NEXT_ACTION_TYPES.has(value.type as NextAction['type'])) {
+    typeError(`next_action.type is invalid: ${String(value.type)}`)
+  }
+  if (typeof value.reason !== 'string' || value.reason.trim() === '') {
+    typeError('next_action.reason must be a non-empty string')
+  }
+
+  if (value.type === 'COMMAND') {
+    if (
+      typeof value.command !== 'string' ||
+      getCommandContract(value.command) === null
+    ) {
+      typeError('next_action.command must be a registered command')
+    }
+    return
+  }
+
+  if (value.command !== null) {
+    typeError('next_action.command must be null for a non-command action')
+  }
+}
+
+export function validateResultEnvelopeV1Shape(value: unknown): Record<string, unknown> {
+  if (!isRecord(value) || !exactKeys(value, RESULT_KEYS)) {
+    typeError('result envelope must contain exactly the schema-v1 result fields')
+  }
+
+  if (value.schema_version !== 1) typeError('result schema_version must be 1')
+  if (typeof value.command !== 'string' || getCommandContract(value.command) === null) {
+    typeError('result command must be a registered command')
+  }
+  if (value.mode !== 'result') typeError('result mode must be result')
+  if (!RESULT_OUTCOMES.has(value.outcome as ResultOutcome)) {
+    typeError(`result outcome is invalid: ${String(value.outcome)}`)
+  }
+  if (!RESULT_CLASSIFICATIONS.has(value.classification as Exclude<CliClassification, 'HELP'>)) {
+    typeError(`result classification is invalid: ${String(value.classification)}`)
+  }
+  if (typeof value.mutation_performed !== 'boolean') {
+    typeError('mutation_performed must be boolean')
+  }
+
+  for (const field of [
+    'observed_pre_state',
+    'resulting_state',
+  ] as const) {
+    assertNullableString(value[field], field)
+  }
+  assertRepository(value.repository)
+  assertPositiveInteger(value.issue_number, 'issue_number')
+  assertPositiveInteger(value.pr_number, 'pr_number')
+  assertExactHead(value.exact_head)
+  assertEvidenceIds(value.evidence_ids)
+  assertNextAction(value.next_action)
+  if (!isRecord(value.details)) typeError('details must be an object')
+
+  return value
+}
+
+export const resultEnvelopeV1Schema = z.unknown().superRefine((value, context) => {
+  try {
+    validateResultEnvelopeV1Shape(value)
+  } catch (error) {
+    if (error instanceof TypeError) {
+      context.addIssue({
+        code: 'custom',
+        message: error.message,
+      })
+      return
+    }
+    throw error
+  }
+})
+
+export function normalizePositiveInteger(value: unknown, field: string): string | null {
+  if (value === null) return null
+  if (typeof value !== 'string' || !POSITIVE_INTEGER_RE.test(value)) {
+    typeError(`${field} must be a positive integer string or null`)
+  }
+  try {
+    const integer = BigInt(value)
+    if (integer > BigInt(Number.MAX_SAFE_INTEGER)) {
+      typeError(`${field} exceeds JavaScript safe integer range`)
+    }
+    return integer.toString()
+  } catch {
+    typeError(`${field} must be a positive integer string or null`)
+  }
+}
+
+export function normalizeRepository(value: unknown): string | null {
+  if (value === null) return null
+  if (
+    typeof value !== 'string' ||
+    value.trim() === '' ||
+    !REPOSITORY_RE.test(value)
+  ) {
+    typeError('repository must use owner/repository form or null')
+  }
+  return value.toLowerCase()
+}
+
+export function normalizeExactHead(value: unknown): string | null {
+  if (value === null) return null
+  if (typeof value !== 'string' || !FULL_SHA_INPUT_RE.test(value)) {
+    typeError('exact_head must be a full 40-character SHA or null')
+  }
+  return value.toLowerCase()
+}
+
+export function normalizeCommonValue(field: string, value: unknown): string | null {
+  if (value === undefined) return null
+  if (field === 'repository') return normalizeRepository(value)
+  if (field === 'issue_number' || field === 'pr_number') {
+    return normalizePositiveInteger(value, field)
+  }
+  if (field === 'exact_head') return normalizeExactHead(value)
+  if (value !== null && (typeof value !== 'string' || value.trim() === '')) {
+    typeError(`${field} must be a non-empty string or null`)
+  }
+  return value as string | null
 }
 
 export function parseDelegatedFailureInput(
-  input: DelegatedFailureInput = {},
+  input: unknown = {},
 ): Required<Pick<DelegatedFailureInput, 'command' | 'stdout' | 'stderr'>> & {
   error: { message?: string } | null
 } {
+  if (input === undefined) {
+    input = {}
+  }
+
+  const parsed = delegatedFailureInputSchema.safeParse(input)
+  const source = parsed.success
+    ? parsed.data
+    : (input as DelegatedFailureInput)
+
   return {
-    command: input.command ?? '',
-    stdout: input.stdout ?? '',
-    stderr: input.stderr ?? '',
-    error: input.error ?? null,
+    command: (source.command ?? '') as string,
+    stdout: (source.stdout ?? '') as string,
+    stderr: (source.stderr ?? '') as string,
+    error: source.error === undefined
+      ? null
+      : (source.error as { message?: string } | null),
+  }
+}
+
+export function parseCreateResultInput(input: unknown = {}): CreateResultInput {
+  if (input === undefined) {
+    input = {}
+  }
+
+  const parsed = createResultInputSchema.safeParse(input)
+  const source = parsed.success
+    ? parsed.data
+    : (input as CreateResultInput)
+
+  return {
+    command: source.command,
+    outcome: source.outcome,
+    classification: source.classification,
+    mutation_performed: source.mutation_performed,
+    observed_pre_state: source.observed_pre_state,
+    resulting_state: source.resulting_state,
+    repository: source.repository,
+    issue_number: source.issue_number,
+    pr_number: source.pr_number,
+    exact_head: source.exact_head,
+    evidence_ids: source.evidence_ids,
+    next_action: source.next_action,
+    details: source.details,
   }
 }

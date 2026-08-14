@@ -1,5 +1,7 @@
 import { resolve } from 'node:path'
 
+import { z } from 'zod'
+
 import { getCommandContract } from './command-contract.mjs'
 import {
   EXCLUSIVE_INPUTS,
@@ -9,6 +11,8 @@ import {
   POSITIVE_INTEGER_RE,
   REPOSITORY_RE,
   parseArgvBoundary,
+  parseCommandInvocationBoundary,
+  parseResolveCommandIdentityInput,
   type CommandContract,
   type CommandInput,
   type ParsedInvocation,
@@ -40,15 +44,30 @@ function invalidInvocation(argument: string | null, reason: string): never {
 }
 
 function registeredContract(command: unknown, argument: unknown = command): CommandContract {
-  if (typeof command !== 'string' || command.trim() === '') {
-    invalidInvocation(typeof argument === 'string' ? argument : null, 'command identity is required')
+  const schema = z.unknown().superRefine((value, context) => {
+    if (typeof value !== 'string' || value.trim() === '') {
+      context.addIssue({
+        code: 'custom',
+        message: 'command identity is required',
+      })
+      return
+    }
+    if (getCommandContract(value) === null) {
+      context.addIssue({
+        code: 'custom',
+        message: `command is not registered: ${value}`,
+      })
+    }
+  })
+  const result = schema.safeParse(command)
+  if (!result.success) {
+    invalidInvocation(
+      typeof argument === 'string' ? argument : null,
+      result.error.issues[0]?.message ?? 'command identity is required',
+    )
   }
 
-  const contract = getCommandContract(command) as CommandContract | null
-  if (contract === null) {
-    invalidInvocation(command, `command is not registered: ${command}`)
-  }
-  return contract
+  return getCommandContract(command as string) as CommandContract
 }
 
 function commandEntrypointMatches(expected: unknown, actual: unknown): boolean {
@@ -62,16 +81,19 @@ function commandEntrypointMatches(expected: unknown, actual: unknown): boolean {
   }
 }
 
-export function resolveCommandIdentity({
-  fallback,
-  env = process.env,
-  entrypoint,
-}: {
+export function resolveCommandIdentity(input: {
   fallback: string
   env?: Record<string, string | undefined>
   entrypoint?: string
 }): string {
-  const fallbackContract = registeredContract(fallback)
+  const {
+    fallback: fallbackInput,
+    env: envInput = process.env,
+    entrypoint,
+  } = parseResolveCommandIdentityInput(input)
+  const fallbackContract = registeredContract(fallbackInput)
+  const fallback = fallbackInput as string
+  const env = envInput as Record<string, unknown>
   const actualEntrypoint = entrypoint ?? fallbackContract.entrypoint
 
   if (typeof actualEntrypoint !== 'string' || actualEntrypoint.trim() === '') {
@@ -212,8 +234,9 @@ type RawFlagValue =
     }
 
 export function parseCommandInvocation(command: string, argv: string[] = []): ParsedInvocation {
-  const contract = registeredContract(command)
-  const tokens = normalizeArgv(argv)
+  const boundary = parseCommandInvocationBoundary(command, argv)
+  const contract = registeredContract(boundary.command)
+  const tokens = normalizeArgv(boundary.argv)
   const helpArguments = tokens.filter((argument) => HELP_ARGUMENTS.has(argument))
   const jsonArguments = tokens.filter((argument) => argument === JSON_ARGUMENT)
 

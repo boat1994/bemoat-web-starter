@@ -1,4 +1,11 @@
+import { z } from 'zod'
+
 import { getCommandContract } from './command-contract.mjs'
+import {
+  parseCommandHelpArgv,
+  parseFacadeIdentityEnv,
+  parseHelpContractInput,
+} from './command-help-schemas.ts'
 import {
   CliInvocationError,
   parseCommandInvocation,
@@ -12,13 +19,23 @@ import {
 import type { CommandContract } from './command-invocation-schemas.ts'
 
 function registeredContract(contract: unknown): CommandContract {
-  if (
-    typeof contract !== 'object' ||
-    contract === null ||
-    typeof (contract as CommandContract).command !== 'string' ||
-    getCommandContract((contract as CommandContract).command) === null
-  ) {
-    throw new TypeError('help requires a registered command contract')
+  const schema = z.unknown().superRefine((value, context) => {
+    const parsed = parseHelpContractInput(value)
+    if (
+      typeof value !== 'object' ||
+      value === null ||
+      typeof parsed.command !== 'string' ||
+      getCommandContract(parsed.command) === null
+    ) {
+      context.addIssue({
+        code: 'custom',
+        message: 'help requires a registered command contract',
+      })
+    }
+  })
+  const result = schema.safeParse(contract)
+  if (!result.success) {
+    throw new TypeError(result.error.issues[0]?.message ?? 'help requires a registered command contract')
   }
   return contract as CommandContract
 }
@@ -228,8 +245,9 @@ export function formatTextHelp(inputContract: Record<string, unknown>): string {
   return `${lines.join('\n')}\n`
 }
 
-function directHelpRequest(argv: string[]): { command: string; argv: string[] } {
-  const [requestedCommand, ...commandArgv] = argv
+function directHelpRequest(argv: unknown): { command: string; argv: string[] } {
+  const validatedArgv = parseCommandHelpArgv(argv)
+  const [requestedCommand, ...commandArgv] = validatedArgv
   if (
     typeof requestedCommand !== 'string' ||
     requestedCommand.startsWith('-')
@@ -251,9 +269,10 @@ function directHelpRequest(argv: string[]): { command: string; argv: string[] } 
   }
 }
 
-function validateRunningFacadeIdentity(env: Record<string, string | undefined>): void {
-  const facadeCommand = env?.BEMOAT_FACADE_COMMAND
-  const facadeEntrypoint = env?.BEMOAT_FACADE_ENTRYPOINT
+function validateRunningFacadeIdentity(env: unknown): void {
+  const validatedEnv = parseFacadeIdentityEnv(env)
+  const facadeCommand = validatedEnv?.BEMOAT_FACADE_COMMAND
+  const facadeEntrypoint = validatedEnv?.BEMOAT_FACADE_ENTRYPOINT
   if (facadeCommand === undefined && facadeEntrypoint === undefined) return
   if (typeof facadeCommand !== 'string' || facadeCommand.trim() === '') {
     throw new CliInvocationError(
@@ -265,7 +284,7 @@ function validateRunningFacadeIdentity(env: Record<string, string | undefined>):
   const facadeContract = getCommandContract(facadeCommand) as CommandContract | null
   resolveCommandIdentity({
     fallback: facadeCommand,
-    env,
+    env: validatedEnv,
     entrypoint: facadeEntrypoint ?? facadeContract?.entrypoint,
   })
 }
@@ -331,10 +350,11 @@ function renderError({
 export function runCommandHelpMain(argv: string[] = process.argv.slice(2)): number {
   let command: string | null = null
   let classification: keyof typeof CLI_EXIT_CODES = 'HELP'
-  const json = argv.includes('--json')
+  const validatedArgv = parseCommandHelpArgv(argv)
+  const json = validatedArgv.includes('--json')
 
   try {
-    const request = directHelpRequest(argv)
+    const request = directHelpRequest(validatedArgv)
     command = request.command
     validateRunningFacadeIdentity(process.env)
     const invocation = parseCommandInvocation(command, request.argv)
