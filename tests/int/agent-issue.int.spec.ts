@@ -5513,6 +5513,18 @@ describe('Cluster A characterization (issue #333)', () => {
 
     expect(() =>
       analyzeExactHeadCi({
+        headRefOid: '1111111111111111111111111111111111111111',
+        statusCheckRollup: [
+          {
+            state: 'SUCCESS',
+            description: 42,
+          },
+        ],
+      }),
+    ).toThrow(TypeError)
+
+    expect(() =>
+      analyzeExactHeadCi({
         headRefOid: 12345,
         statusCheckRollup: [{ state: 'SUCCESS' }],
       }),

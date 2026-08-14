@@ -128,10 +128,12 @@ export function analyzeExactHeadCi(pr: PullRequestCiInput | null | undefined): E
     anySuccess &&
     (usesProductionRollup || explicitHeadMatch)
 
+  const description = latestSuccessful?.description
   const ciSha =
-    (typeof latestSuccessful?.description === 'string'
-      ? latestSuccessful.description.match(/\b[a-f0-9]{7,40}\b/i)?.[0]
-      : undefined) ?? headSha
+    (description == null
+      ? undefined
+      : // @ts-expect-error legacy optional-call semantics invoke .match on non-nullish description
+        description.match(/\b[a-f0-9]{7,40}\b/i)?.[0]) ?? headSha
 
   return {
     available: true,
