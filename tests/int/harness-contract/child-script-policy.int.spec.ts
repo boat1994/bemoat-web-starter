@@ -142,4 +142,82 @@ describe('harness-contract child-script-policy', () => {
       '- [missing-child-facing-file] .githooks/pre-commit: Child-facing harness file is missing',
     ])
   })
+
+  it('extracts the first pnpm run token and ignores non-run invocations', async () => {
+    const mod = await loadPolicy()
+
+    expect(mod.extractPnpmRunScripts('pnpm run lint -- --fix')).toEqual(['lint'])
+    expect(mod.extractPnpmRunScripts('pnpm run lint && pnpm run check')).toEqual(['lint', 'check'])
+    expect(mod.extractPnpmRunScripts('pnpm run lint:fix')).toEqual(['lint:fix'])
+    expect(mod.extractPnpmRunScripts('pnpm lint')).toEqual([])
+    expect(mod.extractPnpmRunScripts('pnpm exec vitest')).toEqual([])
+    expect(mod.extractPnpmRunScripts('pnpm run "lint"')).toEqual([])
+    expect(mod.extractPnpmRunScripts('# pnpm run lint\n')).toEqual(['lint'])
+  })
+
+  it('uses a replacement forbidden list rather than unioning the default', async () => {
+    const mod = await loadPolicy()
+
+    expect(mod.findForbiddenRawScriptCalls('pnpm run foo\npnpm run lint', ['foo'])).toEqual(['foo'])
+  })
+
+  it('returns no violations for empty child-facing content', async () => {
+    const mod = await loadPolicy()
+
+    expect(mod.scanChildFacingHarnessFile('.githooks/pre-commit', '')).toEqual([])
+  })
+
+  it('records missing-child-facing-file in default path order and continues scanning', async () => {
+    const mod = await loadPolicy()
+    const root = mkdtempSync(join(tmpdir(), 'bemoat-333-child-missing-'))
+    tempRoots.push(root)
+
+    mkdirSync(join(root, '.github/workflows'), { recursive: true })
+    mkdirSync(join(root, '.githooks'), { recursive: true })
+    writeFileSync(join(root, '.github/workflows/ci.yml'), 'run: pnpm run lint\n')
+    writeFileSync(join(root, '.githooks/pre-commit'), 'pnpm run bemoat:check\n')
+
+    expect(mod.runHarnessContractGuard({ root })).toEqual([
+      {
+        type: 'forbidden-raw-script',
+        file: '.github/workflows/ci.yml',
+        rule: 'lint',
+        message:
+          'Child-facing harness must not call non-namespaced script "lint" — use bemoat:* instead',
+      },
+      {
+        type: 'missing-child-facing-file',
+        file: '.githooks/pre-push',
+        rule: 'required-path',
+        message: 'Child-facing harness file is missing',
+      },
+    ])
+  })
+
+  it('honors custom paths and treats readFile throws as missing-child-facing-file', async () => {
+    const mod = await loadPolicy()
+    const root = mkdtempSync(join(tmpdir(), 'bemoat-333-child-custom-'))
+    tempRoots.push(root)
+
+    mkdirSync(join(root, '.github/workflows'), { recursive: true })
+    writeFileSync(join(root, '.github/workflows/ci.yml'), 'run: pnpm run bemoat:check\n')
+
+    expect(mod.runHarnessContractGuard({ root, paths: ['.github/workflows/ci.yml'] })).toEqual([])
+    expect(
+      mod.runHarnessContractGuard({
+        root,
+        paths: ['gone.yml'],
+        readFile: () => {
+          throw new Error('unreadable')
+        },
+      }),
+    ).toEqual([
+      {
+        type: 'missing-child-facing-file',
+        file: 'gone.yml',
+        rule: 'required-path',
+        message: 'Child-facing harness file is missing',
+      },
+    ])
+  })
 })
