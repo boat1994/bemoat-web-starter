@@ -250,4 +250,113 @@ describe('harness-contract managed-runtime-closure', () => {
     expect(mod.isBuiltinOrPackageSpecifier('payload')).toBe(true)
     expect(mod.isBuiltinOrPackageSpecifier('./local.mjs')).toBe(false)
   })
+
+  it('matches managed paths by exact entry or descendant prefix with a slash', async () => {
+    const mod = await loadClosure()
+
+    expect(mod.isManagedPath('scripts/foo.mjs', ['scripts/foo.mjs'])).toBe(true)
+    expect(mod.isManagedPath('scripts/foo/bar.mjs', ['scripts/foo'])).toBe(true)
+    expect(mod.isManagedPath('scripts/foobar.mjs', ['scripts/foo'])).toBe(false)
+    expect(mod.isManagedPath('scripts/foo', ['scripts/foo.mjs'])).toBe(false)
+  })
+
+  it('collects explicit managed runtime .mjs paths under scripts/ in sorted order', async () => {
+    const mod = await loadClosure()
+
+    expect(
+      mod.collectExplicitManagedRuntimeScriptPaths([
+        'scripts/b.mjs',
+        'AGENTS.md',
+        'scripts/agent-issue',
+        'docs/x.md',
+        'scripts/a.mjs',
+        'tests/foo.mjs',
+      ]),
+    ).toEqual(['scripts/a.mjs', 'scripts/b.mjs'])
+  })
+
+  it('treats empty specifiers as built-in and skips absolute specifiers as external', async () => {
+    const mod = await loadClosure()
+    const root = mkdtempSync(join(tmpdir(), 'bemoat-333-empty-abs-'))
+    tempRoots.push(root)
+    mkdirSync(join(root, 'scripts'), { recursive: true })
+    writeFileSync(join(root, 'scripts/empty.mjs'), "import ''\n")
+    writeFileSync(join(root, 'scripts/abs.mjs'), "import '/tmp/x.mjs'\n")
+
+    expect(mod.isBuiltinOrPackageSpecifier('')).toBe(true)
+    expect(mod.isBuiltinOrPackageSpecifier(null)).toBe(true)
+    expect(mod.isBuiltinOrPackageSpecifier('#internal')).toBe(true)
+    expect(mod.isBuiltinOrPackageSpecifier('/abs.mjs')).toBe(false)
+    expect(mod.resolveRelativeRuntimeCallee('scripts/root.mjs', '/abs.mjs')).toEqual({
+      kind: 'external',
+      callee: null,
+    })
+    expect(
+      mod.scanManagedRuntimeDeliveryClosure({
+        root,
+        managedPaths: ['scripts/empty.mjs', 'scripts/abs.mjs'],
+      }),
+    ).toEqual([])
+  })
+
+  it('returns an empty array from assertManagedRuntimeDeliveryClosure when the nested closure is clean', async () => {
+    const mod = await loadClosure()
+    const root = mkdtempSync(join(tmpdir(), 'bemoat-333-assert-ok-'))
+    tempRoots.push(root)
+    mkdirSync(join(root, 'scripts/nested'), { recursive: true })
+    writeFileSync(join(root, 'scripts/root.mjs'), "import './nested/leaf.mjs'\n")
+    writeFileSync(join(root, 'scripts/nested/leaf.mjs'), "import { readFileSync } from 'node:fs'\n")
+
+    expect(
+      mod.assertManagedRuntimeDeliveryClosure({
+        root,
+        managedPaths: ['scripts/root.mjs', 'scripts/nested/leaf.mjs'],
+      }),
+    ).toEqual([])
+  })
+
+  it('treats a directory whose name ends in .mjs as missing-managed-runtime-source', async () => {
+    const mod = await loadClosure()
+    const root = mkdtempSync(join(tmpdir(), 'bemoat-333-dir-mjs-'))
+    tempRoots.push(root)
+    mkdirSync(join(root, 'scripts/not-a-file.mjs'), { recursive: true })
+
+    expect(
+      mod.scanManagedRuntimeDeliveryClosure({
+        root,
+        managedPaths: ['scripts/not-a-file.mjs'],
+      }),
+    ).toEqual([
+      {
+        type: 'missing-managed-runtime-source',
+        importer: 'managedPaths',
+        callee: 'scripts/not-a-file.mjs',
+        specifier: 'scripts/not-a-file.mjs',
+      },
+    ])
+  })
+
+  it('scans nothing when managedPaths is omitted and reports unmanaged non-mjs callees', async () => {
+    const mod = await loadClosure()
+    const root = mkdtempSync(join(tmpdir(), 'bemoat-333-default-unmanaged-'))
+    tempRoots.push(root)
+    mkdirSync(join(root, 'scripts'), { recursive: true })
+    writeFileSync(join(root, 'scripts/root.mjs'), "import './leaf.json'\n")
+    writeFileSync(join(root, 'scripts/leaf.json'), '{}\n')
+
+    expect(mod.scanManagedRuntimeDeliveryClosure({ root })).toEqual([])
+    expect(
+      mod.scanManagedRuntimeDeliveryClosure({
+        root,
+        managedPaths: ['scripts/root.mjs'],
+      }),
+    ).toEqual([
+      {
+        type: 'unmanaged-relative-runtime-dependency',
+        importer: 'scripts/root.mjs',
+        callee: 'scripts/leaf.json',
+        specifier: './leaf.json',
+      },
+    ])
+  })
 })

@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 
 import { describe, expect, it } from 'vitest'
 
-import { deriveCampaignExpansionAuthority } from '../../scripts/mission-control/domain/merge-campaign-expansion-authority.mjs'
+import { deriveCampaignExpansionAuthority } from '../../scripts/mission-control/domain/merge-campaign-expansion-authority.ts'
 
 describe('campaign expansion authority derivation', () => {
   it('builds a deterministic append-only authority record from live evidence', () => {

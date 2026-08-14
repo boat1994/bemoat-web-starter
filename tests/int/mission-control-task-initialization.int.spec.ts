@@ -20,7 +20,11 @@ import {
   createTaskOwnershipRecord,
   renderTaskOwnershipRecord,
 } from '../../scripts/mission-control/domain/task-ownership-registry.mjs'
-import { buildTaskBootstrapRequestIdentity } from '../../scripts/mission-control/domain/task-bootstrap-request.mjs'
+import {
+  PROVISIONAL_TASK_END,
+  PROVISIONAL_TASK_MARKER,
+  buildTaskBootstrapRequestIdentity,
+} from '../../scripts/mission-control/domain/task-bootstrap-request.mjs'
 import { preflightCanonicalBootstrapTask } from '../../scripts/mission-control/domain/task-bootstrap-preflight.mjs'
 import { parseMissionControlState } from '../../scripts/mission-control/domain/task-state.mjs'
 
@@ -87,6 +91,7 @@ function createWorld({ projectionFailure = false } = {}) {
     updateIssue: 0,
     postComment: 0,
     leases: 0,
+    events: [] as string[],
   }
   let nextIssue = 300
   let failProjection = projectionFailure
@@ -100,6 +105,7 @@ function createWorld({ projectionFailure = false } = {}) {
       return { nameWithOwner: REPO, id: 'R_repo', node_id: 'R_node', defaultBranch: 'main' }
     },
     async getIssue(number: number) {
+      calls.events.push(`getIssue:${number}`)
       const issue = issues.get(Number(number))
       if (!issue) throw Object.assign(new Error('404 Not Found'), { code: 'NOT_FOUND' })
       return structuredClone(issue)
@@ -163,6 +169,7 @@ function createWorld({ projectionFailure = false } = {}) {
       return structuredClone(issue)
     },
     async updateIssueBody(number: number, body: string) {
+      calls.events.push(`updateIssueBody:${number}`)
       calls.updateIssue += 1
       if (failProjection) {
         failProjection = false
@@ -174,6 +181,7 @@ function createWorld({ projectionFailure = false } = {}) {
       return structuredClone(issue)
     },
     async postIssueComment(number: number, body: string) {
+      calls.events.push(`postIssueComment:${number}`)
       calls.postComment += 1
       const entries = comments.get(Number(number)) ?? []
       const comment = {
@@ -236,6 +244,40 @@ function serviceFor(world: ReturnType<typeof createWorld>, overrides: any = {}) 
 }
 
 describe('canonical Mission Control Task bootstrap', () => {
+  it('writes durable ownership before projection and reads back after projection', async () => {
+    const world = createWorld()
+    const { service } = serviceFor(world)
+
+    await service.bootstrap({ founderAuthorizationCommentId: '9001' })
+
+    const ownershipIndex = world.calls.events.indexOf('postIssueComment:262')
+    const projectionIndex = world.calls.events.indexOf('updateIssueBody:300')
+    const finalReadbackIndex = world.calls.events.lastIndexOf('getIssue:300')
+    expect(ownershipIndex).toBeGreaterThanOrEqual(0)
+    expect(projectionIndex).toBeGreaterThan(ownershipIndex)
+    expect(finalReadbackIndex).toBeGreaterThan(projectionIndex)
+  })
+
+  it('fails the workflow scan closed for invalid provisional metadata with the exact conflict reason', async () => {
+    const world = createWorld()
+    world.issues.set(300, {
+      number: 300,
+      id: 'I_invalid_provisional',
+      node_id: 'MDU6SXNzdWV300',
+      state: 'OPEN',
+      title: 'invalid provisional allocation',
+      body: `${PROVISIONAL_TASK_MARKER}\n{}\n${PROVISIONAL_TASK_END}`,
+    })
+    const { service } = serviceFor(world)
+
+    await expect(service.bootstrap({ founderAuthorizationCommentId: '9001' })).rejects.toMatchObject({
+      code: 'STATE_CONFLICT',
+      classification: 'STATE_CONFLICT',
+      message: 'STATE_CONFLICT: provisional Issue #300 has invalid recovery metadata',
+    })
+    expect(world.calls.createIssue).toBe(0)
+  })
+
   it('creates one valid Task with the exact initial state and 0/0 counters', async () => {
     const world = createWorld()
     const { service, keys } = serviceFor(world)

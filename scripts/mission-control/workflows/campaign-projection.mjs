@@ -4,11 +4,11 @@
  * Does not write to GitHub. Callers may later pass rendered bodies to CAS transport.
  */
 
-import { sameCampaignValue } from '../domain/campaign-equality.mjs'
-import { validateCampaignTransition } from '../domain/campaign-authority.mjs'
-import { parseCampaign } from '../domain/campaign-parser.mjs'
-import { renderCampaign, replaceCampaignBlock } from '../domain/campaign-renderer.mjs'
-import { validateCampaign } from '../domain/campaign-validator.mjs'
+import { sameCampaignValue } from '../domain/campaign-equality.ts'
+import { validateCampaignTransition } from '../domain/campaign-authority.ts'
+import { parseCampaign } from '../domain/campaign-parser.ts'
+import { renderCampaign, replaceCampaignBlock } from '../domain/campaign-renderer.ts'
+import { validateCampaign } from '../domain/campaign-validator.ts'
 
 /**
  * @param {{

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { classifyMergeability } from '../../scripts/mission-control/domain/merge-mergeability.mjs'
+import { classifyMergeability } from '../../scripts/mission-control/domain/merge-mergeability.ts'
 
 describe('classifyMergeability', () => {
   it('accepts a verified MERGEABLE pull request', () => {

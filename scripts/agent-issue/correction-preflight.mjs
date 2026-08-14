@@ -216,6 +216,17 @@ export function runCorrectionPhasePreflight({
     }
   }
 
+  if (!activeResolved.ok) {
+    output.push('Stop: authoritative correction contract resolution failed before correction edit authorization.')
+    for (const error of activeResolved.errors) output.push(`- ${error}`)
+    return { ok: false, exitCode: 1, usageError: false, output, issueNumber, branchName, statusShort, issueMetadata }
+  }
+
+  if (activeResolved.source !== 'review_verdict') {
+    output.push('Stop: correction fallback requires an explicit successful REVIEW_VERDICT authority source.')
+    return { ok: false, exitCode: 1, usageError: false, output, issueNumber, branchName, statusShort, issueMetadata }
+  }
+
   if (!latestVerdict?.comment?.body) {
     output.push('Stop: missing correction-eligible REVIEW_VERDICT with immutable findings.')
     return { ok: false, exitCode: 1, usageError: false, output, issueNumber, branchName, statusShort, issueMetadata }

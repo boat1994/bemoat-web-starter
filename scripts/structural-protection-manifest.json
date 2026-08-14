@@ -17,13 +17,13 @@
       { "path": "scripts/mission-control-dispatch.mjs", "max_lines": 545 },
       { "path": "scripts/mission-control-reconcile.mjs", "max_lines": 143 },
       { "path": "scripts/mission-control-review.mjs", "max_lines": 346 },
-      { "path": "scripts/mission-control/domain/campaign-authority.mjs", "max_lines": 547 },
+      { "path": "scripts/mission-control/domain/campaign-authority.ts", "max_lines": 630 },
       { "path": "scripts/mission-control/domain/campaign-validator.mjs", "max_lines": 482 },
       { "path": "scripts/mission-control/domain/correction-contract.mjs", "max_lines": 650 },
+      { "path": "scripts/mission-control/domain/correction-contract.ts", "max_lines": 536 },
       { "path": "scripts/mission-control/domain/recover-state-projection.mjs", "max_lines": 37 },
-      { "path": "scripts/mission-control/domain/reopen-result-rendering.mjs", "max_lines": 176 },
       { "path": "scripts/mission-control/domain/review-recovery.mjs", "max_lines": 485 },
-      { "path": "scripts/mission-control/domain/review-result-rendering.mjs", "max_lines": 164 },
+      { "path": "scripts/mission-control/domain/review-result-rendering.ts", "max_lines": 200 },
       { "path": "scripts/mission-control/workflows/adopt-finding.mjs", "max_lines": 564 },
       { "path": "scripts/mission-control/workflows/issue-body-cas.mjs", "max_lines": 438 },
       { "path": "scripts/mission-control/workflows/merge.mjs", "max_lines": 1124 },
@@ -38,8 +38,8 @@
     "algorithm": "sha256",
     "files": [
       { "path": "tests/int/mission-control-adopt-finding.int.spec.ts", "sha256": "ba3ac34c02e6e05c0b94dff857db9d57a2bcc181b74a4d29bd8029f84e79739d" },
-      { "path": "tests/int/mission-control-merge-verdict-binding-entrypoint.int.spec.ts", "sha256": "c780c36f4fcc3d386be6b3dcb5a86f16b1030a1446cfe59a9fefe83f1dc54b65" },
-      { "path": "tests/int/mission-control-merge.int.spec.ts", "sha256": "2dfb92137dc35d5cd3ab718ff330bde87ae933891cbeaf077baf374a497f2d6e" }
+      { "path": "tests/int/mission-control-merge-verdict-binding-entrypoint.int.spec.ts", "sha256": "75f0c5ab11fde234a28d359440ca4dcea38c44cbaede476029efc10c69e4e158" },
+      { "path": "tests/int/mission-control-merge.int.spec.ts", "sha256": "a541db693a806b6556c798c46448a5aba3571424f38cee228fb4ee4057e0feb7" }
     ]
   }
 }

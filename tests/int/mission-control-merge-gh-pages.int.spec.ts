@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { flattenGhPages } from '../../scripts/mission-control/domain/merge-gh-pages.mjs'
+import { flattenGhPages } from '../../scripts/mission-control/domain/merge-gh-pages.ts'
 
 describe('merge GitHub page normalization', () => {
   it('flattens nested pages and keeps only object entries', () => {

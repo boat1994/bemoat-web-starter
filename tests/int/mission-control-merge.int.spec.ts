@@ -1424,6 +1424,159 @@ describe('bounded Founder Markdown authorization transport', () => {
       expected: expectedAuthorization(),
     })).toThrow(/AUTHORIZATION_VALIDATION_FAILURE/)
   })
+
+  it('preserves the direct parser JSON/Markdown matrix and legacy coercion boundaries', async () => {
+    const mergeTransport = await import('../../scripts/mission-control-merge.mjs')
+    const rawRecord = {
+      ...enrichParsed(mergeTransport.parseFounderMergeAuthorization(canonicalMarkdown())),
+      task_issue: '254',
+      pr: '#258',
+      unknown_key: { preserved: true },
+    }
+
+    expect(mergeTransport.parseFounderMergeAuthorization(JSON.stringify(rawRecord))).toEqual(rawRecord)
+    expect(mergeTransport.parseFounderMergeAuthorization(JSON.stringify({ ...rawRecord, optional: undefined })))
+      .toEqual(rawRecord)
+    expect(mergeTransport.parseFounderMergeAuthorization(canonicalMarkdown({
+      reviewedHead: exactHead.toUpperCase(),
+      policySha: policySourceSha.toUpperCase(),
+      protectedSha: protectedBaseSha.toUpperCase(),
+    }))).toMatchObject({
+      task_issue: taskIssue,
+      pr: prNumber,
+      exact_head: exactHead,
+      reviewed_head: exactHead,
+      policy_source_sha: policySourceSha,
+      protected_base_sha: protectedBaseSha,
+    })
+  })
+
+  it('preserves parser defaults, null/object rejection, and exact validation errors', async () => {
+    const mergeTransport = await import('../../scripts/mission-control-merge.mjs')
+    const capture = (call: () => unknown) => {
+      try {
+        call()
+        return null
+      } catch (error) {
+        return error as Error & { code?: string; classification?: string }
+      }
+    }
+
+    expect(capture(() => mergeTransport.parseFounderMergeAuthorization())).toMatchObject({
+      name: 'Error',
+      message: 'AUTHORIZATION_VALIDATION_FAILURE: Founder merge authorization evidence must contain exactly one raw JSON object or canonical Markdown decision',
+      code: 'AUTHORIZATION_VALIDATION_FAILURE',
+      classification: 'AUTHORIZATION_VALIDATION_FAILURE',
+    })
+    expect(capture(() => mergeTransport.parseFounderMergeAuthorization(null))).toMatchObject({
+      name: 'Error',
+      message: 'AUTHORIZATION_VALIDATION_FAILURE: Founder merge authorization evidence must be raw JSON text or canonical Markdown',
+      code: 'AUTHORIZATION_VALIDATION_FAILURE',
+      classification: 'AUTHORIZATION_VALIDATION_FAILURE',
+    })
+    expect(capture(() => mergeTransport.parseFounderMergeAuthorization('null'))).toMatchObject({
+      name: 'Error',
+      message: 'AUTHORIZATION_VALIDATION_FAILURE: Founder merge authorization Markdown must match the canonical structured decision shape exactly',
+      code: 'AUTHORIZATION_VALIDATION_FAILURE',
+      classification: 'AUTHORIZATION_VALIDATION_FAILURE',
+    })
+
+    const trustedIdentityError = capture(() => mergeTransport.validateFounderAuthorizationRecord({
+      authorization: new Proxy({}, { get() { throw new TypeError('authorization getter must not run') } }),
+      authorizationCommentId: '6000000001',
+      trustedFounderLogins: [],
+      expected: expectedAuthorization(),
+    }))
+    expect(trustedIdentityError).toMatchObject({
+      message: 'AUTHORIZATION_VALIDATION_FAILURE: repository-owned Founder identity configuration is missing or empty',
+      code: 'AUTHORIZATION_VALIDATION_FAILURE',
+      classification: 'AUTHORIZATION_VALIDATION_FAILURE',
+    })
+  })
+
+  it('preserves manual validation order and native getter/destructuring errors', async () => {
+    const mergeTransport = await import('../../scripts/mission-control-merge.mjs')
+    const authorizationRecord = enrichParsed(mergeTransport.parseFounderMergeAuthorization(canonicalMarkdown()))
+    Object.defineProperty(authorizationRecord, 'status', {
+      configurable: true,
+      get() { throw new TypeError('status getter') },
+    })
+
+    expect(() => mergeTransport.validateFounderAuthorizationRecord({
+      authorization: authorizationRecord,
+      authorizationCommentId,
+      trustedFounderLogins: ['boat1994'],
+      expected: expectedAuthorization(),
+    })).toThrow('status getter')
+    expect(() => Reflect.apply(mergeTransport.validateFounderAuthorizationRecord, undefined, [undefined]))
+      .toThrow(TypeError)
+  })
+
+  it('keeps the direct merge validator binding and return identity', async () => {
+    const mergeTransport = await import('../../scripts/mission-control-merge.mjs')
+    const authorizationRecord = authorization({ task_issue: '#222', pr: '223', comment_id: 6000000001 })
+
+    expect(mergeTransport.validateFounderMergeAuthorization({
+      authorization: authorizationRecord,
+      authorizationCommentId: '6000000001',
+      issueNumber: 222,
+      prNumber: 223,
+      reviewedHead,
+      base: 'main',
+      repository: 'boat1994/bemoat-web-starter',
+      policyVersion: '1.3.0',
+      reviewCommentId,
+      policySourceSha,
+      protectedBaseSha,
+      trustedFounderLogins: ['boat1994'],
+    })).toBe(authorizationRecord)
+  })
+
+  it('preserves generator alias identity, cloning, non-mutation, and supersession validation', async () => {
+    const mergeTransport = await import('../../scripts/mission-control-merge.mjs')
+    const input = authorization({ supersedes_comment_ids: ['5159403964', '5159448302'] })
+    const before = structuredClone(input)
+    const raw = mergeTransport.generateFounderMergeAuthorization(input)
+
+    expect(mergeTransport.serializeFounderMergeAuthorization).toBe(mergeTransport.generateFounderMergeAuthorization)
+    expect(input).toEqual(before)
+    expect(JSON.parse(raw)).toMatchObject({
+      non_superseded: true,
+      superseded_by: null,
+      supersedes_comment_ids: ['5159403964', '5159448302'],
+    })
+    const parsed = JSON.parse(raw)
+    parsed.supersedes_comment_ids.push('5159453303')
+    expect(input.supersedes_comment_ids).toEqual(['5159403964', '5159448302'])
+
+    expect(() => mergeTransport.generateFounderMergeAuthorization(authorization({
+      supersedes_comment_ids: ['0'],
+    }))).toThrow('AUTHORIZATION_VALIDATION_FAILURE: Founder merge authorization supersession references must be positive comment IDs')
+    expect(() => mergeTransport.generateFounderMergeAuthorization(authorization({
+      supersedes_comment_ids: ['5159403964', null],
+    }))).toThrow('AUTHORIZATION_VALIDATION_FAILURE: Founder merge authorization supersession references must be positive comment IDs')
+  })
+
+  it('keeps the facade export surface and identity aligned with the canonical typed implementation', async () => {
+    const facade = await import('../../scripts/mission-control/domain/merge-founder-authority.mjs')
+    const typed = await import('../../scripts/mission-control/domain/merge-founder-authority.ts')
+    const exports = [
+      'AUTHORIZATION_VALIDATION_FAILURE',
+      'authorizationValidationFailure',
+      'parseFounderMergeAuthorization',
+      'generateFounderMergeAuthorization',
+      'serializeFounderMergeAuthorization',
+      'validateFounderAuthorizationRecord',
+      'validateFounderMergeAuthorization',
+      'validateFounderMergeAuthorizationEvidence',
+    ] as const
+
+    expect(readFileSync('scripts/mission-control/domain/merge-founder-authority.mjs', 'utf8'))
+      .toBe("export * from './merge-founder-authority.ts'\n")
+    expect(Object.keys(facade).sort()).toEqual([...exports].sort())
+    expect(Object.keys(typed).sort()).toEqual([...exports].sort())
+    for (const name of exports) expect(facade[name]).toBe(typed[name])
+  })
 })
 
 const blockerResolutionId = 'issue-254-planning-correction-1'

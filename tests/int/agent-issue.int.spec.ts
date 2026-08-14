@@ -738,10 +738,38 @@ const MATRIX_PR = '200'
 const MATRIX_HEAD = 'abc1234'
 const MATRIX_CANONICAL = `https://github.com/${MATRIX_OWNER}/${MATRIX_REPO}/pull/${MATRIX_PR}`
 
+function correctionPreflightIssueBody(options: { activeIdentity?: unknown } = {}) {
+  const state: Record<string, unknown> = {
+    schema_version: 1,
+    state: 'IN_PROGRESS',
+    review_cycle: 0,
+    full_review_count: 0,
+    approved_base: 'main',
+    active_task_issue: '#136',
+    active_pr: '#200',
+    current_head: MATRIX_HEAD,
+    last_reviewed_head: MATRIX_HEAD,
+    guide_version: '1.0.0',
+    guide_source_ref: 'main',
+    guide_source_sha: null,
+    open_blockers: [],
+    follow_up_issues: [],
+    next_permitted_action: 'Implement',
+    material_change_status: 'none',
+    updated_at: null,
+    updated_by: null,
+  }
+  if (Object.hasOwn(options, 'activeIdentity')) {
+    state.active_correction_contract_identity = options.activeIdentity
+  }
+  return `Mission Control mode: required\n\n${renderMissionControlState(state)}`
+}
+
 type LiveUrlMatrixCase = {
   id: number
   name: string
   expected: 'ACCEPT' | 'REJECT'
+  issueBody?: string
   liveUrl?: string | null
   livePrExtra?: Record<string, unknown>
   omitUrl?: boolean
@@ -825,7 +853,7 @@ function runLiveUrlMatrixCase(matrixCase: LiveUrlMatrixCase) {
     JSON.stringify({
       title: 'Immutable correction contract',
       url: 'https://github.com/boat1994/bemoat-web-starter/issues/136',
-      body: '',
+      body: matrixCase.issueBody ?? '',
       labels: [],
     }),
   )
@@ -3186,6 +3214,29 @@ esac
     expectMatrixOutcome(result, 'ACCEPT', 'matrix #51 repeated same verdict URL/PR #N in prose')
   })
 
+  it('fails closed when an invalid active correction identity cannot authorize through a stale verdict (MC-R3-001)', () => {
+    const result = runLiveUrlMatrixCase({
+      id: 52,
+      name: 'invalid active identity with stale correction verdict',
+      expected: 'REJECT',
+      issueBody: correctionPreflightIssueBody({ activeIdentity: {} }),
+    })
+
+    expectMatrixOutcome(result, 'REJECT', 'invalid active identity with stale correction verdict')
+    expect(result.stdout).toMatch(/active correction-contract identity/i)
+  })
+
+  it('retains historical correction fallback when the active identity is absent (MC-R3-001)', () => {
+    const result = runLiveUrlMatrixCase({
+      id: 53,
+      name: 'absent active identity with latest correction verdict',
+      expected: 'ACCEPT',
+      issueBody: correctionPreflightIssueBody(),
+    })
+
+    expectMatrixOutcome(result, 'ACCEPT', 'absent active identity with latest correction verdict')
+  })
+
   describe('MC-R1-002 malformed secondary identity-like verdict candidates', () => {
     const malformedSecondaryCases: Array<{
       name: string
@@ -3731,7 +3782,8 @@ esac
     })
 
     expect(result.status).toBe(1)
-    expect(result.stdout).toContain('canonical finding evidence is missing')
+    expect(result.stdout).toContain('authoritative correction contract resolution failed')
+    expect(result.stdout).toContain('missing correction finding contract JSON block')
   })
 
   describe('Issue #175 canonical REVIEW_VERDICT PR-target regressions', () => {
@@ -5358,5 +5410,475 @@ updated_by: Reviewer
       expect(resultNull.ok).toBe(false)
       expect(resultNull.errors).toContain('STATE CONFLICT: canonical REVIEW_VERDICT reviewed_head does not match managed-state last_reviewed_head')
     })
+  })
+})
+
+describe('Cluster A characterization (issue #333)', () => {
+  it('issue-references unwraps quoted layers and rejects unsafe reference shapes', async () => {
+    const { parseIssueReference, parsePrReference } = await import(
+      '../../scripts/agent-issue/issue-references.mjs'
+    )
+
+    expect(parseIssueReference('\'"#226"\'', 'boat1994/bemoat-web-starter')).toEqual({
+      repo: 'boat1994/bemoat-web-starter',
+      number: '226',
+    })
+    expect(parseIssueReference('9007199254740993')).toBeNull()
+    expect(parseIssueReference(0)).toBeNull()
+    expect(parseIssueReference('01')).toBeNull()
+    expect(parseIssueReference({ value: '#12' })).toBeNull()
+    expect(parseIssueReference(42, 'boat1994/bemoat-web-starter')).toEqual({
+      repo: 'boat1994/bemoat-web-starter',
+      number: '42',
+    })
+    expect(parsePrReference('#55')).toEqual({ number: '55' })
+    expect('repo' in (parsePrReference('#55') ?? {})).toBe(false)
+  })
+
+  it('exact-head-ci preserves null PR, missing head, rollup shapes, and native TypeError paths', async () => {
+    const { analyzeExactHeadCi } = await import('../../scripts/agent-issue/exact-head-ci.mjs')
+
+    expect(analyzeExactHeadCi(null)).toEqual({
+      available: false,
+      exactHeadVerified: false,
+      headSha: null,
+      ciSha: null,
+      summary: 'PR evidence unavailable.',
+    })
+
+    expect(analyzeExactHeadCi({ statusCheckRollup: [] })).toEqual({
+      available: false,
+      exactHeadVerified: false,
+      headSha: null,
+      ciSha: null,
+      summary: 'Current PR head SHA could not be determined.',
+    })
+
+    const emptyChecks = analyzeExactHeadCi({
+      headRefOid: 'abcdef1234567890abcdef1234567890abcdef12',
+      statusCheckRollup: [],
+    })
+    expect(emptyChecks.available).toBe(true)
+    expect(emptyChecks.exactHeadVerified).toBe(false)
+    expect(emptyChecks.summary).toBe('No CI checks reported for the active PR.')
+    expect(emptyChecks.olderShaSuccess).toBe(false)
+
+    const productionRollup = analyzeExactHeadCi({
+      headRefOid: '0e02e42e9c6953bd4a18e8f78f44ca6044e4b5d2',
+      statusCheckRollup: PRODUCTION_PR103_ROLLUP,
+    })
+    expect(productionRollup.exactHeadVerified).toBe(true)
+
+    const contextsRollup = analyzeExactHeadCi({
+      headRefOid: 'abc123def4567890abc123def4567890abc12345',
+      statusCheckRollup: {
+        contexts: [{ state: 'SUCCESS', targetUrl: 'https://github.com/runs/abc123def456' }],
+      },
+    })
+    expect(contextsRollup.exactHeadVerified).toBe(true)
+
+    const failed = analyzeExactHeadCi({
+      headRefOid: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef',
+      statusCheckRollup: [{ conclusion: 'FAILURE' }],
+    })
+    expect(failed.exactHeadVerified).toBe(false)
+    expect(failed.summary).toBe('CI checks failed for the current PR head.')
+
+    const cancelled = analyzeExactHeadCi({
+      headRefOid: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef',
+      statusCheckRollup: [{ conclusion: 'CANCELLED' }],
+    })
+    expect(cancelled.exactHeadVerified).toBe(false)
+    expect(cancelled.summary).toBe('CI checks failed for the current PR head.')
+
+    const olderSha = analyzeExactHeadCi({
+      headRefOid: 'currentheadsha1111111111111111111111111111',
+      statusCheckRollup: {
+        contexts: [{ state: 'SUCCESS', targetUrl: 'https://github.com/runs/oldsha999' }],
+      },
+    })
+    expect(olderSha.exactHeadVerified).toBe(false)
+    expect(olderSha.olderShaSuccess).toBe(true)
+
+    const ciShaFromDescription = analyzeExactHeadCi({
+      headRefOid: '1111111111111111111111111111111111111111',
+      statusCheckRollup: [
+        {
+          state: 'SUCCESS',
+          description: 'completed for commit fedcba9876543210fedcba9876543210fedcba98',
+        },
+      ],
+    })
+    expect(ciShaFromDescription.ciSha).toBe('fedcba9876543210fedcba9876543210fedcba98')
+
+    expect(() =>
+      analyzeExactHeadCi({
+        headRefOid: '1111111111111111111111111111111111111111',
+        statusCheckRollup: [
+          {
+            state: 'SUCCESS',
+            description: 42,
+          },
+        ],
+      }),
+    ).toThrow(TypeError)
+
+    expect(() =>
+      analyzeExactHeadCi({
+        headRefOid: 12345,
+        statusCheckRollup: [{ state: 'SUCCESS' }],
+      }),
+    ).toThrow(TypeError)
+  })
+
+  it('pure-helpers preserves slugify TypeError, fence stripping, none assignment, and empty slug branch names', async () => {
+    const {
+      assignDeclarationValue,
+      buildSuggestedBranchName,
+      slugify,
+      stripFencedCodeBlocks,
+    } = await import('../../scripts/agent-issue/pure-helpers.mjs')
+    type IssueDeclarations = import('../../scripts/agent-issue/pure-helpers.ts').IssueDeclarations
+
+    expect(() => slugify(42 as never)).toThrow(TypeError)
+
+    const fenced = 'before\n```yaml\nsecret: true\n```\nafter'
+    expect(stripFencedCodeBlocks(fenced)).toBe('before\n\nafter')
+
+    const declarations: IssueDeclarations = {
+      mainIssueRef: null,
+      implementationPlanPath: null,
+      relevantPlanSection: null,
+      activeTaskIssueRef: null,
+      activePrRef: null,
+      approvedBase: null,
+      currentStage: {},
+      declaresMainIssue: false,
+      declaresImplementationPlan: false,
+    }
+    assignDeclarationValue(declarations, 'mainIssueRef', 'none')
+    assignDeclarationValue(declarations, 'approvedBase', 'None for now')
+    expect(declarations.declaresMainIssue).toBe(false)
+    expect(declarations.mainIssueRef).toBeNull()
+    expect(declarations.approvedBase).toBeNull()
+
+    expect(buildSuggestedBranchName(333, '!!!')).toBeNull()
+  })
+
+  it('constants docsToRead lists the exact four canonical paths', async () => {
+    const { docsToRead } = await import('../../scripts/agent-issue/constants.mjs')
+
+    expect(docsToRead).toEqual([
+      'AGENTS.md',
+      'docs/agent-loop/README.md',
+      'docs/agent-loop/issue-driven-branch-workflow.md',
+      'docs/agent-loop/project-progress-tracking.md',
+    ])
+  })
+})
+
+describe('Cluster B characterization (issue #333)', () => {
+  it('parseAgentIssueArgs preserves success, error, argv, and TypeError contracts', async () => {
+    const { parseAgentIssueArgs } = await import('../../scripts/agent-issue/cli-args.mjs')
+
+    expect(parseAgentIssueArgs(['333'])).toEqual({ issueNumber: '333', phase: null })
+    expect(parseAgentIssueArgs(['42', '--phase', 'correction'])).toEqual({
+      issueNumber: '42',
+      phase: 'correction',
+    })
+    expect(parseAgentIssueArgs(['--', '7', '--phase', 'correction'])).toEqual({
+      issueNumber: '7',
+      phase: 'correction',
+    })
+    expect(parseAgentIssueArgs(['9007199254740993'])).toEqual({
+      issueNumber: '9007199254740993',
+      phase: null,
+    })
+
+    const boxedIssue = Object(new String('55'))
+    expect(parseAgentIssueArgs([boxedIssue])).toEqual({ issueNumber: boxedIssue, phase: null })
+
+    const argv = ['12', '--phase', 'correction']
+    const argvCopy = [...argv]
+    parseAgentIssueArgs(argv)
+    expect(argv).toEqual(argvCopy)
+
+    expect(parseAgentIssueArgs([])).toEqual({ error: 'missing or invalid issue number' })
+    expect(parseAgentIssueArgs(['0'])).toEqual({ error: 'missing or invalid issue number' })
+    expect(parseAgentIssueArgs(['01'])).toEqual({ error: 'missing or invalid issue number' })
+    expect(parseAgentIssueArgs(['12', '34'])).toEqual({ error: 'missing or invalid issue number' })
+    expect(parseAgentIssueArgs(['--phase'])).toEqual({ error: '--phase requires a value' })
+    expect(parseAgentIssueArgs(['12', '--phase'])).toEqual({ error: '--phase requires a value' })
+    expect(parseAgentIssueArgs(['12', '--phase', ''])).toEqual({ error: '--phase requires a value' })
+    expect(parseAgentIssueArgs(['12', '--phase', 0 as never])).toEqual({ error: '--phase requires a value' })
+    expect(parseAgentIssueArgs(['12', '--phase', '--help'])).toEqual({
+      error: '--phase requires a value',
+    })
+    expect(parseAgentIssueArgs(['12', '--phase', 'correction', '--phase', 'correction'])).toEqual({
+      error: '--phase may be provided only once',
+    })
+    expect(parseAgentIssueArgs(['12', '--help'])).toEqual({ error: 'unexpected argument: --help' })
+    expect(parseAgentIssueArgs(['12', '--phase=correction'])).toEqual({
+      error: 'unexpected argument: --phase=correction',
+    })
+    expect(parseAgentIssueArgs(['12', '--phase', 'review'])).toEqual({
+      error: '--phase supports only correction',
+    })
+
+    expect(() => parseAgentIssueArgs(null)).toThrow(TypeError)
+    expect(() => parseAgentIssueArgs('not-an-array' as never)).toThrow(TypeError)
+    expect(() => parseAgentIssueArgs([123])).toThrow(TypeError)
+    expect(() => parseAgentIssueArgs([null])).toThrow(TypeError)
+    expect(() => parseAgentIssueArgs(['12', '--phase', 42 as never])).toThrow(TypeError)
+  })
+
+  it('buildNextStep preserves priority, branch examples, suggestedBranchName, and TypeErrors', async () => {
+    const { buildNextStep } = await import('../../scripts/agent-issue/presentation.mjs')
+
+    const baseInput = {
+      branchSafetyOk: true,
+      dirty: false,
+      branchName: 'feature/333-issue',
+      issueNumber: '333',
+      suggestedBranchName: null as string | null,
+      devBranchAvailable: true,
+      progressBlockers: [] as string[],
+    }
+
+    expect(buildNextStep({ ...baseInput, dirty: true })).toEqual({
+      label: 'Next manual step',
+      value: 'Report the dirty working tree blocker and do not edit files.',
+    })
+
+    expect(
+      buildNextStep({
+        ...baseInput,
+        branchSafetyOk: false,
+        progressBlockers: ['blocker one'],
+      }),
+    ).toEqual({
+      label: 'Next manual step',
+      value:
+        'Resolve the progress-tracking blockers above before continuing implementation.',
+    })
+
+    expect(
+      buildNextStep({
+        ...baseInput,
+        branchSafetyOk: false,
+        branchName: 'main',
+        devBranchAvailable: false,
+        suggestedBranchName: 'feature/333-slug',
+      }),
+    ).toEqual({
+      label: 'Next manual step',
+      value:
+        "Create a topic branch from the repo's current integration baseline.\nExample when dev is unavailable: git switch -c feature/333-slug",
+    })
+
+    expect(
+      buildNextStep({
+        ...baseInput,
+        branchSafetyOk: false,
+        branchName: 'main',
+        devBranchAvailable: true,
+      }),
+    ).toEqual({
+      label: 'Next manual step',
+      value:
+        "Create a topic branch from the repo's current integration baseline.\nExample when dev exists: git switch dev && git pull origin dev && git switch -c feature/333-issue",
+    })
+
+    expect(
+      buildNextStep({
+        ...baseInput,
+        branchSafetyOk: false,
+        branchName: 'dev',
+      }),
+    ).toEqual({
+      label: 'Next manual step',
+      value:
+        "Create a topic branch from the repo's current integration baseline.\nExample from the current dev branch: git switch -c feature/333-issue",
+    })
+
+    expect(
+      buildNextStep({
+        ...baseInput,
+        branchSafetyOk: false,
+        branchName: 'feature/other',
+      }),
+    ).toEqual({
+      label: 'Next manual step',
+      value:
+        "Create a topic branch from the repo's current integration baseline.\nExample: git switch -c feature/333-issue",
+    })
+
+    expect(
+      buildNextStep({
+        ...baseInput,
+        branchSafetyOk: false,
+        suggestedBranchName: '',
+      }),
+    ).toEqual({
+      label: 'Next manual step',
+      value:
+        "Create a topic branch from the repo's current integration baseline.\nExample: git switch -c ",
+    })
+
+    expect(buildNextStep(baseInput)).toEqual({
+      label: 'Next manual step',
+      value:
+        'Read the listed docs, implement only the scoped issue change on this branch, then run the required validation tier from AGENTS.md.',
+    })
+
+    expect(() => buildNextStep(null as never)).toThrow(TypeError)
+    expect(() =>
+      buildNextStep({
+        ...baseInput,
+        progressBlockers: undefined as never,
+      }),
+    ).toThrow(TypeError)
+  })
+
+  it('formatProgressSection preserves line templates, ordering, footer rules, and TypeErrors', async () => {
+    const { formatProgressSection } = await import('../../scripts/agent-issue/presentation.mjs')
+
+    const minimal = {
+      blockers: [] as string[],
+      warnings: [] as string[],
+      report: {
+        declarations: {
+          declaresMainIssue: false,
+          declaresImplementationPlan: false,
+        },
+        durableProgress: { hasChecklist: false },
+      },
+    }
+
+    expect(formatProgressSection(minimal)).toEqual([
+      'Progress tracking:',
+      'No Main Issue or Implementation Plan declared — normal standalone workflow.',
+    ])
+    expect(Array.isArray(formatProgressSection(minimal))).toBe(true)
+
+    const full = {
+      blockers: ['blocker alpha'],
+      warnings: ['warning beta'],
+      report: {
+        workflowProfile: { name: 'standalone', nextAction: 'implement scoped change' },
+        declarations: {
+          declaresMainIssue: true,
+          declaresImplementationPlan: true,
+          mainIssueRef: '#100',
+          implementationPlanPath: 'docs/plan.md',
+        },
+        mainIssue: { title: 'Main title', url: 'https://github.com/example/100' },
+        plan: { ok: true, planPath: 'docs/plan.md' },
+        relevantPlanSection: 'Slice A',
+        firstIncompleteMilestone: { slice: 'Slice B', label: 'Finish tests' },
+        durableProgress: { hasChecklist: true },
+        currentStageSummary: {
+          slice: 'Slice C',
+          taskOrGate: 'Gate 1',
+          activeTaskIssue: '#121',
+          activePr: '#55',
+          relevantPlanSection: 'Slice D',
+          approvedBase: 'main@abc',
+          founderGate: 'pending',
+        },
+        pr: { headRefName: 'feature/x', baseRefName: 'main', headRefOid: 'sha123' },
+        exactHeadCi: { summary: 'CI verified' },
+        nextPermittedAction: 'continue implementation',
+      },
+    }
+
+    expect(formatProgressSection(full)).toEqual([
+      'Progress tracking:',
+      'Workflow profile: standalone',
+      'Profile next action: implement scoped change',
+      'Declared Main Issue: #100',
+      'Main Issue title: Main title',
+      'Main Issue URL: https://github.com/example/100',
+      'Declared Implementation Plan: docs/plan.md',
+      'Implementation Plan: found at docs/plan.md',
+      'Relevant plan section: Slice A',
+      'First incomplete milestone: Slice B — Finish tests',
+      'Current Slice: Slice C',
+      'Current Task or gate: Gate 1',
+      'Active Task Issue: #121',
+      'Active PR: #55',
+      'Relevant plan section: Slice D',
+      'Approved base: main@abc',
+      'Founder gate: pending',
+      'PR branch: feature/x -> main',
+      'Current head SHA: sha123',
+      'Exact-head CI: CI verified',
+      'Next permitted action: continue implementation',
+      '',
+      'Hard blockers:',
+      '- blocker alpha',
+      '',
+      'Warnings:',
+      '- warning beta',
+    ])
+
+    const completeChecklist = {
+      blockers: [] as string[],
+      warnings: [] as string[],
+      report: {
+        declarations: {
+          declaresMainIssue: false,
+          declaresImplementationPlan: false,
+        },
+        durableProgress: { hasChecklist: true },
+      },
+    }
+    expect(formatProgressSection(completeChecklist)).toEqual([
+      'Progress tracking:',
+      'First incomplete milestone: none — durable checklist appears complete.',
+      'No Main Issue or Implementation Plan declared — normal standalone workflow.',
+    ])
+
+    const warningsOnly = {
+      blockers: [] as string[],
+      warnings: ['watch this'],
+      report: {
+        declarations: {
+          declaresMainIssue: false,
+          declaresImplementationPlan: false,
+        },
+        durableProgress: { hasChecklist: false },
+      },
+    }
+    const warningLines = formatProgressSection(warningsOnly)
+    expect(warningLines).toContain('Warnings:')
+    expect(warningLines).not.toContain(
+      'No Main Issue or Implementation Plan declared — normal standalone workflow.',
+    )
+
+    const truthyEmptyPr = {
+      blockers: [] as string[],
+      warnings: [] as string[],
+      report: {
+        declarations: {
+          declaresMainIssue: false,
+          declaresImplementationPlan: false,
+        },
+        durableProgress: { hasChecklist: false },
+        pr: {},
+      },
+    }
+    expect(formatProgressSection(truthyEmptyPr)).toEqual([
+      'Progress tracking:',
+      'PR branch: undefined -> undefined',
+      'Current head SHA: undefined',
+      'No Main Issue or Implementation Plan declared — normal standalone workflow.',
+    ])
+
+    const inputSnapshot = structuredClone(minimal)
+    formatProgressSection(minimal)
+    expect(minimal).toEqual(inputSnapshot)
+
+    expect(() => formatProgressSection(null as never)).toThrow(TypeError)
   })
 })

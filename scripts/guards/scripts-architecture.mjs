@@ -6,7 +6,7 @@ import {
   INTERNAL_DESTINATION_PREFIXES,
   MIGRATION_STATUSES,
 } from '../mission-control/domain/campaign-enums.ts'
-import { validateRootScriptMappingRecord } from '../mission-control/domain/campaign-validator.mjs'
+import { validateRootScriptMappingRecord } from '../mission-control/domain/campaign-validator.ts'
 
 export class ArchitectureContractError extends Error {
   constructor(violations) {

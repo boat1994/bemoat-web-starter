@@ -9,10 +9,10 @@ import { writeIssueBodyWithLease } from './issue-body-cas.mjs'
 import {
   selectNextCampaignAction,
   validateCampaignTransition,
-} from '../domain/campaign-authority.mjs'
-import { sameCampaignValue } from '../domain/campaign-equality.mjs'
-import { parseCampaign } from '../domain/campaign-parser.mjs'
-import { replaceCampaignBlock } from '../domain/campaign-renderer.mjs'
+} from '../domain/campaign-authority.ts'
+import { sameCampaignValue } from '../domain/campaign-equality.ts'
+import { parseCampaign } from '../domain/campaign-parser.ts'
+import { replaceCampaignBlock } from '../domain/campaign-renderer.ts'
 import { preflightCanonicalBootstrapTask } from '../domain/task-bootstrap-preflight.mjs'
 import {
   detectUnaccountedReviewEvidence,
@@ -23,30 +23,30 @@ import {
   parseProductionMergeReviewVerdict,
   resolveMergeReviewVerdictBinding,
 } from '../domain/merge-review-verdict.mjs'
-import { normalizePaginatedCommitMessages } from '../domain/merge-commit-messages.mjs'
-import { classifyHeadBindings } from '../domain/merge-head-bindings.mjs'
-import { classifyMergeability } from '../domain/merge-mergeability.mjs'
-import { classifyNoAutomaticClosure } from '../domain/merge-no-automatic-closure.mjs'
+import { normalizePaginatedCommitMessages } from '../domain/merge-commit-messages.ts'
+import { classifyHeadBindings } from '../domain/merge-head-bindings.ts'
+import { classifyMergeability } from '../domain/merge-mergeability.ts'
+import { classifyNoAutomaticClosure } from '../domain/merge-no-automatic-closure.ts'
 import { validateNextAction } from '../domain/merge-next-action.mjs'
-import { validateBlockerResolutionPostconditions } from '../domain/merge-blocker-postconditions.mjs'
-import { blockerResolutionCampaignPostconditions } from '../domain/merge-blocker-campaign-postconditions.mjs'
+import { validateBlockerResolutionPostconditions } from '../domain/merge-blocker-postconditions.ts'
+import { blockerResolutionCampaignPostconditions } from '../domain/merge-blocker-campaign-postconditions.ts'
 import { renderFinalResultBody } from '../domain/merge-final-result.mjs'
-import { normalizeIssueNumber, normalizePrNumber } from '../domain/merge-issue-references.mjs'
-import { resultCommentId } from '../domain/merge-result-comment-id.mjs'
-import { blockedExternal, stateConflict } from '../domain/merge-errors.mjs'
-import { campaignParseFailure } from '../domain/merge-campaign-errors.mjs'
-import { sameTerminalBinding } from '../domain/merge-terminal-binding.mjs'
+import { normalizeIssueNumber, normalizePrNumber } from '../domain/merge-issue-references.ts'
+import { resultCommentId } from '../domain/merge-result-comment-id.ts'
+import { blockedExternal, stateConflict } from '../domain/merge-errors.ts'
+import { campaignParseFailure } from '../domain/merge-campaign-errors.ts'
+import { sameTerminalBinding } from '../domain/merge-terminal-binding.ts'
 import { stateBlockReplacement } from '../domain/merge-state-block-replacement.mjs'
-import { deriveCampaignExpansionAuthority } from '../domain/merge-campaign-expansion-authority.mjs'
+import { deriveCampaignExpansionAuthority } from '../domain/merge-campaign-expansion-authority.ts'
 import {
   projectCampaignBlockerResolved,
   projectCampaignSliceDone,
-} from '../domain/merge-campaign-state-projection.mjs'
-import { projectTaskDoneState } from '../domain/merge-task-done-projection.mjs'
-import { validateDirectOwnership } from '../domain/merge-direct-ownership.mjs'
+} from '../domain/merge-campaign-state-projection.ts'
+import { projectTaskDoneState } from '../domain/merge-task-done-projection.ts'
+import { validateDirectOwnership } from '../domain/merge-direct-ownership.ts'
 import { commentSupersedesId } from '../domain/merge-comment-supersession.mjs'
-import { mergeCommitOid } from '../domain/merge-commit-oid.mjs'
-import { normalizeIssueReason, normalizeIssueState } from '../domain/merge-issue-state.mjs'
+import { mergeCommitOid } from '../domain/merge-commit-oid.ts'
+import { normalizeIssueReason, normalizeIssueState } from '../domain/merge-issue-state.ts'
 import { parseMergeCliArgs } from '../domain/merge-cli-args.mjs'
 import {
   renderMergeError,
@@ -59,12 +59,12 @@ import {
 } from '../domain/merge-safe-execution-bundle.mjs'
 import {
   CAMPAIGN_PROJECTION_KINDS,
-} from '../domain/merge-campaign-projection.mjs'
+} from '../domain/merge-campaign-projection.ts'
 import {
   createCampaignOwnershipAdmission,
   resolveCampaignMergeRoute,
-} from '../domain/merge-campaign-admission.mjs'
-import { flattenGhPages } from '../domain/merge-gh-pages.mjs'
+} from '../domain/merge-campaign-admission.ts'
+import { flattenGhPages } from '../domain/merge-gh-pages.ts'
 import {
   AUTHORIZATION_VALIDATION_FAILURE,
   authorizationValidationFailure,

@@ -47,6 +47,141 @@ afterEach(() => {
 
 describe('Mission Control Characterization (Issue #150)', () => {
 
+  it('keeps the canonical TypeScript parser and authorization helpers directly callable', async () => {
+    const canonicalState = await import(
+      '../../scripts/mission-control/domain/task-state.ts'
+    )
+    const canonicalAuthorization = await import(
+      '../../scripts/mission-control/domain/task-state-authorization.ts'
+    )
+
+    expect(canonicalState.parseMissionControlState).toBeTypeOf('function')
+    expect(canonicalState.renderMissionControlState).toBeTypeOf('function')
+    expect(canonicalAuthorization.validateBoundCorrectionAuthorization).toBeTypeOf('function')
+
+    const review = {
+      review_number: 4,
+      reviewed_head: 'head-4',
+      finding_dispositions: [{ finding_id: 'MC-R1-333-001', disposition: 'accepted' }],
+    }
+    const authorization = {
+      status: 'approved',
+      authority: 'Founder',
+      scope: 'correction',
+      action: 'apply-correction',
+      authorized_at: '2026-08-13T00:00:00Z',
+      for_review_number: 4,
+      reviewed_head: 'head-4',
+      finding_ids: ['MC-R1-333-001'],
+    }
+
+    expect(canonicalAuthorization.validateBoundCorrectionAuthorization(authorization, review))
+      .toEqual({ valid: true })
+    expect(canonicalAuthorization.validateBoundCorrectionAuthorization(
+      { ...authorization, reviewed_head: 'stale-head' },
+      review,
+    )).toEqual({
+      valid: false,
+      reason: 'post-budget correction authorization must bind to the latest completed post-budget reviewed head',
+    })
+  })
+
+  it('preserves the parser error matrix for malformed roots and duplicate YAML keys', () => {
+    const duplicate = `
+<!-- bemoat-mission-control-state:start -->
+state: READY
+state: IN_PROGRESS
+<!-- bemoat-mission-control-state:end -->`
+    const scalarRoot = `
+<!-- bemoat-mission-control-state:start -->
+not-a-mapping
+<!-- bemoat-mission-control-state:end -->`
+
+    expect(parseMissionControlState(duplicate)).toMatchObject({
+      present: true,
+      valid: false,
+      reason: expect.stringContaining('duplicate state key: Map keys must be unique'),
+    })
+    expect(parseMissionControlState(scalarRoot)).toEqual({
+      present: true,
+      valid: false,
+      reason: 'unreadable state line: root must be a mapping',
+    })
+  })
+
+  it('preserves renderer key ordering, unknown keys, formatting, and YAML scalar typing', () => {
+    const state: Record<string, unknown> = {
+      schema_version: 1,
+      state: 'READY',
+      review_cycle: 0,
+      full_review_count: 0,
+      approved_base: 'main',
+      active_task_issue: '#333',
+      active_pr: null,
+      current_head: null,
+      last_reviewed_head: null,
+      workflow_mode: null,
+      guide_version: '1.3.0',
+      guide_source_ref: 'main',
+      guide_source_sha: null,
+      open_blockers: [],
+      follow_up_issues: [],
+      next_permitted_action: 'continue',
+      material_change_status: 'none',
+      updated_at: null,
+      updated_by: null,
+      unknown_future_key: { enabled: true },
+    }
+
+    expect(renderMissionControlState(state)).toBe(`<!-- bemoat-mission-control-state:start -->
+\`\`\`yaml
+schema_version: 1
+state: READY
+review_cycle: 0
+full_review_count: 0
+approved_base: main
+active_task_issue: "#333"
+active_pr: null
+current_head: null
+last_reviewed_head: null
+workflow_mode: null
+guide_version: 1.3.0
+guide_source_ref: main
+guide_source_sha: null
+open_blockers: []
+follow_up_issues: []
+next_permitted_action: continue
+material_change_status: none
+updated_at: null
+updated_by: null
+unknown_future_key:
+  enabled: true
+\`\`\`
+<!-- bemoat-mission-control-state:end -->`)
+    expect(parseMissionControlState(renderMissionControlState(state)).state).toEqual(state)
+  })
+
+  it('keeps planning-lineage population immutable and side-effect free', async () => {
+    const { populateOrPreservePlanningAuthorizationBaseSha } = await import(
+      '../../scripts/mission-control/domain/task-state.ts'
+    )
+    const prior: Record<string, unknown> = { state: 'READY', planning_authorization_base_sha: null }
+    const result = populateOrPreservePlanningAuthorizationBaseSha(
+      prior,
+      'ABCDEF0123456789ABCDEF0123456789ABCDEF01',
+    )
+
+    expect(result).toEqual({
+      ok: true,
+      state: {
+        state: 'READY',
+        planning_authorization_base_sha: 'abcdef0123456789abcdef0123456789abcdef01',
+      },
+      populated: true,
+    })
+    expect(prior).toEqual({ state: 'READY', planning_authorization_base_sha: null })
+  })
+
   it('Issue #255: centralized state-block projection preserves prose and fails closed on duplicate markers', () => {
     const prior: Record<string, unknown> = {
       schema_version: 1,

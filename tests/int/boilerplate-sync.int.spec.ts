@@ -57,6 +57,14 @@ const STARTER_ONLY_INT_TESTS: { path: string; reason: string }[] = [
     path: 'tests/int/mission-control-merge-task-done-projection.int.spec.ts',
     reason: 'Direct coverage for the extracted merge task DONE projection seam is starter harness validation only',
   },
+  {
+    path: 'tests/int/mission-control-task-attestation.int.spec.ts',
+    reason: 'Direct task-attestation typed-boundary characterization is starter harness validation only',
+  },
+  {
+    path: 'tests/int/correction-contract-fingerprint.int.spec.ts',
+    reason: 'Direct correction-contract fingerprint boundary characterization is starter harness validation only',
+  },
 ]
 
 /** Fixture trees that are starter-only and intentionally not synced. */
@@ -2189,6 +2197,8 @@ describe('issue #328 CommandRunner root closeout', () => {
 
 const REPRESENTATIVE_CHILD_PRESYNC_FIXTURE_DIR =
   'tests/fixtures/boilerplate-sync/representative-harness-child-presync'
+const CHILD_RUNTIME_PACKAGE_FIXTURE =
+  'tests/fixtures/boilerplate-sync/child-runtime-package.json'
 
 const INFORMATIONAL_SYNC_ARTIFACT_SUFFIXES = [
   '.bemoat-package-sync-proposal.md',
@@ -2324,6 +2334,25 @@ function applyRepresentativeChildPresyncOverlay(childRoot: string, repoRoot: str
   }
 }
 
+function provisionChildRuntimePackage(childRoot: string, repoRoot: string) {
+  const packagePath = join(repoRoot, CHILD_RUNTIME_PACKAGE_FIXTURE)
+  const packageJson = readFileSync(packagePath, 'utf8')
+  const packageData = JSON.parse(packageJson) as {
+    dependencies?: Record<string, string>
+  }
+  const zodVersion = packageData.dependencies?.zod
+
+  if (zodVersion !== '4.4.3') {
+    throw new Error(`child runtime fixture must declare direct zod@4.4.3, received ${zodVersion}`)
+  }
+
+  writeFileSync(join(childRoot, 'package.json'), packageJson)
+  const zodSource = resolve(repoRoot, 'node_modules/zod')
+  const zodTarget = join(childRoot, 'node_modules/zod')
+  mkdirSync(dirname(zodTarget), { recursive: true })
+  cpSync(zodSource, zodTarget, { recursive: true, dereference: true })
+}
+
 describe('issue #220 representative managed child-sync trailing whitespace regression', () => {
   it('fails when the representative harness-only managed sync delta contains trailing whitespace', async () => {
     const syncMod = await import('../../scripts/sync-boilerplate.mjs')
@@ -2409,6 +2438,7 @@ describe('issue #240 slice 2 harness-contract facade child portability', () => {
       )
       writeIssue182ChildFixture(childRoot)
       applyRepresentativeChildPresyncOverlay(childRoot, repoRoot)
+      provisionChildRuntimePackage(childRoot, repoRoot)
 
       const syncConfig = syncMod.getSourceSyncConfig(sourceRoot)
       const nonManagedBefore = snapshotNonManagedFiles(childRoot, syncConfig.managedPaths)
@@ -2424,6 +2454,9 @@ describe('issue #240 slice 2 harness-contract facade child portability', () => {
 
       expect(result.seededFiles).toEqual([])
       expect(existsSync(join(childRoot, 'scripts/guard-harness-contract.mjs'))).toBe(true)
+      expect(
+        JSON.parse(readFileSync(join(childRoot, 'package.json'), 'utf8')).dependencies.zod,
+      ).toBe('4.4.3')
       expect(existsSync(join(childRoot, 'scripts/harness-contract/child-script-policy.mjs'))).toBe(
         true,
       )

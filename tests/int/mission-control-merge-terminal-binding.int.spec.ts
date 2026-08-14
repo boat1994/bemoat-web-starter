@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { sameTerminalBinding } from '../../scripts/mission-control/domain/merge-terminal-binding.mjs'
+import { sameTerminalBinding } from '../../scripts/mission-control/domain/merge-terminal-binding.ts'
 
 describe('sameTerminalBinding', () => {
   const binding = {

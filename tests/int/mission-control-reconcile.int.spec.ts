@@ -7,6 +7,7 @@ import ts from 'typescript'
 import * as reconcileModule from '../../scripts/mission-control-reconcile.mjs'
 import * as coordinatorTransitions from '../../scripts/mission-control/coordinator-transitions.mjs'
 import { parseMissionControlState, renderMissionControlState } from '../../scripts/mission-control/domain/task-state.mjs'
+import * as reviewVerdictProjectionFacade from '../../scripts/mission-control/review-verdict-projection.mjs'
 
 // Shared .mjs scripts expose runtime behavior, not TypeScript declarations. Keep
 // the strict-project boundary explicit without changing the production API.
@@ -136,6 +137,34 @@ const sampleVerdict = `## REVIEW_VERDICT
 const FULL_SAMPLE_HEAD = 'abc1234'.padEnd(40, '0')
 
 describe('mission-control reconcile classifiers', () => {
+  it('keeps review verdict projection canonical TypeScript behind an exact facade', async () => {
+    const facade = await import('../../scripts/mission-control/review-verdict-projection.mjs')
+    const typed = await import('../../scripts/mission-control/review-verdict-projection.ts')
+    const proposalConsumer = await import('../../scripts/mission-control/reconciliation-proposals.mjs')
+
+    expect(readFileSync('scripts/mission-control/review-verdict-projection.mjs', 'utf8')).toBe(
+      "export * from './review-verdict-projection.ts'\n",
+    )
+    expect(Object.keys(facade).sort()).toEqual(Object.keys(typed).sort())
+    for (const name of Object.keys(facade) as Array<keyof typeof facade>) {
+      expect(facade[name]).toBe(typed[name])
+    }
+    expect(proposalConsumer.proposeReviewReconciliation).toBe(typed.proposeReviewReconciliation)
+  })
+
+  it('keeps comment evidence canonical TypeScript behind an exact logic-free facade', async () => {
+    const facade = await import('../../scripts/mission-control/comment-evidence.mjs')
+    const typed = await import('../../scripts/mission-control/comment-evidence.ts')
+
+    expect(readFileSync('scripts/mission-control/comment-evidence.mjs', 'utf8')).toBe(
+      "export * from './comment-evidence.ts'\n",
+    )
+    expect(Object.keys(facade).sort()).toEqual(Object.keys(typed).sort())
+    for (const name of Object.keys(facade) as Array<keyof typeof facade>) {
+      expect(facade[name]).toBe(typed[name])
+    }
+  })
+
   it('exposes the extracted Coordinator transition boundary', () => {
     expect(coordinatorTransitions.integrateHandoff).toBeTypeOf('function')
     expect(coordinatorTransitions.integrateResult).toBeTypeOf('function')
@@ -238,6 +267,144 @@ describe('mission-control reconcile classifiers', () => {
       commentId: 1,
       transitionIdentity: 'identity',
     })).toThrow('delta review requires an existing review cycle')
+  })
+
+  it.each([
+    ['CORRECTION REQUIRED', 'CORRECTION_REQUIRED_1'],
+    ['ELIGIBLE FOR FOUNDER REVIEW', 'ELIGIBLE_FOR_FOUNDER_REVIEW'],
+    ['BLOCKED FOR FOUNDER DECISION', 'BLOCKED_FOR_FOUNDER_DECISION'],
+    ['BLOCKED EXTERNAL', 'BLOCKED_EXTERNAL'],
+    ['STATE CONFLICT', 'STATE_CONFLICT'],
+  ] as const)('projects each Core verdict without changing its canonical state: %s', (verdict, state) => {
+    const projected = projectReviewVerdictState({
+      prior: { state: 'AWAITING_REVIEW_1', review_cycle: 0, full_review_count: 0 },
+      verdict,
+      reviewType: 'full',
+      reviewedHead: ' ABCDEF0123456789ABCDEF0123456789ABCDEF01 ',
+      commentId: 9,
+      transitionIdentity: { immutable: true },
+    })
+
+    expect(projected).toMatchObject({
+      state,
+      review_cycle: 1,
+      full_review_count: 1,
+      current_head: 'abcdef0123456789abcdef0123456789abcdef01',
+      last_reviewed_head: 'abcdef0123456789abcdef0123456789abcdef01',
+      open_blockers: [],
+      latest_review_verdict_comment_id: '9',
+    })
+  })
+
+  it.each([
+    [0, 'full', 'ELIGIBLE FOR FOUNDER REVIEW', 'ELIGIBLE_FOR_FOUNDER_REVIEW', 1, 1],
+    [1, 'delta', 'CORRECTION REQUIRED', 'CORRECTION_REQUIRED_2', 2, 1],
+    [1, 'delta', 'ELIGIBLE FOR FOUNDER REVIEW', 'ELIGIBLE_FOR_FOUNDER_REVIEW', 2, 1],
+    [2, 'delta', 'BLOCKED EXTERNAL', 'BLOCKED_EXTERNAL', 3, 1],
+  ] as const)('preserves the full/delta review-cycle matrix: cycle %s %s %s', (cycle, reviewType, verdict, state, nextCycle, fullCount) => {
+    const fields = proposeReviewReconciliation({
+      verdict,
+      reviewedHead: ' HEAD123 ',
+      reviewCycle: cycle,
+      fullReviewCount: cycle === 0 ? 0 : 1,
+    })
+
+    expect(fields).toMatchObject({
+      state,
+      review_cycle: nextCycle,
+      full_review_count: fullCount,
+      last_reviewed_head: 'head123',
+    })
+  })
+
+  it('keeps correction at cycle 2 as STATE_CONFLICT with unchanged counters', () => {
+    expect(proposeReviewReconciliation({
+      verdict: 'CORRECTION REQUIRED',
+      reviewedHead: ' HEAD123 ',
+      reviewCycle: 2,
+      fullReviewCount: 1,
+    })).toEqual({
+      state: 'STATE_CONFLICT',
+      review_cycle: 2,
+      full_review_count: 1,
+      last_reviewed_head: 'head123',
+      next_permitted_action: 'Mission Control must classify contradictory evidence.',
+    })
+  })
+
+  it.each([
+    ['prior managed state', { prior: null }, 'review projection requires prior managed state'],
+    ['Core verdict', { verdict: 'NOPE' }, 'review projection requires a Core verdict'],
+    ['review type', { reviewType: 'unknown' }, 'review projection requires review type full or delta'],
+    ['reviewed head', { reviewedHead: '   ' }, 'review projection requires exact reviewed head'],
+    ['full cycle', { reviewType: 'full', prior: { review_cycle: 1, full_review_count: 1 } }, 'full review requires review_cycle 0'],
+    ['delta cycle', { reviewType: 'delta', prior: { review_cycle: 0, full_review_count: 0 } }, 'delta review requires an existing review cycle'],
+  ] as const)('preserves the exact invalid-input message for %s', (_label, overrides, message) => {
+    expect(() => projectReviewVerdictState({
+      prior: { state: 'AWAITING_REVIEW_1', review_cycle: 0, full_review_count: 0 },
+      verdict: 'ELIGIBLE FOR FOUNDER REVIEW',
+      reviewType: 'full',
+      reviewedHead: 'head123',
+      commentId: 1,
+      transitionIdentity: 'identity',
+      ...overrides,
+    })).toThrow(message)
+  })
+
+  it('deep-clones nested prior state while preserving transition identity reference assignment', () => {
+    const transitionIdentity = { contentHash: 'immutable' }
+    const prior = {
+      state: 'AWAITING_REVIEW_1',
+      review_cycle: 0,
+      full_review_count: 0,
+      nested: { keep: true },
+      open_blockers: ['old'],
+    }
+
+    const projected = projectReviewVerdictState({
+      prior,
+      verdict: 'CORRECTION REQUIRED',
+      reviewType: 'full',
+      reviewedHead: 'head123',
+      commentId: 123,
+      transitionIdentity,
+      findings: [{ finding_id: 'primary', id: 'fallback' }, { id: 'fallback' }, {}, { finding_id: '' }],
+      updatedAt: 'explicit-time',
+      updatedBy: 'explicit-updater',
+    })
+
+    expect(prior).toEqual({
+      state: 'AWAITING_REVIEW_1',
+      review_cycle: 0,
+      full_review_count: 0,
+      nested: { keep: true },
+      open_blockers: ['old'],
+    })
+    expect(projected.nested).toEqual({ keep: true })
+    expect(projected.nested).not.toBe(prior.nested)
+    expect(projected.latest_transition_identity).toBe(transitionIdentity)
+    expect(projected.latest_review_verdict_comment_id).toBe('123')
+    expect(projected.updated_at).toBe('explicit-time')
+    expect(projected.updated_by).toBe('explicit-updater')
+    expect(projected.open_blockers).toEqual(['primary', 'fallback'])
+  })
+
+  it('uses Reviewer and current ISO timestamp defaults when omitted', () => {
+    const before = new Date().toISOString()
+    const projected = projectReviewVerdictState({
+      prior: { state: 'AWAITING_REVIEW_1', review_cycle: 0, full_review_count: 0 },
+      verdict: 'STATE CONFLICT',
+      reviewType: 'full',
+      reviewedHead: 'head123',
+      commentId: 1,
+      transitionIdentity: 'identity',
+    })
+    const after = new Date().toISOString()
+
+    expect(projected.updated_by).toBe('Reviewer')
+    expect(projected.updated_at).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+    expect(String(projected.updated_at) >= before).toBe(true)
+    expect(String(projected.updated_at) <= after).toBe(true)
   })
   it('explains that merge transport must close a merged PR open Issue before terminal reconciliation', () => {
     expect(classifyReconciliation({
@@ -1362,6 +1529,176 @@ describe('mission-control reconcile classifiers', () => {
     expect(fields.review_cycle).toBe(2)
     expect(fields.full_review_count).toBe(1)
     expect(fields.next_permitted_action).toMatch(/contradictory evidence/)
+  })
+})
+
+describe('review verdict projection boundary', () => {
+  const coreVerdicts = [
+    ['CORRECTION REQUIRED', 'CORRECTION_REQUIRED_1', 'Dev posts correction ## RESULT, then Review 2 on the corrected head.'],
+    ['ELIGIBLE FOR FOUNDER REVIEW', 'ELIGIBLE_FOR_FOUNDER_REVIEW', 'Founder merge authorization required before merge.'],
+    ['BLOCKED FOR FOUNDER DECISION', 'BLOCKED_FOR_FOUNDER_DECISION', 'Founder Approve or Decline on remaining Blocker/Critical; no implementation prompt until Approve.'],
+    ['BLOCKED EXTERNAL', 'BLOCKED_EXTERNAL', 'Resolve external blocker before continuing.'],
+    ['STATE CONFLICT', 'STATE_CONFLICT', 'Mission Control must classify contradictory evidence.'],
+  ] as const
+
+  function priorState(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+      schema_version: 1,
+      state: 'AWAITING_REVIEW_1',
+      review_cycle: 0,
+      full_review_count: 0,
+      current_head: 'old-head',
+      last_reviewed_head: null,
+      open_blockers: [],
+      nested: { untouched: ['prior-value'] },
+      ...overrides,
+    }
+  }
+
+  function project(input: Record<string, unknown>) {
+    return reviewVerdictProjectionFacade.projectReviewVerdictState(input)
+  }
+
+  it.each(coreVerdicts)('projects Core verdict %s to %s with the exact next action', (verdict, state, nextAction) => {
+    expect(project({
+      prior: priorState(),
+      verdict,
+      reviewType: 'full',
+      reviewedHead: ' ABCDEF0123456789ABCDEF0123456789ABCDEF01 ',
+      commentId: 42,
+      transitionIdentity: 'identity',
+    })).toMatchObject({
+      state,
+      review_cycle: 1,
+      full_review_count: 1,
+      current_head: 'abcdef0123456789abcdef0123456789abcdef01',
+      last_reviewed_head: 'abcdef0123456789abcdef0123456789abcdef01',
+      next_permitted_action: nextAction,
+    })
+  })
+
+  it.each([
+    ['full', 0, true],
+    ['full', 1, false],
+    ['delta', 0, false],
+    ['delta', 1, true],
+    ['delta', 2, true],
+  ] as const)('enforces the full/delta cycle matrix for %s review at cycle %s', (reviewType, reviewCycle, accepted) => {
+    const input = {
+      prior: priorState({ review_cycle: reviewCycle, full_review_count: reviewCycle === 0 ? 0 : 1 }),
+      verdict: 'ELIGIBLE FOR FOUNDER REVIEW',
+      reviewType,
+      reviewedHead: 'abc1234',
+      commentId: 1,
+      transitionIdentity: 'identity',
+    }
+    if (accepted) {
+      expect(project(input).review_cycle).toBe(Math.min(reviewCycle + 1, 3))
+    } else {
+      expect(() => project(input)).toThrow(
+        reviewType === 'full'
+          ? 'full review requires review_cycle 0'
+          : 'delta review requires an existing review cycle',
+      )
+    }
+  })
+
+  it.each([
+    [{}, 'review projection requires prior managed state'],
+    [{ prior: priorState(), verdict: 'NOT CORE', reviewType: 'full', reviewedHead: 'abc1234' }, 'review projection requires a Core verdict'],
+    [{ prior: priorState(), verdict: 'STATE CONFLICT', reviewType: 'partial', reviewedHead: 'abc1234' }, 'review projection requires review type full or delta'],
+    [{ prior: priorState(), verdict: 'STATE CONFLICT', reviewType: 'full', reviewedHead: '   ' }, 'review projection requires exact reviewed head'],
+  ] as const)('rejects invalid projection input with the exact message', (input, message) => {
+    expect(() => project(input)).toThrow(message)
+  })
+
+  it('deep clones nested prior state without mutating input while preserving identity reference assignment', () => {
+    const transitionIdentity = { taskId: '333', contentHash: 'identity-hash' }
+    const prior = priorState({ nested: { untouched: ['prior-value'], deep: { count: 1 } } })
+    const before = structuredClone(prior)
+    const projected = project({
+      prior,
+      verdict: 'CORRECTION REQUIRED',
+      reviewType: 'full',
+      reviewedHead: 'abc1234',
+      commentId: 9001,
+      transitionIdentity,
+      updatedAt: '2026-08-14T01:00:00.000Z',
+      updatedBy: 'Tester',
+    })
+
+    expect(prior).toEqual(before)
+    expect(projected.nested).not.toBe(prior.nested)
+    expect(projected.latest_transition_identity).toBe(transitionIdentity)
+    expect(projected.latest_review_verdict_comment_id).toBe('9001')
+    expect(projected.updated_at).toBe('2026-08-14T01:00:00.000Z')
+    expect(projected.updated_by).toBe('Tester')
+  })
+
+  it('uses finding_id precedence, id fallback, and filters empty finding candidates only', () => {
+    expect(project({
+      prior: priorState(),
+      verdict: 'CORRECTION REQUIRED',
+      reviewType: 'full',
+      reviewedHead: 'abc1234',
+      commentId: 1,
+      transitionIdentity: 'identity',
+      findings: [
+        { finding_id: 'finding-id', id: 'ignored-id' },
+        { id: 'id-only' },
+        { finding_id: '' },
+        { id: '' },
+        { finding_id: null, id: null },
+        {},
+        null,
+      ],
+    }).open_blockers).toEqual(['finding-id', 'id-only'])
+
+    expect(project({
+      prior: priorState(),
+      verdict: 'ELIGIBLE FOR FOUNDER REVIEW',
+      reviewType: 'full',
+      reviewedHead: 'abc1234',
+      commentId: 1,
+      transitionIdentity: 'identity',
+      findings: [{ finding_id: 'ignored' }, { id: 'also-ignored' }],
+    }).open_blockers).toEqual([])
+  })
+
+  it('preserves proposal cycle transitions and edge-case counter semantics', () => {
+    const cases = [
+      ['CORRECTION REQUIRED', 0, 0, 'CORRECTION_REQUIRED_1', 1, 1],
+      ['CORRECTION REQUIRED', 1, 1, 'CORRECTION_REQUIRED_2', 2, 1],
+      ['CORRECTION REQUIRED', 2, 1, 'STATE_CONFLICT', 2, 1],
+      ['CORRECTION REQUIRED', 3, 9, 'STATE_CONFLICT', 3, 1],
+      ['ELIGIBLE FOR FOUNDER REVIEW', 0, 0, 'ELIGIBLE_FOR_FOUNDER_REVIEW', 1, 1],
+      ['ELIGIBLE FOR FOUNDER REVIEW', 3, 1, 'ELIGIBLE_FOR_FOUNDER_REVIEW', 3, 1],
+    ] as const
+
+    for (const [verdict, reviewCycle, fullReviewCount, state, nextCycle, nextFullReviewCount] of cases) {
+      expect(proposeReviewReconciliation({
+        verdict,
+        reviewedHead: ' ABC1234 ',
+        reviewCycle,
+        fullReviewCount,
+      })).toMatchObject({
+        state,
+        review_cycle: nextCycle,
+        full_review_count: nextFullReviewCount,
+        last_reviewed_head: 'abc1234',
+      })
+    }
+  })
+
+  it('keeps the exact facade, export set, and function identity parity with the canonical TypeScript module', async () => {
+    expect(readFileSync('scripts/mission-control/review-verdict-projection.mjs', 'utf8')).toBe(
+      "export * from './review-verdict-projection.ts'\n",
+    )
+    const typed = await import('../../scripts/mission-control/review-verdict-projection.ts')
+    expect(Object.keys(reviewVerdictProjectionFacade).sort()).toEqual(Object.keys(typed).sort())
+    for (const name of Object.keys(reviewVerdictProjectionFacade) as Array<keyof typeof reviewVerdictProjectionFacade>) {
+      expect(reviewVerdictProjectionFacade[name]).toBe(typed[name])
+    }
   })
 })
 

@@ -7,8 +7,8 @@ const root = resolve(process.cwd())
 const tempRoots: string[] = []
 const oracle = [
   ['tests/int/mission-control-adopt-finding.int.spec.ts', 'ba3ac34c02e6e05c0b94dff857db9d57a2bcc181b74a4d29bd8029f84e79739d'],
-  ['tests/int/mission-control-merge-verdict-binding-entrypoint.int.spec.ts', 'c780c36f4fcc3d386be6b3dcb5a86f16b1030a1446cfe59a9fefe83f1dc54b65'],
-  ['tests/int/mission-control-merge.int.spec.ts', '2dfb92137dc35d5cd3ab718ff330bde87ae933891cbeaf077baf374a497f2d6e'],
+  ['tests/int/mission-control-merge-verdict-binding-entrypoint.int.spec.ts', '75f0c5ab11fde234a28d359440ca4dcea38c44cbaede476029efc10c69e4e158'],
+  ['tests/int/mission-control-merge.int.spec.ts', 'a541db693a806b6556c798c46448a5aba3571424f38cee228fb4ee4057e0feb7'],
 ] as const
 const productionExtensions = ['.mjs', '.ts'] as const
 const grandfathered = [
@@ -19,9 +19,9 @@ const grandfathered = [
   ['scripts/mission-control-dispatch.mjs', 545],
   ['scripts/mission-control-reconcile.mjs', 143],
   ['scripts/mission-control-review.mjs', 346],
-  ['scripts/mission-control/domain/campaign-authority.mjs', 547], ['scripts/mission-control/domain/campaign-validator.mjs', 482], ['scripts/mission-control/domain/correction-contract.mjs', 650],
-  ['scripts/mission-control/domain/recover-state-projection.mjs', 37], ['scripts/mission-control/domain/reopen-result-rendering.mjs', 176], ['scripts/mission-control/domain/review-recovery.mjs', 485],
-  ['scripts/mission-control/domain/review-result-rendering.mjs', 164],
+  ['scripts/mission-control/domain/campaign-authority.ts', 630], ['scripts/mission-control/domain/campaign-validator.mjs', 482], ['scripts/mission-control/domain/correction-contract.mjs', 650], ['scripts/mission-control/domain/correction-contract.ts', 536],
+  ['scripts/mission-control/domain/recover-state-projection.mjs', 37], ['scripts/mission-control/domain/review-recovery.mjs', 485],
+  ['scripts/mission-control/domain/review-result-rendering.ts', 200],
   ['scripts/mission-control/workflows/adopt-finding.mjs', 564],
   ['scripts/mission-control/workflows/issue-body-cas.mjs', 438],
   ['scripts/mission-control/workflows/merge.mjs', 1124],
@@ -80,7 +80,7 @@ describe('structural protection guard', () => {
     expect((await guard()).map((entry: { rule: string }) => entry.rule)).toEqual([])
     expect(grandfathered).toHaveLength(26)
     expect(JSON.parse(readFileSync(join(root, 'scripts/structural-protection-manifest.json'), 'utf8'))).toEqual(manifest())
-    expect(scriptInventory(root)).toBe(204)
+    expect(scriptInventory(root)).toBe(269)
   })
 
   it('rejects malformed schema, types, unknown keys, ordering, duplicates, paths, and SHA values', async () => {

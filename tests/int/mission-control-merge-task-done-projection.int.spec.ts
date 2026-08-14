@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { projectTaskDoneState } from '../../scripts/mission-control/domain/merge-task-done-projection.mjs'
+import { projectTaskDoneState } from '../../scripts/mission-control/domain/merge-task-done-projection.ts'
 
 describe('projectTaskDoneState', () => {
   it('projects DONE state while clearing blockers and preserving untouched fields', () => {

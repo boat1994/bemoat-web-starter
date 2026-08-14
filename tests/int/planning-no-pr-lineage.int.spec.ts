@@ -876,3 +876,133 @@ describe('planning_authorization_base_sha durable schema support', () => {
     expect(parsed.state?.planning_authorization_base_sha).toBe(lineageSha)
   })
 })
+
+describe('Cluster E characterization (issue #333) — planning-no-pr-lineage tri-state', () => {
+  it('resolvePlanningAuthorizationBaseSha handles undefined, null, empty, invalid, and trimmed lowercase SHA', () => {
+    const sha = 'ABCDEF0123456789ABCDEF0123456789ABCDEF01'
+    expect(resolvePlanningAuthorizationBaseSha({})).toEqual({ sha: null, missing: true, invalid: false })
+    expect(resolvePlanningAuthorizationBaseSha({ planning_authorization_base_sha: null })).toEqual({
+      sha: null,
+      missing: true,
+      invalid: false,
+    })
+    expect(resolvePlanningAuthorizationBaseSha({ planning_authorization_base_sha: '' })).toEqual({
+      sha: null,
+      missing: true,
+      invalid: false,
+    })
+    expect(resolvePlanningAuthorizationBaseSha({ planning_authorization_base_sha: 'main' })).toEqual({
+      sha: null,
+      missing: false,
+      invalid: true,
+    })
+    expect(resolvePlanningAuthorizationBaseSha({ planning_authorization_base_sha: `  ${sha}  ` })).toEqual({
+      sha: sha.toLowerCase(),
+      missing: false,
+      invalid: false,
+    })
+  })
+
+  it('compareProtectedBaseTrees rejects non-full SHAs with BLOCKED_EXTERNAL', () => {
+    expect(compareProtectedBaseTrees({ previousSha: 'main', currentSha: 'deadbeef'.repeat(5) })).toEqual({
+      sameTree: false,
+      classification: 'BLOCKED_EXTERNAL',
+      reason: 'protected-base comparison requires two exact commit SHAs',
+    })
+  })
+
+  it('compareProtectedBaseTrees passes uppercase SHAs to rev-parse without lowercasing', () => {
+    const { root } = buildSiblingHistoryGraph()
+    const sha = runGit(root, ['rev-parse', 'HEAD'])
+    const upper = sha.toUpperCase()
+    const result = compareProtectedBaseTrees({ cwd: root, previousSha: upper, currentSha: upper })
+    expect(result.classification).toBe('REPAIRABLE_DRIFT')
+    expect(result.sameTree).toBe(true)
+  })
+
+  it('verifyPlanningNoPrDurableProofs treats empty rev-parse HEAD stdout as unavailable regardless of status', () => {
+    const root = mkdtempSync(join(tmpdir(), 'bemoat-planning-empty-head-'))
+    tempRoots.push(root)
+    const reviewedHead = 'a'.repeat(40)
+    const issueBody = managedIssueBody({
+      planning_authorization_base_sha: `"${reviewedHead}"`,
+      last_reviewed_head: `"${reviewedHead}"`,
+    })
+    const result = verifyPlanningNoPrDurableProofs({
+      cwd: root,
+      env: process.env,
+      issueBody,
+      issueNumber: 92,
+      contractReviewedHead: reviewedHead,
+    })
+    expect(result.ok).toBe(false)
+    expect(result.errors).toContain('STATE CONFLICT: local HEAD is unavailable for planning_no_pr authorization')
+  })
+
+  it('verifyPlanningNoPrDurableProofs maps any non-zero merge-base ancestry failure to STATE CONFLICT', () => {
+    const root = mkdtempSync(join(tmpdir(), 'bemoat-planning-ancestry-'))
+    tempRoots.push(root)
+    spawnSync('git', ['init', '-b', 'main'], { cwd: root, encoding: 'utf8' })
+    spawnSync('git', ['config', 'user.email', 'lineage@test'], { cwd: root, encoding: 'utf8' })
+    spawnSync('git', ['config', 'user.name', 'Lineage Test'], { cwd: root, encoding: 'utf8' })
+    writeFileSync(join(root, 'base.txt'), 'base\n')
+    spawnSync('git', ['add', 'base.txt'], { cwd: root, encoding: 'utf8' })
+    spawnSync('git', ['commit', '-m', 'base'], { cwd: root, encoding: 'utf8' })
+    const lineageBase = runGit(root, ['rev-parse', 'HEAD'])
+    spawnSync('git', ['checkout', '-b', 'docs/92-planning'], { cwd: root, encoding: 'utf8' })
+    writeFileSync(join(root, 'plan.txt'), 'plan\n')
+    spawnSync('git', ['add', 'plan.txt'], { cwd: root, encoding: 'utf8' })
+    spawnSync('git', ['commit', '-m', 'plan'], { cwd: root, encoding: 'utf8' })
+    const reviewedHead = runGit(root, ['rev-parse', 'HEAD'])
+    spawnSync('git', ['checkout', 'main'], { cwd: root, encoding: 'utf8' })
+    writeFileSync(join(root, 'other.txt'), 'other\n')
+    spawnSync('git', ['add', 'other.txt'], { cwd: root, encoding: 'utf8' })
+    spawnSync('git', ['commit', '-m', 'other'], { cwd: root, encoding: 'utf8' })
+    spawnSync('git', ['checkout', 'main'], { cwd: root, encoding: 'utf8' })
+    const issueBody = managedIssueBody({
+      planning_authorization_base_sha: `"${lineageBase}"`,
+      last_reviewed_head: `"${reviewedHead}"`,
+    })
+
+    const result = verifyPlanningNoPrDurableProofs({
+      cwd: root,
+      env: process.env,
+      issueBody,
+      issueNumber: 92,
+      contractReviewedHead: reviewedHead,
+      branchName: 'docs/92-planning',
+    })
+    expect(result.ok).toBe(false)
+    expect(result.errors).toContain(
+      'STATE CONFLICT: local HEAD does not match reviewed_head and reviewed_head is not an ancestor of HEAD',
+    )
+  })
+
+  it('verifyPlanningNoPrDurableProofs accepts active_task_issue as #N or String(N)', () => {
+    const { root, lineageBase, reviewedHead, policyHead } = buildSiblingHistoryGraph()
+    const baseBody = {
+      approved_base: 'main',
+      guide_source_sha: `"${policyHead}"`,
+      planning_authorization_base_sha: `"${lineageBase}"`,
+      last_reviewed_head: `"${reviewedHead}"`,
+    }
+    const hashForm = verifyPlanningNoPrDurableProofs({
+      cwd: root,
+      env: process.env,
+      issueBody: managedIssueBody({ ...baseBody, active_task_issue: '"#92"' }),
+      issueNumber: 92,
+      contractReviewedHead: reviewedHead,
+      branchName: 'docs/92-planning',
+    })
+    const stringForm = verifyPlanningNoPrDurableProofs({
+      cwd: root,
+      env: process.env,
+      issueBody: managedIssueBody({ ...baseBody, active_task_issue: '"92"' }),
+      issueNumber: 92,
+      contractReviewedHead: reviewedHead,
+      branchName: 'docs/92-planning',
+    })
+    expect(hashForm).toEqual({ ok: true, errors: [] })
+    expect(stringForm).toEqual({ ok: true, errors: [] })
+  })
+})
