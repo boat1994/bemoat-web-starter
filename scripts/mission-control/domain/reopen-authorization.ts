@@ -4,7 +4,7 @@ import {
   parseFounderMergeAuthorization,
   validateFounderAuthorizationRecord,
 } from '../../mission-control-merge.mjs'
-import { cloneReopenValue } from './reopen-state-projection.mjs'
+import { cloneReopenValue } from './reopen-state-projection.ts'
 
 type Mapping = Record<string, unknown>
 type AuthorizationOptions = Mapping & {

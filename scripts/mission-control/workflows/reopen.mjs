@@ -7,17 +7,17 @@ import { defaultRunGh as transportRunGh } from '../adapters/reopen-github.mjs'
 import {
   assertFounderAuthorization,
   parseFounderReopenAuthorization,
-} from '../domain/reopen-authorization.mjs'
+} from '../domain/reopen-authorization.ts'
 import {
   buildNextState,
   sameReopenValue,
-} from '../domain/reopen-state-projection.mjs'
+} from '../domain/reopen-state-projection.ts'
 import {
   createResultRendering,
   createRuntimeErrorRendering,
-} from '../domain/reopen-result-rendering.mjs'
+} from '../domain/reopen-result-rendering.ts'
 
-export { REOPEN_AUTHORIZATION_BUNDLE_KIND, parseFounderReopenAuthorization } from '../domain/reopen-authorization.mjs'
+export { REOPEN_AUTHORIZATION_BUNDLE_KIND, parseFounderReopenAuthorization } from '../domain/reopen-authorization.ts'
 
 export const REOPEN_NEXT_ACTION = 'Execute exactly one bounded correction RESULT, then one Delta Review.'
 export const REOPEN_USAGE = `Usage:
