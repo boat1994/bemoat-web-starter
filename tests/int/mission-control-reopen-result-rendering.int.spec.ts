@@ -4,7 +4,7 @@ import {
   createResultRendering,
   createRuntimeErrorRendering,
   runtimeError,
-} from '../../scripts/mission-control/domain/reopen-result-rendering.mjs'
+} from '../../scripts/mission-control/domain/reopen-result-rendering.ts'
 
 const OPTIONS = {
   issueNumber: '284',
