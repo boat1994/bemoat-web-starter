@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 
 import { createHelpEnvelopeV1, formatTextHelp } from './cli/command-help.mjs'
 import { CliInvocationError, parseCommandInvocation, resolveCommandIdentity } from './cli/command-invocation.mjs'
-import { renderResult, renderRuntimeError } from './mission-control/domain/role-comment-rendering.mjs'
+import { renderResult, renderRuntimeError } from './mission-control/domain/role-comment-rendering.ts'
 import { runPostRoleCommentWorkflow } from './mission-control/workflows/post-role-comment.mjs'
 
 const COMMAND = 'bemoat:issue:comment'

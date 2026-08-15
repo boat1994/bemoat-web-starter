@@ -20,7 +20,7 @@ import {
   createResultRendering,
   createRuntimeErrorRendering,
   runtimeError,
-} from './mission-control/domain/dispatch-result-rendering.mjs'
+} from './mission-control/domain/dispatch-result-rendering.ts'
 
 const COMMAND = 'bemoat:mission-control:dispatch'
 const ENTRYPOINT = 'scripts/mission-control-dispatch.mjs'

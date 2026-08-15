@@ -10,7 +10,7 @@ import { getCommandContract } from '../../scripts/cli/command-contract.mjs'
 import {
   renderResult,
   renderRuntimeError,
-} from '../../scripts/mission-control/domain/role-comment-rendering.mjs'
+} from '../../scripts/mission-control/domain/role-comment-rendering.ts'
 
 const scriptPath = resolve(process.cwd(), 'scripts/post-role-comment.mjs')
 const tempPaths: string[] = []

@@ -18,7 +18,7 @@ import {
   detectUnaccountedReviewEvidence,
   isReviewRecoveryIncident,
 } from '../domain/review-recovery.mjs'
-import { runtimeError } from '../domain/review-result-rendering.mjs'
+import { runtimeError } from '../domain/review-result-rendering.ts'
 
 function issueArgs(options, fields) {
   const args = ['issue', 'view', options.issue, '--json', fields]

@@ -8,7 +8,7 @@ import { parseRoleCommentBody } from './mission-control-reconcile.mjs'
 import { executeReviewWorkflow } from './mission-control/workflows/review.mjs'
 import { createHelpEnvelopeV1, formatTextHelp } from './cli/command-help.mjs'
 import { CliInvocationError, parseCommandInvocation, resolveCommandIdentity } from './cli/command-invocation.mjs'
-import { createResultRendering, createRuntimeErrorRendering } from './mission-control/domain/review-result-rendering.mjs'
+import { createResultRendering, createRuntimeErrorRendering } from './mission-control/domain/review-result-rendering.ts'
 
 const COMMAND = 'bemoat:mission-control:review'
 const ENTRYPOINT = 'scripts/mission-control-review.mjs'

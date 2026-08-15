@@ -4,8 +4,8 @@ import { resolve } from 'node:path'
 import { CliInvocationError } from '../../scripts/cli/command-invocation.mjs'
 import { beforeAll, describe, expect, it } from 'vitest'
 
-let renderers: typeof import('../../scripts/mission-control/domain/adopt-finding-result-rendering.mjs')
-const rendererModulePath = ['..', '..', 'scripts', 'mission-control', 'domain', 'adopt-finding-result-rendering.mjs'].join('/')
+let renderers: typeof import('../../scripts/mission-control/domain/adopt-finding-result-rendering.ts')
+const rendererModulePath = ['..', '..', 'scripts', 'mission-control', 'domain', 'adopt-finding-result-rendering.ts'].join('/')
 
 const OPTIONS = {
   issueNumber: '328',
@@ -19,7 +19,8 @@ const OPTIONS = {
 
 describe('mission-control adopt-finding result rendering', () => {
   beforeAll(async () => {
-    expect(existsSync(resolve('scripts/mission-control/domain/adopt-finding-result-rendering.mjs'))).toBe(true)
+    expect(existsSync(resolve('scripts/mission-control/domain/adopt-finding-result-rendering.mjs'))).toBe(false)
+    expect(existsSync(resolve('scripts/mission-control/domain/adopt-finding-result-rendering.ts'))).toBe(true)
     renderers = await import(rendererModulePath)
   })
 
