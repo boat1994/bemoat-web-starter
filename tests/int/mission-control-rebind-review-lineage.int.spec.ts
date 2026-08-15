@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -89,7 +90,12 @@ function canonicalBody(): string {
 `
 }
 
+function sha256Hex(text: string): string {
+  return createHash('sha256').update(text, 'utf8').digest('hex')
+}
+
 function authorizationBody(overrides: Record<string, unknown> = {}): string {
+  const { replacementBody, sourceBody, ...rest } = overrides
   return JSON.stringify({
     bundle_kind: 'review-lineage-rebind',
     command: COMMAND,
@@ -104,7 +110,13 @@ function authorizationBody(overrides: Record<string, unknown> = {}): string {
     full_review_count: 1,
     verdict: 'ELIGIBLE FOR FOUNDER REVIEW',
     scope: 'transport-correction-only',
-    ...overrides,
+    replacement_body_sha256: sha256Hex(
+      replacementBody === undefined ? canonicalBody() : String(replacementBody),
+    ),
+    source_body_sha256: sha256Hex(
+      sourceBody === undefined ? legacySourceBody() : String(sourceBody),
+    ),
+    ...rest,
   })
 }
 
@@ -191,11 +203,25 @@ type Scenario = {
   updatedBodies: Array<{ id: string; body: string }>
 }
 
+const STANDARD_OPTIONS = {
+  issueNumber: ISSUE,
+  repo: REPOSITORY,
+  expectedPr: PR,
+  expectedBase: BASE,
+  expectedState: 'ELIGIBLE_FOR_FOUNDER_REVIEW',
+  expectedHead: HEAD,
+  expectedReviewCycle: '1',
+  expectedFullReviewCount: '1',
+  sourceComment: SOURCE_COMMENT,
+  authorizationComment: AUTHORIZATION_COMMENT,
+}
+
 function createScenario(overrides: {
   sourceBody?: string
   extraComments?: Array<Record<string, unknown>>
   authorization?: Record<string, unknown>
   authorizationAuthor?: { login: string; author_association: string }
+  authorizationIssueUrl?: string | null
   managedState?: Record<string, unknown>
   pullRequest?: Record<string, unknown>
 } = {}): { scenario: Scenario; deps: RebindDeps } {
@@ -208,14 +234,17 @@ function createScenario(overrides: {
     author_association: 'OWNER',
     createdAt: '2026-07-20T10:00:00+07:00',
   }
-  const authorization = {
+  const authorization: Record<string, unknown> = {
     id: AUTHORIZATION_COMMENT,
     body: authorizationBody(overrides.authorization),
-    issue_url: `https://api.github.com/repos/${REPOSITORY}/issues/${ISSUE}`,
     user: { login: overrides.authorizationAuthor?.login ?? 'boat1994' },
     author: overrides.authorizationAuthor?.login ?? 'boat1994',
     author_association: overrides.authorizationAuthor?.author_association ?? 'OWNER',
     createdAt: '2026-08-15T21:00:00+07:00',
+  }
+  if (overrides.authorizationIssueUrl !== null) {
+    authorization.issue_url = overrides.authorizationIssueUrl
+      ?? `https://api.github.com/repos/${REPOSITORY}/issues/${ISSUE}`
   }
   const extraComments = overrides.extraComments ?? []
   const commentsById = new Map<string, Record<string, unknown>>([
@@ -582,6 +611,145 @@ describe('Mission Control review lineage rebind transport', () => {
       process.exitCode = previousExitCode
     }
     expect(scenario.postCount).toBe(0)
+    expect(scenario.writeCount).toBe(0)
+  })
+
+  it('fails closed when replacement Findings diverge from source Review 1 (DIVERGENT_FINDINGS_ACCEPTED)', async () => {
+    const divergentBody = canonicalBody().replace(
+      '**Findings:** Critical: None · Important: None',
+      '**Findings:** Critical: Forged · Important: None',
+    )
+    const { scenario, deps } = createScenario({
+      authorization: {
+        replacement_body_sha256: sha256Hex(divergentBody),
+        source_body_sha256: sha256Hex(legacySourceBody()),
+      },
+    })
+    await expect(runReviewLineageRebind({
+      options: STANDARD_OPTIONS,
+      body: divergentBody,
+      deps,
+    })).rejects.toThrow(/STATE_CONFLICT|AUTHORITY_CONFLICT/)
+    expect(scenario.postCount).toBe(0)
+    expect(scenario.updateCount).toBe(0)
+    expect(scenario.writeCount).toBe(0)
+  })
+
+  it('fails closed when the replacement body diverges by one byte from the authorized body', async () => {
+    const { scenario, deps } = createScenario()
+    await expect(runReviewLineageRebind({
+      options: STANDARD_OPTIONS,
+      body: `${canonicalBody()} `,
+      deps,
+    })).rejects.toThrow(/STATE_CONFLICT|AUTHORITY_CONFLICT/)
+    expect(scenario.postCount).toBe(0)
+    expect(scenario.updateCount).toBe(0)
+    expect(scenario.writeCount).toBe(0)
+  })
+
+  it('fails closed when Founder authorization is hosted on Issue #340 (WRONG_ISSUE_AUTH_ACCEPTED)', async () => {
+    const { scenario, deps } = createScenario({
+      authorizationIssueUrl: `https://api.github.com/repos/${REPOSITORY}/issues/340`,
+    })
+    await expect(runReviewLineageRebind({
+      options: STANDARD_OPTIONS,
+      body: canonicalBody(),
+      deps,
+    })).rejects.toThrow(/AUTHORITY_CONFLICT/)
+    expect(scenario.postCount).toBe(0)
+    expect(scenario.updateCount).toBe(0)
+    expect(scenario.writeCount).toBe(0)
+  })
+
+  it('fails closed when Founder authorization is hosted on another Issue', async () => {
+    const { scenario, deps } = createScenario({
+      authorizationIssueUrl: `https://api.github.com/repos/${REPOSITORY}/issues/1`,
+    })
+    await expect(runReviewLineageRebind({
+      options: STANDARD_OPTIONS,
+      body: canonicalBody(),
+      deps,
+    })).rejects.toThrow(/AUTHORITY_CONFLICT/)
+    expect(scenario.postCount).toBe(0)
+    expect(scenario.updateCount).toBe(0)
+    expect(scenario.writeCount).toBe(0)
+  })
+
+  it('fails closed when Founder authorization is missing issue_url', async () => {
+    const { scenario, deps } = createScenario({
+      authorizationIssueUrl: null,
+    })
+    await expect(runReviewLineageRebind({
+      options: STANDARD_OPTIONS,
+      body: canonicalBody(),
+      deps,
+    })).rejects.toThrow(/AUTHORITY_CONFLICT/)
+    expect(scenario.postCount).toBe(0)
+    expect(scenario.updateCount).toBe(0)
+    expect(scenario.writeCount).toBe(0)
+  })
+
+  it('fails closed when Founder authorization is hosted on another repository', async () => {
+    const { scenario, deps } = createScenario({
+      authorizationIssueUrl: 'https://api.github.com/repos/other/repo/issues/259',
+    })
+    await expect(runReviewLineageRebind({
+      options: STANDARD_OPTIONS,
+      body: canonicalBody(),
+      deps,
+    })).rejects.toThrow(/AUTHORITY_CONFLICT/)
+    expect(scenario.postCount).toBe(0)
+    expect(scenario.updateCount).toBe(0)
+    expect(scenario.writeCount).toBe(0)
+  })
+
+  it('fails closed when replacement_body_sha256 does not match the replacement body', async () => {
+    const { scenario, deps } = createScenario({
+      authorization: {
+        replacement_body_sha256: '0'.repeat(64),
+      },
+    })
+    await expect(runReviewLineageRebind({
+      options: STANDARD_OPTIONS,
+      body: canonicalBody(),
+      deps,
+    })).rejects.toThrow(/AUTHORITY_CONFLICT/)
+    expect(scenario.postCount).toBe(0)
+    expect(scenario.updateCount).toBe(0)
+    expect(scenario.writeCount).toBe(0)
+  })
+
+  it('fails closed when source_body_sha256 does not match the live source body', async () => {
+    const { scenario, deps } = createScenario({
+      authorization: {
+        source_body_sha256: '0'.repeat(64),
+      },
+    })
+    await expect(runReviewLineageRebind({
+      options: STANDARD_OPTIONS,
+      body: canonicalBody(),
+      deps,
+    })).rejects.toThrow(/AUTHORITY_CONFLICT/)
+    expect(scenario.postCount).toBe(0)
+    expect(scenario.updateCount).toBe(0)
+    expect(scenario.writeCount).toBe(0)
+  })
+
+  it('fails closed when replacement omits the Findings line even when hashes match', async () => {
+    const omitted = canonicalBody().replace(/^\*\*Findings:\*\*.*\n/m, '')
+    const { scenario, deps } = createScenario({
+      authorization: {
+        replacement_body_sha256: sha256Hex(omitted),
+        source_body_sha256: sha256Hex(legacySourceBody()),
+      },
+    })
+    await expect(runReviewLineageRebind({
+      options: STANDARD_OPTIONS,
+      body: omitted,
+      deps,
+    })).rejects.toThrow(/STATE_CONFLICT|AUTHORITY_CONFLICT/)
+    expect(scenario.postCount).toBe(0)
+    expect(scenario.updateCount).toBe(0)
     expect(scenario.writeCount).toBe(0)
   })
 

@@ -234,10 +234,20 @@ transport into canonical `**PR / base / head:**` form. It does not perform a
 new semantic review, does not increment or reset `review_cycle` /
 `full_review_count`, and does not broaden `recover-review`.
 
-The Founder authorization comment must be one raw JSON object bound to that
-exact tuple with `bundle_kind: review-lineage-rebind` and
-`scope: transport-correction-only`. Missing or unbound Founder authorization
-fails closed.
+The Founder authorization comment must be one raw JSON object hosted on
+Issue #259. Its durable GitHub `issue_url` must equal
+`https://api.github.com/repos/boat1994/bemoat-web-starter/issues/259`.
+Identical JSON hosted on Issue #340, another Issue, or another repository
+fails closed. The object must bind the exact registered tuple with
+`bundle_kind: review-lineage-rebind`, `scope: transport-correction-only`,
+`replacement_body_sha256` (lowercase hex SHA-256 of the exact canonical
+replacement body bytes), and `source_body_sha256` (lowercase hex SHA-256 of
+the exact live source comment `5163387315` body bytes). The replacement
+`**Findings:**` Critical/Important line must be a transport rewrite of that
+source Review 1 comment; findings are not reinterpreted, added, removed,
+upgraded, downgraded, or rewritten during lineage transport. Missing or
+unbound Founder authorization, `issue_url` mismatch, hash mismatch, or
+divergent Findings fail closed before any GitHub mutation.
 
 Mutation order is post canonical `REVIEW_VERDICT` → demote the source comment
 in-body → CAS-update only `latest_review_verdict_comment_id` and

@@ -29,6 +29,7 @@ import {
   REBIND_ENTRYPOINT,
   REGISTERED_TUPLE,
   assertCanonicalRebindBody,
+  assertFindingsLineProvenance,
   assertFounderAuthorization,
   assertLegacySourceComment,
   assertLiveManagedPreState,
@@ -200,7 +201,16 @@ async function readLiveEvidence({ options, body, deps }) {
     throw classifiedError('HEAD_DRIFT', 'live PR exact head does not match the registered tuple')
   }
   assertLegacySourceComment({ comment: source, options })
-  assertFounderAuthorization({ comment: authorization, options })
+  assertFounderAuthorization({
+    comment: authorization,
+    options,
+    replacementBody: body,
+    sourceBody: source.body,
+  })
+  assertFindingsLineProvenance({
+    sourceBody: source.body,
+    replacementBody: body,
+  })
   const classified = classifyActiveVerdicts({
     comments,
     sourceComment: options.sourceComment,

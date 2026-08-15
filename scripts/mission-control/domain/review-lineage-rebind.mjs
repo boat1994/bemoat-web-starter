@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto'
+
 import {
   normalizeTransitionIdentity,
   serializeTransitionIdentity,
@@ -30,6 +32,9 @@ export const REGISTERED_TUPLE = Object.freeze({
   verdict: 'ELIGIBLE FOR FOUNDER REVIEW',
 })
 
+export const REGISTERED_AUTHORIZATION_ISSUE_URL =
+  `https://api.github.com/repos/${REGISTERED_TUPLE.repo}/issues/${REGISTERED_TUPLE.issueNumber}`
+
 const REQUIRED_AUTHORIZATION_KEYS = Object.freeze([
   'bundle_kind',
   'command',
@@ -44,7 +49,13 @@ const REQUIRED_AUTHORIZATION_KEYS = Object.freeze([
   'full_review_count',
   'verdict',
   'scope',
+  'replacement_body_sha256',
+  'source_body_sha256',
 ])
+
+export function sha256Hex(text) {
+  return createHash('sha256').update(String(text ?? ''), 'utf8').digest('hex')
+}
 
 export function classifiedError(classification, message, details = {}) {
   const error = new Error(`${classification}: ${message}`)
@@ -74,6 +85,37 @@ export function parseDemotedCanonicalId(body = '') {
 
 export function isDemotedSourceBody(body = '') {
   return parseDemotedCanonicalId(body) != null && isExplicitlyNonAuthoritativeRoleBody(body)
+}
+
+export function originalSourceEvidenceBody(body = '') {
+  const text = String(body ?? '')
+  const canonicalId = parseDemotedCanonicalId(text)
+  if (!canonicalId) return text
+  const prefix = demotionPrefix(canonicalId)
+  if (!text.startsWith(prefix)) return text
+  return text.slice(prefix.length).replace(/^\n+/, '')
+}
+
+export function extractFindingsLine(body = '') {
+  const match = String(body ?? '').match(/^\*\*Findings:\*\*.*$/m)
+  return match?.[0] ?? null
+}
+
+export function assertFindingsLineProvenance({ sourceBody, replacementBody }) {
+  const sourceLine = extractFindingsLine(originalSourceEvidenceBody(sourceBody))
+  const replacementLine = extractFindingsLine(replacementBody)
+  if (!sourceLine || !replacementLine) {
+    throw classifiedError(
+      'STATE_CONFLICT',
+      'source and replacement REVIEW_VERDICT must both include a Findings line',
+    )
+  }
+  if (sourceLine !== replacementLine) {
+    throw classifiedError(
+      'STATE_CONFLICT',
+      'replacement Findings must preserve source Review 1 Critical/Important provenance',
+    )
+  }
 }
 
 export function buildRebindTransitionIdentity({ body, options }) {
@@ -183,7 +225,7 @@ export function parseFounderRebindAuthorization(body = '') {
   return parsed
 }
 
-export function assertFounderAuthorization({ comment, options }) {
+export function assertFounderAuthorization({ comment, options, replacementBody, sourceBody }) {
   if (!comment || !sameId(comment.id, options.authorizationComment)) {
     throw classifiedError('AUTHORITY_CONFLICT', 'Founder authorization comment is unavailable')
   }
@@ -191,6 +233,12 @@ export function assertFounderAuthorization({ comment, options }) {
   const association = comment.author_association || comment.authorAssociation
   if (login !== AUTHORIZED_FOUNDER_LOGIN || association !== AUTHORIZED_ASSOCIATION) {
     throw classifiedError('AUTHORITY_CONFLICT', 'Founder authorization is not bound to trusted owner boat1994')
+  }
+  if (comment.issue_url !== REGISTERED_AUTHORIZATION_ISSUE_URL) {
+    throw classifiedError(
+      'AUTHORITY_CONFLICT',
+      'Founder authorization is not hosted on registered Issue #259',
+    )
   }
   const parsed = parseFounderRebindAuthorization(comment.body)
   const expected = {
@@ -226,6 +274,18 @@ export function assertFounderAuthorization({ comment, options }) {
         `Founder authorization ${key} does not match the registered lineage-rebind tuple`,
       )
     }
+  }
+  if (String(parsed.replacement_body_sha256 ?? '') !== sha256Hex(replacementBody)) {
+    throw classifiedError(
+      'AUTHORITY_CONFLICT',
+      'Founder authorization replacement_body_sha256 does not match the exact replacement body',
+    )
+  }
+  if (String(parsed.source_body_sha256 ?? '') !== sha256Hex(originalSourceEvidenceBody(sourceBody))) {
+    throw classifiedError(
+      'AUTHORITY_CONFLICT',
+      'Founder authorization source_body_sha256 does not match the live source comment body',
+    )
   }
 }
 
