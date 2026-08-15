@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import * as facade from '../../scripts/mission-control/domain/active-correction-contract.mjs'
+import * as facade from '../../scripts/mission-control/domain/active-correction-contract.ts'
 import * as domain from '../../scripts/mission-control/domain/active-correction-contract.ts'
 import { isIdenticalCompletedProjection } from '../../scripts/mission-control/domain/adopt-finding-projection.mjs'
 import { fingerprintCorrectionContract } from '../../scripts/mission-control/domain/correction-contract-fingerprint.mjs'

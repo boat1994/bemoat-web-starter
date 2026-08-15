@@ -5,7 +5,7 @@ import { runReopen } from '../../scripts/mission-control/workflows/reopen.mjs'
 import {
   parseMissionControlState,
   renderMissionControlState,
-} from '../../scripts/mission-control/domain/task-state.mjs'
+} from '../../scripts/mission-control/domain/task-state.ts'
 
 type GhRunOptions = { allowNotFound?: boolean }
 type TestState = Record<string, unknown>

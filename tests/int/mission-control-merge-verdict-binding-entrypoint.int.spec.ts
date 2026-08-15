@@ -22,14 +22,6 @@ const liveFixtureSha256 = 'ca3d14b365f768ec1cab6fe339f3f008bbfdb624a82670c6705fa
 const liveFixtureByteLength = 1788
 const otherHead = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
 const thirdHead = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
-const mergeReviewVerdictFacadePath = resolve(
-  process.cwd(),
-  'scripts/mission-control/domain/merge-review-verdict.mjs',
-)
-const mergeReviewVerdictCanonicalPath = resolve(
-  process.cwd(),
-  'scripts/mission-control/domain/merge-review-verdict.ts',
-)
 
 async function mergeTransport() {
   return import('../../scripts/mission-control-merge.mjs')
@@ -753,32 +745,6 @@ See https://github.com/boat1994/bemoat-web-starter/pull/999
 })
 
 describe('merge REVIEW_VERDICT TypeScript boundary', () => {
-  it('keeps the .mjs facade exact and preserves direct merge-consumer export identity', async () => {
-    const facade = await import('../../scripts/mission-control/domain/merge-review-verdict.mjs')
-    const canonical = await import('../../scripts/mission-control/domain/merge-review-verdict.ts')
-    const merge = await mergeTransport()
-    const names = [
-      'classifyMergeReviewVerdict',
-      'parseProductionMergeReviewVerdict',
-      'resolveMergeReviewVerdictBinding',
-    ] as const
-
-    expect(readFileSync(mergeReviewVerdictFacadePath, 'utf8')).toBe(
-      "export * from './merge-review-verdict.ts'\n",
-    )
-    const canonicalSource = readFileSync(mergeReviewVerdictCanonicalPath, 'utf8')
-    expect(canonicalSource).toContain('z.unknown().parse(body)')
-    expect(canonicalSource).toContain('z.unknown().parse(commentId)')
-    expect(canonicalSource).not.toMatch(/z\.(string|coerce|object|record|array|union)/)
-    expect(Object.keys(facade).sort()).toEqual([...names].sort())
-    expect(Object.keys(canonical).sort()).toEqual([...names].sort())
-    for (const name of names) {
-      expect(facade[name]).toBe(canonical[name])
-    }
-    expect(merge.parseProductionMergeReviewVerdict).toBe(facade.parseProductionMergeReviewVerdict)
-    expect(merge.resolveMergeReviewVerdictBinding).toBe(facade.resolveMergeReviewVerdictBinding)
-  })
-
   it('keeps the raw unknown admission boundary and native coercion or throwing semantics', async () => {
     const canonical = await import('../../scripts/mission-control/domain/merge-review-verdict.ts')
     const body = {

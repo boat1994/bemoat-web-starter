@@ -6,7 +6,7 @@ import ts from 'typescript'
 /* eslint-disable @typescript-eslint/no-explicit-any -- untyped runtime .mjs boundary */
 import * as reconcileModule from '../../scripts/mission-control-reconcile.mjs'
 import * as coordinatorTransitions from '../../scripts/mission-control/coordinator-transitions.mjs'
-import { parseMissionControlState, renderMissionControlState } from '../../scripts/mission-control/domain/task-state.mjs'
+import { parseMissionControlState, renderMissionControlState } from '../../scripts/mission-control/domain/task-state.ts'
 import * as reviewVerdictProjectionFacade from '../../scripts/mission-control/review-verdict-projection.ts'
 
 // Shared .mjs scripts expose runtime behavior, not TypeScript declarations. Keep

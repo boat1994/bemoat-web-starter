@@ -5,9 +5,9 @@ import { createHash } from 'node:crypto'
 import yaml from 'yaml'
 
 import { analyzeExactHeadCi } from '../../agent-issue/exact-head-ci.mjs'
-import { parseCorrectionContract, parseCorrectionEvidenceMap, validateFindingIdentity } from '../domain/correction-contract.mjs'
+import { parseCorrectionContract, parseCorrectionEvidenceMap, validateFindingIdentity } from '../domain/correction-contract.ts'
 import { scanGuideContent } from '../../guards/mission-control-contract/scan-guide.mjs'
-import { parseMissionControlState, projectMissionControlStateBlock } from '../domain/task-state.mjs'
+import { parseMissionControlState, projectMissionControlStateBlock } from '../domain/task-state.ts'
 import {
   Coordinator,
   normalizeIssueComments,

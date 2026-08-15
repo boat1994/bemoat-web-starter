@@ -1,4 +1,4 @@
-import { parseCorrectionContract } from './correction-contract.mjs'
+import { parseCorrectionContract } from './correction-contract.ts'
 import {
   assertFounderAdoptFindingAuthorization,
   parseFounderAdoptFindingAuthorization,

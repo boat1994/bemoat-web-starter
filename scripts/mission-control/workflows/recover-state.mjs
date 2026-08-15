@@ -20,7 +20,7 @@ import { defaultRunGh as transportRunGh } from '../adapters/recover-state-github
 import {
   appendMissingMissionControlStateBlock,
   parseMissionControlState,
-} from '../domain/task-state.mjs'
+} from '../domain/task-state.ts'
 import {
   parseLineageCorrectionAuthorization,
   validateRecoverStateLineage,

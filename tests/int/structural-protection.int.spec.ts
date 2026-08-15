@@ -6,9 +6,9 @@ import { afterEach, describe, expect, it } from 'vitest'
 const root = resolve(process.cwd())
 const tempRoots: string[] = []
 const oracle = [
-  ['tests/int/mission-control-adopt-finding.int.spec.ts', 'ba3ac34c02e6e05c0b94dff857db9d57a2bcc181b74a4d29bd8029f84e79739d'],
-  ['tests/int/mission-control-merge-verdict-binding-entrypoint.int.spec.ts', '75f0c5ab11fde234a28d359440ca4dcea38c44cbaede476029efc10c69e4e158'],
-  ['tests/int/mission-control-merge.int.spec.ts', 'a541db693a806b6556c798c46448a5aba3571424f38cee228fb4ee4057e0feb7'],
+  ['tests/int/mission-control-adopt-finding.int.spec.ts', 'f5eed96613295c8c9e90e36fa0cdd218a4ab8c38c7070f23e79bceb2fa81a4eb'],
+  ['tests/int/mission-control-merge-verdict-binding-entrypoint.int.spec.ts', '04d849e7cecb4cf224459c8851ba133bb8b9d41a0c241eea898120c7161a2546'],
+  ['tests/int/mission-control-merge.int.spec.ts', 'e958895579dd01ae6591425aa3948e5745b40c842b884721a50b45fc7f11b7d3'],
 ] as const
 const productionExtensions = ['.mjs', '.ts'] as const
 const grandfathered = [
@@ -80,7 +80,7 @@ describe('structural protection guard', () => {
     expect((await guard()).map((entry: { rule: string }) => entry.rule)).toEqual([])
     expect(grandfathered).toHaveLength(26)
     expect(JSON.parse(readFileSync(join(root, 'scripts/structural-protection-manifest.json'), 'utf8'))).toEqual(manifest())
-    expect(scriptInventory(root)).toBe(246)
+    expect(scriptInventory(root)).toBe(241)
   })
 
   it('rejects malformed schema, types, unknown keys, ordering, duplicates, paths, and SHA values', async () => {

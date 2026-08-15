@@ -2,7 +2,7 @@
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { proposeReviewReconciliation as canonicalReconcile } from '../mission-control-reconcile.mjs'
-import { parseMissionControlState as canonicalParse, renderMissionControlState as canonicalRender } from '../mission-control/domain/task-state.mjs'
+import { parseMissionControlState as canonicalParse, renderMissionControlState as canonicalRender } from '../mission-control/domain/task-state.ts'
 
 export const RECONCILE_SCRIPT_PATH = 'scripts/mission-control-reconcile.mjs'
 
@@ -135,7 +135,7 @@ export function runMissionControlDriftGuard({
       full: entry.full,
     }))
     if (parsed.valid !== entry.expected_valid) {
-      violations.push({ type: 'mission-control-drift', rule: 'MC-DRIFT-005', file: 'scripts/mission-control/domain/task-state.mjs', message: `${entry.state} at cycle/full ${entry.cycle}/${entry.full} expected valid=${entry.expected_valid}, got ${parsed.valid}` })
+      violations.push({ type: 'mission-control-drift', rule: 'MC-DRIFT-005', file: 'scripts/mission-control/domain/task-state.ts', message: `${entry.state} at cycle/full ${entry.cycle}/${entry.full} expected valid=${entry.expected_valid}, got ${parsed.valid}` })
     }
   }
 

@@ -8,7 +8,7 @@ import {
 import {
   parseMissionControlState,
   renderMissionControlState,
-} from '../../scripts/mission-control/domain/task-state.mjs'
+} from '../../scripts/mission-control/domain/task-state.ts'
 
 const REPOSITORY = 'boat1994/bemoat-web-starter'
 const ISSUE = '284'

@@ -82,7 +82,7 @@
     "scripts/AGENTS.md",
     "scripts/ARCHITECTURE.md",
     "scripts/mission-control",
-    "scripts/mission-control/domain/task-state.mjs",
+    "scripts/mission-control/domain/task-state.ts",
     "scripts/mission-control/diagnostics/github-comment-projection.mjs",
     "scripts/guards/package-manager.mjs",
     "scripts/guards/toolchain-contract.mjs",

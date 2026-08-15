@@ -1,4 +1,4 @@
-import { parseCorrectionContract } from './domain/correction-contract.mjs'
+import { parseCorrectionContract } from './domain/correction-contract.ts'
 import { normalizeAuthorityHead } from './review-verdict-binding.mjs'
 import {
   classifyDeliveryLag,

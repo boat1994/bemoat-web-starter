@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import yaml from 'yaml'
 
-import { parseMissionControlState, renderMissionControlState } from '../../scripts/mission-control/domain/task-state.mjs'
+import { parseMissionControlState, renderMissionControlState } from '../../scripts/mission-control/domain/task-state.ts'
 import { sameCampaignValue } from '../../scripts/mission-control/domain/campaign-equality.ts'
 import {
   selectNextCampaignAction,

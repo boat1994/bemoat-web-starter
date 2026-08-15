@@ -3,7 +3,7 @@ import {
   normalizeAuthorityHead,
   parseRoleCommentBody,
 } from './review-verdict-binding.mjs'
-import { populateOrPreservePlanningAuthorizationBaseSha } from './domain/task-state.mjs'
+import { populateOrPreservePlanningAuthorizationBaseSha } from './domain/task-state.ts'
 import { serializeTransitionIdentity } from './transition-identity.mjs'
 
 const COORDINATOR_OWNED_LINEAGE_KEYS = Object.freeze([

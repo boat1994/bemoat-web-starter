@@ -2,8 +2,8 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { analyzeExactHeadCi } from '../../agent-issue/exact-head-ci.mjs'
-import { parseReviewVerdictContractFindings } from '../domain/correction-contract.mjs'
-import { parseMissionControlState, projectMissionControlStateBlock } from '../domain/task-state.mjs'
+import { parseReviewVerdictContractFindings } from '../domain/correction-contract.ts'
+import { parseMissionControlState, projectMissionControlStateBlock } from '../domain/task-state.ts'
 import { preflightCanonicalBootstrapTask } from '../domain/task-bootstrap-preflight.ts'
 import {
   Coordinator,
