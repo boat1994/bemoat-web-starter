@@ -373,7 +373,7 @@ describe('Mission Control review recovery transport', () => {
       exceptional: true,
       ordinary_owner: 'bemoat:mission-control:review',
     })
-    expect(CANONICAL_TRANSPORTS.filter((route) => route.role === 'REVIEW_VERDICT')).toHaveLength(2)
+    expect(CANONICAL_TRANSPORTS.filter((route) => route.role === 'REVIEW_VERDICT')).toHaveLength(3)
   })
 
   it('requires the merged-guide Review 2 projection to be exactly 2/1', async () => {

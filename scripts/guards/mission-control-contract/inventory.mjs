@@ -293,6 +293,7 @@ export const REQUIRED_CLI_PROMPT_GUIDE_PHRASES = [
   'bemoat:mission-control:review',
   'bemoat:mission-control:reconcile',
   'bemoat:mission-control:recover-review',
+  'bemoat:mission-control:rebind-review-lineage',
   'bemoat:mission-control:recover-state',
   'bemoat:mission-control:reopen',
   'bemoat:mission-control:adopt-finding',

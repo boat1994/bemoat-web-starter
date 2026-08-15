@@ -15,6 +15,7 @@
   "scripts/mission-control-adopt-finding.mjs",
   "scripts/mission-control-dispatch.mjs",
   "scripts/mission-control-merge.mjs",
+  "scripts/mission-control-rebind-review-lineage.mjs",
   "scripts/mission-control-reconcile.mjs",
   "scripts/mission-control-recover-review.mjs",
   "scripts/mission-control-recover-state.mjs",
