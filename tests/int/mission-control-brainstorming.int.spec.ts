@@ -12,7 +12,7 @@ import {
   guardBrainstormingStateMutation,
   isBrainstormingProfileResponse,
   parseBrainstormingProfileBody,
-} from '../../scripts/mission-control/domain/brainstorming.mjs'
+} from '../../scripts/mission-control/domain/brainstorming.ts'
 
 const SAMPLE_BRAINSTORMING = [
   '## BRAINSTORMING',
@@ -67,10 +67,11 @@ const SAMPLE_DESIGN_RESULT = [
 ].join('\n')
 
 describe('Mission Control brainstorming profile contract (#144)', () => {
-  it('keeps the destination authoritative after root facade removal', async () => {
-    const destination = await import('../../scripts/mission-control/domain/brainstorming.mjs')
+  it('keeps the TypeScript domain authoritative after facade removal', async () => {
+    const destination = await import('../../scripts/mission-control/domain/brainstorming.ts')
 
     expect(existsSync(resolve(process.cwd(), 'scripts/mission-control-brainstorming.mjs'))).toBe(false)
+    expect(existsSync(resolve(process.cwd(), 'scripts/mission-control/domain/brainstorming.mjs'))).toBe(false)
     expect(Object.keys(destination).sort()).toEqual([
       'BRAINSTORMING_PROFILE_HEADINGS',
       'classifyFounderAuthorizationReply',

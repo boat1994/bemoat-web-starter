@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
@@ -40,9 +40,7 @@ describe('Mission Control task-state boundary', () => {
       .toBe(domainExports.parseMissionControlState)
 
     expect(readFileSync(domainPath, 'utf8')).toBe("export * from './task-state.ts'\n")
-    expect(readFileSync(authorizationFacadePath, 'utf8')).toBe(
-      "export * from './task-state-authorization.ts'\n",
-    )
+    expect(existsSync(authorizationFacadePath)).toBe(false)
     expect(readFileSync(canonicalDomainPath, 'utf8')).toContain(
       "from './task-state-authorization.ts'",
     )
