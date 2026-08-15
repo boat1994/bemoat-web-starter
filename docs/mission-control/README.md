@@ -64,6 +64,7 @@ Rules that change day-to-day behavior:
 | File | Responsibility |
 | --- | --- |
 | [`mission-control-guide.md`](./mission-control-guide.md) | Only long-form operating policy |
+| [`architecture-blueprint.md`](./architecture-blueprint.md) | Architectural source of truth (journeys, capabilities, target lean shape) |
 | [`command-reference.md`](./command-reference.md) | Canonical command and credential-boundary reference |
 | [`../../prompts/mission-control/chatgpt-project-loader.md`](../../prompts/mission-control/chatgpt-project-loader.md) | Ready-to-paste ChatGPT Project instruction |
 | [`handoff-template.md`](./handoff-template.md) | Full `## HANDOFF` field checklist |
