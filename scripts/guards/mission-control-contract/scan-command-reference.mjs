@@ -66,6 +66,21 @@ const REQUIRED_ADOPT_FINDING_ARGS = [
   '[--check]',
 ]
 
+const REQUIRED_REBIND_REVIEW_LINEAGE_ARGS = [
+  'pnpm run bemoat:mission-control:rebind-review-lineage',
+  '-- 259',
+  '--repo boat1994/bemoat-web-starter',
+  '--expected-pr 260',
+  '--expected-base main',
+  '--expected-state ELIGIBLE_FOR_FOUNDER_REVIEW',
+  '--expected-head <full-40-character-sha>',
+  '--expected-review-cycle 1',
+  '--expected-full-review-count 1',
+  '--source-comment 5163387315',
+  '--authorization-comment <immutable-comment-id>',
+  '--body-file <canonical-review-verdict.md>',
+]
+
 const REQUIRED_RECOVER_STATE_ARGS = [
   'pnpm run bemoat:mission-control:recover-state',
   '-- <issue-number>',
@@ -136,6 +151,12 @@ export function scanCommandReferenceContent(relativePath, content) {
     }
   }
 
+  for (const arg of REQUIRED_REBIND_REVIEW_LINEAGE_ARGS) {
+    if (!content.includes(arg)) {
+      violations.push(violation('MC032', relativePath, `Command reference missing review-lineage-rebind arg: ${arg}`))
+    }
+  }
+
   const expectedTableHeaders = [
     '| Command |',
     '| `dispatch` |',
@@ -144,7 +165,8 @@ export function scanCommandReferenceContent(relativePath, content) {
     '| `adopt-finding` |',
     '| `recover-state` |',
     '| `merge` |',
-    '| `recover-review` |'
+    '| `recover-review` |',
+    '| `rebind-review-lineage` |',
   ]
 
   for (const phrase of expectedTableHeaders) {
@@ -170,9 +192,11 @@ export function scanCommandReferenceContent(relativePath, content) {
     '### Reconcile checks',
     '### Merge checks',
     '## Review recovery',
+    '## Review lineage rebind',
     'scripts/mission-control/transport-registry.mjs',
     'NONCANONICAL_ROLE_EVIDENCE',
-    'resulting counters `2/1`'
+    'resulting counters `2/1`',
+    'retires after required legacy lineage migrations complete',
   ]
 
   for (const invariant of semanticInvariants) {
