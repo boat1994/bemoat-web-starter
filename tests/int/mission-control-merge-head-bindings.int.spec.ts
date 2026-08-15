@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 
 import { describe, expect, it } from 'vitest'
 
@@ -68,7 +68,6 @@ function deepFreeze<T>(value: T): T {
 
 describe('Mission Control merge head bindings', () => {
   it('preserves every rejection gate, first-failure reason, and success shape', async () => {
-    const legacy = await import('../../scripts/mission-control/domain/merge-head-bindings.mjs')
     const typed = await import('../../scripts/mission-control/domain/merge-head-bindings.ts')
     const cases: Array<{ name: string; input: Inputs; reason: string }> = [
       {
@@ -139,26 +138,28 @@ describe('Mission Control merge head bindings', () => {
     ]
 
     for (const testCase of cases) {
-      const legacyResult = invoke(() => legacy.classifyHeadBindings(testCase.input.state, testCase.input.pr, testCase.input.authorization, testCase.input.repo))
-      const typedResult = invoke(() => typed.classifyHeadBindings(testCase.input.state, testCase.input.pr, testCase.input.authorization, testCase.input.repo))
-      expect(legacyResult, testCase.name).toEqual({
+      const typedResult = invoke(() =>
+        typed.classifyHeadBindings(
+          testCase.input.state,
+          testCase.input.pr,
+          testCase.input.authorization,
+          testCase.input.repo,
+        ),
+      )
+      expect(typedResult, testCase.name).toEqual({
         kind: 'return',
         value: { valid: false, reviewedHead: testCase.input.state?.last_reviewed_head, reason: testCase.reason },
       })
-      expect(typedResult, testCase.name).toEqual(legacyResult)
     }
 
     for (const repo of [STARTER_REPOSITORY, OTHER_REPOSITORY]) {
       const input = validInputs(repo)
-      const legacyResult = invoke(() => legacy.classifyHeadBindings(input.state, input.pr, input.authorization, input.repo))
       const typedResult = invoke(() => typed.classifyHeadBindings(input.state, input.pr, input.authorization, input.repo))
-      expect(legacyResult).toEqual({ kind: 'return', value: { valid: true, reviewedHead: HEAD, reason: null } })
-      expect(typedResult).toEqual(legacyResult)
+      expect(typedResult).toEqual({ kind: 'return', value: { valid: true, reviewedHead: HEAD, reason: null } })
     }
   })
 
   it('preserves optional, null, default, and native TypeError behavior', async () => {
-    const legacy = await import('../../scripts/mission-control/domain/merge-head-bindings.mjs')
     const typed = await import('../../scripts/mission-control/domain/merge-head-bindings.ts')
     const missingState: Inputs = { ...validInputs(), state: undefined }
     const nullState: Inputs = { ...validInputs(), state: null }
@@ -167,19 +168,21 @@ describe('Mission Control merge head bindings', () => {
     const missingPr: Inputs = { ...validInputs(), pr: undefined }
     const nullPr: Inputs = { ...validInputs(), pr: null }
 
-    expect(invoke(() => legacy.classifyHeadBindings(missingState.state, missingState.pr, missingState.authorization, missingState.repo))).toEqual({
+    expect(invoke(() => typed.classifyHeadBindings(missingState.state, missingState.pr, missingState.authorization, missingState.repo))).toEqual({
       kind: 'return',
       value: { valid: false, reviewedHead: undefined, reason: 'live PR base differs from the managed protected base' },
     })
-    expect(invoke(() => typed.classifyHeadBindings(missingState.state, missingState.pr, missingState.authorization, missingState.repo))).toEqual(invoke(() => legacy.classifyHeadBindings(missingState.state, missingState.pr, missingState.authorization, missingState.repo)))
-    expect(invoke(() => typed.classifyHeadBindings(nullState.state, nullState.pr, nullState.authorization, nullState.repo))).toEqual(invoke(() => legacy.classifyHeadBindings(nullState.state, nullState.pr, nullState.authorization, nullState.repo)))
+    expect(invoke(() => typed.classifyHeadBindings(nullState.state, nullState.pr, nullState.authorization, nullState.repo))).toEqual({
+      kind: 'return',
+      value: { valid: false, reviewedHead: undefined, reason: 'live PR base differs from the managed protected base' },
+    })
     const missingRepo: Inputs = { ...validInputs(), repo: undefined }
-    expect(invoke(() => typed.classifyHeadBindings(missingRepo.state, missingRepo.pr, missingRepo.authorization, missingRepo.repo))).toEqual(
-      invoke(() => legacy.classifyHeadBindings(missingRepo.state, missingRepo.pr, missingRepo.authorization, missingRepo.repo)),
-    )
+    expect(invoke(() => typed.classifyHeadBindings(missingRepo.state, missingRepo.pr, missingRepo.authorization, missingRepo.repo))).toEqual({
+      kind: 'return',
+      value: { valid: true, reviewedHead: HEAD, reason: null },
+    })
 
     for (const input of [missingAuthorization, nullAuthorization, missingPr, nullPr]) {
-      expect(invoke(() => typed.classifyHeadBindings(input.state, input.pr, input.authorization, input.repo))).toEqual(invoke(() => legacy.classifyHeadBindings(input.state, input.pr, input.authorization, input.repo)))
       expect(invoke(() => typed.classifyHeadBindings(input.state, input.pr, input.authorization, input.repo))).toMatchObject({
         kind: 'throw',
         value: { name: 'TypeError' },
@@ -188,16 +191,14 @@ describe('Mission Control merge head bindings', () => {
   })
 
   it('preserves strict evidence comparisons, getter errors, frozen inputs, and no mutation', async () => {
-    const legacy = await import('../../scripts/mission-control/domain/merge-head-bindings.mjs')
     const typed = await import('../../scripts/mission-control/domain/merge-head-bindings.ts')
     const input = validInputs()
     const snapshot = structuredClone(input)
     deepFreeze(input)
-    expect(invoke(() => legacy.classifyHeadBindings(input.state, input.pr, input.authorization, input.repo))).toEqual({
+    expect(invoke(() => typed.classifyHeadBindings(input.state, input.pr, input.authorization, input.repo))).toEqual({
       kind: 'return',
       value: { valid: true, reviewedHead: HEAD, reason: null },
     })
-    expect(invoke(() => typed.classifyHeadBindings(input.state, input.pr, input.authorization, input.repo))).toEqual(invoke(() => legacy.classifyHeadBindings(input.state, input.pr, input.authorization, input.repo)))
     expect(input).toEqual(snapshot)
 
     const getterError = new Error('native getter failure')
@@ -208,23 +209,17 @@ describe('Mission Control merge head bindings', () => {
         throw getterError
       },
     })
-    expect(invoke(() => typed.classifyHeadBindings(getterInput.state, getterInput.pr, getterInput.authorization, getterInput.repo))).toEqual(invoke(() => legacy.classifyHeadBindings(getterInput.state, getterInput.pr, getterInput.authorization, getterInput.repo)))
     expect(invoke(() => typed.classifyHeadBindings(getterInput.state, getterInput.pr, getterInput.authorization, getterInput.repo))).toEqual({
       kind: 'throw',
       value: { name: 'Error', message: 'native getter failure' },
     })
   })
 
-  it('keeps the TypeScript implementation, exact facade, named exports, and consumer wiring aligned', async () => {
-    const facade = await import('../../scripts/mission-control/domain/merge-head-bindings.mjs')
+  it('keeps the TypeScript implementation, named exports, and consumer wiring aligned after facade removal', async () => {
     const typed = await import('../../scripts/mission-control/domain/merge-head-bindings.ts')
 
-    expect(readFileSync('scripts/mission-control/domain/merge-head-bindings.mjs', 'utf8')).toBe(
-      "export * from './merge-head-bindings.ts'\n",
-    )
-    expect(Object.keys(facade)).toEqual(['classifyHeadBindings'])
-    expect(Object.keys(facade).sort()).toEqual(Object.keys(typed).sort())
-    expect(facade.classifyHeadBindings).toBe(typed.classifyHeadBindings)
+    expect(existsSync('scripts/mission-control/domain/merge-head-bindings.mjs')).toBe(false)
+    expect(Object.keys(typed)).toEqual(['classifyHeadBindings'])
     expect(readFileSync('scripts/mission-control/workflows/merge.mjs', 'utf8')).toContain(
       "import { classifyHeadBindings } from '../domain/merge-head-bindings.ts'",
     )
