@@ -242,12 +242,15 @@ fails closed. The object must bind the exact registered tuple with
 `bundle_kind: review-lineage-rebind`, `scope: transport-correction-only`,
 `replacement_body_sha256` (lowercase hex SHA-256 of the exact canonical
 replacement body bytes), and `source_body_sha256` (lowercase hex SHA-256 of
-the exact live source comment `5163387315` body bytes). The replacement
-`**Findings:**` Critical/Important line must be a transport rewrite of that
-source Review 1 comment; findings are not reinterpreted, added, removed,
-upgraded, downgraded, or rewritten during lineage transport. Missing or
-unbound Founder authorization, `issue_url` mismatch, hash mismatch, or
-divergent Findings fail closed before any GitHub mutation.
+the exact live source comment `5163387315` body bytes). The registered live
+source comment `5163387315` uses `### Findings` /
+`- **Critical/Important:**` rather than a canonical `**Findings:**` line.
+The replacement `**Findings:**` Critical/Important line must be a
+deterministic transport rewrite of that source Review 1 provenance;
+findings are not reinterpreted, added, removed, upgraded, downgraded, or
+rewritten during lineage transport. Missing or unbound Founder
+authorization, `issue_url` mismatch, hash mismatch, or divergent Findings
+fail closed before any GitHub mutation.
 
 Mutation order is post canonical `REVIEW_VERDICT` → demote the source comment
 in-body → CAS-update only `latest_review_verdict_comment_id` and

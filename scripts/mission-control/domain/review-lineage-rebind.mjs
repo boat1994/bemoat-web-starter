@@ -101,21 +101,37 @@ export function extractFindingsLine(body = '') {
   return match?.[0] ?? null
 }
 
+function parseLegacyNoneFindings(body = '') {
+  const lines = String(body ?? '').split('\n')
+  const start = lines.findIndex((line) => line === '### Findings')
+  if (start < 0) return null
+  const rest = lines.slice(start + 1)
+  const end = rest.findIndex((line) => /^### /.test(line))
+  const matches = [...(end < 0 ? rest : rest.slice(0, end)).join('\n').matchAll(/^- \*\*Critical\/Important:\*\*\s*(.+?)\s*$/gm)]
+  const value = matches.length === 1 ? String(matches[0][1] ?? '').trim() : ''
+  return value === 'None' || value === 'None.' ? { critical: 'None', important: 'None' } : null
+}
+
 export function assertFindingsLineProvenance({ sourceBody, replacementBody }) {
-  const sourceLine = extractFindingsLine(originalSourceEvidenceBody(sourceBody))
+  const sourceEvidence = originalSourceEvidenceBody(sourceBody)
+  const sourceLine = extractFindingsLine(sourceEvidence)
   const replacementLine = extractFindingsLine(replacementBody)
-  if (!sourceLine || !replacementLine) {
-    throw classifiedError(
-      'STATE_CONFLICT',
-      'source and replacement REVIEW_VERDICT must both include a Findings line',
-    )
+  const missingLine = classifiedError('STATE_CONFLICT', 'source and replacement REVIEW_VERDICT must both include a Findings line')
+  const divergent = classifiedError('STATE_CONFLICT', 'replacement Findings must preserve source Review 1 Critical/Important provenance')
+  if (sourceLine && replacementLine) {
+    if (sourceLine !== replacementLine) throw divergent
+    return
   }
-  if (sourceLine !== replacementLine) {
-    throw classifiedError(
-      'STATE_CONFLICT',
-      'replacement Findings must preserve source Review 1 Critical/Important provenance',
-    )
+  if (!replacementLine) throw missingLine
+  const parsed = String(replacementLine).match(/^\*\*Findings:\*\*\s*Critical:\s*(.*?)\s*·\s*Important:\s*(.*?)\s*$/)
+  const none = (value) => {
+    const text = String(value ?? '').trim()
+    return text === 'None' || text === 'None.' ? 'None' : text
   }
+  const sourceProvenance = parseLegacyNoneFindings(sourceEvidence)
+  const replacementProvenance = parsed ? { critical: none(parsed[1]), important: none(parsed[2]) } : null
+  if (!sourceProvenance || !replacementProvenance) throw missingLine
+  if (sourceProvenance.critical !== replacementProvenance.critical || sourceProvenance.important !== replacementProvenance.important) throw divergent
 }
 
 export function buildRebindTransitionIdentity({ body, options }) {
