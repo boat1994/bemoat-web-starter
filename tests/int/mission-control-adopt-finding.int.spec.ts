@@ -10,7 +10,7 @@ import {
   reconstructDeltaReviewFindingUnion,
   resolveAuthoritativeCorrectionContract,
   sameValue,
-} from '../../scripts/mission-control/domain/active-correction-contract.mjs'
+} from '../../scripts/mission-control/domain/active-correction-contract.ts'
 import {
   parseFounderAdoptFindingAuthorization,
 } from '../../scripts/mission-control/domain/adopt-finding-authorization.mjs'
@@ -26,8 +26,8 @@ import {
 import {
   parseMissionControlState,
   renderMissionControlState,
-} from '../../scripts/mission-control/domain/task-state.mjs'
-import { validateFindingEvidence } from '../../scripts/mission-control/domain/correction-contract.mjs'
+} from '../../scripts/mission-control/domain/task-state.ts'
+import { validateFindingEvidence } from '../../scripts/mission-control/domain/correction-contract.ts'
 
 const REPOSITORY = 'boat1994/bemoat-web-starter'
 const ISSUE = '276'

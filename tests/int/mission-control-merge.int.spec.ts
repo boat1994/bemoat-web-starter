@@ -1556,27 +1556,6 @@ describe('bounded Founder Markdown authorization transport', () => {
       supersedes_comment_ids: ['5159403964', null],
     }))).toThrow('AUTHORIZATION_VALIDATION_FAILURE: Founder merge authorization supersession references must be positive comment IDs')
   })
-
-  it('keeps the facade export surface and identity aligned with the canonical typed implementation', async () => {
-    const facade = await import('../../scripts/mission-control/domain/merge-founder-authority.mjs')
-    const typed = await import('../../scripts/mission-control/domain/merge-founder-authority.ts')
-    const exports = [
-      'AUTHORIZATION_VALIDATION_FAILURE',
-      'authorizationValidationFailure',
-      'parseFounderMergeAuthorization',
-      'generateFounderMergeAuthorization',
-      'serializeFounderMergeAuthorization',
-      'validateFounderAuthorizationRecord',
-      'validateFounderMergeAuthorization',
-      'validateFounderMergeAuthorizationEvidence',
-    ] as const
-
-    expect(readFileSync('scripts/mission-control/domain/merge-founder-authority.mjs', 'utf8'))
-      .toBe("export * from './merge-founder-authority.ts'\n")
-    expect(Object.keys(facade).sort()).toEqual([...exports].sort())
-    expect(Object.keys(typed).sort()).toEqual([...exports].sort())
-    for (const name of exports) expect(facade[name]).toBe(typed[name])
-  })
 })
 
 const blockerResolutionId = 'issue-254-planning-correction-1'

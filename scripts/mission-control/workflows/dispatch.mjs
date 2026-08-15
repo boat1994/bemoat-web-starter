@@ -10,7 +10,7 @@ import {
   resolveProductionCommentTrust,
   verifyPostedCommentReadback,
 } from '../../mission-control-reconcile.mjs'
-import { parseMissionControlState, projectMissionControlStateBlock } from '../domain/task-state.mjs'
+import { parseMissionControlState, projectMissionControlStateBlock } from '../domain/task-state.ts'
 import { writeIssueBodyWithLease } from './issue-body-cas.mjs'
 import { preflightCanonicalBootstrapTask } from '../domain/task-bootstrap-preflight.ts'
 import { runtimeError } from '../domain/dispatch-result-rendering.ts'

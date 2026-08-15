@@ -1,7 +1,7 @@
 import {
   parseMissionControlState,
   projectMissionControlStateBlock,
-} from '../domain/task-state.mjs'
+} from '../domain/task-state.ts'
 import { writeIssueBodyWithLease } from './issue-body-cas.mjs'
 import { defaultRunGh as transportRunGh } from '../adapters/reopen-github.mjs'
 import {

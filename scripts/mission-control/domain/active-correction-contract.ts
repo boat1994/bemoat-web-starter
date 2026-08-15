@@ -1,5 +1,5 @@
-import { parseMissionControlState } from './task-state.mjs'
-import { parseCorrectionContract } from './correction-contract.mjs'
+import { parseMissionControlState } from './task-state.ts'
+import { parseCorrectionContract } from './correction-contract.ts'
 import {
   fingerprintCorrectionContract,
   hashExactBody,

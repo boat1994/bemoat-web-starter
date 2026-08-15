@@ -1,5 +1,5 @@
-import { isCorrectionPhaseResult, validateCorrectionRoleComment } from '../domain/correction-contract.mjs'
-import { resolveAuthoritativeCorrectionContract } from '../domain/active-correction-contract.mjs'
+import { isCorrectionPhaseResult, validateCorrectionRoleComment } from '../domain/correction-contract.ts'
+import { resolveAuthoritativeCorrectionContract } from '../domain/active-correction-contract.ts'
 import { findLatestRoleComment, findMatchingComments, normalizeTransitionIdentity, normalizeIssueComments, parsePaginatedGhApiJson, parseRoleCommentBody, resolveProductionCommentTrust, verifyPostedCommentReadback } from '../../mission-control-reconcile.mjs'
 import { projectComments, selectAuthoritativeRoleComments } from '../diagnostics/github-comment-projection.mjs'
 import { collectGitDiffFiles } from '../adapters/git-transport.mjs'

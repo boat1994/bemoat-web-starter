@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto'
 import { createHelpEnvelopeV1, formatTextHelp } from '../../cli/command-help.mjs'
 import { parseCommandInvocation } from '../../cli/command-invocation.mjs'
 
-import { parseMissionControlState } from '../domain/task-state.mjs'
+import { parseMissionControlState } from '../domain/task-state.ts'
 import { writeIssueBodyWithLease } from './issue-body-cas.mjs'
 import {
   selectNextCampaignAction,
@@ -22,7 +22,7 @@ import {
   classifyMergeReviewVerdict,
   parseProductionMergeReviewVerdict,
   resolveMergeReviewVerdictBinding,
-} from '../domain/merge-review-verdict.mjs'
+} from '../domain/merge-review-verdict.ts'
 import { normalizePaginatedCommitMessages } from '../domain/merge-commit-messages.ts'
 import { classifyHeadBindings } from '../domain/merge-head-bindings.ts'
 import { classifyMergeability } from '../domain/merge-mergeability.ts'
@@ -74,7 +74,7 @@ import {
   validateFounderAuthorizationRecord,
   validateFounderMergeAuthorization,
   validateFounderMergeAuthorizationEvidence,
-} from '../domain/merge-founder-authority.mjs'
+} from '../domain/merge-founder-authority.ts'
 import { defaultRunGh as transportRunGh, runNodeTransport } from '../adapters/merge-github.mjs'
 
 export {

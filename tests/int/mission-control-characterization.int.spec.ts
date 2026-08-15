@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
 import { afterEach, describe, it, expect } from 'vitest'
-import { parseMissionControlState, renderMissionControlState } from '../../scripts/mission-control/domain/task-state.mjs'
-import * as missionControlStateModule from '../../scripts/mission-control/domain/task-state.mjs'
+import { parseMissionControlState, renderMissionControlState } from '../../scripts/mission-control/domain/task-state.ts'
+import * as missionControlStateModule from '../../scripts/mission-control/domain/task-state.ts'
 import {
   analyzeProgressTracking,
   analyzeExactHeadCi,
@@ -388,7 +388,7 @@ updated_by: "Delta Reviewer"
     })
 
     it('deterministically round-trips nested objects and arrays of objects including future keys', async () => {
-      const { renderMissionControlState } = await import('../../scripts/mission-control/domain/task-state.mjs')
+      const { renderMissionControlState } = await import('../../scripts/mission-control/domain/task-state.ts')
       const complexState = {
         schema_version: 1,
         state: 'IN_PROGRESS',

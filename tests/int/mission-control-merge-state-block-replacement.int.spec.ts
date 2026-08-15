@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import {
   projectMissionControlStateBlock,
   renderMissionControlState,
-} from '../../scripts/mission-control/domain/task-state.mjs'
+} from '../../scripts/mission-control/domain/task-state.ts'
 
 type StateBlockReplacement = (body: unknown, state?: unknown) => string
 

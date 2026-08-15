@@ -3,10 +3,10 @@ import {
   derivePlanningArtifactAllowlist,
   parseCorrectionContract,
   validateCorrectionScope,
-} from '../mission-control/domain/correction-contract.mjs'
+} from '../mission-control/domain/correction-contract.ts'
 import {
   resolveAuthoritativeCorrectionContract,
-} from '../mission-control/domain/active-correction-contract.mjs'
+} from '../mission-control/domain/active-correction-contract.ts'
 import { findLatestRoleComment } from '../mission-control-reconcile.mjs'
 import {
   extractVerdictPrBaseAndHead,

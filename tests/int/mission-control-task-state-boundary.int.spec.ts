@@ -4,7 +4,7 @@ import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import { buildScriptImportGraph } from '../../scripts/guards/scripts-architecture.mjs'
-const domainPath = resolve(process.cwd(), 'scripts/mission-control/domain/task-state.mjs')
+const domainPath = resolve(process.cwd(), 'scripts/mission-control/domain/task-state.ts')
 const canonicalDomainPath = resolve(process.cwd(), 'scripts/mission-control/domain/task-state.ts')
 const authorizationFacadePath = resolve(
   process.cwd(),
@@ -35,11 +35,7 @@ describe('Mission Control task-state boundary', () => {
       expect(domainExports[name], `${name} must remain domain-owned`).toBeDefined()
     }
 
-    expect(domainPath).toContain('scripts/mission-control/domain/task-state.mjs')
-    expect((await import('../../scripts/mission-control/domain/task-state.mjs')).parseMissionControlState)
-      .toBe(domainExports.parseMissionControlState)
-
-    expect(readFileSync(domainPath, 'utf8')).toBe("export * from './task-state.ts'\n")
+    expect(domainPath).toContain('scripts/mission-control/domain/task-state.ts')
     expect(existsSync(authorizationFacadePath)).toBe(false)
     expect(readFileSync(canonicalDomainPath, 'utf8')).toContain(
       "from './task-state-authorization.ts'",
@@ -53,6 +49,6 @@ describe('Mission Control task-state boundary', () => {
       .toBe(domainExports.parseMissionControlState)
 
     const graph = buildScriptImportGraph(process.cwd())
-    expect(graph.get('scripts/mission-control/domain/task-state.mjs') ?? new Set()).toEqual(new Set())
+    expect(graph.get('scripts/mission-control/domain/task-state.ts') ?? new Set()).toEqual(new Set())
   })
 })

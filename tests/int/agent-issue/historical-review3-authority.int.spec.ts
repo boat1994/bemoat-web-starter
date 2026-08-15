@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { renderMissionControlState } from '../../../scripts/mission-control/domain/task-state.mjs'
+import { renderMissionControlState } from '../../../scripts/mission-control/domain/task-state.ts'
 
 async function loadModule() {
   return import('../../../scripts/agent-issue/historical-review3-authority.mjs')

@@ -8,12 +8,12 @@ import {
   parseCommandInvocation,
   resolveCommandIdentity,
 } from '../../cli/command-invocation.mjs'
-import { parseCorrectionContract } from '../domain/correction-contract.mjs'
+import { parseCorrectionContract } from '../domain/correction-contract.ts'
 import { writeIssueBodyWithLease, isLeaseCasConflict } from './issue-body-cas.mjs'
 import {
   parseMissionControlState,
   projectMissionControlStateBlock,
-} from '../domain/task-state.mjs'
+} from '../domain/task-state.ts'
 import {
   ACTIVE_CORRECTION_CONTRACT_IDENTITY_KEY,
   buildActiveCorrectionContractIdentity,
@@ -21,7 +21,7 @@ import {
   reconstructDeltaReviewFindingUnion,
   resolveAuthoritativeCorrectionContract,
   sameValue,
-} from '../domain/active-correction-contract.mjs'
+} from '../domain/active-correction-contract.ts'
 import {
   assertFounderAdoptFindingAuthorization,
   parseFounderAdoptFindingAuthorization,

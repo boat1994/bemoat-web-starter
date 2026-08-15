@@ -3,7 +3,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { parseMissionControlState } from '../mission-control/domain/task-state.mjs'
+import { parseMissionControlState } from '../mission-control/domain/task-state.ts'
 import {
   parseIssueNumber,
   parseTaskIdentityBlock,

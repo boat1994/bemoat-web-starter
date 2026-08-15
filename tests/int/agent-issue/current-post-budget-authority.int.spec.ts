@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
-import { renderMissionControlState } from '../../../scripts/mission-control/domain/task-state.mjs'
+import { renderMissionControlState } from '../../../scripts/mission-control/domain/task-state.ts'
 import type { ExactHeadCiAnalysis } from '../../../scripts/agent-issue/exact-head-ci.ts'
 
 async function loadModule() {

@@ -2,7 +2,7 @@ import {
   ACTIVE_CORRECTION_CONTRACT_IDENTITY_KEY,
   sameValue,
   validateActiveCorrectionContractIdentity,
-} from './active-correction-contract.mjs'
+} from './active-correction-contract.ts'
 
 function classifiedError(classification, message, details = {}) {
   const error = new Error(`${classification}: ${message}`)

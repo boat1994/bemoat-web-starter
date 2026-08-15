@@ -13,7 +13,7 @@ import {
   resolveCommandIdentity,
 } from './cli/command-invocation.mjs'
 import { parseCompleteGitHubPullUrl } from './mission-control/domain/pr-identity.ts'
-import { parseMissionControlState } from './mission-control/domain/task-state.mjs'
+import { parseMissionControlState } from './mission-control/domain/task-state.ts'
 import {
   analyzeExactHeadCi,
   isCheckFailed,

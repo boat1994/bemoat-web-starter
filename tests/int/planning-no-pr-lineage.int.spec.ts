@@ -16,7 +16,7 @@ import {
   populateOrPreservePlanningAuthorizationBaseSha,
   parseMissionControlState,
   renderMissionControlState,
-} from '../../scripts/mission-control/domain/task-state.mjs'
+} from '../../scripts/mission-control/domain/task-state.ts'
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- untyped runtime .mjs boundary */
 const { proposeDeliveryReconciliation } = reconcileModule as unknown as Record<string, (...args: any[]) => any>
@@ -753,7 +753,7 @@ if (args[0] === 'repo' && args[1] === 'view') {
   it('WF-12: child-sync inventory includes implementation and tests', async () => {
     const sync = await import('../../scripts/sync-boilerplate.mjs')
     const required = [
-      'scripts/mission-control/domain/task-state.mjs',
+      'scripts/mission-control/domain/task-state.ts',
       'scripts/mission-control-reconcile.mjs',
       'scripts/agent-issue',
       'tests/int/planning-no-pr-lineage.int.spec.ts',

@@ -12,7 +12,7 @@ import {
   parseMissionControlState,
   projectMissionControlStateBlock,
   renderMissionControlState,
-} from '../../scripts/mission-control/domain/task-state.mjs'
+} from '../../scripts/mission-control/domain/task-state.ts'
 import { getCommandContract } from '../../scripts/cli/command-contract.mjs'
 import { createHelpEnvelopeV1 } from '../../scripts/cli/command-help.mjs'
 import { getTransportRoute } from '../../scripts/mission-control/transport-registry.mjs'
