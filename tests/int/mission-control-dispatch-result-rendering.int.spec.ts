@@ -4,7 +4,7 @@ import {
   createResultRendering,
   createRuntimeErrorRendering,
   runtimeError,
-} from '../../scripts/mission-control/domain/dispatch-result-rendering.mjs'
+} from '../../scripts/mission-control/domain/dispatch-result-rendering.ts'
 
 const HANDOFF = {
   prNumber: '335',

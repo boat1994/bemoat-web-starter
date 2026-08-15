@@ -7,7 +7,7 @@ import {
   createResultRendering,
   createRuntimeErrorRendering,
   runtimeError,
-} from '../../scripts/mission-control/domain/review-result-rendering.mjs'
+} from '../../scripts/mission-control/domain/review-result-rendering.ts'
 
 const {
   findingsFieldDeclaresUnresolvedImplementationFindings,

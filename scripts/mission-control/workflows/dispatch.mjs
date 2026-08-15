@@ -13,7 +13,7 @@ import {
 import { parseMissionControlState, projectMissionControlStateBlock } from '../domain/task-state.mjs'
 import { writeIssueBodyWithLease } from './issue-body-cas.mjs'
 import { preflightCanonicalBootstrapTask } from '../domain/task-bootstrap-preflight.mjs'
-import { runtimeError } from '../domain/dispatch-result-rendering.mjs'
+import { runtimeError } from '../domain/dispatch-result-rendering.ts'
 
 function issueArgs(options, fields) {
   const args = ['issue', 'view', options.issue, '--json', fields]

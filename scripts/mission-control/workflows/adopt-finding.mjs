@@ -39,7 +39,7 @@ import {
   createResultRendering,
   createRuntimeErrorRendering,
   exactNextAction,
-} from '../domain/adopt-finding-result-rendering.mjs'
+} from '../domain/adopt-finding-result-rendering.ts'
 import { createProductionDeps as createGithubTransport } from '../adapters/adopt-finding-github.mjs'
 
 export const ADOPT_FINDING_COMMAND = 'bemoat:mission-control:adopt-finding'
