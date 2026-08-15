@@ -14,7 +14,7 @@ import {
   createResultEnvelopeV1,
 } from './cli/command-result.mjs'
 import { createTaskBootstrapGithubAdapter } from './mission-control/adapters/task-bootstrap-github.mjs'
-import { BOOTSTRAP_CONTRACT } from './mission-control/domain/task-bootstrap-authorization.mjs'
+import { BOOTSTRAP_CONTRACT } from './mission-control/domain/task-bootstrap-authorization.ts'
 import { createTaskBootstrapService } from './mission-control/workflows/task-bootstrap.mjs'
 import { parseMissionControlState } from './mission-control/domain/task-state.mjs'
 

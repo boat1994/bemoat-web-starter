@@ -5,12 +5,12 @@ import {
   BOOTSTRAP_CONTRACT,
   parseFounderTaskBootstrapAuthorization,
   validateFounderTaskBootstrapAuthorization,
-} from '../domain/task-bootstrap-authorization.mjs'
+} from '../domain/task-bootstrap-authorization.ts'
 import {
   buildTaskBootstrapRequestIdentity,
   parseProvisionalTaskBody,
   renderProvisionalTaskBody,
-} from '../domain/task-bootstrap-request.mjs'
+} from '../domain/task-bootstrap-request.ts'
 import {
   TASK_ATTESTATION_OPERATION,
   TASK_ATTESTATION_OPERATION_VERSION,
@@ -28,11 +28,11 @@ import {
   canonicalManagedStateBinding,
   renderCanonicalBootstrapTaskBody,
   runCanonicalManagedTaskPreflight,
-} from '../domain/task-bootstrap-preflight.mjs'
-import { classifyTaskBootstrapAllocation, matchesProvisional, registryForRequest } from '../domain/task-bootstrap-allocation.mjs'
+} from '../domain/task-bootstrap-preflight.ts'
+import { classifyTaskBootstrapAllocation, matchesProvisional, registryForRequest } from '../domain/task-bootstrap-allocation.ts'
 import { readRegistryRecords } from '../domain/task-bootstrap-registry-readback.mjs'
 import { verifyFinalTask } from '../domain/task-bootstrap-final-readback.mjs'
-import { buildInitialTaskState } from '../domain/task-bootstrap-state.mjs'
+import { buildInitialTaskState } from '../domain/task-bootstrap-state.ts'
 
 const REQUIRED_CI_NAMES = new Set(['ci', 'starter-ci'])
 

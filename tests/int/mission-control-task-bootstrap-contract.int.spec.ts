@@ -10,10 +10,10 @@ import {
   buildTaskBootstrapRequestIdentity,
   parseProvisionalTaskBody,
   renderProvisionalTaskBody,
-} from '../../scripts/mission-control/domain/task-bootstrap-request.mjs'
-import { BOOTSTRAP_CONTRACT } from '../../scripts/mission-control/domain/task-bootstrap-authorization.mjs'
+} from '../../scripts/mission-control/domain/task-bootstrap-request.ts'
+import { BOOTSTRAP_CONTRACT } from '../../scripts/mission-control/domain/task-bootstrap-authorization.ts'
 import { createTaskOwnershipRecord, verifyTaskOwnershipRecord } from '../../scripts/mission-control/domain/task-ownership-registry.mjs'
-import { preflightCanonicalBootstrapTask, runCanonicalManagedTaskPreflight } from '../../scripts/mission-control/domain/task-bootstrap-preflight.mjs'
+import { preflightCanonicalBootstrapTask, runCanonicalManagedTaskPreflight } from '../../scripts/mission-control/domain/task-bootstrap-preflight.ts'
 
 const workflowPath = '.github/workflows/mission-control-task-bootstrap.yml'
 
@@ -299,37 +299,25 @@ describe('Mission Control bootstrap transport contract', () => {
     expectStateConflict(() => typed.validateFounderTaskBootstrapAuthorization({ ...base, parentComments: [superseder(supersedingBody, '9002', { created_at: '1970-01-01T00:00:00Z' })] }), 'authorization was explicitly superseded')
   })
 
-  it('keeps the exact typed implementation behind a logic-free facade', async () => {
-    const facade = await import('../../scripts/mission-control/domain/task-bootstrap-authorization.mjs')
+  it('keeps the authorization TypeScript owner after facade removal', async () => {
+    const { existsSync } = await import('node:fs')
     const typed = await import('../../scripts/mission-control/domain/task-bootstrap-authorization.ts')
-
-    expect(readFileSync('scripts/mission-control/domain/task-bootstrap-authorization.mjs', 'utf8')).toBe("export * from './task-bootstrap-authorization.ts'\n")
-    expect(Object.keys(facade).sort()).toEqual(Object.keys(typed).sort())
-    for (const name of Object.keys(facade) as Array<keyof typeof facade>) {
-      expect(facade[name]).toBe(typed[name])
-    }
+    expect(existsSync('scripts/mission-control/domain/task-bootstrap-authorization.mjs')).toBe(false)
+    expect(Object.keys(typed).length).toBeGreaterThan(0)
   })
 
-  it('keeps the request typed implementation behind an exact logic-free facade', async () => {
-    const facade = await import('../../scripts/mission-control/domain/task-bootstrap-request.mjs')
+  it('keeps the request TypeScript owner after facade removal', async () => {
+    const { existsSync } = await import('node:fs')
     const typed = await import('../../scripts/mission-control/domain/task-bootstrap-request.ts')
-
-    expect(readFileSync('scripts/mission-control/domain/task-bootstrap-request.mjs', 'utf8')).toBe("export * from './task-bootstrap-request.ts'\n")
-    expect(Object.keys(facade).sort()).toEqual(Object.keys(typed).sort())
-    for (const name of Object.keys(facade) as Array<keyof typeof facade>) {
-      expect(facade[name]).toBe(typed[name])
-    }
+    expect(existsSync('scripts/mission-control/domain/task-bootstrap-request.mjs')).toBe(false)
+    expect(Object.keys(typed).length).toBeGreaterThan(0)
   })
 
-  it('keeps the preflight typed implementation behind an exact logic-free facade', async () => {
-    const facade = await import('../../scripts/mission-control/domain/task-bootstrap-preflight.mjs')
+  it('keeps the preflight TypeScript owner after facade removal', async () => {
+    const { existsSync } = await import('node:fs')
     const typed = await import('../../scripts/mission-control/domain/task-bootstrap-preflight.ts')
-
-    expect(readFileSync('scripts/mission-control/domain/task-bootstrap-preflight.mjs', 'utf8')).toBe("export * from './task-bootstrap-preflight.ts'\n")
-    expect(Object.keys(facade).sort()).toEqual(Object.keys(typed).sort())
-    for (const name of Object.keys(facade) as Array<keyof typeof facade>) {
-      expect(facade[name]).toBe(typed[name])
-    }
+    expect(existsSync('scripts/mission-control/domain/task-bootstrap-preflight.mjs')).toBe(false)
+    expect(Object.keys(typed).length).toBeGreaterThan(0)
   })
 
   it('preserves preflight input immutability and historical body conversion failures', () => {

@@ -12,7 +12,7 @@ import {
 } from '../../mission-control-reconcile.mjs'
 import { parseMissionControlState, projectMissionControlStateBlock } from '../domain/task-state.mjs'
 import { writeIssueBodyWithLease } from './issue-body-cas.mjs'
-import { preflightCanonicalBootstrapTask } from '../domain/task-bootstrap-preflight.mjs'
+import { preflightCanonicalBootstrapTask } from '../domain/task-bootstrap-preflight.ts'
 import { runtimeError } from '../domain/dispatch-result-rendering.ts'
 
 function issueArgs(options, fields) {

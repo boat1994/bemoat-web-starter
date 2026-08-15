@@ -4,13 +4,13 @@ import { readFileSync } from 'node:fs'
 
 import { describe, expect, it } from 'vitest'
 
-import { BOOTSTRAP_CONTRACT } from '../../scripts/mission-control/domain/task-bootstrap-authorization.mjs'
+import { BOOTSTRAP_CONTRACT } from '../../scripts/mission-control/domain/task-bootstrap-authorization.ts'
 import { createSignedEnvelope } from '../../scripts/mission-control/domain/task-attestation.mjs'
 import {
   canonicalManagedStateBinding,
   renderCanonicalBootstrapTaskBody,
-} from '../../scripts/mission-control/domain/task-bootstrap-preflight.mjs'
-import { buildInitialTaskState } from '../../scripts/mission-control/domain/task-bootstrap-state.mjs'
+} from '../../scripts/mission-control/domain/task-bootstrap-preflight.ts'
+import { buildInitialTaskState } from '../../scripts/mission-control/domain/task-bootstrap-state.ts'
 import {
   buildTaskOwnershipPayload,
   createTaskOwnershipRecord,

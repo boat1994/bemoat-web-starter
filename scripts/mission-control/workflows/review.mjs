@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { analyzeExactHeadCi } from '../../agent-issue/exact-head-ci.mjs'
 import { parseReviewVerdictContractFindings } from '../domain/correction-contract.mjs'
 import { parseMissionControlState, projectMissionControlStateBlock } from '../domain/task-state.mjs'
-import { preflightCanonicalBootstrapTask } from '../domain/task-bootstrap-preflight.mjs'
+import { preflightCanonicalBootstrapTask } from '../domain/task-bootstrap-preflight.ts'
 import {
   Coordinator,
   normalizeIssueComments,

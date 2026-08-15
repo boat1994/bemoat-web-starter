@@ -4,7 +4,7 @@ import { resolve } from 'node:path'
 import { parseMissionControlState, renderMissionControlState } from './task-state.mjs'
 import { analyzeExactHeadCi } from '../../agent-issue/exact-head-ci.mjs'
 import { canonicalHash, parseTaskAttestation, renderSignedEnvelope, verifyTaskAttestation } from './task-attestation.mjs'
-import { parseProvisionalTaskBody } from './task-bootstrap-request.mjs'
+import { parseProvisionalTaskBody } from './task-bootstrap-request.ts'
 
 type RuntimeObject = Record<string, unknown>
 type IdentityEvidence = RuntimeObject & {

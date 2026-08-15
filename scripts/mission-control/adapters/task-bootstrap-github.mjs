@@ -1,9 +1,9 @@
 import { runCommand } from '../../adapters/command-runner.mjs'
-import { BOOTSTRAP_CONTRACT } from '../domain/task-bootstrap-authorization.mjs'
+import { BOOTSTRAP_CONTRACT } from '../domain/task-bootstrap-authorization.ts'
 import {
   LEASE_MARKER,
   createTaskBootstrapLeaseProtocol,
-} from '../domain/task-bootstrap-lease.mjs'
+} from '../domain/task-bootstrap-lease.ts'
 
 function parseJson(value, label) {
   try { return JSON.parse(value) } catch (error) { throw externalError(`${label} returned invalid JSON`, error) }
