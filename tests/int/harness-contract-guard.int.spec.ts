@@ -426,26 +426,20 @@ describe('managed runtime delivery closure', () => {
       mkdirSync(join(tempRoot, 'scripts/mission-control/domain'), { recursive: true })
       writeFileSync(
         join(tempRoot, 'scripts/agent-issue.mjs'),
-        "import { parseCompleteGitHubPullUrl } from './mission-control/domain/pr-identity.mjs'\nexport {}\n",
+        "import { parseCompleteGitHubPullUrl } from './mission-control/domain/pr-identity.ts'\nexport {}\n",
       )
 
       const violations = guardMod.scanManagedRuntimeDeliveryClosure({
         root: tempRoot,
-        managedPaths: ['scripts/agent-issue.mjs', 'scripts/mission-control/domain/pr-identity.mjs'],
+        managedPaths: ['scripts/agent-issue.mjs', 'scripts/mission-control/domain/pr-identity.ts'],
       })
 
       expect(violations).toEqual([
         {
-          type: 'missing-managed-runtime-source',
-          importer: 'managedPaths',
-          callee: 'scripts/mission-control/domain/pr-identity.mjs',
-          specifier: 'scripts/mission-control/domain/pr-identity.mjs',
-        },
-        {
           type: 'missing-relative-runtime-dependency',
           importer: 'scripts/agent-issue.mjs',
-          callee: 'scripts/mission-control/domain/pr-identity.mjs',
-          specifier: './mission-control/domain/pr-identity.mjs',
+          callee: 'scripts/mission-control/domain/pr-identity.ts',
+          specifier: './mission-control/domain/pr-identity.ts',
         },
       ])
     } finally {

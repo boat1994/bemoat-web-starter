@@ -9,7 +9,7 @@ import { selectLiveReviewVerdictComment } from '../review-verdict-binding.mjs'
 import { assertManagedActivePrForReviewVerdictReconciliation } from '../authority-head-validation.mjs'
 import { reconciliationFailureReason, runBoundedReconciliation } from '../bounded-reconciliation.mjs'
 import { detectUnaccountedReviewEvidence, isReviewRecoveryIncident } from '../domain/review-recovery.mjs'
-import { normalizeIssueComments, parsePaginatedGhApiJson, resolveProductionCommentTrust } from '../comment-evidence.mjs'
+import { normalizeIssueComments, parsePaginatedGhApiJson, resolveProductionCommentTrust } from '../comment-evidence.ts'
 import { sameValue } from '../transition-guards.mjs'
 
 function run(command, args, options = {}) {

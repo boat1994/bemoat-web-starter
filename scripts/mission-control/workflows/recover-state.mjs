@@ -35,7 +35,7 @@ import {
   parseImplementationResult,
   parseImplementationReview,
   parsePredecessor,
-} from '../domain/recover-state-evidence.mjs'
+} from '../domain/recover-state-evidence.ts'
 
 export const RECOVER_STATE_COMMAND = 'bemoat:mission-control:recover-state'
 export const RECOVER_STATE_ENTRYPOINT = 'scripts/mission-control-recover-state.mjs'

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import * as facade from '../../scripts/mission-control/domain/recover-state-evidence.mjs'
+import * as facade from '../../scripts/mission-control/domain/recover-state-evidence.ts'
 import {
   assertNoCompetingEvidence,
   normalizeId,

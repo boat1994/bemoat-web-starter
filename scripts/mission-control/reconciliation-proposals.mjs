@@ -3,7 +3,7 @@ import {
   normalizeAuthorityBase,
   normalizeAuthorityHead,
 } from './review-verdict-binding.mjs'
-export { proposeReviewReconciliation } from './review-verdict-projection.mjs'
+export { proposeReviewReconciliation } from './review-verdict-projection.ts'
 
 const PRE_DELIVERY_STATES = new Set(['READY', 'IN_PROGRESS', 'CORRECTION_REQUIRED_1', 'CORRECTION_REQUIRED_2'])
 const CORE_VERDICTS = new Set([

@@ -1910,7 +1910,7 @@ function writeIssue182ChildFixture(targetRoot: string) {
     rmSync(projectionPath, { force: true })
   }
 
-  const prIdentityPath = join(targetRoot, 'scripts/mission-control/domain/pr-identity.mjs')
+  const prIdentityPath = join(targetRoot, 'scripts/mission-control/domain/pr-identity.ts')
   if (existsSync(prIdentityPath)) {
     rmSync(prIdentityPath, { force: true })
   }
@@ -1964,9 +1964,9 @@ describe('issue #182 projection managed delivery regression', () => {
       expect(existsSync(join(childRoot, 'scripts/mission-control/diagnostics/github-comment-projection.mjs'))).toBe(true)
       expect(existsSync(join(childRoot, 'scripts/agent-issue.mjs'))).toBe(true)
       expect(existsSync(join(childRoot, 'scripts/pr-identity.mjs'))).toBe(false)
-      expect(existsSync(join(childRoot, 'scripts/mission-control/domain/pr-identity.mjs'))).toBe(true)
+      expect(existsSync(join(childRoot, 'scripts/mission-control/domain/pr-identity.ts'))).toBe(true)
       expect(readFileSync(join(childRoot, 'scripts/agent-issue.mjs'), 'utf8')).toContain(
-        "./mission-control/domain/pr-identity.mjs'",
+        "./mission-control/domain/pr-identity.ts'",
       )
 
       execFileSync(
@@ -1974,7 +1974,7 @@ describe('issue #182 projection managed delivery regression', () => {
         [
           '--input-type=module',
           '-e',
-          "import('./scripts/mission-control/domain/pr-identity.mjs').then((module) => { if (typeof module.parseCompleteGitHubPullUrl !== 'function') { throw new Error('missing parseCompleteGitHubPullUrl export') } })",
+          "import('./scripts/mission-control/domain/pr-identity.ts').then((module) => { if (typeof module.parseCompleteGitHubPullUrl !== 'function') { throw new Error('missing parseCompleteGitHubPullUrl export') } })",
         ],
         { cwd: childRoot, stdio: 'pipe' },
       )
@@ -2045,28 +2045,28 @@ describe('issue #182 projection managed delivery regression', () => {
     [
       'missing PR identity domain dependency',
       (sourceRoot: string) => {
-        rmSync(join(sourceRoot, 'scripts/mission-control/domain/pr-identity.mjs'), { force: true })
+        rmSync(join(sourceRoot, 'scripts/mission-control/domain/pr-identity.ts'), { force: true })
       },
-      '- [missing-relative-runtime-dependency] importer="scripts/agent-issue.mjs" -> callee="scripts/mission-control/domain/pr-identity.mjs" specifier="./mission-control/domain/pr-identity.mjs"',
+      '- [missing-relative-runtime-dependency] importer="scripts/agent-issue.mjs" -> callee="scripts/mission-control/domain/pr-identity.ts" specifier="./mission-control/domain/pr-identity.ts"',
     ],
     [
       'deleted PR identity domain dependency',
       (sourceRoot: string) => {
-        rmSync(join(sourceRoot, 'scripts/mission-control/domain/pr-identity.mjs'), { force: true })
+        rmSync(join(sourceRoot, 'scripts/mission-control/domain/pr-identity.ts'), { force: true })
       },
-      '- [missing-relative-runtime-dependency] importer="scripts/agent-issue.mjs" -> callee="scripts/mission-control/domain/pr-identity.mjs" specifier="./mission-control/domain/pr-identity.mjs"',
+      '- [missing-relative-runtime-dependency] importer="scripts/agent-issue.mjs" -> callee="scripts/mission-control/domain/pr-identity.ts" specifier="./mission-control/domain/pr-identity.ts"',
     ],
     [
       'renamed PR identity domain dependency',
       (sourceRoot: string) => {
-        const prIdentityPath = join(sourceRoot, 'scripts/mission-control/domain/pr-identity.mjs')
+        const prIdentityPath = join(sourceRoot, 'scripts/mission-control/domain/pr-identity.ts')
         writeFileSync(
           join(sourceRoot, 'scripts/mission-control/domain/pr-identity-renamed.mjs'),
           readFileSync(prIdentityPath, 'utf8'),
         )
         rmSync(prIdentityPath, { force: true })
       },
-      '- [missing-relative-runtime-dependency] importer="scripts/agent-issue.mjs" -> callee="scripts/mission-control/domain/pr-identity.mjs" specifier="./mission-control/domain/pr-identity.mjs"',
+      '- [missing-relative-runtime-dependency] importer="scripts/agent-issue.mjs" -> callee="scripts/mission-control/domain/pr-identity.ts" specifier="./mission-control/domain/pr-identity.ts"',
     ],
   ])(
     'fails closed before copy for %s and leaves the child byte-for-byte unchanged',

@@ -7,7 +7,7 @@ import ts from 'typescript'
 import * as reconcileModule from '../../scripts/mission-control-reconcile.mjs'
 import * as coordinatorTransitions from '../../scripts/mission-control/coordinator-transitions.mjs'
 import { parseMissionControlState, renderMissionControlState } from '../../scripts/mission-control/domain/task-state.mjs'
-import * as reviewVerdictProjectionFacade from '../../scripts/mission-control/review-verdict-projection.mjs'
+import * as reviewVerdictProjectionFacade from '../../scripts/mission-control/review-verdict-projection.ts'
 
 // Shared .mjs scripts expose runtime behavior, not TypeScript declarations. Keep
 // the strict-project boundary explicit without changing the production API.
@@ -137,32 +137,21 @@ const sampleVerdict = `## REVIEW_VERDICT
 const FULL_SAMPLE_HEAD = 'abc1234'.padEnd(40, '0')
 
 describe('mission-control reconcile classifiers', () => {
-  it('keeps review verdict projection canonical TypeScript behind an exact facade', async () => {
-    const facade = await import('../../scripts/mission-control/review-verdict-projection.mjs')
+  it('keeps review verdict projection owned by TypeScript after facade removal', async () => {
+    const { existsSync } = await import('node:fs')
     const typed = await import('../../scripts/mission-control/review-verdict-projection.ts')
     const proposalConsumer = await import('../../scripts/mission-control/reconciliation-proposals.mjs')
 
-    expect(readFileSync('scripts/mission-control/review-verdict-projection.mjs', 'utf8')).toBe(
-      "export * from './review-verdict-projection.ts'\n",
-    )
-    expect(Object.keys(facade).sort()).toEqual(Object.keys(typed).sort())
-    for (const name of Object.keys(facade) as Array<keyof typeof facade>) {
-      expect(facade[name]).toBe(typed[name])
-    }
+    expect(existsSync('scripts/mission-control/review-verdict-projection.mjs')).toBe(false)
     expect(proposalConsumer.proposeReviewReconciliation).toBe(typed.proposeReviewReconciliation)
   })
 
-  it('keeps comment evidence canonical TypeScript behind an exact logic-free facade', async () => {
-    const facade = await import('../../scripts/mission-control/comment-evidence.mjs')
+  it('keeps comment evidence owned by TypeScript after facade removal', async () => {
+    const { existsSync } = await import('node:fs')
     const typed = await import('../../scripts/mission-control/comment-evidence.ts')
 
-    expect(readFileSync('scripts/mission-control/comment-evidence.mjs', 'utf8')).toBe(
-      "export * from './comment-evidence.ts'\n",
-    )
-    expect(Object.keys(facade).sort()).toEqual(Object.keys(typed).sort())
-    for (const name of Object.keys(facade) as Array<keyof typeof facade>) {
-      expect(facade[name]).toBe(typed[name])
-    }
+    expect(existsSync('scripts/mission-control/comment-evidence.mjs')).toBe(false)
+    expect(Object.keys(typed).length).toBeGreaterThan(0)
   })
 
   it('exposes the extracted Coordinator transition boundary', () => {
@@ -1690,11 +1679,10 @@ describe('review verdict projection boundary', () => {
     }
   })
 
-  it('keeps the exact facade, export set, and function identity parity with the canonical TypeScript module', async () => {
-    expect(readFileSync('scripts/mission-control/review-verdict-projection.mjs', 'utf8')).toBe(
-      "export * from './review-verdict-projection.ts'\n",
-    )
+  it('keeps the export set and function identity of the canonical TypeScript module', async () => {
+    const { existsSync } = await import('node:fs')
     const typed = await import('../../scripts/mission-control/review-verdict-projection.ts')
+    expect(existsSync('scripts/mission-control/review-verdict-projection.mjs')).toBe(false)
     expect(Object.keys(reviewVerdictProjectionFacade).sort()).toEqual(Object.keys(typed).sort())
     for (const name of Object.keys(reviewVerdictProjectionFacade) as Array<keyof typeof reviewVerdictProjectionFacade>) {
       expect(reviewVerdictProjectionFacade[name]).toBe(typed[name])

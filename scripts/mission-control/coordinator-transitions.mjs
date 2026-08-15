@@ -1,6 +1,6 @@
 import { parseCommentMarker } from './transition-identity.mjs'
 import { routingDriftClassification } from './coordinator-projection.mjs'
-import { classifyTransition, findMatchingComments } from './comment-evidence.mjs'
+import { classifyTransition, findMatchingComments } from './comment-evidence.ts'
 import { verifyStatePostcondition } from './state-verification.mjs'
 import { sameValue } from './transition-guards.mjs'
 

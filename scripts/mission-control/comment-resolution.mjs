@@ -6,7 +6,7 @@ import { selectActiveRoleComments } from './review-verdict-binding.mjs'
 import {
   findMatchingComments,
   recoverAmbiguousPost,
-} from './comment-evidence.mjs'
+} from './comment-evidence.ts'
 
 /**
  * Resolve an authoritative role comment, creating it only when no matching
