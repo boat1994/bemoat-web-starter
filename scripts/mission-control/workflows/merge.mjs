@@ -36,7 +36,7 @@ import { resultCommentId } from '../domain/merge-result-comment-id.ts'
 import { blockedExternal, stateConflict } from '../domain/merge-errors.ts'
 import { campaignParseFailure } from '../domain/merge-campaign-errors.ts'
 import { sameTerminalBinding } from '../domain/merge-terminal-binding.ts'
-import { stateBlockReplacement } from '../domain/merge-state-block-replacement.mjs'
+import { stateBlockReplacement } from '../domain/merge-state-block-replacement.ts'
 import { deriveCampaignExpansionAuthority } from '../domain/merge-campaign-expansion-authority.ts'
 import {
   projectCampaignBlockerResolved,
@@ -44,7 +44,7 @@ import {
 } from '../domain/merge-campaign-state-projection.ts'
 import { projectTaskDoneState } from '../domain/merge-task-done-projection.ts'
 import { validateDirectOwnership } from '../domain/merge-direct-ownership.ts'
-import { commentSupersedesId } from '../domain/merge-comment-supersession.mjs'
+import { commentSupersedesId } from '../domain/merge-comment-supersession.ts'
 import { mergeCommitOid } from '../domain/merge-commit-oid.ts'
 import { normalizeIssueReason, normalizeIssueState } from '../domain/merge-issue-state.ts'
 import { parseMergeCliArgs } from '../domain/merge-cli-args.mjs'
@@ -56,7 +56,7 @@ import {
   SAFE_EXECUTION_BUNDLES,
   SAFE_EXECUTION_BUNDLE_SCOPES,
   validateSafeExecutionBundle,
-} from '../domain/merge-safe-execution-bundle.mjs'
+} from '../domain/merge-safe-execution-bundle.ts'
 import {
   CAMPAIGN_PROJECTION_KINDS,
 } from '../domain/merge-campaign-projection.ts'
