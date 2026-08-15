@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 import {
   BOOTSTRAP_CONTRACT,
   createFounderAuthorizationBody,
-} from '../../scripts/mission-control/domain/task-bootstrap-authorization.mjs'
+} from '../../scripts/mission-control/domain/task-bootstrap-authorization.ts'
 import {
   createTaskBootstrapService,
   buildInitialTaskState,
@@ -24,8 +24,8 @@ import {
   PROVISIONAL_TASK_END,
   PROVISIONAL_TASK_MARKER,
   buildTaskBootstrapRequestIdentity,
-} from '../../scripts/mission-control/domain/task-bootstrap-request.mjs'
-import { preflightCanonicalBootstrapTask } from '../../scripts/mission-control/domain/task-bootstrap-preflight.mjs'
+} from '../../scripts/mission-control/domain/task-bootstrap-request.ts'
+import { preflightCanonicalBootstrapTask } from '../../scripts/mission-control/domain/task-bootstrap-preflight.ts'
 import { parseMissionControlState } from '../../scripts/mission-control/domain/task-state.mjs'
 
 const REPO = 'boat1994/bemoat-web-starter'

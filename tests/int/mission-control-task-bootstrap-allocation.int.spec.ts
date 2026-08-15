@@ -4,14 +4,14 @@ import { readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import * as allocationFacade from '../../scripts/mission-control/domain/task-bootstrap-allocation.mjs'
-import { BOOTSTRAP_CONTRACT } from '../../scripts/mission-control/domain/task-bootstrap-authorization.mjs'
+import * as allocationFacade from '../../scripts/mission-control/domain/task-bootstrap-allocation.ts'
+import { BOOTSTRAP_CONTRACT } from '../../scripts/mission-control/domain/task-bootstrap-authorization.ts'
 import {
   ALLOCATION_KINDS,
   classifyTaskBootstrapAllocation,
   matchesProvisional,
   registryForRequest,
-} from '../../scripts/mission-control/domain/task-bootstrap-allocation.mjs'
+} from '../../scripts/mission-control/domain/task-bootstrap-allocation.ts'
 
 const REQUEST = { requestId: 'mc-task-bootstrap-v1-' + 'a'.repeat(64) }
 const CONTEXT = {
@@ -32,7 +32,7 @@ async function loadLegacyAllocation() {
       encoding: 'utf8',
     }).replace(
       "from './task-bootstrap-authorization.mjs'",
-      `from ${JSON.stringify(pathToFileURL(resolve(process.cwd(), 'scripts/mission-control/domain/task-bootstrap-authorization.mjs')).href)}`,
+      `from ${JSON.stringify(pathToFileURL(resolve(process.cwd(), 'scripts/mission-control/domain/task-bootstrap-authorization.ts')).href)}`,
     )
     legacyModulePath = resolve(process.cwd(), 'tests/.task-bootstrap-allocation-legacy.mjs')
     writeFileSync(legacyModulePath, legacySource)
@@ -298,7 +298,7 @@ describe('task bootstrap allocation classification', () => {
 
   it('keeps the workflow registry readback wired to the canonical lookup helper', () => {
     const workflow = readFileSync(resolve(process.cwd(), 'scripts/mission-control/workflows/task-bootstrap.mjs'), 'utf8')
-    expect(workflow).toContain("import { classifyTaskBootstrapAllocation, matchesProvisional, registryForRequest } from '../domain/task-bootstrap-allocation.mjs'")
+    expect(workflow).toContain("import { classifyTaskBootstrapAllocation, matchesProvisional, registryForRequest } from '../domain/task-bootstrap-allocation.ts'")
     expect(workflow).toContain('const duplicate = registryForRequest(refreshedRegistry.records, request.requestId)')
     expect(workflow).not.toContain('recordForRequest')
     expect(registryForRequest([registryEntry()], REQUEST.requestId)).toMatchObject({ record: { payload: { task_issue_number: 300, task_issue_id: 'task-id', task_issue_node_id: 'task-node' } } })
@@ -480,11 +480,10 @@ describe('task bootstrap allocation classification', () => {
     expect(() => matchesProvisional(provisional(), null as never)).toThrow(TypeError)
   })
 
-  it('keeps the canonical TypeScript module and facade at exact export parity', async () => {
+  it('keeps the canonical TypeScript module export set after facade removal', async () => {
+    const { existsSync } = await import('node:fs')
     const typed = await import('../../scripts/mission-control/domain/task-bootstrap-allocation.ts')
-    expect(readFileSync('scripts/mission-control/domain/task-bootstrap-allocation.mjs', 'utf8')).toBe(
-      "export * from './task-bootstrap-allocation.ts'\n",
-    )
+    expect(existsSync('scripts/mission-control/domain/task-bootstrap-allocation.mjs')).toBe(false)
     expect(Object.keys(allocationFacade).sort()).toEqual(Object.keys(typed).sort())
     expect(Object.keys(allocationFacade).sort()).toEqual([
       'ALLOCATION_KINDS', 'classifyTaskBootstrapAllocation', 'matchesProvisional', 'registryForRequest',

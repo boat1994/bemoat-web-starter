@@ -1,16 +1,14 @@
-import { readFileSync } from 'node:fs'
+import { existsSync } from 'node:fs'
 
 import { describe, expect, it } from 'vitest'
 
-import { BOOTSTRAP_CONTRACT } from '../../scripts/mission-control/domain/task-bootstrap-authorization.mjs'
+import { BOOTSTRAP_CONTRACT } from '../../scripts/mission-control/domain/task-bootstrap-authorization.ts'
 import { canonicalHash, TASK_ATTESTATION_SCHEMA } from '../../scripts/mission-control/domain/task-attestation.mjs'
-import { buildInitialTaskState } from '../../scripts/mission-control/domain/task-bootstrap-state.mjs'
+import { buildInitialTaskState } from '../../scripts/mission-control/domain/task-bootstrap-state.ts'
 
 describe('Mission Control Task bootstrap initial state projection', () => {
-  it('keeps the compatibility facade logic-free and preserves observable key order', () => {
-    expect(readFileSync('scripts/mission-control/domain/task-bootstrap-state.mjs', 'utf8')).toBe(
-      "export * from './task-bootstrap-state.ts'\n",
-    )
+  it('preserves observable key order after facade removal', () => {
+    expect(existsSync('scripts/mission-control/domain/task-bootstrap-state.mjs')).toBe(false)
 
     expect(Object.keys(buildInitialTaskState({ issueNumber: 300 }))).toEqual([
       'schema_version',

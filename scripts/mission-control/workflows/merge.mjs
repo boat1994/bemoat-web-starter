@@ -13,7 +13,7 @@ import {
 import { sameCampaignValue } from '../domain/campaign-equality.ts'
 import { parseCampaign } from '../domain/campaign-parser.ts'
 import { replaceCampaignBlock } from '../domain/campaign-renderer.ts'
-import { preflightCanonicalBootstrapTask } from '../domain/task-bootstrap-preflight.mjs'
+import { preflightCanonicalBootstrapTask } from '../domain/task-bootstrap-preflight.ts'
 import {
   detectUnaccountedReviewEvidence,
   isReviewRecoveryIncident,

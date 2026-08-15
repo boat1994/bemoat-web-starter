@@ -1,6 +1,6 @@
-import { BOOTSTRAP_CONTRACT } from './task-bootstrap-authorization.mjs'
+import { BOOTSTRAP_CONTRACT } from './task-bootstrap-authorization.ts'
 import { canonicalHash, parseTaskAttestation } from './task-attestation.mjs'
-import { runCanonicalManagedTaskPreflight } from './task-bootstrap-preflight.mjs'
+import { runCanonicalManagedTaskPreflight } from './task-bootstrap-preflight.ts'
 import { verifyFinalTaskRegistryReadback } from './task-bootstrap-registry-readback.mjs'
 
 function readbackError(code, message, cause) {

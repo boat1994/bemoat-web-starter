@@ -1,4 +1,4 @@
-import { BOOTSTRAP_CONTRACT } from './task-bootstrap-authorization.mjs'
+import { BOOTSTRAP_CONTRACT } from './task-bootstrap-authorization.ts'
 
 type AllocationInput = {
   request?: unknown

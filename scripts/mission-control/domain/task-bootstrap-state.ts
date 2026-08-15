@@ -1,4 +1,4 @@
-import { BOOTSTRAP_CONTRACT } from './task-bootstrap-authorization.mjs'
+import { BOOTSTRAP_CONTRACT } from './task-bootstrap-authorization.ts'
 import { TASK_ATTESTATION_SCHEMA, canonicalHash } from './task-attestation.mjs'
 
 type BuildInitialTaskStateOptions = {

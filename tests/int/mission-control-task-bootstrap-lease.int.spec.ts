@@ -7,7 +7,7 @@ import {
   createTaskBootstrapLeaseProtocol,
   parseLeaseComment,
   workflowLeaseBody,
-} from '../../scripts/mission-control/domain/task-bootstrap-lease.mjs'
+} from '../../scripts/mission-control/domain/task-bootstrap-lease.ts'
 import { createTaskBootstrapGithubAdapter } from '../../scripts/mission-control/adapters/task-bootstrap-github.mjs'
 
 const ISSUE = 300
@@ -64,22 +64,17 @@ function harness(initialComments: LeaseComment[] = [], hooks: {
 }
 
 describe('task bootstrap Issue-only lease domain', () => {
-  it('keeps the exact typed implementation behind a logic-free facade', async () => {
-    const facade = await import('../../scripts/mission-control/domain/task-bootstrap-lease.mjs')
+  it('keeps the typed lease implementation after facade removal', async () => {
+    const { existsSync } = await import('node:fs')
     const typed = await import('../../scripts/mission-control/domain/task-bootstrap-lease.ts')
 
-    expect(readFileSync('scripts/mission-control/domain/task-bootstrap-lease.mjs', 'utf8')).toBe(
-      "export * from './task-bootstrap-lease.ts'\n",
-    )
-    expect(Object.keys(facade).sort()).toEqual(Object.keys(typed).sort())
-    for (const name of Object.keys(facade) as Array<keyof typeof facade>) {
-      expect(facade[name]).toBe(typed[name])
-    }
+    expect(existsSync('scripts/mission-control/domain/task-bootstrap-lease.mjs')).toBe(false)
+    expect(Object.keys(typed).length).toBeGreaterThan(0)
   })
 
   it('keeps GitHub transport in the adapter and lease decisions in the domain module', () => {
     const adapter = readFileSync('scripts/mission-control/adapters/task-bootstrap-github.mjs', 'utf8')
-    expect(adapter).toContain("from '../domain/task-bootstrap-lease.mjs'")
+    expect(adapter).toContain("from '../domain/task-bootstrap-lease.ts'")
     expect(adapter).toContain('createTaskBootstrapLeaseProtocol({ readComments: getIssueComments, postComment })')
     expect(adapter).not.toMatch(/async function acquireLease\(/)
     expect(adapter).not.toMatch(/async function releaseLease\(/)

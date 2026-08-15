@@ -19,7 +19,7 @@ import { parseIssueReference, parsePrReference } from './issue-references.mjs'
 import { getDefaultRepo } from './local-git-evidence.mjs'
 import { fetchIssueByReference, fetchIssueComments, fetchPrByReference } from './github-evidence.mjs'
 import { stripFencedCodeBlocks } from './pure-helpers.mjs'
-import { preflightCanonicalBootstrapTask } from '../mission-control/domain/task-bootstrap-preflight.mjs'
+import { preflightCanonicalBootstrapTask } from '../mission-control/domain/task-bootstrap-preflight.ts'
 
 export function normalizeSliceName(slice) {
   if (!slice) return ''
