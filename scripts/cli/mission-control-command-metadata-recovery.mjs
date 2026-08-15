@@ -331,7 +331,7 @@ export function missionControlRecoveryCommands(dependencies) {
     ],
     parser_owner: 'scripts/mission-control/workflows/rebind-review-lineage.mjs',
     safe_help_invocation: 'pnpm run bemoat:mission-control:rebind-review-lineage -- --help --json',
-    last_validation_before_mutation: 'Verify the complete registered tuple, Founder authorization on Issue #259 including exact replacement/source SHA-256 and Findings-line provenance, and absence of competing undemoted verdicts immediately before comment and CAS writes.',
+    last_validation_before_mutation: 'Verify the complete registered tuple, Founder authorization on Issue #259 including exact replacement/source SHA-256 and Findings provenance, and absence of competing undemoted verdicts immediately before comment and CAS writes.',
     post_write_readback: 'Re-read comments and managed state and prove selectLiveReviewVerdictComment returns exactly one authoritative canonical REVIEW_VERDICT while review counters remain 1/1.',
     legacy_classification_map: {
       REBOUND: 'SUCCESS',

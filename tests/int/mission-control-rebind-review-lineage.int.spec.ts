@@ -31,6 +31,14 @@ const HEAD = 'b1ce5f58e7ffd0178d955ef7e93395209a7c4d28'
 const AUTHORIZATION_COMMENT = '9000000001'
 const CANONICAL_COMMENT_ID = '9000000002'
 const GUIDE_SOURCE_SHA = 'c'.repeat(40)
+const LIVE_SOURCE_FIXTURE_PATH = resolve(
+  process.cwd(),
+  'tests/fixtures/starter-only/mission-control/review-verdict-comment-5163387315.body.md',
+)
+const LIVE_SOURCE_FIXTURE_FILE_SHA256 =
+  '97d58461c476f3e0244613ddae02c7370a114973ef8a22bea5808c7eac639f6d'
+const LIVE_SOURCE_COMMENT_SHA256 =
+  '37ca7e4eadd60c030608f9fdc395d1830aa135f9bb25792a39cb867a5b33385d'
 
 type RebindDeps = {
   readManagedIssue: (issueNumber: string, repo: string) => Promise<Record<string, unknown>>
@@ -92,6 +100,35 @@ function canonicalBody(): string {
 
 function sha256Hex(text: string): string {
   return createHash('sha256').update(text, 'utf8').digest('hex')
+}
+
+function readLiveSourceComment5163387315(): string {
+  const fileBytes = readFileSync(LIVE_SOURCE_FIXTURE_PATH)
+  expect(createHash('sha256').update(fileBytes).digest('hex')).toBe(LIVE_SOURCE_FIXTURE_FILE_SHA256)
+  const fileText = fileBytes.toString('utf8')
+  expect(fileText.endsWith('\n')).toBe(true)
+  const liveBody = fileText.slice(0, -1)
+  expect(sha256Hex(liveBody)).toBe(LIVE_SOURCE_COMMENT_SHA256)
+  expect(liveBody).toContain('### Findings')
+  expect(liveBody).toContain('- **Critical/Important:** None.')
+  expect(liveBody).not.toMatch(/^\*\*Findings:\*\*/m)
+  return liveBody
+}
+
+function liveSourceScenario(overrides: Parameters<typeof createScenario>[0] = {}) {
+  const liveSource = readLiveSourceComment5163387315()
+  const sourceBody = overrides.sourceBody ?? liveSource
+  return {
+    liveSource,
+    ...createScenario({
+      ...overrides,
+      sourceBody,
+      authorization: {
+        sourceBody: liveSource,
+        ...overrides.authorization,
+      },
+    }),
+  }
 }
 
 function authorizationBody(overrides: Record<string, unknown> = {}): string {
@@ -766,5 +803,109 @@ describe('Mission Control review lineage rebind transport', () => {
       base: 'main',
       head: HEAD,
     })
+    expect(parseLegacyReviewVerdictBinding(readLiveSourceComment5163387315())).toMatchObject({
+      kind: 'legacy',
+      issueNumber: '259',
+      prNumber: '260',
+      base: 'main',
+      head: HEAD,
+    })
+  })
+
+  it('accepts byte-faithful live source 5163387315 when canonical replacement Findings remain None', async () => {
+    const { scenario, deps, liveSource } = liveSourceScenario()
+    expect(liveSource).toContain('- **Critical/Important:** None.')
+    const result = await runReviewLineageRebind({
+      options: STANDARD_OPTIONS,
+      body: canonicalBody(),
+      deps,
+    })
+    expect(result).toMatchObject({
+      classification: 'SUCCESS',
+      outcome: 'REBOUND',
+    })
+    expect(scenario.postCount).toBe(1)
+    expect(scenario.updateCount).toBe(1)
+    expect(scenario.writeCount).toBe(1)
+    expect(scenario.postedBodies[0]).toContain('**Findings:** Critical: None · Important: None')
+  })
+
+  it('rejects a replacement that adds an Important finding to live source None', async () => {
+    const divergentBody = canonicalBody().replace(
+      '**Findings:** Critical: None · Important: None',
+      '**Findings:** Critical: None · Important: Forged finding',
+    )
+    const { scenario, deps } = liveSourceScenario({
+      authorization: { replacementBody: divergentBody },
+    })
+    await expect(runReviewLineageRebind({
+      options: STANDARD_OPTIONS,
+      body: divergentBody,
+      deps,
+    })).rejects.toThrow(/preserve source Review 1 Critical\/Important provenance/)
+    expect(scenario.postCount).toBe(0)
+    expect(scenario.updateCount).toBe(0)
+    expect(scenario.writeCount).toBe(0)
+  })
+
+  it('rejects a replacement that adds a Critical finding to live source None', async () => {
+    const divergentBody = canonicalBody().replace(
+      '**Findings:** Critical: None · Important: None',
+      '**Findings:** Critical: Forged finding · Important: None',
+    )
+    const { scenario, deps } = liveSourceScenario({
+      authorization: { replacementBody: divergentBody },
+    })
+    await expect(runReviewLineageRebind({
+      options: STANDARD_OPTIONS,
+      body: divergentBody,
+      deps,
+    })).rejects.toThrow(/preserve source Review 1 Critical\/Important provenance/)
+    expect(scenario.postCount).toBe(0)
+    expect(scenario.updateCount).toBe(0)
+    expect(scenario.writeCount).toBe(0)
+  })
+
+  it('rejects live source findings/body drift through source_body_sha256', async () => {
+    const liveSource = readLiveSourceComment5163387315()
+    const drifted = liveSource.replace(
+      '- **Critical/Important:** None.',
+      '- **Critical/Important:** Forged.',
+    )
+    const { scenario, deps } = liveSourceScenario({ sourceBody: drifted })
+    await expect(runReviewLineageRebind({
+      options: STANDARD_OPTIONS,
+      body: canonicalBody(),
+      deps,
+    })).rejects.toThrow(/source_body_sha256/)
+    expect(scenario.postCount).toBe(0)
+    expect(scenario.updateCount).toBe(0)
+    expect(scenario.writeCount).toBe(0)
+  })
+
+  it('rejects replacement byte drift through replacement_body_sha256 for the live source', async () => {
+    const { scenario, deps } = liveSourceScenario()
+    await expect(runReviewLineageRebind({
+      options: STANDARD_OPTIONS,
+      body: `${canonicalBody()} `,
+      deps,
+    })).rejects.toThrow(/replacement_body_sha256/)
+    expect(scenario.postCount).toBe(0)
+    expect(scenario.updateCount).toBe(0)
+    expect(scenario.writeCount).toBe(0)
+  })
+
+  it('rejects Founder authorization hosted on Issue #340 for the live source', async () => {
+    const { scenario, deps } = liveSourceScenario({
+      authorizationIssueUrl: `https://api.github.com/repos/${REPOSITORY}/issues/340`,
+    })
+    await expect(runReviewLineageRebind({
+      options: STANDARD_OPTIONS,
+      body: canonicalBody(),
+      deps,
+    })).rejects.toThrow(/AUTHORITY_CONFLICT/)
+    expect(scenario.postCount).toBe(0)
+    expect(scenario.updateCount).toBe(0)
+    expect(scenario.writeCount).toBe(0)
   })
 })
