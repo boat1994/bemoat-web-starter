@@ -1,5 +1,5 @@
 import { parseCommentMarker, serializeTransitionIdentity } from './transition-identity.mjs'
-import { findMatchingComments } from './comment-evidence.mjs'
+import { findMatchingComments } from './comment-evidence.ts'
 import { routingDriftClassification } from './coordinator-projection.mjs'
 import { assertRoutingOnlyProjection, sameValue } from './transition-guards.mjs'
 import { verifyStatePostcondition } from './state-verification.mjs'

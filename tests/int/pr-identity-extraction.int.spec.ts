@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync } from 'node:fs'
 
 import { describe, expect, it } from 'vitest'
 
@@ -58,9 +58,10 @@ function verdictBody(target = CANONICAL, extra = '') {
 describe('PR identity extraction seam', () => {
   it('keeps the pure domain module as the sole PR identity implementation', async () => {
     expect(existsSync('scripts/pr-identity.mjs')).toBe(false)
-    expect(existsSync('scripts/mission-control/domain/pr-identity.mjs')).toBe(true)
+    expect(existsSync('scripts/mission-control/domain/pr-identity.mjs')).toBe(false)
+    expect(existsSync('scripts/mission-control/domain/pr-identity.ts')).toBe(true)
 
-    const domain = await import('../../scripts/mission-control/domain/pr-identity.mjs')
+    const domain = await import('../../scripts/mission-control/domain/pr-identity.ts')
     expect(domain.parseCompleteGitHubPullUrl('https://github.com/boat1994/bemoat-web-starter/pull/335'))
       .toEqual({
         ok: true,
@@ -74,7 +75,7 @@ describe('PR identity extraction seam', () => {
   })
 
   it('preserves the direct 42-case URL grammar characterization', async () => {
-    const domain = await import('../../scripts/mission-control/domain/pr-identity.mjs')
+    const domain = await import('../../scripts/mission-control/domain/pr-identity.ts')
 
     for (const testCase of URL_CASES) {
       const result = domain.parseCompleteGitHubPullUrl(testCase.value)
@@ -96,7 +97,7 @@ describe('PR identity extraction seam', () => {
   })
 
   it('keeps extraction exact, including the non-string throw boundary', async () => {
-    const domain = await import('../../scripts/mission-control/domain/pr-identity.mjs')
+    const domain = await import('../../scripts/mission-control/domain/pr-identity.ts')
 
     expect(domain.extractVerdictPrBaseAndHead(verdictBody())).toEqual({ base: 'main', head: HEAD })
     expect(domain.extractVerdictPrBaseAndHead(verdictBody(CANONICAL, ' · base `main` · head `abc1234`')))
@@ -106,7 +107,7 @@ describe('PR identity extraction seam', () => {
   })
 
   it('preserves canonical verdict identity, planning-no-PR, source-thread, and fail-closed behavior', async () => {
-    const domain = await import('../../scripts/mission-control/domain/pr-identity.mjs')
+    const domain = await import('../../scripts/mission-control/domain/pr-identity.ts')
     const sourceThread = `${CANONICAL}#discussion_r1`
     const contract = { findings: [{ id: 'MC-R1-001', source_thread: sourceThread }] }
 
@@ -131,20 +132,15 @@ describe('PR identity extraction seam', () => {
     })).toEqual(domain.resolveCanonicalVerdictPrIdentity(verdictBody(), REPOSITORY, 'implementation_pr', null, contract))
   })
 
-  it('keeps the facade logic-free and exactly mirrors the typed implementation exports', async () => {
-    const facade = await import('../../scripts/mission-control/domain/pr-identity.mjs')
+  it('keeps the TypeScript domain exports after facade removal', async () => {
     const typed = await import('../../scripts/mission-control/domain/pr-identity.ts')
 
-    expect(readFileSync('scripts/mission-control/domain/pr-identity.mjs', 'utf8')).toBe("export * from './pr-identity.ts'\n")
-    expect(Object.keys(facade).sort()).toEqual([
+    expect(existsSync('scripts/mission-control/domain/pr-identity.mjs')).toBe(false)
+    expect(Object.keys(typed).sort()).toEqual([
       'collectKnownSourceThreads',
       'extractVerdictPrBaseAndHead',
       'parseCompleteGitHubPullUrl',
       'resolveCanonicalVerdictPrIdentity',
     ])
-    expect(Object.keys(typed).sort()).toEqual(Object.keys(facade).sort())
-    for (const name of Object.keys(facade) as Array<keyof typeof facade>) {
-      expect(facade[name]).toBe(typed[name])
-    }
   })
 })

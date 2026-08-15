@@ -16,7 +16,7 @@ export { assertDeltaReviewHeadProjection, assertRoutingOnlyProjection, deriveTra
 export { assertChildSyncGateReady, CHILD_SYNC_GATE_ISSUES, CHILD_SYNC_GATE_REQUIREMENTS, resolveChildSyncCommandGate, verifyStatePostcondition } from './mission-control/state-verification.mjs'
 export { normalizeTransitionIdentity, parseCommentMarker, serializeTransitionIdentity, transitionIdentityMatches } from './mission-control/transition-identity.mjs'
 export { isExplicitlyNonAuthoritativeRoleBody, normalizeAuthorityBase, normalizeAuthorityHead, parseLegacyReviewVerdictBinding, parseRoleCommentBody, selectActiveRoleComments, selectLiveReviewVerdictComment } from './mission-control/review-verdict-binding.mjs'
-export { classifyTransition, DEFAULT_MC_TRUSTED_ASSOCIATIONS, findMatchingComments, normalizeIssueComments, parsePaginatedGhApiJson, recoverAmbiguousPost, resolveProductionCommentTrust, verifyPostedCommentReadback } from './mission-control/comment-evidence.mjs'
+export { classifyTransition, DEFAULT_MC_TRUSTED_ASSOCIATIONS, findMatchingComments, normalizeIssueComments, parsePaginatedGhApiJson, recoverAmbiguousPost, resolveProductionCommentTrust, verifyPostedCommentReadback } from './mission-control/comment-evidence.ts'
 export { resolveRoleComment } from './mission-control/comment-resolution.mjs'
 export { coordinatorOwnedProjection, coordinatorOwnedRoutingProjection, routingDriftClassification } from './mission-control/coordinator-projection.mjs'
 export { buildTransitionMatchOptions } from './mission-control/transition-match-options.mjs'
@@ -24,7 +24,7 @@ export { assertManagedActivePrForReviewVerdictReconciliation, assertReviewedHead
 export { buildCorrectionHandoffBinding, dispatchFounderAuthorizedCorrection } from './mission-control/founder-correction-dispatch.mjs'
 export { findLatestRoleComment } from './mission-control/role-comment-selection.mjs'
 export { classifyMergeDrift } from './mission-control/merge-drift-classification.mjs'
-export { projectReviewVerdictState } from './mission-control/review-verdict-projection.mjs'
+export { projectReviewVerdictState } from './mission-control/review-verdict-projection.ts'
 export { founderMergeTransitionAuthorized } from './mission-control/founder-merge-transition-policy.mjs'
 
 /**
