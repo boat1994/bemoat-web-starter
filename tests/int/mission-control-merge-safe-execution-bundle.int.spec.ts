@@ -1,6 +1,7 @@
+import { existsSync } from 'node:fs'
+
 import { describe, expect, it } from 'vitest'
 
-import * as facade from '../../scripts/mission-control/domain/merge-safe-execution-bundle.mjs'
 import {
   SAFE_EXECUTION_BUNDLES,
   SAFE_EXECUTION_BUNDLE_SCOPES,
@@ -73,10 +74,9 @@ describe('canonical safe execution bundles', () => {
     }
   })
 
-  it('keeps the mjs facade export identity exact', () => {
-    expect(facade.SAFE_EXECUTION_BUNDLES).toBe(SAFE_EXECUTION_BUNDLES)
-    expect(facade.SAFE_EXECUTION_BUNDLE_SCOPES).toBe(SAFE_EXECUTION_BUNDLE_SCOPES)
-    expect(facade.validateSafeExecutionBundle).toBe(validateSafeExecutionBundle)
+  it('keeps the TypeScript owner authoritative after facade removal', () => {
+    expect(existsSync('scripts/mission-control/domain/merge-safe-execution-bundle.mjs')).toBe(false)
+    expect(typeof validateSafeExecutionBundle).toBe('function')
   })
 
   it.each(Object.entries(canonicalBundles))('accepts the complete canonical %s bundle', (kind, expected) => {
@@ -147,7 +147,7 @@ describe('canonical safe execution bundles', () => {
     })
   })
 
-  it('rejects a constructor-shaped bundle identically through the legacy facade and typed implementation', () => {
+  it('rejects a constructor-shaped bundle through the typed implementation', () => {
     const malformedConstructorBundle: Record<string, unknown> = {
       kind: 'constructor',
       authority_scope: Object,
@@ -155,14 +155,10 @@ describe('canonical safe execution bundles', () => {
       steps: [undefined],
     }
 
-    const legacyResult = facade.validateSafeExecutionBundle(malformedConstructorBundle)
-    const typedResult = validateSafeExecutionBundle(malformedConstructorBundle)
-
-    expect(legacyResult).toEqual({
+    expect(validateSafeExecutionBundle(malformedConstructorBundle)).toEqual({
       valid: false,
       reason: 'safe execution bundle steps are prohibited or cross an independent gate; use one canonical bundle shape',
     })
-    expect(typedResult).toEqual(legacyResult)
   })
 
   it('does not mutate the input or canonical constants', () => {
