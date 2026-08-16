@@ -1,6 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import ts from 'typescript'
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- untyped runtime .mjs boundary */
@@ -18,13 +16,10 @@ const {
   classifyMergeDrift,
   classifyReviewLag,
   classifyTransition,
-  founderMergeTransitionAuthorized,
   dispatchManagedTask,
   dispatchFounderAuthorizedCorrection,
   isGenuineStateConflict,
   migrateLegacyManagedState,
-  migratePlanningOnlyTaskState,
-  isSeparatePlanningImplementationAuthorization,
   parseRoleCommentBody,
   parseCommentMarker,
   normalizeTransitionIdentity,
@@ -505,56 +500,6 @@ describe('mission-control reconcile classifiers', () => {
         reason: 'pre-review Founder decision gate must bind the active task to a Diagnostic or Investigation RESULT phase',
       })
     }
-  })
-
-  it('migrates Issue #248 planning state without changing RESULT lineage, baseline, mode, counters, or null PR/head', () => {
-    const body = readFileSync(resolve(process.cwd(), 'tests/fixtures/mission-control/issue-248-planning-migration.md'), 'utf8')
-    const parsed = parseMissionControlState(body)
-    expect(parsed).toMatchObject({ present: true, valid: true })
-
-    const migrated = migratePlanningOnlyTaskState({
-      managedState: parsed.state,
-      issueNumber: 248,
-      resultCommentId: '5156067541',
-      planningBaselineSha: 'fbb587f883e10a4b7f2c21d2af80da84b2f95084',
-      guideVersion: '1.3.0',
-      policySourceSha: 'c'.repeat(40),
-    })
-
-    expect(migrated).toMatchObject({ changed: true, implementationApprovalRequired: true })
-    expect(migrated.state).toMatchObject({
-      state: 'BLOCKED_FOR_FOUNDER_DECISION',
-      guide_version: '1.3.0',
-      latest_result_comment_id: '5156067541',
-      planning_authorization_base_sha: 'fbb587f883e10a4b7f2c21d2af80da84b2f95084',
-      workflow_mode: 'planning_no_pr',
-      review_cycle: 0,
-      full_review_count: 0,
-      active_pr: null,
-      current_head: null,
-      last_reviewed_head: null,
-    })
-    expect(migrated.state.next_permitted_action).toMatch(/separate Founder.*implementation approval/i)
-    expect(migrated.state.next_permitted_action).not.toMatch(/Review 4/i)
-    expect(migrated.state).not.toHaveProperty('post_budget_reviews')
-    expect(isSeparatePlanningImplementationAuthorization({
-      authorization: { authority: 'Founder', scope: 'merge', action: 'merge' },
-      managedState: migrated.state,
-    })).toBe(false)
-    expect(isSeparatePlanningImplementationAuthorization({
-      authorization: {
-        status: 'approved',
-        authority: 'Founder',
-        scope: 'implementation',
-        action: 'implement',
-        task_issue: 248,
-        repository: 'boat1994/bemoat-web-starter',
-        base: 'main',
-        planning_baseline_sha: 'fbb587f883e10a4b7f2c21d2af80da84b2f95084',
-      },
-      managedState: migrated.state,
-      repository: 'boat1994/bemoat-web-starter',
-    })).toBe(true)
   })
 
   it('migrates the exact Issue #171 founder_decision representation once without altering its lineage', () => {
@@ -1420,19 +1365,6 @@ describe('mission-control reconcile classifiers', () => {
 
     expect(lag.kind).toBe('STATE_CONFLICT')
     expect(lag.reason).toContain('REVIEW_VERDICT PR does not match live PR')
-  })
-
-  it('scenario 5: founder merge transition stays separate from migration/deploy', () => {
-    const mergeOnly = founderMergeTransitionAuthorized({ mergeAuthorized: true })
-    const mergeAndDeploy = founderMergeTransitionAuthorized({
-      mergeAuthorized: true,
-      deployAuthorized: true,
-    })
-
-    expect(mergeOnly.boundedSequence).toBe(true)
-    expect(mergeOnly.migrationAllowed).toBe(false)
-    expect(mergeAndDeploy.boundedSequence).toBe(false)
-    expect(mergeAndDeploy.deployAllowed).toBe(true)
   })
 
   it('scenario 6: head drift during merge transition blocks the operation', () => {

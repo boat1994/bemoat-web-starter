@@ -9,7 +9,7 @@ import { assertCompatibleSnapshot as assertCompatibleSnapshotTransition, integra
 
 export { dispatchManagedTask } from './mission-control/managed-task-dispatch.mjs'
 export { reconciliationFailureReason, runBoundedReconciliation } from './mission-control/bounded-reconciliation.mjs'
-export { classifyReconciliation, migrateLegacyManagedState, migratePlanningOnlyTaskState, isSeparatePlanningImplementationAuthorization } from './mission-control/reconciliation-classification.mjs'
+export { classifyReconciliation, migrateLegacyManagedState, isSeparatePlanningImplementationAuthorization } from './mission-control/reconciliation-classification.mjs'
 export { analyzeReconciliation, isGenuineStateConflict } from './mission-control/reconciliation-analysis.mjs'
 export { classifyDeliveryLag, classifyReviewLag, proposeDeliveryReconciliation, proposeReviewReconciliation, resolveVerdictState } from './mission-control/reconciliation-proposals.mjs'
 export { assertDeltaReviewHeadProjection, assertRoutingOnlyProjection, deriveTransitionFacts, derivesResolvedMaterialBlocker, hasUnchangedReviewedHead, policyObject, resolveEvidenceHead, sameValue } from './mission-control/transition-guards.mjs'
@@ -25,7 +25,6 @@ export { buildCorrectionHandoffBinding, dispatchFounderAuthorizedCorrection } fr
 export { findLatestRoleComment } from './mission-control/role-comment-selection.mjs'
 export { classifyMergeDrift } from './mission-control/merge-drift-classification.mjs'
 export { projectReviewVerdictState } from './mission-control/review-verdict-projection.ts'
-export { founderMergeTransitionAuthorized } from './mission-control/founder-merge-transition-policy.mjs'
 
 /**
  * Canonical comment-first transition coordinator. Role comments are immutable
