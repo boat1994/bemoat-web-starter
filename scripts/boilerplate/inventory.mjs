@@ -30,7 +30,7 @@ export const managedPaths = [
   'scripts/mission-control-reconcile.mjs', 'scripts/mission-control-task-create.mjs',
   'scripts/adapters/command-runner.mjs', 'scripts/mission-control-review.mjs',
   'scripts/mission-control-merge.mjs', 'scripts/mission-control-dispatch.mjs',
-  'scripts/mission-control-recover-review.mjs', 'scripts/mission-control-rebind-review-lineage.mjs', 'scripts/mission-control-reopen.mjs',
+  'scripts/mission-control-recover-review.mjs', 'scripts/mission-control-reopen.mjs',
   'scripts/mission-control-adopt-finding.mjs', 'scripts/mission-control-recover-state.mjs',
   'scripts/mission-control/workflows/issue-body-cas.mjs', 'scripts/post-role-comment.mjs',
   'scripts/cli',
@@ -99,7 +99,6 @@ export const managedPaths = [
   'tests/int/scripts-entrypoints-contract.int.spec.ts', 'tests/int/mission-control-review.int.spec.ts',
   'tests/int/mission-control-merge.int.spec.ts', 'tests/int/mission-control-merge-github-adapter.int.spec.ts', 'tests/int/mission-control-merge-head-bindings.int.spec.ts', 'tests/int/merge-cli-args.int.spec.ts', 'tests/int/mission-control-merge-campaign-expansion-authority.int.spec.ts', 'tests/int/mission-control-merge-campaign-projection.int.spec.ts', 'tests/int/mission-control-merge-direct-ownership.int.spec.ts', 'tests/int/mission-control-merge-mergeability.int.spec.ts', 'tests/int/mission-control-merge-commit-messages.int.spec.ts', 'tests/int/mission-control-merge-gh-pages.int.spec.ts', 'tests/int/mission-control-merge-next-action.int.spec.ts', 'tests/int/mission-control-merge-verdict-binding-entrypoint.int.spec.ts', 'tests/int/mission-control-merge-safe-execution-bundle.int.spec.ts', 'tests/int/mission-control-merge-comment-supersession.int.spec.ts', 'tests/int/mission-control-merge-terminal-binding.int.spec.ts', 'tests/int/mission-control-merge-state-block-replacement.int.spec.ts', 'tests/int/mission-control-merge-cli-result-rendering.int.spec.ts', 'tests/int/mission-control-issue-body-cas.int.spec.ts',
   'tests/int/mission-control-recover-review.int.spec.ts', 'tests/int/mission-control-recover-review-github-adapter.int.spec.ts',
-  'tests/int/mission-control-rebind-review-lineage.int.spec.ts',
   'tests/int/mission-control-reopen.int.spec.ts', 'tests/int/mission-control-reopen-github-adapter.int.spec.ts',
   'tests/int/active-correction-contract.int.spec.ts',
   'tests/int/mission-control-adopt-finding.int.spec.ts', 'tests/int/mission-control-adopt-finding-github-adapter.int.spec.ts', 'tests/int/mission-control-adopt-finding-rendering.int.spec.ts',
@@ -132,7 +131,7 @@ export const packageSyncProposalPath = '.bemoat/package-sync-proposal.md'
 /** Namespaced scripts safe to add when missing during sync. Never overwrite existing entries. */
 export const managedPackageScripts = [
   'bemoat:agent:issue', 'bemoat:mission-control:dispatch', 'bemoat:mission-control:review', 'bemoat:mission-control:task-bootstrap',
-  'bemoat:mission-control:merge', 'bemoat:mission-control:recover-review', 'bemoat:mission-control:rebind-review-lineage', 'bemoat:mission-control:reopen',
+  'bemoat:mission-control:merge', 'bemoat:mission-control:recover-review', 'bemoat:mission-control:reopen',
   'bemoat:mission-control:adopt-finding', 'bemoat:mission-control:recover-state',
   'bemoat:agent:delivery', 'bemoat:issue:comment',
   'bemoat:branch:check', 'bemoat:guard:safety', 'bemoat:guard:pack',

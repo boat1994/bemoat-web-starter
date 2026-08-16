@@ -8,7 +8,6 @@ export const ALL_MUTATING_COMMANDS = [
   'bemoat:mission-control:dispatch',
   'bemoat:mission-control:merge',
   'bemoat:mission-control:reconcile',
-  'bemoat:mission-control:rebind-review-lineage',
   'bemoat:mission-control:recover-review',
   'bemoat:mission-control:recover-state',
   'bemoat:mission-control:reopen',

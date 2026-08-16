@@ -91,7 +91,6 @@ describe('Bemoat CLI discovery guidance', () => {
       'reconcile',
       'review',
       'recover-review',
-      'rebind-review-lineage',
       'reopen',
       'merge',
       'delivery',

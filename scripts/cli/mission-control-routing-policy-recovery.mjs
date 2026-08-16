@@ -104,23 +104,6 @@ export function missionControlRecoveryRoutes() {
     decision: 'COMMAND',
   }),
   route({
-    route_key: 'ELIGIBLE_FOR_FOUNDER_REVIEW/exact-legacy-review-lineage-rebind-tuple',
-    observed_state: 'ELIGIBLE_FOR_FOUNDER_REVIEW',
-    evidence_case: 'exact-legacy-review-lineage-rebind-tuple',
-    required_evidence_condition: 'The exact registered #259/#260 legacy REVIEW_VERDICT tuple, Founder rebind authorization, and canonical transport body are complete.',
-    forbidden_evidence_condition: 'Tuple mismatch, missing Founder authorization, competing undemoted verdicts, or any attempt to perform a new semantic review.',
-    permitted_operation: 'Rebind existing REVIEW_VERDICT provenance into canonical PR/base/head transport without changing review counters or verdict.',
-    canonical_command: 'bemoat:mission-control:rebind-review-lineage',
-    required_review_type: null,
-    expected_post_state_or_gate: 'ELIGIBLE_FOR_FOUNDER_REVIEW with canonical latest_review_verdict_comment_id',
-    prohibited_commands: [
-      'bemoat:mission-control:review',
-      'bemoat:mission-control:recover-review',
-      'bemoat:mission-control:reconcile',
-    ],
-    decision: 'COMMAND',
-  }),
-  route({
     route_key: 'ANY_STATE/absent-managed-state-unique-reconstruction',
     observed_state: null,
     evidence_case: 'absent-managed-state-unique-reconstruction',

@@ -44,7 +44,6 @@
     "bemoat:mission-control:task-bootstrap": "node scripts/mission-control-task-create.mjs",
     "bemoat:mission-control:merge": "node scripts/mission-control-merge.mjs",
     "bemoat:mission-control:recover-review": "node scripts/mission-control-recover-review.mjs",
-    "bemoat:mission-control:rebind-review-lineage": "node scripts/mission-control-rebind-review-lineage.mjs",
     "bemoat:mission-control:reopen": "node scripts/mission-control-reopen.mjs",
     "bemoat:mission-control:adopt-finding": "node scripts/mission-control-adopt-finding.mjs",
     "bemoat:mission-control:recover-state": "node scripts/mission-control-recover-state.mjs",

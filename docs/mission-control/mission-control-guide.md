@@ -51,7 +51,7 @@ reviewer.
 ## Bemoat CLI Discovery
 
 Before selecting task bootstrap, dispatch, reconcile, review, recover-review,
-rebind-review-lineage, recover-state, reopen, merge, delivery, or role comment transport, Mission
+recover-state, reopen, merge, delivery, or role comment transport, Mission
 Control must follow
 the canonical [Bemoat CLI Discovery](../../AGENTS.md#bemoat-cli-discovery) rule
 for the applicable public command. It must use the returned command contract
@@ -382,7 +382,6 @@ Use these canonical mappings when that operation is already selected:
 | review | `bemoat:mission-control:review` |
 | reconciliation | `bemoat:mission-control:reconcile` |
 | recover-review | `bemoat:mission-control:recover-review` |
-| rebind-review-lineage | `bemoat:mission-control:rebind-review-lineage` |
 | missing managed-state recovery | `bemoat:mission-control:recover-state` |
 | reopen | `bemoat:mission-control:reopen` |
 | adopt-finding | `bemoat:mission-control:adopt-finding` |

@@ -27,7 +27,6 @@
       { "path": "scripts/mission-control/workflows/adopt-finding.mjs", "max_lines": 564 },
       { "path": "scripts/mission-control/workflows/issue-body-cas.mjs", "max_lines": 438 },
       { "path": "scripts/mission-control/workflows/merge.mjs", "max_lines": 1124 },
-      { "path": "scripts/mission-control/workflows/rebind-review-lineage.mjs", "max_lines": 500 },
       { "path": "scripts/mission-control/workflows/recover-review.mjs", "max_lines": 828 },
       { "path": "scripts/mission-control/workflows/recover-state.mjs", "max_lines": 1099 },
       { "path": "scripts/mission-control/workflows/reopen.mjs", "max_lines": 918 },
