@@ -2,8 +2,8 @@
   "schema_version": 1,
   "issue": "259",
   "transition_identity": "{\"kind\":\"review-lineage-rebind\",\"source_comment_id\":\"5163387315\",\"authorization_comment_id\":\"5303723514\",\"identity\":{\"taskId\":\"259\",\"phase\":\"Review 1 lineage transport\",\"role\":\"REVIEW_VERDICT\",\"contentHash\":\"cb0e8fddb0f4fda122ed7a370bab03fd3dcce5c37b813c5a2f6075ea439418a5\"}}",
-  "observed_body_sha256": "ab78f532772c1c84a137f071996adba5d3e491e76b804379202f6171f8293cf1",
+  "observed_body_sha256": "2a2c0bb68612c1b4c91d92a7a4ecc80ccd1cc163680692243bd8f4b6ff82d4bc",
   "holder": "mission-control-rebind-review-lineage",
-  "status": "held",
-  "updated_at": "2026-08-16T05:34:13.251Z"
+  "status": "released",
+  "updated_at": "2026-08-16T05:34:22.498Z"
 }
