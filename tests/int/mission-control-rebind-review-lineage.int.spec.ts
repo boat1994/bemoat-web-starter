@@ -16,6 +16,7 @@ import {
   parseMissionControlState,
   renderMissionControlState,
 } from '../../scripts/mission-control/domain/task-state.ts'
+import { classifyActiveVerdicts } from '../../scripts/mission-control/domain/review-lineage-rebind.mjs'
 import {
   main,
   runReviewLineageRebind,
@@ -251,6 +252,98 @@ const STANDARD_OPTIONS = {
   expectedFullReviewCount: '1',
   sourceComment: SOURCE_COMMENT,
   authorizationComment: AUTHORIZATION_COMMENT,
+}
+
+const SIDECAR_267_HEAD = '34918d4cb75369778ade13fcc0cc3abcd6cb5f8b'
+const SIDECAR_268_HEAD = '19e09a512dcdba67af214f5cd230c5413cc73159'
+const SIDECAR_270_REVIEW1_HEAD = '2bf749bf95c7fac8a60439521669769b96b172a7'
+const SIDECAR_270_DELTA_HEAD = '6a7158dc55459522f76f919dc693e8fe055d65a2'
+const SIDECAR_270_ELIGIBLE_HEAD = '8c836eecf85ca1592d495b8017cc3c6967e3c4c0'
+
+function reviewComment(id: string, body: string): Record<string, unknown> {
+  return {
+    id,
+    body,
+    author: 'boat1994',
+    user: { login: 'boat1994' },
+    author_association: 'OWNER',
+    createdAt: '2026-08-04T00:00:00Z',
+  }
+}
+
+function sidecarVerdictBody({
+  pr,
+  head,
+  verdict = 'ELIGIBLE FOR FOUNDER REVIEW',
+  extra = '',
+}: {
+  pr: string
+  head: string
+  verdict?: string
+  extra?: string
+}): string {
+  return `## REVIEW_VERDICT
+
+### Task log
+- Timestamp: 2026-08-04T00:00:00+07:00
+- Task / Issue: #259
+- Phase: sidecar review
+- Executing role: Reviewer (Independent)
+
+${extra}**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/${pr} · \`main\` · \`${head}\`
+**Verdict:** ${verdict}
+**Findings:** Critical: None · Important: None
+**Next:** Founder reviews PR #${pr}
+`
+}
+
+function actualHistoricalSidecarComments(): Array<Record<string, unknown>> {
+  return [
+    reviewComment(
+      '5174083215',
+      sidecarVerdictBody({
+        pr: '267',
+        head: SIDECAR_267_HEAD,
+        extra: '**PR:** #267 (`fix/259-merged-pr-verdict-reconcile`)\n',
+      }),
+    ),
+    reviewComment(
+      '5174309212',
+      sidecarVerdictBody({
+        pr: '268',
+        head: SIDECAR_268_HEAD,
+      }),
+    ),
+    reviewComment(
+      '5174628181',
+      sidecarVerdictBody({
+        pr: '270',
+        head: SIDECAR_270_REVIEW1_HEAD,
+        verdict: 'CORRECTION REQUIRED',
+      }),
+    ),
+    reviewComment(
+      '5174848358',
+      sidecarVerdictBody({
+        pr: '270',
+        head: SIDECAR_270_DELTA_HEAD,
+        verdict: 'CORRECTION REQUIRED',
+      }),
+    ),
+    reviewComment(
+      '5175059915',
+      sidecarVerdictBody({
+        pr: '270',
+        head: SIDECAR_270_ELIGIBLE_HEAD,
+      }),
+    ),
+  ]
+}
+
+function expectZeroMutation(scenario: Scenario) {
+  expect(scenario.postCount).toBe(0)
+  expect(scenario.updateCount).toBe(0)
+  expect(scenario.writeCount).toBe(0)
 }
 
 function createScenario(overrides: {
@@ -907,5 +1000,211 @@ describe('Mission Control review lineage rebind transport', () => {
     expect(scenario.postCount).toBe(0)
     expect(scenario.updateCount).toBe(0)
     expect(scenario.writeCount).toBe(0)
+  })
+
+  it('treats the actual PR #267 historical verdict as non-competing', async () => {
+    const sidecars = actualHistoricalSidecarComments()
+    const pr267 = sidecars.find((comment) => String(comment.id) === '5174083215')
+    expect(pr267).toBeDefined()
+    const { scenario, deps } = createScenario({ extraComments: [pr267!] })
+    const result = await runReviewLineageRebind({
+      options: STANDARD_OPTIONS,
+      body: canonicalBody(),
+      deps,
+    })
+    expect(result).toMatchObject({ classification: 'SUCCESS', outcome: 'REBOUND' })
+    expect(scenario.issueComments.some((comment) => String(comment.id) === '5174083215')).toBe(true)
+    expect(String(scenario.commentsById.get('5174083215')?.body)).toBe(String(pr267?.body))
+  })
+
+  it('treats the actual PR #268 historical verdict as non-competing', async () => {
+    const sidecars = actualHistoricalSidecarComments()
+    const pr268 = sidecars.find((comment) => String(comment.id) === '5174309212')
+    const { scenario, deps } = createScenario({ extraComments: [pr268!] })
+    const result = await runReviewLineageRebind({
+      options: STANDARD_OPTIONS,
+      body: canonicalBody(),
+      deps,
+    })
+    expect(result).toMatchObject({ classification: 'SUCCESS', outcome: 'REBOUND' })
+    expect(String(scenario.commentsById.get('5174309212')?.body)).toBe(String(pr268?.body))
+  })
+
+  it('treats all three actual PR #270 review/delta verdicts as non-competing', async () => {
+    const pr270 = actualHistoricalSidecarComments().filter((comment) =>
+      ['5174628181', '5174848358', '5175059915'].includes(String(comment.id)),
+    )
+    expect(pr270).toHaveLength(3)
+    const { scenario, deps } = createScenario({ extraComments: pr270 })
+    const result = await runReviewLineageRebind({
+      options: STANDARD_OPTIONS,
+      body: canonicalBody(),
+      deps,
+    })
+    expect(result).toMatchObject({ classification: 'SUCCESS', outcome: 'REBOUND' })
+    for (const comment of pr270) {
+      expect(String(scenario.commentsById.get(String(comment.id))?.body)).toBe(String(comment.body))
+    }
+  })
+
+  it('lets the five historical sidecar verdicts coexist with source 5163387315 before migration', async () => {
+    const sidecars = actualHistoricalSidecarComments()
+    const { scenario, deps, liveSource } = liveSourceScenario({ extraComments: sidecars })
+    const classified = classifyActiveVerdicts({
+      comments: scenario.issueComments,
+      sourceComment: SOURCE_COMMENT,
+      canonicalBody: canonicalBody(),
+      issueNumber: ISSUE,
+      expectedPr: PR,
+    })
+    expect(classified.competitors.map((comment) => String(comment.id))).toEqual([])
+    expect(classified.historical.map((comment) => String(comment.id))).toEqual([
+      '5174083215',
+      '5174309212',
+      '5174628181',
+      '5174848358',
+      '5175059915',
+    ])
+
+    const result = await runReviewLineageRebind({
+      options: STANDARD_OPTIONS,
+      body: canonicalBody(),
+      deps,
+    })
+    expect(result).toMatchObject({ classification: 'SUCCESS', outcome: 'REBOUND' })
+    expect(scenario.postCount).toBe(1)
+    expect(scenario.updateCount).toBe(1)
+    expect(scenario.writeCount).toBe(1)
+    expect(liveSource).toContain('- **Critical/Important:** None.')
+    for (const comment of sidecars) {
+      expect(String(scenario.commentsById.get(String(comment.id))?.body)).toBe(String(comment.body))
+    }
+    const selected = selectLiveReviewVerdictComment({
+      comments: scenario.issueComments,
+      issueNumber: ISSUE,
+      livePr: scenario.pullRequest,
+    })
+    expect(String(selected.id)).toBe(CANONICAL_COMMENT_ID)
+  })
+
+  it('still treats a second valid PR #260 verdict as a competitor and writes nothing', async () => {
+    const competing = reviewComment(
+      '9000000099',
+      canonicalBody().replace('lineage transport', 'second same-PR review'),
+    )
+    const { scenario, deps } = createScenario({
+      extraComments: [...actualHistoricalSidecarComments(), competing],
+    })
+    await expect(runReviewLineageRebind({
+      options: STANDARD_OPTIONS,
+      body: canonicalBody(),
+      deps,
+    })).rejects.toThrow(/AMBIGUOUS_RESULT|STATE_CONFLICT/)
+    expectZeroMutation(scenario)
+  })
+
+  it('fails closed on malformed different-PR evidence before any mutation', async () => {
+    const malformed = reviewComment(
+      '9000000401',
+      `## REVIEW_VERDICT
+
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+**Task:**
+Issue #259
+**PR:** #267
+`,
+    )
+    const { scenario, deps } = createScenario({ extraComments: [malformed] })
+    await expect(runReviewLineageRebind({
+      options: STANDARD_OPTIONS,
+      body: canonicalBody(),
+      deps,
+    })).rejects.toThrow(/STATE_CONFLICT|AMBIGUOUS_RESULT/)
+    expectZeroMutation(scenario)
+  })
+
+  it('fails closed on partial different-PR evidence before any mutation', async () => {
+    const partial = reviewComment(
+      '9000000402',
+      `## REVIEW_VERDICT
+
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+**Task:** Issue #259
+**PR:** #267
+`,
+    )
+    const { scenario, deps } = createScenario({ extraComments: [partial] })
+    await expect(runReviewLineageRebind({
+      options: STANDARD_OPTIONS,
+      body: canonicalBody(),
+      deps,
+    })).rejects.toThrow(/STATE_CONFLICT|AMBIGUOUS_RESULT/)
+    expectZeroMutation(scenario)
+  })
+
+  it('fails closed on duplicate or conflicting binding fields before any mutation', async () => {
+    const duplicated = reviewComment(
+      '9000000403',
+      `## REVIEW_VERDICT
+
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+**Task:** Issue #259
+**PR:** #267
+**PR:** #260
+**Base:** \`main\`
+**Head:** \`${HEAD}\`
+`,
+    )
+    const conflicting = reviewComment(
+      '9000000404',
+      `## REVIEW_VERDICT
+
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+**Task:** Issue #259
+**PR:** #267
+**Base:** \`main\`
+**Base:** \`dev\`
+**Head:** \`${HEAD}\`
+`,
+    )
+    for (const extra of [duplicated, conflicting]) {
+      const { scenario, deps } = createScenario({ extraComments: [extra] })
+      await expect(runReviewLineageRebind({
+        options: STANDARD_OPTIONS,
+        body: canonicalBody(),
+        deps,
+      })).rejects.toThrow(/STATE_CONFLICT|AMBIGUOUS_RESULT/)
+      expectZeroMutation(scenario)
+    }
+  })
+
+  it('keeps source plus canonical partial-recovery and identical retry green with historical sidecars present', async () => {
+    const sidecars = actualHistoricalSidecarComments()
+    const { scenario, deps } = createScenario({ extraComments: sidecars })
+    const first = await runReviewLineageRebind({
+      options: STANDARD_OPTIONS,
+      body: canonicalBody(),
+      deps,
+    })
+    expect(first).toMatchObject({ classification: 'SUCCESS' })
+    expect(scenario.postCount).toBe(1)
+    const firstState = structuredClone(scenario.managedIssue.managedState)
+
+    const retry = await runReviewLineageRebind({
+      options: STANDARD_OPTIONS,
+      body: canonicalBody(),
+      deps,
+    })
+    expect(retry).toMatchObject({
+      classification: 'NO_OP_IDENTICAL_RETRY',
+      outcome: 'NO_OP',
+    })
+    expect(scenario.postCount).toBe(1)
+    expect(scenario.updateCount).toBe(1)
+    expect(scenario.writeCount).toBe(1)
+    expect(scenario.managedIssue.managedState).toEqual(firstState)
+    for (const comment of sidecars) {
+      expect(String(scenario.commentsById.get(String(comment.id))?.body)).toBe(String(comment.body))
+    }
   })
 })

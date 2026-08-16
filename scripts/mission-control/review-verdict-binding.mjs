@@ -236,7 +236,7 @@ function resolveReviewVerdictBinding(body, { issueNumber }) {
   }
 }
 
-function classifyReviewVerdictBindingEvidence(body, { issueNumber }) {
+export function classifyReviewVerdictBindingEvidence(body, { issueNumber }) {
   if (hasCanonicalReviewTargetLine(body)) {
     try {
       return { status: 'valid', binding: resolveReviewVerdictBinding(body, { issueNumber }) }
@@ -260,6 +260,34 @@ function classifyReviewVerdictBindingEvidence(body, { issueNumber }) {
         : new Error('STATE_CONFLICT: REVIEW_VERDICT legacy binding evidence is malformed'),
     }
   }
+}
+
+export function classifyManagedPrReviewVerdicts({ comments, issueNumber, livePrNumber }) {
+  const active = selectActiveRoleComments(comments, 'REVIEW_VERDICT')
+  const samePr = []
+  const differentPr = []
+  for (const comment of active) {
+    const taskIssue = resolveIssueScopingTaskNumber(comment.body ?? '')
+    if (taskIssue != null && String(taskIssue) !== String(issueNumber)) {
+      differentPr.push(comment)
+      continue
+    }
+    const classification = classifyReviewVerdictBindingEvidence(comment.body ?? '', { issueNumber })
+    if (classification.status === 'malformed') {
+      throw classification.error instanceof Error
+        ? classification.error
+        : new Error('STATE_CONFLICT: REVIEW_VERDICT binding evidence is malformed')
+    }
+    if (classification.status !== 'valid') {
+      throw new Error('STATE_CONFLICT: live REVIEW_VERDICT is missing canonical PR/base/head evidence')
+    }
+    if (String(classification.binding.prNumber) === String(livePrNumber)) {
+      samePr.push(comment)
+    } else {
+      differentPr.push(comment)
+    }
+  }
+  return { active, samePr, differentPr }
 }
 
 export function selectLiveReviewVerdictComment({ comments, issueNumber, livePr }) {
