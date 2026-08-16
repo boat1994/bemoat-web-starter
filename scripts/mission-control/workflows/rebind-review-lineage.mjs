@@ -215,6 +215,8 @@ async function readLiveEvidence({ options, body, deps }) {
     comments,
     sourceComment: options.sourceComment,
     canonicalBody: body,
+    issueNumber: options.issueNumber,
+    expectedPr: options.expectedPr,
   })
   if (classified.competitors.length > 0) {
     throw classifiedError(

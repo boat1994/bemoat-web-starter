@@ -5,10 +5,10 @@ import {
   serializeTransitionIdentity,
 } from '../transition-identity.mjs'
 import {
+  classifyManagedPrReviewVerdicts,
   isExplicitlyNonAuthoritativeRoleBody,
   parseLegacyReviewVerdictBinding,
   parseRoleCommentBody,
-  selectActiveRoleComments,
 } from '../review-verdict-binding.mjs'
 
 export const REBIND_COMMAND = 'bemoat:mission-control:rebind-review-lineage'
@@ -330,15 +330,14 @@ export function assertLegacySourceComment({ comment, options }) {
   return comment
 }
 
-export function classifyActiveVerdicts({ comments, sourceComment, canonicalBody }) {
-  const active = selectActiveRoleComments(comments, 'REVIEW_VERDICT')
+export function classifyActiveVerdicts({ comments, sourceComment, canonicalBody, issueNumber = REGISTERED_TUPLE.issueNumber, expectedPr = REGISTERED_TUPLE.expectedPr }) {
+  const { active, samePr, differentPr } = classifyManagedPrReviewVerdicts({ comments, issueNumber, livePrNumber: expectedPr })
   const matchingCanonicals = active.filter((comment) => String(comment.body ?? '') === String(canonicalBody))
-  const competitors = active.filter((comment) =>
-    !sameId(comment.id, sourceComment) &&
-    String(comment.body ?? '') !== String(canonicalBody),
-  )
-  const source = active.find((comment) => sameId(comment.id, sourceComment)) ?? null
-  return { active, matchingCanonicals, competitors, source }
+  return {
+    active, matchingCanonicals, historical: differentPr,
+    source: active.find((comment) => sameId(comment.id, sourceComment)) ?? null,
+    competitors: samePr.filter((comment) => !sameId(comment.id, sourceComment) && String(comment.body ?? '') !== String(canonicalBody)),
+  }
 }
 
 export function assertLiveManagedPreState({ state, options }) {
