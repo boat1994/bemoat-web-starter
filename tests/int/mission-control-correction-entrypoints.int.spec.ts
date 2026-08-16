@@ -147,18 +147,23 @@ afterEach(() => {
 })
 
 describe('Founder-authorized correction executable entrypoints', () => {
-  it('runs the real migration entrypoint against the exact Issue #171 representation', () => {
-    const harness = createGhHarness(`Mission Control mode: required\n\n${renderMissionControlState(legacyState())}`)
+  it('does not migrate the retired Issue #171 legacy representation through reconcile', () => {
+    const initial = renderMissionControlState(legacyState())
+    const harness = createGhHarness(`Mission Control mode: required\n\n${initial}`)
     const result = spawnSync(process.execPath, [reconcileScript, '171', '--repo', 'boat1994/bemoat-web-starter'], {
       cwd: process.cwd(), env: harness.env, encoding: 'utf8',
     })
     expect(result.status, `${result.stderr || result.stdout}\n${readFileSync(harness.issueBody, 'utf8')}`).toBe(0)
+    expect(result.stdout).toContain('reconciliation NO_OP')
     const parsed = parseMissionControlState(readFileSync(harness.issueBody, 'utf8'))
     expect(parsed.valid).toBe(true)
     expect(parsed.state).toMatchObject({
-      state: 'FOUNDER_AUTHORIZED_CORRECTION', review_cycle: 3, full_review_count: 1,
-      founder_correction_authorization: { schema_version: 2, status: 'authorized', finding_ids: ['MC-R1-171-001'] },
+      state: 'STATE_MIGRATION_REQUIRED',
+      review_cycle: 3,
+      full_review_count: 1,
+      founder_decision: { finding_ids: ['MC-R1-171-001'] },
     })
+    expect(parsed.state).not.toHaveProperty('founder_correction_authorization')
   }, 10000)
 
   it('runs the real reserved dispatch entrypoint once and rejects replay', () => {

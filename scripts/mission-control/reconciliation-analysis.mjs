@@ -8,7 +8,6 @@ import {
 } from './reconciliation-proposals.mjs'
 import {
   classifyReconciliation,
-  migrateLegacyManagedState,
   proposedRepair,
 } from './reconciliation-classification.mjs'
 
@@ -114,19 +113,6 @@ export function analyzeReconciliation(context) {
     result.proposal = {
       type: 'terminal',
       fields: proposedRepair(context, classification),
-    }
-  } else if (classification.outcome === 'DETERMINISTIC_MIGRATION') {
-    try {
-      result.proposal = {
-        type: 'migration',
-        fields: migrateLegacyManagedState(context.managedState).state,
-      }
-    } catch (error) {
-      result.classification = {
-        outcome: 'STATE_CONFLICT',
-        reason: error instanceof Error ? error.message : String(error),
-      }
-      result.proposal = null
     }
   } else if (classification.outcome === 'BOOKKEEPING_REPAIR' && bookkeepingType) {
     result.proposal = {

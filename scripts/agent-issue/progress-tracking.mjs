@@ -126,12 +126,7 @@ export function analyzeProgressTracking({
       blockers.push('STATE_CONFLICT: state active_task_issue does not match the live task Issue.')
     }
   }
-  const repairableRecordedLegacyState =
-    stateAnalysis.valid &&
-    state.state === 'STATE_CONFLICT' &&
-    ['post_budget_review_history', 'founder_authorization', 'founder_correction_authorization']
-      .some((key) => Object.hasOwn(state, key))
-  if (stateAnalysis.valid && ['STATE_CONFLICT', 'STATE_MIGRATION_REQUIRED', 'BLOCKED_EXTERNAL'].includes(state.state) && !repairableRecordedLegacyState) {
+  if (stateAnalysis.valid && ['STATE_CONFLICT', 'STATE_MIGRATION_REQUIRED', 'BLOCKED_EXTERNAL'].includes(state.state)) {
     blockers.push(`${state.state}: recorded Mission Control state requires reconciliation before continuing.`)
   }
 

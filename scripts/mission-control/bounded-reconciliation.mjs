@@ -33,7 +33,7 @@ export async function runBoundedReconciliation({ readEvidence, writeState }) {
   const initialEvidence = await readEvidence()
   measurements.reconciliation_attempts += 1
   const initial = classifyReconciliation(initialEvidence)
-  if (!new Set(['DETERMINISTIC_MIGRATION', 'BOOKKEEPING_REPAIR', 'TERMINAL_REPAIR']).has(initial.outcome)) {
+  if (!new Set(['BOOKKEEPING_REPAIR', 'TERMINAL_REPAIR']).has(initial.outcome)) {
     return {
       ...initial,
       finalOutcome: initial.outcome,
@@ -63,7 +63,6 @@ export async function runBoundedReconciliation({ readEvidence, writeState }) {
   measurements.reconciliation_attempts += 1
   const verified = classifyReconciliation(verifiedEvidence)
   const verificationStillRequestsRepair = new Set([
-    'DETERMINISTIC_MIGRATION',
     'BOOKKEEPING_REPAIR',
     'TERMINAL_REPAIR',
   ]).has(verified.outcome)
