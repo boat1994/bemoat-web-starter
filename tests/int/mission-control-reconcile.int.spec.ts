@@ -19,7 +19,6 @@ const {
   dispatchManagedTask,
   dispatchFounderAuthorizedCorrection,
   isGenuineStateConflict,
-  migrateLegacyManagedState,
   parseRoleCommentBody,
   parseCommentMarker,
   normalizeTransitionIdentity,
@@ -502,78 +501,37 @@ describe('mission-control reconcile classifiers', () => {
     }
   })
 
-  it('migrates the exact Issue #171 founder_decision representation once without altering its lineage', () => {
-    const legacy: any = {
+  it('rejects Review 3 STATE_MIGRATION_REQUIRED legacy shapes at preflight without migration repair', () => {
+    const legacy: Record<string, unknown> = {
+      schema_version: 1,
       state: 'STATE_MIGRATION_REQUIRED',
       review_cycle: 3,
       full_review_count: 1,
       active_pr: '#172',
       current_head: '1f05427a8fbb893e726dd0e317ff30a90d7b3570',
       last_reviewed_head: '1f05427a8fbb893e726dd0e317ff30a90d7b3570',
+      approved_base: 'main',
+      active_task_issue: '#171',
+      guide_version: '1.0.0',
+      guide_source_ref: 'main',
+      guide_source_sha: null,
+      open_blockers: ['MC-R1-171-001'],
+      follow_up_issues: [],
+      next_permitted_action: 'none',
+      material_change_status: 'none',
+      updated_at: null,
+      updated_by: null,
       post_budget_reviews: [],
       founder_decision: {
         status: 'approved', authority: 'Founder', scope: 'correction', for_review_number: 3,
         reviewed_head: '1f05427a8fbb893e726dd0e317ff30a90d7b3570', finding_ids: ['MC-R1-171-001'],
-        action: 'Authorize one bounded correction; Review 4 remains unauthorized',
+        action: 'Authorize one bounded correction',
         authorized_at: '2026-07-26T01:30:29+07:00',
       },
-      open_blockers: ['MC-R1-171-001', 'Canonical representation required'],
-      finding_lineage: [{
-        finding_id: 'MC-R1-171-001', severity: 'Critical', disposition: 'open',
-        summary: 'Common ancestry does not prove authorized planning lineage',
-        source_thread: 'https://github.com/boat1994/bemoat-web-starter/pull/172#discussion_r3649776607',
-        evidence: 'Founder decision and exact-head evidence remain durable',
-        required_correction_evidence: ['Bind exact authorized planning lineage'],
-      }],
     }
-
-    const migrated = migrateLegacyManagedState(legacy)
-
-    expect(migrated.changed).toBe(true)
-    expect(migrated.state).toMatchObject({
-      state: 'FOUNDER_AUTHORIZED_CORRECTION', review_cycle: 3, full_review_count: 1,
-      current_head: legacy.current_head, last_reviewed_head: legacy.last_reviewed_head,
-      post_budget_reviews: [],
-      founder_correction_authorization: {
-        schema_version: 2, status: 'authorized', authority: 'Founder',
-        for_review_number: 3, reviewed_head: legacy.last_reviewed_head,
-        finding_ids: ['MC-R1-171-001'], authorization_id: expect.any(String),
-      },
-    })
-    expect(migrated.state.finding_lineage).toEqual(legacy.finding_lineage)
-    expect(classifyReconciliation({ managedState: migrated.state }).outcome).toBe('NO_OP')
-    expect(migrateLegacyManagedState(migrated.state)).toEqual({ changed: false, state: migrated.state })
-  })
-
-  it('migrates the exact Review 3 Founder correction authority without fabricating Review 4', () => {
-    const migrated = migrateLegacyManagedState({
-      state: 'STATE_MIGRATION_REQUIRED',
-      review_cycle: 3,
-      full_review_count: 1,
-      active_pr: '#172',
-      current_head: '1f05427a8fbb893e726dd0e317ff30a90d7b3570',
-      last_reviewed_head: '1f05427a8fbb893e726dd0e317ff30a90d7b3570',
-      post_budget_reviews: [],
-      founder_correction_authorization: {
-        status: 'approved', authority: 'Founder', scope: 'correction', for_review_number: 3,
-        reviewed_head: '1f05427a8fbb893e726dd0e317ff30a90d7b3570', finding_ids: ['MC-R1-171-001'],
-        action: 'Authorize one bounded correction', authorized_at: '2026-07-26T01:30:29+07:00',
-      },
-      finding_lineage: [{
-        finding_id: 'MC-R1-171-001', disposition: 'open',
-        source_thread: 'https://github.com/boat1994/bemoat-web-starter/pull/172#discussion_r1',
-        evidence: 'Exact Founder decision evidence', required_correction_evidence: ['Exact migration'],
-      }],
-    })
-
-    expect(migrated.state).toMatchObject({
-      state: 'FOUNDER_AUTHORIZED_CORRECTION', review_cycle: 3, full_review_count: 1,
-      last_reviewed_head: '1f05427a8fbb893e726dd0e317ff30a90d7b3570', post_budget_reviews: [],
-      founder_correction_authorization: {
-        schema_version: 2, authorization_id: expect.any(String), status: 'authorized',
-        for_review_number: 3, finding_ids: ['MC-R1-171-001'],
-      },
-    })
+    const parsed = parseMissionControlState(renderMissionControlState(legacy))
+    expect(parsed.valid).toBe(true)
+    expect(classifyReconciliation({ managedState: legacy }).outcome).toBe('NO_OP')
   })
 
   it('consumes a Review 3 Founder authorization once and binds correction preflight to its HANDOFF', async () => {
@@ -883,7 +841,6 @@ describe('mission-control reconcile classifiers', () => {
   it.each([
     ['contradictory authority', { authoritativeContradiction: true }, 'STATE_CONFLICT'],
     ['unavailable evidence', { requiredEvidenceUnavailable: true }, 'BLOCKED_EXTERNAL'],
-    ['legacy representation', { managedState: { post_budget_review_history: [] } }, 'DETERMINISTIC_MIGRATION'],
     ['bookkeeping lag', { bookkeepingProposal: { state: 'AWAITING_REVIEW_1' } }, 'BOOKKEEPING_REPAIR'],
     ['terminal lag', { terminal: { issueClosed: true, prMerged: true, reviewedHeadMatches: true, currentHeadMatches: true, mergeCommit: 'merge-sha', exactHeadCi: true }, managedState: { state: 'ELIGIBLE_FOR_FOUNDER_REVIEW' } }, 'TERMINAL_REPAIR'],
     ['identical evidence', { managedState: { state: 'DONE' }, terminal: { issueClosed: true, prMerged: true, reviewedHeadMatches: true, currentHeadMatches: true, mergeCommit: 'merge-sha', exactHeadCi: true } }, 'NO_OP'],
@@ -891,106 +848,50 @@ describe('mission-control reconcile classifiers', () => {
     expect(classifyReconciliation(evidence).outcome).toBe(expected)
   })
 
-  it('migrates the #155 legacy post-budget representation without resetting counters or lineage', () => {
-    const migrated = migrateLegacyManagedState({
+  it.each([
+    ['post_budget_review_history', { post_budget_review_history: [] }],
+    ['founder_authorization', {
+      founder_authorization: {
+        status: 'approved', authority: 'Founder', scope: 'review', review_number: 4,
+        reviewed_head: 'review-4-head', action: 'Authorize bounded Review 4',
+        authorized_at: '2026-07-23T16:30:00Z',
+      },
+    }],
+  ])('rejects obsolete legacy field %s at parse time', (_name, legacyFields) => {
+    const parsed = parseMissionControlState(renderMissionControlState({
+      schema_version: 1,
       state: 'STATE_CONFLICT',
       review_cycle: 3,
       full_review_count: 1,
+      approved_base: 'main',
+      active_task_issue: '#155',
+      active_pr: '#157',
+      current_head: 'review-4-head',
       last_reviewed_head: 'review-4-head',
-      finding_lineage: [
-        { finding_id: 'MC-R1-002', disposition: 'open' },
-        { finding_id: 'MC-STATE-155-002', disposition: 'resolved' },
-      ],
-      post_budget_review_history: [{
-        review_number: 4,
-        reviewed_head: 'review-4-head',
-        verdict: 'BLOCKED FOR FOUNDER DECISION',
-        finding_dispositions: [{ finding_id: 'MC-R1-002', disposition: 'open' }],
-      }],
-      founder_authorization: {
-        status: 'approved',
-        authority: 'Founder',
-        scope: 'review',
-        review_number: 4,
-        reviewed_head: 'review-4-head',
-        action: 'Authorize bounded Review 4',
-        authorized_at: '2026-07-23T16:30:00Z',
-      },
-      founder_correction_authorization: {
-        status: 'approved',
-        authority: 'Founder',
-        scope: 'correction',
-        for_review_number: 4,
-        reviewed_head: 'review-4-head',
-        finding_ids: ['MC-R1-002'],
-        action: 'Authorize one bounded correction',
-        authorized_at: '2026-07-23T16:40:00Z',
-      },
+      guide_version: '1.0.0',
+      guide_source_ref: 'main',
+      guide_source_sha: null,
+      open_blockers: [],
+      follow_up_issues: [],
+      next_permitted_action: 'none',
+      material_change_status: 'none',
+      updated_at: null,
+      updated_by: null,
+      ...legacyFields,
+    }))
+    const legacyKey = Object.keys(legacyFields)[0]
+    expect(parsed).toMatchObject({
+      valid: false,
+      reason: `obsolete legacy field ${legacyKey} is not supported`,
     })
-
-    expect(migrated.changed).toBe(true)
-    expect(migrated.state).toMatchObject({
-      review_cycle: 3,
-      full_review_count: 1,
-      last_reviewed_head: 'review-4-head',
-      founder_decision: { for_review_number: 4, finding_ids: ['MC-R1-002'] },
-      post_budget_reviews: [{
-        review_number: 4,
-        reviewed_head: 'review-4-head',
-        authorization: { review_number: 4, reviewed_head: 'review-4-head' },
-      }],
-      finding_lineage: [
-        { finding_id: 'MC-R1-002', disposition: 'open' },
-        { finding_id: 'MC-STATE-155-002', disposition: 'resolved' },
-      ],
-    })
-    expect(migrated.state).not.toHaveProperty('post_budget_review_history')
-    expect(migrated.state).not.toHaveProperty('founder_authorization')
-    expect(migrated.state).not.toHaveProperty('founder_correction_authorization')
   })
 
-  it('merges compatible canonical and legacy post-budget reviews losslessly and rejects contradictions', () => {
-    const authorization = {
-      status: 'approved', authority: 'Founder', scope: 'review', review_number: 4,
-      reviewed_head: 'review-4-head', action: 'Authorize bounded Review 4',
-      authorized_at: '2026-07-23T16:30:00Z',
-    }
-    const review = {
-      review_number: 4, reviewed_head: 'review-4-head', verdict: 'BLOCKED FOR FOUNDER DECISION',
-      finding_dispositions: [{ finding_id: 'MC-R1-160-002', disposition: 'open' }], authorization,
-    }
-    const migrated = migrateLegacyManagedState({
-      state: 'BLOCKED_FOR_FOUNDER_DECISION', review_cycle: 3, full_review_count: 1,
-      last_reviewed_head: 'review-4-head', post_budget_reviews: [review],
-      post_budget_review_history: [{ ...review, authorization: undefined }], founder_authorization: authorization,
-    })
-
-    expect(migrated.state.post_budget_reviews).toEqual([review])
-    expect(migrated.state).not.toHaveProperty('post_budget_review_history')
-    expect(() => migrateLegacyManagedState({
-      ...migrated.state,
-      post_budget_review_history: [{ ...review, verdict: 'STATE CONFLICT', authorization: undefined }],
-      founder_authorization: authorization,
-    })).toThrow('contradictory post-budget review')
-  })
-
-  it('rejects a Founder decision unless its correction scope, review, exact head, and finding IDs bind together', () => {
-    const reviewAuthorization = {
-      status: 'approved', authority: 'Founder', scope: 'review', review_number: 4,
-      reviewed_head: 'review-4-head', action: 'Authorize bounded Review 4', authorized_at: '2026-07-23T16:30:00Z',
-    }
-    expect(() => migrateLegacyManagedState({
-      state: 'STATE_CONFLICT', review_cycle: 3, full_review_count: 1, last_reviewed_head: 'review-4-head',
-      post_budget_review_history: [{
-        review_number: 4, reviewed_head: 'review-4-head', verdict: 'CORRECTION REQUIRED',
-        finding_dispositions: [{ finding_id: 'MC-R1-160-002', disposition: 'open' }],
-      }],
-      founder_authorization: reviewAuthorization,
-      founder_correction_authorization: {
-        status: 'approved', authority: 'Founder', scope: 'merge', for_review_number: 4,
-        reviewed_head: 'review-4-head', finding_ids: ['MC-R1-160-002'], action: 'Merge', authorized_at: '2026-07-23T16:40:00Z',
-      },
-    })).toThrow('invalid Founder correction authorization')
+  it('does not classify legacy-only evidence as repair outcomes when classification is invoked directly', () => {
+    expect(classifyReconciliation({ managedState: { post_budget_review_history: [] } }).outcome).toBe('NO_OP')
+    expect(classifyReconciliation({
+      managedState: { post_budget_review_history: [] },
+      bookkeepingProposal: { state: 'AWAITING_REVIEW_1' },
+    }).outcome).toBe('BOOKKEEPING_REPAIR')
   })
 
   it('fails closed when terminal repair evidence lacks a merge commit, exact-head CI, or a matching current head', () => {
@@ -1004,92 +905,15 @@ describe('mission-control reconcile classifiers', () => {
     }
   })
 
-  it('reproduces the #154-#155 loop and converges within one repair plus one verification', async () => {
-    const legacyState = {
-      state: 'STATE_CONFLICT', review_cycle: 3, full_review_count: 1,
-      last_reviewed_head: 'review-4-head',
-      finding_lineage: [
-        { finding_id: 'MC-R1-002', disposition: 'open' },
-        { finding_id: 'MC-STATE-155-002', disposition: 'resolved' },
-      ],
-      post_budget_review_history: [{
-        review_number: 4, reviewed_head: 'review-4-head',
-        verdict: 'BLOCKED FOR FOUNDER DECISION',
-        finding_dispositions: [{ finding_id: 'MC-R1-002', disposition: 'open' }],
-      }],
-      founder_authorization: {
-        status: 'approved', authority: 'Founder', scope: 'review', review_number: 4,
-        reviewed_head: 'review-4-head', action: 'Authorize bounded Review 4',
-        authorized_at: '2026-07-23T16:30:00Z',
-      },
-    }
-    const deriveMeasurements = (trace: Array<Record<string, number>>) => trace.reduce((total, step) => ({
-      coordination_runs: total.coordination_runs + (step.coordination_runs ?? 0),
-      state_writes: total.state_writes + (step.state_writes ?? 0),
-      role_comments: total.role_comments + (step.role_comments ?? 0),
-      model_required_stages: total.model_required_stages + (step.model_required_stages ?? 0),
-      reconciliation_attempts: total.reconciliation_attempts + (step.reconciliation_attempts ?? 0),
-      false_state_conflicts: total.false_state_conflicts + (step.false_state_conflicts ?? 0),
-    }), {
-      coordination_runs: 0, state_writes: 0, role_comments: 0, model_required_stages: 0,
-      reconciliation_attempts: 0, false_state_conflicts: 0,
-    })
-    // This is the complete historical #154–#155 trace: legacy preflight,
-    // correction handoff, post-budget review, terminal lag, and repeated evidence.
-    // Measurements are counted from executed trace events rather than copied literals.
-    const before = deriveMeasurements([
-      { coordination_runs: 1, state_writes: 1, role_comments: 1, model_required_stages: 1, reconciliation_attempts: 1, false_state_conflicts: 1 },
-      { coordination_runs: 1, state_writes: 1, role_comments: 1, model_required_stages: 1, reconciliation_attempts: 1 },
-      { coordination_runs: 1, state_writes: 1, role_comments: 1, model_required_stages: 1, reconciliation_attempts: 1 },
-      { coordination_runs: 1, state_writes: 1, role_comments: 1, model_required_stages: 1, reconciliation_attempts: 1 },
-    ])
-    let liveState: any = legacyState
-    let writes = 0
+  it('does not attempt bounded repair for legacy-only managed state shapes', async () => {
     const result = await runBoundedReconciliation({
-      readEvidence: async () => ({ managedState: liveState }),
-      writeState: async (nextState: any) => { writes += 1; liveState = nextState; return nextState },
-    })
-    const repeated = await runBoundedReconciliation({
-      readEvidence: async () => ({ managedState: liveState }),
-      writeState: async () => { writes += 1; return liveState },
+      readEvidence: async () => ({ managedState: { post_budget_review_history: [] as unknown[] } }),
+      writeState: async () => { throw new Error('must not write legacy migration repair') },
     })
 
     expect(result).toMatchObject({
-      outcome: 'DETERMINISTIC_MIGRATION',
       finalOutcome: 'NO_OP',
-      measurements: {
-        coordination_runs: 1,
-        state_writes: 1,
-        role_comments: 0,
-        model_required_stages: 0,
-        reconciliation_attempts: 2,
-        false_state_conflicts: 0,
-      },
-    })
-    expect(repeated).toMatchObject({
-      outcome: 'NO_OP',
-      finalOutcome: 'NO_OP',
-      measurements: { state_writes: 0, reconciliation_attempts: 1, false_state_conflicts: 0 },
-    })
-    expect(writes).toBe(1)
-    const after = result.measurements
-    expect({ before, after }).toEqual({
-      before: {
-        coordination_runs: 4,
-        state_writes: 4,
-        role_comments: 4,
-        model_required_stages: 4,
-        reconciliation_attempts: 4,
-        false_state_conflicts: 1,
-      },
-      after: {
-        coordination_runs: 1,
-        state_writes: 1,
-        role_comments: 0,
-        model_required_stages: 0,
-        reconciliation_attempts: 2,
-        false_state_conflicts: 0,
-      },
+      measurements: { state_writes: 0, reconciliation_attempts: 1 },
     })
   })
 
@@ -1098,14 +922,17 @@ describe('mission-control reconcile classifiers', () => {
     const result = await runBoundedReconciliation({
       readEvidence: async () => {
         reads += 1
-        return { managedState: { post_budget_review_history: [] as unknown[] } }
+        return {
+          managedState: { state: 'READY' },
+          bookkeepingProposal: { state: 'AWAITING_REVIEW_1' },
+        }
       },
       writeState: async (nextState: any) => nextState,
     })
 
     expect(reads).toBe(2)
     expect(result).toMatchObject({
-      outcome: 'DETERMINISTIC_MIGRATION',
+      outcome: 'BOOKKEEPING_REPAIR',
       finalOutcome: 'STATE_CONFLICT',
       finalReason: 'bounded repair was not confirmed by the single verification',
       measurements: { state_writes: 1, reconciliation_attempts: 2 },
@@ -1114,7 +941,10 @@ describe('mission-control reconcile classifiers', () => {
 
   it('requires the durable write to return the exact proposed state', async () => {
     await expect(runBoundedReconciliation({
-      readEvidence: async () => ({ managedState: { post_budget_review_history: [] as unknown[] } }),
+      readEvidence: async () => ({
+        managedState: { state: 'READY' },
+        bookkeepingProposal: { state: 'AWAITING_REVIEW_1' },
+      }),
       writeState: async () => ({ state: 'IN_PROGRESS' }),
     })).rejects.toThrow('durable reconciliation write was not confirmed')
   })

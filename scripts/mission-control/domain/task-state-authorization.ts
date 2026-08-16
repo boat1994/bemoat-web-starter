@@ -120,6 +120,13 @@ export function validateFounderCorrectionAuthorization(
   return { valid: true }
 }
 
+export function validateObsoleteIssue155LegacyFields(state: JsonRecord): { valid: true } | { valid: false; reason: string } {
+  for (const key of ['post_budget_review_history', 'founder_authorization'] as const) {
+    if (Object.hasOwn(state, key)) return { valid: false, reason: `obsolete legacy field ${key} is not supported` }
+  }
+  return { valid: true }
+}
+
 export function validatePostBudgetReviews(state: JsonRecord): PostBudgetReviewValidation {
   if (!Object.hasOwn(state, 'post_budget_reviews')) {
     return { valid: true, reviews: [] }

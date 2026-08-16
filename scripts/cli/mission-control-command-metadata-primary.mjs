@@ -172,7 +172,6 @@ export function missionControlPrimaryCommands(dependencies) {
     post_write_readback: 'Re-read the Task Issue and confirm only the permitted routing projection changed.',
     legacy_classification_map: {
       RECONCILED: 'SUCCESS',
-      DETERMINISTIC_MIGRATION: 'SUCCESS',
       BOOKKEEPING_REPAIR: 'SUCCESS',
       TERMINAL_REPAIR: 'SUCCESS',
       DISPATCHED: 'SUCCESS',

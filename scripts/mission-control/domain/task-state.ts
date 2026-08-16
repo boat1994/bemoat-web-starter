@@ -7,6 +7,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 import {
   validateBoundCorrectionAuthorization,
   validateFounderCorrectionAuthorization,
+  validateObsoleteIssue155LegacyFields,
   validatePostBudgetReviews,
   validatePreReviewFounderDecisionGate,
 } from './task-state-authorization.ts'
@@ -182,6 +183,8 @@ export function parseMissionControlState(body: string = '') {
 
   const missing = missionControlRequiredKeys.filter((key) => !Object.hasOwn(state, key))
   if (missing.length > 0) return { present: true, valid: false, reason: `missing required state key(s): ${missing.join(', ')}` }
+  const obsoleteLegacy = validateObsoleteIssue155LegacyFields(state)
+  if (obsoleteLegacy.valid === false) return { present: true, valid: false, reason: obsoleteLegacy.reason }
   if (state.schema_version !== 1) return { present: true, valid: false, reason: 'unsupported schema_version' }
   if (typeof state.state !== 'string' || !missionControlStates.has(state.state)) {
     return { present: true, valid: false, reason: 'invalid state enum' }
@@ -346,16 +349,7 @@ export function renderMissionControlState(stateObj: Record<string, unknown>) {
   ].join('\n')
 }
 
-/**
- * Replace exactly one managed Mission Control state block without touching the
- * surrounding Issue prose. Marker positions are resolved before rendering so
- * duplicate or unbalanced blocks fail closed instead of allowing a broad
- * string replacement to select an arbitrary block.
- *
- * @param {string} body
- * @param {Record<string, unknown>} stateObj
- * @returns {string}
- */
+/** Replace exactly one managed Mission Control state block without touching surrounding Issue prose. */
 export function projectMissionControlStateBlock(
   body: string = '',
   stateObj: Record<string, unknown> = {},
@@ -377,15 +371,7 @@ export function projectMissionControlStateBlock(
   return `${before}${renderMissionControlState(stateObj)}${after}`
 }
 
-/**
- * Append one managed-state block only when the canonical projection is wholly
- * absent. This is intentionally separate from projectMissionControlStateBlock
- * so ordinary reconciliation continues to reject missing state.
- *
- * @param {string} body
- * @param {Record<string, unknown>} stateObj
- * @returns {string}
- */
+/** Append one managed-state block only when the canonical projection is wholly absent. */
 export function appendMissingMissionControlStateBlock(
   body: string = '',
   stateObj: Record<string, unknown> = {},

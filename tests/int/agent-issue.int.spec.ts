@@ -2163,17 +2163,23 @@ ${managedState({ state: 'AWAITING_REVIEW_1' })}`,
     expect(unavailable.blockers.join(' ')).toContain('BLOCKED_EXTERNAL')
   })
 
-  it('routes repairable recorded legacy state through production reconciliation without treating it as contradictory authority', () => {
+  it('fail-closes recorded legacy managed-state shapes at parse or preflight without migration repair', () => {
     const root = createRepo('feature/155-legacy-reconcile')
+    const legacyBody = managedState({
+      state: 'STATE_CONFLICT', review_cycle: '1', full_review_count: '1', last_reviewed_head: 'reviewed-head',
+      active_task_issue: '"155"', active_pr: '"157"', current_head: 'reviewed-head',
+      post_budget_review_history: '[]',
+    })
+    const parsed = parseMissionControlState(legacyBody)
+    expect(parsed).toMatchObject({
+      valid: false,
+      reason: 'obsolete legacy field post_budget_review_history is not supported',
+    })
+
     const analysis = analyzeProgressTracking({
       cwd: root,
       activeIssueNumber: '155',
-      activeIssueBody: `Mission Control mode: required
-${managedState({
-  state: 'STATE_CONFLICT', review_cycle: '1', full_review_count: '1', last_reviewed_head: 'reviewed-head',
-  active_task_issue: '"155"', active_pr: '"157"', current_head: 'reviewed-head',
-  post_budget_review_history: '[]',
-})}`,
+      activeIssueBody: `Mission Control mode: required\n${legacyBody}`,
       env: {
         ...process.env,
         PATH: withStubbedGh(root, `#!/usr/bin/env sh
@@ -2185,8 +2191,9 @@ esac
       },
     })
 
-    expect(analysis.blockers.join(' ')).not.toContain('recorded Mission Control state requires reconciliation')
-    expect(analysis.report.reconciliation).toMatchObject({ classification: { outcome: 'DETERMINISTIC_MIGRATION' } })
+    expect(analysis.blockers.join(' ')).toContain('STATE_MIGRATION_REQUIRED')
+    expect(analysis.blockers.join(' ')).toContain('obsolete legacy field post_budget_review_history is not supported')
+    expect(analysis.report.reconciliation).toBeNull()
   })
 
   it('propagates unavailable required production evidence into reconciliation as BLOCKED_EXTERNAL', () => {

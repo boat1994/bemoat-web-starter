@@ -9,7 +9,7 @@ import { assertCompatibleSnapshot as assertCompatibleSnapshotTransition, integra
 
 export { dispatchManagedTask } from './mission-control/managed-task-dispatch.mjs'
 export { reconciliationFailureReason, runBoundedReconciliation } from './mission-control/bounded-reconciliation.mjs'
-export { classifyReconciliation, migrateLegacyManagedState, isSeparatePlanningImplementationAuthorization } from './mission-control/reconciliation-classification.mjs'
+export { classifyReconciliation } from './mission-control/reconciliation-classification.mjs'
 export { analyzeReconciliation, isGenuineStateConflict } from './mission-control/reconciliation-analysis.mjs'
 export { classifyDeliveryLag, classifyReviewLag, proposeDeliveryReconciliation, proposeReviewReconciliation, resolveVerdictState } from './mission-control/reconciliation-proposals.mjs'
 export { assertDeltaReviewHeadProjection, assertRoutingOnlyProjection, deriveTransitionFacts, derivesResolvedMaterialBlocker, hasUnchangedReviewedHead, policyObject, resolveEvidenceHead, sameValue } from './mission-control/transition-guards.mjs'
