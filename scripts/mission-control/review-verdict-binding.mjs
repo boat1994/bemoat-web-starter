@@ -154,47 +154,7 @@ function resolveIssueScopingTaskNumber(body = '') {
   return unique[0]
 }
 
-const LEGACY_FIELD_SPACING = '[ \\t]*'
-
-export function parseLegacyReviewVerdictBinding(body = '') {
-  if (hasCanonicalReviewTargetLine(body)) return null
-  const taskMatches = [...body.matchAll(
-    new RegExp(`^\\*\\*Task:\\*\\*${LEGACY_FIELD_SPACING}(?:Issue\\s*)?#(\\d+)${LEGACY_FIELD_SPACING}$`, 'gm'),
-  )]
-  const prMatches = [...body.matchAll(
-    new RegExp(`^\\*\\*PR:\\*\\*${LEGACY_FIELD_SPACING}#(\\d+)${LEGACY_FIELD_SPACING}$`, 'gm'),
-  )]
-  const baseMatches = [...body.matchAll(
-    new RegExp(
-      `^\\*\\*Base:\\*\\*${LEGACY_FIELD_SPACING}\`([^\`\\r\\n]+)\`(?:${LEGACY_FIELD_SPACING}\\(\`[0-9a-f]{7,40}\`\\))?${LEGACY_FIELD_SPACING}$`,
-      'gm',
-    ),
-  )]
-  const headMatches = [...body.matchAll(
-    new RegExp(
-      `^\\*\\*Head:\\*\\*${LEGACY_FIELD_SPACING}\`([0-9a-f]{7,40})\`${LEGACY_FIELD_SPACING}$`,
-      'gmi',
-    ),
-  )]
-  const counts = [taskMatches.length, prMatches.length, baseMatches.length, headMatches.length]
-  const presentCount = counts.filter((count) => count > 0).length
-  if (presentCount === 0) return null
-  if (counts.some((count) => count === 0)) {
-    throw new Error('STATE_CONFLICT: legacy REVIEW_VERDICT binding is missing a required field')
-  }
-  if (counts.some((count) => count > 1)) {
-    throw new Error('STATE_CONFLICT: legacy REVIEW_VERDICT binding fields are duplicated or ambiguous')
-  }
-  return {
-    kind: 'legacy',
-    issueNumber: taskMatches[0][1],
-    prNumber: prMatches[0][1],
-    base: normalizeAuthorityBase(baseMatches[0][1]),
-    head: normalizeAuthorityHead(headMatches[0][1]),
-  }
-}
-
-function hasRecognizedLegacyBindingFieldLabels(body = '') {
+function hasRetiredLegacyBindingFieldLabels(body = '') {
   return (
     /^\*\*Task:\*\*/m.test(body) ||
     /^\*\*PR:\*\*/m.test(body) ||
@@ -203,61 +163,40 @@ function hasRecognizedLegacyBindingFieldLabels(body = '') {
   )
 }
 
-function resolveReviewVerdictBinding(body, { issueNumber }) {
+function resolveReviewVerdictBinding(body) {
   const parsed = parseRoleCommentBody(body)
-  if (hasCanonicalReviewTargetLine(body)) {
-    const target = parseCanonicalReviewTarget(body)
-    if (!parsed.prNumber || !parsed.headSha || !target) {
-      throw new Error('STATE_CONFLICT: live REVIEW_VERDICT is missing canonical PR/base/head evidence')
-    }
-    return {
-      kind: 'canonical',
-      prNumber: String(parsed.prNumber),
-      base: target.base,
-      head: target.head,
-      headSha: parsed.headSha,
-      verdict: parsed.verdict,
-    }
-  }
-  const legacy = parseLegacyReviewVerdictBinding(body)
-  if (!legacy) {
+  const target = parseCanonicalReviewTarget(body)
+  if (!hasCanonicalReviewTargetLine(body) || !parsed.prNumber || !parsed.headSha || !target) {
     throw new Error('STATE_CONFLICT: live REVIEW_VERDICT is missing canonical PR/base/head evidence')
   }
-  if (String(legacy.issueNumber) !== String(issueNumber)) {
-    throw new Error('STATE_CONFLICT: REVIEW_VERDICT Task Issue does not match the managed Issue')
-  }
   return {
-    kind: 'legacy',
-    prNumber: legacy.prNumber,
-    base: legacy.base,
-    head: normalizeAuthorityHead(legacy.head),
-    headSha: normalizeAuthorityHead(legacy.head),
+    kind: 'canonical',
+    prNumber: String(parsed.prNumber),
+    base: target.base,
+    head: target.head,
+    headSha: parsed.headSha,
     verdict: parsed.verdict,
   }
 }
 
-export function classifyReviewVerdictBindingEvidence(body, { issueNumber }) {
-  if (hasCanonicalReviewTargetLine(body)) {
-    try {
-      return { status: 'valid', binding: resolveReviewVerdictBinding(body, { issueNumber }) }
-    } catch (error) {
+export function classifyReviewVerdictBindingEvidence(body, { issueNumber: _issueNumber }) {
+  if (!hasCanonicalReviewTargetLine(body)) {
+    if (hasRetiredLegacyBindingFieldLabels(body)) {
       return {
         status: 'malformed',
-        error: error instanceof Error
-          ? error
-          : new Error('STATE_CONFLICT: REVIEW_VERDICT canonical binding evidence is malformed'),
+        error: new Error('STATE_CONFLICT: live REVIEW_VERDICT is missing canonical PR/base/head evidence'),
       }
     }
+    return { status: 'none' }
   }
-  if (!hasRecognizedLegacyBindingFieldLabels(body)) return { status: 'none' }
   try {
-    return { status: 'valid', binding: resolveReviewVerdictBinding(body, { issueNumber }) }
+    return { status: 'valid', binding: resolveReviewVerdictBinding(body) }
   } catch (error) {
     return {
       status: 'malformed',
       error: error instanceof Error
         ? error
-        : new Error('STATE_CONFLICT: REVIEW_VERDICT legacy binding evidence is malformed'),
+        : new Error('STATE_CONFLICT: REVIEW_VERDICT canonical binding evidence is malformed'),
     }
   }
 }

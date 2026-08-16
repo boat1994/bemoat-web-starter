@@ -15,7 +15,7 @@ export { classifyDeliveryLag, classifyReviewLag, proposeDeliveryReconciliation, 
 export { assertDeltaReviewHeadProjection, assertRoutingOnlyProjection, deriveTransitionFacts, derivesResolvedMaterialBlocker, hasUnchangedReviewedHead, policyObject, resolveEvidenceHead, sameValue } from './mission-control/transition-guards.mjs'
 export { assertChildSyncGateReady, CHILD_SYNC_GATE_ISSUES, CHILD_SYNC_GATE_REQUIREMENTS, resolveChildSyncCommandGate, verifyStatePostcondition } from './mission-control/state-verification.mjs'
 export { normalizeTransitionIdentity, parseCommentMarker, serializeTransitionIdentity, transitionIdentityMatches } from './mission-control/transition-identity.mjs'
-export { isExplicitlyNonAuthoritativeRoleBody, normalizeAuthorityBase, normalizeAuthorityHead, parseLegacyReviewVerdictBinding, parseRoleCommentBody, selectActiveRoleComments, selectLiveReviewVerdictComment } from './mission-control/review-verdict-binding.mjs'
+export { isExplicitlyNonAuthoritativeRoleBody, normalizeAuthorityBase, normalizeAuthorityHead, parseRoleCommentBody, selectActiveRoleComments, selectLiveReviewVerdictComment } from './mission-control/review-verdict-binding.mjs'
 export { classifyTransition, DEFAULT_MC_TRUSTED_ASSOCIATIONS, findMatchingComments, normalizeIssueComments, parsePaginatedGhApiJson, recoverAmbiguousPost, resolveProductionCommentTrust, verifyPostedCommentReadback } from './mission-control/comment-evidence.ts'
 export { resolveRoleComment } from './mission-control/comment-resolution.mjs'
 export { coordinatorOwnedProjection, coordinatorOwnedRoutingProjection, routingDriftClassification } from './mission-control/coordinator-projection.mjs'

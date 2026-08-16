@@ -8,7 +8,6 @@ import { parseMissionControlState, renderMissionControlState } from '../../scrip
 import {
   Coordinator,
   normalizeTransitionIdentity,
-  parseLegacyReviewVerdictBinding,
   serializeTransitionIdentity,
 } from '../../scripts/mission-control-reconcile.mjs'
 
@@ -572,8 +571,7 @@ describe('merged managed active PR Review-verdict lineage reconciliation', () =>
 })
 
 /**
- * Synthetic legacy bodies for negative / boundary probes only.
- * The positive process-level path must use the byte-faithful live fixture below.
+ * Synthetic legacy bodies for retirement fail-closed probes only.
  */
 const legacyVerdictBody = (
   overrides: {
@@ -633,80 +631,6 @@ function readLiveLegacyVerdictFixture() {
   return body.toString('utf8')
 }
 
-const historicalTransportVerdict267 = `## REVIEW_VERDICT
-
-### Task log
-- Timestamp: 2026-08-04T09:54:00+07:00
-- Task / Issue: #259
-- Phase: Full Review 1
-- Executing role: Reviewer (Independent)
-
-**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/267 · \`main\` · \`34918d4cb75369778ade13fcc0cc3abcd6cb5f8b\`
-**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
-**Findings:** Critical: None · Important: None
-**Next:** Founder reviews PR #267
-`
-
-const partialLegacyDifferentPrCompetitor = `## REVIEW_VERDICT
-
-**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
-**Task:** Issue #259
-**PR:** #267
-`
-
-const wrongFirstDuplicatedPrCompetitor = `## REVIEW_VERDICT
-
-**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
-**Task:** Issue #259
-**PR:** #267
-**PR:** #260
-**Base:** \`main\` (\`18640666402ade75003cbf0a3556eef6ad63d536\`)
-**Head:** \`${reviewedHead}\`
-`
-
-const conflictingDuplicatedFieldsCompetitor = `## REVIEW_VERDICT
-
-**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
-**Task:** Issue #259
-**PR:** #260
-**Base:** \`main\` (\`18640666402ade75003cbf0a3556eef6ad63d536\`)
-**Base:** \`dev\` (\`18640666402ade75003cbf0a3556eef6ad63d536\`)
-**Head:** \`${reviewedHead}\`
-`
-
-/** Conflicting Task fields: wrong Issue first, then current Issue. */
-const wrongFirstConflictingTaskCompetitor = `## REVIEW_VERDICT
-
-**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
-**Task:** Issue #999
-**Task:** Issue #259
-**PR:** #267
-**Base:** \`main\` (\`18640666402ade75003cbf0a3556eef6ad63d536\`)
-**Head:** \`${reviewedHead}\`
-`
-
-/** Conflicting Task fields: current Issue first, then wrong Issue. */
-const currentFirstConflictingTaskCompetitor = `## REVIEW_VERDICT
-
-**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
-**Task:** Issue #259
-**Task:** Issue #999
-**PR:** #267
-**Base:** \`main\` (\`18640666402ade75003cbf0a3556eef6ad63d536\`)
-**Head:** \`${reviewedHead}\`
-`
-
-/** Duplicated same-value Task fields must not silently use the first value. */
-const duplicatedSameTaskCompetitor = `## REVIEW_VERDICT
-
-**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
-**Task:** Issue #259
-**Task:** Issue #259
-**PR:** #267
-**Base:** \`main\` (\`18640666402ade75003cbf0a3556eef6ad63d536\`)
-**Head:** \`${reviewedHead}\`
-`
-
 /** Single unique Task binding to a different Issue — correctly out of scope. */
 const uniqueDifferentIssueLegacyVerdict = `## REVIEW_VERDICT
 
@@ -717,106 +641,55 @@ const uniqueDifferentIssueLegacyVerdict = `## REVIEW_VERDICT
 **Head:** \`${reviewedHead}\`
 `
 
-describe('legacy REVIEW_VERDICT binding (option 2)', () => {
-  it('accepts the byte-faithful live comment 5163387315 binding for managed PR #260', () => {
+const missingCanonicalEvidence = /STATE_CONFLICT: live REVIEW_VERDICT is missing canonical PR\/base\/head evidence/
+
+describe('retired legacy REVIEW_VERDICT binding', () => {
+  it('fails closed on legacy Task/PR/Base/Head transport without canonical PR/base/head line', () => {
+    const harness = createGhHarness({
+      prState: 'MERGED',
+      containedHeads: [reviewedHead],
+      comments: [{
+        id: verdictCommentId,
+        body: legacyVerdictBody(),
+        user: { login: 'boat1994' },
+        author_association: 'OWNER',
+      }],
+    })
+    const result = runReconcile(harness)
+    expect(result.status).toBe(1)
+    expect(result.stderr).toMatch(missingCanonicalEvidence)
+    expect(readMetrics(harness).issueEdits).toBe(0)
+    expect(readHarnessState(harness).latest_review_verdict_comment_id).toBeUndefined()
+  })
+
+  it('fails closed on byte-faithful retired legacy comment 5163387315 body', () => {
     const liveBody = readLiveLegacyVerdictFixture()
-    expect(liveBody).toContain('**Minor/Nit:** None.')
-    expect(liveBody).toContain('Authority-backed contiguous empty rows append through Slice 11 is correctly bounded.')
-    expect(liveBody).toContain('The recovery coverage for #254/#258 without double-merge was successfully added and passes tests.')
-    expect(liveBody).toContain('Production parity checks pass cleanly against the specified constraints.')
-
-    const harness = createGhHarness({
-      prState: 'MERGED',
-      containedHeads: [reviewedHead],
-      comments: [
-        {
-          id: verdictCommentId,
-          body: liveBody,
-          user: { login: 'boat1994' },
-          author_association: 'OWNER',
-        },
-        {
-          id: '5174083215',
-          body: historicalTransportVerdict267,
-          user: { login: 'boat1994' },
-          author_association: 'OWNER',
-        },
-      ],
-    })
-    const result = runReconcile(harness)
-    expect(result.status, result.stderr || result.stdout).toBe(0)
-    expect(result.stdout).toContain('RECONCILED')
-    const parsed = readHarnessState(harness)
-    expect(parsed).toMatchObject({
-      state: 'ELIGIBLE_FOR_FOUNDER_REVIEW',
-      review_cycle: 1,
-      full_review_count: 1,
-      active_pr: '#260',
-      current_head: reviewedHead,
-      last_reviewed_head: reviewedHead,
-      latest_result_comment_id: resultCommentId,
-      latest_review_verdict_comment_id: verdictCommentId,
-    })
-    expect(readMetrics(harness).issueEdits).toBe(1)
-
-    const binding = parseLegacyReviewVerdictBinding(liveBody)
-    expect(binding).toEqual({
-      kind: 'legacy',
-      issueNumber: '259',
-      prNumber: '260',
-      base: 'main',
-      head: reviewedHead,
-    })
-  })
-
-  it('preserves canonical new-verdict behavior unchanged', () => {
     const harness = createGhHarness({
       prState: 'MERGED',
       containedHeads: [reviewedHead],
       comments: [{
         id: verdictCommentId,
-        body: verdictBody(),
+        body: liveBody,
         user: { login: 'boat1994' },
         author_association: 'OWNER',
       }],
     })
     const result = runReconcile(harness)
-    expect(result.status, result.stderr || result.stdout).toBe(0)
-    expect(result.stdout).toContain('RECONCILED')
-    expect(readHarnessState(harness).latest_review_verdict_comment_id).toBe(verdictCommentId)
+    expect(result.status).toBe(1)
+    expect(result.stderr).toMatch(missingCanonicalEvidence)
+    expect(readMetrics(harness).issueEdits).toBe(0)
+    expect(readHarnessState(harness).latest_review_verdict_comment_id).toBeUndefined()
   })
 
   it.each([
-    ['uppercase full SHA', reviewedHead.toUpperCase(), reviewedHead],
-    ['uppercase abbreviated SHA', reviewedHead.slice(0, 7).toUpperCase(), reviewedHead.slice(0, 7)],
-  ])('accepts and lowercases valid legacy Head metadata: %s', (_label, head, normalizedHead) => {
-    const body = legacyVerdictBody({ head })
-    expect(parseLegacyReviewVerdictBinding(body)).toMatchObject({
-      kind: 'legacy',
-      head: normalizedHead,
-    })
-
-    const harness = createGhHarness({
-      prState: 'MERGED',
-      containedHeads: [reviewedHead],
+    ['valid legacy shape', {
       comments: [{
         id: verdictCommentId,
-        body,
+        body: legacyVerdictBody(),
         user: { login: 'boat1994' },
         author_association: 'OWNER',
       }],
-    })
-    const result = runReconcile(harness)
-
-    expect(result.status, result.stderr || result.stdout).toBe(0)
-    expect(result.stdout).toContain('RECONCILED')
-    expect(readHarnessState(harness)).toMatchObject({
-      current_head: reviewedHead,
-      last_reviewed_head: reviewedHead,
-    })
-  })
-
-  it.each([
+    }, missingCanonicalEvidence],
     ['wrong Issue', {
       comments: [{
         id: verdictCommentId,
@@ -832,7 +705,7 @@ describe('legacy REVIEW_VERDICT binding (option 2)', () => {
         user: { login: 'boat1994' },
         author_association: 'OWNER',
       }],
-    }, /BLOCKED_EXTERNAL|STATE_CONFLICT/],
+    }, missingCanonicalEvidence],
     ['wrong base', {
       comments: [{
         id: verdictCommentId,
@@ -840,7 +713,7 @@ describe('legacy REVIEW_VERDICT binding (option 2)', () => {
         user: { login: 'boat1994' },
         author_association: 'OWNER',
       }],
-    }, /STATE_CONFLICT.*base/i],
+    }, missingCanonicalEvidence],
     ['wrong head', {
       comments: [{
         id: verdictCommentId,
@@ -848,7 +721,7 @@ describe('legacy REVIEW_VERDICT binding (option 2)', () => {
         user: { login: 'boat1994' },
         author_association: 'OWNER',
       }],
-    }, /STATE_CONFLICT/],
+    }, missingCanonicalEvidence],
     ['missing field', {
       comments: [{
         id: verdictCommentId,
@@ -856,7 +729,7 @@ describe('legacy REVIEW_VERDICT binding (option 2)', () => {
         user: { login: 'boat1994' },
         author_association: 'OWNER',
       }],
-    }, /STATE_CONFLICT: legacy REVIEW_VERDICT binding is missing a required field/],
+    }, missingCanonicalEvidence],
     ['incidental prose and URL rejection', {
       comments: [{
         id: verdictCommentId,
@@ -868,7 +741,7 @@ See also PR #260 and https://github.com/boat1994/bemoat-web-starter/pull/260 on 
         user: { login: 'boat1994' },
         author_association: 'OWNER',
       }],
-    }, /STATE_CONFLICT: live REVIEW_VERDICT is missing canonical PR\/base\/head evidence/],
+    }, missingCanonicalEvidence],
     ['duplicate or ambiguous binding rejection', {
       comments: [{
         id: verdictCommentId,
@@ -876,7 +749,7 @@ See also PR #260 and https://github.com/boat1994/bemoat-web-starter/pull/260 on 
         user: { login: 'boat1994' },
         author_association: 'OWNER',
       }],
-    }, /STATE_CONFLICT: legacy REVIEW_VERDICT binding fields are duplicated or ambiguous/],
+    }, missingCanonicalEvidence],
     ['same-PR competitor remains fail-closed', {
       comments: [
         {
@@ -892,126 +765,8 @@ See also PR #260 and https://github.com/boat1994/bemoat-web-starter/pull/260 on 
           author_association: 'OWNER',
         },
       ],
-    }, /STATE_CONFLICT.*competing/i],
-    ['partial legacy different-PR competitor', {
-      comments: [
-        {
-          id: verdictCommentId,
-          body: legacyVerdictBody(),
-          user: { login: 'boat1994' },
-          author_association: 'OWNER',
-        },
-        {
-          id: '5163387401',
-          body: partialLegacyDifferentPrCompetitor,
-          user: { login: 'boat1994' },
-          author_association: 'OWNER',
-        },
-      ],
-    }, /STATE_CONFLICT: legacy REVIEW_VERDICT binding is missing a required field/],
-    ['wrong-first duplicated PR competitor', {
-      comments: [
-        {
-          id: verdictCommentId,
-          body: legacyVerdictBody(),
-          user: { login: 'boat1994' },
-          author_association: 'OWNER',
-        },
-        {
-          id: '5163387402',
-          body: wrongFirstDuplicatedPrCompetitor,
-          user: { login: 'boat1994' },
-          author_association: 'OWNER',
-        },
-      ],
-    }, /STATE_CONFLICT: legacy REVIEW_VERDICT binding fields are duplicated or ambiguous/],
-    ['conflicting duplicated fields competitor', {
-      comments: [
-        {
-          id: verdictCommentId,
-          body: legacyVerdictBody(),
-          user: { login: 'boat1994' },
-          author_association: 'OWNER',
-        },
-        {
-          id: '5163387403',
-          body: conflictingDuplicatedFieldsCompetitor,
-          user: { login: 'boat1994' },
-          author_association: 'OWNER',
-        },
-      ],
-    }, /STATE_CONFLICT: legacy REVIEW_VERDICT binding fields are duplicated or ambiguous/],
-    ['malformed active evidence alongside valid #260 verdict', {
-      comments: [
-        {
-          id: verdictCommentId,
-          body: legacyVerdictBody(),
-          user: { login: 'boat1994' },
-          author_association: 'OWNER',
-        },
-        {
-          id: '5163387404',
-          body: `## REVIEW_VERDICT
-
-**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
-**Task:**
-Issue #259
-**PR:** #267
-`,
-          user: { login: 'boat1994' },
-          author_association: 'OWNER',
-        },
-      ],
-    }, /STATE_CONFLICT/],
-    ['wrong-first conflicting Tasks alongside valid #260', {
-      comments: [
-        {
-          id: verdictCommentId,
-          body: legacyVerdictBody(),
-          user: { login: 'boat1994' },
-          author_association: 'OWNER',
-        },
-        {
-          id: '5163387405',
-          body: wrongFirstConflictingTaskCompetitor,
-          user: { login: 'boat1994' },
-          author_association: 'OWNER',
-        },
-      ],
-    }, /STATE_CONFLICT/],
-    ['current-Issue-first conflicting Tasks alongside valid #260', {
-      comments: [
-        {
-          id: verdictCommentId,
-          body: legacyVerdictBody(),
-          user: { login: 'boat1994' },
-          author_association: 'OWNER',
-        },
-        {
-          id: '5163387406',
-          body: currentFirstConflictingTaskCompetitor,
-          user: { login: 'boat1994' },
-          author_association: 'OWNER',
-        },
-      ],
-    }, /STATE_CONFLICT/],
-    ['duplicated recognized Task fields do not silently use first value', {
-      comments: [
-        {
-          id: verdictCommentId,
-          body: legacyVerdictBody(),
-          user: { login: 'boat1994' },
-          author_association: 'OWNER',
-        },
-        {
-          id: '5163387407',
-          body: duplicatedSameTaskCompetitor,
-          user: { login: 'boat1994' },
-          author_association: 'OWNER',
-        },
-      ],
-    }, /STATE_CONFLICT/],
-  ])('rejects %s without writing managed state', (_label, overrides, expected) => {
+    }, missingCanonicalEvidence],
+  ])('rejects retired legacy %s without writing managed state', (_label, overrides, expected) => {
     const harness = createGhHarness({
       prState: 'MERGED',
       containedHeads: [reviewedHead],
@@ -1024,14 +779,14 @@ Issue #259
     expect(readHarnessState(harness).latest_review_verdict_comment_id).toBeUndefined()
   })
 
-  it('keeps one valid unique Task binding to a different Issue correctly out of scope', () => {
+  it('keeps canonical verdict authoritative when retired legacy different-Issue comment is non-competing', () => {
     const harness = createGhHarness({
       prState: 'MERGED',
       containedHeads: [reviewedHead],
       comments: [
         {
           id: verdictCommentId,
-          body: legacyVerdictBody(),
+          body: verdictBody(),
           user: { login: 'boat1994' },
           author_association: 'OWNER',
         },
@@ -1105,17 +860,7 @@ branch\` (\`18640666402ade75003cbf0a3556eef6ad63d536\`)
 **Base:** \`main\` (\`18640666402ade75003cbf0a3556eef6ad63d536\`)
 **Head:** \`${reviewedHead}\`
 `],
-  ])('rejects multiline/case/boundary legacy form: %s', (_label, body) => {
-    let binding: ReturnType<typeof parseLegacyReviewVerdictBinding> = null
-    try {
-      binding = parseLegacyReviewVerdictBinding(body)
-    } catch (error) {
-      expect(error).toBeInstanceOf(Error)
-      expect((error as Error).message).toMatch(/STATE_CONFLICT/)
-      binding = null
-    }
-    expect(binding).toBeNull()
-
+  ])('rejects multiline/case/boundary retired legacy form: %s', (_label, body) => {
     const harness = createGhHarness({
       prState: 'MERGED',
       containedHeads: [reviewedHead],
@@ -1128,7 +873,7 @@ branch\` (\`18640666402ade75003cbf0a3556eef6ad63d536\`)
     })
     const result = runReconcile(harness)
     expect(result.status).toBe(1)
-    expect(result.stderr).toMatch(/STATE_CONFLICT/)
+    expect(result.stderr).toMatch(missingCanonicalEvidence)
     expect(readMetrics(harness).issueEdits).toBe(0)
     expect(readHarnessState(harness).latest_review_verdict_comment_id).toBeUndefined()
   })

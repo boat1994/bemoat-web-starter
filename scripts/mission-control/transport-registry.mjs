@@ -43,14 +43,6 @@ export const CANONICAL_TRANSPORTS = Object.freeze([
     exceptional: true,
   }),
   Object.freeze({
-    command: 'bemoat:mission-control:rebind-review-lineage',
-    role: 'REVIEW_VERDICT',
-    owner: 'Mission Control Lineage Rebind Transport',
-    ordinary_owner: 'bemoat:mission-control:review',
-    purpose: 'quarantine the registered legacy REVIEW_VERDICT lineage and rebind it to canonical PR/base/head transport without a new semantic review',
-    exceptional: true,
-  }),
-  Object.freeze({
     command: 'bemoat:mission-control:reconcile',
     role: 'STATE_PROJECTION',
     owner: 'State Reconciler',

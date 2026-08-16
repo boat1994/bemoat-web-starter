@@ -12,7 +12,6 @@ overrides chat, copied handoffs, local notes, or stale values.
 | `delivery` | Owns the transition of a successful implementation to `AWAITING_REVIEW_1`. (Note: Delivery is a workflow boundary, not a standalone CLI script in this reference). |
 | `review` | Submit a Full Review 1 or Delta Review verdict, update counters and target states. |
 | `recover-review` | Exceptional, exact-incident transport for the approved #274/#275 raw-review quarantine; it is not ordinary review. |
-| `rebind-review-lineage` | Exceptional, exact-tuple transport that rebinds already-proven Review 1 provenance into canonical `**PR / base / head:**` form. It is not a new semantic review. |
 | `reconcile` | Repair state routing mismatch. Requires an existing valid managed-state block. Cannot initialize state, replay reviews, post verdicts, or increment counters. |
 | `reopen` | Project Founder-authorized PR head drift to `FOUNDER_AUTHORIZED_CORRECTION`. |
 | `adopt-finding` | Append exactly one Founder-authorized finding to the active correction contract while preserving `CORRECTION_REQUIRED_1\|2` and review counters. |
@@ -27,9 +26,7 @@ Consult the machine-readable `scripts/mission-control/transport-registry.mjs`
 before any durable write. It is the ownership map: ordinary
 `REVIEW_VERDICT` publication belongs only to `review`; `recover-review` is an
 exceptional quarantine/projector for its pinned incident and cannot be used as
-a generic comment-repair API. `rebind-review-lineage` is a separate exceptional
-lineage-transport quarantine for registered legacy REVIEW_VERDICT bindings; it
-cannot broaden recover-review and cannot perform a new semantic review.
+a generic comment-repair API.
 
 ### Shared checks (all commands)
 - [ ] Active repository matches command target.
@@ -207,62 +204,6 @@ only; it is not a generic recovery API or arbitrary comment-repair transport.
 Do not run it during implementation of another task or against live historical
 artifacts in the hotfix setup.
 
-## Review lineage rebind
-
-Exact syntax:
-
-```text
-pnpm run bemoat:mission-control:rebind-review-lineage -- 259 \
-  --repo boat1994/bemoat-web-starter \
-  --expected-pr 260 --expected-base main \
-  --expected-state ELIGIBLE_FOR_FOUNDER_REVIEW \
-  --expected-head <full-40-character-sha> \
-  --expected-review-cycle 1 --expected-full-review-count 1 \
-  --source-comment 5163387315 \
-  --authorization-comment <immutable-comment-id> \
-  --body-file <canonical-review-verdict.md>
-```
-
-This command is quarantined to the registered Issue #259 / PR #260 legacy
-`REVIEW_VERDICT` lineage. The only registered source comment is `5163387315`,
-and the registered exact head is
-`b1ce5f58e7ffd0178d955ef7e93395209a7c4d28`. Any other repository, Issue, PR,
-base, head, source comment, or counter tuple fails closed.
-
-It preserves already-proven Review 1 semantic provenance and rewrites only the
-transport into canonical `**PR / base / head:**` form. It does not perform a
-new semantic review, does not increment or reset `review_cycle` /
-`full_review_count`, and does not broaden `recover-review`.
-
-The Founder authorization comment must be one raw JSON object hosted on
-Issue #259. Its durable GitHub `issue_url` must equal
-`https://api.github.com/repos/boat1994/bemoat-web-starter/issues/259`.
-Identical JSON hosted on Issue #340, another Issue, or another repository
-fails closed. The object must bind the exact registered tuple with
-`bundle_kind: review-lineage-rebind`, `scope: transport-correction-only`,
-`replacement_body_sha256` (lowercase hex SHA-256 of the exact canonical
-replacement body bytes), and `source_body_sha256` (lowercase hex SHA-256 of
-the exact live source comment `5163387315` body bytes). The registered live
-source comment `5163387315` uses `### Findings` /
-`- **Critical/Important:**` rather than a canonical `**Findings:**` line.
-The replacement `**Findings:**` Critical/Important line must be a
-deterministic transport rewrite of that source Review 1 provenance;
-findings are not reinterpreted, added, removed, upgraded, downgraded, or
-rewritten during lineage transport. Missing or unbound Founder
-authorization, `issue_url` mismatch, hash mismatch, or divergent Findings
-fail closed before any GitHub mutation.
-
-Mutation order is post canonical `REVIEW_VERDICT` → demote the source comment
-in-body → CAS-update only `latest_review_verdict_comment_id` and
-`latest_transition_identity`. Identical completed retries return
-`NO_OP_IDENTICAL_RETRY`. Partial or competing undemoted verdicts fail closed
-as `AMBIGUOUS_RESULT`. Exact live readback must prove one authoritative
-canonical `REVIEW_VERDICT`.
-
-Retirement: this command retires after required legacy lineage migrations complete.
-After the registered #259/#260 case is migrated, remove the command rather than
-broadening it. Do not treat it as generic comment repair.
-
 ## Reconcile
 
 Exact syntax:
@@ -283,12 +224,9 @@ For an eligible review state, reconcile selects exactly one active live
 `active_pr` / live PR (historical transport reviews for a different PR remain
 preserved but non-competing), then requires its PR number, base branch,
 and exact head to match the live PR and state. New verdicts must use the
-canonical `**PR / base / head:**` field. The only exception is the explicitly
-documented bounded historical legacy shape: single-line
-`**Task:**` / `**PR:**` / `**Base:**` / `**Head:**` fields with a full 40-character
-head SHA when the canonical line is entirely absent. Incidental prose, bare
+canonical `**PR / base / head:**` field. Incidental prose, bare
 `PR #N`, pull URLs, multiline field values, or incomplete/duplicated/ambiguous
-legacy fields fail closed and must not be treated as different-PR historical
+binding fields fail closed and must not be treated as different-PR historical
 authority. Same-PR competing active verdicts remain `STATE_CONFLICT`. For other
 states it evaluates live Issue, PR, comment, campaign, and protected-base
 evidence before proposing an allowed deterministic repair. Valid NO_OP behavior
