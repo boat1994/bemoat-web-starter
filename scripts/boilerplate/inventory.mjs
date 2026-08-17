@@ -86,6 +86,7 @@ export const managedPaths = [
   'tests/int/mission-control-contract-managed-paths.int.spec.ts',
   'tests/int/cli-mission-control-task-bootstrap.int.spec.ts',
   'tests/int/cli-command-registry.int.spec.ts',
+  'tests/int/cli-mission-control-metadata-routing-batch7.int.spec.ts',
   'tests/int/cli-discovery-guidance.int.spec.ts',
   'tests/int/cli-invocation-contract.int.spec.ts',
   'tests/int/cli-envelope-runtime.int.spec.ts',
