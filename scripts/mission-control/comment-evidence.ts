@@ -203,7 +203,15 @@ export function verifyPostedCommentReadback({
     activeOnly: false,
     ...matchOptions,
   })
-    .filter((comment) => postedId == null || String(comment.id) === String(postedId))
+    .filter((comment) => {
+      if (postedId == null) return true
+      if (String(comment.id) === String(postedId)) return true
+
+      const urlIdMatch = String(comment.url ?? '').match(/(?:issuecomment-|comments\/)(\d+)(?:$|[/?#])/i)
+      if (urlIdMatch && urlIdMatch[1] === String(postedId)) return true
+
+      return false
+    })
   if (matches.length !== 1) {
     throw new Error(
       `postcondition: live ${role} comment readback found ${matches.length} matching comment(s)`,

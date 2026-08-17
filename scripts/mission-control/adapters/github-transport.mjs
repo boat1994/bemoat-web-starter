@@ -11,10 +11,12 @@ export function postIssueComment({ repository, issueNumber, payloadPath, runGh }
   return runGh('gh', ['api', '--method', 'POST', `repos/${repository}/issues/${issueNumber}/comments`, '--input', payloadPath])
 }
 
+const GH_JSON_READ_BUFFER = 100 * 1024 * 1024 // 100 MB
+
 export function readRoleCommentIssue({ issue, repo, fields }) {
   const args = ['issue', 'view', issue, '--json', fields]
   if (repo) args.push('--repo', repo)
-  return spawnSync('gh', args, { encoding: 'utf8' })
+  return spawnSync('gh', args, { encoding: 'utf8', maxBuffer: GH_JSON_READ_BUFFER })
 }
 
 export function postRoleComment({ issue, repo, body }) {
