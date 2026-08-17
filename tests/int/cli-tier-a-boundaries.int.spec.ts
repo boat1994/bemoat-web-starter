@@ -944,7 +944,7 @@ const CANONICAL_REVIEW_BODY = `## REVIEW_VERDICT
 - Task / Issue: #284
 - Phase: Reviewer
 - Executing role: Reviewer
-**PR / base / head:** PR #285 / main / · \`${CANONICAL_FULL_UPPERCASE_SHA}\`
+**PR / base / head:** PR #285 · \`main\` · \`${CANONICAL_FULL_UPPERCASE_SHA}\`
 **Verdict:** ELIGIBLE FOR FOUNDER REVIEW
 **Findings:** Critical: None · Important: None
 **Gates:** exact-head CI pass

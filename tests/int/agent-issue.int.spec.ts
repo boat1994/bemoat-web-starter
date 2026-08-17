@@ -2348,7 +2348,7 @@ esac
   it('prints a compact correction capsule when --phase correction reconstructs canonical findings', () => {
     const root = createRepo('feature/136-immutable-correction-contract')
     const verdictBody = `## REVIEW_VERDICT
-**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · \`main\` · \`abc1234\`
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · \`main\` · \`abc1234000000000000000000000000000000000\`
 **Verdict:** CORRECTION REQUIRED
 **Findings:** Important: boundary bug
 **Gates:** exact-head CI https://example.test/ci → pass
@@ -2357,7 +2357,7 @@ esac
 \`\`\`json
 {
   "schema_version": 1,
-  "reviewed_head": "abc1234",
+  "reviewed_head": "abc1234000000000000000000000000000000000",
   "findings": [
     {
       "id": "MC-R1-001",
@@ -2387,7 +2387,7 @@ case "$*" in
     printf '%s' '${commentsPayload}'
     ;;
   *"pr view 200"*)
-    printf '%s' '{"title":"Correction PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/200","headRefName":"feature/136","baseRefName":"main","headRefOid":"abc1234","state":"OPEN","statusCheckRollup":[],"commits":[]}'
+    printf '%s' '{"title":"Correction PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/200","headRefName":"feature/136","baseRefName":"main","headRefOid":"abc1234000000000000000000000000000000000","state":"OPEN","statusCheckRollup":[],"commits":[]}'
     ;;
   *)
     echo "unexpected gh call: $*" >&2
@@ -2411,10 +2411,10 @@ esac
   ])('fails closed when managed state is %s during correction preflight', (_name, issueBody) => {
     const root = createRepo('feature/136-immutable-correction-contract')
     const verdictBody = `## REVIEW_VERDICT
-**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · \`main\` · \`abc1234\`
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · \`main\` · \`abc1234000000000000000000000000000000000\`
 **Verdict:** CORRECTION REQUIRED
 \`\`\`json
-{"schema_version":1,"reviewed_head":"abc1234","findings":[{"id":"MC-R1-001","canonical_summary":"boundary bug","source_thread":"https://github.com/boat1994/bemoat-web-starter/pull/200#discussion_r1","required_evidence":["executable negative"]}]}
+{"schema_version":1,"reviewed_head":"abc1234000000000000000000000000000000000","findings":[{"id":"MC-R1-001","canonical_summary":"boundary bug","source_thread":"https://github.com/boat1994/bemoat-web-starter/pull/200#discussion_r1","required_evidence":["executable negative"]}]}
 \`\`\``
     const fixtureDir = mkdtempSync(join(tmpdir(), 'bemoat-agent-issue-state-'))
     tempRoots.push(fixtureDir)
@@ -2659,7 +2659,7 @@ esac
 \`\`\`json
 {
   "schema_version": 1,
-  "reviewed_head": "abc1234",
+  "reviewed_head": "abc1234000000000000000000000000000000000",
   "findings": [
     {
       "id": "MC-R1-001",
@@ -2703,7 +2703,7 @@ esac
   it('fails closed when live PR evidence is unavailable before correction edit authorization (MC-R1-002)', () => {
     const root = createRepo('feature/136-immutable-correction-contract')
     const verdictBody = `## REVIEW_VERDICT
-**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · \`main\` · \`abc1234\`
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · \`main\` · \`abc1234000000000000000000000000000000000\`
 **Verdict:** CORRECTION REQUIRED
 **Findings:** Important: boundary bug
 **Gates:** exact-head CI https://example.test/ci → pass
@@ -2712,7 +2712,7 @@ esac
 \`\`\`json
 {
   "schema_version": 1,
-  "reviewed_head": "abc1234",
+  "reviewed_head": "abc1234000000000000000000000000000000000",
   "findings": [
     {
       "id": "MC-R1-001",
@@ -2760,7 +2760,7 @@ esac
   it('fails closed when the live PR head disagrees with the immutable contract reviewed_head (MC-R1-002)', () => {
     const root = createRepo('feature/136-immutable-correction-contract')
     const verdictBody = `## REVIEW_VERDICT
-**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · \`main\` · \`abc1234\`
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · \`main\` · \`abc1234000000000000000000000000000000000\`
 **Verdict:** CORRECTION REQUIRED
 **Findings:** Important: boundary bug
 **Gates:** exact-head CI https://example.test/ci → pass
@@ -2769,7 +2769,7 @@ esac
 \`\`\`json
 {
   "schema_version": 1,
-  "reviewed_head": "abc1234",
+  "reviewed_head": "abc1234000000000000000000000000000000000",
   "findings": [
     {
       "id": "MC-R1-001",
@@ -2816,7 +2816,7 @@ esac
   it('fails closed when the live PR base disagrees with the REVIEW_VERDICT approved base (MC-R1-002)', () => {
     const root = createRepo('feature/136-immutable-correction-contract')
     const verdictBody = `## REVIEW_VERDICT
-**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · \`main\` · \`abc1234\`
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · \`main\` · \`abc1234000000000000000000000000000000000\`
 **Verdict:** CORRECTION REQUIRED
 **Findings:** Important: boundary bug
 **Gates:** exact-head CI https://example.test/ci → pass
@@ -2825,7 +2825,7 @@ esac
 \`\`\`json
 {
   "schema_version": 1,
-  "reviewed_head": "abc1234",
+  "reviewed_head": "abc1234000000000000000000000000000000000",
   "findings": [
     {
       "id": "MC-R1-001",
@@ -2853,7 +2853,7 @@ case "$*" in
     printf '%s' '${commentsPayload}'
     ;;
   *"pr view 200"*)
-    printf '%s' '{"title":"Correction PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/200","headRefName":"feature/136","baseRefName":"dev","headRefOid":"abc1234","state":"OPEN","statusCheckRollup":[],"commits":[]}'
+    printf '%s' '{"title":"Correction PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/200","headRefName":"feature/136","baseRefName":"dev","headRefOid":"abc1234000000000000000000000000000000000","state":"OPEN","statusCheckRollup":[],"commits":[]}'
     ;;
   *)
     echo "unexpected gh call: $*" >&2
@@ -2872,7 +2872,7 @@ esac
   it('fails closed when the live PR is no longer open before correction edit authorization (MC-R1-002)', () => {
     const root = createRepo('feature/136-immutable-correction-contract')
     const verdictBody = `## REVIEW_VERDICT
-**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · \`main\` · \`abc1234\`
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · \`main\` · \`abc1234000000000000000000000000000000000\`
 **Verdict:** CORRECTION REQUIRED
 **Findings:** Important: boundary bug
 **Gates:** exact-head CI https://example.test/ci → pass
@@ -2881,7 +2881,7 @@ esac
 \`\`\`json
 {
   "schema_version": 1,
-  "reviewed_head": "abc1234",
+  "reviewed_head": "abc1234000000000000000000000000000000000",
   "findings": [
     {
       "id": "MC-R1-001",
@@ -2909,7 +2909,7 @@ case "$*" in
     printf '%s' '${commentsPayload}'
     ;;
   *"pr view 200"*)
-    printf '%s' '{"title":"Correction PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/200","headRefName":"feature/136","baseRefName":"main","headRefOid":"abc1234","state":"MERGED","statusCheckRollup":[],"commits":[]}'
+    printf '%s' '{"title":"Correction PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/200","headRefName":"feature/136","baseRefName":"main","headRefOid":"abc1234000000000000000000000000000000000","state":"MERGED","statusCheckRollup":[],"commits":[]}'
     ;;
   *)
     echo "unexpected gh call: $*" >&2
@@ -2928,7 +2928,7 @@ esac
   it('fails closed when the verdict PR URL is in a foreign repository (MC-R1-002)', () => {
     const root = createRepo('feature/136-immutable-correction-contract')
     const verdictBody = `## REVIEW_VERDICT
-**PR / base / head:** https://github.com/other/repository/pull/200 · \`main\` · \`abc1234\`
+**PR / base / head:** https://github.com/other/repository/pull/200 · \`main\` · \`abc1234000000000000000000000000000000000\`
 **Verdict:** CORRECTION REQUIRED
 **Findings:** Important: boundary bug
 **Gates:** exact-head CI https://example.test/ci → pass
@@ -2937,7 +2937,7 @@ esac
 \`\`\`json
 {
   "schema_version": 1,
-  "reviewed_head": "abc1234",
+  "reviewed_head": "abc1234000000000000000000000000000000000",
   "findings": [
     {
       "id": "MC-R1-001",
@@ -2965,7 +2965,7 @@ case "$*" in
     printf '%s' '${commentsPayload}'
     ;;
   *"pr view 200"*)
-    printf '%s' '{"title":"Wrong repo PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/200","headRefName":"feature/136","baseRefName":"main","headRefOid":"abc1234","state":"OPEN","statusCheckRollup":[],"commits":[]}'
+    printf '%s' '{"title":"Wrong repo PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/200","headRefName":"feature/136","baseRefName":"main","headRefOid":"abc1234000000000000000000000000000000000","state":"OPEN","statusCheckRollup":[],"commits":[]}'
     ;;
   *)
     echo "unexpected gh call: $*" >&2
@@ -2985,7 +2985,7 @@ esac
   it('ignores a second distinct PR URL in prose when only one canonical PR / base / head field exists (Issue #175)', () => {
     const root = createRepo('feature/136-immutable-correction-contract')
     const verdictBody = `## REVIEW_VERDICT
-**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · \`main\` · \`abc1234\`
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · \`main\` · \`abc1234000000000000000000000000000000000\`
 **Verdict:** CORRECTION REQUIRED
 **Findings:** Important: boundary bug
 **Gates:** exact-head CI https://example.test/ci → pass
@@ -2995,7 +2995,7 @@ esac
 \`\`\`json
 {
   "schema_version": 1,
-  "reviewed_head": "abc1234",
+  "reviewed_head": "abc1234000000000000000000000000000000000",
   "findings": [
     {
       "id": "MC-R1-001",
@@ -3023,7 +3023,7 @@ case "$*" in
     printf '%s' '${commentsPayload}'
     ;;
   *"pr view 200"*|*"pr view 201"*)
-    printf '%s' '{"title":"Correction PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/200","headRefName":"feature/136","baseRefName":"main","headRefOid":"abc1234","state":"OPEN","statusCheckRollup":[],"commits":[]}'
+    printf '%s' '{"title":"Correction PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/200","headRefName":"feature/136","baseRefName":"main","headRefOid":"abc1234000000000000000000000000000000000","state":"OPEN","statusCheckRollup":[],"commits":[]}'
     ;;
   *)
     echo "unexpected gh call: $*" >&2
@@ -3042,17 +3042,17 @@ esac
   it('fails closed when the verdict contains two canonical PR / base / head fields (Issue #175)', () => {
     const root = createRepo('feature/136-immutable-correction-contract')
     const verdictBody = `## REVIEW_VERDICT
-**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · \`main\` · \`abc1234\`
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · \`main\` · \`abc1234000000000000000000000000000000000\`
 **Verdict:** CORRECTION REQUIRED
 **Findings:** Important: boundary bug
 **Gates:** exact-head CI https://example.test/ci → pass
-**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/201 · \`main\` · \`abc1234\`
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/201 · \`main\` · \`abc1234000000000000000000000000000000000\`
 **Next:** Dev posts correction RESULT
 
 \`\`\`json
 {
   "schema_version": 1,
-  "reviewed_head": "abc1234",
+  "reviewed_head": "abc1234000000000000000000000000000000000",
   "findings": [
     {
       "id": "MC-R1-001",
@@ -3080,7 +3080,7 @@ case "$*" in
     printf '%s' '${commentsPayload}'
     ;;
   *"pr view 200"*|*"pr view 201"*)
-    printf '%s' '{"title":"Correction PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/200","headRefName":"feature/136","baseRefName":"main","headRefOid":"abc1234","state":"OPEN","statusCheckRollup":[],"commits":[]}'
+    printf '%s' '{"title":"Correction PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/200","headRefName":"feature/136","baseRefName":"main","headRefOid":"abc1234000000000000000000000000000000000","state":"OPEN","statusCheckRollup":[],"commits":[]}'
     ;;
   *)
     echo "unexpected gh call: $*" >&2
@@ -3100,7 +3100,7 @@ esac
   it('allows prose PR #N shorthand when canonical PR / base / head is unambiguous (Issue #175)', () => {
     const root = createRepo('feature/136-immutable-correction-contract')
     const verdictBody = `## REVIEW_VERDICT
-**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · \`main\` · \`abc1234\`
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · \`main\` · \`abc1234000000000000000000000000000000000\`
 **Verdict:** CORRECTION REQUIRED
 **Findings:** Important: boundary bug · see PR #201
 **Gates:** exact-head CI https://example.test/ci → pass
@@ -3109,7 +3109,7 @@ esac
 \`\`\`json
 {
   "schema_version": 1,
-  "reviewed_head": "abc1234",
+  "reviewed_head": "abc1234000000000000000000000000000000000",
   "findings": [
     {
       "id": "MC-R1-001",
@@ -3137,7 +3137,7 @@ case "$*" in
     printf '%s' '${commentsPayload}'
     ;;
   *"pr view 200"*|*"pr view 201"*)
-    printf '%s' '{"title":"Correction PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/200","headRefName":"feature/136","baseRefName":"main","headRefOid":"abc1234","state":"OPEN","statusCheckRollup":[],"commits":[]}'
+    printf '%s' '{"title":"Correction PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/200","headRefName":"feature/136","baseRefName":"main","headRefOid":"abc1234000000000000000000000000000000000","state":"OPEN","statusCheckRollup":[],"commits":[]}'
     ;;
   *)
     echo "unexpected gh call: $*" >&2
@@ -3156,7 +3156,7 @@ esac
   it('fails closed when a canonical PR URL conflicts with a different PR #N shorthand on the canonical line (MC-R1-002)', () => {
     const root = createRepo('feature/136-immutable-correction-contract')
     const verdictBody = `## REVIEW_VERDICT
-**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · PR #201 · \`main\` · \`abc1234\`
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · PR #201 · \`main\` · \`abc1234000000000000000000000000000000000\`
 **Verdict:** CORRECTION REQUIRED
 **Findings:** Important: boundary bug
 **Gates:** exact-head CI https://example.test/ci → pass
@@ -3165,7 +3165,7 @@ esac
 \`\`\`json
 {
   "schema_version": 1,
-  "reviewed_head": "abc1234",
+  "reviewed_head": "abc1234000000000000000000000000000000000",
   "findings": [
     {
       "id": "MC-R1-001",
@@ -3193,7 +3193,7 @@ case "$*" in
     printf '%s' '${commentsPayload}'
     ;;
   *"pr view 200"*|*"pr view 201"*)
-    printf '%s' '{"title":"Correction PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/200","headRefName":"feature/136","baseRefName":"main","headRefOid":"abc1234","state":"OPEN","statusCheckRollup":[],"commits":[]}'
+    printf '%s' '{"title":"Correction PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/200","headRefName":"feature/136","baseRefName":"main","headRefOid":"abc1234000000000000000000000000000000000","state":"OPEN","statusCheckRollup":[],"commits":[]}'
     ;;
   *)
     echo "unexpected gh call: $*" >&2
@@ -3356,7 +3356,7 @@ esac
   it('fails closed when successful live PR evidence omits the identity URL (MC-R1-002)', () => {
     const root = createRepo('feature/136-immutable-correction-contract')
     const verdictBody = `## REVIEW_VERDICT
-**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · \`main\` · \`abc1234\`
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · \`main\` · \`abc1234000000000000000000000000000000000\`
 **Verdict:** CORRECTION REQUIRED
 **Findings:** Important: boundary bug
 **Gates:** exact-head CI https://example.test/ci → pass
@@ -3365,7 +3365,7 @@ esac
 \`\`\`json
 {
   "schema_version": 1,
-  "reviewed_head": "abc1234",
+  "reviewed_head": "abc1234000000000000000000000000000000000",
   "findings": [
     {
       "id": "MC-R1-001",
@@ -3393,7 +3393,7 @@ case "$*" in
     printf '%s' '${commentsPayload}'
     ;;
   *"pr view 200"*)
-    printf '%s' '{"title":"Correction PR","headRefName":"feature/136","baseRefName":"main","headRefOid":"abc1234","state":"OPEN","statusCheckRollup":[],"commits":[]}'
+    printf '%s' '{"title":"Correction PR","headRefName":"feature/136","baseRefName":"main","headRefOid":"abc1234000000000000000000000000000000000","state":"OPEN","statusCheckRollup":[],"commits":[]}'
     ;;
   *)
     echo "unexpected gh call: $*" >&2
@@ -3413,7 +3413,7 @@ esac
   it('fails closed when successful live PR evidence has an unparseable identity URL (MC-R1-002)', () => {
     const root = createRepo('feature/136-immutable-correction-contract')
     const verdictBody = `## REVIEW_VERDICT
-**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · \`main\` · \`abc1234\`
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · \`main\` · \`abc1234000000000000000000000000000000000\`
 **Verdict:** CORRECTION REQUIRED
 **Findings:** Important: boundary bug
 **Gates:** exact-head CI https://example.test/ci → pass
@@ -3422,7 +3422,7 @@ esac
 \`\`\`json
 {
   "schema_version": 1,
-  "reviewed_head": "abc1234",
+  "reviewed_head": "abc1234000000000000000000000000000000000",
   "findings": [
     {
       "id": "MC-R1-001",
@@ -3450,7 +3450,7 @@ case "$*" in
     printf '%s' '${commentsPayload}'
     ;;
   *"pr view 200"*)
-    printf '%s' '{"title":"Correction PR","url":"not-a-github-pull-request-url","headRefName":"feature/136","baseRefName":"main","headRefOid":"abc1234","state":"OPEN","statusCheckRollup":[],"commits":[]}'
+    printf '%s' '{"title":"Correction PR","url":"not-a-github-pull-request-url","headRefName":"feature/136","baseRefName":"main","headRefOid":"abc1234000000000000000000000000000000000","state":"OPEN","statusCheckRollup":[],"commits":[]}'
     ;;
   *)
     echo "unexpected gh call: $*" >&2
@@ -4559,7 +4559,7 @@ ${review1ContractJson(head)}
           {
             body: `## REVIEW_VERDICT
 **Verdict:** CORRECTION REQUIRED
-**PR / base / head:** none · base main · head ${verdictHead}
+**PR / base / head:** none · \`main\` · \`${verdictHead}\`
 **Next:** Dev posts correction RESULT
 ${verdictBodyExtra}
 
@@ -4742,7 +4742,7 @@ esac
           {
             body: `## REVIEW_VERDICT
 **Verdict:** CORRECTION REQUIRED
-**PR / base / head:** none · base main · head ${actualHead}
+**PR / base / head:** none · \`main\` · \`${actualHead}\`
 **Next:** Dev posts correction RESULT
 
 \`\`\`json
@@ -4859,7 +4859,7 @@ esac
           {
             body: `## REVIEW_VERDICT
 **Verdict:** CORRECTION REQUIRED
-**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · main · abc1234
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/200 · \`main\` · \`abc1234000000000000000000000000000000000\`
 **Findings:** Important: boundary bug
 **Gates:** exact-head CI → pass
 **Next:** Dev posts correction RESULT
@@ -4867,7 +4867,7 @@ esac
 \`\`\`json
 {
   "schema_version": 1,
-  "reviewed_head": "abc1234",
+  "reviewed_head": "abc1234000000000000000000000000000000000",
   "findings": [
     {
       "id": "MC-R1-001",
@@ -4897,7 +4897,7 @@ case "$*" in
     printf '%s' '${commentsPayload}'
     ;;
   *"pr view 200"*)
-    printf '%s' '{"title":"Correction PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/200","headRefName":"feature/136","baseRefName":"main","headRefOid":"abc1234","state":"OPEN","statusCheckRollup":[],"commits":[]}'
+    printf '%s' '{"title":"Correction PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/200","headRefName":"feature/136","baseRefName":"main","headRefOid":"abc1234000000000000000000000000000000000","state":"OPEN","statusCheckRollup":[],"commits":[]}'
     ;;
   *)
     echo "unexpected gh call: $*" >&2

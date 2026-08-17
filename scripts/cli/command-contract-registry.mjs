@@ -683,8 +683,7 @@ const commands = {
           'predecessor_evidence_when_correction'
         ],
         compatibility_shapes: [
-          ['### Task log', 'Timestamp:', 'Task / Issue:', 'Phase:', 'Executing role:', '**PR / base / head:**', '**Verdict:**', '**Findings:**', '**Gates:**', '**Next:**'],
-          ['### Task log', 'Timestamp:', 'Task / Issue:', 'Phase:', 'Executing role:', '**Reviewed PR:**', '**Approved base:**', '**Exact head reviewed:**', '**Verdict:**', '### Critical / Important findings summary', '### Gate status', '### Next handoff']
+          ['### Task log', 'Timestamp:', 'Task / Issue:', 'Phase:', 'Executing role:', '**PR / base / head:**', '**Verdict:**', '**Findings:**', '**Gates:**', '**Next:**']
         ],
         required_sections: [
           'Review identity',

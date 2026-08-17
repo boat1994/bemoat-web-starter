@@ -73,7 +73,7 @@ function review3BlockedBody(options: { includeContract?: boolean, malformedContr
 - Executing role: Reviewer
 - Model / reasoning: GPT-5.6 Codex
 
-**PR / base / head:** PR #230 / main / · \`${REVIEWED_HEAD}\`
+**PR / base / head:** PR #230 · \`main\` · \`${REVIEWED_HEAD}\`
 **Verdict:** BLOCKED FOR FOUNDER DECISION
 **Findings:** Critical: CRITICAL-2, CRITICAL-3 remain open · Important: IMPORTANT-2 remains unproven
 **Gates:** exact-head CI pass (CI and starter-ci); local lineage suite 19/19 and safety guard pass
@@ -131,7 +131,7 @@ function pureFounderBlockedBody() {
 - Phase: Bounded Delta Review 3
 - Executing role: Reviewer
 
-**PR / base / head:** PR #230 / main / · \`${REVIEWED_HEAD}\`
+**PR / base / head:** PR #230 · \`main\` · \`${REVIEWED_HEAD}\`
 **Verdict:** BLOCKED FOR FOUNDER DECISION
 **Findings:** Critical: None · Important: None
 **Gates:** exact-head CI pass

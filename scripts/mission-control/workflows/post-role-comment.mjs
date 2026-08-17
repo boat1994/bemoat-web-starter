@@ -1,6 +1,6 @@
 import { isCorrectionPhaseResult, validateCorrectionRoleComment } from '../domain/correction-contract.ts'
 import { resolveAuthoritativeCorrectionContract } from '../domain/active-correction-contract.ts'
-import { findLatestRoleComment, findMatchingComments, normalizeTransitionIdentity, normalizeIssueComments, parsePaginatedGhApiJson, parseRoleCommentBody, resolveProductionCommentTrust, verifyPostedCommentReadback } from '../../mission-control-reconcile.mjs'
+import { classifyReviewVerdictBindingEvidence, findLatestRoleComment, findMatchingComments, normalizeTransitionIdentity, normalizeIssueComments, parsePaginatedGhApiJson, parseRoleCommentBody, resolveProductionCommentTrust, verifyPostedCommentReadback } from '../../mission-control-reconcile.mjs'
 import { projectComments, selectAuthoritativeRoleComments } from '../diagnostics/github-comment-projection.mjs'
 import { collectGitDiffFiles } from '../adapters/git-transport.mjs'
 import { postRoleComment, readRoleCommentIssue } from '../adapters/github-transport.mjs'
@@ -73,7 +73,7 @@ function validationErrors(body, contract) {
     if (failureClass === 'UNKNOWN' && decision === 'CONTINUE_IMPLEMENTATION') errors.push('UNKNOWN cannot authorize CONTINUE_IMPLEMENTATION')
   }
   if (role === 'REVIEW_VERDICT') {
-    const verdict = body.match(/^\*\*Verdict:\*\*\s*(.+?)\s*$/m)?.[1]?.trim()
+    const verdict = body.match(/^[ \t]*(?:[-*][ \t]+)?\*\*Verdict:\*\*\s*(.+?)\s*$/mi)?.[1]?.trim()
     const allowedVerdicts = roleContract?.allowed_verdicts || []
     if (allowedVerdicts.length > 0 && !allowedVerdicts.includes(verdict)) errors.push('Verdict must use the Core review verdict enum')
   }
@@ -139,6 +139,18 @@ function findIdenticalAuthoritativeRoleComment({ comments, body, role, issue }) 
 export function runPostRoleCommentWorkflow({ options, body, contract, command, format, legacyOutput = [] }) {
   const { errors, role } = validationErrors(body, contract)
   if (errors.length) throw runtimeError('EVIDENCE_CONFLICT', errors.join('; '), { errors })
+
+  if (role === 'REVIEW_VERDICT') {
+    const classification = classifyReviewVerdictBindingEvidence(body, { issueNumber: options.issue })
+    if (classification.status === 'malformed') {
+      const errorMsg = classification.error instanceof Error ? classification.error.message : String(classification.error)
+      throw runtimeError('EVIDENCE_CONFLICT', errorMsg, { errors: [errorMsg] })
+    }
+    if (classification.status !== 'valid') {
+      const errorMsg = 'STATE_CONFLICT: live REVIEW_VERDICT is missing canonical PR/base/head evidence'
+      throw runtimeError('EVIDENCE_CONFLICT', errorMsg, { errors: [errorMsg] })
+    }
+  }
 
   let canonicalContract = null
   let diffFiles = []
