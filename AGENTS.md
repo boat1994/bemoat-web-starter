@@ -225,7 +225,12 @@ commit" or "docs only, no PR."
     include brief evidence for completed items.
 12. Open a PR targeting `dev`, or update the existing PR for the branch. In
     this starter only, target `main` while the bootstrap exception applies.
-13. Include `Closes #<issue-number>` in the PR body for GitHub issue work.
+13. Include `Closes #<issue-number>` in the PR body for terminal GitHub issue
+    work. For an intermediate PR in a multi-PR/campaign issue that must remain
+    open, use non-closing linkage such as `Part of #<issue-number>` or
+    `Refs #<issue-number>`. Do not place a closing keyword for the source
+    campaign issue in either the PR body or merge-bearing commit message for an
+    intermediate slice.
 14. Post an implementation report comment on the source issue.
 15. Notify the user with the final response checklist below.
 16. Do not merge.
