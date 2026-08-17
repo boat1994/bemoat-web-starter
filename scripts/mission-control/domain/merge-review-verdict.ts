@@ -132,7 +132,7 @@ function parseCanonicalReviewTarget(
   if (!firstLine) return null
 
   const rest = firstLine[1] ?? ''
-  const match = rest.match(/^[ \t]*([^\r\n]*?)\s*·\s*`([^`\r\n]+)`\s*·\s*`([^`\r\n]+)`[ \t]*$/)
+  const match = rest.match(/^[ \t]*([^\r\n]*?)\s*·\s*`([^`\r\n@]+)`\s*·\s*`([^`\r\n]+)`[ \t]*$/)
   if (!match) {
     throw stateConflict('REVIEW_VERDICT canonical PR / base / head field is malformed, partial, or ambiguous')
   }
