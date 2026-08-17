@@ -447,6 +447,29 @@ See https://github.com/boat1994/bemoat-web-starter/pull/${historicalPr}
     expect(() => resolveMergeReviewVerdictBinding(repeatedUrl)).toThrow(/STATE_CONFLICT.*PR/i)
   })
 
+  it('fails closed when canonical base branch identity embeds a protected-base SHA (incident 5311615655)', async () => {
+    const verdictBody = `## REVIEW_VERDICT
+
+### Task log
+- Timestamp: \`2026-08-17T13:15:00+07:00\`
+- Task / Issue: #333
+- Phase: Reviewer
+- Executing role: Reviewer / Red Team
+- Model / reasoning: human
+
+**PR / base / head:** PR #359 · \`main@8dd5ea24c9d70c596fd2caba49f285400336f05a\` · \`de2d4460c9d70c596fd2caba49f285400336f05a\`
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+**Findings:** Critical: None
+**Gates:** exact-head CI pass
+**Founder gate:** Not required
+**Next:** Founder merge decision`
+
+    const { resolveMergeReviewVerdictBinding } = await mergeTransport()
+    await expect(async () => {
+      resolveMergeReviewVerdictBinding(verdictBody)
+    }).rejects.toThrow('STATE_CONFLICT: REVIEW_VERDICT canonical PR / base / head field is malformed, partial, or ambiguous')
+  })
+
   it('fails closed for existing Exact head reviewed vs Exact reviewed head conflicts', async () => {
     const { resolveMergeReviewVerdictBinding } = await mergeTransport()
     const conflicting = historicalFieldBody({
