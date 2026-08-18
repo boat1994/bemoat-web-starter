@@ -15,7 +15,7 @@ const grandfathered = [
   ['scripts/agent-delivery.mjs', 686], ['scripts/agent-issue/current-post-budget-authority.mjs', 646],
   ['scripts/agent-issue/progress-tracking.mjs', 462], ['scripts/boilerplate/filesystem.mjs', 635],
   ['scripts/boilerplate/workflow.mjs', 465], ['scripts/check-boilerplate-drift.mjs', 552],
-  ['scripts/cli/command-contract-registry.mjs', 837], ['scripts/cli/command-contract.mjs', 577],
+  ['scripts/cli/command-contract-registry.ts', 870], ['scripts/cli/command-contract.ts', 580],
   ['scripts/mission-control-dispatch.mjs', 545],
   ['scripts/mission-control-reconcile.mjs', 143],
   ['scripts/mission-control-review.mjs', 346],
@@ -81,7 +81,7 @@ describe('structural protection guard', () => {
     expect((await guard()).map((entry: { rule: string }) => entry.rule)).toEqual([])
     expect(grandfathered).toHaveLength(26)
     expect(JSON.parse(readFileSync(join(root, 'scripts/structural-protection-manifest.json'), 'utf8'))).toEqual(manifest())
-    expect(scriptInventory(root)).toBe(254)
+    expect(scriptInventory(root)).toBe(256)
   })
 
   it('rejects malformed schema, types, unknown keys, ordering, duplicates, paths, and SHA values', async () => {

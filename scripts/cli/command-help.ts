@@ -1,6 +1,7 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { z } from 'zod'
 
-import { getCommandContract } from './command-contract.mjs'
+import { getCommandContract } from './command-contract.ts'
 import {
   legacyArgvIncludes,
   parseFacadeIdentityEnv,
@@ -73,7 +74,7 @@ function resultClassifications(contract: CommandContract): unknown[] {
   ]
 }
 
-export function createHelpEnvelopeV1(inputContract: Record<string, unknown>): Record<string, unknown> {
+export function createHelpEnvelopeV1(inputContract: any): Record<string, unknown> {
   const contract = registeredContract(inputContract)
 
   return {

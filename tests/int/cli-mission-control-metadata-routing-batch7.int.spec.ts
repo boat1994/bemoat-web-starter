@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, expect, it } from 'vitest'
 
 import { missionControlPrimaryCommands } from '../../scripts/cli/mission-control-command-metadata-primary.mjs'
@@ -108,10 +109,10 @@ describe('Batch 7 characterization — CLI command metadata and routing policy l
   })
 
   it('exports primary and recovery route keys in exact order', () => {
-    expect(missionControlPrimaryRoutes().map((route) => route.route_key)).toEqual([
+    expect(missionControlPrimaryRoutes().map((route: any) => route.route_key)).toEqual([
       ...EXPECTED_PRIMARY_ROUTE_KEYS,
     ])
-    expect(missionControlRecoveryRoutes().map((route) => route.route_key)).toEqual([
+    expect(missionControlRecoveryRoutes().map((route: any) => route.route_key)).toEqual([
       ...EXPECTED_RECOVERY_ROUTE_KEYS,
     ])
     expect(missionControlPrimaryRoutes()).toHaveLength(14)
@@ -119,14 +120,14 @@ describe('Batch 7 characterization — CLI command metadata and routing policy l
   })
 
   it('expands prohibited_commands from ALL_MUTATING_COMMANDS for founder-gate routes', () => {
-    const founderGateRoutes = missionControlPrimaryRoutes().filter((route) => route.decision === 'FOUNDER_GATE')
+    const founderGateRoutes = missionControlPrimaryRoutes().filter((route: any) => route.decision === 'FOUNDER_GATE')
     expect(founderGateRoutes).toHaveLength(2)
     for (const route of founderGateRoutes) {
       expect(route.prohibited_commands).toEqual([...ALL_MUTATING_COMMANDS])
     }
 
     const recoveryStopRoutes = missionControlRecoveryRoutes().filter(
-      (route) => route.prohibited_commands.length === ALL_MUTATING_COMMANDS.length,
+      (route: any) => route.prohibited_commands.length === ALL_MUTATING_COMMANDS.length,
     )
     expect(recoveryStopRoutes.length).toBeGreaterThan(0)
     for (const route of recoveryStopRoutes) {
@@ -135,7 +136,7 @@ describe('Batch 7 characterization — CLI command metadata and routing policy l
   })
 
   it('preserves registry composition through the compatibility facades', () => {
-    const routeKeys = COMMAND_CONTRACT_REGISTRY.routes.map((route) => route.route_key)
+    const routeKeys = COMMAND_CONTRACT_REGISTRY.routes.map((route: any) => route.route_key)
     expect(routeKeys.slice(0, EXPECTED_PRIMARY_ROUTE_KEYS.length)).toEqual([...EXPECTED_PRIMARY_ROUTE_KEYS])
     expect(routeKeys.slice(EXPECTED_PRIMARY_ROUTE_KEYS.length)).toEqual([...EXPECTED_RECOVERY_ROUTE_KEYS])
     expect(routeKeys).toHaveLength(

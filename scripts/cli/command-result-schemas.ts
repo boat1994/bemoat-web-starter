@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { getCommandContract } from './command-contract.mjs'
+import { getCommandContract } from './command-contract.ts'
 
 export const CLI_EXIT_CODES = Object.freeze({
   HELP: 0,
