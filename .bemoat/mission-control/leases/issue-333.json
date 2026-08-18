@@ -3,7 +3,7 @@
   "issue": "333",
   "transition_identity": "1787069452861",
   "observed_body_sha256": "256d99d64fc99786e5f00a45e3885572c0649610d2311ef5b83cfc7a91b24ceb",
-  "holder": "mission-control-recover-state",
-  "status": "released",
-  "updated_at": "2026-08-18T16:10:57.217Z"
+  "holder": "mission-control-dispatch",
+  "status": "held",
+  "updated_at": "2026-08-18T16:30:43.481Z"
 }
