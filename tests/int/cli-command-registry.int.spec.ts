@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
@@ -264,7 +265,7 @@ describe('Task 1 command contract registry', () => {
       .sort()
     const registryCommands = Object.keys(COMMAND_CONTRACT_REGISTRY.commands).sort()
     const classifiedCommands = Object.values(COMMAND_CONTRACT_REGISTRY.commands)
-      .map((contract) => String(contract.command))
+      .map((contract) => String((contract as any).command))
       .sort()
 
     expect(packageCommands).toEqual(Object.keys(EXPECTED_PACKAGE_SCRIPTS).sort())
@@ -303,7 +304,7 @@ describe('Task 1 command contract registry', () => {
       const contract = asRecord(getCommandContract(command), command)
       expect(Object.keys(contract).sort()).toEqual([...COMMAND_FIELDS].sort())
       expect(contract.schema_version).toBe(1)
-      expect(contract.command).toBe(command)
+      expect((contract as any).command).toBe(command)
       expect(['A', 'B', 'C']).toContain(contract.tier)
       expect(typeof contract.entrypoint).toBe('string')
       expect(String(contract.entrypoint).trim()).not.toBe('')
@@ -360,7 +361,7 @@ describe('Task 1 command contract registry', () => {
       }
     }
 
-    for (const route of COMMAND_CONTRACT_REGISTRY.routes) {
+    for (const route of COMMAND_CONTRACT_REGISTRY.routes as any[]) {
       expect(Object.keys(route).sort()).toEqual([...ROUTE_FIELDS].sort())
     }
     expectRegistryValid()
@@ -426,7 +427,7 @@ describe('Task 1 command contract registry', () => {
       const contract = asRecord(getCommandContract(transport.command), transport.command)
       expect(contract.transport_role, transport.command).toBe(transport.role)
       expect(contract.exceptional, transport.command).toBe(transport.exceptional)
-      expect(contract.command).toBe(transport.command)
+      expect((contract as any).command).toBe(transport.command)
     }
 
     const canonicalCommands = new Set<string>(CANONICAL_TRANSPORTS.map((transport) => transport.command))
@@ -444,7 +445,7 @@ describe('Task 1 command contract registry', () => {
     for (const [command, tier] of Object.entries(EXPECTED_COMMAND_TIERS)) {
       if (tier !== 'A') continue
       const contract = asRecord(getCommandContract(command), command)
-      const commandRoutes = routes.filter((route) => route.canonical_command === command)
+      const commandRoutes = routes.filter((route: any) => route.canonical_command === command)
       const hasExplicitExceptionalRecord =
         contract.exceptional === true &&
         typeof contract.exclusion_reason === 'string' &&
@@ -471,10 +472,10 @@ describe('Task 1 command contract registry', () => {
 
     const routedStates = new Set(
       COMMAND_CONTRACT_REGISTRY.routes
-        .map((route) => route.observed_state)
-        .filter((state): state is string => typeof state === 'string' && state !== 'NOT_STATEFUL'),
+        .map((route: any) => route.observed_state)
+        .filter((state: any): state is string => typeof state === 'string' && state !== 'NOT_STATEFUL'),
     )
-    for (const state of EXPECTED_STATES) {
+    for (const state of EXPECTED_STATES as any[]) {
       expect(routedStates, state).toContain(state)
     }
     expectRegistryValid()

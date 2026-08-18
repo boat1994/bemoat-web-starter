@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
@@ -116,7 +117,7 @@ describe('Bemoat CLI discovery guidance', () => {
     )) {
       const contract = getCommandContract(command)
       if (contract?.tier !== 'A' && contract?.tier !== 'B') continue
-      expect(contract.safe_help_invocation, command).toBe(
+      expect((contract as any).safe_help_invocation, command).toBe(
         `pnpm run ${command} -- --help --json`,
       )
     }
@@ -124,15 +125,15 @@ describe('Bemoat CLI discovery guidance', () => {
 
   it('preserves the registry-defined Tier C delegation and safe-help boundary', () => {
     const tierC = Object.values(COMMAND_CONTRACT_REGISTRY.commands)
-      .filter((contract) => contract.tier === 'C')
+      .filter((contract) => (contract as any).tier === 'C')
 
     expect(tierC.length).toBeGreaterThan(0)
     for (const contract of tierC) {
-      expect(contract.help_meaningful, contract.command).toBe(false)
-      expect(contract.safe_help_invocation, contract.command).toEqual(
+      expect((contract as any).help_meaningful, (contract as any).command).toBe(false)
+      expect((contract as any).safe_help_invocation, (contract as any).command).toEqual(
         expect.any(String),
       )
-      expect(contract.safe_help_invocation?.trim(), contract.command).not.toBe('')
+      expect((contract as any).safe_help_invocation?.trim(), (contract as any).command).not.toBe('')
     }
   })
 

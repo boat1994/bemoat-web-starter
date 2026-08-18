@@ -2,7 +2,7 @@ import { resolve } from 'node:path'
 
 import { z } from 'zod'
 
-import { getCommandContract } from './command-contract.mjs'
+import { getCommandContract } from './command-contract.ts'
 import {
   EXCLUSIVE_INPUTS,
   FULL_SHA_RE,

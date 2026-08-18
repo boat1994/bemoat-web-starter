@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
@@ -723,7 +724,7 @@ describe('bemoat:issue:comment', () => {
     const help = JSON.parse(jsonLine!)
     const contract = getCommandContract('bemoat:issue:comment')
 
-    expect(help.stop_classifications).toEqual(contract.stop_classifications)
+    expect(help.stop_classifications).toEqual((contract as any).stop_classifications)
     expect(help.stop_classifications).toContain('AMBIGUOUS_RESULT')
   })
 
