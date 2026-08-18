@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "issue": "333",
+  "transition_identity": "1787069362441",
+  "observed_body_sha256": "7ebd059215a10a3567b09afa537a506a29b377c7c1417561b42abd5a7ad950aa",
+  "holder": "mission-control-recover-state",
+  "status": "held",
+  "updated_at": "2026-08-18T16:09:23.054Z"
+}
