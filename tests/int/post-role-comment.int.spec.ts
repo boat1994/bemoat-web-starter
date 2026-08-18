@@ -158,6 +158,9 @@ function stubGh(options: {
   failPost?: boolean
   omitPostedId?: boolean
   untrustedPost?: boolean
+  nodeIdReadback?: boolean
+  mismatchedUrl?: boolean
+  largePayload?: boolean
 } = {}) {
   const directory = mkdtempSync(join(tmpdir(), 'bemoat-role-comment-bin-'))
   tempPaths.push(directory)
@@ -183,13 +186,14 @@ if (args[0] === 'issue' && args[1] === 'comment') {
   }
   const postedId = ${options.duplicatePost === true || options.olderOnly === true ? '9002' : '9001'};
   const posted = {
-    id: postedId,
+    id: ${options.nodeIdReadback === true ? "'IC_kwDOS4T8888AAAABPOI84Q'" : 'postedId'},
+    url: 'https://github.com/acme/repo/issues/115#issuecomment-' + ${options.mismatchedUrl === true ? "'9999'" : 'postedId'},
     body: fs.readFileSync(bodyFile, 'utf8'),
     user: { login: ${options.untrustedPost === true ? "'attacker'" : "'boat1994'"} },
     author_association: ${options.untrustedPost === true ? "'NONE'" : "'OWNER'"},
     created_at: '2026-07-16T12:01:00Z',
   };
-  const older = { ...posted, id: 9001, created_at: '2026-07-16T12:00:00Z' };
+  const older = { ...posted, id: ${options.nodeIdReadback === true ? "'IC_kwDOS4T8888AAAABPOI84P'" : '9001'}, url: 'https://github.com/acme/repo/issues/115#issuecomment-9001', created_at: '2026-07-16T12:00:00Z' };
   if (${options.phantomPost === true ? 'true' : 'false'} === false) {
     const persisted = ${options.duplicatePost === true
       ? '[older, posted]'
@@ -199,7 +203,7 @@ if (args[0] === 'issue' && args[1] === 'comment') {
     fs.writeFileSync(postedPath, JSON.stringify(persisted));
   }
   if (capture) fs.writeFileSync(capture, args.join('\\n') + '\\n');
-  process.stdout.write(${options.omitPostedId === true ? "''" : "'https://github.com/acme/repo/issues/115#issuecomment-' + posted.id + '\\n'"});
+  process.stdout.write(${options.omitPostedId === true ? "''" : "'https://github.com/acme/repo/issues/115#issuecomment-' + postedId + '\\n'"});
   process.exit(0);
 }
 if (args[0] === 'issue' && args[1] === 'view' && args.includes('comments')) {
@@ -208,7 +212,10 @@ if (args[0] === 'issue' && args[1] === 'view' && args.includes('comments')) {
   const stored = fs.existsSync(postedPath) ? JSON.parse(fs.readFileSync(postedPath, 'utf8')) : [];
   const comments = Array.isArray(stored) ? stored : [stored];
   const visibleComments = ${options.delayedReadback === true ? 'readCount <= 4 ? [] : comments' : 'comments'};
-  process.stdout.write(JSON.stringify({ comments: visibleComments }));
+  if (${options.largePayload === true ? 'true' : 'false'}) {
+    visibleComments.unshift({ body: 'x'.repeat(2 * 1024 * 1024) });
+  }
+  fs.writeFileSync(1, JSON.stringify({ comments: visibleComments }));
   process.exit(0);
 }
 if (capture) fs.writeFileSync(capture, args.join('\\n') + '\\n');
@@ -592,6 +599,51 @@ describe('bemoat:issue:comment', () => {
       classification: 'AMBIGUOUS_RESULT',
       mutation_performed: true,
       next_action: { type: 'STOP', command: null },
+    })
+  })
+
+  it('recovers durable comment identity when readback uses node_ids but POST returns database ids', () => {
+    const gh = stubGh({ nodeIdReadback: true })
+    const result = run(['115', '--repo', 'acme/repo', '--json'], {
+      input: bodies.RESULT,
+      env: { PATH: gh.path, BEMOAT_GH_CAPTURE: gh.capture },
+    })
+
+    expect(result.status, result.stderr).toBe(0)
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      classification: 'SUCCESS',
+      mutation_performed: true,
+      details: { comment_id: 'IC_kwDOS4T8888AAAABPOI84Q' },
+    })
+  })
+
+  it('fails closed when a node_id comment has a mismatched database URL', () => {
+    const gh = stubGh({ nodeIdReadback: true, mismatchedUrl: true })
+    const result = run(['115', '--repo', 'acme/repo', '--json'], {
+      input: bodies.RESULT,
+      env: { PATH: gh.path, BEMOAT_GH_CAPTURE: gh.capture },
+    })
+
+    expect(result.status).toBe(4)
+    expect(result.stderr).toBe('')
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      classification: 'AMBIGUOUS_RESULT',
+      mutation_performed: true,
+    })
+  })
+
+  it('successfully performs readback for a large comment payload exceeding default maxBuffer', () => {
+    const gh = stubGh({ largePayload: true })
+    const result = run(['115', '--repo', 'acme/repo', '--json'], {
+      input: bodies.RESULT,
+      env: { PATH: gh.path, BEMOAT_GH_CAPTURE: gh.capture },
+    })
+
+    expect(result.status, result.stderr).toBe(0)
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      classification: 'SUCCESS',
+      mutation_performed: true,
+      details: { comment_id: '9001' },
     })
   })
 
