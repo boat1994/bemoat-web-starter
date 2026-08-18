@@ -1,5 +1,30 @@
-type RuntimeObject = Record<string, unknown>
+import { z } from 'zod'
 
+export const ReconstructedStateSchema = z.object({
+  schema_version: z.literal(1),
+  state: z.union([z.literal('CORRECTION_REQUIRED_1'), z.literal('CORRECTION_REQUIRED_2')]),
+  review_cycle: z.number(),
+  full_review_count: z.number(),
+  approved_base: z.string(),
+  active_task_issue: z.string(),
+  active_pr: z.string(),
+  current_head: z.string().nullable(),
+  last_reviewed_head: z.unknown(),
+  workflow_mode: z.unknown(),
+  guide_version: z.unknown(),
+  guide_source_ref: z.unknown(),
+  guide_source_sha: z.string().nullable(),
+  latest_review_verdict_comment_id: z.string(),
+  open_blockers: z.unknown(),
+  follow_up_issues: z.array(z.unknown()),
+  next_permitted_action: z.string(),
+  material_change_status: z.literal('none'),
+  updated_at: z.unknown(),
+  updated_by: z.literal('Mission Control Missing-State Recovery'),
+  recovery_evidence_fingerprint: z.unknown(),
+}).catchall(z.unknown())
+
+export type ReconstructedState = z.infer<typeof ReconstructedStateSchema>
 type ProjectionOptions = {
   issueNumber: string | number
   expectedPr: string | number
@@ -37,11 +62,11 @@ export function buildReconstructedState({
   predecessor: ProjectionPredecessor
   policy: ProjectionPolicy
   evidenceFingerprint: unknown
-}): RuntimeObject {
+}): ReconstructedState {
   const { reviewCycle, fullReviewCount } = predecessor.counters
   const state = reviewCycle === 1 ? 'CORRECTION_REQUIRED_1' : 'CORRECTION_REQUIRED_2'
   const timestamp = predecessor.updatedAt
-  return {
+  return ReconstructedStateSchema.parse({
     schema_version: 1,
     state,
     review_cycle: reviewCycle,
@@ -63,5 +88,5 @@ export function buildReconstructedState({
     updated_at: timestamp,
     updated_by: 'Mission Control Missing-State Recovery',
     recovery_evidence_fingerprint: evidenceFingerprint,
-  }
+  })
 }

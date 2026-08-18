@@ -183,6 +183,7 @@
     "tests/int/mission-control-issue-body-cas.int.spec.ts",
     "tests/int/mission-control-recover-review.int.spec.ts",
     "tests/int/mission-control-recover-review-github-adapter.int.spec.ts",
+    "tests/int/mission-control-recover-review-malformed-findings.int.spec.ts",
     "tests/int/mission-control-reopen.int.spec.ts",
     "tests/int/mission-control-reopen-github-adapter.int.spec.ts",
     "tests/int/active-correction-contract.int.spec.ts",

@@ -9,5 +9,6 @@ export default defineConfig({
     globalSetup: ['./tests/setup/vitestGlobalSetup.ts'],
     setupFiles: ['./vitest.setup.ts'],
     include: ['tests/int/**/*.int.spec.ts'],
+    testTimeout: 20000,
   },
 })

@@ -1,18 +1,45 @@
 import { createHash } from 'node:crypto'
 
+import { z } from 'zod'
+
 type RuntimeObject = Record<string, unknown>
-type RecoveryRecord = RuntimeObject
-type ValidationResult = { ok: true } | { ok: false; errors: string[] }
-type ParseResult =
+
+export const RecoveryRecordSchema = z.object({
+  schema_version: z.number().optional(),
+  record_kind: z.string().optional(),
+  repository: z.string().optional(),
+  task_issue: z.number().optional(),
+  pr: z.number().optional(),
+  base: z.string().optional(),
+  exact_head: z.string().optional(),
+  prior_last_reviewed_head: z.string().optional(),
+  review_type: z.string().optional(),
+  verdict: z.string().optional(),
+  expected_prior_state: z.string().optional(),
+  expected_prior_counters: z.object({ review_cycle: z.number().optional(), full_review_count: z.number().optional() }).catchall(z.unknown()).optional(),
+  resulting_counters: z.object({ review_cycle: z.number().optional(), full_review_count: z.number().optional() }).catchall(z.unknown()).optional(),
+  lineage: z.object({ original_review_comment_id: z.union([z.string(), z.number()]).optional(), correction_result_comment_id: z.union([z.string(), z.number()]).optional() }).catchall(z.unknown()).optional(),
+  reviewer_identity: z.object({ login: z.string().optional(), github_database_id: z.union([z.string(), z.number()]).optional(), author_association: z.string().optional(), trust_source: z.string().optional() }).catchall(z.unknown()).optional(),
+  protected_base_sha: z.unknown().optional(), incident_base_sha: z.string().optional(), execution_policy_sha: z.string().optional(), policy_source_sha: z.string().optional(),
+  ci: z.array(z.object({ name: z.string().optional(), conclusion: z.string().optional(), check_run_id: z.union([z.string(), z.number()]).optional(), head_sha: z.string().optional() }).catchall(z.unknown())).optional(),
+  resolved_findings: z.array(z.union([z.string(), z.number()])).optional(),
+  source_evidence: z.array(z.object({ location: z.union([z.string(), z.number()]).optional(), comment_id: z.union([z.string(), z.number()]).optional(), classification: z.union([z.string(), z.number()]).optional(), body_sha256: z.union([z.string(), z.number()]).optional() }).catchall(z.unknown())).optional(),
+  transition_identity_sha256: z.string().optional(),
+}).catchall(z.unknown())
+
+export type RecoveryRecord = z.infer<typeof RecoveryRecordSchema>
+
+export type ValidationResult = { ok: true; record: RecoveryRecord } | { ok: false; errors: string[] }
+export type ParseResult =
   | { ok: true; record: RecoveryRecord }
   | { ok: false; errors: string[] }
-type RecoverySourceEvidence = {
+export type RecoverySourceEvidence = {
   location: string
   comment_id: number
   classification: string
   body_sha256: string
 }
-type ReviewEvidenceComment = {
+export type ReviewEvidenceComment = {
   id?: string | number
   databaseId?: string | number
   body?: string
@@ -21,7 +48,7 @@ type ReviewEvidenceComment = {
   author?: string
   author_association?: string
 }
-type RecoveryInput = Record<string, unknown>
+export type RecoveryInput = Record<string, unknown>
 
 /**
  * The v2 recovery receipt binds one exact incident-class transport:
@@ -214,7 +241,14 @@ export function validateRecoveryRecord(record: unknown = {}): ValidationResult {
     delete withoutIdentity.transition_identity_sha256
     if (sha256(stableRecoverySerialize(withoutIdentity)) !== identity) errors.push('transition_identity_sha256 does not match canonical recovery evidence')
   }
-  return { ok: errors.length === 0, errors }
+  if (errors.length === 0) {
+    try {
+      return { ok: true, record: RecoveryRecordSchema.parse(record) }
+    } catch {
+      errors.push('recovery record validation failed against schema')
+    }
+  }
+  return { ok: false, errors }
 }
 
 export function buildRecoveryRecord(input: RecoveryInput = {}): RecoveryRecord {
@@ -225,14 +259,14 @@ export function buildRecoveryRecord(input: RecoveryInput = {}): RecoveryRecord {
   delete provided.record_kind
   const sourceEvidence = provided.source_evidence
   const exactHeadChecks = provided.exact_head_checks
-  const record: RecoveryRecord = {
+  const record: Record<string, unknown> = {
     schema_version: RECOVERY_SCHEMA_VERSION, record_kind: RECOVERY_RECORD_KIND,
     repository: 'boat1994/bemoat-web-starter', task_issue: 274, pr: 275, base: 'main',
     exact_head: provided.exact_head, review_type: 'delta', verdict: 'ELIGIBLE FOR FOUNDER REVIEW',
     expected_prior_state: 'AWAITING_REVIEW_2', expected_prior_counters: { review_cycle: 1, full_review_count: 1 },
     resulting_counters: { review_cycle: 2, full_review_count: 1 },
     prior_last_reviewed_head: provided.prior_last_reviewed_head ?? provided.previous_reviewed_head,
-    resolved_findings: Array.isArray(provided.resolved_findings) ? [...provided.resolved_findings] : [...(Array.isArray(provided.findings) ? provided.findings : [])],
+    resolved_findings: Array.isArray(provided.resolved_findings) ? [...provided.resolved_findings] : [...(provided.findings as Iterable<unknown> ?? [])],
     reviewer_identity: provided.reviewer_identity ?? { login: provided.reviewer_login, github_database_id: 36528988, author_association: 'OWNER', trust_source: 'repository-owned reviewer trust policy' },
     source_evidence: Array.isArray(sourceEvidence) ? normalizedSourceEvidence(sourceEvidence) : sourceEvidence,
     lineage: provided.lineage ?? { original_review_comment_id: provided.original_review_comment_id, correction_result_comment_id: provided.correction_result_comment_id },
@@ -274,7 +308,7 @@ export function parseRecoveryReceipt(body: string = ''): ParseResult {
   try {
     const record: unknown = JSON.parse(match[1])
     const validation = validateRecoveryRecord(record)
-    if (validation.ok) return { ok: true, record: isRecord(record) ? record : {} }
+    if (validation.ok) return { ok: true, record: validation.record }
     if ('errors' in validation) return { ok: false, errors: validation.errors }
     return { ok: false, errors: ['recovery receipt validation failed'] }
   } catch { return { ok: false, errors: ['recovery receipt JSON is invalid'] } }
