@@ -198,7 +198,7 @@ describe('scripts/mission-control-review.mjs CLI characterization', () => {
 - Task / Issue: #229
 - Phase: Bounded Delta Review 3
 - Executing role: Reviewer
-**PR / base / head:** PR #230 / main / · \`${FULL_HEAD}\`
+**PR / base / head:** PR #230 · \`main\` · \`${FULL_HEAD}\`
 **Verdict:** BLOCKED FOR FOUNDER DECISION
 **Findings:** Critical: None · Important: None
 **Gates:** exact-head CI pass

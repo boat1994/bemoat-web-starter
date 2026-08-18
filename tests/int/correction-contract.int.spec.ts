@@ -514,7 +514,7 @@ describe('correction-contract pure module', () => {
   it('parses mode from correction contract JSON and validates shape', () => {
     const verdictWithMode = `## REVIEW_VERDICT
 **Verdict:** CORRECTION REQUIRED
-**PR / base / head:** none · base main · head 3d0e83e
+**PR / base / head:** none · \`main\` · \`3d0e83e\`
 **Next:** Dev posts correction RESULT
 
 \`\`\`json

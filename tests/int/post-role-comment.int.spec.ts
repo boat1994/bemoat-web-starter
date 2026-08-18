@@ -91,16 +91,11 @@ const documentedReviewVerdict = `## REVIEW_VERDICT
 - Task / Issue: #115
 - Phase: Reviewer
 - Executing role: Reviewer
-**Reviewed PR:** https://github.com/acme/repo/pull/12
-**Approved base:** main
-**Exact head reviewed:** abc1234
+**PR / base / head:** https://github.com/acme/repo/pull/12 · \`main\` · \`1234567890abcdef1234567890abcdef12345678\`
 **Verdict:** ELIGIBLE FOR FOUNDER REVIEW
-### Critical / Important findings summary
-- Critical: None
-### Gate status
-- Exact-head CI: pass
-### Next handoff
-- Founder review
+**Findings:** None
+**Gates:** pass
+**Next:** Founder review
 `
 const FULL_HEAD = 'ABCDEF0123456789ABCDEF0123456789ABCDEF01'
 
@@ -656,16 +651,11 @@ describe('bemoat:issue:comment', () => {
 - Task / Issue: #115
 - Phase: Reviewer
 - Executing role: Reviewer
-**Reviewed PR:** https://github.com/acme/repo/pull/12
-**Approved base:** main
-**Exact head reviewed:** 1234567890abcdef1234567890abcdef12345678
+**PR / base / head:** https://github.com/acme/repo/pull/12 · \`main\` · \`1234567890abcdef1234567890abcdef12345678\`
 **Verdict:** CORRECTION REQUIRED
-### Critical / Important findings summary
-- Important: needs fix
-### Gate status
-- CI: pass
-### Next handoff
-- Dev
+**Findings:** needs fix
+**Gates:** pass
+**Next:** Dev
 \n${correctionSchema.canonical_example}`
 
     // Now test that this body passes the public check path
@@ -752,7 +742,7 @@ describe('bemoat:issue:comment', () => {
 - Task / Issue: #229
 - Phase: Bounded Delta Review 3
 - Executing role: Reviewer
-**PR / base / head:** PR #230 / main / · \`8b73bdfec3ebdec69588069fa275baf4fd15c333\`
+**PR / base / head:** PR #230 · \`main\` · \`8b73bdfec3ebdec69588069fa275baf4fd15c333\`
 **Verdict:** BLOCKED FOR FOUNDER DECISION
 **Findings:** Critical: CRITICAL-2, CRITICAL-3 remain open · Important: IMPORTANT-2 remains unproven
 **Gates:** exact-head CI pass
@@ -770,7 +760,7 @@ describe('bemoat:issue:comment', () => {
 - Task / Issue: #229
 - Phase: Bounded Delta Review 3
 - Executing role: Reviewer
-**PR / base / head:** PR #230 / main / · \`8b73bdfec3ebdec69588069fa275baf4fd15c333\`
+**PR / base / head:** PR #230 · \`main\` · \`8b73bdfec3ebdec69588069fa275baf4fd15c333\`
 **Verdict:** BLOCKED FOR FOUNDER DECISION
 **Findings:** Critical: None · Important: None
 **Gates:** exact-head CI pass
