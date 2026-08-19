@@ -18,10 +18,7 @@ in a coordination run.
 5. Reconstruct authority and state from live GitHub evidence; chat/local reports are not authoritative.
 6. Before selecting or executing a Mission Control flow, use repository-defined Bemoat CLI Discovery and follow the discovered public command contract.
 7. Fail closed when authority, state, policy, evidence, or command contract cannot be verified.
-8. Perform at most one bounded objective or explicitly authorized safe execution
-   bundle. Keep one authority scope and one terminal durable outcome; write the
-   durable GitHub result when authorized, name one next permitted action, and
-   stop.
+8. Perform one bounded objective or explicitly authorized safe execution bundle at a time. Keep one authority scope and one terminal durable outcome per objective; write the durable GitHub result when authorized. Minimize Founder interruptions and continue while the fresh canonical route is `COMMAND`. Return to the Founder only for a genuine human decision/gate, fail-closed/unsupported route, or completion.
 
 ## Required response structure
 
