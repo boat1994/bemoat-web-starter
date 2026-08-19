@@ -113,6 +113,44 @@ export function selectActiveRoleComments(comments = [], role) {
   })
 }
 
+export function isPostBudgetReviewState(state) {
+  return state?.state === 'BLOCKED_FOR_FOUNDER_DECISION' &&
+    state.review_cycle === 3 &&
+    state.full_review_count === 1 &&
+    Array.isArray(state.post_budget_reviews) &&
+    state.post_budget_reviews.length === 0 &&
+    state.active_pr &&
+    state.current_head
+}
+
+function hasCompetingCurrentHeadReviewVerdicts(comments, issueNumber, activePr, currentHead) {
+  const candidates = selectActiveRoleComments(comments, 'REVIEW_VERDICT').filter((comment) => {
+    const body = String(comment.body ?? '')
+    const taskIssue = body.match(/\*\*Task(?:\s*\/\s*Issue)?:\*\*\s*(?:Issue\s*)?#?(\d+)/i)?.[1] ?? null
+    if (taskIssue && String(taskIssue) !== String(issueNumber)) return false
+    const parsed = parseRoleCommentBody(body)
+    return parsed.role === 'REVIEW_VERDICT' &&
+      String(parsed.prNumber ?? '') === String(activePr ?? '') &&
+      String(parsed.headSha ?? '').toLowerCase() === String(currentHead ?? '').toLowerCase()
+  })
+  return candidates.length > 1
+}
+
+export function getPostBudgetReviewEvidenceBlockers(comments, issueNumber, activePrRef, state) {
+  if (!isPostBudgetReviewState(state)) return []
+  if (!comments) return ['BLOCKED_EXTERNAL: authoritative Review 4 verdict evidence is unavailable.']
+
+  try {
+    if (hasCompetingCurrentHeadReviewVerdicts(comments, issueNumber, activePrRef, state.current_head)) {
+      return ['STATE_CONFLICT: competing active REVIEW_VERDICT comments for the managed PR.']
+    }
+  } catch (error) {
+    return [error instanceof Error ? error.message : `STATE_CONFLICT: ${String(error)}`]
+  }
+
+  return []
+}
+
 function parseCanonicalReviewTarget(body = '') {
   const match = body.match(
     /^\*\*PR\s*\/\s*base\s*\/\s*head:\*\*[^\n]*?·\s*`([^`]+)`\s*·\s*`([0-9a-f]{7,40})`\s*$/im,

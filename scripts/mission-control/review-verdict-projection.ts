@@ -114,6 +114,10 @@ export function projectReviewVerdictState({
 }
 
 export function proposeReviewReconciliation(input: ReviewReconciliationInput): ReviewReconciliation {
+  if (input.postBudget === true) {
+    return proposePostBudgetReviewReconciliation(input)
+  }
+
   const reviewCycle = (input.reviewCycle ?? 0) as number
   const reviewedHead = normalizeAuthorityHead(input.reviewedHead)
 
@@ -139,6 +143,83 @@ export function proposeReviewReconciliation(input: ReviewReconciliationInput): R
     last_reviewed_head: reviewedHead,
     next_permitted_action: nextActionForVerdict(input.verdict as string, nextCycle),
   }
+}
+
+function proposePostBudgetReviewReconciliation(input: ReviewReconciliationInput): ReviewReconciliation {
+  const prior = input.managedState
+  if (!isManagedState(prior)) throw new Error('post-budget review reconciliation requires prior managed state')
+
+  const reviewedHead = normalizeAuthorityHead(input.reviewedHead)
+  if (!reviewedHead) throw new Error('post-budget review reconciliation requires exact reviewed head')
+
+  const verdict = input.verdict as string
+  if (!isCoreVerdict(verdict)) throw new Error('post-budget review reconciliation requires a Core verdict')
+
+  const authorization = input.authorization
+  if (!authorization || typeof authorization !== 'object' || Array.isArray(authorization)) {
+    throw new Error('post-budget review reconciliation requires Founder authorization')
+  }
+
+  const findingDispositions = input.findingDispositions
+  if (!Array.isArray(findingDispositions) || findingDispositions.length === 0) {
+    throw new Error('post-budget review reconciliation requires immutable finding dispositions')
+  }
+
+  const reviewNumber = 4
+  const priorLineage = Array.isArray(prior.finding_lineage) ? structuredClone(prior.finding_lineage) : []
+  const dispositionById = new Map(
+    findingDispositions
+      .filter((finding) => finding && typeof finding === 'object' && !Array.isArray(finding))
+      .map((finding) => [String(finding.finding_id), finding]),
+  )
+  const lineage = priorLineage.map((finding) => {
+    if (!finding || typeof finding !== 'object' || Array.isArray(finding)) return finding
+    const findingId = String((finding as Record<string, unknown>).finding_id ?? '')
+    const latest = dispositionById.get(findingId)
+    return latest ? { ...finding, disposition: latest.disposition } : finding
+  })
+  const knownLineageIds = new Set(lineage.map((finding) =>
+    finding && typeof finding === 'object' && !Array.isArray(finding)
+      ? String((finding as Record<string, unknown>).finding_id ?? '')
+      : '',
+  ))
+  for (const finding of findingDispositions) {
+    const findingId = String(finding?.finding_id ?? '')
+    if (findingId && !knownLineageIds.has(findingId)) lineage.push(structuredClone(finding))
+  }
+
+  const openBlockers = verdict === 'ELIGIBLE FOR FOUNDER REVIEW'
+    ? []
+    : findingDispositions
+      .filter((finding) => !/^(?:resolved|accepted|closed|none)$/i.test(String(finding?.disposition ?? '').trim()))
+      .map((finding) => String(finding.finding_id))
+
+  const postBudgetReview: Record<string, unknown> = {
+    review_number: reviewNumber,
+    pr_number: String(input.prNumber ?? '').replace(/^#/, ''),
+    base: String(input.base ?? '').trim(),
+    reviewed_head: reviewedHead,
+    verdict,
+    verdict_comment_id: String(input.verdictCommentId ?? ''),
+    authorization: structuredClone(authorization),
+    finding_dispositions: structuredClone(findingDispositions),
+  }
+  if (input.verdictUrl) postBudgetReview.verdict_url = String(input.verdictUrl)
+
+  return {
+    state: resolveReviewVerdictState(verdict, 3),
+    review_cycle: 3,
+    full_review_count: 1,
+    last_reviewed_head: reviewedHead,
+    next_permitted_action: nextActionForVerdict(verdict, 3),
+    current_head: reviewedHead,
+    open_blockers: openBlockers,
+    finding_lineage: lineage,
+    post_budget_reviews: [postBudgetReview],
+    latest_review_verdict_comment_id: String(input.verdictCommentId ?? ''),
+    latest_transition_identity: input.transitionIdentity,
+    material_change_status: 'none',
+  } as ReviewReconciliation
 }
 
 function resolveReviewVerdictState(verdict: string, currentReviewCycle = 0): string {

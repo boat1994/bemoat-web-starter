@@ -130,6 +130,56 @@ const sampleVerdict = `## REVIEW_VERDICT
 `
 const FULL_SAMPLE_HEAD = 'abc1234'.padEnd(40, '0')
 
+function authorizedPostBudgetReview4Context(overrides: Record<string, any> = {}) {
+  const reviewedHead = 'c'.repeat(40)
+  const verdictBody = `## REVIEW_VERDICT
+
+**Task / Issue:** #333
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/366 · \`main\` · \`${reviewedHead}\`
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+
+### Immutable finding disposition
+- \`MC-R2-004\`: Resolved.
+`
+  return {
+    managedState: {
+      state: 'BLOCKED_FOR_FOUNDER_DECISION',
+      review_cycle: 3,
+      full_review_count: 1,
+      approved_base: 'main',
+      active_task_issue: '#333',
+      active_pr: '#366',
+      current_head: reviewedHead,
+      last_reviewed_head: 'd'.repeat(40),
+      post_budget_reviews: [] as unknown[],
+      founder_decision: {
+        status: 'approved',
+        authority: 'Founder',
+        scope: 'review',
+        review_number: 4,
+        reviewed_head: reviewedHead,
+        action: `Authorize exactly one bounded Review 4 on PR #366 at exact head ${reviewedHead}`,
+        authorized_at: '2026-08-19T00:00:00Z',
+      },
+      open_blockers: ['MC-R2-004'],
+    },
+    livePr: { number: '366', headRefOid: reviewedHead, baseRefName: 'main' },
+    exactHeadCi: { available: true, exactHeadVerified: true, headSha: reviewedHead, ciSha: reviewedHead },
+    latestVerdict: {
+      parsed: {
+        verdict: 'ELIGIBLE FOR FOUNDER REVIEW',
+        prNumber: '366',
+        headSha: reviewedHead,
+        base: 'main',
+      },
+      comment: { id: '5337047094', body: verdictBody },
+    },
+    activeTaskIssue: '333',
+    stateConflictBlockers: [] as string[],
+    ...overrides,
+  }
+}
+
 describe('mission-control reconcile classifiers', () => {
   it('keeps review verdict projection owned by TypeScript after facade removal', async () => {
     const { existsSync } = await import('node:fs')
@@ -1230,6 +1280,130 @@ describe('mission-control reconcile classifiers', () => {
     )
 
     expect(lag.kind).toBe('DETERMINISTIC_RECONCILIATION')
+  })
+
+  it('characterizes authorized post-budget Review 4 lag instead of a false NO_OP', () => {
+    const reviewedHead = 'a'.repeat(40)
+    const analysis = analyzeReconciliation({
+      managedState: {
+        state: 'BLOCKED_FOR_FOUNDER_DECISION',
+        review_cycle: 3,
+        full_review_count: 1,
+        approved_base: 'main',
+        active_task_issue: '#333',
+        active_pr: '#366',
+        current_head: reviewedHead,
+        last_reviewed_head: 'b'.repeat(40),
+        post_budget_reviews: [],
+        founder_decision: {
+          status: 'approved',
+          authority: 'Founder',
+          scope: 'review',
+          review_number: 4,
+          reviewed_head: reviewedHead,
+          action: `Authorize exactly one bounded Review 4 on PR #366 at exact head ${reviewedHead}`,
+          authorized_at: '2026-08-19T00:00:00Z',
+        },
+        open_blockers: ['MC-R2-004'],
+      },
+      livePr: { number: '366', headRefOid: reviewedHead, baseRefName: 'main' },
+      exactHeadCi: { available: true, exactHeadVerified: true, headSha: reviewedHead, ciSha: reviewedHead },
+      latestVerdict: {
+        parsed: {
+          verdict: 'ELIGIBLE FOR FOUNDER REVIEW',
+          prNumber: '366',
+          headSha: reviewedHead,
+          base: 'main',
+        },
+        comment: {
+          id: '5337047094',
+          body: `## REVIEW_VERDICT
+
+**Task / Issue:** #333
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/366 · \`main\` · \`${reviewedHead}\`
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+
+### Immutable finding disposition
+- \`MC-R2-004\`: Resolved.
+`,
+        },
+      },
+      activeTaskIssue: '333',
+      stateConflictBlockers: [],
+    })
+
+    expect(analysis.review).toMatchObject({ lag: true, kind: 'DETERMINISTIC_RECONCILIATION' })
+    expect(analysis.classification.outcome).toBe('BOOKKEEPING_REPAIR')
+    expect(analysis.proposal?.type).toBe('review')
+    expect(analysis.proposal?.fields).toMatchObject({
+      state: 'ELIGIBLE_FOR_FOUNDER_REVIEW',
+      review_cycle: 3,
+      full_review_count: 1,
+      current_head: reviewedHead,
+      last_reviewed_head: reviewedHead,
+      open_blockers: [],
+      post_budget_reviews: [{
+        review_number: 4,
+        pr_number: '366',
+        base: 'main',
+        reviewed_head: reviewedHead,
+        verdict: 'ELIGIBLE FOR FOUNDER REVIEW',
+        verdict_comment_id: '5337047094',
+        authorization: expect.objectContaining({ review_number: 4, reviewed_head: reviewedHead }),
+        finding_dispositions: [{ finding_id: 'MC-R2-004', disposition: 'resolved' }],
+      }],
+      finding_lineage: [{ finding_id: 'MC-R2-004', disposition: 'resolved' }],
+    })
+  })
+
+  it('projects authorized Review 4 once and makes an identical retry deterministic NO_OP', async () => {
+    const context = authorizedPostBudgetReview4Context()
+    let state = structuredClone(context.managedState)
+    let writes = 0
+    const readEvidence = async () => {
+      const analysis = analyzeReconciliation({ ...context, managedState: state })
+      return {
+        managedState: state,
+        classification: analysis.classification,
+        bookkeepingProposal: analysis.proposal?.fields ?? null,
+      }
+    }
+    const writeState = async (next: any, expected: any) => {
+      expect(state).toEqual(expected)
+      writes += 1
+      state = structuredClone(next)
+      return structuredClone(state)
+    }
+
+    const first = await runBoundedReconciliation({ readEvidence, writeState })
+    expect(first.finalOutcome).toBe('NO_OP')
+    expect(first.measurements.state_writes).toBe(1)
+    expect(writes).toBe(1)
+    expect(state).toMatchObject({
+      state: 'ELIGIBLE_FOR_FOUNDER_REVIEW',
+      review_cycle: 3,
+      full_review_count: 1,
+      post_budget_reviews: [{ review_number: 4 }],
+    })
+
+    const retry = await runBoundedReconciliation({ readEvidence, writeState })
+    expect(retry.finalOutcome).toBe('NO_OP')
+    expect(retry.measurements.state_writes).toBe(0)
+    expect(writes).toBe(1)
+  })
+
+  it.each([
+    ['missing Founder authorization', (context: any) => { context.managedState.founder_decision = null }, 'STATE_CONFLICT'],
+    ['missing Review 4 verdict', (context: any) => { context.latestVerdict = null }, 'BLOCKED_EXTERNAL'],
+    ['base drift', (context: any) => { context.livePr.baseRefName = 'dev' }, 'STATE_CONFLICT'],
+    ['pending exact-head CI', (context: any) => { context.exactHeadCi = { available: true, exactHeadVerified: false } }, 'BLOCKED_EXTERNAL'],
+    ['stale exact-head CI', (context: any) => { context.exactHeadCi = { available: true, exactHeadVerified: false, olderShaSuccess: true } }, 'STATE_CONFLICT'],
+  ])('fails closed for %s', (label, mutate, expectedOutcome) => {
+    const context = authorizedPostBudgetReview4Context()
+    mutate(context)
+    const analysis = analyzeReconciliation(context)
+    expect(analysis.classification.outcome, label).toBe(expectedOutcome)
+    expect(analysis.proposal).toBeNull()
   })
 
   it('analyzeReconciliation returns a delivery proposal without genuine conflict', () => {
