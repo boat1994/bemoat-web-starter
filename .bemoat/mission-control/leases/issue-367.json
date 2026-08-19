@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "issue": "367",
-  "transition_identity": "{\"taskId\":\"367\",\"phase\":\"Dev (implementation)\",\"role\":\"RESULT\",\"contentHash\":\"c4f786d72814563e056642d131eb6eca4b4e68559605738b32f91f9e45e4d098\"}",
+  "transition_identity": "{\"taskId\":\"367\",\"phase\":\"Review 1 — Full Semantic Review\",\"role\":\"REVIEW_VERDICT\",\"contentHash\":\"1cba19179012350e15272cdc071316cd9ac274200e9d15664847661052acee4b\"}",
   "observed_body_sha256": "ba5bff8a3aadfeaa20df603167e35e0e79557dc1d4165622dd2c4f5b5c0ccc0b",
-  "holder": "agent-delivery",
-  "status": "released",
-  "updated_at": "2026-08-19T06:06:22.872Z"
+  "holder": "mission-control-review",
+  "status": "held",
+  "updated_at": "2026-08-19T06:22:21.420Z"
 }
