@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "issue": "371",
+  "transition_identity": "{\"taskId\":\"371\",\"phase\":\"Dev\",\"role\":\"HANDOFF\",\"contentHash\":\"5c46108ce0d23bf7e7d3b6bde9abb3880548854c16348eb4d53ce874aa2c456b\"}",
+  "observed_body_sha256": "5c2f25e8675d236c2125fa5e1d5e4449d5af9ebb9f50d92cc48a92e23c291ae1",
+  "holder": "mission-control-dispatch",
+  "status": "held",
+  "updated_at": "2026-08-19T07:38:41.001Z"
+}
