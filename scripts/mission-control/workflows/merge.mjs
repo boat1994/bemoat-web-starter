@@ -75,7 +75,11 @@ import {
   validateFounderMergeAuthorization,
   validateFounderMergeAuthorizationEvidence,
 } from '../domain/merge-founder-authority.ts'
-import { defaultRunGh as transportRunGh, runNodeTransport } from '../adapters/merge-github.mjs'
+import {
+  defaultRunGh as transportRunGh,
+  readProtectedRef as transportReadProtectedRef,
+  runNodeTransport,
+} from '../adapters/merge-github.mjs'
 
 export {
   AUTHORIZATION_VALIDATION_FAILURE,
@@ -113,8 +117,8 @@ export function validateMergeReviewVerdict({ reviewVerdict, expected }) {
   return true
 }
 
-function verifyHeadBindings(state, pr, authorization, repo) {
-  const result = classifyHeadBindings(state, pr, authorization, repo)
+function verifyHeadBindings(state, pr, authorization, repo, protectedBaseSha) {
+  const result = classifyHeadBindings(state, pr, authorization, repo, protectedBaseSha)
   if (!result.valid) throw stateConflict(result.reason)
   return result.reviewedHead
 }
@@ -276,6 +280,14 @@ export async function runFounderAuthorizedMerge({
 
   const authorization = await deps.readFounderAuthorization(repo, issueNumber, authorizationCommentId)
   const trustedFounderLogins = await deps.readTrustedFounderLogins(repo)
+  if (typeof deps.readProtectedRef !== 'function') {
+    throw blockedExternal('live protected base ref evidence is unavailable while verifying merge authority')
+  }
+  const liveProtectedBase = await deps.readProtectedRef(repo, state.approved_base)
+  const protectedBaseSha = liveProtectedBase?.object?.sha
+  if (!FULL_SHA_RE.test(String(protectedBaseSha ?? ''))) {
+    throw blockedExternal('live protected base ref is unavailable while verifying merge authority')
+  }
   const reviewedHead = state.last_reviewed_head
   const reviewCommentId = authorization?.review_verdict_comment_id ?? state.latest_review_verdict_comment_id
   validateFounderMergeAuthorization({
@@ -289,7 +301,7 @@ export async function runFounderAuthorizedMerge({
     policyVersion: state.guide_version,
     reviewCommentId,
     policySourceSha: state.guide_source_sha,
-    protectedBaseSha: pr.baseRefOid,
+    protectedBaseSha,
     trustedFounderLogins,
   })
   const campaignRoute = await resolveCampaignMergeRoute({
@@ -315,7 +327,7 @@ export async function runFounderAuthorizedMerge({
       base: state.approved_base,
     },
   })
-  verifyHeadBindings(state, pr, authorization, repo)
+  verifyHeadBindings(state, pr, authorization, repo, protectedBaseSha)
   verifyNoAutomaticClosure(pr, issueNumber, repo)
 
   const alreadyDone = state.state === 'DONE'
@@ -533,7 +545,7 @@ export async function runFounderAuthorizedMerge({
         mutationStarted = true
         await deps.markReadyForReview(prNumber, repo)
         pr = await deps.readPullRequest(prNumber, repo)
-        verifyHeadBindings(state, pr, authorization, repo)
+        verifyHeadBindings(state, pr, authorization, repo, protectedBaseSha)
         const currentReviewVerdict = await deps.readReviewVerdict(repo, issueNumber, reviewCommentId)
         validateMergeReviewVerdict({
           reviewVerdict: currentReviewVerdict,
@@ -652,6 +664,7 @@ const runGh = transportRunGh
 const runNode = runNodeTransport
 
 export function createProductionDeps() {
+  const readProtectedRef = async (repo, base = 'main') => transportReadProtectedRef(runGh, repo, base)
   const readManagedIssue = async (issueNumber, repo) => {
     const issue = JSON.parse(runGh(['issue', 'view', String(issueNumber), '--repo', repo, '--json', 'number,id,title,body,state,stateReason']))
     const parsed = parseMissionControlState(issue.body)
@@ -699,7 +712,7 @@ export function createProductionDeps() {
     const [comments, trustedFounderLogins, mainRef] = await Promise.all([
       Promise.resolve(readIssueComments(repo, campaignIssue)),
       readTrustedFounderLogins(repo),
-      Promise.resolve(JSON.parse(runGh(['api', `repos/${repo}/git/ref/heads/main`]))),
+      readProtectedRef(repo, 'main'),
     ])
     const currentProtectedBaseSha = mainRef?.object?.sha
     if (!FULL_SHA_RE.test(String(currentProtectedBaseSha ?? ''))) {
@@ -795,6 +808,7 @@ export function createProductionDeps() {
       return parseProductionMergeReviewVerdict(comment.body, comment.id)
     },
     readTrustedFounderLogins,
+    readProtectedRef,
     readCampaignAuthorityEvidence,
     markReadyForReview: async (prNumber, repo) => { runGh(['pr', 'ready', String(prNumber), '--repo', repo]) },
     mergePullRequest: async ({ prNumber, repo, expectedHead }) => {
