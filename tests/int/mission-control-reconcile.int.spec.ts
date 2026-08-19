@@ -6,6 +6,7 @@ import * as reconcileModule from '../../scripts/mission-control-reconcile.mjs'
 import * as coordinatorTransitions from '../../scripts/mission-control/coordinator-transitions.mjs'
 import { parseMissionControlState, renderMissionControlState } from '../../scripts/mission-control/domain/task-state.ts'
 import * as reviewVerdictProjectionFacade from '../../scripts/mission-control/review-verdict-projection.ts'
+import { getPostBudgetReviewEvidenceBlockers } from '../../scripts/mission-control/review-verdict-binding.mjs'
 
 // Shared .mjs scripts expose runtime behavior, not TypeScript declarations. Keep
 // the strict-project boundary explicit without changing the production API.
@@ -1354,6 +1355,61 @@ describe('mission-control reconcile classifiers', () => {
       }],
       finding_lineage: [{ finding_id: 'MC-R2-004', disposition: 'resolved' }],
     })
+  })
+
+  it('fails closed without writes when an older active malformed verdict precedes valid Review 4 evidence', async () => {
+    const context = authorizedPostBudgetReview4Context()
+    const malformedVerdict = {
+      id: '5337047000',
+      createdAt: '2026-08-19T00:00:00Z',
+      body: `## REVIEW_VERDICT
+
+**Task / Issue:** #333
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+`,
+    }
+    const validVerdict = {
+      ...context.latestVerdict.comment,
+      createdAt: '2026-08-19T00:01:00Z',
+    }
+    const comments = [malformedVerdict, validVerdict]
+
+    const blockers = getPostBudgetReviewEvidenceBlockers(
+      comments,
+      '333',
+      '#366',
+      context.managedState,
+    )
+    expect(blockers).toEqual([expect.stringContaining('STATE_CONFLICT')])
+
+    let writes = 0
+    const readEvidence = async () => {
+      const evidenceBlockers = getPostBudgetReviewEvidenceBlockers(
+        comments,
+        '333',
+        '#366',
+        context.managedState,
+      )
+      const analysis = analyzeReconciliation({
+        ...context,
+        stateConflictBlockers: evidenceBlockers,
+      })
+      return {
+        managedState: context.managedState,
+        classification: analysis.classification,
+        bookkeepingProposal: analysis.proposal?.fields ?? null,
+      }
+    }
+    const writeState = async () => {
+      writes += 1
+      return context.managedState
+    }
+
+    const result = await runBoundedReconciliation({ readEvidence, writeState })
+
+    expect(result.finalOutcome).toBe('STATE_CONFLICT')
+    expect(result.measurements.state_writes).toBe(0)
+    expect(writes).toBe(0)
   })
 
   it('projects authorized Review 4 once and makes an identical retry deterministic NO_OP', async () => {

@@ -141,6 +141,11 @@ export function getPostBudgetReviewEvidenceBlockers(comments, issueNumber, activ
   if (!comments) return ['BLOCKED_EXTERNAL: authoritative Review 4 verdict evidence is unavailable.']
 
   try {
+    classifyManagedPrReviewVerdicts({
+      comments,
+      issueNumber,
+      livePrNumber: String(activePrRef ?? '').replace(/^#/, ''),
+    })
     if (hasCompetingCurrentHeadReviewVerdicts(comments, issueNumber, activePrRef, state.current_head)) {
       return ['STATE_CONFLICT: competing active REVIEW_VERDICT comments for the managed PR.']
     }
