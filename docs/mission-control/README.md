@@ -7,11 +7,12 @@ reading the entire guide first.
 
 ## What Mission Control is
 
-Mission Control determines the current **verified** project state from GitHub,
-selects **exactly one** permitted next action, routes that action to the correct
-role (Dev, Reviewer, or Founder), records the durable result in GitHub, and
-stops.
+Mission Control operates across two conceptual planes:
 
+- **Coordination / Global MC** (ChatGPT-side controller): Reconstructs verified GitHub state, selects exactly one bounded next action, routes it, and stops.
+- **Execution MC** (IDE-side orchestrator): Receives one bounded objective, loads repository rules, discovers the applicable public command contract, coordinates Dev/Test/Reviewer work, executes/verifies, and publishes durable state.
+
+Both layers use the same canonical Mission Control policy and GitHub durable state.
 It is **not** the default implementation agent, a perpetual reviewer, or an
 auto-merge system.
 
