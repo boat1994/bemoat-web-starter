@@ -31,6 +31,21 @@ describe('mission-control merge GitHub adapter', () => {
     ]])
   })
 
+  it('reads the live protected base ref through the canonical GitHub adapter', async () => {
+    const calls: string[][] = []
+    const deps = createProductionMergeDeps({
+      runGh(args: string[]) {
+        calls.push(args)
+        return JSON.stringify({ object: { sha: 'e'.repeat(40) } })
+      },
+    })
+
+    await expect(deps.readProtectedRef('boat1994/bemoat-web-starter', 'main')).resolves.toEqual({
+      object: { sha: 'e'.repeat(40) },
+    })
+    expect(calls).toEqual([['api', 'repos/boat1994/bemoat-web-starter/git/ref/heads/main']])
+  })
+
   it('maps a concrete GitHub transport failure to BLOCKED_EXTERNAL', async () => {
     const originalPath = process.env.PATH
     process.env.PATH = ''
