@@ -1,0 +1,138 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars -- test mocks */
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
+import { main } from '../../scripts/mission-control/workflows/authorize-founder.mjs'
+import * as mergeGithub from '../../scripts/mission-control/adapters/merge-github.mjs'
+import * as taskBootstrapGithub from '../../scripts/mission-control/adapters/task-bootstrap-github.mjs'
+
+vi.mock('../../scripts/mission-control/adapters/merge-github.mjs', () => ({
+  defaultRunGh: vi.fn(),
+  readProtectedRef: vi.fn(),
+}))
+
+vi.mock('../../scripts/mission-control/adapters/task-bootstrap-github.mjs', () => ({
+  createTaskBootstrapGithubAdapter: vi.fn(),
+}))
+
+describe('authorize-founder workflow', () => {
+  let stdoutData = ''
+  let stderrData = ''
+  let originalStdoutWrite: typeof process.stdout.write
+  let originalStderrWrite: typeof process.stderr.write
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    stdoutData = ''
+    stderrData = ''
+    originalStdoutWrite = process.stdout.write
+    originalStderrWrite = process.stderr.write
+    process.stdout.write = (chunk: string | Uint8Array) => {
+      stdoutData += chunk.toString()
+      return true
+    }
+    process.stderr.write = (chunk: string | Uint8Array) => {
+      stderrData += chunk.toString()
+      return true
+    }
+    process.env.GITHUB_REPOSITORY = 'boat1994/bemoat-web-starter'
+  })
+
+  afterEach(() => {
+    process.stdout.write = originalStdoutWrite
+    process.stderr.write = originalStderrWrite
+  })
+
+  it('non-managed happy path uses the canonical valid REVIEW_VERDICT representation', async () => {
+    let postedBody = ''
+    const runGhMock = vi.mocked(mergeGithub.defaultRunGh)
+    runGhMock.mockImplementation((args: string[]) => {
+      const argsStr = args.join(' ')
+      if (argsStr.includes('issue view 100 --repo boat1994/bemoat-web-starter --json number,body')) {
+        return JSON.stringify({
+          number: 100,
+          body: 'This is a non-managed standard issue.',
+        })
+      }
+      if (args[0] === 'api' && args[1] === '-X' && args[2] === 'POST' && args[3] === 'repos/boat1994/bemoat-web-starter/issues/100/comments') {
+        const fIndex = args.indexOf('-f')
+        const bodyArg = args[fIndex + 1]
+        postedBody = bodyArg.replace(/^body=/, '')
+        return JSON.stringify({ id: 999, body: postedBody, user: { login: 'boat1994' }, issue_number: 100 })
+      }
+      if (argsStr.includes('api --paginate --slurp repos/boat1994/bemoat-web-starter/issues/100/comments?per_page=100')) {
+        return JSON.stringify([[
+          {
+            id: 111,
+            body: '## REVIEW_VERDICT\n\n**Verdict:** ELIGIBLE FOR FOUNDER REVIEW\n**PR / base / head:** PR #101 · `main` · `1111111111111111111111111111111111111111`\n**Policy SHA:** `2222222222222222222222222222222222222222`',
+          },
+        ]])
+      }
+      if (argsStr.includes('api user')) {
+        return JSON.stringify({ login: 'boat1994' })
+      }
+      if (argsStr.includes('repos/boat1994/bemoat-web-starter/actions/variables/BEMOAT_FOUNDER_LOGINS')) {
+        return JSON.stringify({ value: 'boat1994' })
+      }
+      if (argsStr.includes('api repos/boat1994/bemoat-web-starter/issues/comments/999')) {
+        return JSON.stringify({ id: 999, body: postedBody, user: { login: 'boat1994' }, issue_number: 100 })
+      }
+      return '{}'
+    })
+
+    const readProtectedRefMock = vi.mocked(mergeGithub.readProtectedRef)
+    readProtectedRefMock.mockResolvedValue({ object: { sha: '3333333333333333333333333333333333333333' } } as any)
+
+    const adapterMock = {
+      acquireIssueLease: vi.fn().mockResolvedValue('lease-123'),
+      releaseIssueLease: vi.fn().mockResolvedValue(null),
+    }
+    vi.mocked(taskBootstrapGithub.createTaskBootstrapGithubAdapter).mockReturnValue(adapterMock as any)
+
+    await main(['100', '--scope', 'merge', '--json'])
+    
+    expect(stdoutData).toContain('"classification":"SUCCESS"')
+    expect(process.exitCode).toBe(0)
+  })
+
+  it('fails closed for non-managed path with base@sha negative coverage', async () => {
+    const runGhMock = vi.mocked(mergeGithub.defaultRunGh)
+    runGhMock.mockImplementation((args: string[]) => {
+      const argsStr = args.join(' ')
+      if (argsStr.includes('issue view 100 --repo boat1994/bemoat-web-starter --json number,body')) {
+        return JSON.stringify({
+          number: 100,
+          body: 'This is a non-managed standard issue.',
+        })
+      }
+      if (argsStr.includes('api --paginate --slurp repos/boat1994/bemoat-web-starter/issues/100/comments?per_page=100')) {
+        return JSON.stringify([[
+          {
+            id: 111,
+            body: '## REVIEW_VERDICT\n\n**Verdict:** ELIGIBLE FOR FOUNDER REVIEW\n**PR / base / head:** PR #101 · `main@2222222222222222222222222222222222222222` · `1111111111111111111111111111111111111111`',
+          },
+        ]])
+      }
+      if (argsStr.includes('api user')) {
+        return JSON.stringify({ login: 'boat1994' })
+      }
+      if (argsStr.includes('repos/boat1994/bemoat-web-starter/actions/variables/BEMOAT_FOUNDER_LOGINS')) {
+        return JSON.stringify({ value: 'boat1994' })
+      }
+      return '{}'
+    })
+
+    const readProtectedRefMock = vi.mocked(mergeGithub.readProtectedRef)
+    readProtectedRefMock.mockResolvedValue({ object: { sha: '3333333333333333333333333333333333333333' } } as any)
+
+    const adapterMock = {
+      acquireIssueLease: vi.fn().mockResolvedValue('lease-123'),
+      releaseIssueLease: vi.fn().mockResolvedValue(null),
+    }
+    vi.mocked(taskBootstrapGithub.createTaskBootstrapGithubAdapter).mockReturnValue(adapterMock as any)
+
+    await main(['100', '--scope', 'merge', '--json'])
+    
+    expect(stdoutData).toContain('"classification":"INTERNAL_ERROR"')
+    expect(stdoutData).toContain('malformed, partial, or ambiguous')
+    expect(process.exitCode).toBe(1) // 1 is INTERNAL_ERROR exit code
+  })
+})
