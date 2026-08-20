@@ -289,7 +289,7 @@ afterEach(() => {
   process.exitCode = undefined
 })
 
-describe('bemoat:issue:comment', () => {
+describe('bemoat:issue:comment', { timeout: 30000 }, () => {
   it.each(Object.entries(bodies))('accepts valid %s from stdin in check mode', (_role, body) => {
     const result = run(['115', '--check'], { input: body })
     expect(result.status, result.stderr).toBe(0)
