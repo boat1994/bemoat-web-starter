@@ -471,8 +471,10 @@ evidence. The Founder allowlist comes from the repository Actions variable
 `BEMOAT_FOUNDER_LOGINS`; caller environment values are not trusted. The
 transport serializes concurrent writers with the repository lease protocol,
 posts one final raw JSON `task-bootstrap-existing-v2` body with
-`comment_id: null`, and binds the actual positive comment ID plus exact body
-SHA-256 through POST/readback evidence. It never edits a posted comment.
+`comment_id: null`, then posts a separate immutable
+`task-bootstrap-existing-receipt-v1` body binding the returned positive comment
+ID to the exact authorization-body SHA-256. Both comments are independently
+read back and verified; neither is edited after creation.
 
 Malformed, conflicting, wrong-scope/action, duplicate, superseded, uncertain,
 or drifted evidence stops fail closed. An exact trusted replay returns

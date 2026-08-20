@@ -21,6 +21,7 @@ export function missionControlPrimaryCommands(dependencies: CommandMetadataDepen
     trusted_derived_values: ['authenticated actor identity', 'trusted Founder logins', 'live PR/base/head/policy evidence', 'branch reservation evidence'],
     required_evidence: [
       'Exact head, base, and policy identity when applicable.',
+      'Separate immutable receipt binding the returned authorization comment ID to its exact body SHA-256.',
       'Authenticated GitHub actor must be a trusted Founder.',
       'Live protected main ref.',
     ],

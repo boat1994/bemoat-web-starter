@@ -1,6 +1,9 @@
 import { createHash } from 'node:crypto'
 import { LEASE_MARKER } from './task-bootstrap-lease.ts'
-import { BOOTSTRAP_CONTRACT } from './task-bootstrap-authorization.ts'
+import {
+  BOOTSTRAP_CONTRACT,
+} from './task-bootstrap-authorization.ts'
+import { buildFounderAuthorizationReceiptBody, parseFounderAuthorizationReceipt } from './founder-authorization-receipt.ts'
 
 export const IMMUTABLE_EXISTING_AUTHORIZATION_FORMAT = 'task-bootstrap-existing-v2'
 
@@ -39,6 +42,8 @@ type RecordingResult = Readonly<{
   commentId: string
   body: string
   bodySha256: string
+  receiptId: string
+  receiptBody: string
   mutationPerformed: boolean
 }>
 
@@ -78,6 +83,65 @@ function commentAuthor(comment: Comment): string {
 
 function sameBody(comment: Comment, body: string): boolean {
   return typeof comment.body === 'string' && comment.body === body
+}
+
+function looksReceipt(body: unknown): boolean {
+  return String(body ?? '').includes('task-bootstrap-existing-receipt-v1')
+}
+
+function validateReceipt(comment: Comment, context: FounderAuthorizationRecordingContext, authorizationId: string, bodySha256: string, mutationPerformed = true): void {
+  if (!comment.id || !/^\d+$/.test(String(comment.id))) throw recordingError('AMBIGUOUS_RESULT', 'authorization receipt did not yield an immutable numeric comment ID', mutationPerformed)
+  if (commentAuthor(comment) !== context.founderLogin) throw recordingError('STATE_CONFLICT', 'authorization receipt actor is not the trusted Founder', mutationPerformed)
+  if (!Number.isSafeInteger(Number(comment.issue_number)) || Number(comment.issue_number) !== context.issueNumber) throw recordingError('STATE_CONFLICT', 'authorization receipt is not bound to the target Issue', mutationPerformed)
+  let receipt
+  try { receipt = parseFounderAuthorizationReceipt(String(comment.body ?? '')) } catch { throw recordingError('EVIDENCE_CONFLICT', 'authorization receipt is malformed', mutationPerformed) }
+  const expected = {
+    repository: context.repository,
+    issue_number: context.issueNumber,
+    founder_login: context.founderLogin,
+    protected_base_sha: context.protectedBaseSha,
+    policy_source: context.policySource,
+    policy_version: context.policyVersion,
+    policy_source_sha: context.policySha,
+    authorization_comment_id: authorizationId,
+    authorization_body_sha256: bodySha256,
+    scope: 'task-initialization',
+    action: 'create-managed-task',
+  }
+  for (const [key, value] of Object.entries(expected)) if (receipt[key] !== value) throw recordingError('STATE_CONFLICT', `authorization receipt does not bind ${key}`, mutationPerformed)
+}
+
+function receiptComments(comments: readonly Comment[]): Comment[] {
+  return comments.filter((comment) => looksReceipt(comment.body))
+}
+
+async function postReceipt({
+  options,
+  context,
+  authorizationId,
+  authorizationBodySha256,
+  receiptBody,
+}: {
+  options: RecordingOptions
+  context: FounderAuthorizationRecordingContext
+  authorizationId: string
+  authorizationBodySha256: string
+  receiptBody: string
+}): Promise<{ id: string }> {
+  let posted: Comment
+  try {
+    posted = await options.postComment(context.issueNumber, receiptBody)
+  } catch (error) {
+    throw recordingError('AMBIGUOUS_RESULT', `authorization receipt POST outcome is unknown: ${error instanceof Error ? error.message : String(error)}`, true)
+  }
+  validateReceipt(posted, context, authorizationId, authorizationBodySha256, true)
+  let readback: Comment
+  try { readback = await options.readComment(String(posted.id)) } catch (error) {
+    throw recordingError('AMBIGUOUS_RESULT', `authorization receipt could not be confirmed by live readback: ${error instanceof Error ? error.message : String(error)}`, true)
+  }
+  validateReceipt(readback, context, authorizationId, authorizationBodySha256, true)
+  if (String(readback.id) !== String(posted.id) || String(readback.body) !== receiptBody) throw recordingError('STATE_CONFLICT', 'authorization receipt POST and readback returned different immutable evidence', true)
+  return { id: String(posted.id) }
 }
 
 function validateCommentBinding(comment: Comment, context: FounderAuthorizationRecordingContext, body: string, mutationPerformed = true) {
@@ -149,6 +213,7 @@ function parseFinalBody(body: string, context: FounderAuthorizationRecordingCont
 
 function looksAuthorizationShaped(body: unknown): boolean {
   const text = String(body ?? '')
+  if (looksReceipt(text)) return false
   if (text.includes(LEASE_MARKER)) return false
   return /\bFOUNDER_DECISION\b/i.test(text) || /"(?:authorization_format|bundle_kind|scope|action|authority|comment_id)"\s*:/.test(text)
 }
@@ -225,7 +290,7 @@ export async function recordFounderAuthorization(options: RecordingOptions): Pro
     const readAndClassify = async () => {
       try {
         const comments = await options.readComments()
-        return { comments, matches: classifyExistingAuthorizationComments(comments, context, body) }
+        return { comments, matches: classifyExistingAuthorizationComments(comments, context, body), receipts: receiptComments(comments) }
       } catch (error) {
         if (error instanceof Error && 'classification' in error && error.classification === 'STATE_CONFLICT') throw error
         throw recordingError('AMBIGUOUS_RESULT', `authorization evidence readback is uncertain: ${error instanceof Error ? error.message : String(error)}`, false)
@@ -239,8 +304,23 @@ export async function recordFounderAuthorization(options: RecordingOptions): Pro
       const readback = await options.readComment(String(durable.id)).catch((error) => { throw recordingError('AMBIGUOUS_RESULT', `authorization replay readback is uncertain: ${error instanceof Error ? error.message : String(error)}`, false) })
       validateCommentBinding(readback, context, body, false)
       if (String(readback.id) !== String(durable.id)) throw recordingError('STATE_CONFLICT', 'identical authorization replay readback returned a different immutable comment ID', false)
-      assertNotSuperseded((await readAndClassify()).comments, String(durable.id))
-      return { classification: 'NO_OP_IDENTICAL_RETRY', commentId: String(durable.id), body, bodySha256, mutationPerformed: false }
+      snapshot = await readAndClassify()
+      assertNotSuperseded(snapshot.comments, String(durable.id))
+      const matchingReceipts = snapshot.receipts.filter((receipt) => {
+        try { validateReceipt(receipt, context, String(durable.id), bodySha256, false); return true } catch (error) { if (errorClassification(error) === 'STATE_CONFLICT') throw error; return false }
+      })
+      if (matchingReceipts.length > 1) throw recordingError('STATE_CONFLICT', 'multiple identical authorization receipts are durable', false)
+      if (snapshot.receipts.length > matchingReceipts.length) throw recordingError('STATE_CONFLICT', 'conflicting authorization receipt evidence already exists', false)
+      if (matchingReceipts.length === 1) {
+        const receipt = matchingReceipts[0]
+        const receiptReadback = await options.readComment(String(receipt.id)).catch((error) => { throw recordingError('AMBIGUOUS_RESULT', `authorization receipt replay readback is uncertain: ${error instanceof Error ? error.message : String(error)}`, false) })
+        validateReceipt(receiptReadback, context, String(durable.id), bodySha256, false)
+        if (String(receiptReadback.id) !== String(receipt.id) || String(receiptReadback.body) !== String(receipt.body)) throw recordingError('STATE_CONFLICT', 'identical authorization receipt replay readback returned different immutable evidence', false)
+        return { classification: 'NO_OP_IDENTICAL_RETRY', commentId: String(durable.id), body, bodySha256, receiptId: String(receipt.id), receiptBody: String(receipt.body), mutationPerformed: false }
+      }
+      const receiptBody = buildFounderAuthorizationReceiptBody({ ...context, authorizationCommentId: String(durable.id), authorizationBodySha256: bodySha256 })
+      const receipt = await postReceipt({ options, context, authorizationId: String(durable.id), authorizationBodySha256: bodySha256, receiptBody })
+      return { classification: 'SUCCESS', commentId: String(durable.id), body, bodySha256, receiptId: receipt.id, receiptBody, mutationPerformed: true }
     }
     if (options.readContext) {
       let rereadContext: FounderAuthorizationRecordingContext
@@ -259,6 +339,7 @@ export async function recordFounderAuthorization(options: RecordingOptions): Pro
     snapshot = await readAndClassify()
     existing = snapshot.matches
     if (existing.length > 0) throw recordingError('STATE_CONFLICT', 'authorization evidence changed before POST', false)
+    if (snapshot.receipts.length > 0) throw recordingError('STATE_CONFLICT', 'authorization receipt exists without its immutable authorization', false)
     let posted: Comment
     try {
       mutationPerformed = true
@@ -273,11 +354,13 @@ export async function recordFounderAuthorization(options: RecordingOptions): Pro
     }
     validateCommentBinding(readback, context, body)
     if (String(readback.id) !== String(posted.id)) throw recordingError('STATE_CONFLICT', 'authorization POST and individual readback returned different immutable comment IDs', true)
+    const receiptBody = buildFounderAuthorizationReceiptBody({ ...context, authorizationCommentId: String(posted.id), authorizationBodySha256: bodySha256 })
+    const receipt = await postReceipt({ options, context, authorizationId: String(posted.id), authorizationBodySha256: bodySha256, receiptBody })
     try { assertNotSuperseded((await readAndClassify()).comments, String(posted.id)) } catch (error) {
       if (error instanceof Error && 'classification' in error && error.classification === 'STATE_CONFLICT') throw Object.assign(error, { mutationPerformed: true })
       throw recordingError('AMBIGUOUS_RESULT', `authorization supersession readback is ambiguous: ${error instanceof Error ? error.message : String(error)}`, true)
     }
-    return { classification: 'SUCCESS', commentId: String(posted.id), body, bodySha256, mutationPerformed: true }
+    return { classification: 'SUCCESS', commentId: String(posted.id), body, bodySha256, receiptId: receipt.id, receiptBody, mutationPerformed: true }
   } catch (error) {
     primaryError = error
     if (typeof error === 'object' && error !== null && (error as Record<string, unknown>).mutationPerformed === true) mutationPerformed = true

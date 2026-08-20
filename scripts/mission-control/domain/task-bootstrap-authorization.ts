@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { validateFounderAuthorizationReceipt } from './founder-authorization-receipt.ts'
 
 export type BootstrapContract = Readonly<{
   repository: string
@@ -90,7 +91,6 @@ export const BOOTSTRAP_CONTRACT: BootstrapContract = Object.freeze({
   attestationSchema: 'bemoat-mission-control-task-bootstrap-attestation',
   operationVersion: 1,
 })
-
 /** Live-bound contract for current Founder-authorized existing-task recovery. */
 export const CURRENT_BOOTSTRAP_CONTRACT: CurrentBootstrapContract = Object.freeze({
   repository: BOOTSTRAP_CONTRACT.repository,
@@ -100,7 +100,6 @@ export const CURRENT_BOOTSTRAP_CONTRACT: CurrentBootstrapContract = Object.freez
   attestationSchema: BOOTSTRAP_CONTRACT.attestationSchema,
   operationVersion: BOOTSTRAP_CONTRACT.operationVersion,
 })
-
 export const BOOTSTRAP_AUTHORIZATION_BUNDLE = 'task-bootstrap-genesis'
 export const EXISTING_TASK_BOOTSTRAP_AUTHORIZATION_BUNDLE = 'task-bootstrap-existing'
 export const BOOTSTRAP_AUTHORIZATION_SCOPE = 'task-initialization'
@@ -116,11 +115,9 @@ function authorizationError(message: string): never {
   Object.assign(error, { code: 'STATE_CONFLICT', classification: 'STATE_CONFLICT' })
   throw error
 }
-
 function isJsonRecord(value: unknown): value is JsonRecord {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
-
 export function parseFounderTaskBootstrapAuthorization(body = ''): JsonRecord {
   if (typeof body !== 'string' || !body.trim() || body.trim().startsWith('```')) {
     authorizationError('comment must contain exactly one raw JSON object')
@@ -140,7 +137,6 @@ export function parseFounderTaskBootstrapAuthorization(body = ''): JsonRecord {
   }
   return authorization
 }
-
 function parseBatch1FounderDecision(body: string): JsonRecord {
   const lines = body.split(/\r?\n/)
   const fields = [
@@ -346,6 +342,19 @@ export function validateFounderTaskBootstrapAuthorization({
   if (!isJsonRecord(authorization)) authorizationError('record is missing')
   const author = normalizeCommentAuthor(authorizationComment)
   const existing = authorization.bundle_kind === EXISTING_TASK_BOOTSTRAP_AUTHORIZATION_BUNDLE
+  if (existing && authorization.authorization_format === IMMUTABLE_EXISTING_AUTHORIZATION_FORMAT) {
+    validateFounderAuthorizationReceipt({
+      authorizationComment,
+      parentComments,
+      repository: String(repository),
+      founderLogin: String(author),
+      issueNumber: Number(authorization.task_issue),
+      protectedBaseSha: String(expected?.protectedBaseSha ?? ''),
+      policySource: String(expected?.policySource ?? ''),
+      policyVersion: String(expected?.policyVersion ?? ''),
+      policySha: String(expected?.policySha ?? ''),
+    })
+  }
   const expectedConditions = [
     authorization.schema_version === 1,
     authorization.status === 'approved',

@@ -12,6 +12,7 @@ import {
   parseFounderTaskBootstrapAuthorization,
   validateFounderTaskBootstrapAuthorization,
 } from '../../scripts/mission-control/domain/task-bootstrap-authorization.ts'
+import { buildFounderAuthorizationReceiptBody } from '../../scripts/mission-control/domain/founder-authorization-receipt.ts'
 import { createTaskBootstrapGithubAdapter } from '../../scripts/mission-control/adapters/task-bootstrap-github.mjs'
 import { workflowLeaseBody } from '../../scripts/mission-control/domain/task-bootstrap-lease.ts'
 
@@ -36,6 +37,14 @@ function comment(id: string, body: string, overrides: Record<string, unknown> = 
   }
 }
 
+function receipt(id: string, authorizationId: string, body: string) {
+  return comment(id, buildFounderAuthorizationReceiptBody({
+    ...context,
+    authorizationCommentId: authorizationId,
+    authorizationBodySha256: createHash('sha256').update(body).digest('hex'),
+  }))
+}
+
 const testLease = {
   acquireLease: async () => ({ token: 'test-token', commentId: 'lease-1' }),
   releaseLease: async () => {},
@@ -48,8 +57,8 @@ describe('Issue #383 immutable Founder authorization recording', () => {
       context,
       ...testLease,
       readComments: async (): Promise<readonly Record<string, unknown>[]> => [],
-      postComment: async (_issue, postedBody) => comment('9001', postedBody),
-      readComment: async () => comment('9001', body),
+      postComment: async (_issue, postedBody) => comment(postedBody === body ? '9001' : '9002', postedBody),
+      readComment: async (id) => id === '9001' ? comment('9001', body) : receipt('9002', '9001', body),
     })
 
     expect(result).toMatchObject({
@@ -67,14 +76,36 @@ describe('Issue #383 immutable Founder authorization recording', () => {
     })
   })
 
+  it('publishes a durable immutable receipt binding the authorization ID to its body hash', async () => {
+    const body = buildExistingTaskAuthorizationBody(context)
+    const postedBodies: string[] = []
+    const result = await recordFounderAuthorization({
+      context,
+      ...testLease,
+      readComments: async () => postedBodies.map((postedBody, index) => comment(String(9001 + index), postedBody)),
+      postComment: async (_issue, postedBody) => {
+        postedBodies.push(postedBody)
+        return comment(String(9001 + postedBodies.length - 1), postedBody)
+      },
+      readComment: async (id) => comment(id, postedBodies[Number(id) - 9001]),
+    })
+
+    expect(result.receiptId).toBe('9002')
+    expect(JSON.parse(postedBodies[1])).toMatchObject({
+      receipt_format: 'task-bootstrap-existing-receipt-v1',
+      authorization_comment_id: '9001',
+      authorization_body_sha256: createHash('sha256').update(body).digest('hex'),
+    })
+  })
+
   it('does not classify a real task-bootstrap lease comment as Founder authorization evidence', async () => {
     const body = buildExistingTaskAuthorizationBody(context)
     const result = await recordFounderAuthorization({
       context,
       ...testLease,
       readComments: async () => [{ id: 'lease-1', body: workflowLeaseBody({ scope: 'founder-authorization-recording', requestId: 'lease-request', status: 'held', leaseToken: 'lease-token', issueNumber: context.issueNumber }) }],
-      postComment: async (_issue, postedBody) => comment('9001', postedBody),
-      readComment: async () => comment('9001', body),
+      postComment: async (_issue, postedBody) => comment(postedBody === body ? '9001' : '9002', postedBody),
+      readComment: async (id) => id === '9001' ? comment('9001', body) : receipt('9002', '9001', body),
     })
     expect(result.classification).toBe('SUCCESS')
   })
@@ -113,9 +144,9 @@ describe('Issue #383 immutable Founder authorization recording', () => {
     let posts = 0
     const result = await recordFounderAuthorization({
       context,
-      readComments: async () => [comment('9001', body)],
+      readComments: async () => [comment('9001', body), receipt('9002', '9001', body)],
       postComment: async () => { posts += 1; return comment('9002', body) },
-      readComment: async () => comment('9001', body),
+      readComment: async (id) => id === '9001' ? comment('9001', body) : receipt('9002', '9001', body),
       acquireLease: async () => ({ token: 't', commentId: 'lease-1' }),
       releaseLease: async () => {},
     })
@@ -123,6 +154,59 @@ describe('Issue #383 immutable Founder authorization recording', () => {
     expect(result.classification).toBe('NO_OP_IDENTICAL_RETRY')
     expect(result.commentId).toBe('9001')
     expect(posts).toBe(0)
+  })
+
+  it('recovers an existing authorization by posting only its missing receipt', async () => {
+    const body = buildExistingTaskAuthorizationBody(context)
+    let posts = 0
+    const result = await recordFounderAuthorization({
+      context,
+      ...testLease,
+      readComments: async () => [comment('9001', body)],
+      postComment: async (_issue, postedBody) => { posts += 1; return comment('9002', postedBody) },
+      readComment: async (id) => id === '9001' ? comment('9001', body) : receipt('9002', '9001', body),
+    })
+    expect(result.classification).toBe('SUCCESS')
+    expect(result.commentId).toBe('9001')
+    expect(result.receiptId).toBe('9002')
+    expect(posts).toBe(1)
+  })
+
+  it('fails closed for a receipt with the wrong body hash or authorization comment ID', async () => {
+    const body = buildExistingTaskAuthorizationBody(context)
+    const wrongHash = comment('9002', buildFounderAuthorizationReceiptBody({
+      ...context, authorizationCommentId: '9001', authorizationBodySha256: '0'.repeat(64),
+    }))
+    const wrongId = comment('9003', buildFounderAuthorizationReceiptBody({
+      ...context, authorizationCommentId: '9999', authorizationBodySha256: createHash('sha256').update(body).digest('hex'),
+    }))
+    for (const conflictingReceipt of [wrongHash, wrongId]) {
+      let posts = 0
+      await expect(recordFounderAuthorization({
+        context,
+        ...testLease,
+        readComments: async () => [comment('9001', body), conflictingReceipt],
+        postComment: async (_issue, postedBody) => { posts += 1; return comment('9010', postedBody) },
+        readComment: async () => comment('9001', body),
+      })).rejects.toMatchObject({ classification: 'STATE_CONFLICT', mutationPerformed: false })
+      expect(posts).toBe(0)
+    }
+  })
+
+  it('fails closed when receipt publication is uncertain and never edits the authorization', async () => {
+    const body = buildExistingTaskAuthorizationBody(context)
+    let posts = 0
+    let edits = 0
+    await expect(recordFounderAuthorization({
+      context,
+      ...testLease,
+      readComments: async () => [comment('9001', body)],
+      postComment: async () => { posts += 1; throw Object.assign(new Error('timeout'), { code: 'API_AMBIGUITY' }) },
+      readComment: async () => comment('9001', body),
+      updateComment: async () => { edits += 1 },
+    } as any)).rejects.toMatchObject({ classification: 'AMBIGUOUS_RESULT', mutationPerformed: true })
+    expect(posts).toBe(1)
+    expect(edits).toBe(0)
   })
 
   it('fails closed when identical replay readback returns a different comment ID', async () => {
@@ -156,8 +240,8 @@ describe('Issue #383 immutable Founder authorization recording', () => {
     const options = {
       context,
       readComments: async (): Promise<readonly Record<string, unknown>[]> => [],
-      postComment: async (_issue: number, postedBody: string) => { posts += 1; return comment(String(9000 + posts), postedBody) },
-      readComment: async (id: string) => comment(id, body),
+      postComment: async (_issue: number, postedBody: string) => { posts += 1; return comment(postedBody === body ? '9001' : '9002', postedBody) },
+      readComment: async (id: string) => id === '9001' ? comment(id, body) : receipt(id, '9001', body),
       acquireLease: async () => {
         if (held) throw Object.assign(new Error('lease winner already exists'), { classification: 'STATE_CONFLICT' })
         held = true
@@ -168,7 +252,7 @@ describe('Issue #383 immutable Founder authorization recording', () => {
     const results = await Promise.allSettled([recordFounderAuthorization(options), recordFounderAuthorization(options)])
     expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1)
     expect(results.filter((result) => result.status === 'rejected')).toHaveLength(1)
-    expect(posts).toBe(1)
+    expect(posts).toBe(2)
   })
 
   it.each([
@@ -188,11 +272,12 @@ describe('Issue #383 immutable Founder authorization recording', () => {
   })
 
   it('fails closed when the POST succeeds but live readback is ambiguous', async () => {
+    const body = buildExistingTaskAuthorizationBody(context)
     await expect(recordFounderAuthorization({
       context,
       ...testLease,
       readComments: async () => [],
-      postComment: async (_issue, postedBody) => comment('9001', postedBody),
+      postComment: async (_issue, postedBody) => comment(postedBody === body ? '9001' : '9002', postedBody),
       readComment: async () => { throw Object.assign(new Error('timeout'), { code: 'BLOCKED_EXTERNAL' }) },
     })).rejects.toMatchObject({ classification: 'AMBIGUOUS_RESULT', mutationPerformed: true })
   })
@@ -203,8 +288,8 @@ describe('Issue #383 immutable Founder authorization recording', () => {
       context,
       ...testLease,
       readComments: async () => [],
-      postComment: async (_issue, postedBody) => comment('9001', postedBody),
-      readComment: async () => comment('9001', body),
+      postComment: async (_issue, postedBody) => comment(postedBody === body ? '9001' : '9002', postedBody),
+      readComment: async (id) => id === '9001' ? comment('9001', body) : receipt('9002', '9001', body),
       releaseLease: async () => { throw Object.assign(new Error('lease release timeout'), { code: 'CAS_CONFLICT' }) },
     })).rejects.toMatchObject({ classification: 'AMBIGUOUS_RESULT', mutationPerformed: true })
   })
@@ -338,7 +423,7 @@ describe('Issue #383 immutable Founder authorization recording', () => {
     }
     expect(validateFounderTaskBootstrapAuthorization({
       authorization, authorizationComment: comment, parentIssue: { number: context.issueNumber },
-      repository: context.repository, founderLogins: [context.founderLogin], parentComments: [comment], expected,
+      repository: context.repository, founderLogins: [context.founderLogin], parentComments: [comment, receipt('9002', '9001', body)], expected,
       boundCommentId: '9001',
     }).valid).toBe(true)
     expect(() => validateFounderTaskBootstrapAuthorization({

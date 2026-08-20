@@ -58,7 +58,7 @@ async function main(argv = process.argv.slice(2)) {
       command, outcome: result.classification === 'NO_OP_IDENTICAL_RETRY' ? 'NO_OP' : 'SUCCESS', classification: result.classification,
       mutation_performed: result.mutationPerformed, repository: trustedContext.repository, issue_number: String(issueNumber),
       next_action: { type: 'COMMAND', command: 'bemoat:mission-control:task-bootstrap', reason: 'Bootstrap must independently revalidate the immutable authorization.' },
-      details: { comment_id: result.commentId, body_sha256: result.bodySha256 },
+      details: { comment_id: result.commentId, body_sha256: result.bodySha256, receipt_comment_id: result.receiptId },
     })
     if (invocation.format === 'json') process.stdout.write(`${JSON.stringify(envelope)}\n`)
     else process.stdout.write(`${result.classification}: immutable Founder authorization ${result.commentId}\n`)
