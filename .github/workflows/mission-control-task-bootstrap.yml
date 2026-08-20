@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       founder_authorization_comment_id:
-        description: Immutable Founder authorization comment ID on Issue #262
+        description: Immutable Founder authorization comment ID on the authorized target Issue
         required: true
         type: string
 

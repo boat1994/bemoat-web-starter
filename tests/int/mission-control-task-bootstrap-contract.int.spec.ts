@@ -65,6 +65,56 @@ function expectStateConflict(action: () => unknown, message?: string) {
 }
 
 describe('Mission Control bootstrap transport contract', () => {
+  it('accepts a trusted Founder authorization for an existing planning-only Task Issue', async () => {
+    const typed = await import('../../scripts/mission-control/domain/task-bootstrap-authorization.ts')
+    const body = typed.createFounderAuthorizationBody({
+      parentIssue: 380,
+      taskIssue: 380,
+      pullRequest: null,
+      head: null,
+      targetMode: 'planning_no_pr',
+      commentId: AUTHORIZATION_COMMENT_ID,
+    })
+    const authorization = typed.parseFounderTaskBootstrapAuthorization(body)
+
+    expect(typed.validateFounderTaskBootstrapAuthorization({
+      authorization,
+      authorizationComment: {
+        id: AUTHORIZATION_COMMENT_ID,
+        body,
+        user: { login: FOUNDER_LOGIN },
+        issue_number: 380,
+      },
+      parentIssue: { number: 380 },
+      repository: BOOTSTRAP_CONTRACT.repository,
+      founderLogins: [FOUNDER_LOGIN],
+    })).toMatchObject({
+      valid: true,
+      authorLogin: FOUNDER_LOGIN,
+      commentId: AUTHORIZATION_COMMENT_ID,
+      authorization: {
+        bundle_kind: 'task-bootstrap-existing',
+        task_issue: 380,
+        target_mode: 'planning_no_pr',
+        pr: null,
+        exact_head: null,
+        reviewed_head: null,
+      },
+    })
+  })
+
+  it('uses null PR and head values in the deterministic planning-only request identity', () => {
+    const result = buildTaskBootstrapRequestIdentity({
+      ...REQUEST_INPUT,
+      parentIssue: 380,
+      pullRequest: null,
+      head: null,
+      targetMode: 'planning_no_pr',
+    })
+
+    expect(result.tuple).toMatchObject({ parent_issue: 380, pull_request: null, head: null })
+  })
+
   it('characterizes the raw JSON trust-boundary parser and exact failure shape', async () => {
     const typed = await import('../../scripts/mission-control/domain/task-bootstrap-authorization.ts')
 

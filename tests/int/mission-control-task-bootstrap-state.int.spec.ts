@@ -7,6 +7,26 @@ import { canonicalHash, TASK_ATTESTATION_SCHEMA } from '../../scripts/mission-co
 import { buildInitialTaskState } from '../../scripts/mission-control/domain/task-bootstrap-state.ts'
 
 describe('Mission Control Task bootstrap initial state projection', () => {
+  it('projects an existing planning-only Task without inventing PR or head lineage', () => {
+    expect(buildInitialTaskState({
+      issueNumber: 380,
+      requestId: 'mc-task-bootstrap-v1-' + 'c'.repeat(64),
+      targetMode: 'planning_no_pr',
+      parentIssue: { number: 380 },
+      base: 'main',
+      policy: { version: '1.3.0', blobSha: 'e'.repeat(40) },
+    })).toMatchObject({
+      active_task_issue: '#380',
+      active_pr: null,
+      current_head: null,
+      parent_issue: '#380',
+      approved_base: 'main',
+      guide_version: '1.3.0',
+      guide_source_sha: 'e'.repeat(40),
+      workflow_mode: 'planning_no_pr',
+    })
+  })
+
   it('preserves observable key order after facade removal', () => {
     expect(existsSync('scripts/mission-control/domain/task-bootstrap-state.mjs')).toBe(false)
 

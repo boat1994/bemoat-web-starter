@@ -5,6 +5,7 @@ type AllocationInput = {
   context?: unknown
   registryRecords?: readonly unknown[]
   scanned?: unknown
+  existingTaskIssue?: ExistingTaskIssue | null
   [key: string]: unknown
 }
 
@@ -13,6 +14,7 @@ type RequestRecord = {
 }
 
 type ContextRecord = {
+  targetMode?: unknown
   repository?: { nameWithOwner?: unknown } | null
   parentIssue?: { number?: unknown } | null
   pullRequest?: {
@@ -23,6 +25,8 @@ type ContextRecord = {
   } | null
   policy?: { path?: unknown, version?: unknown, blobSha?: unknown } | null
 }
+
+type ExistingTaskIssue = { number?: unknown, body?: unknown }
 
 type ProvisionalRecord = {
   request_id?: unknown
@@ -66,6 +70,7 @@ type AllocationResult =
   | { kind: typeof ALLOCATION_KINDS.SIGNED_ISSUE, outcome: 'IDEMPOTENT', registry: null, issue: unknown }
   | { kind: typeof ALLOCATION_KINDS.PROVISIONAL_ISSUE, outcome: 'RECOVERED', registry: null, issue: unknown }
   | { kind: typeof ALLOCATION_KINDS.CREATE_PROVISIONAL, outcome: 'CREATED', registry: null, issue: null }
+  | { kind: 'EXISTING_ISSUE', outcome: 'RECOVERED', registry: unknown, issue: unknown }
 
 function allocationConflict(message: string) {
   const error = new Error(message) as Error & { code?: string, classification?: string }
@@ -147,12 +152,23 @@ export function classifyTaskBootstrapAllocation({
   context,
   registryRecords = [],
   scanned = {},
+  existingTaskIssue = null,
 }: AllocationInput = {}): AllocationResult {
   const requestRecord = request as RequestRecord | null | undefined
   const contextRecord = context as ContextRecord | null | undefined
   const scannedRecord = scanned as ScannedRecord
   const requestId = requestRecord?.requestId
   const pullRequest = contextRecord?.pullRequest?.number
+  if (contextRecord?.targetMode === 'planning_no_pr') {
+    const valid = (registryRecords as RegistryEntry[]).filter((entry) => entry?.record?.payload)
+    const competing = valid.find((entry) => entry.record?.payload?.request_id !== requestId)
+    if (competing) throw allocationConflict('existing Task target already has a competing registry owner')
+    const registry = registryForRequest(registryRecords, requestId)
+    if (!existingTaskIssue || Number(existingTaskIssue.number) !== Number(contextRecord.parentIssue?.number)) {
+      throw allocationConflict('Founder-authorized existing Task target could not be read back')
+    }
+    return { kind: 'EXISTING_ISSUE', outcome: 'RECOVERED', registry, issue: existingTaskIssue }
+  }
   const competing = competingRegistry(registryRecords, requestId, pullRequest)
   if (competing) throw allocationConflict('parent ownership registry already records a competing Task for PR #263')
 

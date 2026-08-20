@@ -17,6 +17,15 @@ export type BootstrapContract = Readonly<{
   operationVersion: number
 }>
 
+export type CurrentBootstrapContract = Readonly<{
+  repository: string
+  base: string
+  policySource: string
+  workflowFile: string
+  attestationSchema: string
+  operationVersion: number
+}>
+
 export type JsonRecord = { [key: string]: unknown }
 
 type AuthorizationComment = {
@@ -46,6 +55,8 @@ type CreateFounderAuthorizationBodyOptions = {
   policySha?: unknown
   authorLogin?: unknown
   commentId?: unknown
+  taskIssue?: unknown
+  targetMode?: unknown
 }
 
 export type FounderTaskBootstrapAuthorizationResult = {
@@ -81,7 +92,18 @@ export const BOOTSTRAP_CONTRACT: BootstrapContract = Object.freeze({
   operationVersion: 1,
 })
 
+/** Live-bound contract for current Founder-authorized existing-task recovery. */
+export const CURRENT_BOOTSTRAP_CONTRACT: CurrentBootstrapContract = Object.freeze({
+  repository: BOOTSTRAP_CONTRACT.repository,
+  base: BOOTSTRAP_CONTRACT.base,
+  policySource: BOOTSTRAP_CONTRACT.policySource,
+  workflowFile: BOOTSTRAP_CONTRACT.workflowFile,
+  attestationSchema: BOOTSTRAP_CONTRACT.attestationSchema,
+  operationVersion: BOOTSTRAP_CONTRACT.operationVersion,
+})
+
 export const BOOTSTRAP_AUTHORIZATION_BUNDLE = 'task-bootstrap-genesis'
+export const EXISTING_TASK_BOOTSTRAP_AUTHORIZATION_BUNDLE = 'task-bootstrap-existing'
 export const BOOTSTRAP_AUTHORIZATION_SCOPE = 'task-initialization'
 export const BOOTSTRAP_AUTHORIZATION_ACTION = 'create-managed-task'
 
@@ -129,7 +151,10 @@ export function createFounderAuthorizationBody({
   policySha = BOOTSTRAP_CONTRACT.policySha,
   authorLogin = 'boat1994',
   commentId = null,
+  taskIssue = null,
+  targetMode = null,
 }: CreateFounderAuthorizationBodyOptions = {}) {
+  const existing = targetMode === 'planning_no_pr'
   const record: JsonRecord = {
     schema_version: 1,
     status: 'approved',
@@ -140,12 +165,12 @@ export function createFounderAuthorizationBody({
     non_superseded: true,
     superseded_by: null,
     repository,
-    bundle_kind: BOOTSTRAP_AUTHORIZATION_BUNDLE,
+    bundle_kind: existing ? EXISTING_TASK_BOOTSTRAP_AUTHORIZATION_BUNDLE : BOOTSTRAP_AUTHORIZATION_BUNDLE,
     parent_issue: Number(parentIssue),
-    task_issue: null,
-    pr: pullRequest,
-    exact_head: head,
-    reviewed_head: head,
+    task_issue: existing ? Number(taskIssue) : null,
+    pr: existing ? null : pullRequest,
+    exact_head: existing ? null : head,
+    reviewed_head: existing ? null : head,
     base,
     policy_source: policySource,
     policy_source_sha: policySha,
@@ -154,6 +179,7 @@ export function createFounderAuthorizationBody({
     scope: BOOTSTRAP_AUTHORIZATION_SCOPE,
     action: BOOTSTRAP_AUTHORIZATION_ACTION,
   }
+  if (existing) record.target_mode = targetMode
   // This is a detached integrity hint for the authoring record. The signed
   // Task payload always binds the exact raw comment-body hash independently.
   record.comment_sha256 = sha256Hex(canonicalSerialize({ ...record, comment_sha256: null }))
@@ -200,6 +226,7 @@ export function validateFounderTaskBootstrapAuthorization({
 }: ValidateFounderTaskBootstrapAuthorizationOptions = {}): FounderTaskBootstrapAuthorizationResult {
   if (!isJsonRecord(authorization)) authorizationError('record is missing')
   const author = normalizeCommentAuthor(authorizationComment)
+  const existing = authorization.bundle_kind === EXISTING_TASK_BOOTSTRAP_AUTHORIZATION_BUNDLE
   const expectedConditions = [
     authorization.schema_version === 1,
     authorization.status === 'approved',
@@ -210,12 +237,12 @@ export function validateFounderTaskBootstrapAuthorization({
     authorization.non_superseded === true,
     authorization.superseded_by == null,
     authorization.repository === repository,
-    authorization.bundle_kind === BOOTSTRAP_AUTHORIZATION_BUNDLE,
-    Number(authorization.parent_issue) === Number(expected.parentIssue),
-    authorization.task_issue == null,
-    String(authorization.pr) === String(expected.pullRequest),
-    authorization.exact_head === expected.head,
-    authorization.reviewed_head === expected.head,
+    authorization.bundle_kind === (existing ? EXISTING_TASK_BOOTSTRAP_AUTHORIZATION_BUNDLE : BOOTSTRAP_AUTHORIZATION_BUNDLE),
+    Number(authorization.parent_issue) === Number(existing ? authorization.task_issue : expected.parentIssue),
+    existing ? Number(authorization.task_issue) > 0 : authorization.task_issue == null,
+    existing ? authorization.target_mode === 'planning_no_pr' : String(authorization.pr) === String(expected.pullRequest),
+    existing ? authorization.pr == null : authorization.exact_head === expected.head,
+    existing ? authorization.exact_head == null && authorization.reviewed_head == null : authorization.reviewed_head === expected.head,
     authorization.base === expected.base,
     authorization.policy_source === expected.policySource,
     authorization.policy_source_sha === expected.policySha,
@@ -225,9 +252,10 @@ export function validateFounderTaskBootstrapAuthorization({
     authorization.action === BOOTSTRAP_AUTHORIZATION_ACTION,
     String(authorizationComment?.id) === String(authorization.comment_id) || authorization.comment_id === '<immutable-comment-id>',
   ]
-  if (expectedConditions.some((value) => !value)) authorizationError('record does not bind the trusted Founder, genesis tuple, scope, policy, or comment identity')
-  if (parentIssue?.number != null && String(parentIssue.number) !== String(expected.parentIssue)) authorizationError('authorization parent Issue does not match the genesis parent')
-  if (authorizationComment?.issue_number != null && String(authorizationComment.issue_number) !== String(expected.parentIssue)) authorizationError('authorization comment is not attached to the parent Issue')
+  if (existing && Number(authorization.parent_issue) !== Number(authorization.task_issue)) authorizationError('existing-task authorization parent and target Issue must be identical')
+  if (expectedConditions.some((value) => !value)) authorizationError('record does not bind the trusted Founder, target, scope, policy, or comment identity')
+  if (parentIssue?.number != null && String(parentIssue.number) !== String(existing ? authorization.task_issue : expected.parentIssue)) authorizationError(existing ? 'authorization parent Issue does not match the authorized target' : 'authorization parent Issue does not match the genesis parent')
+  if (authorizationComment?.issue_number != null && String(authorizationComment.issue_number) !== String(existing ? authorization.task_issue : expected.parentIssue)) authorizationError(existing ? 'authorization comment is not attached to the authorized Issue' : 'authorization comment is not attached to the parent Issue')
   if (authorization.comment_sha256 != null) {
     if (!validSha(authorization.comment_sha256)) authorizationError('comment_sha256 is not a SHA-256 digest')
     const detached = sha256Hex(canonicalSerialize({ ...authorization, comment_sha256: null }))

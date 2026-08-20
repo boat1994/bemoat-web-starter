@@ -244,6 +244,41 @@ function serviceFor(world: ReturnType<typeof createWorld>, overrides: any = {}) 
 }
 
 describe('canonical Mission Control Task bootstrap', () => {
+  it('initializes the Founder-authorized existing planning-only Issue without reading PR genesis evidence', async () => {
+    const world = createWorld()
+    const authBody = createFounderAuthorizationBody({
+      repository: REPO,
+      parentIssue: 380,
+      taskIssue: 380,
+      targetMode: 'planning_no_pr',
+      pullRequest: null,
+      head: null,
+      protectedBaseSha: MAIN_SHA,
+      policySource: POLICY_PATH,
+      policyVersion: POLICY_VERSION,
+      policySha: POLICY_SHA,
+      commentId: 9002,
+    })
+    world.issues.set(380, {
+      number: 380,
+      id: 'I_existing_380',
+      node_id: 'MDU6SXNzdWUzODA=',
+      url: `https://github.com/${REPO}/issues/380`,
+      state: 'OPEN',
+      title: 'existing managed task',
+      body: '',
+    })
+    world.comments.set(380, [{ id: 9002, body: authBody, user: { login: 'boat1994' }, issue_number: 380 }])
+
+    const { service } = serviceFor(world)
+    const result = await service.bootstrap({ founderAuthorizationCommentId: '9002' })
+    const state = parseMissionControlState(result.issue.body)
+
+    expect(result.targetMode).toBe('planning_no_pr')
+    expect(state.state).toMatchObject({ active_task_issue: '#380', active_pr: null, current_head: null, workflow_mode: 'planning_no_pr' })
+    expect(world.calls.events).not.toContain('getPullRequest:263')
+  })
+
   it('writes durable ownership before projection and reads back after projection', async () => {
     const world = createWorld()
     const { service } = serviceFor(world)

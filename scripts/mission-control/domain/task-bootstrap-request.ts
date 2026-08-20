@@ -15,6 +15,7 @@ type TaskBootstrapRequestInput = {
   policyPath?: unknown
   policyVersion?: unknown
   policySha?: unknown
+  targetMode?: unknown
 }
 
 export type TaskBootstrapRequestTuple = {
@@ -24,7 +25,7 @@ export type TaskBootstrapRequestTuple = {
   authorization_comment_id: string
   authorization_body_sha256: unknown
   parent_issue: number
-  pull_request: number
+  pull_request: number | null
   base: unknown
   head: unknown
   protected_base_sha: unknown
@@ -67,7 +68,9 @@ export function buildTaskBootstrapRequestIdentity({
   policyPath,
   policyVersion,
   policySha,
+  targetMode = null,
 }: TaskBootstrapRequestInput = {}): TaskBootstrapRequestIdentity {
+  const planning = targetMode === 'planning_no_pr'
   const tuple: TaskBootstrapRequestTuple = {
     operation: 'task-bootstrap',
     operation_version: 1,
@@ -75,7 +78,7 @@ export function buildTaskBootstrapRequestIdentity({
     authorization_comment_id: String(authorizationCommentId),
     authorization_body_sha256: authorizationBodySha256,
     parent_issue: Number(parentIssue),
-    pull_request: Number(pullRequest),
+    pull_request: planning && pullRequest == null ? null : Number(pullRequest),
     base,
     head,
     protected_base_sha: protectedBaseSha,
