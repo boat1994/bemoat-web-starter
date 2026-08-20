@@ -73,6 +73,7 @@ type ValidateFounderTaskBootstrapAuthorizationOptions = {
   founderLogins?: unknown[]
   parentComments?: unknown[]
   expected?: BootstrapContract
+  boundCommentId?: unknown
 }
 
 export const BOOTSTRAP_CONTRACT: BootstrapContract = Object.freeze({
@@ -104,6 +105,7 @@ export const BOOTSTRAP_AUTHORIZATION_BUNDLE = 'task-bootstrap-genesis'
 export const EXISTING_TASK_BOOTSTRAP_AUTHORIZATION_BUNDLE = 'task-bootstrap-existing'
 export const BOOTSTRAP_AUTHORIZATION_SCOPE = 'task-initialization'
 export const BOOTSTRAP_AUTHORIZATION_ACTION = 'create-managed-task'
+export const IMMUTABLE_EXISTING_AUTHORIZATION_FORMAT = 'task-bootstrap-existing-v2'
 const BATCH_1_AUTHORIZATION_FORMAT = 'bootstrap-recovery-batch-1'
 
 const BATCH_1_EXPLICIT_EXCLUSIONS = '**Explicit exclusions:** final merge; Batches A-D implementation; mutation or merge of PR #378; mutation or reopen of #373; mutation, retry, merge, or rebase of PR #369; modification or rebase of PR #366; #333 reconciliation or resumption; #336; deploy; migration; child sync; production; destructive; unrelated work.'
@@ -339,6 +341,7 @@ export function validateFounderTaskBootstrapAuthorization({
   founderLogins,
   parentComments = [],
   expected = BOOTSTRAP_CONTRACT,
+  boundCommentId,
 }: ValidateFounderTaskBootstrapAuthorizationOptions = {}): FounderTaskBootstrapAuthorizationResult {
   if (!isJsonRecord(authorization)) authorizationError('record is missing')
   const author = normalizeCommentAuthor(authorizationComment)
@@ -366,7 +369,9 @@ export function validateFounderTaskBootstrapAuthorization({
     authorization.policy_version === expected.policyVersion,
     authorization.scope === BOOTSTRAP_AUTHORIZATION_SCOPE,
     authorization.action === BOOTSTRAP_AUTHORIZATION_ACTION,
-    String(authorizationComment?.id) === String(authorization.comment_id),
+    authorization.authorization_format === IMMUTABLE_EXISTING_AUTHORIZATION_FORMAT
+      ? authorization.bundle_kind === EXISTING_TASK_BOOTSTRAP_AUTHORIZATION_BUNDLE && authorization.comment_id == null && /^\d+$/.test(String(authorizationComment?.id ?? '')) && String(boundCommentId) === String(authorizationComment?.id)
+      : String(authorizationComment?.id) === String(authorization.comment_id),
   ]
   if (existing && Number(authorization.parent_issue) !== Number(authorization.task_issue)) authorizationError('existing-task authorization parent and target Issue must be identical')
   if (expectedConditions.some((value) => !value)) authorizationError('record does not bind the trusted Founder, target, scope, policy, or comment identity')

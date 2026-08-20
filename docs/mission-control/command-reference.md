@@ -16,6 +16,7 @@ overrides chat, copied handoffs, local notes, or stale values.
 | `reopen` | Project Founder-authorized PR head drift to `FOUNDER_AUTHORIZED_CORRECTION`. |
 | `adopt-finding` | Append exactly one Founder-authorized finding to the active correction contract while preserving `CORRECTION_REQUIRED_1\|2` and review counters. |
 | `recover-state` | Exceptional recovery for one completely absent managed-state block when immutable evidence uniquely reconstructs the prior canonical state. It cannot repair malformed state, replay review, or invoke finding adoption. |
+| `authorize-founder` | Record one immutable Founder task-bootstrap authorization body exactly once, binding the live returned comment ID and body hash through readback. |
 | `merge` | Finalize Founder-authorized merge. Uses the live PR head and an existing Founder JSON authorization comment. |
 | (none) | Stop and request human review if evidence disagrees, authentication fails, or preconditions mismatch. Never mutate state YAML directly. |
 
@@ -453,6 +454,30 @@ whose preconditions match; otherwise stop for `STATE_CONFLICT` or
 `BLOCKED_EXTERNAL`.
 
 ## Managed-Task bootstrap
+
+### Immutable Founder authorization recording
+
+For an existing Task Issue whose Founder authorization is not yet durably
+recorded, use the repository-owned transport:
+
+```bash
+pnpm run bemoat:mission-control:authorize-founder -- <issue-number> \
+  --repo boat1994/bemoat-web-starter --json
+```
+
+The command derives the authenticated GitHub actor, Founder allowlist, target
+Issue, protected `main` SHA, and merged policy identity from live GitHub
+evidence. The Founder allowlist comes from the repository Actions variable
+`BEMOAT_FOUNDER_LOGINS`; caller environment values are not trusted. The
+transport serializes concurrent writers with the repository lease protocol,
+posts one final raw JSON `task-bootstrap-existing-v2` body with
+`comment_id: null`, and binds the actual positive comment ID plus exact body
+SHA-256 through POST/readback evidence. It never edits a posted comment.
+
+Malformed, conflicting, wrong-scope/action, duplicate, superseded, uncertain,
+or drifted evidence stops fail closed. An exact trusted replay returns
+`NO_OP_IDENTICAL_RETRY`. After `SUCCESS` or `NO_OP_IDENTICAL_RETRY`, bootstrap
+must independently re-read and validate the returned comment ID and live body.
 
 The starter's managed-Task bootstrap is an ordinary, human-reviewed workflow.
 It is not a normal agent Issue-creation API and it never accepts a caller-

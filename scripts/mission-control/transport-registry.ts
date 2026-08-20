@@ -19,6 +19,7 @@ export type MissionControlTransportRole =
   | 'REVIEW_VERDICT'
   | 'STATE_PROJECTION'
   | 'MERGE'
+  | 'FOUNDER_AUTHORIZATION'
 
 export type CanonicalTransportRoute = {
   command: string
@@ -98,6 +99,13 @@ export const CANONICAL_TRANSPORTS: ReadonlyArray<Readonly<CanonicalTransportRout
     owner: 'Missing Managed-State Recovery Transport',
     purpose: 'recreate one uniquely reconstructed absent managed-state projection without review or finding adoption',
     exceptional: true,
+  }),
+  Object.freeze({
+    command: 'bemoat:mission-control:authorize-founder',
+    role: 'FOUNDER_AUTHORIZATION',
+    owner: 'Founder Authorization Recording Transport',
+    purpose: 'record one immutable Founder authorization with live ID/readback binding',
+    exceptional: false,
   }),
 ])
 
