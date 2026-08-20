@@ -16,7 +16,6 @@ permissions:
   checks: read
   contents: read
   issues: write
-  metadata: read
   pull-requests: read
   statuses: read
 
