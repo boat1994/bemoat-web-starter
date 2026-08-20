@@ -63,8 +63,7 @@
     "bemoat:hooks:install": "node scripts/install-git-hooks.mjs",
     "bemoat:test:int": "cross-env NODE_OPTIONS=--no-deprecation vitest run --config ./vitest.config.mts",
     "bemoat:typecheck": "node scripts/bemoat-typecheck.mjs",
-    "smoke:deploy": "node scripts/deploy-smoke-test.mjs",
-    "bemoat:mission-control:authorize-founder": "node scripts/mission-control-authorize-founder.mjs"
+    "smoke:deploy": "node scripts/deploy-smoke-test.mjs"
   },
   "dependencies": {
     "@opennextjs/cloudflare": "^1.11.0",

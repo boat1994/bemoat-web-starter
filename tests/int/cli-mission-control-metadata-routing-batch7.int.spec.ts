@@ -119,7 +119,7 @@ describe('Batch 7 characterization — CLI command metadata and routing policy l
     expect(missionControlRecoveryRoutes().map((route: any) => route.route_key)).toEqual([
       ...EXPECTED_RECOVERY_ROUTE_KEYS,
     ])
-    expect(missionControlPrimaryRoutes()).toHaveLength(15)
+    expect(missionControlPrimaryRoutes()).toHaveLength(16)
     expect(missionControlRecoveryRoutes()).toHaveLength(15)
   })
 
