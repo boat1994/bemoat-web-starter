@@ -140,32 +140,28 @@ describe('Mission Control bootstrap transport contract', () => {
     expectStateConflict(() => typed.parseFounderTaskBootstrapAuthorization('```{}'), 'comment must contain exactly one raw JSON object')
   })
 
-  it('accepts the exact Markdown Founder decision record and rejects prose or altered bindings', async () => {
+  it('accepts the exact live Batch 1 Founder decision record and rejects prose or altered bindings', async () => {
     const typed = await import('../../scripts/mission-control/domain/task-bootstrap-authorization.ts')
-    const body = [
-      '## FOUNDER_DECISION',
-      '',
-      '**Status:** `approved`',
-      '**Authority:** `Founder`',
-      '**Author login:** `boat1994`',
-      '**Comment ID:** `5350702619`',
-      '**Immutable comment reference:** `true`',
-      '**Non-superseded:** `true`',
-      '**Repository:** `boat1994/bemoat-web-starter`',
-      '**Bundle kind:** `task-bootstrap-existing`',
-      '**Task Issue:** `#380`',
-      '**PR:** `null`',
-      '**Exact head:** `null`',
-      '**Reviewed head:** `null`',
-      '**Base:** `main`',
-      '**Policy source:** `docs/mission-control/mission-control-guide.md`',
-      '**Policy source SHA:** `f46f5de1d5ee17669c7c4663893164ffb835b339`',
-      '**Protected base SHA:** `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`',
-      '**Policy version:** `1.3.0`',
-      '**Scope:** `task-initialization`',
-      '**Action:** `create-managed-task`',
-      '**Target mode:** `planning_no_pr`',
-    ].join('\n')
+    const body = `## FOUNDER_DECISION
+
+**Decision:** APPROVE BOOTSTRAP RECOVERY BATCH 1
+**Authority:** Founder
+**Author:** @boat1994
+**Repository:** boat1994/bemoat-web-starter
+**Task / Issue:** #380
+**Protected base:** main@35bdd8689c5ff52a5d51f98419ae498f0971090c
+**Policy:** docs/mission-control/mission-control-guide.md
+**Policy version:** 1.3.0
+**Policy source SHA:** 56443e2b8e07b8d8325d6b5fdef7b49f305b1e1f
+**Objective:** Bootstrap Recovery Batch 1 — generalize canonical managed-task bootstrap for an already-registered managed Issue such as #380.
+**Scope:** bootstrap control-plane contract repair only; preserve the protected environment, Actions-only signing private key, trusted Founder identity, immutable authorization, non-supersession, signed attestation, deterministic request identity, CAS/lease/readback, idempotent retry, and fail-closed ambiguity handling.
+**Action:** implement and publish the bounded Bootstrap Recovery Batch 1 repair.
+**Immutable comment reference:** true
+**Non-superseded:** true
+
+**Explicit exclusions:** final merge; Batches A-D implementation; mutation or merge of PR #378; mutation or reopen of #373; mutation, retry, merge, or rebase of PR #369; modification or rebase of PR #366; #333 reconciliation or resumption; #336; deploy; migration; child sync; production; destructive; unrelated work.
+
+This decision does not authorize forging historical #262/#263 bindings, direct managed-state YAML mutation, manual attestation fabrication, bypassing canonical bootstrap, or impersonating Founder identity.`
     const authorization = typed.parseFounderTaskBootstrapAuthorization(body)
     expect(typed.validateFounderTaskBootstrapAuthorization({
       authorization,
@@ -173,14 +169,22 @@ describe('Mission Control bootstrap transport contract', () => {
       parentIssue: { number: 380 },
       repository: typed.BOOTSTRAP_CONTRACT.repository,
       founderLogins: ['boat1994'],
-      expected: { ...typed.BOOTSTRAP_CONTRACT, parentIssue: 380, pullRequest: null, head: null, protectedBaseSha: 'a'.repeat(40), policySha: typed.BOOTSTRAP_CONTRACT.policySha } as unknown as NonNullable<Parameters<typeof typed.validateFounderTaskBootstrapAuthorization>[0]>['expected'],
-    })).toMatchObject({ valid: true, commentId: '5350702619' })
+      expected: { ...typed.BOOTSTRAP_CONTRACT, parentIssue: 380, pullRequest: null, head: null, protectedBaseSha: '35bdd8689c5ff52a5d51f98419ae498f0971090c', policySha: '56443e2b8e07b8d8325d6b5fdef7b49f305b1e1f' } as unknown as NonNullable<Parameters<typeof typed.validateFounderTaskBootstrapAuthorization>[0]>['expected'],
+    })).toMatchObject({ valid: true, commentId: '5350702619', bodySha256: sha256Hex(body) })
+    expect(() => typed.validateFounderTaskBootstrapAuthorization({
+      authorization,
+      authorizationComment: { id: '5350702620', body, user: { login: 'boat1994' }, issue_number: 380 },
+      parentIssue: { number: 380 },
+      repository: typed.BOOTSTRAP_CONTRACT.repository,
+      founderLogins: ['boat1994'],
+      expected: { ...typed.BOOTSTRAP_CONTRACT, parentIssue: 380, pullRequest: null, head: null, protectedBaseSha: '35bdd8689c5ff52a5d51f98419ae498f0971090c', policySha: '56443e2b8e07b8d8325d6b5fdef7b49f305b1e1f' } as unknown as NonNullable<Parameters<typeof typed.validateFounderTaskBootstrapAuthorization>[0]>['expected'],
+    })).toThrow('record does not bind the trusted Founder, target, scope, policy, or comment identity')
     expect(() => typed.parseFounderTaskBootstrapAuthorization('## FOUNDER_DECISION\n\nI approve this.')).toThrow('comment body must contain the exact structured Founder decision fields')
     expect(() => typed.validateFounderTaskBootstrapAuthorization({
       authorization: { ...authorization, action: 'merge' },
       authorizationComment: { id: '5350702619', body, user: { login: 'boat1994' }, issue_number: 380 },
       parentIssue: { number: 380 }, repository: typed.BOOTSTRAP_CONTRACT.repository, founderLogins: ['boat1994'],
-      expected: { ...typed.BOOTSTRAP_CONTRACT, parentIssue: 380, pullRequest: null, head: null, protectedBaseSha: 'a'.repeat(40), policySha: typed.BOOTSTRAP_CONTRACT.policySha } as unknown as NonNullable<Parameters<typeof typed.validateFounderTaskBootstrapAuthorization>[0]>['expected'],
+      expected: { ...typed.BOOTSTRAP_CONTRACT, parentIssue: 380, pullRequest: null, head: null, protectedBaseSha: '35bdd8689c5ff52a5d51f98419ae498f0971090c', policySha: '56443e2b8e07b8d8325d6b5fdef7b49f305b1e1f' } as unknown as NonNullable<Parameters<typeof typed.validateFounderTaskBootstrapAuthorization>[0]>['expected'],
     })).toThrow('record does not bind the trusted Founder, target, scope, policy, or comment identity')
   })
 

@@ -104,6 +104,10 @@ export const BOOTSTRAP_AUTHORIZATION_BUNDLE = 'task-bootstrap-genesis'
 export const EXISTING_TASK_BOOTSTRAP_AUTHORIZATION_BUNDLE = 'task-bootstrap-existing'
 export const BOOTSTRAP_AUTHORIZATION_SCOPE = 'task-initialization'
 export const BOOTSTRAP_AUTHORIZATION_ACTION = 'create-managed-task'
+const BATCH_1_AUTHORIZATION_FORMAT = 'bootstrap-recovery-batch-1'
+
+const BATCH_1_EXPLICIT_EXCLUSIONS = '**Explicit exclusions:** final merge; Batches A-D implementation; mutation or merge of PR #378; mutation or reopen of #373; mutation, retry, merge, or rebase of PR #369; modification or rebase of PR #366; #333 reconciliation or resumption; #336; deploy; migration; child sync; production; destructive; unrelated work.'
+const BATCH_1_EXCLUSION_PROSE = 'This decision does not authorize forging historical #262/#263 bindings, direct managed-state YAML mutation, manual attestation fabrication, bypassing canonical bootstrap, or impersonating Founder identity.'
 
 function authorizationError(message: string): never {
   const error = new Error(`Founder bootstrap authorization is invalid: ${message}`)
@@ -119,7 +123,10 @@ export function parseFounderTaskBootstrapAuthorization(body = ''): JsonRecord {
   if (typeof body !== 'string' || !body.trim() || body.trim().startsWith('```')) {
     authorizationError('comment must contain exactly one raw JSON object')
   }
-  if (body.trim().startsWith('## FOUNDER_DECISION')) return parseMarkdownFounderDecision(body)
+  if (body.trim().startsWith('## FOUNDER_DECISION')) {
+    if (body.includes('**Decision:** APPROVE BOOTSTRAP RECOVERY BATCH 1')) return parseBatch1FounderDecision(body)
+    return parseMarkdownFounderDecision(body)
+  }
   let authorization: unknown
   try {
     authorization = JSON.parse(body.trim())
@@ -130,6 +137,61 @@ export function parseFounderTaskBootstrapAuthorization(body = ''): JsonRecord {
     authorizationError('comment body must decode to one JSON object')
   }
   return authorization
+}
+
+function parseBatch1FounderDecision(body: string): JsonRecord {
+  const lines = body.split(/\r?\n/)
+  const fields = [
+    '## FOUNDER_DECISION',
+    '',
+    '**Decision:** APPROVE BOOTSTRAP RECOVERY BATCH 1',
+    '**Authority:** Founder',
+    '**Author:** @boat1994',
+    '**Repository:** boat1994/bemoat-web-starter',
+    '**Task / Issue:** #380',
+    '**Protected base:** main@35bdd8689c5ff52a5d51f98419ae498f0971090c',
+    '**Policy:** docs/mission-control/mission-control-guide.md',
+    '**Policy version:** 1.3.0',
+    '**Policy source SHA:** 56443e2b8e07b8d8325d6b5fdef7b49f305b1e1f',
+    '**Objective:** Bootstrap Recovery Batch 1 — generalize canonical managed-task bootstrap for an already-registered managed Issue such as #380.',
+    '**Scope:** bootstrap control-plane contract repair only; preserve the protected environment, Actions-only signing private key, trusted Founder identity, immutable authorization, non-supersession, signed attestation, deterministic request identity, CAS/lease/readback, idempotent retry, and fail-closed ambiguity handling.',
+    '**Action:** implement and publish the bounded Bootstrap Recovery Batch 1 repair.',
+    '**Immutable comment reference:** true',
+    '**Non-superseded:** true',
+    '',
+    BATCH_1_EXPLICIT_EXCLUSIONS,
+    '',
+    BATCH_1_EXCLUSION_PROSE,
+  ]
+  if (lines.length !== fields.length || lines.some((line, index) => line !== fields[index])) {
+    authorizationError('comment body must contain the exact structured Batch 1 Founder decision fields and exclusions')
+  }
+  return {
+    schema_version: 1,
+    authorization_format: BATCH_1_AUTHORIZATION_FORMAT,
+    status: 'approved',
+    authority: 'Founder',
+    author_login: 'boat1994',
+    comment_id: '5350702619',
+    immutable_comment_reference: true,
+    non_superseded: true,
+    superseded_by: null,
+    repository: BOOTSTRAP_CONTRACT.repository,
+    bundle_kind: EXISTING_TASK_BOOTSTRAP_AUTHORIZATION_BUNDLE,
+    parent_issue: 380,
+    task_issue: 380,
+    pr: null,
+    exact_head: null,
+    reviewed_head: null,
+    base: 'main',
+    protected_base_sha: '35bdd8689c5ff52a5d51f98419ae498f0971090c',
+    policy_source: BOOTSTRAP_CONTRACT.policySource,
+    policy_source_sha: '56443e2b8e07b8d8325d6b5fdef7b49f305b1e1f',
+    policy_version: '1.3.0',
+    scope: BOOTSTRAP_AUTHORIZATION_SCOPE,
+    action: BOOTSTRAP_AUTHORIZATION_ACTION,
+    target_mode: 'planning_no_pr',
+  }
 }
 
 const MARKDOWN_FIELD_NAMES: Record<string, string> = {
