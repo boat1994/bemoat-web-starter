@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto'
+
 export const FOUNDER_AUTHORIZATION_RECEIPT_FORMAT = 'task-bootstrap-existing-receipt-v1'
 
 type JsonRecord = Record<string, unknown>
@@ -42,10 +44,19 @@ function author(value: unknown): string {
   return String(nested ?? property(value, 'author_login') ?? '')
 }
 
+export function assertImmutableCommentSnapshot(comment: unknown, label: string): void {
+  const createdAt = property(comment, 'created_at')
+  const updatedAt = property(comment, 'updated_at')
+  if (createdAt != null && updatedAt != null && String(createdAt) !== String(updatedAt)) {
+    receiptError(`${label} was mutated after creation`)
+  }
+}
+
 export function validateFounderAuthorizationReceipt({ authorizationComment, parentComments = [], repository, founderLogin, issueNumber, protectedBaseSha, policySource, policyVersion, policySha }: {
   authorizationComment?: unknown; parentComments?: unknown[]; repository: string; founderLogin: string; issueNumber: number
   protectedBaseSha: string; policySource: string; policyVersion: string; policySha: string
 }): void {
+  assertImmutableCommentSnapshot(authorizationComment, 'authorization comment')
   const authorizationCommentId = String(property(authorizationComment, 'id') ?? '')
   const authorizationBody = String(property(authorizationComment, 'body') ?? '')
   const authorizationBodySha256 = createHash('sha256').update(authorizationBody, 'utf8').digest('hex')
@@ -53,9 +64,8 @@ export function validateFounderAuthorizationReceipt({ authorizationComment, pare
   const receipts = parentComments.filter((comment) => String(property(comment, 'body') ?? '').includes(FOUNDER_AUTHORIZATION_RECEIPT_FORMAT))
   if (receipts.length !== 1) receiptError('exactly one immutable authorization receipt is required')
   const receipt = receipts[0]
+  assertImmutableCommentSnapshot(receipt, 'authorization receipt')
   try { parseFounderAuthorizationReceipt(String(property(receipt, 'body') ?? '')) } catch { receiptError('authorization receipt is malformed') }
   if (String(property(receipt, 'body') ?? '') !== expectedBody) receiptError('authorization receipt does not bind the exact authorization ID and body hash')
   if (!/^\d+$/.test(String(property(receipt, 'id') ?? '')) || author(receipt) !== founderLogin || String(property(receipt, 'issue_number') ?? '') !== String(issueNumber)) receiptError('authorization receipt identity is invalid')
 }
-
-import { createHash } from 'node:crypto'

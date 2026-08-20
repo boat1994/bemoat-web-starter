@@ -25,6 +25,8 @@ type Comment = {
   user?: { login?: unknown } | null
   author?: { login?: unknown } | null
   author_login?: unknown
+  created_at?: unknown
+  updated_at?: unknown
 }
 
 type RecordingOptions = Readonly<{
@@ -85,11 +87,20 @@ function sameBody(comment: Comment, body: string): boolean {
   return typeof comment.body === 'string' && comment.body === body
 }
 
+function assertUnmutatedComment(comment: Comment, label: string, mutationPerformed = false): void {
+  const createdAt = comment.created_at
+  const updatedAt = comment.updated_at
+  if (createdAt != null && updatedAt != null && String(createdAt) !== String(updatedAt)) {
+    throw recordingError('STATE_CONFLICT', `${label} was mutated after creation`, mutationPerformed)
+  }
+}
+
 function looksReceipt(body: unknown): boolean {
   return String(body ?? '').includes('task-bootstrap-existing-receipt-v1')
 }
 
 function validateReceipt(comment: Comment, context: FounderAuthorizationRecordingContext, authorizationId: string, bodySha256: string, mutationPerformed = true): void {
+  assertUnmutatedComment(comment, 'authorization receipt', mutationPerformed)
   if (!comment.id || !/^\d+$/.test(String(comment.id))) throw recordingError('AMBIGUOUS_RESULT', 'authorization receipt did not yield an immutable numeric comment ID', mutationPerformed)
   if (commentAuthor(comment) !== context.founderLogin) throw recordingError('STATE_CONFLICT', 'authorization receipt actor is not the trusted Founder', mutationPerformed)
   if (!Number.isSafeInteger(Number(comment.issue_number)) || Number(comment.issue_number) !== context.issueNumber) throw recordingError('STATE_CONFLICT', 'authorization receipt is not bound to the target Issue', mutationPerformed)
@@ -145,6 +156,7 @@ async function postReceipt({
 }
 
 function validateCommentBinding(comment: Comment, context: FounderAuthorizationRecordingContext, body: string, mutationPerformed = true) {
+  assertUnmutatedComment(comment, 'authorization comment', mutationPerformed)
   if (!comment.id || !/^\d+$/.test(String(comment.id))) throw recordingError('AMBIGUOUS_RESULT', 'authorization POST/readback did not yield an immutable numeric comment ID', mutationPerformed)
   if (!sameBody(comment, body)) throw recordingError('STATE_CONFLICT', 'authorization comment body changed between POST and readback', mutationPerformed)
   if (commentAuthor(comment) !== context.founderLogin) throw recordingError('STATE_CONFLICT', 'authorization comment actor is not the trusted Founder', mutationPerformed)
@@ -223,6 +235,7 @@ function classifyExistingAuthorizationComments(comments: readonly Comment[], con
   for (const comment of comments) {
     if (!looksAuthorizationShaped(comment.body)) continue
     if (!sameBody(comment, body)) throw recordingError('STATE_CONFLICT', 'conflicting, malformed, or semantically different authorization evidence already exists', false)
+    assertUnmutatedComment(comment, 'authorization comment')
     if (!/^\d+$/.test(String(comment.id ?? '')) || commentAuthor(comment) !== context.founderLogin || !Number.isSafeInteger(Number(comment.issue_number)) || Number(comment.issue_number) !== context.issueNumber) throw recordingError('STATE_CONFLICT', 'authorization evidence has an invalid identity or Issue binding', false)
     matches.push(comment)
   }

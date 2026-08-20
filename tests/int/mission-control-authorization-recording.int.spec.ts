@@ -27,7 +27,17 @@ const context = {
   founderLogin: 'boat1994',
 }
 
-function comment(id: string, body: string, overrides: Record<string, unknown> = {}) {
+type TestComment = {
+  id: string
+  body: string
+  issue_number: number
+  user: { login: string }
+  created_at?: string
+  updated_at?: string
+  [key: string]: unknown
+}
+
+function comment(id: string, body: string, overrides: Record<string, unknown> = {}): TestComment {
   return {
     id,
     body,
@@ -191,6 +201,35 @@ describe('Issue #383 immutable Founder authorization recording', () => {
       })).rejects.toMatchObject({ classification: 'STATE_CONFLICT', mutationPerformed: false })
       expect(posts).toBe(0)
     }
+  })
+
+  it('fails closed for a post-creation-mutated authorization snapshot without updating it', async () => {
+    const body = buildExistingTaskAuthorizationBody(context)
+    let posts = 0
+    await expect(recordFounderAuthorization({
+      context,
+      ...testLease,
+      readComments: async () => [comment('9001', body, { created_at: '2026-08-20T10:00:00Z', updated_at: '2026-08-20T10:01:00Z' })],
+      postComment: async (_issue, postedBody) => { posts += 1; return comment('9002', postedBody) },
+      readComment: async () => comment('9001', body, { created_at: '2026-08-20T10:00:00Z', updated_at: '2026-08-20T10:01:00Z' }),
+    })).rejects.toMatchObject({ classification: 'STATE_CONFLICT', mutationPerformed: false })
+    expect(posts).toBe(0)
+  })
+
+  it('fails closed for a post-creation-mutated receipt snapshot without updating it', async () => {
+    const body = buildExistingTaskAuthorizationBody(context)
+    const mutatedReceipt = receipt('9002', '9001', body)
+    mutatedReceipt.created_at = '2026-08-20T10:00:00Z'
+    mutatedReceipt.updated_at = '2026-08-20T10:01:00Z'
+    let posts = 0
+    await expect(recordFounderAuthorization({
+      context,
+      ...testLease,
+      readComments: async () => [comment('9001', body), mutatedReceipt],
+      postComment: async (_issue, postedBody) => { posts += 1; return comment('9003', postedBody) },
+      readComment: async (id) => id === '9001' ? comment('9001', body) : mutatedReceipt,
+    })).rejects.toMatchObject({ classification: 'STATE_CONFLICT', mutationPerformed: false })
+    expect(posts).toBe(0)
   })
 
   it('fails closed when receipt publication is uncertain and never edits the authorization', async () => {
@@ -435,6 +474,40 @@ describe('Issue #383 immutable Founder authorization recording', () => {
       authorization: { ...authorization, bundle_kind: 'task-bootstrap-genesis' }, authorizationComment: comment,
       parentIssue: { number: context.issueNumber }, repository: context.repository, founderLogins: [context.founderLogin],
       parentComments: [comment], expected, boundCommentId: '9001',
+    })).toThrow('Founder bootstrap authorization is invalid')
+  })
+
+  it('rejects post-creation-mutated authorization and receipt snapshots during bootstrap readback', () => {
+    const body = buildExistingTaskAuthorizationBody(context)
+    const authorization = parseFounderTaskBootstrapAuthorization(body)
+    const expected = {
+      ...BOOTSTRAP_CONTRACT,
+      parentIssue: context.issueNumber,
+      pullRequest: null,
+      head: null,
+      protectedBaseSha: context.protectedBaseSha,
+      policySha: context.policySha,
+      policyVersion: context.policyVersion,
+    } as unknown as typeof BOOTSTRAP_CONTRACT
+    const authorizationComment = comment('9001', body, {
+      created_at: '2026-08-20T10:00:00Z',
+      updated_at: '2026-08-20T10:01:00Z',
+    })
+    const validReceipt = receipt('9002', '9001', body)
+    expect(() => validateFounderTaskBootstrapAuthorization({
+      authorization, authorizationComment, parentIssue: { number: context.issueNumber },
+      repository: context.repository, founderLogins: [context.founderLogin], parentComments: [authorizationComment, validReceipt], expected,
+      boundCommentId: '9001',
+    })).toThrow('Founder bootstrap authorization is invalid')
+
+    const mutatedReceipt = receipt('9002', '9001', body)
+    mutatedReceipt.created_at = '2026-08-20T10:00:00Z'
+    mutatedReceipt.updated_at = '2026-08-20T10:01:00Z'
+    const cleanAuthorization = comment('9001', body)
+    expect(() => validateFounderTaskBootstrapAuthorization({
+      authorization, authorizationComment: cleanAuthorization, parentIssue: { number: context.issueNumber },
+      repository: context.repository, founderLogins: [context.founderLogin], parentComments: [cleanAuthorization, mutatedReceipt], expected,
+      boundCommentId: '9001',
     })).toThrow('Founder bootstrap authorization is invalid')
   })
 
