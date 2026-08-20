@@ -5,6 +5,7 @@ import { createResultEnvelopeV1, classificationExitCode } from '../../cli/comman
 import { recordFounderMergeAuthorization } from '../domain/founder-merge-authorization-recording.ts'
 import { parseMissionControlState } from '../domain/task-state.ts'
 import { normalizePrNumber } from '../domain/merge-issue-references.ts'
+import { resolveMergeReviewVerdictBinding } from '../domain/merge-review-verdict.ts'
 import { createTaskBootstrapGithubAdapter } from '../adapters/task-bootstrap-github.mjs'
 import { defaultRunGh, readProtectedRef } from '../adapters/merge-github.mjs'
 
@@ -47,22 +48,48 @@ export async function main(argv = process.argv.slice(2)) {
       if (issueJson.number !== issueNumber) throw fail('STATE_CONFLICT', 'authorization target Issue readback is inconsistent')
       
       const parsedState = parseMissionControlState(issueJson.body)
-      if (!parsedState.present || !parsedState.valid) throw fail('STATE_CONFLICT', `Issue has invalid managed state: ${parsedState.reason ?? 'missing state block'}`)
-      const state = parsedState.state
-      
-      const prNumber = resolvePrNumber(state.active_pr)
-      const exactHead = state.last_reviewed_head
-      const base = state.approved_base
-      const policySource = state.guide_source_path ?? 'docs/mission-control/mission-control-guide.md'
-      const policyVersion = state.guide_version ?? '1.3.0'
-      const policySha = state.guide_source_sha
-      
-      if (!exactHead || !base || !policySha) {
-        throw fail('STATE_CONFLICT', 'managed task state is missing exact head, base, or policy identity')
-      }
+      let prNumber, exactHead, base, policySource, policyVersion, policySha
 
       const mainRef = await readProtectedRef(runGh, repository, 'main')
       if (!mainRef?.object?.sha) throw fail('STATE_CONFLICT', 'live protected main ref is unavailable')
+
+      if (parsedState.present && parsedState.valid) {
+        const state = parsedState.state
+        prNumber = resolvePrNumber(state.active_pr)
+        exactHead = state.last_reviewed_head
+        base = state.approved_base
+        policySource = state.guide_source_path ?? 'docs/mission-control/mission-control-guide.md'
+        policyVersion = state.guide_version ?? '1.3.0'
+        policySha = state.guide_source_sha
+        
+        if (!exactHead || !base || !policySha) {
+          throw fail('STATE_CONFLICT', 'managed task state is missing exact head, base, or policy identity')
+        }
+      } else if (!parsedState.present) {
+        const pages = JSON.parse(runGh(['api', '--paginate', '--slurp', `repos/${repository}/issues/${issueNumber}/comments?per_page=100`]))
+        const comments = pages.flat()
+        const verdicts = comments.filter((c) => c.body?.includes('## REVIEW_VERDICT'))
+        const latestVerdict = verdicts[verdicts.length - 1]
+        if (!latestVerdict) throw fail('STATE_CONFLICT', 'Issue has no managed state and no REVIEW_VERDICT comment')
+
+        const binding = resolveMergeReviewVerdictBinding(latestVerdict.body)
+        if (binding.verdict !== 'ELIGIBLE FOR FOUNDER REVIEW') throw fail('STATE_CONFLICT', 'Latest REVIEW_VERDICT is not ELIGIBLE FOR FOUNDER REVIEW')
+        if (!binding.pr) throw fail('STATE_CONFLICT', 'Latest REVIEW_VERDICT does not bind a PR')
+        if (!binding.reviewed_head) throw fail('STATE_CONFLICT', 'Latest REVIEW_VERDICT does not bind an exact head')
+        if (!binding.base) throw fail('STATE_CONFLICT', 'Latest REVIEW_VERDICT does not bind a base')
+        
+        prNumber = resolvePrNumber(binding.pr)
+        exactHead = binding.reviewed_head
+        base = binding.base
+        
+        policySource = 'docs/mission-control/mission-control-guide.md'
+        policyVersion = '1.3.0'
+        policySha = latestVerdict.body?.match(/\*\*Policy SHA:\*\*\s*(?:`([0-9a-f]{40})`|([0-9a-f]{40}))/i)?.[1] 
+                 ?? latestVerdict.body?.match(/\*\*Policy SHA:\*\*\s*(?:`([0-9a-f]{40})`|([0-9a-f]{40}))/i)?.[2] 
+                 ?? mainRef.object.sha
+      } else {
+        throw fail('STATE_CONFLICT', `Issue has invalid managed state: ${parsedState.reason}`)
+      }
 
       const authActor = JSON.parse(runGh(['api', 'user']))
       const variable = JSON.parse(runGh(['api', `repos/${repository}/actions/variables/BEMOAT_FOUNDER_LOGINS`]))
