@@ -135,15 +135,11 @@ export function createTaskBootstrapGithubAdapter({ repository, env = process.env
       const ref = api(`repos/${repository}/git/ref/heads/${encodeURIComponent(branch)}`, { label: `${branch} protected ref` })
       return { sha: ref.object?.sha }
     },
-    async getPolicy({ ref, path }) {
+    async getPolicy({ ref, path, sourceCommit = BOOTSTRAP_CONTRACT.protectedBaseSha }) {
       const data = api(`repos/${repository}/contents/${path}?ref=${encodeURIComponent(ref)}`, { label: `policy ${path}` })
       const content = Buffer.from(String(data.content ?? '').replace(/\n/g, ''), 'base64').toString('utf8')
       const version = content.match(/(?:^|\n)version:\s*([0-9]+\.[0-9]+\.[0-9]+)/)?.[1] ?? null
-      // The genesis policy tuple is pinned to the approved protected-base
-      // commit while the file is read from the protected main ref. This keeps
-      // the post-genesis workflow usable after main advances by the reviewed
-      // genesis merge itself.
-      return { path, version, blobSha: data.sha, sourceCommit: BOOTSTRAP_CONTRACT.protectedBaseSha, content }
+      return { path, version, blobSha: data.sha, sourceCommit, content }
     },
     async getFounderLogins() {
       return String(env.BEMOAT_FOUNDER_LOGINS ?? '').split(',').map((login) => login.trim()).filter(Boolean)
@@ -157,11 +153,11 @@ export function createTaskBootstrapGithubAdapter({ repository, env = process.env
       return issueFromRest(issue, repository)
     },
     postIssueComment: postComment,
-    async acquireCreationLease({ requestId }) {
-      return leaseProtocol.acquireLease({ issueNumber: 262, requestId, scope: 'repository-task-creation' })
+    async acquireCreationLease({ issueNumber = BOOTSTRAP_CONTRACT.parentIssue, requestId }) {
+      return leaseProtocol.acquireLease({ issueNumber, requestId, scope: 'repository-task-creation' })
     },
-    async releaseCreationLease({ requestId, lease }) {
-      return leaseProtocol.releaseLease({ issueNumber: 262, requestId, scope: 'repository-task-creation', lease })
+    async releaseCreationLease({ issueNumber = BOOTSTRAP_CONTRACT.parentIssue, requestId, lease }) {
+      return leaseProtocol.releaseLease({ issueNumber, requestId, scope: 'repository-task-creation', lease })
     },
     async acquireIssueLease({ issueNumber, requestId, scope = 'task-bootstrap-projection', expectedBodySha256 }) {
       return leaseProtocol.acquireLease({ issueNumber, requestId, scope, expectedBodySha256 })

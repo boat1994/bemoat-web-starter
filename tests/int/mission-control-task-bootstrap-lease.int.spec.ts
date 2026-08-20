@@ -182,6 +182,24 @@ describe('task bootstrap Issue-only lease domain', () => {
     })
   })
 
+  it('binds policy sourceCommit to the caller-supplied live main SHA in current mode', async () => {
+    const adapter = createLegacyGithubAdapter({
+      repository: 'boat1994/bemoat-web-starter',
+      runGh: () => JSON.stringify({ content: Buffer.from('version: 1.3.0\n').toString('base64'), sha: 'policy-blob' }),
+    })
+    await expect(adapter.getPolicy({ ref: 'main', path: 'docs/mission-control/mission-control-guide.md', sourceCommit: 'live-main-sha' }))
+      .resolves.toMatchObject({ sourceCommit: 'live-main-sha' })
+  })
+
+  it('keeps the genesis policy sourceCommit fallback explicit for legacy mode', async () => {
+    const adapter = createLegacyGithubAdapter({
+      repository: 'boat1994/bemoat-web-starter',
+      runGh: () => JSON.stringify({ content: Buffer.from('version: 1.3.0\n').toString('base64'), sha: 'policy-blob' }),
+    })
+    await expect(adapter.getPolicy({ ref: 'main', path: 'docs/mission-control/mission-control-guide.md' }))
+      .resolves.toMatchObject({ sourceCommit: expect.any(String) })
+  })
+
   it('fails closed when a competing holder is already active for the same Issue and scope', async () => {
     const { protocol, posts } = harness([leaseComment('lease-a', { requestId: 'request-a', token: 'token-a' })])
 

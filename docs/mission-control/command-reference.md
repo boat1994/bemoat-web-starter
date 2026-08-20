@@ -452,11 +452,11 @@ Issue YAML directly. Re-read live evidence and use the one canonical transport
 whose preconditions match; otherwise stop for `STATE_CONFLICT` or
 `BLOCKED_EXTERNAL`.
 
-## Genesis managed-Task bootstrap
+## Managed-Task bootstrap
 
-The starter's one-time genesis transport is an ordinary, human-reviewed
-workflow. It is not a normal agent Issue-creation API and it does not create a
-Task for an Issue or PR supplied by the caller.
+The starter's managed-Task bootstrap is an ordinary, human-reviewed workflow.
+It is not a normal agent Issue-creation API and it never accepts a caller-
+supplied target, PR, head, base, Issue body, or managed state.
 
 The only supported interface is:
 
@@ -474,17 +474,18 @@ environment. The workflow grants `issues: write`; contents, pull requests,
 checks, Actions evidence, statuses, metadata, and the policy source are read
 only.
 
-The caller cannot supply a PR number, head, base, Issue body, managed state,
-policy identity, or Task number. The trusted operation derives the genesis
-tuple from the immutable Founder authorization and live GitHub evidence:
-Issue #262, Draft/Open PR #263, `main`, the approved exact head, protected base,
-merged guide version/blob, and exact-head CI.
+For the historical genesis bundle, the trusted operation preserves the
+interpretable Issue #262 / Draft/Open PR #263 evidence. For a current existing-
+Task bundle, the immutable Founder authorization binds the target Issue and
+`planning_no_pr`; the operation derives the protected `main` base and merged
+policy live, projects `active_pr: null` and `current_head: null`, and never
+invents a PR/head binding.
 
 ## Recovery and verification
 
 Every request has a deterministic identity derived from the repository,
-authorization comment ID and exact body hash, parent, PR/head/base, protected
-base, and policy tuple. A provisional Issue records only that identity and is
+authorization comment ID and exact body hash, authorized target, optional
+PR/head/base, protected base, and policy tuple. A provisional Issue records only that identity and is
 not a managed Task. The same request recovers that exact Issue after an API,
 registry, projection, or readback failure; it never rebinds an existing Task
 or guesses an allocated Issue number.

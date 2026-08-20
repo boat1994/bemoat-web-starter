@@ -122,6 +122,7 @@ function renderRuntimeError({ command, format, error, values = {} }) {
 
 function renderResult({ command, format, result }) {
   const legacyClassification = result.outcome
+  const planning = result.targetMode === 'planning_no_pr'
   if (legacyClassification === 'PREFLIGHT_SUCCESS') {
     const output = 'Mission Control task bootstrap preflight SUCCESS: The requested bootstrap is eligible and authoritative evidence is valid.'
     const envelope = createResultEnvelopeV1({
@@ -132,8 +133,8 @@ function renderResult({ command, format, result }) {
       resulting_state: null,
       repository: BOOTSTRAP_CONTRACT.repository,
       issue_number: null,
-      pr_number: String(BOOTSTRAP_CONTRACT.pullRequest),
-      exact_head: BOOTSTRAP_CONTRACT.head,
+      pr_number: planning ? null : String(BOOTSTRAP_CONTRACT.pullRequest),
+      exact_head: planning ? null : BOOTSTRAP_CONTRACT.head,
       next_action: {
         type: 'COMMAND',
         command: 'bemoat:mission-control:task-bootstrap',
@@ -166,8 +167,8 @@ function renderResult({ command, format, result }) {
     resulting_state: state?.state ?? null,
     repository: BOOTSTRAP_CONTRACT.repository,
     issue_number: String(result.issue.number),
-    pr_number: String(BOOTSTRAP_CONTRACT.pullRequest),
-    exact_head: BOOTSTRAP_CONTRACT.head,
+    pr_number: planning ? null : String(BOOTSTRAP_CONTRACT.pullRequest),
+    exact_head: planning ? null : BOOTSTRAP_CONTRACT.head,
     next_action: noOp
       ? {
         type: 'COMPLETE',

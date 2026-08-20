@@ -87,7 +87,7 @@ export function renderCanonicalBootstrapTaskBody(state: unknown, attestation: un
     '',
     renderMissionControlState(state as RuntimeObject),
     '',
-    'Parent registry: Issue #262. Do not edit the signed attestation or managed state directly.',
+    `Parent registry: ${String((state as RuntimeObject).parent_issue ?? '#262')}. Do not edit the signed attestation or managed state directly.`,
   ].join('\n')
 }
 
@@ -185,7 +185,7 @@ export function runCanonicalManagedTaskPreflight({
   policy,
   requireBootstrapAttestation = false,
 }: PreflightOptions = {}): PreflightResult {
-  if (!issue || !pullRequest) return result(false, 'Issue and PR evidence are required', 'BLOCKED_EXTERNAL')
+  if (!issue) return result(false, 'Issue evidence is required', 'BLOCKED_EXTERNAL')
   const parsedState = parseMissionControlState((issue.body ?? '') as string) as ParsedState
   if (!parsedState.present || !parsedState.valid) return result(false, parsedState.reason ?? 'managed state is missing or unreadable', 'STATE_CONFLICT')
   const state = parsedState.state as RuntimeObject
@@ -197,6 +197,8 @@ export function runCanonicalManagedTaskPreflight({
   const parsedAttestation = parseTaskAttestation((issue.body ?? '') as string) as ParsedAttestation
   if (parsedAttestation.ok === false) return result(false, parsedAttestation.reason, 'STATE_CONFLICT')
   const payload = parsedAttestation.envelope.payload as RuntimeObject
+  const planning = state.workflow_mode === 'planning_no_pr' || payload.workflow_mode === 'planning_no_pr'
+  if (!pullRequest && !planning) return result(false, 'Issue and PR evidence are required', 'BLOCKED_EXTERNAL')
   const verification = verifyTaskAttestation(parsedAttestation.envelope, {
     publicKey,
     signingKeyId,
@@ -208,9 +210,9 @@ export function runCanonicalManagedTaskPreflight({
     founderLogin: expectedAuthorization?.authorLogin,
     parentIssue: expectedAuthorization?.parentIssue,
     taskIssue: issue,
-    pullRequest,
-    expectedHead: pullRequest.headRefOid,
-    expectedBase: pullRequest.baseRefName,
+    pullRequest: pullRequest ?? undefined,
+    expectedHead: pullRequest?.headRefOid ?? undefined,
+    expectedBase: pullRequest?.baseRefName ?? state.approved_base,
     policy,
     requestId: (state.bootstrap_request_id ?? payload.request_id) as string | undefined,
     expectedWorkflow,
@@ -229,16 +231,17 @@ export function runCanonicalManagedTaskPreflight({
       state.task_attestation_schema !== payload.attestation_schema ||
       state.task_attestation_key_id !== parsedAttestation.envelope.key_id ||
       state.active_task_issue !== `#${issue.number}` ||
-      state.active_pr !== `#${pullRequest.number}` ||
-      state.current_head !== pullRequest.headRefOid ||
-      state.approved_base !== pullRequest.baseRefName ||
+      (planning ? state.active_pr !== null : state.active_pr !== `#${pullRequest?.number}`) ||
+      (planning ? state.current_head !== null : state.current_head !== pullRequest?.headRefOid) ||
+      state.approved_base !== (pullRequest?.baseRefName ?? state.approved_base) ||
       state.parent_issue !== `#${expectedAuthorization?.parentIssue?.number ?? payload.parent_issue_number}` ||
       state.policy_source !== policy?.path || state.policy_version !== policy?.version || state.policy_sha !== policy?.blobSha) {
     return result(false, 'managed state does not mirror the signed canonical binding', 'STATE_CONFLICT')
   }
-  const ci = analyzeExactHeadCi(pullRequest)
+  if (planning) return result(true, null, null, { state, attestation: parsedAttestation.envelope, ci: null, legacy: false })
+  const ci = analyzeExactHeadCi(pullRequest!)
   if (!ci.exactHeadVerified) return result(false, ci.summary, 'STATE_CONFLICT')
-  const successfulNames = new Set((Array.isArray(pullRequest.statusCheckRollup) ? pullRequest.statusCheckRollup : [])
+  const successfulNames = new Set((Array.isArray(pullRequest!.statusCheckRollup) ? pullRequest!.statusCheckRollup : [])
     .filter((check) => check?.conclusion === 'SUCCESS' || check?.state === 'SUCCESS')
     .map((check) => check.name ?? check.context))
   for (const required of ['ci', 'starter-ci']) {
