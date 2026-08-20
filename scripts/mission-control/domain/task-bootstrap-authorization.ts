@@ -1,7 +1,5 @@
 import { createHash } from 'node:crypto'
 
-import { canonicalSerialize, sha256Hex } from './task-attestation.mjs'
-
 export type BootstrapContract = Readonly<{
   repository: string
   parentIssue: number
@@ -117,11 +115,11 @@ function isJsonRecord(value: unknown): value is JsonRecord {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
-/** The merged policy's Founder records are raw JSON, never Markdown or YAML. */
 export function parseFounderTaskBootstrapAuthorization(body = ''): JsonRecord {
   if (typeof body !== 'string' || !body.trim() || body.trim().startsWith('```')) {
     authorizationError('comment must contain exactly one raw JSON object')
   }
+  if (body.trim().startsWith('## FOUNDER_DECISION')) return parseMarkdownFounderDecision(body)
   let authorization: unknown
   try {
     authorization = JSON.parse(body.trim())
@@ -132,6 +130,69 @@ export function parseFounderTaskBootstrapAuthorization(body = ''): JsonRecord {
     authorizationError('comment body must decode to one JSON object')
   }
   return authorization
+}
+
+const MARKDOWN_FIELD_NAMES: Record<string, string> = {
+  status: 'status',
+  decision: 'status',
+  authority: 'authority',
+  'author login': 'author_login',
+  founder: 'author_login',
+  'comment id': 'comment_id',
+  'immutable comment reference': 'immutable_comment_reference',
+  'non-superseded': 'non_superseded',
+  repository: 'repository',
+  'canonical repository': 'repository',
+  'bundle kind': 'bundle_kind',
+  'parent issue': 'parent_issue',
+  'task issue': 'task_issue',
+  issue: 'task_issue',
+  'target issue': 'task_issue',
+  pr: 'pr',
+  'exact head': 'exact_head',
+  'reviewed head': 'reviewed_head',
+  base: 'base',
+  'policy source': 'policy_source',
+  'policy source sha': 'policy_source_sha',
+  'protected base sha': 'protected_base_sha',
+  'policy version': 'policy_version',
+  scope: 'scope',
+  action: 'action',
+  'target mode': 'target_mode',
+}
+
+function parseMarkdownValue(raw: string): unknown {
+  const value = raw.trim().replace(/^`|`$/g, '')
+  if (value === 'null') return null
+  if (value === 'true') return true
+  if (value === 'false') return false
+  if (/^#?\d+$/.test(value)) return Number(value.replace(/^#/, ''))
+  if (value === 'APPROVE' || value === 'APPROVED') return 'approved'
+  return value
+}
+
+function parseMarkdownFounderDecision(body: string): JsonRecord {
+  const lines = body.split(/\r?\n/)
+  if (lines[0].trim() !== '## FOUNDER_DECISION') authorizationError('comment must contain exactly one structured Founder decision')
+  const record: JsonRecord = { schema_version: 1 }
+  const seen = new Set<string>()
+  for (const line of lines.slice(1)) {
+    if (!line.trim()) continue
+    const match = line.match(/^\s*(?:-\s+)?\*\*([^*]+):\*\*\s+(.+)$/)
+    if (!match) authorizationError('comment body must contain the exact structured Founder decision fields')
+    const field = MARKDOWN_FIELD_NAMES[match[1].trim().toLowerCase()]
+    if (!field || seen.has(field)) authorizationError('comment body contains an unknown or duplicate Founder decision field')
+    seen.add(field)
+    record[field] = parseMarkdownValue(match[2])
+  }
+  const required = Object.values(MARKDOWN_FIELD_NAMES).filter((field, index, fields) => fields.indexOf(field) === index && field !== 'parent_issue' && field !== 'task_issue')
+  if (required.some((field) => !seen.has(field)) || (!seen.has('parent_issue') && !seen.has('task_issue'))) authorizationError('comment body must contain the exact structured Founder decision fields')
+  if (!seen.has('parent_issue') && seen.has('task_issue')) record.parent_issue = record.task_issue
+  if (!seen.has('task_issue') && seen.has('parent_issue')) record.task_issue = null
+  record.status = record.status === 'approved' ? 'approved' : record.status
+  record.immutable_comment_reference = record.immutable_comment_reference === true
+  record.non_superseded = record.non_superseded === true
+  return record
 }
 
 /**
@@ -180,14 +241,7 @@ export function createFounderAuthorizationBody({
     action: BOOTSTRAP_AUTHORIZATION_ACTION,
   }
   if (existing) record.target_mode = targetMode
-  // This is a detached integrity hint for the authoring record. The signed
-  // Task payload always binds the exact raw comment-body hash independently.
-  record.comment_sha256 = sha256Hex(canonicalSerialize({ ...record, comment_sha256: null }))
   return JSON.stringify(record, null, 2)
-}
-
-function validSha(value: unknown, length = 64): value is string {
-  return typeof value === 'string' && new RegExp(`^[0-9a-f]{${length}}$`, 'i').test(value)
 }
 
 function readOptionalProperty(value: unknown, key: string): unknown {
@@ -250,17 +304,12 @@ export function validateFounderTaskBootstrapAuthorization({
     authorization.policy_version === expected.policyVersion,
     authorization.scope === BOOTSTRAP_AUTHORIZATION_SCOPE,
     authorization.action === BOOTSTRAP_AUTHORIZATION_ACTION,
-    String(authorizationComment?.id) === String(authorization.comment_id) || authorization.comment_id === '<immutable-comment-id>',
+    String(authorizationComment?.id) === String(authorization.comment_id),
   ]
   if (existing && Number(authorization.parent_issue) !== Number(authorization.task_issue)) authorizationError('existing-task authorization parent and target Issue must be identical')
   if (expectedConditions.some((value) => !value)) authorizationError('record does not bind the trusted Founder, target, scope, policy, or comment identity')
   if (parentIssue?.number != null && String(parentIssue.number) !== String(existing ? authorization.task_issue : expected.parentIssue)) authorizationError(existing ? 'authorization parent Issue does not match the authorized target' : 'authorization parent Issue does not match the genesis parent')
   if (authorizationComment?.issue_number != null && String(authorizationComment.issue_number) !== String(existing ? authorization.task_issue : expected.parentIssue)) authorizationError(existing ? 'authorization comment is not attached to the authorized Issue' : 'authorization comment is not attached to the parent Issue')
-  if (authorization.comment_sha256 != null) {
-    if (!validSha(authorization.comment_sha256)) authorizationError('comment_sha256 is not a SHA-256 digest')
-    const detached = sha256Hex(canonicalSerialize({ ...authorization, comment_sha256: null }))
-    if (authorization.comment_sha256 !== detached) authorizationError('authorization detached comment hash does not match')
-  }
   const laterSuperseder = parentComments.some((comment) =>
     String(readOptionalProperty(comment, 'id')) !== String(authorizationComment?.id) && supersedesComment(comment, authorizationComment?.id),
   )

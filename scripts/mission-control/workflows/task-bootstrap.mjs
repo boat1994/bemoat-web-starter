@@ -321,7 +321,11 @@ export function createTaskBootstrapService({
       const parentIssue = await github.getIssue(targetIssueNumber)
       const parentComments = await github.getIssueComments(targetIssueNumber)
       const mainCommit = await github.getBranchCommit('main')
-      const policy = await github.getPolicy({ ref: 'main', path: CURRENT_BOOTSTRAP_CONTRACT.policySource })
+      const policy = await github.getPolicy({
+        ref: 'main',
+        path: CURRENT_BOOTSTRAP_CONTRACT.policySource,
+        sourceCommit: current ? mainCommit?.sha : BOOTSTRAP_CONTRACT.protectedBaseSha,
+      })
       const expected = current ? {
         ...BOOTSTRAP_CONTRACT,
         parentIssue: targetIssueNumber,
@@ -382,9 +386,9 @@ export function createTaskBootstrapService({
     let creationLease
     try {
       if (typeof github.acquireCreationLease === 'function') {
-        creationLease = await github.acquireCreationLease({ repository: context.repository.nameWithOwner, requestId: request.requestId })
+        creationLease = await github.acquireCreationLease({ repository: context.repository.nameWithOwner, issueNumber: context.parentIssue.number, requestId: request.requestId })
       } else if (typeof github.acquireIssueLease === 'function') {
-        creationLease = await github.acquireIssueLease({ issueNumber: BOOTSTRAP_CONTRACT.parentIssue, requestId: `creation:${request.requestId}`, scope: 'repository-task-creation' })
+        creationLease = await github.acquireIssueLease({ issueNumber: context.parentIssue.number, requestId: `creation:${request.requestId}`, scope: 'repository-task-creation' })
       } else {
         throw blockedExternal('repository-wide serialized creation lease is unavailable')
       }
@@ -442,6 +446,14 @@ export function createTaskBootstrapService({
         }
       }
       const taskIdentity = issueIdentity(taskIssue)
+
+      if (context.targetMode) {
+        const existingState = parseMissionControlState(taskIssue.body ?? '')
+        const hasAttestation = String(taskIssue.body ?? '').includes('bemoat-mission-control-task-attestation:v1')
+        if (existingState.present && (!existingState.valid || !hasAttestation)) {
+          throw stateConflict('existing target contains partial managed state and cannot be safely initialized')
+        }
+      }
 
       let attestation = null
       let projectedState = null
@@ -530,7 +542,19 @@ export function createTaskBootstrapService({
           } catch (error) {
             throw blockedExternal('parent ownership registry write was ambiguous or unavailable', error)
           }
-          registryRecord = candidate
+          const readback = await readRegistryRecords(
+            github,
+            context.parentIssue.number,
+            publicKey,
+            context.repository.nameWithOwner,
+            signingKeyId,
+            context.targetMode ? { ...registryEvidence, expectedPullRequest: undefined, expectedHead: undefined, expectedRequestId: request.requestId } : { ...registryEvidence, expectedRequestId: request.requestId },
+          )
+          const winner = registryForRequest(readback.records, request.requestId)
+          if (!winner || winner.record.payload.task_issue_number !== taskIdentity.number || winner.record.payload.task_issue_id !== taskIdentity.id || winner.record.payload.task_issue_node_id !== taskIdentity.node_id) {
+            throw blockedExternal('parent ownership registry post-readback did not prove the exact allocated Task')
+          }
+          registryRecord = winner.record
         }
       }
 
@@ -567,9 +591,9 @@ export function createTaskBootstrapService({
       throw error
     } finally {
       if (creationLease && typeof github.releaseCreationLease === 'function') {
-        try { await github.releaseCreationLease({ repository: context.repository.nameWithOwner, requestId: request.requestId, lease: creationLease }) } catch { /* next run revalidates durable evidence */ }
+        try { await github.releaseCreationLease({ repository: context.repository.nameWithOwner, issueNumber: context.parentIssue.number, requestId: request.requestId, lease: creationLease }) } catch { /* next run revalidates durable evidence */ }
       } else if (creationLease && typeof github.releaseIssueLease === 'function') {
-        try { await github.releaseIssueLease({ issueNumber: BOOTSTRAP_CONTRACT.parentIssue, requestId: `creation:${request.requestId}`, lease: creationLease }) } catch { /* next run revalidates durable evidence */ }
+        try { await github.releaseIssueLease({ issueNumber: context.parentIssue.number, requestId: `creation:${request.requestId}`, lease: creationLease }) } catch { /* next run revalidates durable evidence */ }
       }
     }
   }

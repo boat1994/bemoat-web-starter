@@ -26,7 +26,7 @@ import {
   buildTaskBootstrapRequestIdentity,
 } from '../../scripts/mission-control/domain/task-bootstrap-request.ts'
 import { preflightCanonicalBootstrapTask } from '../../scripts/mission-control/domain/task-bootstrap-preflight.ts'
-import { parseMissionControlState } from '../../scripts/mission-control/domain/task-state.ts'
+import { parseMissionControlState, renderMissionControlState } from '../../scripts/mission-control/domain/task-state.ts'
 
 const REPO = 'boat1994/bemoat-web-starter'
 const MAIN_SHA = 'f6ac355b98aa281dda2a49bcf2ddaeb279d8173d'
@@ -54,6 +54,7 @@ function createWorld({ projectionFailure = false } = {}) {
     policySource: POLICY_PATH,
     policyVersion: POLICY_VERSION,
     policySha: POLICY_SHA,
+    commentId: 9001,
   })
 
   const issues = new Map<number, any>([
@@ -276,6 +277,7 @@ describe('canonical Mission Control Task bootstrap', () => {
 
     expect(result.targetMode).toBe('planning_no_pr')
     expect(state.state).toMatchObject({ active_task_issue: '#380', active_pr: null, current_head: null, workflow_mode: 'planning_no_pr' })
+    expect((parseTaskAttestation(result.issue.body).envelope as any).payload.policy_source_commit).toBe(MAIN_SHA)
     expect(world.calls.events).not.toContain('getPullRequest:263')
   })
 
@@ -291,6 +293,52 @@ describe('canonical Mission Control Task bootstrap', () => {
     expect(ownershipIndex).toBeGreaterThanOrEqual(0)
     expect(projectionIndex).toBeGreaterThan(ownershipIndex)
     expect(finalReadbackIndex).toBeGreaterThan(projectionIndex)
+  })
+
+  it('fails closed when the registry post is lost before live reread', async () => {
+    const world = createWorld()
+    const originalPost = world.postIssueComment
+    world.postIssueComment = async (number: number, body: string) => {
+      const comment = await originalPost(number, body)
+      world.comments.get(number)!.pop()
+      return comment
+    }
+    const { service } = serviceFor(world)
+    await expect(service.bootstrap({ founderAuthorizationCommentId: '9001' })).rejects.toMatchObject({ code: 'BLOCKED_EXTERNAL' })
+    expect(world.calls.events).not.toContain('updateIssueBody:300')
+  })
+
+  it('rejects partial current-target state before any projection', async () => {
+    const world = createWorld()
+    const partialState: Record<string, unknown> = {
+      schema_version: 1, state: 'AWAITING_REVIEW_1', review_cycle: 0, full_review_count: 0,
+      approved_base: 'main', active_task_issue: '#380', active_pr: null, current_head: null,
+      last_reviewed_head: null, guide_version: POLICY_VERSION, guide_source_ref: 'main', guide_source_sha: POLICY_SHA,
+      open_blockers: [], follow_up_issues: [], next_permitted_action: 'Run read-only Review 1 preflight; do not start Review 1.',
+      material_change_status: 'none', updated_at: null, updated_by: 'fixture',
+    }
+    world.issues.set(380, { number: 380, id: 'I_existing_380', node_id: 'N_existing_380', state: 'OPEN', title: 'existing', body: renderMissionControlState(partialState) })
+    world.comments.set(380, [{ id: 9002, body: createFounderAuthorizationBody({ parentIssue: 380, taskIssue: 380, targetMode: 'planning_no_pr', protectedBaseSha: MAIN_SHA, policySource: POLICY_PATH, policyVersion: POLICY_VERSION, policySha: POLICY_SHA, commentId: 9002 }), user: { login: 'boat1994' }, issue_number: 380 }])
+    const { service } = serviceFor(world)
+    await expect(service.bootstrap({ founderAuthorizationCommentId: '9002' })).rejects.toMatchObject({ code: 'STATE_CONFLICT' })
+    expect(world.calls.updateIssue).toBe(0)
+  })
+
+  it('uses the current authorized target rather than historical Issue #262 for the creation lease', async () => {
+    const world = createWorld()
+    const leaseIssues: number[] = []
+    delete (world as any).acquireCreationLease
+    world.acquireIssueLease = async ({ issueNumber, requestId }: { issueNumber: number, requestId: string }) => {
+      leaseIssues.push(Number(issueNumber))
+      return { token: requestId }
+    }
+    const authBody = createFounderAuthorizationBody({ parentIssue: 380, taskIssue: 380, targetMode: 'planning_no_pr', protectedBaseSha: MAIN_SHA, policySource: POLICY_PATH, policyVersion: POLICY_VERSION, policySha: POLICY_SHA, commentId: 9002 })
+    world.issues.set(380, { number: 380, id: 'I_existing_380', node_id: 'N_existing_380', state: 'OPEN', title: 'existing', body: '' })
+    world.comments.set(380, [{ id: 9002, body: authBody, user: { login: 'boat1994' }, issue_number: 380 }])
+    await serviceFor(world).service.bootstrap({ founderAuthorizationCommentId: '9002' })
+    expect(leaseIssues).toHaveLength(2)
+    expect(leaseIssues.every((number) => number === 380)).toBe(true)
+    expect(leaseIssues).not.toContain(262)
   })
 
   it('fails the workflow scan closed for invalid provisional metadata with the exact conflict reason', async () => {
