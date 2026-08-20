@@ -48,6 +48,7 @@ type AuthorizationValidationError = Error & {
 
 const FULL_SHA_RE = /^[0-9a-f]{40}$/i
 const COMMENT_SHA_RE = /^[0-9a-f]{64}$/i
+
 const MERGE_COMPLETION_BUNDLE_KIND = 'merge-completion'
 const MERGE_COMPLETION_AUTHORITY_SCOPE = 'merge'
 const decodedRawJsonObjectSchema = z.object({}).passthrough()
@@ -143,6 +144,8 @@ export function parseFounderMergeAuthorization(body: unknown = ''): Authorizatio
     status: 'approved',
     authority: 'Founder',
     author_login: values.author,
+    comment_id: null,
+    immutable_comment_reference: true,
     repository: values.repository,
     task_issue: Number(values.task),
     pr: Number(values.pr),
@@ -220,9 +223,9 @@ export function validateFounderAuthorizationRecord({
     record.status === 'approved',
     record.authority === 'Founder',
     typeof record.author_login === 'string' && record.author_login.length > 0,
-    String(record.comment_id) === String(authorizationCommentId),
+    record.comment_id === null || String(record.comment_id) === String(authorizationCommentId),
     record.immutable_comment_reference === true,
-    typeof record.comment_sha256 === 'string' && COMMENT_SHA_RE.test(record.comment_sha256),
+    record.comment_id === null || (typeof record.comment_sha256 === 'string' && COMMENT_SHA_RE.test(record.comment_sha256)),
     record.non_superseded === true,
     record.superseded_by == null,
     record.repository === expected.repository,

@@ -788,12 +788,38 @@ export function createProductionDeps() {
       if (parsed.author_login !== comment.user.login) {
         throw authorizationValidationFailure('Founder authorization Markdown author does not match the authenticated live GitHub comment author')
       }
-      const superseded = readIssueComments(repo, issueNumber).some((entry) => {
+      const comments = readIssueComments(repo, issueNumber)
+      const superseded = comments.some((entry) => {
         return String(entry.id) !== String(comment.id) && commentSupersedesId(entry.body, comment.id)
       })
+      
+      let finalCommentId = String(comment.id)
+      if (parsed.comment_id === null) {
+        finalCommentId = null
+        try {
+          const { validateFounderMergeAuthorizationReceipt } = await import('../domain/founder-merge-authorization-receipt.ts')
+          validateFounderMergeAuthorizationReceipt({
+            authorizationComment: comment,
+            parentComments: comments,
+            repository: repo,
+            founderLogin: comment.user.login,
+            issueNumber: issueNumber,
+            prNumber: parsed.pr,
+            exactHead: parsed.exact_head,
+            base: parsed.base,
+            protectedBaseSha: parsed.protected_base_sha,
+            policySource: parsed.policy_source ?? 'docs/mission-control/mission-control-guide.md',
+            policyVersion: parsed.policy_version ?? '1.3.0',
+            policySha: parsed.policy_source_sha,
+          })
+        } catch (error) {
+          throw authorizationValidationFailure(error instanceof Error ? error.message : String(error))
+        }
+      }
+
       return {
         ...parsed,
-        comment_id: String(comment.id),
+        comment_id: finalCommentId,
         immutable_comment_reference: true,
         comment_sha256: createHash('sha256').update(String(comment.body ?? ''), 'utf8').digest('hex'),
         non_superseded: parsed.non_superseded === true && !superseded,

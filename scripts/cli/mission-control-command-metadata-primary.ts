@@ -4,6 +4,59 @@ import type { CommandMetadataDependencies } from './mission-control-command-meta
 export function missionControlPrimaryCommands(dependencies: CommandMetadataDependencies) {
   const { contract, positional, stdinInput, flag, nextAction } = dependencies
   return {
+  'bemoat:mission-control:authorize-founder': contract({
+    command: 'bemoat:mission-control:authorize-founder',
+    tier: 'A',
+    entrypoint: 'scripts/mission-control-authorize-founder.mjs',
+    purpose: 'Record an immutable Founder merge authorization.',
+    operation: 'Validate Founder identity, exact head, policy source, and protected base, and project an immutable merge authorization and receipt.',
+    accepted_pre_states: ['ELIGIBLE_FOR_FOUNDER_REVIEW'],
+    required_inputs: [
+      positional('issue_number', '<issue-number>', 'positive_integer', 'Managed Task Issue number.'),
+      flag('scope', '--scope <scope>', 'enum', 'Authorization scope.', ['merge'], true),
+    ],
+    optional_flags: [
+      flag('repository', '--repo <owner/repository>', 'repository', 'Repository containing the Task Issue.'),
+    ],
+    trusted_derived_values: ['authenticated actor identity', 'trusted Founder logins', 'live PR/base/head/policy evidence', 'branch reservation evidence'],
+    required_evidence: [
+      'Exact head, base, and policy identity from the managed Task state.',
+      'Authenticated GitHub actor must be a trusted Founder.',
+      'Live protected main ref.',
+    ],
+    reads: ['Task/PR/state', 'live protected main', 'BEMOAT_FOUNDER_LOGINS action variable'],
+    writes: ['immutable authorization comment', 'immutable receipt comment', 'leased/CAS Issue state'],
+    success_classifications: ['SUCCESS', 'NO_OP_IDENTICAL_RETRY'],
+    retry_contract: {
+      identical_retry: 'conditional',
+      classification: 'NO_OP_IDENTICAL_RETRY',
+      condition: 'An identical retry is allowed only when the same exact authorization comment and receipt are already durable.',
+    },
+    next_action_rules: [
+      {
+        classification: 'SUCCESS',
+        next_action: nextAction('COMMAND', 'bemoat:mission-control:merge', 'The authorization is ready for the merge completion bundle.'),
+      },
+      {
+        classification: 'NO_OP_IDENTICAL_RETRY',
+        next_action: nextAction('COMMAND', 'bemoat:mission-control:merge', 'The identical authorization is already durable.'),
+      },
+    ],
+    examples: [
+      {
+        description: 'Authorize a merge for a Task Issue.',
+        argv: ['284', '--scope', 'merge', '--repo', 'boat1994/bemoat-web-starter'],
+      },
+    ],
+    parser_owner: 'scripts/mission-control-authorize-founder.mjs',
+    safe_help_invocation: 'pnpm run bemoat:mission-control:authorize-founder -- --help --json',
+    last_validation_before_mutation: 'Re-read the Task Issue, policy lineage, protected base, and existing authorization comments immediately before the leased/CAS write.',
+    post_write_readback: 'Re-read the Issue comments and confirm the projected immutable authorization identity and receipt.',
+    legacy_classification_map: {
+      NO_OP: 'NO_OP_IDENTICAL_RETRY',
+    },
+  }),
+
   'bemoat:mission-control:dispatch': contract({
     command: 'bemoat:mission-control:dispatch',
     tier: 'A',

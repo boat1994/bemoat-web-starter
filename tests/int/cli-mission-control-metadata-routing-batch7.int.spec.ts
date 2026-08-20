@@ -17,6 +17,7 @@ const EXPECTED_ALL_MUTATING_COMMANDS = [
   'bemoat:hooks:install',
   'bemoat:issue:comment',
   'bemoat:mission-control:adopt-finding',
+  'bemoat:mission-control:authorize-founder',
   'bemoat:mission-control:dispatch',
   'bemoat:mission-control:merge',
   'bemoat:mission-control:reconcile',
@@ -28,6 +29,7 @@ const EXPECTED_ALL_MUTATING_COMMANDS = [
 ] as const
 
 const EXPECTED_PRIMARY_COMMANDS = [
+  'bemoat:mission-control:authorize-founder',
   'bemoat:mission-control:dispatch',
   'bemoat:mission-control:merge',
   'bemoat:mission-control:reconcile',
@@ -58,6 +60,7 @@ const EXPECTED_PRIMARY_ROUTE_KEYS = [
   'AWAITING_REVIEW_3/exact-bounded-delta-review-evidence',
   'AWAITING_REVIEW_3/exact-blocker-verification-evidence',
   'FOUNDER_AUTHORIZED_CORRECTION/unconsumed-exact-authorization',
+  'ELIGIBLE_FOR_FOUNDER_REVIEW/exact-merge-authorization-recording',
   'BLOCKED_FOR_FOUNDER_DECISION/missing-named-authorization',
   'ELIGIBLE_FOR_FOUNDER_REVIEW/missing-merge-authorization',
 ] as const
@@ -115,7 +118,7 @@ describe('Batch 7 characterization — CLI command metadata and routing policy l
     expect(missionControlRecoveryRoutes().map((route: any) => route.route_key)).toEqual([
       ...EXPECTED_RECOVERY_ROUTE_KEYS,
     ])
-    expect(missionControlPrimaryRoutes()).toHaveLength(14)
+    expect(missionControlPrimaryRoutes()).toHaveLength(15)
     expect(missionControlRecoveryRoutes()).toHaveLength(15)
   })
 
