@@ -49,7 +49,7 @@ describe('authorize-founder workflow', () => {
       if (argsStr.includes('issue view 100 --repo boat1994/bemoat-web-starter --json number,body')) {
         return JSON.stringify({
           number: 100,
-          body: 'This is a non-managed standard issue.\n\nTask size: Core\nMission Control mode: optional',
+          body: 'This is a non-managed standard issue.\n\nTask tier: Core\nMission Control mode: optional\nExpected profile: STANDARD',
         })
       }
       if (argsStr.includes('pr view 101 --repo boat1994/bemoat-web-starter')) {

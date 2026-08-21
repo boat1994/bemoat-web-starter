@@ -35,6 +35,19 @@ describe('STANDARD/non-managed eligibility', () => {
     })
   })
 
+  it('accepts the established live Task tier Core declaration for STANDARD/non-managed routing', () => {
+    expect(classifyStandardNonManagedEligibility({
+      repository,
+      issueBody: `Task tier: Core\nMission Control mode: optional\nExpected profile: STANDARD`,
+      policy,
+      protectedBaseSha: 'a'.repeat(40),
+    })).toEqual({
+      eligible: true,
+      profile: 'STANDARD',
+      managed: false,
+    })
+  })
+
   it('rejects a managed target instead of synthesizing a non-managed profile', () => {
     expect(() => classifyStandardNonManagedEligibility({
       repository,
