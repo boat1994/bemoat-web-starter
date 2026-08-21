@@ -230,6 +230,7 @@ function looksAuthorizationShaped(body: unknown): boolean {
   return [
     /"authorization_format"\s*:\s*"task-bootstrap-existing-v2"/i,
     /"bundle_kind"\s*:\s*"task-bootstrap-existing"/i,
+    /\b(?:authorization_format|bundle_kind)\b\s*:\s*[*`"']*\s*(?:task-bootstrap-existing-v2|task-bootstrap-existing)\b/i,
     /"(?:scope|action)"\s*:\s*"(?:task-initialization|create-managed-task)"/i,
     /\b(?:scope|action)\b\s*:\s*[*`"']*\s*(?:task-initialization|create-managed-task)\b/i,
   ].some((marker) => marker.test(text))

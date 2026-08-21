@@ -423,6 +423,8 @@ Action: authorize canonical managed bootstrap of Issue #380 and the bounded long
   it.each([
     ['malformed', '## FOUNDER_DECISION\n**Scope:** task-initialization'],
     ['plain Founder decision', 'FOUNDER_DECISION\nscope: task-initialization\naction: create-managed-task'],
+    ['labeled authorization format', 'authorization_format: task-bootstrap-existing-v2'],
+    ['labeled bundle kind', 'bundle_kind: task-bootstrap-existing'],
     ['wrong scope', JSON.stringify({ authorization_format: 'task-bootstrap-existing-v2', scope: 'merge', action: 'create-managed-task' })],
     ['wrong action', JSON.stringify({ authorization_format: 'task-bootstrap-existing-v2', scope: 'task-initialization', action: 'merge' })],
   ])('rejects %s authorization-shaped evidence before POST', async (_name, body) => {
