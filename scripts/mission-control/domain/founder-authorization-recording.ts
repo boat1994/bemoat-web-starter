@@ -225,11 +225,9 @@ function parseFinalBody(body: string, context: FounderAuthorizationRecordingCont
 
 function looksAuthorizationShaped(body: unknown): boolean {
   const text = String(body ?? '')
-  if (looksReceipt(text)) return false
-  if (text.includes(LEASE_MARKER)) return false
+  if (looksReceipt(text) || text.includes(LEASE_MARKER)) return false
   return [
-    /"authorization_format"\s*:\s*"task-bootstrap-existing-v2"/i,
-    /"bundle_kind"\s*:\s*"task-bootstrap-existing"/i,
+    /(?:"authorization_format"\s*:\s*"task-bootstrap-existing-v2"|"bundle_kind"\s*:\s*"task-bootstrap-existing")/i,
     /\b(?:authorization_format|bundle_kind)\b\s*:\s*[*`"']*\s*(?:task-bootstrap-existing-v2|task-bootstrap-existing)\b/i,
     /"(?:scope|action)"\s*:\s*"(?:task-initialization|create-managed-task)"/i,
     /\b(?:scope|action)\b\s*:\s*[*`"']*\s*(?:task-initialization|create-managed-task)\b/i,
