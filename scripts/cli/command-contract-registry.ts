@@ -237,7 +237,7 @@ export interface CommandContract { [key: string]: unknown;
   stop_conditions: string[];
   retry_contract: { identical_retry: 'allowed'|'forbidden'|'conditional', classification: string|null, condition: string };
   role_contracts: Record<string, unknown>;
-  next_action_rules: { classification: string, next_action: NextAction }[];
+  next_action_rules: { classification: string, condition?: string, next_action: NextAction }[];
   examples: { description: string, argv: string[] }[];
   exceptional: boolean;
   transport_role: string|null;

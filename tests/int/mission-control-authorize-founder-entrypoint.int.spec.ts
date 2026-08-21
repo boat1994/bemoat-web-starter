@@ -49,8 +49,11 @@ describe('authorize-founder workflow', () => {
       if (argsStr.includes('issue view 100 --repo boat1994/bemoat-web-starter --json number,body')) {
         return JSON.stringify({
           number: 100,
-          body: 'This is a non-managed standard issue.',
+          body: 'This is a non-managed standard issue.\n\nTask size: Core\nMission Control mode: optional',
         })
+      }
+      if (argsStr.includes('pr view 101 --repo boat1994/bemoat-web-starter')) {
+        return JSON.stringify({ number: 101, state: 'OPEN', baseRefName: 'main', headRefOid: '1111111111111111111111111111111111111111' })
       }
       if (args[0] === 'api' && args[1] === '-X' && args[2] === 'POST' && args[3] === 'repos/boat1994/bemoat-web-starter/issues/100/comments') {
         const fIndex = args.indexOf('-f')
@@ -60,9 +63,9 @@ describe('authorize-founder workflow', () => {
       }
       if (argsStr.includes('api --paginate --slurp repos/boat1994/bemoat-web-starter/issues/100/comments?per_page=100')) {
         return JSON.stringify([[
-          {
+      {
             id: 111,
-            body: '## REVIEW_VERDICT\n\n**Verdict:** ELIGIBLE FOR FOUNDER REVIEW\n**PR / base / head:** PR #101 · `main` · `1111111111111111111111111111111111111111`\n**Policy SHA:** `2222222222222222222222222222222222222222`',
+            body: '## REVIEW_VERDICT\n\n**Task / Issue:** #100\n**Verdict:** ELIGIBLE FOR FOUNDER REVIEW\n**PR / base / head:** PR #101 · `main` · `1111111111111111111111111111111111111111`',
           },
         ]])
       }
@@ -84,12 +87,20 @@ describe('authorize-founder workflow', () => {
     const adapterMock = {
       acquireIssueLease: vi.fn().mockResolvedValue('lease-123'),
       releaseIssueLease: vi.fn().mockResolvedValue(null),
+      getPolicy: vi.fn().mockResolvedValue({
+        path: 'docs/mission-control/mission-control-guide.md',
+        version: '1.3.0',
+        blobSha: '2222222222222222222222222222222222222222',
+        sourceCommit: '3333333333333333333333333333333333333333',
+        content: 'canonical_repository: boat1994/bemoat-web-starter\nMission Control mode: required\n| Medium/Core | STANDARD |',
+      }),
     }
     vi.mocked(taskBootstrapGithub.createTaskBootstrapGithubAdapter).mockReturnValue(adapterMock as any)
 
     await main(['100', '--scope', 'merge', '--json'])
     
     expect(stdoutData).toContain('"classification":"SUCCESS"')
+    expect(stdoutData).toContain('bemoat:mission-control:merge-standard')
     expect(process.exitCode).toBe(0)
   })
 
@@ -100,14 +111,17 @@ describe('authorize-founder workflow', () => {
       if (argsStr.includes('issue view 100 --repo boat1994/bemoat-web-starter --json number,body')) {
         return JSON.stringify({
           number: 100,
-          body: 'This is a non-managed standard issue.',
+          body: 'This is a non-managed standard issue.\n\nTask size: Core\nMission Control mode: optional',
         })
+      }
+      if (argsStr.includes('pr view 101 --repo boat1994/bemoat-web-starter')) {
+        return JSON.stringify({ number: 101, state: 'OPEN', baseRefName: 'main', headRefOid: '1111111111111111111111111111111111111111' })
       }
       if (argsStr.includes('api --paginate --slurp repos/boat1994/bemoat-web-starter/issues/100/comments?per_page=100')) {
         return JSON.stringify([[
           {
             id: 111,
-            body: '## REVIEW_VERDICT\n\n**Verdict:** ELIGIBLE FOR FOUNDER REVIEW\n**PR / base / head:** PR #101 · `main@2222222222222222222222222222222222222222` · `1111111111111111111111111111111111111111`',
+            body: '## REVIEW_VERDICT\n\n**Task / Issue:** #100\n**Verdict:** ELIGIBLE FOR FOUNDER REVIEW\n**PR / base / head:** PR #101 · `main@2222222222222222222222222222222222222222` · `1111111111111111111111111111111111111111`',
           },
         ]])
       }
@@ -126,13 +140,20 @@ describe('authorize-founder workflow', () => {
     const adapterMock = {
       acquireIssueLease: vi.fn().mockResolvedValue('lease-123'),
       releaseIssueLease: vi.fn().mockResolvedValue(null),
+      getPolicy: vi.fn().mockResolvedValue({
+        path: 'docs/mission-control/mission-control-guide.md',
+        version: '1.3.0',
+        blobSha: '2222222222222222222222222222222222222222',
+        sourceCommit: '3333333333333333333333333333333333333333',
+        content: 'canonical_repository: boat1994/bemoat-web-starter\nMission Control mode: required\n| Medium/Core | STANDARD |',
+      }),
     }
     vi.mocked(taskBootstrapGithub.createTaskBootstrapGithubAdapter).mockReturnValue(adapterMock as any)
 
     await main(['100', '--scope', 'merge', '--json'])
     
-    expect(stdoutData).toContain('"classification":"INTERNAL_ERROR"')
+    expect(stdoutData).toContain('"classification":"STATE_CONFLICT"')
     expect(stdoutData).toContain('malformed, partial, or ambiguous')
-    expect(process.exitCode).toBe(1) // 1 is INTERNAL_ERROR exit code
+    expect(process.exitCode).toBe(3)
   })
 })

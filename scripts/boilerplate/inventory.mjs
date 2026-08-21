@@ -29,7 +29,7 @@ export const managedPaths = [
   'scripts/agent-issue', 'scripts/agent-delivery.mjs',
   'scripts/mission-control-reconcile.mjs', 'scripts/mission-control-task-create.mjs',
   'scripts/adapters/command-runner.mjs', 'scripts/mission-control-review.mjs',
-  'scripts/mission-control-merge.mjs', 'scripts/mission-control-dispatch.mjs',
+  'scripts/mission-control-merge.mjs', 'scripts/mission-control-merge-standard.mjs', 'scripts/mission-control-dispatch.mjs',
   'scripts/mission-control-recover-review.mjs', 'scripts/mission-control-reopen.mjs',
   'scripts/mission-control-adopt-finding.mjs', 'scripts/mission-control-recover-state.mjs',
   'scripts/mission-control/workflows/issue-body-cas.mjs', 'scripts/post-role-comment.mjs',
@@ -133,7 +133,7 @@ export const packageSyncProposalPath = '.bemoat/package-sync-proposal.md'
 /** Namespaced scripts safe to add when missing during sync. Never overwrite existing entries. */
 export const managedPackageScripts = [
   'bemoat:agent:issue', 'bemoat:mission-control:dispatch', 'bemoat:mission-control:review', 'bemoat:mission-control:task-bootstrap',
-  'bemoat:mission-control:merge', 'bemoat:mission-control:recover-review', 'bemoat:mission-control:reopen',
+  'bemoat:mission-control:merge', 'bemoat:mission-control:merge-standard', 'bemoat:mission-control:recover-review', 'bemoat:mission-control:reopen',
   'bemoat:mission-control:adopt-finding', 'bemoat:mission-control:recover-state',
   'bemoat:agent:delivery', 'bemoat:issue:comment',
   'bemoat:branch:check', 'bemoat:guard:safety', 'bemoat:guard:pack',

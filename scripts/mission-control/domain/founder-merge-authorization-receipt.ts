@@ -12,19 +12,22 @@ function receiptError(message: string): never {
 
 export function buildFounderMergeAuthorizationReceiptBody({
   repository, issueNumber, prNumber, exactHead, base, founderLogin, protectedBaseSha, policySource, policyVersion, policySha,
-  authorizationCommentId, authorizationBodySha256,
+  authorizationCommentId, authorizationBodySha256, reviewVerdictCommentId,
 }: {
   repository: string; issueNumber: number; prNumber: number; exactHead: string; base: string; founderLogin: string; protectedBaseSha: string
   policySource: string; policyVersion: string; policySha: string
   authorizationCommentId: string; authorizationBodySha256: string
+  reviewVerdictCommentId?: string | null
 }): string {
-  return JSON.stringify({
+  const receipt: Record<string, unknown> = {
     receipt_format: FOUNDER_MERGE_AUTHORIZATION_RECEIPT_FORMAT, schema_version: 1, repository,
     issue_number: issueNumber, pr: prNumber, exact_head: exactHead, base, founder_login: founderLogin, protected_base_sha: protectedBaseSha,
     policy_source: policySource, policy_version: policyVersion, policy_source_sha: policySha,
     authorization_comment_id: authorizationCommentId, authorization_body_sha256: authorizationBodySha256,
     scope: 'merge', action: 'merge',
-  }, null, 2)
+  }
+  if (reviewVerdictCommentId != null) receipt.review_verdict_comment_id = reviewVerdictCommentId
+  return JSON.stringify(receipt, null, 2)
 }
 
 export function parseFounderMergeAuthorizationReceipt(body = ''): JsonRecord {
@@ -52,15 +55,15 @@ export function assertImmutableCommentSnapshot(comment: unknown, label: string):
   }
 }
 
-export function validateFounderMergeAuthorizationReceipt({ authorizationComment, parentComments = [], repository, founderLogin, issueNumber, prNumber, exactHead, base, protectedBaseSha, policySource, policyVersion, policySha }: {
+export function validateFounderMergeAuthorizationReceipt({ authorizationComment, parentComments = [], repository, founderLogin, issueNumber, prNumber, exactHead, base, protectedBaseSha, policySource, policyVersion, policySha, reviewVerdictCommentId }: {
   authorizationComment?: unknown; parentComments?: unknown[]; repository: string; founderLogin: string; issueNumber: number; prNumber: number; exactHead: string; base: string
-  protectedBaseSha: string; policySource: string; policyVersion: string; policySha: string
+  protectedBaseSha: string; policySource: string; policyVersion: string; policySha: string; reviewVerdictCommentId?: string | null
 }): void {
   assertImmutableCommentSnapshot(authorizationComment, 'authorization comment')
   const authorizationCommentId = String(property(authorizationComment, 'id') ?? '')
   const authorizationBody = String(property(authorizationComment, 'body') ?? '')
   const authorizationBodySha256 = createHash('sha256').update(authorizationBody, 'utf8').digest('hex')
-  const expectedBody = buildFounderMergeAuthorizationReceiptBody({ repository, issueNumber, prNumber, exactHead, base, founderLogin, protectedBaseSha, policySource, policyVersion, policySha, authorizationCommentId, authorizationBodySha256 })
+  const expectedBody = buildFounderMergeAuthorizationReceiptBody({ repository, issueNumber, prNumber, exactHead, base, founderLogin, protectedBaseSha, policySource, policyVersion, policySha, authorizationCommentId, authorizationBodySha256, reviewVerdictCommentId })
   const receipts = parentComments.filter((comment) => String(property(comment, 'body') ?? '').includes(FOUNDER_MERGE_AUTHORIZATION_RECEIPT_FORMAT))
   if (receipts.length !== 1) receiptError('exactly one immutable authorization receipt is required')
   const receipt = receipts[0]

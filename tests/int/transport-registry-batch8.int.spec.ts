@@ -13,6 +13,7 @@ const EXPECTED_TRANSPORT_COMMANDS = [
   'bemoat:mission-control:recover-review',
   'bemoat:mission-control:reconcile',
   'bemoat:mission-control:merge',
+  'bemoat:mission-control:merge-standard',
   'bemoat:mission-control:reopen',
   'bemoat:mission-control:adopt-finding',
   'bemoat:mission-control:recover-state',

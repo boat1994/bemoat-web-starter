@@ -17,6 +17,7 @@ overrides chat, copied handoffs, local notes, or stale values.
 | `adopt-finding` | Append exactly one Founder-authorized finding to the active correction contract while preserving `CORRECTION_REQUIRED_1\|2` and review counters. |
 | `recover-state` | Exceptional recovery for one completely absent managed-state block when immutable evidence uniquely reconstructs the prior canonical state. It cannot repair malformed state, replay review, or invoke finding adoption. |
 | `merge` | Finalize Founder-authorized merge. Uses the live PR head and an existing Founder JSON authorization comment. |
+| `merge-standard` | Finalize one explicit STANDARD/non-managed Founder-authorized merge. It is disjoint from managed `merge` and never creates or projects managed state. |
 | (none) | Stop and request human review if evidence disagrees, authentication fails, or preconditions mismatch. Never mutate state YAML directly. |
 
 ## Preflight checklist
@@ -33,6 +34,12 @@ a generic comment-repair API.
 - [ ] Active Task Issue has a valid managed state block.
 - [ ] The command's expected state matches the live Issue state.
 - [ ] There are no competing superseding comments blocking this transition.
+
+Managed commands additionally require the shared managed-state and expected-state
+checks. The STANDARD/non-managed merge route replaces only those two preflight
+checks with its disjoint exception: the live Issue must have no managed-state
+markers and must explicitly declare a
+policy-compatible Medium/Core tier with Mission Control optional or not required.
 
 ### Dispatch checks
 - [ ] Read Task Issue state without requiring an existing PR or CI.
@@ -53,6 +60,35 @@ a generic comment-repair API.
 - [ ] Requires an immutable Founder merge authority JSON comment.
 - [ ] Requires the authorized reviewed head to match the live PR head.
 - [ ] Exact-head CI is fully completed and successful.
+
+### STANDARD/non-managed merge checks
+- [ ] The live Issue has no managed-state block and explicit policy-compatible STANDARD declarations.
+- [ ] The live protected `main` ref and merged policy are read live; policy path/version/blob SHA and protected-base commit SHA are bound separately.
+- [ ] Exactly one active, non-superseded canonical `REVIEW_VERDICT` binds the exact Issue/PR/base/head, and its immutable comment ID is bound into Founder authorization and receipt evidence.
+- [ ] Exact-head CI and `CI (starter strict)` are successful, and the PR is open, non-draft, and mergeable.
+- [ ] The merge uses the exact authorized head and authoritative protected-base readback; an uncertain merge outcome is never blindly retried.
+
+Exact syntax:
+
+```text
+pnpm run bemoat:mission-control:merge-standard -- <issue-number> --repo <owner>/<repo> --authorization-comment <role-comment-id>
+```
+
+The STANDARD route reads the Issue, PR, comments, Founder authorization and
+receipt, protected `main`, and merged policy before the first merge mutation.
+It accepts only explicit STANDARD/non-managed eligibility. Managed, ambiguous,
+non-STANDARD, stale, duplicate, competing, superseded, wrong-target, malformed,
+or unavailable evidence fails closed. A successful merge changes only the exact
+authorized PR; the Issue body, managed-state markers, review evidence, and
+unrelated Issues/PRs are not mutated. An already merged exact tuple with
+protected-base readback is `NO_OP_IDENTICAL_RETRY`; an uncertain write stops
+after authoritative readback and never issues a blind retry.
+
+Structurally valid fake example:
+
+```text
+pnpm run bemoat:mission-control:merge-standard -- 379 --repo boat1994/bemoat-web-starter --authorization-comment 10000000000
+```
 
 ## Evidence vocabulary
 

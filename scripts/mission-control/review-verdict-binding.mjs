@@ -1,4 +1,5 @@
 import { parseCommentMarker } from './transition-identity.mjs'
+import { resolveMergeReviewVerdictBinding } from './domain/merge-review-verdict.ts'
 
 export function normalizeAuthorityHead(value) {
   const normalized = String(value ?? '').trim()
@@ -140,7 +141,7 @@ function collectRecognizedTaskIssueNumbers(body = '') {
   return values
 }
 
-function resolveIssueScopingTaskNumber(body = '') {
+export function resolveIssueScopingTaskNumber(body = '') {
   const values = collectRecognizedTaskIssueNumbers(body)
   if (values.length === 0) return parseTaskIssueNumber(body)
   const boldFieldCount = [...body.matchAll(/\*\*Task(?:\s*\/\s*Issue)?:\*\*\s*(?:Issue\s*)?#?(\d+)/gi)].length
@@ -229,8 +230,64 @@ export function classifyManagedPrReviewVerdicts({ comments, issueNumber, livePrN
   return { active, samePr, differentPr }
 }
 
-export function selectLiveReviewVerdictComment({ comments, issueNumber, livePr }) {
+export function selectLiveReviewVerdictComment({
+  comments,
+  issueNumber,
+  livePr,
+  exactHead = null,
+  requireExactIssueBinding = false,
+  requireNonSuperseded = false,
+  requireImmutableCommentId = false,
+  rejectNonExactTargets = false,
+}) {
   const active = selectActiveRoleComments(comments, 'REVIEW_VERDICT')
+  if (requireExactIssueBinding) {
+    const expectedIssue = String(issueNumber)
+    const expectedPr = String(livePr?.number ?? '')
+    const expectedBase = normalizeAuthorityBase(livePr?.baseRefName)
+    const expectedHead = normalizeAuthorityHead(exactHead ?? livePr?.headRefOid)
+    if (!expectedIssue || !expectedPr || !expectedBase || !/^[0-9a-f]{40}$/.test(expectedHead ?? '')) {
+      throw new Error('STATE_CONFLICT: exact REVIEW_VERDICT selection requires an Issue/PR/base/full-head target')
+    }
+
+    const exactTarget = []
+    for (const comment of active) {
+      const body = String(comment?.body ?? '')
+      const taskIssue = resolveIssueScopingTaskNumber(body)
+      if (taskIssue == null || String(taskIssue) !== expectedIssue) {
+        throw new Error('STATE_CONFLICT: REVIEW_VERDICT is missing the exact Task Issue binding')
+      }
+      const classification = classifyReviewVerdictBindingEvidence(body, { issueNumber })
+      if (classification.status !== 'valid') {
+        throw classification.error instanceof Error
+          ? classification.error
+          : new Error('STATE_CONFLICT: REVIEW_VERDICT canonical binding evidence is malformed')
+      }
+      const binding = resolveMergeReviewVerdictBinding(body)
+      if (
+        String(binding.pr ?? '') !== expectedPr ||
+        normalizeAuthorityBase(binding.base) !== expectedBase ||
+        normalizeAuthorityHead(binding.reviewed_head) !== expectedHead
+      ) {
+        if (rejectNonExactTargets) throw new Error('STATE_CONFLICT: REVIEW_VERDICT binds a stale or wrong Issue/PR/base/head target')
+        continue
+      }
+      if (requireNonSuperseded && binding.non_superseded !== true) {
+        throw new Error('STATE_CONFLICT: exact REVIEW_VERDICT is superseded or not authoritative')
+      }
+      if (requireImmutableCommentId && !/^[1-9]\d*$/.test(String(comment?.id ?? ''))) {
+        throw new Error('STATE_CONFLICT: selected REVIEW_VERDICT has no immutable GitHub comment ID')
+      }
+      if (binding.verdict !== 'ELIGIBLE FOR FOUNDER REVIEW') {
+        throw new Error('STATE_CONFLICT: exact REVIEW_VERDICT is not eligible for Founder review')
+      }
+      exactTarget.push(comment)
+    }
+    if (exactTarget.length === 0) throw new Error('STATE_CONFLICT: no active REVIEW_VERDICT binds the exact Issue/PR/base/head')
+    if (exactTarget.length > 1) throw new Error('STATE_CONFLICT: competing active REVIEW_VERDICT comments bind the exact target')
+    return exactTarget[0]
+  }
+
   const issueRelevant = active.filter((comment) => {
     const taskIssue = resolveIssueScopingTaskNumber(comment.body ?? '')
     return taskIssue == null || String(taskIssue) === String(issueNumber)
