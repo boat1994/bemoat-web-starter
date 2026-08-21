@@ -183,12 +183,18 @@ describe('task bootstrap Issue-only lease domain', () => {
   })
 
   it('binds policy sourceCommit to the caller-supplied live main SHA in current mode', async () => {
+    const liveMainSha = 'a'.repeat(40)
+    const calls: string[][] = []
     const adapter = createLegacyGithubAdapter({
       repository: 'boat1994/bemoat-web-starter',
-      runGh: () => JSON.stringify({ content: Buffer.from('version: 1.3.0\n').toString('base64'), sha: 'policy-blob' }),
+      runGh: (...args: never[]) => {
+        calls.push(args[0] as unknown as string[])
+        return JSON.stringify({ content: Buffer.from('version: 1.3.0\n').toString('base64'), sha: 'policy-blob' })
+      },
     })
-    await expect(adapter.getPolicy({ ref: 'main', path: 'docs/mission-control/mission-control-guide.md', sourceCommit: 'live-main-sha' }))
-      .resolves.toMatchObject({ sourceCommit: 'live-main-sha' })
+    await expect(adapter.getPolicy({ ref: liveMainSha, path: 'docs/mission-control/mission-control-guide.md', sourceCommit: liveMainSha }))
+      .resolves.toMatchObject({ sourceCommit: liveMainSha })
+    expect(calls[0]).toEqual(['api', `repos/boat1994/bemoat-web-starter/contents/docs/mission-control/mission-control-guide.md?ref=${liveMainSha}`])
   })
 
   it('keeps the genesis policy sourceCommit fallback explicit for legacy mode', async () => {
@@ -225,7 +231,51 @@ describe('task bootstrap Issue-only lease domain', () => {
 
     await expect(protocol.acquireLease({ issueNumber: ISSUE, requestId: 'request-a', scope: SCOPE }))
       .rejects.toMatchObject({ code: 'CAS_CONFLICT' })
-    expect(posts).toHaveLength(1)
+    expect(posts).toHaveLength(2)
+    expect(parseLeaseComment({ id: 'released', body: posts[1].body })).toMatchObject({ status: 'released', request_id: 'request-a' })
+  })
+
+  it('releases every concurrent loser lease so a later retry can acquire', async () => {
+    const comments: LeaseComment[] = []
+    const posts: LeaseComment[] = []
+    let initialReads = 0
+    let resolveInitial!: () => void
+    let resolveFinal!: () => void
+    const initialBarrier = new Promise<void>((resolve) => { resolveInitial = resolve })
+    const finalBarrier = new Promise<void>((resolve) => { resolveFinal = resolve })
+    const protocol = createTaskBootstrapLeaseProtocol({
+      readComments: async () => {
+        if (initialReads < 2) {
+          initialReads += 1
+          if (initialReads === 2) resolveInitial()
+          await initialBarrier
+        }
+        return comments
+      },
+      postComment: async (_issueNumber, body) => {
+        const comment = { id: `posted-${posts.length + 1}`, body }
+        posts.push(comment)
+        comments.push(comment)
+        if (posts.filter((entry) => parseLeaseComment(entry)?.status === 'held').length === 2) resolveFinal()
+        if (posts.filter((entry) => parseLeaseComment(entry)?.status === 'held').length <= 2) await finalBarrier
+        return comment
+      },
+      now: () => 1700000000000,
+      randomBytes: () => Buffer.from('0123456789abcdef', 'hex'),
+    })
+
+    const results = await Promise.allSettled([
+      protocol.acquireLease({ issueNumber: ISSUE, requestId: 'request-a', scope: SCOPE }),
+      protocol.acquireLease({ issueNumber: ISSUE, requestId: 'request-b', scope: SCOPE }),
+    ])
+    expect(results.every((result) => result.status === 'rejected')).toBe(true)
+    const latest = new Map<string, ReturnType<typeof parseLeaseComment>>()
+    for (const comment of comments) {
+      const parsed = parseLeaseComment(comment)
+      if (parsed) latest.set(String(parsed.request_id), parsed)
+    }
+    expect([...latest.values()].every((lease) => lease?.status === 'released')).toBe(true)
+    await expect(protocol.acquireLease({ issueNumber: ISSUE, requestId: 'request-c', scope: SCOPE })).resolves.toMatchObject({ token: expect.any(String) })
   })
 
   it('proves acquire with GET, POST, and a final GET readback', async () => {
@@ -297,7 +347,7 @@ describe('task bootstrap Issue-only lease domain', () => {
 
     const held = await protocol.readHeldLease({ issueNumber: ISSUE, requestId: 'request-a', scope: SCOPE })
     await protocol.releaseLease({ issueNumber: ISSUE, requestId: 'request-a', scope: SCOPE, lease: held })
-    expect(calls).toEqual(['GET', 'GET', 'POST'])
+    expect(calls).toEqual(['GET', 'GET', 'POST', 'GET'])
 
     const tokenBoundProtocol = createTaskBootstrapLeaseProtocol({
       readComments: async () => comments,
@@ -313,6 +363,32 @@ describe('task bootstrap Issue-only lease domain', () => {
       scope: SCOPE,
       lease: { token: 'wrong-token' },
     })).rejects.toMatchObject({ code: 'CAS_CONFLICT' })
+  })
+
+  it('does not claim a release succeeded when the release POST response is lost after commit', async () => {
+    const comments: LeaseComment[] = [leaseComment('lease-a', { requestId: 'request-a', token: 'token-a' })]
+    const protocol = createTaskBootstrapLeaseProtocol({
+      readComments: async () => comments,
+      postComment: async (_issueNumber, body) => {
+        comments.push({ id: 'released', body })
+        throw Object.assign(new Error('release response lost'), { code: 'API_AMBIGUITY' })
+      },
+    })
+
+    await expect(protocol.releaseLease({ issueNumber: ISSUE, requestId: 'request-a', scope: SCOPE, lease: { token: 'token-a' } }))
+      .rejects.toMatchObject({ code: 'API_AMBIGUITY' })
+    expect(parseLeaseComment(comments.at(-1))).toMatchObject({ status: 'released', request_id: 'request-a', token: 'token-a' })
+  })
+
+  it('requires the released marker to appear in the post readback', async () => {
+    const comments: LeaseComment[] = [leaseComment('lease-a', { requestId: 'request-a', token: 'token-a' })]
+    const protocol = createTaskBootstrapLeaseProtocol({
+      readComments: async () => comments,
+      postComment: async (_issueNumber, body) => ({ id: 'released', body }),
+    })
+
+    await expect(protocol.releaseLease({ issueNumber: ISSUE, requestId: 'request-a', scope: SCOPE, lease: { token: 'token-a' } }))
+      .rejects.toMatchObject({ code: 'CAS_CONFLICT' })
   })
 
   it('keeps the adapter issue-body lease store on the existing Issue-comment boundary', async () => {

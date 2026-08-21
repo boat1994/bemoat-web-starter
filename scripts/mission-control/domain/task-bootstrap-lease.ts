@@ -126,6 +126,11 @@ export function createTaskBootstrapLeaseProtocol({
     const reread = await readScopedEvents({ issueNumber, scope })
     const winners = activeLeases(reread)
     if (winners.length !== 1 || winners[0].request_id !== requestId || winners[0].token !== leaseToken) {
+      try {
+        await releaseLease({ issueNumber, requestId, scope, lease: { token: leaseToken } })
+      } catch (error) {
+        throw leaseConflict('Issue-only lease winner failed and loser cleanup could not be proven', error)
+      }
       throw leaseConflict('Issue-only lease winner could not be proven')
     }
     return { ['token']: leaseToken, commentId: (comment as { id: unknown }).id }
@@ -145,13 +150,44 @@ export function createTaskBootstrapLeaseProtocol({
     if (!legacyLease?.token) return
     const held = await readHeldLease({ issueNumber, requestId, scope })
     if (!held || held.token !== legacyLease.token) throw leaseConflict('lease release token is not the currently held token')
-    await postIssueComment(issueNumber as number, workflowLeaseBody({
-      scope,
-      requestId,
-      status: 'released',
-      leaseToken: legacyLease.token,
-      issueNumber,
-    }))
+    let posted: unknown
+    try {
+      posted = await postIssueComment(issueNumber as number, workflowLeaseBody({
+        scope,
+        requestId,
+        status: 'released',
+        leaseToken: legacyLease.token,
+        issueNumber,
+      }))
+    } catch (error) {
+      const code = typeof error === 'object' && error !== null && typeof (error as Record<string, unknown>).code === 'string'
+        ? (error as Record<string, unknown>).code as string
+        : null
+      if (code === 'API_AMBIGUITY' || code === 'CAS_CONFLICT' || code === 'NOT_FOUND') throw error
+      throw leaseError('API_AMBIGUITY', 'lease release POST outcome is uncertain', error)
+    }
+    const postedRecord = typeof posted === 'object' && posted !== null ? posted as { id?: unknown; body?: unknown } : null
+    const postedEvent = postedRecord?.id === undefined || postedRecord?.id === null
+      ? null
+      : parseLeaseComment(postedRecord as { id: unknown; body?: unknown })
+    if (postedRecord?.id === undefined || postedRecord?.id === null || !postedEvent || postedEvent.status !== 'released' || postedEvent.scope !== scope || postedEvent.request_id !== requestId || postedEvent.token !== legacyLease.token) {
+      throw leaseError('API_AMBIGUITY', 'lease release POST did not return the expected immutable release event')
+    }
+    let reread: LeaseEvent[]
+    try {
+      reread = await readScopedEvents({ issueNumber, scope })
+    } catch (error) {
+      const code = typeof error === 'object' && error !== null && typeof (error as Record<string, unknown>).code === 'string'
+        ? (error as Record<string, unknown>).code as string
+        : null
+      if (code === 'API_AMBIGUITY' || code === 'CAS_CONFLICT' || code === 'NOT_FOUND') throw error
+      throw leaseError('API_AMBIGUITY', 'lease release readback is uncertain', error)
+    }
+    const matching = reread.filter((event) => event.request_id === requestId && event.scope === scope)
+    const latest = matching.at(-1)
+    if (!latest || latest.status !== 'released' || latest.token !== legacyLease.token || String(latest.commentId) !== String(postedRecord.id)) {
+      throw leaseConflict('lease release readback did not prove the released token and immutable comment')
+    }
   }
 
   return { acquireLease, readHeldLease, readLatestLease, releaseLease }

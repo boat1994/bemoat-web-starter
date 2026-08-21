@@ -343,6 +343,7 @@ export function createTaskBootstrapService({
         founderLogins,
         parentComments,
         expected,
+        boundCommentId: founderAuthorizationCommentId,
       })
       const pullRequest = current ? null : await github.getPullRequest(BOOTSTRAP_CONTRACT.pullRequest)
       if (current) validateCurrentExistingTaskEvidence({ repository: liveRepository, taskIssue: parentIssue, mainCommit, policy, workflow, authorization: validatedAuthorization })

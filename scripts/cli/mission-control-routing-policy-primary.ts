@@ -64,6 +64,18 @@ function route({
 export function missionControlPrimaryRoutes() {
   return [
   route({
+    route_key: 'no-task/founder-authorization-recording',
+    observed_state: null,
+    evidence_case: 'Founder authorization is present in the execution context but no immutable repository-owned comment is durable',
+    required_evidence_condition: 'Authenticated GitHub actor is a trusted Founder and live protected-base/policy/Issue evidence is complete.',
+    forbidden_evidence_condition: 'Caller-supplied identity, placeholder body, comment edit, conflicting comment, or uncertain POST/readback.',
+    permitted_operation: 'Record one final raw JSON Founder authorization body and verify its returned immutable ID/readback.',
+    canonical_command: 'bemoat:mission-control:authorize-founder',
+    required_review_type: null,
+    expected_post_state_or_gate: 'Durable immutable Founder authorization evidence',
+    decision: 'COMMAND',
+  }),
+  route({
     route_key: 'no-task/exact-task-bootstrap-founder-authorization-workflow-tuple',
     observed_state: null,
     evidence_case: 'exact-task-bootstrap-founder-authorization-workflow-tuple',

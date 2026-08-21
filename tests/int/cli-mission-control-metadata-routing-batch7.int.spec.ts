@@ -48,6 +48,7 @@ const EXPECTED_REVIEW_COMMANDS = [
 ] as const
 
 const EXPECTED_PRIMARY_ROUTE_KEYS = [
+  'no-task/founder-authorization-recording',
   'no-task/exact-task-bootstrap-founder-authorization-workflow-tuple',
   'READY/valid-handoff-inputs',
   'IN_PROGRESS/complete-exact-head-delivery-evidence',
@@ -118,7 +119,7 @@ describe('Batch 7 characterization — CLI command metadata and routing policy l
     expect(missionControlRecoveryRoutes().map((route: any) => route.route_key)).toEqual([
       ...EXPECTED_RECOVERY_ROUTE_KEYS,
     ])
-    expect(missionControlPrimaryRoutes()).toHaveLength(15)
+    expect(missionControlPrimaryRoutes()).toHaveLength(16)
     expect(missionControlRecoveryRoutes()).toHaveLength(15)
   })
 
