@@ -16,12 +16,14 @@ const EXPECTED_TRANSPORT_COMMANDS = [
   'bemoat:mission-control:reopen',
   'bemoat:mission-control:adopt-finding',
   'bemoat:mission-control:recover-state',
+  'bemoat:mission-control:recover-review-eligibility',
   'bemoat:mission-control:authorize-founder',
 ] as const
 
 const EXPECTED_EXCEPTIONAL_COMMANDS = [
   'bemoat:mission-control:recover-review',
   'bemoat:mission-control:recover-state',
+  'bemoat:mission-control:recover-review-eligibility',
 ] as const
 
 describe('Batch 8 characterization — transport registry authority leaf', () => {
@@ -65,6 +67,11 @@ describe('Batch 8 characterization — transport registry authority leaf', () =>
       exceptional: true,
       purpose:
         'recreate one uniquely reconstructed absent managed-state projection without review or finding adoption',
+    })
+    expect(getTransportRoute('bemoat:mission-control:recover-review-eligibility')).toMatchObject({
+      owner: 'Missing-State Review Eligibility Recovery Transport',
+      role: 'STATE_PROJECTION',
+      exceptional: true,
     })
     expect(getTransportRoute('bemoat:mission-control:adopt-finding')).toMatchObject({
       role: 'STATE_PROJECTION',

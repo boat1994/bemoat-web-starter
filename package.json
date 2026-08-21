@@ -48,6 +48,7 @@
     "bemoat:mission-control:reopen": "node scripts/mission-control-reopen.mjs",
     "bemoat:mission-control:adopt-finding": "node scripts/mission-control-adopt-finding.mjs",
     "bemoat:mission-control:recover-state": "node scripts/mission-control-recover-state.mjs",
+    "bemoat:mission-control:recover-review-eligibility": "node scripts/mission-control-recover-review-eligibility.mjs",
     "bemoat:mission-control:reconcile": "node scripts/mission-control-reconcile.mjs",
     "bemoat:mission-control:review": "node scripts/mission-control-review.mjs",
     "bemoat:issue:comment": "node scripts/post-role-comment.mjs",

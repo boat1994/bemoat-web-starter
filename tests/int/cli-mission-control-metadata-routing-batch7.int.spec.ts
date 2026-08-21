@@ -23,6 +23,7 @@ const EXPECTED_ALL_MUTATING_COMMANDS = [
   'bemoat:mission-control:reconcile',
   'bemoat:mission-control:recover-review',
   'bemoat:mission-control:recover-state',
+  'bemoat:mission-control:recover-review-eligibility',
   'bemoat:mission-control:reopen',
   'bemoat:mission-control:review',
   'bemoat:mission-control:task-bootstrap',
@@ -39,6 +40,7 @@ const EXPECTED_PRIMARY_COMMANDS = [
 const EXPECTED_RECOVERY_COMMANDS = [
   'bemoat:mission-control:adopt-finding',
   'bemoat:mission-control:recover-state',
+  'bemoat:mission-control:recover-review-eligibility',
 ] as const
 
 const EXPECTED_REVIEW_COMMANDS = [
@@ -73,6 +75,7 @@ const EXPECTED_RECOVERY_ROUTE_KEYS = [
   'ANY_STATE/proven-routing-only-projection-drift',
   'ANY_STATE/exact-quarantined-274-275-incident-tuple',
   'ANY_STATE/absent-managed-state-unique-reconstruction',
+  'ANY_STATE/absent-managed-state-review-eligibility-reconstruction',
   'DONE/exact-identical-merge-completion-retry',
   'DONE/no-retry-request',
   'BLOCKED_EXTERNAL/state-conflict-or-migration-required',
@@ -120,7 +123,7 @@ describe('Batch 7 characterization — CLI command metadata and routing policy l
       ...EXPECTED_RECOVERY_ROUTE_KEYS,
     ])
     expect(missionControlPrimaryRoutes()).toHaveLength(16)
-    expect(missionControlRecoveryRoutes()).toHaveLength(15)
+    expect(missionControlRecoveryRoutes()).toHaveLength(16)
   })
 
   it('expands prohibited_commands from ALL_MUTATING_COMMANDS for founder-gate routes', () => {

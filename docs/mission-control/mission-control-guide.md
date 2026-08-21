@@ -388,6 +388,7 @@ Use these canonical mappings when that operation is already selected:
 | reconciliation | `bemoat:mission-control:reconcile` |
 | recover-review | `bemoat:mission-control:recover-review` |
 | missing managed-state recovery | `bemoat:mission-control:recover-state` |
+| missing-state review eligibility recovery | `bemoat:mission-control:recover-review-eligibility` |
 | reopen | `bemoat:mission-control:reopen` |
 | adopt-finding | `bemoat:mission-control:adopt-finding` |
 | merge | `bemoat:mission-control:merge` |
@@ -400,6 +401,7 @@ Candidate commands:
 - bemoat:mission-control:reconcile
 - bemoat:mission-control:review
 - bemoat:mission-control:recover-review
+- bemoat:mission-control:recover-review-eligibility
 
 Inspect each applicable candidate with `--help --json`.
 

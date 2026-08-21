@@ -11,6 +11,7 @@ export const ALL_MUTATING_COMMANDS: string[] = [
   'bemoat:mission-control:reconcile',
   'bemoat:mission-control:recover-review',
   'bemoat:mission-control:recover-state',
+  'bemoat:mission-control:recover-review-eligibility',
   'bemoat:mission-control:reopen',
   'bemoat:mission-control:review',
   'bemoat:mission-control:task-bootstrap',
