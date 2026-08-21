@@ -27,6 +27,7 @@ type Dependencies = {
   looksAuthorizationShaped: (body: unknown) => boolean
   sameBody: (comment: Comment, body: string) => boolean
   assertUnmutatedComment: (comment: Comment, label: string) => void
+  assertNotSuperseded: (comments: readonly Comment[], id: string) => void
   commentAuthor: (comment: Comment) => string
   hasAuthoritativeIssueIdentity: (comment: Comment, context: Context) => boolean
   parseFinalBody: (body: string, context: Context) => unknown
@@ -55,7 +56,9 @@ export function classifyExistingAuthorizationComments(
     try { deps.parseFinalBody(String(comment.body ?? ''), historicalContext) } catch { throw deps.recordingError('STATE_CONFLICT', 'conflicting, malformed, or semantically different authorization evidence already exists', false) }
     deps.assertUnmutatedComment(comment, 'authorization comment')
     if (!/^\d+$/.test(String(comment.id ?? '')) || deps.commentAuthor(comment) !== context.founderLogin || !deps.hasAuthoritativeIssueIdentity(comment, context)) throw deps.recordingError('STATE_CONFLICT', 'authorization evidence has an invalid identity or repository/Issue binding', false)
-    const authorizationId = String(comment.id); const authorizationBodySha256 = createHash('sha256').update(String(comment.body), 'utf8').digest('hex')
+    const authorizationId = String(comment.id)
+    deps.assertNotSuperseded(comments, authorizationId)
+    const authorizationBodySha256 = createHash('sha256').update(String(comment.body), 'utf8').digest('hex')
     const matchingReceipts = receipts.filter((receipt) => { try { deps.validateReceipt(receipt, historicalContext, authorizationId, authorizationBodySha256, false); return true } catch { return false } })
     if (matchingReceipts.length !== 1) throw deps.recordingError('STATE_CONFLICT', 'older authorization evidence is incomplete or has conflicting receipts', false)
     if (++historicalPairs > 1) throw deps.recordingError('STATE_CONFLICT', 'multiple complete historical authorization pairs are durable', false)

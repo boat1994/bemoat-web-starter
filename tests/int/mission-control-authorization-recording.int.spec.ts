@@ -226,6 +226,30 @@ Action: authorize canonical managed bootstrap of Issue #380 and the bounded long
     ])
   })
 
+  it('fails closed when a complete older-base authorization is superseded', async () => {
+    const historicalContext = { ...context, protectedBaseSha: 'c'.repeat(40), policySourceCommit: 'c'.repeat(40) }
+    const historicalBody = buildExistingTaskAuthorizationBody(historicalContext)
+    const comments: TestComment[] = [
+      comment('8001', historicalBody),
+      receiptFor('8002', '8001', historicalBody, historicalContext),
+      comment('8003', JSON.stringify({ supersedes_comment_id: '8001' })),
+    ]
+    let posts = 0
+
+    await expect(recordFounderAuthorization({
+      context,
+      ...testLease,
+      readComments: async () => comments,
+      postComment: async (_issue, postedBody) => {
+        posts += 1
+        return comment(String(8003 + posts), postedBody)
+      },
+      readComment: async (id) => comments.find((entry) => entry.id === id) ?? comment(id, ''),
+    })).rejects.toMatchObject({ classification: 'STATE_CONFLICT', mutationPerformed: false })
+
+    expect(posts).toBe(0)
+  })
+
   it('requires the POST response ID and individual readback ID to match', async () => {
     const body = buildExistingTaskAuthorizationBody(context)
     await expect(recordFounderAuthorization({

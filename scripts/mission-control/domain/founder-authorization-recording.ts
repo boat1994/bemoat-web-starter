@@ -296,7 +296,7 @@ export async function recordFounderAuthorization(options: RecordingOptions): Pro
       try {
         const comments = await options.readComments()
         const receipts = receiptComments(comments)
-        const classified = classifyExistingAuthorizationComments(comments, context, body, receipts, { looksAuthorizationShaped, sameBody, assertUnmutatedComment, commentAuthor, hasAuthoritativeIssueIdentity, parseFinalBody, validateReceipt, recordingError })
+        const classified = classifyExistingAuthorizationComments(comments, context, body, receipts, { looksAuthorizationShaped, sameBody, assertUnmutatedComment, assertNotSuperseded, commentAuthor, hasAuthoritativeIssueIdentity, parseFinalBody, validateReceipt, recordingError })
         return { comments, ...classified, receipts }
       } catch (error) {
         if (error instanceof Error && 'classification' in error && error.classification === 'STATE_CONFLICT') throw error
