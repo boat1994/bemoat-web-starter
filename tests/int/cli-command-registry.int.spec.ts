@@ -268,7 +268,7 @@ function expectRegistryRejected(
 }
 
 describe('Task 1 command contract registry', () => {
-  it('classifies the exact 26-command package inventory once', () => {
+  it('classifies the exact 27-command package inventory once', () => {
     const packageCommands = Object.keys(PACKAGE_JSON.scripts)
       .filter((command) => command.startsWith('bemoat:'))
       .sort()
@@ -278,10 +278,10 @@ describe('Task 1 command contract registry', () => {
       .sort()
 
     expect(packageCommands).toEqual(Object.keys(EXPECTED_PACKAGE_SCRIPTS).sort())
-    expect(packageCommands).toHaveLength(26)
+    expect(packageCommands).toHaveLength(27)
     expect(registryCommands).toEqual(packageCommands)
     expect(classifiedCommands).toEqual(packageCommands)
-    expect(new Set(classifiedCommands).size).toBe(26)
+    expect(new Set(classifiedCommands).size).toBe(27)
 
     for (const command of packageCommands) {
       expect(getCommandContract(command)).toBe(COMMAND_CONTRACT_REGISTRY.commands[command])
@@ -298,9 +298,9 @@ describe('Task 1 command contract registry', () => {
       counts[expectedTier] += 1
     }
 
-    expect(counts).toEqual({ A: 15, B: 8, C: 3 })
-    expect(Object.keys(EXPECTED_COMMAND_TIERS)).toHaveLength(26)
-    expect(Object.keys(COMMAND_CONTRACT_REGISTRY.commands)).toHaveLength(26)
+    expect(counts).toEqual({ A: 16, B: 8, C: 3 })
+    expect(Object.keys(EXPECTED_COMMAND_TIERS)).toHaveLength(27)
+    expect(Object.keys(COMMAND_CONTRACT_REGISTRY.commands)).toHaveLength(27)
     expectRegistryValid()
   })
 
@@ -430,7 +430,7 @@ describe('Task 1 command contract registry', () => {
   })
 
   it('matches every canonical transport role and exceptional bit', () => {
-    expect(CANONICAL_TRANSPORTS).toHaveLength(11)
+    expect(CANONICAL_TRANSPORTS).toHaveLength(12)
 
     for (const transport of CANONICAL_TRANSPORTS) {
       const contract = asRecord(getCommandContract(transport.command), transport.command)

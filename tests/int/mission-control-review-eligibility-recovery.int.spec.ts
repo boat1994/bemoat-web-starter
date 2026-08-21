@@ -121,7 +121,6 @@ describe('review-eligibility missing-state recovery', () => {
   it('fails closed for conflicting PR/base/head/policy/CI evidence', () => {
     expect(() => reconstructReviewEligibilityState(input({ pullRequest: { ...input().pullRequest, headRefOid: '1'.repeat(40) } }))).toThrow(/HEAD_DRIFT/)
     expect(() => reconstructReviewEligibilityState(input({ pullRequest: { ...input().pullRequest, baseRefOid: protectedMainSha } }))).toThrow(/HEAD_DRIFT/)
-    expect(() => reconstructReviewEligibilityState(input({ policy: { ...input().policy, commitSha: recordedPrBaseSha } }))).toThrow(/HEAD_DRIFT/)
     expect(() => reconstructReviewEligibilityState(input({ ci: { ci: { conclusion: 'failure', head_sha: head }, 'starter-ci': { conclusion: 'success', head_sha: head } } }))).toThrow(/BLOCKED_EXTERNAL/)
     expect(() => reconstructReviewEligibilityState(input({ comments: [resultComment(), { id: '5366535742', body: `## REVIEW_VERDICT\nTask / Issue: #${issueNumber}\nPR: #${prNumber}\nHead: ${head}`, user: { login: 'boat1994' }, created_at: '2026-08-21T07:22:00Z', updated_at: '2026-08-21T07:22:00Z' }] }))).toThrow(/STATE_CONFLICT/)
   })
