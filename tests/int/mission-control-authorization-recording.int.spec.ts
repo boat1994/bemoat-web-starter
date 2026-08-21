@@ -120,6 +120,72 @@ describe('Issue #383 immutable Founder authorization recording', () => {
     expect(result.classification).toBe('SUCCESS')
   })
 
+  it('ignores live historical Founder decisions for managed bootstrap, merge, and Batch 1 repair', async () => {
+    const comments: TestComment[] = [
+      comment('5346289596', `FOUNDER_DECISION
+Decision: APPROVE MANAGED STABILIZATION IMPLEMENTATION
+Authority: Founder
+Author: authenticated repository owner boat1994
+Repository: boat1994/bemoat-web-starter
+Task Issue: #380
+Protected base: main@5538e8f74933209c195878f02a4b7a9191935cdd
+Policy: docs/mission-control/mission-control-guide.md v1.3.0; blob 56443e2b8e07b8d8325d6b5fdef7b49f305b1e1f
+Scope: canonical managed bootstrap and bounded implementation of the stabilization batches defined in Issue #380
+Action: authorize canonical managed bootstrap of Issue #380 and the bounded long-running implementation workflow defined by Issue #380`),
+      comment('5350491198', `## FOUNDER_DECISION
+
+**Decision:** APPROVE MERGE COMPLETION
+**Authority:** Founder
+**Author:** @boat1994
+**Repository:** \`boat1994/bemoat-web-starter\`
+**Task / Issue:** #380
+**Action:** merge
+**Scope:** merge
+**Policy source SHA:** \`56443e2b8e07b8d8325d6b5fdef7b49f305b1e1f\`
+**Protected base SHA:** \`5538e8f74933209c195878f02a4b7a9191935cdd\`
+**Non-superseded:** true`),
+      comment('5350702619', `## FOUNDER_DECISION
+
+**Decision:** APPROVE BOOTSTRAP RECOVERY BATCH 1
+**Authority:** Founder
+**Author:** @boat1994
+**Repository:** boat1994/bemoat-web-starter
+**Task / Issue:** #380
+**Protected base:** main@35bdd8689c5ff52a5d51f98419ae498f0971090c
+**Policy:** docs/mission-control/mission-control-guide.md
+**Policy version:** 1.3.0
+**Policy source SHA:** 56443e2b8e07b8d8325d6b5fdef7b49f305b1e1f
+**Scope:** bootstrap control-plane contract repair only
+**Action:** implement and publish the bounded Bootstrap Recovery Batch 1 repair.
+**Immutable comment reference:** true
+**Non-superseded:** true`),
+    ]
+    const historicalBodies = comments.map(({ id, body: historicalBody }) => ({ id, body: historicalBody }))
+    let nextId = 9101
+    let posts = 0
+    const result = await recordFounderAuthorization({
+      context,
+      ...testLease,
+      readComments: async () => comments,
+      postComment: async (_issue, postedBody) => {
+        posts += 1
+        const posted = comment(String(nextId++), postedBody)
+        comments.push(posted)
+        return posted
+      },
+      readComment: async (id) => {
+        const found = comments.find((entry) => entry.id === id)
+        if (!found) throw new Error(`missing comment ${id}`)
+        return found
+      },
+    })
+
+    expect(result.classification).toBe('SUCCESS')
+    expect(result.commentId).toBe('9101')
+    expect(posts).toBe(2)
+    expect(comments.slice(0, 3).map(({ id, body: historicalBody }) => ({ id, body: historicalBody }))).toEqual(historicalBodies)
+  })
+
   it('requires the POST response ID and individual readback ID to match', async () => {
     const body = buildExistingTaskAuthorizationBody(context)
     await expect(recordFounderAuthorization({

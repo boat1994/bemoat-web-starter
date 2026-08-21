@@ -227,7 +227,12 @@ function looksAuthorizationShaped(body: unknown): boolean {
   const text = String(body ?? '')
   if (looksReceipt(text)) return false
   if (text.includes(LEASE_MARKER)) return false
-  return /\bFOUNDER_DECISION\b/i.test(text) || /"(?:authorization_format|bundle_kind|scope|action|authority|comment_id)"\s*:/.test(text)
+  return [
+    /"authorization_format"\s*:\s*"task-bootstrap-existing-v2"/i,
+    /"bundle_kind"\s*:\s*"task-bootstrap-existing"/i,
+    /"(?:scope|action)"\s*:\s*"(?:task-initialization|create-managed-task)"/i,
+    /\b(?:scope|action)\b\s*:\s*[*`"']*\s*(?:task-initialization|create-managed-task)\b/i,
+  ].some((marker) => marker.test(text))
 }
 
 function classifyExistingAuthorizationComments(comments: readonly Comment[], context: FounderAuthorizationRecordingContext, body: string): Comment[] {
