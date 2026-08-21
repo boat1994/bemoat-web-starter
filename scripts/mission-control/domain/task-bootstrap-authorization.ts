@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { validateFounderAuthorizationReceipt } from './founder-authorization-receipt.ts'
 
 export type BootstrapContract = Readonly<{
   repository: string
@@ -73,6 +74,7 @@ type ValidateFounderTaskBootstrapAuthorizationOptions = {
   founderLogins?: unknown[]
   parentComments?: unknown[]
   expected?: BootstrapContract
+  boundCommentId?: unknown
 }
 
 export const BOOTSTRAP_CONTRACT: BootstrapContract = Object.freeze({
@@ -89,7 +91,6 @@ export const BOOTSTRAP_CONTRACT: BootstrapContract = Object.freeze({
   attestationSchema: 'bemoat-mission-control-task-bootstrap-attestation',
   operationVersion: 1,
 })
-
 /** Live-bound contract for current Founder-authorized existing-task recovery. */
 export const CURRENT_BOOTSTRAP_CONTRACT: CurrentBootstrapContract = Object.freeze({
   repository: BOOTSTRAP_CONTRACT.repository,
@@ -99,11 +100,11 @@ export const CURRENT_BOOTSTRAP_CONTRACT: CurrentBootstrapContract = Object.freez
   attestationSchema: BOOTSTRAP_CONTRACT.attestationSchema,
   operationVersion: BOOTSTRAP_CONTRACT.operationVersion,
 })
-
 export const BOOTSTRAP_AUTHORIZATION_BUNDLE = 'task-bootstrap-genesis'
 export const EXISTING_TASK_BOOTSTRAP_AUTHORIZATION_BUNDLE = 'task-bootstrap-existing'
 export const BOOTSTRAP_AUTHORIZATION_SCOPE = 'task-initialization'
 export const BOOTSTRAP_AUTHORIZATION_ACTION = 'create-managed-task'
+export const IMMUTABLE_EXISTING_AUTHORIZATION_FORMAT = 'task-bootstrap-existing-v2'
 const BATCH_1_AUTHORIZATION_FORMAT = 'bootstrap-recovery-batch-1'
 
 const BATCH_1_EXPLICIT_EXCLUSIONS = '**Explicit exclusions:** final merge; Batches A-D implementation; mutation or merge of PR #378; mutation or reopen of #373; mutation, retry, merge, or rebase of PR #369; modification or rebase of PR #366; #333 reconciliation or resumption; #336; deploy; migration; child sync; production; destructive; unrelated work.'
@@ -114,11 +115,9 @@ function authorizationError(message: string): never {
   Object.assign(error, { code: 'STATE_CONFLICT', classification: 'STATE_CONFLICT' })
   throw error
 }
-
 function isJsonRecord(value: unknown): value is JsonRecord {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
-
 export function parseFounderTaskBootstrapAuthorization(body = ''): JsonRecord {
   if (typeof body !== 'string' || !body.trim() || body.trim().startsWith('```')) {
     authorizationError('comment must contain exactly one raw JSON object')
@@ -138,7 +137,6 @@ export function parseFounderTaskBootstrapAuthorization(body = ''): JsonRecord {
   }
   return authorization
 }
-
 function parseBatch1FounderDecision(body: string): JsonRecord {
   const lines = body.split(/\r?\n/)
   const fields = [
@@ -339,10 +337,24 @@ export function validateFounderTaskBootstrapAuthorization({
   founderLogins,
   parentComments = [],
   expected = BOOTSTRAP_CONTRACT,
+  boundCommentId,
 }: ValidateFounderTaskBootstrapAuthorizationOptions = {}): FounderTaskBootstrapAuthorizationResult {
   if (!isJsonRecord(authorization)) authorizationError('record is missing')
   const author = normalizeCommentAuthor(authorizationComment)
   const existing = authorization.bundle_kind === EXISTING_TASK_BOOTSTRAP_AUTHORIZATION_BUNDLE
+  if (existing && authorization.authorization_format === IMMUTABLE_EXISTING_AUTHORIZATION_FORMAT) {
+    validateFounderAuthorizationReceipt({
+      authorizationComment,
+      parentComments,
+      repository: String(repository),
+      founderLogin: String(author),
+      issueNumber: Number(authorization.task_issue),
+      protectedBaseSha: String(expected?.protectedBaseSha ?? ''),
+      policySource: String(expected?.policySource ?? ''),
+      policyVersion: String(expected?.policyVersion ?? ''),
+      policySha: String(expected?.policySha ?? ''),
+    })
+  }
   const expectedConditions = [
     authorization.schema_version === 1,
     authorization.status === 'approved',
@@ -366,7 +378,9 @@ export function validateFounderTaskBootstrapAuthorization({
     authorization.policy_version === expected.policyVersion,
     authorization.scope === BOOTSTRAP_AUTHORIZATION_SCOPE,
     authorization.action === BOOTSTRAP_AUTHORIZATION_ACTION,
-    String(authorizationComment?.id) === String(authorization.comment_id),
+    authorization.authorization_format === IMMUTABLE_EXISTING_AUTHORIZATION_FORMAT
+      ? authorization.bundle_kind === EXISTING_TASK_BOOTSTRAP_AUTHORIZATION_BUNDLE && authorization.comment_id == null && /^\d+$/.test(String(authorizationComment?.id ?? '')) && String(boundCommentId) === String(authorizationComment?.id)
+      : String(authorizationComment?.id) === String(authorization.comment_id),
   ]
   if (existing && Number(authorization.parent_issue) !== Number(authorization.task_issue)) authorizationError('existing-task authorization parent and target Issue must be identical')
   if (expectedConditions.some((value) => !value)) authorizationError('record does not bind the trusted Founder, target, scope, policy, or comment identity')

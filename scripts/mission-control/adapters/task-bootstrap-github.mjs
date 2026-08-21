@@ -31,6 +31,15 @@ function externalError(message, cause) {
 
 function issueState(value) { return String(value ?? '').toUpperCase() }
 
+function isProtectedBootstrapWorkflow(env, repository) {
+  return env?.GITHUB_ACTIONS === 'true' &&
+    env.GITHUB_REPOSITORY === repository &&
+    env.GITHUB_WORKFLOW === 'Mission Control Task Bootstrap' &&
+    env.GITHUB_REF === 'refs/heads/main' &&
+    /^[0-9a-f]{40}$/i.test(String(env.GITHUB_SHA ?? '')) &&
+    /^[1-9]\d*$/.test(String(env.GITHUB_RUN_ID ?? ''))
+}
+
 function issueFromRest(issue, repo) {
   const nodeId = String(issue.node_id ?? issue.id)
   return {
@@ -142,7 +151,24 @@ export function createTaskBootstrapGithubAdapter({ repository, env = process.env
       return { path, version, blobSha: data.sha, sourceCommit, content }
     },
     async getFounderLogins() {
-      return String(env.BEMOAT_FOUNDER_LOGINS ?? '').split(',').map((login) => login.trim()).filter(Boolean)
+      // The protected workflow injects this repository-owned variable into the
+      // canonical bootstrap process. The workflow token cannot read Actions
+      // variables through REST, so do not replace the trusted injection with a
+      // second API read that is unavailable to that token. Arbitrary process
+      // input is never accepted as Founder authority: non-workflow callers use
+      // the existing repository REST read instead.
+      const value = isProtectedBootstrapWorkflow(env, repository)
+        ? String(env.BEMOAT_FOUNDER_LOGINS ?? '').trim()
+        : String(api(`repos/${repository}/actions/variables/BEMOAT_FOUNDER_LOGINS`, { label: 'repository Founder allowlist' }).value ?? '').trim()
+      const logins = value.split(',').map((login) => login.trim()).filter(Boolean)
+      if (logins.length === 0 || logins.some((login) => !/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/.test(login))) {
+        throw externalError('repository Actions variable BEMOAT_FOUNDER_LOGINS is invalid')
+      }
+      return logins
+    },
+    async getAuthenticatedUser() {
+      const user = api('user', { label: 'authenticated GitHub actor' })
+      return { login: user.login }
     },
     async createIssue({ title, body }) {
       const issue = api(`repos/${repository}/issues`, { method: 'POST', input: JSON.stringify({ title, body }), label: 'provisional Issue creation' })

@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
 import { canonicalSerialize, createSignedEnvelope, sha256Hex, verifySignedEnvelope } from '../../scripts/mission-control/domain/task-attestation.mjs'
+import { createTaskBootstrapGithubAdapter } from '../../scripts/mission-control/adapters/task-bootstrap-github.mjs'
 import {
   PROVISIONAL_TASK_END,
   PROVISIONAL_TASK_MARKER,
@@ -19,6 +20,29 @@ const workflowPath = '.github/workflows/mission-control-task-bootstrap.yml'
 
 const AUTHORIZATION_COMMENT_ID = '9001'
 const FOUNDER_LOGIN = 'boat1994'
+
+type TestAdapterOptions = {
+  repository: string
+  env?: Record<string, string | undefined>
+  runGh?: (args: string[]) => unknown
+}
+
+const createTestAdapter = createTaskBootstrapGithubAdapter as unknown as (
+  options: TestAdapterOptions,
+) => ReturnType<typeof createTaskBootstrapGithubAdapter>
+
+function protectedWorkflowEnv(allowlist: string | undefined): Record<string, string | undefined> {
+  return {
+    BEMOAT_FOUNDER_LOGINS: allowlist,
+    GITHUB_ACTIONS: 'true',
+    GITHUB_REPOSITORY: BOOTSTRAP_CONTRACT.repository,
+    GITHUB_WORKFLOW: 'Mission Control Task Bootstrap',
+    GITHUB_REF: 'refs/heads/main',
+    GITHUB_SHA: 'a'.repeat(40),
+    GITHUB_RUN_ID: '123',
+  }
+}
+
 const REQUEST_INPUT = {
   repository: BOOTSTRAP_CONTRACT.repository,
   authorizationCommentId: AUTHORIZATION_COMMENT_ID,
@@ -65,6 +89,35 @@ function expectStateConflict(action: () => unknown, message?: string) {
 }
 
 describe('Mission Control bootstrap transport contract', () => {
+  it('uses the protected workflow-injected Founder allowlist without a Variables REST read', async () => {
+    const calls: string[][] = []
+    const adapter = createTestAdapter({
+      repository: BOOTSTRAP_CONTRACT.repository,
+      env: protectedWorkflowEnv('boat1994,other-founder'),
+      runGh: (args: string[]) => {
+        calls.push(args)
+        throw new Error(`unexpected GitHub API call: ${args.join(' ')}`)
+      },
+    })
+
+    await expect(adapter.getFounderLogins()).resolves.toEqual(['boat1994', 'other-founder'])
+    expect(calls).toEqual([])
+  })
+
+  it.each([
+    ['missing', undefined],
+    ['empty', ''],
+    ['malformed', 'boat1994,not a login'],
+  ])('fails closed for a %s protected workflow Founder allowlist', async (_label, value) => {
+    const adapter = createTestAdapter({
+      repository: BOOTSTRAP_CONTRACT.repository,
+      env: protectedWorkflowEnv(value),
+      runGh: () => { throw new Error('unexpected GitHub API call') },
+    })
+
+    await expect(adapter.getFounderLogins()).rejects.toThrow('repository Actions variable BEMOAT_FOUNDER_LOGINS is invalid')
+  })
+
   it('accepts a trusted Founder authorization for an existing planning-only Task Issue', async () => {
     const typed = await import('../../scripts/mission-control/domain/task-bootstrap-authorization.ts')
     const body = typed.createFounderAuthorizationBody({

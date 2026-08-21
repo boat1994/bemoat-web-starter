@@ -266,7 +266,7 @@ function expectRegistryRejected(
 }
 
 describe('Task 1 command contract registry', () => {
-  it('classifies the exact 24-command package inventory once', () => {
+  it('classifies the exact 25-command package inventory once', () => {
     const packageCommands = Object.keys(PACKAGE_JSON.scripts)
       .filter((command) => command.startsWith('bemoat:'))
       .sort()
@@ -287,7 +287,7 @@ describe('Task 1 command contract registry', () => {
     expect(getCommandContract('bemoat:unregistered')).toBeNull()
   })
 
-  it('uses tier totals A=13 B=8 C=3', () => {
+  it('uses tier totals A=14 B=8 C=3', () => {
     const counts = { A: 0, B: 0, C: 0 }
 
     for (const [command, expectedTier] of Object.entries(EXPECTED_COMMAND_TIERS)) {
@@ -428,7 +428,7 @@ describe('Task 1 command contract registry', () => {
   })
 
   it('matches every canonical transport role and exceptional bit', () => {
-    expect(CANONICAL_TRANSPORTS).toHaveLength(10)
+    expect(CANONICAL_TRANSPORTS).toHaveLength(11)
 
     for (const transport of CANONICAL_TRANSPORTS) {
       const contract = asRecord(getCommandContract(transport.command), transport.command)

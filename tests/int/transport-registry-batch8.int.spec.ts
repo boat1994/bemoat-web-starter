@@ -17,6 +17,7 @@ const EXPECTED_TRANSPORT_COMMANDS = [
   'bemoat:mission-control:reopen',
   'bemoat:mission-control:adopt-finding',
   'bemoat:mission-control:recover-state',
+  'bemoat:mission-control:authorize-founder',
 ] as const
 
 const EXPECTED_EXCEPTIONAL_COMMANDS = [
@@ -68,6 +69,10 @@ describe('Batch 8 characterization — transport registry authority leaf', () =>
     })
     expect(getTransportRoute('bemoat:mission-control:adopt-finding')).toMatchObject({
       role: 'STATE_PROJECTION',
+      exceptional: false,
+    })
+    expect(getTransportRoute('bemoat:mission-control:authorize-founder')).toMatchObject({
+      role: 'FOUNDER_AUTHORIZATION',
       exceptional: false,
     })
   })

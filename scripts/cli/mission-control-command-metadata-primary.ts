@@ -8,25 +8,16 @@ export function missionControlPrimaryCommands(dependencies: CommandMetadataDepen
     command: 'bemoat:mission-control:authorize-founder',
     tier: 'A',
     entrypoint: 'scripts/mission-control-authorize-founder.mjs',
-    purpose: 'Record an immutable Founder merge authorization.',
-    operation: 'Validate Founder identity, exact head, policy source, and protected base, and project an immutable merge authorization and receipt.',
-    accepted_pre_states: ['ELIGIBLE_FOR_FOUNDER_REVIEW', 'STANDARD_NON_MANAGED_ELIGIBLE'],
-    required_inputs: [
-      positional('issue_number', '<issue-number>', 'positive_integer', 'Task Issue number; the live declaration determines managed or STANDARD/non-managed eligibility.'),
-      flag('scope', '--scope <scope>', 'enum', 'Authorization scope.', ['merge'], true),
-    ],
+    purpose: 'Record an immutable Founder authorization.',
+    operation: 'Validate Founder identity, exact head or policy source, and protected base, and project an immutable authorization and receipt.',
+    accepted_pre_states: ['NOT_STATEFUL', 'EXISTING_REGISTERED_TASK', 'ELIGIBLE_FOR_FOUNDER_REVIEW', 'STANDARD_NON_MANAGED_ELIGIBLE'],
+    required_inputs: [positional('issue_number', '<issue-number>', 'positive_integer', 'Target Issue receiving the Founder authorization.'), flag('scope', '--scope <scope>', 'enum', 'Authorization scope.', ['merge', 'task-bootstrap'], true)],
     optional_flags: [
       flag('repository', '--repo <owner/repository>', 'repository', 'Repository containing the Task Issue.'),
     ],
     trusted_derived_values: ['authenticated actor identity', 'trusted Founder logins', 'live PR/base/head/policy evidence', 'branch reservation evidence'],
-    required_evidence: [
-      'Exact head, base, and policy identity from managed state or trusted live STANDARD/non-managed evidence.',
-      'Authenticated GitHub actor must be a trusted Founder.',
-      'Live protected main ref.',
-      'For STANDARD/non-managed Issues: merged-policy eligibility, one active exact-target REVIEW_VERDICT, and its immutable comment ID.',
-    ],
-    reads: ['Task/PR/state', 'live protected main', 'BEMOAT_FOUNDER_LOGINS action variable'],
-    writes: ['immutable authorization comment', 'immutable receipt comment', 'coordination lease comments'],
+    required_evidence: ['Exact head, base, and policy identity when applicable.', 'Separate immutable receipt binding the returned authorization comment ID to its exact body SHA-256.', 'Authenticated GitHub actor must be a trusted Founder.', 'Live protected main ref.', 'For STANDARD/non-managed Issues: merged-policy eligibility, one active exact-target REVIEW_VERDICT, and its immutable comment ID.'],
+    reads: ['Task/PR/state', 'live protected main', 'BEMOAT_FOUNDER_LOGINS action variable', 'Issue comments'], writes: ['immutable authorization comment', 'immutable receipt comment', 'leased/CAS Issue state'],
     success_classifications: ['SUCCESS', 'NO_OP_IDENTICAL_RETRY'],
     retry_contract: {
       identical_retry: 'conditional',
@@ -36,8 +27,7 @@ export function missionControlPrimaryCommands(dependencies: CommandMetadataDepen
     next_action_rules: [
       {
         classification: 'SUCCESS',
-        condition: 'Managed Task Issue with valid managed state.',
-        next_action: nextAction('COMMAND', 'bemoat:mission-control:merge', 'The authorization is ready for the merge completion bundle.'),
+        next_action: nextAction('COMMAND', 'bemoat:mission-control:merge', 'For merge scope, the authorization is ready for the merge completion bundle. For task-bootstrap, it is ready for bootstrap.'),
       },
       {
         classification: 'NO_OP_IDENTICAL_RETRY',
@@ -60,6 +50,7 @@ export function missionControlPrimaryCommands(dependencies: CommandMetadataDepen
         description: 'Authorize a merge for a Task Issue.',
         argv: ['284', '--scope', 'merge', '--repo', 'boat1994/bemoat-web-starter'],
       },
+      { description: 'Authorize a task-bootstrap.', argv: ['383', '--scope', 'task-bootstrap', '--repo', 'boat1994/bemoat-web-starter'] },
     ],
     parser_owner: 'scripts/mission-control-authorize-founder.mjs',
     safe_help_invocation: 'pnpm run bemoat:mission-control:authorize-founder -- --help --json',
@@ -67,6 +58,7 @@ export function missionControlPrimaryCommands(dependencies: CommandMetadataDepen
     post_write_readback: 'Re-read the Issue comments and confirm the projected immutable authorization identity and receipt.',
     legacy_classification_map: {
       NO_OP: 'NO_OP_IDENTICAL_RETRY',
+      RECORDED: 'SUCCESS',
     },
   }),
   'bemoat:mission-control:dispatch': contract({
