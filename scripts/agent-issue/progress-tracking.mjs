@@ -20,6 +20,7 @@ import { getDefaultRepo } from './local-git-evidence.mjs'
 import { fetchIssueByReference, fetchIssueComments, fetchPrByReference } from './github-evidence.mjs'
 import { stripFencedCodeBlocks } from './pure-helpers.mjs'
 import { preflightCanonicalBootstrapTask } from '../mission-control/domain/task-bootstrap-preflight.ts'
+import { getPostBudgetReviewEvidenceBlockers, isPostBudgetReviewState } from '../mission-control/review-verdict-binding.mjs'
 
 export function normalizeSliceName(slice) {
   if (!slice) return ''
@@ -245,16 +246,15 @@ export function analyzeProgressTracking({
     state &&
     ['READY', 'IN_PROGRESS'].includes(state.state) &&
     (!state.active_pr || !state.current_head || state.state !== 'AWAITING_REVIEW_1')
-  const postReviewLag =
-    stateAnalysis.valid && state && /^(AWAITING_REVIEW_|CORRECTION_REQUIRED_)/.test(state.state)
+  const postReviewLag = stateAnalysis.valid && state && (/^(AWAITING_REVIEW_|CORRECTION_REQUIRED_)/.test(state.state) || isPostBudgetReviewState(state))
 
-  let latestResult = null
-  let latestVerdict = null
+  let latestResult = null; let latestVerdict = null
   if (stateRequired && activeIssueNumber && (preDeliveryLag || postReviewLag)) {
     const commentResult = fetchIssueComments(cwd, activeIssueNumber, env)
     if (commentResult.ok) {
-      latestResult = findLatestRoleComment(commentResult.comments, 'RESULT')
-      latestVerdict = findLatestRoleComment(commentResult.comments, 'REVIEW_VERDICT')
+      latestResult = findLatestRoleComment(commentResult.comments, 'RESULT'); latestVerdict = findLatestRoleComment(commentResult.comments, 'REVIEW_VERDICT')
+      const managedPrNumber = parsePrReference(activePrRef || stateActivePrRef)?.number ?? null
+      blockers.push(...getPostBudgetReviewEvidenceBlockers(commentResult.comments, activeIssueNumber, managedPrNumber, state))
       if (latestResult && state?.updated_at) {
         const commentTime = Date.parse(latestResult.comment.createdAt ?? '')
         const stateTime = Date.parse(state.updated_at ?? '')
@@ -269,9 +269,14 @@ export function analyzeProgressTracking({
           latestVerdict = null
         }
       }
+      if (postReviewLag && state?.state === 'BLOCKED_FOR_FOUNDER_DECISION' && !latestVerdict) {
+        blockers.push('BLOCKED_EXTERNAL: authoritative Review 4 verdict evidence is unavailable.')
+      }
       if (!activePrRef && latestResult?.parsed?.prNumber) {
         activePrRef = `#${latestResult.parsed.prNumber}`
       }
+    } else if (postReviewLag && isPostBudgetReviewState(state)) {
+      blockers.push(...getPostBudgetReviewEvidenceBlockers(null, activeIssueNumber, null, state))
     }
   }
 

@@ -309,12 +309,15 @@ function validateCommandRecord(commandKey: string, record: any, packageScript: a
     errors.push(`${label}.next_action_rules must be an array`)
   } else {
     for (const [index, rule] of record.next_action_rules.entries()) {
-      if (!exactKeys(rule, ['classification', 'next_action'])) {
+      if (!exactKeys(rule, ['classification', 'next_action']) && !exactKeys(rule, ['classification', 'condition', 'next_action'])) {
         errors.push(`${label}.next_action_rules[${index}] has invalid fields`)
         continue
       }
       if (!CANONICAL_CLASSIFICATIONS.has(rule.classification)) {
         errors.push(`${label}.next_action_rules[${index}].classification is invalid`)
+      }
+      if ('condition' in rule && (typeof rule.condition !== 'string' || rule.condition.trim() === '')) {
+        errors.push(`${label}.next_action_rules[${index}].condition is required when present`)
       }
       validateNextAction(rule.next_action, `${label}.next_action_rules[${index}].next_action`, commands, errors)
     }

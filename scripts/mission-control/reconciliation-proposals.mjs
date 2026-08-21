@@ -25,6 +25,127 @@ const VERDICT_TO_STATE = {
   'STATE CONFLICT': 'STATE_CONFLICT',
 }
 
+function exactHeadMatches(left, right) {
+  const normalizedLeft = normalizeAuthorityHead(left)
+  const normalizedRight = normalizeAuthorityHead(right)
+  return Boolean(
+    normalizedLeft && normalizedRight &&
+    normalizedLeft.length === 40 && normalizedRight.length === 40 &&
+    normalizedLeft === normalizedRight,
+  )
+}
+
+function parseImmutableFindingDispositions(body = '') {
+  const section = String(body).match(
+    /###\s+Immutable finding disposition\s*\n([\s\S]*?)(?=\n###|\n##|$)/i,
+  )?.[1] ?? ''
+  const findings = []
+  for (const line of section.split('\n')) {
+    const match = line.match(/^\s*[-*]\s+((?:`[^`]+`\s*,?\s*)+):\s*(.+?)\s*$/)
+    if (!match) continue
+    const ids = [...match[1].matchAll(/`([^`]+)`/g)].map((entry) => entry[1].trim()).filter(Boolean)
+    const description = match[2].trim()
+    const disposition = /\bresolved\b/i.test(description)
+      ? 'resolved'
+      : /\b(?:open|unresolved|unproven|remain(?:s|ing)?)\b/i.test(description)
+        ? 'open'
+        : null
+    if (!disposition || ids.length === 0) continue
+    for (const findingId of ids) findings.push({ finding_id: findingId, disposition })
+  }
+  return findings
+}
+
+function failClosedReviewLag(kind, reason) {
+  return { lag: false, kind, reason }
+}
+
+function classifyPostBudgetReviewLag(managedState, livePr, latestVerdict, exactHeadCi) {
+  if (!livePr?.number || !livePr.headRefOid || !livePr.baseRefName) {
+    return failClosedReviewLag('BLOCKED_EXTERNAL', 'post-budget Review 4 requires live PR and base evidence')
+  }
+
+  if (!exactHeadCi?.available || exactHeadCi.exactHeadVerified !== true) {
+    if (exactHeadCi?.exactHeadVerified === false && exactHeadCi?.olderShaSuccess === true) {
+      return failClosedReviewLag('STATE_CONFLICT', 'exact-head CI is stale for the live PR head')
+    }
+    return failClosedReviewLag('BLOCKED_EXTERNAL', 'exact-head CI is not verified for the live PR head')
+  }
+
+  const liveHead = normalizeAuthorityHead(livePr.headRefOid)
+  if (!exactHeadMatches(exactHeadCi.headSha, liveHead)) {
+    return failClosedReviewLag('STATE_CONFLICT', 'exact-head CI evidence does not bind the live PR head')
+  }
+
+  const managedPr = String(managedState.active_pr ?? '').replace(/^#/, '')
+  if (!managedPr || managedPr !== String(livePr.number) ||
+      normalizeAuthorityBase(managedState.approved_base) !== normalizeAuthorityBase(livePr.baseRefName)) {
+    return failClosedReviewLag('STATE_CONFLICT', 'managed PR or approved base does not match the live PR')
+  }
+
+  const parsed = latestVerdict?.parsed ?? null
+  const verdict = parsed?.verdict
+  const reviewedHead = normalizeAuthorityHead(parsed?.headSha)
+  const verdictPr = parsed?.prNumber == null ? null : String(parsed.prNumber)
+  const verdictBase = normalizeAuthorityBase(parsed?.base)
+  if (!verdict || !verdictPr || !reviewedHead || !verdictBase) {
+    return failClosedReviewLag('STATE_CONFLICT', 'Review 4 verdict is missing canonical PR/base/head evidence')
+  }
+  if (verdictPr !== String(livePr.number) || verdictBase !== normalizeAuthorityBase(livePr.baseRefName)) {
+    return failClosedReviewLag('STATE_CONFLICT', 'Review 4 verdict PR or base does not match the live PR')
+  }
+  if (!exactHeadMatches(reviewedHead, liveHead)) {
+    return failClosedReviewLag('STATE_CONFLICT', 'Review 4 verdict exact head does not match the live PR')
+  }
+
+  const authorization = managedState.founder_decision
+  if (!authorization || typeof authorization !== 'object' || Array.isArray(authorization) ||
+      authorization.status !== 'approved' || authorization.authority !== 'Founder' ||
+      authorization.scope !== 'review' || authorization.review_number !== 4 ||
+      !exactHeadMatches(authorization.reviewed_head, reviewedHead) ||
+      typeof authorization.action !== 'string' || !authorization.action.trim() ||
+      typeof authorization.authorized_at !== 'string' || !authorization.authorized_at.trim()) {
+    return failClosedReviewLag('STATE_CONFLICT', 'Review 4 Founder authorization is missing or not exactly bound')
+  }
+  const action = authorization.action
+  if (!new RegExp(`\\bPR\\s*#${String(livePr.number).replace(/[.*+?^${}()|[\\]\\\\]/g, '\\$&')}\\b`, 'i').test(action) ||
+      !action.toLowerCase().includes(reviewedHead)) {
+    return failClosedReviewLag('STATE_CONFLICT', 'Review 4 Founder authorization does not bind the live PR and exact head')
+  }
+
+  const verdictCommentId = latestVerdict?.comment?.id
+  if (!/^\d+$/.test(String(verdictCommentId ?? ''))) {
+    return failClosedReviewLag('STATE_CONFLICT', 'Review 4 verdict comment identity is missing')
+  }
+
+  const findingDispositions = parseImmutableFindingDispositions(latestVerdict?.comment?.body ?? '')
+  const fallbackLineage = Array.isArray(managedState.finding_lineage)
+    ? managedState.finding_lineage
+      .filter((finding) => finding && typeof finding === 'object' && !Array.isArray(finding))
+      .map((finding) => ({
+        finding_id: String(finding.finding_id ?? ''),
+        disposition: String(finding.disposition ?? ''),
+      }))
+      .filter((finding) => finding.finding_id && finding.disposition)
+    : []
+  const immutableFindings = findingDispositions.length > 0 ? findingDispositions : fallbackLineage
+  if (immutableFindings.length === 0) {
+    return failClosedReviewLag('STATE_CONFLICT', 'Review 4 immutable finding lineage is missing')
+  }
+
+  if (!['ELIGIBLE FOR FOUNDER REVIEW', 'BLOCKED FOR FOUNDER DECISION'].includes(verdict)) {
+    return failClosedReviewLag('STATE_CONFLICT', `Review 4 verdict ${verdict} cannot be projected from the Founder review gate`)
+  }
+
+  return {
+    lag: true,
+    kind: 'DETERMINISTIC_RECONCILIATION',
+    reason: 'authorized post-budget Review 4 evidence is ahead of bookkeeping',
+    postBudget: true,
+    findingDispositions: immutableFindings,
+  }
+}
+
 export function classifyDeliveryLag(managedState, livePr, exactHeadCi, latestResult = null) {
   if (!managedState?.state || !PRE_DELIVERY_STATES.has(managedState.state)) {
     return { lag: false, kind: null, reason: 'state is not pre-delivery' }
@@ -70,8 +191,18 @@ export function classifyDeliveryLag(managedState, livePr, exactHeadCi, latestRes
   return { lag: true, kind: 'DETERMINISTIC_RECONCILIATION', reason: 'unambiguous delivery evidence' }
 }
 
-export function classifyReviewLag(managedState, livePr, latestVerdict = null) {
+export function classifyReviewLag(managedState, livePr, latestVerdict = null, exactHeadCi = null) {
+  const postBudgetCandidate = managedState?.state === 'BLOCKED_FOR_FOUNDER_DECISION' &&
+    managedState.review_cycle === 3 &&
+    managedState.full_review_count === 1 &&
+    Array.isArray(managedState.post_budget_reviews) &&
+    managedState.post_budget_reviews.length === 0 &&
+    managedState.active_pr &&
+    managedState.current_head
   if (!managedState?.state || !latestVerdict?.parsed?.verdict) {
+    if (postBudgetCandidate) {
+      return failClosedReviewLag('BLOCKED_EXTERNAL', 'post-budget Review 4 verdict evidence is unavailable')
+    }
     return { lag: false, kind: null, reason: 'no review verdict evidence' }
   }
 
@@ -95,6 +226,10 @@ export function classifyReviewLag(managedState, livePr, latestVerdict = null) {
 
   if (reviewedHead && liveHead && !headsAlign(reviewedHead, liveHead)) {
     return { lag: false, kind: 'STATE_CONFLICT', reason: 'verdict head does not match live PR head' }
+  }
+
+  if (postBudgetCandidate) {
+    return classifyPostBudgetReviewLag(managedState, livePr, latestVerdict, exactHeadCi)
   }
 
   const expectedState = resolveVerdictState(verdict, managedState.review_cycle ?? 0)

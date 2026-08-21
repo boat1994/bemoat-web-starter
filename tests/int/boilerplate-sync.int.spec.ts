@@ -65,6 +65,22 @@ const STARTER_ONLY_INT_TESTS: { path: string; reason: string }[] = [
     path: 'tests/int/correction-contract-fingerprint.int.spec.ts',
     reason: 'Direct correction-contract fingerprint boundary characterization is starter harness validation only',
   },
+  {
+    path: 'tests/int/mission-control-authorize-founder-entrypoint.int.spec.ts',
+    reason: 'Direct authorize-founder entrypoint integration coverage is starter harness validation only',
+  },
+  {
+    path: 'tests/int/mission-control-standard-merge.int.spec.ts',
+    reason: 'Direct STANDARD/non-managed merge transport integration coverage is starter harness validation only',
+  },
+  {
+    path: 'tests/int/mission-control-standard-non-managed-eligibility.int.spec.ts',
+    reason: 'Direct STANDARD/non-managed eligibility integration coverage is starter harness validation only',
+  },
+  {
+    path: 'tests/int/mission-control-standard-review-selection.int.spec.ts',
+    reason: 'Direct STANDARD REVIEW_VERDICT selection integration coverage is starter harness validation only',
+  },
 ]
 
 /** Fixture trees that are starter-only and intentionally not synced. */
@@ -103,6 +119,7 @@ const SYNCED_SUPERPOWERS_TEMPLATE_PATHS = [
 const MANAGED_BEMOAT_PACKAGE_SCRIPTS = [
   'bemoat:agent:issue',
   'bemoat:mission-control:merge',
+  'bemoat:mission-control:merge-standard',
   'bemoat:issue:comment',
   'bemoat:branch:check',
   'bemoat:guard:safety',

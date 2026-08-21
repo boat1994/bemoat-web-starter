@@ -1,5 +1,11 @@
+import {
+  compareFileSystemSnapshots,
+  runCliBoundaryCase,
+} from '../helpers/cli-boundary-harness'
 import { describe, expect, it } from 'vitest'
 
+import { getCommandContract } from '../../scripts/cli/command-contract.mjs'
+import { createHelpEnvelopeV1 } from '../../scripts/cli/command-help.mjs'
 import {
   main,
   parseReopenArgs,
@@ -22,6 +28,13 @@ const POLICY_SOURCE_SHA = 'e79694467b89dace927c27a1022ec3d260a4a43c'
 const AUTHORIZATION_COMMENT = '5193626365'
 const RESULT_COMMENT = '5193868664'
 const REVIEW_VERDICT_COMMENT = '5194028692'
+const REOPEN_COMMAND = 'bemoat:mission-control:reopen'
+const JSON_HELP_PERMUTATIONS = [
+  ['--help', '--json'],
+  ['--json', '--help'],
+  ['-h', '--json'],
+  ['--json', '-h'],
+] as const
 type JsonObject = Record<string, unknown>
 type HarnessIssue = {
   body: string
@@ -443,5 +456,61 @@ describe('runReopen', () => {
 
     await expect(main([flag], deps)).resolves.toMatchObject({ outcome: 'HELP' })
     expect(calls).toEqual([])
+  })
+})
+
+describe('bemoat:mission-control:reopen CLI discovery', () => {
+  function runReopenCli(args: readonly string[]) {
+    const contract = getCommandContract(REOPEN_COMMAND)
+    if (!contract) throw new Error(`missing command contract: ${REOPEN_COMMAND}`)
+
+    return runCliBoundaryCase({
+      entrypoint: contract.entrypoint,
+      argv: ['--', ...args],
+      env: {
+        npm_lifecycle_event: REOPEN_COMMAND,
+        NO_COLOR: '1',
+      },
+    })
+  }
+
+  it('emits identical registry-derived schema-v1 HELP JSON for every option order', () => {
+    const contract = getCommandContract(REOPEN_COMMAND)
+    if (!contract) throw new Error(`missing command contract: ${REOPEN_COMMAND}`)
+    const expected = createHelpEnvelopeV1(contract)
+    const runs = JSON_HELP_PERMUTATIONS.map((args) => runReopenCli(args))
+
+    for (const run of runs) {
+      expect(run.status, `${run.stdout}\n${run.stderr}`).toBe(0)
+      expect(run.error).toBeNull()
+      expect(run.stderr).toBe('')
+      expect(run.filesystem_unchanged).toBe(true)
+      expect(run.poison_invocations).toEqual([])
+      expect(JSON.parse(run.stdout.trim())).toEqual(expected)
+    }
+
+    expect(runs.map((run) => run.stdout)).toEqual([
+      runs[0].stdout,
+      runs[0].stdout,
+      runs[0].stdout,
+      runs[0].stdout,
+    ])
+  })
+
+  it.each(['--help', '-h'])('keeps plain %s help equivalent and zero-write without runtime inputs', (flag) => {
+    const run = runReopenCli([flag])
+
+    expect(run.status).toBe(0)
+    expect(run.error).toBeNull()
+    expect(run.stderr).toBe('')
+    expect(run.stdout).toContain('Usage:')
+    expect(run.stdout).toContain(`pnpm run ${REOPEN_COMMAND}`)
+    expect(run.filesystem_unchanged).toBe(true)
+    expect(run.poison_invocations).toEqual([])
+
+    const otherFlag = flag === '--help' ? '-h' : '--help'
+    const otherRun = runReopenCli([otherFlag])
+    expect(compareFileSystemSnapshots(run.before, run.after)).toBe(true)
+    expect(run.stdout).toBe(otherRun.stdout)
   })
 })
