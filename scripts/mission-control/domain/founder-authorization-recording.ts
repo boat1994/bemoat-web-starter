@@ -1,8 +1,6 @@
 import { createHash } from 'node:crypto'
 import { LEASE_MARKER } from './task-bootstrap-lease.ts'
-import {
-  BOOTSTRAP_CONTRACT,
-} from './task-bootstrap-authorization.ts'
+import { BOOTSTRAP_CONTRACT } from './task-bootstrap-authorization.ts'
 import { buildFounderAuthorizationReceiptBody, parseFounderAuthorizationReceipt } from './founder-authorization-receipt.ts'
 import { hasAuthoritativeIssueIdentity } from './github-comment-identity.ts'
 export const IMMUTABLE_EXISTING_AUTHORIZATION_FORMAT = 'task-bootstrap-existing-v2'
@@ -16,7 +14,6 @@ export type FounderAuthorizationRecordingContext = Readonly<{
   policySourceCommit: string
   founderLogin: string
 }>
-
 type Comment = {
   id?: unknown
   body?: unknown
@@ -313,6 +310,21 @@ export async function recordFounderAuthorization(options: RecordingOptions): Pro
         throw recordingError('AMBIGUOUS_RESULT', `authorization evidence readback is uncertain: ${error instanceof Error ? error.message : String(error)}`, false)
       }
     }
+    const assertContextStillCurrent = async () => {
+      if (!options.readContext) return
+      let rereadContext: FounderAuthorizationRecordingContext
+      try {
+        rereadContext = await options.readContext()
+      } catch (error) {
+        const classification = errorClassification(error)
+        if (isCanonicalResultClassification(classification)) {
+          if (error instanceof Error) Object.assign(error, { mutationPerformed: false })
+          throw error
+        }
+        throw recordingError('AMBIGUOUS_RESULT', `pre-POST trusted evidence reread is uncertain: ${error instanceof Error ? error.message : String(error)}`, false)
+      }
+      if (!sameContext(rereadContext, context)) throw recordingError('STATE_CONFLICT', 'protected base, policy, target Issue, repository, or Founder identity drifted before POST', false)
+    }
     let snapshot = await readAndClassify()
     let existing = snapshot.matches
     if (existing.length > 1) throw recordingError('STATE_CONFLICT', 'multiple identical Founder authorization comments are durable', false)
@@ -335,24 +347,12 @@ export async function recordFounderAuthorization(options: RecordingOptions): Pro
         if (String(receiptReadback.id) !== String(receipt.id) || String(receiptReadback.body) !== String(receipt.body)) throw recordingError('STATE_CONFLICT', 'identical authorization receipt replay readback returned different immutable evidence', false)
         return { classification: 'NO_OP_IDENTICAL_RETRY', commentId: String(durable.id), body, bodySha256, receiptId: String(receipt.id), receiptBody: String(receipt.body), mutationPerformed: false }
       }
+      await assertContextStillCurrent()
       const receiptBody = buildFounderAuthorizationReceiptBody({ ...context, authorizationCommentId: String(durable.id), authorizationBodySha256: bodySha256 })
       const receipt = await postReceipt({ options, context, authorizationId: String(durable.id), authorizationBodySha256: bodySha256, receiptBody })
       return { classification: 'SUCCESS', commentId: String(durable.id), body, bodySha256, receiptId: receipt.id, receiptBody, mutationPerformed: true }
     }
-    if (options.readContext) {
-      let rereadContext: FounderAuthorizationRecordingContext
-      try {
-        rereadContext = await options.readContext()
-      } catch (error) {
-        const classification = errorClassification(error)
-        if (isCanonicalResultClassification(classification)) {
-          if (error instanceof Error) Object.assign(error, { mutationPerformed: false })
-          throw error
-        }
-        throw recordingError('AMBIGUOUS_RESULT', `pre-POST trusted evidence reread is uncertain: ${error instanceof Error ? error.message : String(error)}`, false)
-      }
-      if (!sameContext(rereadContext, context)) throw recordingError('STATE_CONFLICT', 'protected base, policy, target Issue, repository, or Founder identity drifted before POST', false)
-    }
+    await assertContextStillCurrent()
     snapshot = await readAndClassify()
     existing = snapshot.matches
     if (existing.length > 0) throw recordingError('STATE_CONFLICT', 'authorization evidence changed before POST', false)

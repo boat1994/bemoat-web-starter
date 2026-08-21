@@ -89,6 +89,74 @@ describe('Issue #380 raw issue-comment identity characterization', () => {
     expect(JSON.stringify(historical)).toBe(snapshot)
   })
 
+  it('fails closed before creating a receipt when trusted context drifts after partial authorization readback', async () => {
+    const historical = historicalComment()
+    let posts = 0
+
+    await expect(recordFounderAuthorization({
+      ...recordingOptions(historical, () => { posts += 1 }),
+      readContext: async () => ({ ...context, protectedBaseSha: 'a'.repeat(40) }),
+    } as any)).rejects.toMatchObject({ classification: 'STATE_CONFLICT', mutationPerformed: false })
+
+    expect(posts).toBe(0)
+  })
+
+  it('creates one receipt for the live partial authorization and returns its retry as a canonical no-op', async () => {
+    const historical = historicalComment()
+    const snapshot = JSON.stringify(historical)
+    const comments: Comment[] = [historical]
+    const postedBodies: string[] = []
+    const receiptBody = buildFounderAuthorizationReceiptBody({
+      ...context,
+      authorizationCommentId: '5365740285',
+      authorizationBodySha256: bodySha256,
+    })
+    const options = {
+      context,
+      acquireLease: async () => ({ token: 'test-token' }),
+      releaseLease: async () => {},
+      readContext: async () => context,
+      readComments: async () => comments,
+      postComment: async (_issueNumber: number, postedBody: string) => {
+        postedBodies.push(postedBody)
+        const posted = {
+          id: '5365740286', body: postedBody, user: { login: context.founderLogin },
+          issue_number: null as null, issue_url: issueUrl,
+        }
+        comments.push(posted)
+        return posted
+      },
+      readComment: async (id: string) => {
+        const found = comments.find((comment) => String(comment.id) === id)
+        if (!found) throw new Error(`missing comment ${id}`)
+        return found
+      },
+    }
+
+    const first = await recordFounderAuthorization(options as any)
+    const retry = await recordFounderAuthorization(options as any)
+
+    expect(first).toMatchObject({
+      classification: 'SUCCESS', commentId: '5365740285', receiptId: '5365740286',
+      bodySha256, receiptBody, mutationPerformed: true,
+    })
+    expect(retry).toEqual({ ...first, classification: 'NO_OP_IDENTICAL_RETRY', mutationPerformed: false })
+    expect(postedBodies).toEqual([receiptBody])
+    expect(JSON.stringify(historical)).toBe(snapshot)
+  })
+
+  it('rejects a competing current authorization without creating a receipt', async () => {
+    const historical = historicalComment()
+    let posts = 0
+
+    await expect(recordFounderAuthorization({
+      ...recordingOptions(historical, () => { posts += 1 }),
+      readComments: async () => [historical, historicalComment({ id: '5365740287', body: `${body}\n` })],
+    } as any)).rejects.toMatchObject({ classification: 'STATE_CONFLICT', mutationPerformed: false })
+
+    expect(posts).toBe(0)
+  })
+
   it.each([
     ['correct repository, wrong Issue', { issue_url: `https://api.github.com/repos/${context.repository}/issues/381`, issue_number: null }],
     ['wrong repository, same Issue number', { issue_url: 'https://api.github.com/repos/other/repository/issues/380', issue_number: null }],

@@ -38,7 +38,7 @@ describe('bemoat:mission-control:authorize-founder regression', () => {
         if (args.includes('POST')) {
           const id = String(998 + ++postCount)
           const body = args[args.findIndex((arg) => arg.startsWith('body='))]?.slice(5) ?? ''
-          const comment = { id, body, issue_number: 380, user: { login: 'boat1994' }, created_at: '2026-08-21T00:00:00Z', updated_at: '2026-08-21T00:00:00Z' }
+          const comment = { id, body, issue_number: 380, issue_url: 'https://api.github.com/repos/boat1994/bemoat-web-starter/issues/380', user: { login: 'boat1994' }, created_at: '2026-08-21T00:00:00Z', updated_at: '2026-08-21T00:00:00Z' }
           comments.push(comment)
           return JSON.stringify(comment)
         }
