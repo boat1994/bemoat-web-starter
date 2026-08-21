@@ -249,6 +249,32 @@ Action: authorize canonical managed bootstrap of Issue #380 and the bounded long
     expect(posts).toBe(1)
   })
 
+  it('fails closed when a superseder appears after partial-recovery receipt creation', async () => {
+    const body = buildExistingTaskAuthorizationBody(context)
+    const comments: TestComment[] = [comment('9001', body)]
+    let posts = 0
+    await expect(recordFounderAuthorization({
+      context,
+      ...testLease,
+      readComments: async () => comments,
+      postComment: async (_issue, postedBody) => {
+        posts += 1
+        const posted = comment('9002', postedBody)
+        comments.push(posted)
+        return posted
+      },
+      readComment: async (id) => {
+        if (id === '9002') {
+          comments.push(comment('9003', JSON.stringify({ supersedes_comment_id: '9001' })))
+        }
+        const found = comments.find((entry) => entry.id === id)
+        if (!found) throw new Error(`missing comment ${id}`)
+        return found
+      },
+    })).rejects.toMatchObject({ classification: 'STATE_CONFLICT', mutationPerformed: true })
+    expect(posts).toBe(1)
+  })
+
   it('fails closed for a receipt with the wrong body hash or authorization comment ID', async () => {
     const body = buildExistingTaskAuthorizationBody(context)
     const wrongHash = comment('9002', buildFounderAuthorizationReceiptBody({
@@ -268,6 +294,21 @@ Action: authorize canonical managed bootstrap of Issue #380 and the bounded long
       })).rejects.toMatchObject({ classification: 'STATE_CONFLICT', mutationPerformed: false })
       expect(posts).toBe(0)
     }
+  })
+
+  it('rejects an otherwise matching retry receipt with extra canonical-body evidence', async () => {
+    const body = buildExistingTaskAuthorizationBody(context)
+    const canonicalReceipt = buildFounderAuthorizationReceiptBody({
+      ...context, authorizationCommentId: '9001', authorizationBodySha256: createHash('sha256').update(body).digest('hex'),
+    })
+    const nonCanonicalReceipt = `${canonicalReceipt.slice(0, -2)},\n  "extra": true\n}`
+    await expect(recordFounderAuthorization({
+      context,
+      ...testLease,
+      readComments: async () => [comment('9001', body), comment('9002', nonCanonicalReceipt)],
+      postComment: async () => { throw new Error('must not post') },
+      readComment: async (id) => comment(id, id === '9001' ? body : nonCanonicalReceipt),
+    })).rejects.toMatchObject({ classification: 'STATE_CONFLICT', mutationPerformed: false })
   })
 
   it('fails closed for a post-creation-mutated authorization snapshot without updating it', async () => {

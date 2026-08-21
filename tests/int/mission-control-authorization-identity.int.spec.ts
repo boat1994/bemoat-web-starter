@@ -166,6 +166,9 @@ describe('Issue #380 raw issue-comment identity characterization', () => {
     ['issue URL with a duplicate path segment', { issue_url: `https://api.github.com/repos/boat1994//bemoat-web-starter/issues/${context.issueNumber}`, issue_number: null }],
     ['numeric-looking issue number corroboration', { issue_url: issueUrl, issue_number: String(context.issueNumber) }],
     ['conflicting identity sources', { issue_url: issueUrl, issue_number: 381 }],
+    ['issue URL with userinfo', { issue_url: `https://attacker@api.github.com/repos/${context.repository}/issues/${context.issueNumber}`, issue_number: null }],
+    ['issue URL with dot segment', { issue_url: `https://api.github.com/repos/${context.repository}/issues/../issues/${context.issueNumber}`, issue_number: null }],
+    ['issue URL with backslash', { issue_url: `https://api.github.com/repos/${context.repository}/issues\\${context.issueNumber}`, issue_number: null }],
   ])('fails closed for %s without posting a receipt', async (_name, identity) => {
     let posts = 0
     const historical = historicalComment(identity)

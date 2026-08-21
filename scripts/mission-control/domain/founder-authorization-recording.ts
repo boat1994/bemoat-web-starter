@@ -116,6 +116,8 @@ function validateReceipt(comment: Comment, context: FounderAuthorizationRecordin
     scope: 'task-initialization',
     action: 'create-managed-task',
   }
+  const expectedBody = buildFounderAuthorizationReceiptBody({ ...context, authorizationCommentId: authorizationId, authorizationBodySha256: bodySha256 })
+  if (String(comment.body ?? '') !== expectedBody) throw recordingError('STATE_CONFLICT', 'authorization receipt body is not the exact canonical receipt', mutationPerformed)
   for (const [key, value] of Object.entries(expected)) if (receipt[key] !== value) throw recordingError('STATE_CONFLICT', `authorization receipt does not bind ${key}`, mutationPerformed)
 }
 
@@ -350,6 +352,7 @@ export async function recordFounderAuthorization(options: RecordingOptions): Pro
       await assertContextStillCurrent()
       const receiptBody = buildFounderAuthorizationReceiptBody({ ...context, authorizationCommentId: String(durable.id), authorizationBodySha256: bodySha256 })
       const receipt = await postReceipt({ options, context, authorizationId: String(durable.id), authorizationBodySha256: bodySha256, receiptBody })
+      try { assertNotSuperseded((await readAndClassify()).comments, String(durable.id)) } catch (error) { if (error instanceof Error && 'classification' in error && error.classification === 'STATE_CONFLICT') throw Object.assign(error, { mutationPerformed: true }); throw recordingError('AMBIGUOUS_RESULT', `authorization supersession readback is ambiguous: ${error instanceof Error ? error.message : String(error)}`, true) }
       return { classification: 'SUCCESS', commentId: String(durable.id), body, bodySha256, receiptId: receipt.id, receiptBody, mutationPerformed: true }
     }
     await assertContextStillCurrent()
@@ -373,10 +376,7 @@ export async function recordFounderAuthorization(options: RecordingOptions): Pro
     if (String(readback.id) !== String(posted.id)) throw recordingError('STATE_CONFLICT', 'authorization POST and individual readback returned different immutable comment IDs', true)
     const receiptBody = buildFounderAuthorizationReceiptBody({ ...context, authorizationCommentId: String(posted.id), authorizationBodySha256: bodySha256 })
     const receipt = await postReceipt({ options, context, authorizationId: String(posted.id), authorizationBodySha256: bodySha256, receiptBody })
-    try { assertNotSuperseded((await readAndClassify()).comments, String(posted.id)) } catch (error) {
-      if (error instanceof Error && 'classification' in error && error.classification === 'STATE_CONFLICT') throw Object.assign(error, { mutationPerformed: true })
-      throw recordingError('AMBIGUOUS_RESULT', `authorization supersession readback is ambiguous: ${error instanceof Error ? error.message : String(error)}`, true)
-    }
+    try { assertNotSuperseded((await readAndClassify()).comments, String(posted.id)) } catch (error) { if (error instanceof Error && 'classification' in error && error.classification === 'STATE_CONFLICT') throw Object.assign(error, { mutationPerformed: true }); throw recordingError('AMBIGUOUS_RESULT', `authorization supersession readback is ambiguous: ${error instanceof Error ? error.message : String(error)}`, true) }
     return { classification: 'SUCCESS', commentId: String(posted.id), body, bodySha256, receiptId: receipt.id, receiptBody, mutationPerformed: true }
   } catch (error) {
     primaryError = error
