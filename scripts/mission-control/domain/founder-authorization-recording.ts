@@ -3,6 +3,7 @@ import { LEASE_MARKER } from './task-bootstrap-lease.ts'
 import { BOOTSTRAP_CONTRACT } from './task-bootstrap-authorization.ts'
 import { buildFounderAuthorizationReceiptBody, parseFounderAuthorizationReceipt } from './founder-authorization-receipt.ts'
 import { hasAuthoritativeIssueIdentity } from './github-comment-identity.ts'
+import { classifyExistingAuthorizationComments } from './founder-authorization-history.ts'
 export const IMMUTABLE_EXISTING_AUTHORIZATION_FORMAT = 'task-bootstrap-existing-v2'
 export type FounderAuthorizationRecordingContext = Readonly<{
   repository: string
@@ -233,18 +234,6 @@ function looksAuthorizationShaped(body: unknown): boolean {
   ].some((marker) => marker.test(text))
 }
 
-function classifyExistingAuthorizationComments(comments: readonly Comment[], context: FounderAuthorizationRecordingContext, body: string): Comment[] {
-  const matches: Comment[] = []
-  for (const comment of comments) {
-    if (!looksAuthorizationShaped(comment.body)) continue
-    if (!sameBody(comment, body)) throw recordingError('STATE_CONFLICT', 'conflicting, malformed, or semantically different authorization evidence already exists', false)
-    assertUnmutatedComment(comment, 'authorization comment')
-    if (!/^\d+$/.test(String(comment.id ?? '')) || commentAuthor(comment) !== context.founderLogin || !hasAuthoritativeIssueIdentity(comment, context)) throw recordingError('STATE_CONFLICT', 'authorization evidence has an invalid identity or repository/Issue binding', false)
-    matches.push(comment)
-  }
-  return matches
-}
-
 function sameContext(left: FounderAuthorizationRecordingContext, right: FounderAuthorizationRecordingContext): boolean {
   const keys: (keyof FounderAuthorizationRecordingContext)[] = ['repository', 'issueNumber', 'protectedBaseSha', 'policySource', 'policyVersion', 'policySha', 'policySourceCommit', 'founderLogin']
   return keys.every((key) => left[key] === right[key])
@@ -306,7 +295,9 @@ export async function recordFounderAuthorization(options: RecordingOptions): Pro
     const readAndClassify = async () => {
       try {
         const comments = await options.readComments()
-        return { comments, matches: classifyExistingAuthorizationComments(comments, context, body), receipts: receiptComments(comments) }
+        const receipts = receiptComments(comments)
+        const classified = classifyExistingAuthorizationComments(comments, context, body, receipts, { looksAuthorizationShaped, sameBody, assertUnmutatedComment, commentAuthor, hasAuthoritativeIssueIdentity, parseFinalBody, validateReceipt, recordingError })
+        return { comments, ...classified, receipts }
       } catch (error) {
         if (error instanceof Error && 'classification' in error && error.classification === 'STATE_CONFLICT') throw error
         throw recordingError('AMBIGUOUS_RESULT', `authorization evidence readback is uncertain: ${error instanceof Error ? error.message : String(error)}`, false)
@@ -337,11 +328,12 @@ export async function recordFounderAuthorization(options: RecordingOptions): Pro
       if (String(readback.id) !== String(durable.id)) throw recordingError('STATE_CONFLICT', 'identical authorization replay readback returned a different immutable comment ID', false)
       snapshot = await readAndClassify()
       assertNotSuperseded(snapshot.comments, String(durable.id))
-      const matchingReceipts = snapshot.receipts.filter((receipt) => {
+      const activeReceipts = snapshot.receipts.filter((receipt) => !snapshot.historicalReceiptIds.has(String(receipt.id)))
+      const matchingReceipts = activeReceipts.filter((receipt) => {
         try { validateReceipt(receipt, context, String(durable.id), bodySha256, false); return true } catch (error) { if (errorClassification(error) === 'STATE_CONFLICT') throw error; return false }
       })
       if (matchingReceipts.length > 1) throw recordingError('STATE_CONFLICT', 'multiple identical authorization receipts are durable', false)
-      if (snapshot.receipts.length > matchingReceipts.length) throw recordingError('STATE_CONFLICT', 'conflicting authorization receipt evidence already exists', false)
+      if (activeReceipts.length > matchingReceipts.length) throw recordingError('STATE_CONFLICT', 'conflicting authorization receipt evidence already exists', false)
       if (matchingReceipts.length === 1) {
         const receipt = matchingReceipts[0]
         const receiptReadback = await options.readComment(String(receipt.id)).catch((error) => { throw recordingError('AMBIGUOUS_RESULT', `authorization receipt replay readback is uncertain: ${error instanceof Error ? error.message : String(error)}`, false) })
@@ -359,7 +351,7 @@ export async function recordFounderAuthorization(options: RecordingOptions): Pro
     snapshot = await readAndClassify()
     existing = snapshot.matches
     if (existing.length > 0) throw recordingError('STATE_CONFLICT', 'authorization evidence changed before POST', false)
-    if (snapshot.receipts.length > 0) throw recordingError('STATE_CONFLICT', 'authorization receipt exists without its immutable authorization', false)
+    if (snapshot.receipts.some((receipt) => !snapshot.historicalReceiptIds.has(String(receipt.id)))) throw recordingError('STATE_CONFLICT', 'authorization receipt exists without its immutable authorization', false)
     let posted: Comment
     try {
       mutationPerformed = true

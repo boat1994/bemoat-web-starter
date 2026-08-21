@@ -56,6 +56,14 @@ function receipt(id: string, authorizationId: string, body: string) {
   }))
 }
 
+function receiptFor(id: string, authorizationId: string, body: string, receiptContext: typeof context) {
+  return comment(id, buildFounderAuthorizationReceiptBody({
+    ...receiptContext,
+    authorizationCommentId: authorizationId,
+    authorizationBodySha256: createHash('sha256').update(body).digest('hex'),
+  }))
+}
+
 const testLease = {
   acquireLease: async () => ({ token: 'test-token', commentId: 'lease-1' }),
   releaseLease: async () => {},
@@ -185,6 +193,37 @@ Action: authorize canonical managed bootstrap of Issue #380 and the bounded long
     expect(result.commentId).toBe('9101')
     expect(posts).toBe(2)
     expect(comments.slice(0, 3).map(({ id, body: historicalBody }) => ({ id, body: historicalBody }))).toEqual(historicalBodies)
+  })
+
+  it('classifies one complete older-base authorization and receipt pair as historical', async () => {
+    const historicalContext = { ...context, protectedBaseSha: 'c'.repeat(40), policySourceCommit: 'c'.repeat(40) }
+    const historicalBody = buildExistingTaskAuthorizationBody(historicalContext)
+    const comments: TestComment[] = [
+      comment('8001', historicalBody),
+      receiptFor('8002', '8001', historicalBody, historicalContext),
+    ]
+    let posts = 0
+    const result = await recordFounderAuthorization({
+      context,
+      ...testLease,
+      readComments: async () => comments,
+      postComment: async (_issue, postedBody) => {
+        posts += 1
+        const posted = comment(String(8002 + posts), postedBody)
+        comments.push(posted)
+        return posted
+      },
+      readComment: async (id) => comments.find((entry) => entry.id === id) ?? comment(id, ''),
+    })
+
+    expect(result.classification).toBe('SUCCESS')
+    expect(result.commentId).toBe('8003')
+    expect(result.receiptId).toBe('8004')
+    expect(posts).toBe(2)
+    expect(comments.slice(0, 2)).toEqual([
+      comment('8001', historicalBody),
+      receiptFor('8002', '8001', historicalBody, historicalContext),
+    ])
   })
 
   it('requires the POST response ID and individual readback ID to match', async () => {
