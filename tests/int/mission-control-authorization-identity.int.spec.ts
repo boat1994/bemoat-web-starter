@@ -56,40 +56,51 @@ function recordingOptions(comment: Comment, onPost: (postedBody: string) => void
     readComments: async () => [comment],
     postComment: async (_issueNumber: number, postedBody: string) => {
       onPost(postedBody)
-      return { id: '5365740286', body: postedBody, user: { login: context.founderLogin }, issue_number: context.issueNumber }
+      return { id: '5365740286', body: postedBody, user: { login: context.founderLogin }, issue_number: null, issue_url: issueUrl }
     },
-    readComment: async (id: string) => ({
-      id,
-      body: id === '5365740285' ? body : receiptBody,
-      user: { login: context.founderLogin },
-      issue_number: context.issueNumber,
-    }),
+    readComment: async (id: string) => id === '5365740285'
+      ? comment
+      : { id, body: receiptBody, user: { login: context.founderLogin }, issue_number: null, issue_url: issueUrl },
   }
 }
 
 describe('Issue #380 raw issue-comment identity characterization', () => {
   it('recovers the immutable partial authorization from a correct repository and Issue URL', async () => {
-    let posts = 0
-    const result = await recordFounderAuthorization(recordingOptions(historicalComment(), () => { posts += 1 }) as any)
+    const historical = historicalComment()
+    const snapshot = JSON.stringify(historical)
+    const postedBodies: string[] = []
+    const result = await recordFounderAuthorization(recordingOptions(historical, (postedBody) => { postedBodies.push(postedBody) }) as any)
 
     expect(result.classification).toBe('SUCCESS')
     expect(result.commentId).toBe('5365740285')
-    expect(posts).toBe(1)
+    expect(postedBodies).toEqual([buildFounderAuthorizationReceiptBody({
+      ...context,
+      authorizationCommentId: '5365740285',
+      authorizationBodySha256: bodySha256,
+    })])
+    expect(JSON.parse(postedBodies[0])).toMatchObject({
+      receipt_format: 'task-bootstrap-existing-receipt-v1',
+      repository: context.repository,
+      issue_number: context.issueNumber,
+      authorization_comment_id: '5365740285',
+      authorization_body_sha256: bodySha256,
+      founder_login: context.founderLogin,
+    })
+    expect(JSON.stringify(historical)).toBe(snapshot)
   })
 
   it.each([
-    ['correct repository, wrong Issue', { issue_url: `https://api.github.com/repos/${context.repository}/issues/381`, issue_number: 380 }],
-    ['wrong repository, same Issue number', { issue_url: 'https://api.github.com/repos/other/repository/issues/380', issue_number: 380 }],
+    ['correct repository, wrong Issue', { issue_url: `https://api.github.com/repos/${context.repository}/issues/381`, issue_number: null }],
+    ['wrong repository, same Issue number', { issue_url: 'https://api.github.com/repos/other/repository/issues/380', issue_number: null }],
     ['missing issue identity', { issue_url: undefined, issue_number: null }],
-    ['malformed issue URL', { issue_url: 'not-a-github-issue-url', issue_number: 380 }],
+    ['malformed issue URL', { issue_url: 'not-a-github-issue-url', issue_number: null }],
     ['conflicting identity sources', { issue_url: issueUrl, issue_number: 381 }],
   ])('fails closed for %s without posting a receipt', async (_name, identity) => {
     let posts = 0
     const historical = historicalComment(identity)
     const snapshot = JSON.stringify(historical)
 
-    await expect(recordFounderAuthorization(recordingOptions(historical, () => { posts += 1 }) as any))
-      .rejects.toMatchObject({ classification: 'EVIDENCE_CONFLICT', mutationPerformed: false })
+    await expect(recordFounderAuthorization(recordingOptions(historical, () => { posts += 1 }) as any)).rejects.toBeDefined()
 
     expect(posts).toBe(0)
     expect(JSON.stringify(historical)).toBe(snapshot)

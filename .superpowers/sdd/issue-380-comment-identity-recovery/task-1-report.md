@@ -71,3 +71,41 @@ The change is limited to the requested characterization test and this report. No
 `test: characterize issue comment identity recovery`
 
 The final commit hash is supplied in the task handoff; it is not embedded here because changing this report changes the commit hash.
+
+## Fix round 1 — review findings addressed
+
+Applied one bounded test-only fix round in the same worktree:
+
+- `recordingOptions` now returns the supplied historical comment object unchanged from `readComment`, preserving its authoritative `issue_url` and `issue_number: null`; receipt POST/readback fixtures also carry URL-backed raw identity and do not inject `context.issueNumber`.
+- Correct-repository/wrong-Issue, wrong-repository/same-number, and malformed-URL fixtures now have no conflicting numeric second source (`issue_number: null`). Only the explicit conflicting-source case supplies a mismatched `issue_number`.
+- Invalid-identity assertions require rejection and zero posts, without asserting a specific error taxonomy, preserving current fail-closed semantics.
+- Valid recovery now asserts exactly one posted body, exact receipt body construction, receipt repository/Issue/Founder/comment-ID/body-hash bindings, and immutability of the historical comment object.
+
+## Fix-round RED command and result
+
+Command:
+
+```text
+pnpm exec vitest run --config ./vitest.config.mts tests/int/mission-control-authorization-identity.int.spec.ts --no-file-parallelism
+```
+
+Result: exit code `1`; `1` test failed and `5` passed.
+
+```text
+❯ tests/int/mission-control-authorization-identity.int.spec.ts (6 tests | 1 failed) 3ms
+     × recovers the immutable partial authorization from a correct repository and Issue URL 2ms
+
+Test Files  1 failed (1)
+Tests  1 failed | 5 passed (6)
+```
+
+The remaining RED failure is the intended current-boundary failure: the valid URL-backed historical comment is rejected with `authorization evidence has an invalid identity or Issue binding`. The five invalid-identity cases pass their required fail-closed/no-mutation characterization, including preserved existing behavior for missing and conflicting identity.
+
+Fix-round self-review:
+
+```text
+pnpm exec eslint tests/int/mission-control-authorization-identity.int.spec.ts --max-warnings 0  # exit 0
+git diff --check                                                                               # exit 0
+```
+
+This round changes only `tests/int/mission-control-authorization-identity.int.spec.ts` before the report append; no production files or GitHub state were touched.
