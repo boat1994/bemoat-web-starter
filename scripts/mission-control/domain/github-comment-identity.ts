@@ -16,9 +16,9 @@ export function hasAuthoritativeIssueIdentity(
   let issueUrl: URL
   try { issueUrl = new URL(comment.issue_url) } catch { return false }
   if (issueUrl.protocol !== 'https:' || issueUrl.hostname !== 'api.github.com' || issueUrl.search || issueUrl.hash) return false
-  const segments = issueUrl.pathname.split('/').filter(Boolean)
-  if (segments.length !== 5 || segments[0] !== 'repos' || segments[3] !== 'issues') return false
-  const [owner, name, issue] = [segments[1], segments[2], segments[4]]
+  const segments = issueUrl.pathname.split('/')
+  if (segments.length !== 6 || segments[0] !== '' || segments[1] !== 'repos' || segments[4] !== 'issues') return false
+  const [owner, name, issue] = [segments[2], segments[3], segments[5]]
   if (`${owner}/${name}` !== repository || !/^[1-9]\d*$/.test(issue) || Number(issue) !== issueNumber) return false
-  return comment.issue_number == null || (Number.isSafeInteger(Number(comment.issue_number)) && Number(comment.issue_number) === Number(issue))
+  return comment.issue_number == null || (typeof comment.issue_number === 'number' && Number.isSafeInteger(comment.issue_number) && comment.issue_number === Number(issue))
 }

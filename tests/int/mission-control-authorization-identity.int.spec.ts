@@ -94,6 +94,9 @@ describe('Issue #380 raw issue-comment identity characterization', () => {
     ['wrong repository, same Issue number', { issue_url: 'https://api.github.com/repos/other/repository/issues/380', issue_number: null }],
     ['missing issue identity', { issue_url: undefined, issue_number: null }],
     ['malformed issue URL', { issue_url: 'not-a-github-issue-url', issue_number: null }],
+    ['issue URL with an empty path segment', { issue_url: `https://api.github.com/repos//${context.repository}/issues/${context.issueNumber}`, issue_number: null }],
+    ['issue URL with a duplicate path segment', { issue_url: `https://api.github.com/repos/boat1994//bemoat-web-starter/issues/${context.issueNumber}`, issue_number: null }],
+    ['numeric-looking issue number corroboration', { issue_url: issueUrl, issue_number: String(context.issueNumber) }],
     ['conflicting identity sources', { issue_url: issueUrl, issue_number: 381 }],
   ])('fails closed for %s without posting a receipt', async (_name, identity) => {
     let posts = 0
