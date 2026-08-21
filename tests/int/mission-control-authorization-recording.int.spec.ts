@@ -511,11 +511,14 @@ describe('Issue #383 immutable Founder authorization recording', () => {
     })).toThrow('Founder bootstrap authorization is invalid')
   })
 
-  it('reads the Founder allowlist from the repository Actions variable', async () => {
+  it('does not treat arbitrary process input as the Founder allowlist', async () => {
     const calls: string[][] = []
     const adapter = createTaskBootstrapGithubAdapter({
       repository: context.repository,
-      env: { ...process.env, BEMOAT_FOUNDER_LOGINS: 'attacker' },
+      env: {
+        ...process.env,
+        BEMOAT_FOUNDER_LOGINS: 'attacker',
+      },
       runGh: ((args: string[]) => {
         calls.push(args)
         return JSON.stringify({ value: 'boat1994,second-founder' })
