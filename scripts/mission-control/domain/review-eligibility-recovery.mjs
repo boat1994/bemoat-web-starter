@@ -78,19 +78,19 @@ function assertNoSuperseder(comments, commentId, label) {
 export function reconstructReviewEligibilityState(input) {
   const {
     repository, issueNumber, expectedPr, expectedBase, expectedBaseSha,
-    protectedMainSha, expectedHead, expectedBranch, issueBody, comments,
+    expectedHead, expectedBranch, issueBody, comments,
     resultComment, pullRequest, policy, ci, mechanicalCorrection,
   } = input ?? {}
   if (repository !== 'boat1994/bemoat-web-starter') throw error('STATE_CONFLICT', 'review recovery is outside the protected starter')
   const currentHead = sha(expectedHead, 'expected head')
   const recordedBase = sha(expectedBaseSha, 'recorded PR base')
-  const protectedMain = sha(protectedMainSha, 'protected main')
+  if (!policy || policy.ref !== expectedBase) throw error('HEAD_DRIFT', 'protected policy source is not read from the current protected main')
+  const protectedMain = sha(policy.commitSha, 'protected main')
   const parsed = parseMissionControlState(String(issueBody ?? ''))
   if (parsed.present) throw error('STATE_CONFLICT', parsed.valid ? 'a valid managed state already exists' : `managed state is malformed or partial: ${parsed.reason}`)
   if (!Array.isArray(comments)) throw error('BLOCKED_EXTERNAL', 'Issue comment pagination is incomplete')
   if (!pullRequest || Number(pullRequest.number) !== Number(expectedPr) || String(pullRequest.state).toUpperCase() !== 'OPEN' || pullRequest.isDraft === true) throw error('STATE_CONFLICT', 'live PR is not an open non-draft review target')
   if (pullRequest.baseRefName !== expectedBase || String(pullRequest.baseRefOid).toLowerCase() !== recordedBase || pullRequest.headRefName !== expectedBranch || String(pullRequest.headRefOid).toLowerCase() !== currentHead) throw error('HEAD_DRIFT', 'live PR base, branch, or head does not match the exact recovery tuple')
-  if (!policy || policy.ref !== expectedBase || String(policy.commitSha).toLowerCase() !== protectedMain) throw error('HEAD_DRIFT', 'protected policy source is not read from the current protected main')
   sha(policy.sha, 'Mission Control policy blob')
   assertCi(ci, currentHead)
   if (!resultComment || !RESULT.test(String(resultComment.body ?? ''))) throw error('EVIDENCE_CONFLICT', 'the selected comment is not an immutable RESULT')

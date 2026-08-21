@@ -26,7 +26,7 @@ async function readEvidence({ options, deps, allowExistingState = false }) {
     deps.readManagedIssue(options.issueNumber, options.repo),
     deps.readPullRequest(options.expectedPr, options.repo),
     deps.readIssueComments(options.repo, options.issueNumber),
-    deps.readProtectedPolicy(options.repo, options.expectedBase, options.protectedMainSha),
+    deps.readProtectedPolicy(options.repo, options.expectedBase),
     deps.readExactHeadChecks(options.repo, options.expectedHead),
   ])
   const resultComment = comments.find((comment) => String(comment.id) === String(options.resultComment))
@@ -105,7 +105,6 @@ function optionsFromInvocation(invocation) {
     expectedPr: values.expected_pr,
     expectedBase: values.expected_base,
     expectedBaseSha: values.expected_base_sha,
-    protectedMainSha: values.protected_main_sha,
     expectedHead: values.expected_head,
     expectedBranch: values.expected_branch,
     resultComment: values.result_comment,
@@ -167,9 +166,9 @@ export function createProductionDeps() {
       return pages.flat()
     },
     readCommitDelta: async (repo, from, to) => JSON.parse(runGh(['api', `repos/${repo}/compare/${from}...${to}`])),
-    readProtectedPolicy: async (repo, ref, commitSha) => {
-      const commit = JSON.parse(runGh(['api', `repos/${repo}/commits/${commitSha}`]))
-      if (String(commit.sha).toLowerCase() !== commitSha.toLowerCase()) throw classifiedError('HEAD_DRIFT', 'protected main commit does not match the invocation')
+    readProtectedPolicy: async (repo, ref) => {
+      const mainRef = JSON.parse(runGh(['api', `repos/${repo}/git/ref/heads/${ref}`]))
+      const commitSha = mainRef.object.sha
       const file = JSON.parse(runGh(['api', `repos/${repo}/contents/docs/mission-control/mission-control-guide.md?ref=${commitSha}`]))
       const body = Buffer.from(String(file.content ?? '').replace(/\s+/g, ''), 'base64').toString('utf8')
       const version = body.match(/(?:version|Guide version)\s*[`:]\s*([0-9]+\.[0-9]+\.[0-9]+)/i)?.[1] ?? null
@@ -177,7 +176,11 @@ export function createProductionDeps() {
     },
     readExactHeadChecks: async (repo, head) => {
       const response = JSON.parse(runGh(['api', `repos/${repo}/commits/${head}/check-runs`]))
-      const checks = Object.fromEntries(response.check_runs.filter((check) => check.conclusion === 'success' && check.head_sha === head).map((check) => [String(check.name).toLowerCase().includes('starter strict') ? 'starter-ci' : 'ci', { conclusion: check.conclusion, head_sha: check.head_sha }]))
+      const checks = Object.fromEntries(
+        response.check_runs
+          .filter((check) => check.conclusion === 'success' && check.head_sha === head)
+          .map((check) => [check.name === 'CI (starter strict)' ? 'starter-ci' : check.name === 'CI' ? 'ci' : check.name, { conclusion: check.conclusion, head_sha: check.head_sha }])
+      )
       return checks
     },
     writeIssueBody: async (input) => writeIssueBodyWithLease({ ...input, holder: RECOVER_REVIEW_ELIGIBILITY_COMMAND, repoFlag: input.repo, deps: { runGh } }),

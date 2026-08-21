@@ -36,7 +36,6 @@ function input(overrides: Record<string, unknown> = {}) {
     expectedPr: prNumber,
     expectedBase: base,
     expectedBaseSha: recordedPrBaseSha,
-    protectedMainSha,
     expectedHead: head,
     expectedBranch: branch,
     issueBody: 'Issue prose without a managed state block.\n',
@@ -79,7 +78,7 @@ describe('review-eligibility missing-state recovery', () => {
       readManagedIssue: async () => ({ number: issueNumber, state: 'OPEN', body }),
       readPullRequest: async () => fixture.pullRequest,
       readIssueComments: async () => fixture.comments,
-      readProtectedPolicy: async () => fixture.policy,
+      readProtectedPolicy: async (_repo: string, _expectedBase: string) => fixture.policy,
       readExactHeadChecks: async () => fixture.ci,
       readCommitDelta: async () => fixture.mechanicalCorrection,
       writeIssueBody: async ({ expectedBody, nextBody }: { expectedBody: string; nextBody: string }) => {
