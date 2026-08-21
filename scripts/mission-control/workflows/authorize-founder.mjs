@@ -7,6 +7,14 @@ import { recordFounderAuthorization } from '../domain/founder-authorization-reco
 import { BOOTSTRAP_CONTRACT } from '../domain/task-bootstrap-authorization.ts'
 import { parseMissionControlState } from '../domain/task-state.ts'
 import { normalizePrNumber } from '../domain/merge-issue-references.ts'
+import { resolveMergeReviewVerdictBinding } from '../domain/merge-review-verdict.ts'
+import { classifyStandardNonManagedEligibility, STANDARD_POLICY_PATH } from '../domain/standard-non-managed-eligibility.ts'
+import {
+  classifyReviewVerdictBindingEvidence,
+  resolveIssueScopingTaskNumber,
+  selectActiveRoleComments,
+  selectLiveReviewVerdictComment,
+} from '../review-verdict-binding.mjs'
 import { createTaskBootstrapGithubAdapter } from '../adapters/task-bootstrap-github.mjs'
 import { defaultRunGh, readProtectedRef } from '../adapters/merge-github.mjs'
 
@@ -24,6 +32,40 @@ function resolvePrNumber(value) {
 }
 
 const runGh = defaultRunGh
+
+async function resolveStandardReviewContext({ comments, issueNumber, repository }) {
+  const active = selectActiveRoleComments(comments, 'REVIEW_VERDICT')
+  const prNumbers = new Set()
+  for (const comment of active) {
+    const taskIssue = resolveIssueScopingTaskNumber(comment.body ?? '')
+    if (taskIssue != null && String(taskIssue) !== String(issueNumber)) continue
+    const classification = classifyReviewVerdictBindingEvidence(comment.body ?? '', { issueNumber })
+    if (classification.status === 'malformed') throw classification.error
+    if (classification.status !== 'valid') throw fail('STATE_CONFLICT', 'active REVIEW_VERDICT is missing canonical PR/base/head evidence')
+    prNumbers.add(resolvePrNumber(classification.binding.prNumber))
+  }
+  if (prNumbers.size !== 1) throw fail('STATE_CONFLICT', 'STANDARD authorization requires exactly one canonical active REVIEW_VERDICT PR target')
+
+  const prNumber = [...prNumbers][0]
+  const pr = JSON.parse(runGh(['pr', 'view', String(prNumber), '--repo', repository, '--json', 'number,state,baseRefName,headRefOid']))
+  let selected
+  try {
+    selected = selectLiveReviewVerdictComment({
+      comments,
+      issueNumber,
+      livePr: pr,
+      exactHead: pr.headRefOid,
+      requireExactIssueBinding: true,
+      requireNonSuperseded: true,
+      requireImmutableCommentId: true,
+      rejectNonExactTargets: true,
+    })
+  } catch (error) {
+    throw fail('STATE_CONFLICT', error instanceof Error ? error.message : String(error))
+  }
+  const binding = resolveMergeReviewVerdictBinding(selected.body)
+  return { comment: selected, binding, pr }
+}
 
 export async function main(argv = process.argv.slice(2)) {
   let invocation
@@ -45,39 +87,34 @@ export async function main(argv = process.argv.slice(2)) {
     }
 
     const github = createTaskBootstrapGithubAdapter({ repository, env: process.env })
-    let result
-    let nextActionCommand
-    let nextActionReason
 
-    if (scope === 'merge') {
-      const readTrustedContext = async () => {
-        const issueJson = JSON.parse(runGh(['issue', 'view', String(issueNumber), '--repo', repository, '--json', 'number,body']))
-        if (issueJson.number !== issueNumber) throw fail('STATE_CONFLICT', 'authorization target Issue readback is inconsistent')
-        
-        const parsedState = parseMissionControlState(issueJson.body)
-        if (!parsedState.present || !parsedState.valid) throw fail('STATE_CONFLICT', `Issue has invalid managed state: ${parsedState.reason ?? 'missing state block'}`)
+    const readTrustedFounderLogin = async () => {
+      const authActor = JSON.parse(runGh(['api', 'user']))
+      const variable = JSON.parse(runGh(['api', `repos/${repository}/actions/variables/BEMOAT_FOUNDER_LOGINS`]))
+      const logins = String(variable.value ?? '').trim().split(',').map((l) => l.trim()).filter(Boolean)
+      if (!authActor?.login || !logins.includes(authActor.login)) throw fail('AUTHORITY_CONFLICT', 'authenticated GitHub actor is not a trusted Founder')
+      return authActor.login
+    }
+
+    const readTrustedContext = async () => {
+      const issueJson = JSON.parse(runGh(['issue', 'view', String(issueNumber), '--repo', repository, '--json', 'number,body']))
+      if (issueJson.number !== issueNumber) throw fail('STATE_CONFLICT', 'authorization target Issue readback is inconsistent')
+
+      const parsedState = parseMissionControlState(issueJson.body)
+      let prNumber, exactHead, base, policySource, policyVersion, policySha
+      const mainRef = await readProtectedRef(runGh, repository, 'main')
+      if (!mainRef?.object?.sha) throw fail('STATE_CONFLICT', 'live protected main ref is unavailable')
+
+      if (parsedState.present && parsedState.valid) {
         const state = parsedState.state
-        
-        const prNumber = resolvePrNumber(state.active_pr)
-        const exactHead = state.last_reviewed_head
-        const base = state.approved_base
-        const policySource = state.guide_source_path ?? 'docs/mission-control/mission-control-guide.md'
-        const policyVersion = state.guide_version ?? '1.3.0'
-        const policySha = state.guide_source_sha
-        
-        if (!exactHead || !base || !policySha) {
-          throw fail('STATE_CONFLICT', 'managed task state is missing exact head, base, or policy identity')
-        }
-
-        const mainRef = await readProtectedRef(runGh, repository, 'main')
-        if (!mainRef?.object?.sha) throw fail('STATE_CONFLICT', 'live protected main ref is unavailable')
-
-        const authActor = JSON.parse(runGh(['api', 'user']))
-        const variable = JSON.parse(runGh(['api', `repos/${repository}/actions/variables/BEMOAT_FOUNDER_LOGINS`]))
-        const logins = String(variable.value ?? '').trim().split(',').map((l) => l.trim()).filter(Boolean)
-        if (!authActor?.login || !logins.includes(authActor.login)) throw fail('AUTHORITY_CONFLICT', 'authenticated GitHub actor is not a trusted Founder')
-        
-        return {
+        prNumber = resolvePrNumber(state.active_pr)
+        exactHead = state.last_reviewed_head
+        base = state.approved_base
+        policySource = state.guide_source_path ?? 'docs/mission-control/mission-control-guide.md'
+        policyVersion = state.guide_version ?? '1.3.0'
+        policySha = state.guide_source_sha
+        if (!exactHead || !base || !policySha) throw fail('STATE_CONFLICT', 'managed task state is missing exact head, base, or policy identity')
+        return { standard: false, context: {
           repository,
           issueNumber,
           prNumber,
@@ -88,14 +125,49 @@ export async function main(argv = process.argv.slice(2)) {
           policyVersion,
           policySha,
           policySourceCommit: mainRef.object.sha,
-          founderLogin: authActor.login,
-        }
+          founderLogin: await readTrustedFounderLogin(),
+        } }
       }
-      
+
+      if (!parsedState.present) {
+        const pages = JSON.parse(runGh(['api', '--paginate', '--slurp', `repos/${repository}/issues/${issueNumber}/comments?per_page=100`]))
+        const comments = pages.flat()
+        const policy = await github.getPolicy({ ref: mainRef.object.sha, path: STANDARD_POLICY_PATH, sourceCommit: mainRef.object.sha })
+        classifyStandardNonManagedEligibility({ repository, issueBody: issueJson.body, policy, protectedBaseSha: mainRef.object.sha })
+        const review = await resolveStandardReviewContext({ comments, issueNumber, repository })
+        prNumber = resolvePrNumber(review.binding.pr)
+        exactHead = review.binding.reviewed_head
+        base = review.binding.base
+        policySource = policy.path
+        policyVersion = policy.version
+        policySha = policy.blobSha
+        return { standard: true, context: {
+          repository,
+          issueNumber,
+          prNumber,
+          exactHead,
+          base,
+          protectedBaseSha: mainRef.object.sha,
+          policySource,
+          policyVersion,
+          policySha,
+          policySourceCommit: policy.sourceCommit,
+          reviewVerdictCommentId: String(review.comment.id),
+          founderLogin: await readTrustedFounderLogin(),
+        } }
+      }
+
+      throw fail('STATE_CONFLICT', `Issue has invalid managed state: ${parsedState.reason}`)
+    }
+
+    let result
+    let nextActionCommand
+    let nextActionReason
+
+    if (scope === 'merge') {
       const trustedContext = await readTrustedContext()
-      
       result = await recordFounderMergeAuthorization({
-        context: trustedContext,
+        context: trustedContext.context,
         readComments: async () => {
           const pages = JSON.parse(runGh(['api', '--paginate', '--slurp', `repos/${repository}/issues/${issueNumber}/comments?per_page=100`]))
           return pages.flat()
@@ -106,14 +178,13 @@ export async function main(argv = process.argv.slice(2)) {
         readComment: async (id) => {
           return JSON.parse(runGh(['api', `repos/${repository}/issues/comments/${id}`]))
         },
-        readContext: readTrustedContext,
+        readContext: async () => (await readTrustedContext()).context,
         acquireLease: (request) => github.acquireIssueLease({ ...request, scope: 'founder-merge-authorization-recording' }),
         releaseLease: (request) => github.releaseIssueLease({ ...request, scope: 'founder-merge-authorization-recording' }),
       })
-
-      nextActionCommand = 'bemoat:mission-control:merge'
-      nextActionReason = 'Merge completion bundle must independently revalidate the immutable authorization.'
-    } else if (scope === 'task-bootstrap') {
+      nextActionCommand = trustedContext.standard ? 'bemoat:mission-control:merge-standard' : 'bemoat:mission-control:merge'
+      nextActionReason = 'Merge completion transport must independently revalidate the immutable authorization.'
+    } else {
       const readTrustedContext = async () => {
         const mainRef = await readProtectedRef(runGh, repository, 'main')
         if (!mainRef?.object?.sha) throw fail('EVIDENCE_CONFLICT', 'live protected main ref is unavailable')
@@ -149,7 +220,7 @@ export async function main(argv = process.argv.slice(2)) {
       }
 
       const trustedContext = await readTrustedContext()
-      
+
       result = await recordFounderAuthorization({
         context: trustedContext,
         readComments: async () => {

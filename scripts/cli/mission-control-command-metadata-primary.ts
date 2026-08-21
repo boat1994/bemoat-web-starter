@@ -10,23 +10,14 @@ export function missionControlPrimaryCommands(dependencies: CommandMetadataDepen
     entrypoint: 'scripts/mission-control-authorize-founder.mjs',
     purpose: 'Record an immutable Founder authorization.',
     operation: 'Validate Founder identity, exact head or policy source, and protected base, and project an immutable authorization and receipt.',
-    accepted_pre_states: ['NOT_STATEFUL', 'EXISTING_REGISTERED_TASK', 'ELIGIBLE_FOR_FOUNDER_REVIEW'],
-    required_inputs: [
-      positional('issue_number', '<issue-number>', 'positive_integer', 'Target Issue receiving the Founder authorization.'),
-      flag('scope', '--scope <scope>', 'enum', 'Authorization scope.', ['merge', 'task-bootstrap'], true),
-    ],
+    accepted_pre_states: ['NOT_STATEFUL', 'EXISTING_REGISTERED_TASK', 'ELIGIBLE_FOR_FOUNDER_REVIEW', 'STANDARD_NON_MANAGED_ELIGIBLE'],
+    required_inputs: [positional('issue_number', '<issue-number>', 'positive_integer', 'Target Issue receiving the Founder authorization.'), flag('scope', '--scope <scope>', 'enum', 'Authorization scope.', ['merge', 'task-bootstrap'], true)],
     optional_flags: [
       flag('repository', '--repo <owner/repository>', 'repository', 'Repository containing the Task Issue.'),
     ],
     trusted_derived_values: ['authenticated actor identity', 'trusted Founder logins', 'live PR/base/head/policy evidence', 'branch reservation evidence'],
-    required_evidence: [
-      'Exact head, base, and policy identity when applicable.',
-      'Separate immutable receipt binding the returned authorization comment ID to its exact body SHA-256.',
-      'Authenticated GitHub actor must be a trusted Founder.',
-      'Live protected main ref.',
-    ],
-    reads: ['Task/PR/state', 'live protected main', 'BEMOAT_FOUNDER_LOGINS action variable', 'Issue comments'],
-    writes: ['immutable authorization comment', 'immutable receipt comment', 'leased/CAS Issue state'],
+    required_evidence: ['Exact head, base, and policy identity when applicable.', 'Separate immutable receipt binding the returned authorization comment ID to its exact body SHA-256.', 'Authenticated GitHub actor must be a trusted Founder.', 'Live protected main ref.', 'For STANDARD/non-managed Issues: merged-policy eligibility, one active exact-target REVIEW_VERDICT, and its immutable comment ID.'],
+    reads: ['Task/PR/state', 'live protected main', 'BEMOAT_FOUNDER_LOGINS action variable', 'Issue comments'], writes: ['immutable authorization comment', 'immutable receipt comment', 'leased/CAS Issue state'],
     success_classifications: ['SUCCESS', 'NO_OP_IDENTICAL_RETRY'],
     retry_contract: {
       identical_retry: 'conditional',
@@ -40,7 +31,18 @@ export function missionControlPrimaryCommands(dependencies: CommandMetadataDepen
       },
       {
         classification: 'NO_OP_IDENTICAL_RETRY',
+        condition: 'Managed Task Issue with valid managed state.',
         next_action: nextAction('COMMAND', 'bemoat:mission-control:merge', 'The identical authorization is already durable.'),
+      },
+      {
+        classification: 'SUCCESS',
+        condition: 'Explicit STANDARD/non-managed eligibility with no managed state.',
+        next_action: nextAction('COMMAND', 'bemoat:mission-control:merge-standard', 'The authorization is ready for the disjoint STANDARD/non-managed merge completion transport.'),
+      },
+      {
+        classification: 'NO_OP_IDENTICAL_RETRY',
+        condition: 'Explicit STANDARD/non-managed eligibility with no managed state.',
+        next_action: nextAction('COMMAND', 'bemoat:mission-control:merge-standard', 'The identical STANDARD/non-managed authorization is already durable.'),
       },
     ],
     examples: [
@@ -48,10 +50,7 @@ export function missionControlPrimaryCommands(dependencies: CommandMetadataDepen
         description: 'Authorize a merge for a Task Issue.',
         argv: ['284', '--scope', 'merge', '--repo', 'boat1994/bemoat-web-starter'],
       },
-      {
-        description: 'Authorize a task-bootstrap.',
-        argv: ['383', '--scope', 'task-bootstrap', '--repo', 'boat1994/bemoat-web-starter'],
-      },
+      { description: 'Authorize a task-bootstrap.', argv: ['383', '--scope', 'task-bootstrap', '--repo', 'boat1994/bemoat-web-starter'] },
     ],
     parser_owner: 'scripts/mission-control-authorize-founder.mjs',
     safe_help_invocation: 'pnpm run bemoat:mission-control:authorize-founder -- --help --json',
@@ -121,7 +120,6 @@ export function missionControlPrimaryCommands(dependencies: CommandMetadataDepen
       NO_OP: 'NO_OP_IDENTICAL_RETRY',
     },
   }),
-
   'bemoat:mission-control:merge': contract({
     command: 'bemoat:mission-control:merge',
     tier: 'A',
@@ -173,7 +171,66 @@ export function missionControlPrimaryCommands(dependencies: CommandMetadataDepen
       NO_OP: 'NO_OP_IDENTICAL_RETRY',
     },
   }),
-
+  'bemoat:mission-control:merge-standard': contract({
+    command: 'bemoat:mission-control:merge-standard',
+    tier: 'A',
+    entrypoint: 'scripts/mission-control-merge-standard.mjs',
+    purpose: 'Execute one Founder-authorized STANDARD/non-managed merge completion.',
+    operation: 'Derive explicit STANDARD eligibility, verify one exact immutable review/Founder evidence tuple, merge the exact PR head, and prove the protected-base readback without creating managed state.',
+    accepted_pre_states: ['STANDARD_NON_MANAGED_ELIGIBLE'],
+    required_inputs: [
+      positional('issue_number', '<issue-number>', 'positive_integer', 'STANDARD/non-managed Task Issue number.'),
+      flag('repository', '--repo <owner/repository>', 'repository', 'Repository containing the Issue.', [], true),
+      flag('authorization_comment', '--authorization-comment <id>', 'positive_integer', 'Immutable Founder merge authorization comment.', [], true),
+    ],
+    trusted_derived_values: [
+      'explicit STANDARD profile from merged policy and live Issue declarations',
+      'live PR/base/head/check/mergeability evidence',
+      'one active non-superseded REVIEW_VERDICT and immutable comment ID',
+      'trusted policy path/version/blob SHA and protected-base commit SHA',
+    ],
+    required_evidence: [
+      'No managed-state marker and explicit policy-compatible STANDARD declaration.',
+      'Exact repository/Issue/PR/base/head binding.',
+      'Exact-head CI and CI (starter strict) success.',
+      'One canonical active non-superseded REVIEW_VERDICT bound by immutable comment ID.',
+      'Founder authorization and receipt bound to the separate policy blob and protected-base identities.',
+    ],
+    reads: ['Issue/body/comments', 'PR/head/base/mergeability/checks', 'Founder authorization/receipt', 'protected main', 'merged policy'],
+    writes: ['exact authorized PR merge only'],
+    success_classifications: ['SUCCESS', 'NO_OP_IDENTICAL_RETRY'],
+    stop_classifications: ['INVALID_INVOCATION', 'UNSUPPORTED_PRE_STATE', 'STATE_CONFLICT', 'AUTHORITY_CONFLICT', 'HEAD_DRIFT', 'BLOCKED_EXTERNAL', 'EVIDENCE_CONFLICT', 'AMBIGUOUS_RESULT', 'INTERNAL_ERROR'],
+    stop_conditions: ['Stop before merge on managed, ambiguous, stale, competing, malformed, mismatched, or unavailable evidence; never blind-retry an ambiguous write.'],
+    retry_contract: {
+      identical_retry: 'conditional',
+      classification: 'NO_OP_IDENTICAL_RETRY',
+      condition: 'Return NO_OP_IDENTICAL_RETRY only after the same exact PR/head merge and protected-base readback are durably proven.',
+    },
+    next_action_rules: [
+      {
+        classification: 'SUCCESS',
+        next_action: nextAction('COMPLETE', null, 'The exact STANDARD/non-managed merge completion is durably verified.'),
+      },
+      {
+        classification: 'NO_OP_IDENTICAL_RETRY',
+        next_action: nextAction('COMPLETE', null, 'The identical STANDARD/non-managed merge completion is already durably verified.'),
+      },
+    ],
+    examples: [
+      {
+        description: 'Execute a STANDARD/non-managed Founder-authorized merge.',
+        argv: ['379', '--repo', 'boat1994/bemoat-web-starter', '--authorization-comment', '12345'],
+      },
+    ],
+    parser_owner: 'scripts/mission-control-merge-standard.mjs',
+    safe_help_invocation: 'pnpm run bemoat:mission-control:merge-standard -- --help --json',
+    last_validation_before_mutation: 'Re-read the live Issue declaration, protected main/policy, PR/head/base/CI/mergeability, selected REVIEW_VERDICT, and Founder authorization immediately before exact-head merge.',
+    post_write_readback: 'Re-read the PR and protected main and confirm the exact merge commit is present on the protected base; do not mutate managed Issue state.',
+    legacy_classification_map: {
+      MERGED: 'SUCCESS',
+      NO_OP: 'NO_OP_IDENTICAL_RETRY',
+    },
+  }),
   'bemoat:mission-control:reconcile': contract({
     command: 'bemoat:mission-control:reconcile',
     tier: 'A',
@@ -240,7 +297,6 @@ export function missionControlPrimaryCommands(dependencies: CommandMetadataDepen
       NO_OP: 'NO_OP_IDENTICAL_RETRY',
     },
   }),
-
   'bemoat:mission-control:recover-review': contract({
     command: 'bemoat:mission-control:recover-review',
     tier: 'A',

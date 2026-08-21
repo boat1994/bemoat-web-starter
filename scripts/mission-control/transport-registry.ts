@@ -80,6 +80,13 @@ export const CANONICAL_TRANSPORTS: ReadonlyArray<Readonly<CanonicalTransportRout
     exceptional: false,
   }),
   Object.freeze({
+    command: 'bemoat:mission-control:merge-standard',
+    role: 'MERGE',
+    owner: 'Founder-authorized STANDARD Merge Transport',
+    purpose: 'execute one exact Founder-authorized STANDARD/non-managed merge completion without managed-state projection',
+    exceptional: false,
+  }),
+  Object.freeze({
     command: 'bemoat:mission-control:reopen',
     role: 'STATE_PROJECTION',
     owner: 'Founder-authorized Reopen Transport',

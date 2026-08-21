@@ -1,7 +1,6 @@
 import { createHash } from 'node:crypto'
 import { LEASE_MARKER } from './task-bootstrap-lease.ts'
 import { buildFounderMergeAuthorizationReceiptBody, parseFounderMergeAuthorizationReceipt } from './founder-merge-authorization-receipt.ts'
-
 export const IMMUTABLE_MERGE_AUTHORIZATION_FORMAT = 'merge-authorization-v1'
 
 export type FounderMergeAuthorizationRecordingContext = Readonly<{
@@ -15,6 +14,7 @@ export type FounderMergeAuthorizationRecordingContext = Readonly<{
   policyVersion: string
   policySha: string
   policySourceCommit: string
+  reviewVerdictCommentId?: string
   founderLogin: string
 }>
 
@@ -117,6 +117,7 @@ function validateReceipt(comment: Comment, context: FounderMergeAuthorizationRec
     policy_source: context.policySource,
     policy_version: context.policyVersion,
     policy_source_sha: context.policySha,
+    ...(context.reviewVerdictCommentId == null ? {} : { review_verdict_comment_id: context.reviewVerdictCommentId }),
     authorization_comment_id: authorizationId,
     authorization_body_sha256: bodySha256,
     scope: 'merge',
@@ -212,9 +213,11 @@ function parseFinalBody(body: string, context: FounderMergeAuthorizationRecordin
     exact_head: context.exactHead,
     reviewed_head: context.exactHead,
     base: context.base,
+    ...(context.reviewVerdictCommentId == null ? {} : { policy_source: context.policySource }),
     policy_source_sha: context.policySha,
     protected_base_sha: context.protectedBaseSha,
     policy_version: context.policyVersion,
+    ...(context.reviewVerdictCommentId == null ? {} : { review_verdict_comment_id: context.reviewVerdictCommentId }),
     scope: 'merge',
     action: 'merge',
   }
@@ -244,7 +247,7 @@ function classifyExistingAuthorizationComments(comments: readonly Comment[], con
 }
 
 function sameContext(left: FounderMergeAuthorizationRecordingContext, right: FounderMergeAuthorizationRecordingContext): boolean {
-  const keys: (keyof FounderMergeAuthorizationRecordingContext)[] = ['repository', 'issueNumber', 'prNumber', 'exactHead', 'base', 'protectedBaseSha', 'policySource', 'policyVersion', 'policySha', 'policySourceCommit', 'founderLogin']
+  const keys: (keyof FounderMergeAuthorizationRecordingContext)[] = ['repository', 'issueNumber', 'prNumber', 'exactHead', 'base', 'protectedBaseSha', 'policySource', 'policyVersion', 'policySha', 'policySourceCommit', 'reviewVerdictCommentId', 'founderLogin']
   return keys.every((key) => left[key] === right[key])
 }
 
@@ -269,6 +272,8 @@ export function buildExistingMergeAuthorizationBody(context: FounderMergeAuthori
     policy_source_sha: context.policySha,
     protected_base_sha: context.protectedBaseSha,
     policy_version: context.policyVersion,
+    ...(context.reviewVerdictCommentId == null ? {} : { policy_source: context.policySource }),
+    ...(context.reviewVerdictCommentId == null ? {} : { review_verdict_comment_id: context.reviewVerdictCommentId }),
     scope: 'merge',
     action: 'merge',
   }, null, 2)
@@ -279,6 +284,7 @@ export async function recordFounderMergeAuthorization(options: RecordingOptions)
   if (context.repository !== 'boat1994/bemoat-web-starter') throw recordingError('STATE_CONFLICT', 'authorization repository is outside the protected starter')
   if (!Number.isSafeInteger(context.issueNumber) || context.issueNumber <= 0) throw recordingError('STATE_CONFLICT', 'authorization target Issue is invalid')
   if (typeof options.acquireLease !== 'function' || typeof options.releaseLease !== 'function') throw recordingError('STATE_CONFLICT', 'authorization recording requires repository coordination')
+  if (context.reviewVerdictCommentId != null && !/^[1-9]\d*$/.test(context.reviewVerdictCommentId)) throw recordingError('STATE_CONFLICT', 'review verdict binding must be an immutable numeric comment ID')
   validatePolicyIdentity(context)
   const body = buildExistingMergeAuthorizationBody(context)
   parseFinalBody(body, context)

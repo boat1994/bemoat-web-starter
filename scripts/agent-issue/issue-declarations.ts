@@ -188,7 +188,7 @@ export function parseIssueDeclarations(body: string = ''): IssueDeclarationsResu
   }
 
   const taskSizeMatch = source.match(
-    /(?:^|\n)\s*(?:[-*]\s*)?(?:Task\s+size|Tier|This is a)\s*[:\s]*\**\s*(small|medium|core)\b/i,
+    /(?:^|\n)\s*(?:[-*]\s*)?(?:Task\s+(?:size|tier)|Tier|This is a)\s*[:\s]*\**\s*(small|medium|core)\b/i,
   )
   if (taskSizeMatch) {
     declarations.taskSize = taskSizeMatch[1].toLowerCase()

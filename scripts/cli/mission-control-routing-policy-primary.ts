@@ -8,6 +8,7 @@ export const ALL_MUTATING_COMMANDS: string[] = [
   'bemoat:mission-control:authorize-founder',
   'bemoat:mission-control:dispatch',
   'bemoat:mission-control:merge',
+  'bemoat:mission-control:merge-standard',
   'bemoat:mission-control:reconcile',
   'bemoat:mission-control:recover-review',
   'bemoat:mission-control:recover-state',
@@ -260,5 +261,19 @@ export function missionControlPrimaryRoutes() {
     decision: 'FOUNDER_GATE',
     stop_condition: 'Wait for explicit Founder merge or reopen authorization; no agent mutation is permitted.',
   }),
-  ]
+  route({
+    route_key: 'NOT_STATEFUL/standard-non-managed-founder-merge-completion',
+    observed_state: 'NOT_STATEFUL',
+    evidence_case: 'standard-non-managed-founder-merge-completion',
+    required_evidence_condition: 'Merged policy and live Issue declarations prove explicit STANDARD eligibility with no managed-state block; exact Founder authorization, one active exact-target REVIEW_VERDICT, exact-head CI, mergeability, and policy/protected-base identities are complete.',
+    forbidden_evidence_condition: 'Managed, ambiguous, non-STANDARD, stale, duplicate, competing, superseded, mismatched, or malformed evidence.',
+    permitted_operation: 'Merge the exact Founder-authorized non-managed PR head and verify protected-base readback.',
+    canonical_command: 'bemoat:mission-control:merge-standard',
+    required_review_type: null,
+    expected_post_state_or_gate: 'COMPLETE without managed-state mutation',
+    prohibited_commands: ['bemoat:mission-control:merge'],
+    decision: 'COMMAND',
+    stop_condition: 'Stop fail-closed on any managed/ambiguous shape, evidence conflict, head drift, failed CI, unavailable readback, or uncertain merge outcome.',
+  }),
+]
 }

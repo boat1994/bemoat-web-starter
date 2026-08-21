@@ -44,6 +44,7 @@
     "bemoat:mission-control:task-bootstrap": "node scripts/mission-control-task-create.mjs",
     "bemoat:mission-control:authorize-founder": "node scripts/mission-control-authorize-founder.mjs",
     "bemoat:mission-control:merge": "node scripts/mission-control-merge.mjs",
+    "bemoat:mission-control:merge-standard": "node scripts/mission-control-merge-standard.mjs",
     "bemoat:mission-control:recover-review": "node scripts/mission-control-recover-review.mjs",
     "bemoat:mission-control:reopen": "node scripts/mission-control-reopen.mjs",
     "bemoat:mission-control:adopt-finding": "node scripts/mission-control-adopt-finding.mjs",

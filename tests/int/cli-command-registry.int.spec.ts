@@ -54,6 +54,7 @@ const EXPECTED_PACKAGE_SCRIPTS: Record<string, string> = {
   'bemoat:mission-control:authorize-founder': 'node scripts/mission-control-authorize-founder.mjs',
   'bemoat:mission-control:dispatch': 'node scripts/mission-control-dispatch.mjs',
   'bemoat:mission-control:merge': 'node scripts/mission-control-merge.mjs',
+  'bemoat:mission-control:merge-standard': 'node scripts/mission-control-merge-standard.mjs',
   'bemoat:mission-control:reconcile': 'node scripts/mission-control-reconcile.mjs',
   'bemoat:mission-control:recover-review': 'node scripts/mission-control-recover-review.mjs',
   'bemoat:mission-control:recover-state': 'node scripts/mission-control-recover-state.mjs',
@@ -81,6 +82,7 @@ const EXPECTED_COMMAND_TIERS: Record<string, 'A' | 'B' | 'C'> = {
   'bemoat:mission-control:authorize-founder': 'A',
   'bemoat:mission-control:dispatch': 'A',
   'bemoat:mission-control:merge': 'A',
+  'bemoat:mission-control:merge-standard': 'A',
   'bemoat:mission-control:reconcile': 'A',
   'bemoat:mission-control:recover-review': 'A',
   'bemoat:mission-control:recover-state': 'A',
@@ -274,10 +276,10 @@ describe('Task 1 command contract registry', () => {
       .sort()
 
     expect(packageCommands).toEqual(Object.keys(EXPECTED_PACKAGE_SCRIPTS).sort())
-    expect(packageCommands).toHaveLength(25)
+    expect(packageCommands).toHaveLength(26)
     expect(registryCommands).toEqual(packageCommands)
     expect(classifiedCommands).toEqual(packageCommands)
-    expect(new Set(classifiedCommands).size).toBe(25)
+    expect(new Set(classifiedCommands).size).toBe(26)
 
     for (const command of packageCommands) {
       expect(getCommandContract(command)).toBe(COMMAND_CONTRACT_REGISTRY.commands[command])
@@ -294,9 +296,9 @@ describe('Task 1 command contract registry', () => {
       counts[expectedTier] += 1
     }
 
-    expect(counts).toEqual({ A: 14, B: 8, C: 3 })
-    expect(Object.keys(EXPECTED_COMMAND_TIERS)).toHaveLength(25)
-    expect(Object.keys(COMMAND_CONTRACT_REGISTRY.commands)).toHaveLength(25)
+    expect(counts).toEqual({ A: 15, B: 8, C: 3 })
+    expect(Object.keys(EXPECTED_COMMAND_TIERS)).toHaveLength(26)
+    expect(Object.keys(COMMAND_CONTRACT_REGISTRY.commands)).toHaveLength(26)
     expectRegistryValid()
   })
 
@@ -426,7 +428,7 @@ describe('Task 1 command contract registry', () => {
   })
 
   it('matches every canonical transport role and exceptional bit', () => {
-    expect(CANONICAL_TRANSPORTS).toHaveLength(10)
+    expect(CANONICAL_TRANSPORTS).toHaveLength(11)
 
     for (const transport of CANONICAL_TRANSPORTS) {
       const contract = asRecord(getCommandContract(transport.command), transport.command)

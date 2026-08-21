@@ -660,10 +660,9 @@ export async function runFounderAuthorizedMerge({
   }
 }
 
-const runGh = transportRunGh
-const runNode = runNodeTransport
-
-export function createProductionDeps() {
+export function createProductionDeps({ runGh: configuredRunGh = transportRunGh, runNode: configuredRunNode = runNodeTransport } = {}) {
+  const runGh = configuredRunGh
+  const runNode = configuredRunNode
   const readProtectedRef = async (repo, base = 'main') => transportReadProtectedRef(runGh, repo, base)
   const readManagedIssue = async (issueNumber, repo) => {
     const issue = JSON.parse(runGh(['issue', 'view', String(issueNumber), '--repo', repo, '--json', 'number,id,title,body,state,stateReason']))
@@ -811,6 +810,7 @@ export function createProductionDeps() {
             policySource: parsed.policy_source ?? 'docs/mission-control/mission-control-guide.md',
             policyVersion: parsed.policy_version ?? '1.3.0',
             policySha: parsed.policy_source_sha,
+            reviewVerdictCommentId: parsed.review_verdict_comment_id,
           })
         } catch (error) {
           throw authorizationValidationFailure(error instanceof Error ? error.message : String(error))
