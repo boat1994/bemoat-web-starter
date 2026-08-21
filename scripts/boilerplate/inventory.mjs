@@ -82,6 +82,7 @@ export const managedPaths = [
   'tests/int/guard-planning-contract-starter-main-base.int.spec.ts',
   'tests/int/mission-control-contract.int.spec.ts',
   'tests/int/mission-control-authorization-recording.int.spec.ts',
+  'tests/int/mission-control-authorization-identity.int.spec.ts',
   'tests/int/mission-control-contract-inventory.int.spec.ts',
   'tests/int/mission-control-contract-scanners.int.spec.ts',
   'tests/int/mission-control-command-reference.int.spec.ts',

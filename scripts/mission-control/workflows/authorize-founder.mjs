@@ -143,6 +143,7 @@ export async function main(argv = process.argv.slice(2)) {
           policySource: BOOTSTRAP_CONTRACT.policySource,
           policyVersion: BOOTSTRAP_CONTRACT.policyVersion,
           policySha: policyBlobSha,
+          policySourceCommit: mainRef.object.sha,
           founderLogin: authActor.login,
         }
       }
@@ -161,6 +162,9 @@ export async function main(argv = process.argv.slice(2)) {
         readComment: async (id) => {
           return JSON.parse(runGh(['api', `repos/${repository}/issues/comments/${id}`]))
         },
+        readContext: readTrustedContext,
+        acquireLease: (request) => github.acquireIssueLease({ ...request, scope: 'founder-authorization-recording' }),
+        releaseLease: (request) => github.releaseIssueLease({ ...request, scope: 'founder-authorization-recording' }),
       })
 
       nextActionCommand = 'bemoat:mission-control:task-bootstrap'

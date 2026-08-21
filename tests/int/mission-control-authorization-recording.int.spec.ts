@@ -42,6 +42,7 @@ function comment(id: string, body: string, overrides: Record<string, unknown> = 
     id,
     body,
     issue_number: context.issueNumber,
+    issue_url: `https://api.github.com/repos/${context.repository}/issues/${context.issueNumber}`,
     user: { login: context.founderLogin },
     ...overrides,
   }
@@ -50,6 +51,14 @@ function comment(id: string, body: string, overrides: Record<string, unknown> = 
 function receipt(id: string, authorizationId: string, body: string) {
   return comment(id, buildFounderAuthorizationReceiptBody({
     ...context,
+    authorizationCommentId: authorizationId,
+    authorizationBodySha256: createHash('sha256').update(body).digest('hex'),
+  }))
+}
+
+function receiptFor(id: string, authorizationId: string, body: string, receiptContext: typeof context) {
+  return comment(id, buildFounderAuthorizationReceiptBody({
+    ...receiptContext,
     authorizationCommentId: authorizationId,
     authorizationBodySha256: createHash('sha256').update(body).digest('hex'),
   }))
@@ -120,6 +129,127 @@ describe('Issue #383 immutable Founder authorization recording', () => {
     expect(result.classification).toBe('SUCCESS')
   })
 
+  it('ignores live historical Founder decisions for managed bootstrap, merge, and Batch 1 repair', async () => {
+    const comments: TestComment[] = [
+      comment('5346289596', `FOUNDER_DECISION
+Decision: APPROVE MANAGED STABILIZATION IMPLEMENTATION
+Authority: Founder
+Author: authenticated repository owner boat1994
+Repository: boat1994/bemoat-web-starter
+Task Issue: #380
+Protected base: main@5538e8f74933209c195878f02a4b7a9191935cdd
+Policy: docs/mission-control/mission-control-guide.md v1.3.0; blob 56443e2b8e07b8d8325d6b5fdef7b49f305b1e1f
+Scope: canonical managed bootstrap and bounded implementation of the stabilization batches defined in Issue #380
+Action: authorize canonical managed bootstrap of Issue #380 and the bounded long-running implementation workflow defined by Issue #380`),
+      comment('5350491198', `## FOUNDER_DECISION
+
+**Decision:** APPROVE MERGE COMPLETION
+**Authority:** Founder
+**Author:** @boat1994
+**Repository:** \`boat1994/bemoat-web-starter\`
+**Task / Issue:** #380
+**Action:** merge
+**Scope:** merge
+**Policy source SHA:** \`56443e2b8e07b8d8325d6b5fdef7b49f305b1e1f\`
+**Protected base SHA:** \`5538e8f74933209c195878f02a4b7a9191935cdd\`
+**Non-superseded:** true`),
+      comment('5350702619', `## FOUNDER_DECISION
+
+**Decision:** APPROVE BOOTSTRAP RECOVERY BATCH 1
+**Authority:** Founder
+**Author:** @boat1994
+**Repository:** boat1994/bemoat-web-starter
+**Task / Issue:** #380
+**Protected base:** main@35bdd8689c5ff52a5d51f98419ae498f0971090c
+**Policy:** docs/mission-control/mission-control-guide.md
+**Policy version:** 1.3.0
+**Policy source SHA:** 56443e2b8e07b8d8325d6b5fdef7b49f305b1e1f
+**Scope:** bootstrap control-plane contract repair only
+**Action:** implement and publish the bounded Bootstrap Recovery Batch 1 repair.
+**Immutable comment reference:** true
+**Non-superseded:** true`),
+    ]
+    const historicalBodies = comments.map(({ id, body: historicalBody }) => ({ id, body: historicalBody }))
+    let nextId = 9101
+    let posts = 0
+    const result = await recordFounderAuthorization({
+      context,
+      ...testLease,
+      readComments: async () => comments,
+      postComment: async (_issue, postedBody) => {
+        posts += 1
+        const posted = comment(String(nextId++), postedBody)
+        comments.push(posted)
+        return posted
+      },
+      readComment: async (id) => {
+        const found = comments.find((entry) => entry.id === id)
+        if (!found) throw new Error(`missing comment ${id}`)
+        return found
+      },
+    })
+
+    expect(result.classification).toBe('SUCCESS')
+    expect(result.commentId).toBe('9101')
+    expect(posts).toBe(2)
+    expect(comments.slice(0, 3).map(({ id, body: historicalBody }) => ({ id, body: historicalBody }))).toEqual(historicalBodies)
+  })
+
+  it('classifies one complete older-base authorization and receipt pair as historical', async () => {
+    const historicalContext = { ...context, protectedBaseSha: 'c'.repeat(40), policySourceCommit: 'c'.repeat(40) }
+    const historicalBody = buildExistingTaskAuthorizationBody(historicalContext)
+    const comments: TestComment[] = [
+      comment('8001', historicalBody),
+      receiptFor('8002', '8001', historicalBody, historicalContext),
+    ]
+    let posts = 0
+    const result = await recordFounderAuthorization({
+      context,
+      ...testLease,
+      readComments: async () => comments,
+      postComment: async (_issue, postedBody) => {
+        posts += 1
+        const posted = comment(String(8002 + posts), postedBody)
+        comments.push(posted)
+        return posted
+      },
+      readComment: async (id) => comments.find((entry) => entry.id === id) ?? comment(id, ''),
+    })
+
+    expect(result.classification).toBe('SUCCESS')
+    expect(result.commentId).toBe('8003')
+    expect(result.receiptId).toBe('8004')
+    expect(posts).toBe(2)
+    expect(comments.slice(0, 2)).toEqual([
+      comment('8001', historicalBody),
+      receiptFor('8002', '8001', historicalBody, historicalContext),
+    ])
+  })
+
+  it('fails closed when a complete older-base authorization is superseded', async () => {
+    const historicalContext = { ...context, protectedBaseSha: 'c'.repeat(40), policySourceCommit: 'c'.repeat(40) }
+    const historicalBody = buildExistingTaskAuthorizationBody(historicalContext)
+    const comments: TestComment[] = [
+      comment('8001', historicalBody),
+      receiptFor('8002', '8001', historicalBody, historicalContext),
+      comment('8003', JSON.stringify({ supersedes_comment_id: '8001' })),
+    ]
+    let posts = 0
+
+    await expect(recordFounderAuthorization({
+      context,
+      ...testLease,
+      readComments: async () => comments,
+      postComment: async (_issue, postedBody) => {
+        posts += 1
+        return comment(String(8003 + posts), postedBody)
+      },
+      readComment: async (id) => comments.find((entry) => entry.id === id) ?? comment(id, ''),
+    })).rejects.toMatchObject({ classification: 'STATE_CONFLICT', mutationPerformed: false })
+
+    expect(posts).toBe(0)
+  })
+
   it('requires the POST response ID and individual readback ID to match', async () => {
     const body = buildExistingTaskAuthorizationBody(context)
     await expect(recordFounderAuthorization({
@@ -182,6 +312,32 @@ describe('Issue #383 immutable Founder authorization recording', () => {
     expect(posts).toBe(1)
   })
 
+  it('fails closed when a superseder appears after partial-recovery receipt creation', async () => {
+    const body = buildExistingTaskAuthorizationBody(context)
+    const comments: TestComment[] = [comment('9001', body)]
+    let posts = 0
+    await expect(recordFounderAuthorization({
+      context,
+      ...testLease,
+      readComments: async () => comments,
+      postComment: async (_issue, postedBody) => {
+        posts += 1
+        const posted = comment('9002', postedBody)
+        comments.push(posted)
+        return posted
+      },
+      readComment: async (id) => {
+        if (id === '9002') {
+          comments.push(comment('9003', JSON.stringify({ supersedes_comment_id: '9001' })))
+        }
+        const found = comments.find((entry) => entry.id === id)
+        if (!found) throw new Error(`missing comment ${id}`)
+        return found
+      },
+    })).rejects.toMatchObject({ classification: 'STATE_CONFLICT', mutationPerformed: true })
+    expect(posts).toBe(1)
+  })
+
   it('fails closed for a receipt with the wrong body hash or authorization comment ID', async () => {
     const body = buildExistingTaskAuthorizationBody(context)
     const wrongHash = comment('9002', buildFounderAuthorizationReceiptBody({
@@ -201,6 +357,21 @@ describe('Issue #383 immutable Founder authorization recording', () => {
       })).rejects.toMatchObject({ classification: 'STATE_CONFLICT', mutationPerformed: false })
       expect(posts).toBe(0)
     }
+  })
+
+  it('rejects an otherwise matching retry receipt with extra canonical-body evidence', async () => {
+    const body = buildExistingTaskAuthorizationBody(context)
+    const canonicalReceipt = buildFounderAuthorizationReceiptBody({
+      ...context, authorizationCommentId: '9001', authorizationBodySha256: createHash('sha256').update(body).digest('hex'),
+    })
+    const nonCanonicalReceipt = `${canonicalReceipt.slice(0, -2)},\n  "extra": true\n}`
+    await expect(recordFounderAuthorization({
+      context,
+      ...testLease,
+      readComments: async () => [comment('9001', body), comment('9002', nonCanonicalReceipt)],
+      postComment: async () => { throw new Error('must not post') },
+      readComment: async (id) => comment(id, id === '9001' ? body : nonCanonicalReceipt),
+    })).rejects.toMatchObject({ classification: 'STATE_CONFLICT', mutationPerformed: false })
   })
 
   it('fails closed for a post-creation-mutated authorization snapshot without updating it', async () => {
@@ -357,6 +528,8 @@ describe('Issue #383 immutable Founder authorization recording', () => {
   it.each([
     ['malformed', '## FOUNDER_DECISION\n**Scope:** task-initialization'],
     ['plain Founder decision', 'FOUNDER_DECISION\nscope: task-initialization\naction: create-managed-task'],
+    ['labeled authorization format', 'authorization_format: task-bootstrap-existing-v2'],
+    ['labeled bundle kind', 'bundle_kind: task-bootstrap-existing'],
     ['wrong scope', JSON.stringify({ authorization_format: 'task-bootstrap-existing-v2', scope: 'merge', action: 'create-managed-task' })],
     ['wrong action', JSON.stringify({ authorization_format: 'task-bootstrap-existing-v2', scope: 'task-initialization', action: 'merge' })],
   ])('rejects %s authorization-shaped evidence before POST', async (_name, body) => {
