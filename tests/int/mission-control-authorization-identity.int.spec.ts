@@ -56,7 +56,7 @@ function recordingOptions(comment: Comment, onPost: (postedBody: string) => void
     readComments: async () => [comment],
     postComment: async (_issueNumber: number, postedBody: string) => {
       onPost(postedBody)
-      return { id: '5365740286', body: postedBody, user: { login: context.founderLogin }, issue_number: null, issue_url: issueUrl }
+      return { id: '5365740286', body: postedBody, user: { login: context.founderLogin }, issue_number: null as number | null, issue_url: issueUrl }
     },
     readComment: async (id: string) => id === '5365740285'
       ? comment

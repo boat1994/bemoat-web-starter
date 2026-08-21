@@ -4,9 +4,8 @@ import {
   BOOTSTRAP_CONTRACT,
 } from './task-bootstrap-authorization.ts'
 import { buildFounderAuthorizationReceiptBody, parseFounderAuthorizationReceipt } from './founder-authorization-receipt.ts'
-
+import { hasAuthoritativeIssueIdentity } from './github-comment-identity.ts'
 export const IMMUTABLE_EXISTING_AUTHORIZATION_FORMAT = 'task-bootstrap-existing-v2'
-
 export type FounderAuthorizationRecordingContext = Readonly<{
   repository: string
   issueNumber: number
@@ -22,6 +21,7 @@ type Comment = {
   id?: unknown
   body?: unknown
   issue_number?: unknown
+  issue_url?: unknown
   user?: { login?: unknown } | null
   author?: { login?: unknown } | null
   author_login?: unknown
@@ -103,7 +103,7 @@ function validateReceipt(comment: Comment, context: FounderAuthorizationRecordin
   assertUnmutatedComment(comment, 'authorization receipt', mutationPerformed)
   if (!comment.id || !/^\d+$/.test(String(comment.id))) throw recordingError('AMBIGUOUS_RESULT', 'authorization receipt did not yield an immutable numeric comment ID', mutationPerformed)
   if (commentAuthor(comment) !== context.founderLogin) throw recordingError('STATE_CONFLICT', 'authorization receipt actor is not the trusted Founder', mutationPerformed)
-  if (!Number.isSafeInteger(Number(comment.issue_number)) || Number(comment.issue_number) !== context.issueNumber) throw recordingError('STATE_CONFLICT', 'authorization receipt is not bound to the target Issue', mutationPerformed)
+  if (!hasAuthoritativeIssueIdentity(comment, context)) throw recordingError('STATE_CONFLICT', 'authorization receipt is not bound to the target repository and Issue', mutationPerformed)
   let receipt
   try { receipt = parseFounderAuthorizationReceipt(String(comment.body ?? '')) } catch { throw recordingError('EVIDENCE_CONFLICT', 'authorization receipt is malformed', mutationPerformed) }
   const expected = {
@@ -160,7 +160,7 @@ function validateCommentBinding(comment: Comment, context: FounderAuthorizationR
   if (!comment.id || !/^\d+$/.test(String(comment.id))) throw recordingError('AMBIGUOUS_RESULT', 'authorization POST/readback did not yield an immutable numeric comment ID', mutationPerformed)
   if (!sameBody(comment, body)) throw recordingError('STATE_CONFLICT', 'authorization comment body changed between POST and readback', mutationPerformed)
   if (commentAuthor(comment) !== context.founderLogin) throw recordingError('STATE_CONFLICT', 'authorization comment actor is not the trusted Founder', mutationPerformed)
-  if (!Number.isSafeInteger(Number(comment.issue_number)) || Number(comment.issue_number) <= 0 || Number(comment.issue_number) !== context.issueNumber) throw recordingError('STATE_CONFLICT', 'authorization comment is not positively bound to the target Issue', mutationPerformed)
+  if (!hasAuthoritativeIssueIdentity(comment, context)) throw recordingError('STATE_CONFLICT', 'authorization comment is not positively bound to the target repository and Issue', mutationPerformed)
 }
 
 function validatePolicyIdentity(context: FounderAuthorizationRecordingContext) {
@@ -240,7 +240,7 @@ function classifyExistingAuthorizationComments(comments: readonly Comment[], con
     if (!looksAuthorizationShaped(comment.body)) continue
     if (!sameBody(comment, body)) throw recordingError('STATE_CONFLICT', 'conflicting, malformed, or semantically different authorization evidence already exists', false)
     assertUnmutatedComment(comment, 'authorization comment')
-    if (!/^\d+$/.test(String(comment.id ?? '')) || commentAuthor(comment) !== context.founderLogin || !Number.isSafeInteger(Number(comment.issue_number)) || Number(comment.issue_number) !== context.issueNumber) throw recordingError('STATE_CONFLICT', 'authorization evidence has an invalid identity or Issue binding', false)
+    if (!/^\d+$/.test(String(comment.id ?? '')) || commentAuthor(comment) !== context.founderLogin || !hasAuthoritativeIssueIdentity(comment, context)) throw recordingError('STATE_CONFLICT', 'authorization evidence has an invalid identity or repository/Issue binding', false)
     matches.push(comment)
   }
   return matches

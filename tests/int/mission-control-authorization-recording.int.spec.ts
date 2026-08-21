@@ -42,6 +42,7 @@ function comment(id: string, body: string, overrides: Record<string, unknown> = 
     id,
     body,
     issue_number: context.issueNumber,
+    issue_url: `https://api.github.com/repos/${context.repository}/issues/${context.issueNumber}`,
     user: { login: context.founderLogin },
     ...overrides,
   }
