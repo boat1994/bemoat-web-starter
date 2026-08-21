@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "issue": "380",
-  "transition_identity": "{\"command\":\"bemoat:mission-control:recover-review-eligibility\",\"issue\":\"380\",\"pr\":\"393\",\"current_head\":\"631fe6e73e081f09feecf9754d6446e271511536\",\"result_comment\":\"5373810895\",\"evidence_fingerprint\":\"9f6da764904b9e28b80adb0253c63ad78ffc56faf9babf1ba8a20898c649a288\"}",
+  "transition_identity": "{\"taskId\":\"380\",\"phase\":\"Final Review\",\"role\":\"REVIEW_VERDICT\",\"contentHash\":\"860368d4149b2fccb17932e4b098ac328bc5f3079ad0617bb68cb308b3194e05\"}",
   "observed_body_sha256": "b8620f6b4829edd270f49a8c35ae2bbae10bde159b083ab4a705ff77c2dd7de9",
-  "holder": "bemoat:mission-control:recover-review-eligibility",
-  "status": "released",
-  "updated_at": "2026-08-21T18:38:02.206Z"
+  "holder": "mission-control-review",
+  "status": "held",
+  "updated_at": "2026-08-21T18:39:44.970Z"
 }
