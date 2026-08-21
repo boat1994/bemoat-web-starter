@@ -16,6 +16,7 @@ overrides chat, copied handoffs, local notes, or stale values.
 | `reopen` | Project Founder-authorized PR head drift to `FOUNDER_AUTHORIZED_CORRECTION`. |
 | `adopt-finding` | Append exactly one Founder-authorized finding to the active correction contract while preserving `CORRECTION_REQUIRED_1\|2` and review counters. |
 | `recover-state` | Exceptional recovery for one completely absent managed-state block when immutable evidence uniquely reconstructs the prior canonical state. It cannot repair malformed state, replay review, or invoke finding adoption. |
+| `recover-review-eligibility` | Exceptional recovery for one completely absent managed-state block when one immutable delivery RESULT, exact-head CI, and separate recorded-base/protected-main evidence uniquely reconstruct `AWAITING_REVIEW_1`. A predecessor RESULT is accepted only when the exact bounded structural-inventory correction to the live head is proven. It never publishes a verdict or increments review counters. |
 | `authorize-founder` | Record one immutable Founder task-bootstrap authorization body exactly once, binding the live returned comment ID and body hash through readback. |
 | `merge` | Finalize Founder-authorized merge. Uses the live PR head and an existing Founder JSON authorization comment. |
 | `merge-standard` | Finalize one explicit STANDARD/non-managed Founder-authorized merge. It is disjoint from managed `merge` and never creates or projects managed state. |
@@ -384,6 +385,25 @@ pnpm run bemoat:mission-control:adopt-finding
 
 Recovery does not invoke that command automatically, and it is not a general
 replacement for `reconcile` or `recover-review`.
+
+### Review-eligibility recovery
+
+Use the dedicated route only when the managed-state block is wholly absent and
+the exact delivery RESULT/current PR head/CI tuple is uniquely reconstructable:
+
+```text
+pnpm run bemoat:mission-control:recover-review-eligibility -- <issue-number> \\
+  --repo <owner/repo> --expected-pr <number> --expected-base main \\
+  --expected-base-sha <recorded-pr-base-sha> \\
+  --protected-main-sha <current-protected-main-sha> \\
+  --expected-head <full-sha> --expected-branch <branch> \\
+  --result-comment <id> [--check]
+```
+
+The route appends only `AWAITING_REVIEW_1` with counters `0/0`; ordinary
+`review` remains the sole owner of future `REVIEW_VERDICT` publication and
+review-counter mutation. Recorded PR-base drift remains explicit evidence and
+is never normalized.
 
 ## Review
 

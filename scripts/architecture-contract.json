@@ -165,6 +165,13 @@
       "migration_status": "migrated"
     },
     {
+      "path": "scripts/mission-control-recover-review-eligibility.mjs",
+      "facade_disposition": "composition_root",
+      "internal_destination": "scripts/mission-control/workflows/recover-review-eligibility.mjs",
+      "owning_slice": 5,
+      "migration_status": "migrated"
+    },
+    {
       "path": "scripts/mission-control-recover-review.mjs",
       "facade_disposition": "composition_root",
       "internal_destination": "scripts/mission-control/workflows/recover-review.mjs",

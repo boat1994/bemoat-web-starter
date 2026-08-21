@@ -234,5 +234,67 @@ export function missionControlRecoveryCommands(dependencies: CommandMetadataDepe
     post_write_readback: 'Re-read the Issue and confirm exactly one canonical managed-state block matches the trusted-derived projection; no comment or adoption call is permitted.',
   }),
 
+  'bemoat:mission-control:recover-review-eligibility': contract({
+    command: 'bemoat:mission-control:recover-review-eligibility',
+    tier: 'A',
+    entrypoint: 'scripts/mission-control-recover-review-eligibility.mjs',
+    purpose: 'Recreate one absent managed-state projection at ordinary Review 1 eligibility from one immutable delivery RESULT and, when needed, one proven mechanical correction to the live head without publishing a verdict.',
+    operation: 'Authenticate the exact PR/base/head/protected-main/policy/CI/RESULT tuple and append exactly one AWAITING_REVIEW_1 block through leased/CAS protection; a predecessor RESULT is accepted only with the exact bounded inventory correction delta.',
+    accepted_pre_states: ['MANAGED_STATE_BLOCK_ABSENT'],
+    required_inputs: [
+      positional('issue_number', '<issue-number>', 'positive_integer', 'Managed Task Issue number.'),
+      flag('repository', '--repo <owner/repository>', 'repository', 'Repository containing the Task Issue.', [], true),
+      flag('expected_pr', '--expected-pr <number>', 'positive_integer', 'Exact active Pull Request number.', [], true),
+      flag('expected_base', '--expected-base <branch>', 'string', 'Recorded Pull Request base branch.', [], true),
+      flag('expected_base_sha', '--expected-base-sha <full-sha>', 'full_sha', 'Exact recorded Pull Request base commit; never normalized to protected main.', [], true),
+      flag('expected_head', '--expected-head <full-sha>', 'full_sha', 'Exact live Pull Request head to bind and preserve.', [], true),
+      flag('expected_branch', '--expected-branch <branch>', 'string', 'Exact live Pull Request branch.', [], true),
+      flag('result_comment', '--result-comment <id>', 'positive_integer', 'Immutable implementation RESULT comment for the current head or one proven mechanical predecessor.', [], true),
+    ],
+    optional_flags: [
+      flag('check', '--check', 'boolean', 'Validate the complete recovery evidence without mutating the Issue.'),
+    ],
+    trusted_derived_values: [
+      'managed-state absence and validity',
+      'live PR/base/head identity',
+      'protected main policy identity',
+      'exact-head required CI',
+      'immutable RESULT identity and body hash',
+      'lease/CAS holder identity',
+    ],
+    required_evidence: [
+      'The live Task Issue has no managed-state markers at all.',
+      'Exactly one immutable RESULT binds the current Issue, PR, and base branch; it either binds the live head or one exact mechanical predecessor joined to the live head by the bounded inventory correction contract.',
+      'The recorded PR base SHA and current protected-main SHA are both preserved and visibly distinct when they drift.',
+      'Both required CI workflows are successful for the exact live head, and any predecessor-to-live-head correction is independently proven.',
+      'No current-head REVIEW_VERDICT or superseding/competing RESULT evidence exists; malformed, ambiguous, or conflicting RESULT evidence stops.',
+    ],
+    reads: ['Task Issue body and comments', 'active Pull Request base/branch/head', 'protected main Mission Control guide', 'exact-head CI'],
+    writes: ['one canonical AWAITING_REVIEW_1 managed-state block via leased/CAS Issue-body projection'],
+    success_classifications: ['SUCCESS', 'NO_OP_IDENTICAL_RETRY'],
+    retry_contract: {
+      identical_retry: 'conditional',
+      classification: 'NO_OP_IDENTICAL_RETRY',
+      condition: 'Only an exact existing projection with the same RESULT, base drift, protected main, head, policy, and CI evidence may return NO_OP_IDENTICAL_RETRY.',
+    },
+    next_action_rules: [
+      { classification: 'SUCCESS', next_action: nextAction('COMMAND', 'bemoat:mission-control:review', 'Ordinary review owns any future REVIEW_VERDICT and review-counter mutation; recovery never publishes a verdict.') },
+      { classification: 'NO_OP_IDENTICAL_RETRY', next_action: nextAction('COMMAND', 'bemoat:mission-control:review', 'The identical Review 1 eligibility projection is already durable; ordinary review remains the next owner.') },
+    ],
+    stop_conditions: [
+      'Stop on any valid, malformed, partial, ambiguous, superseded, duplicated, competing, or executed evidence.',
+      'Stop on PR/base/head/policy/CI drift, including recorded-base versus protected-main drift; never rebase or normalize it.',
+      'Stop on stale CAS/lease or ambiguous Issue read/write/readback outcome.',
+    ],
+    examples: [{
+      description: 'Non-mutating exact review-eligibility recovery validation.',
+      argv: ['380', '--repo', 'boat1994/bemoat-web-starter', '--expected-pr', '390', '--expected-base', 'main', '--expected-base-sha', '<recorded-pr-base-sha>', '--expected-head', '<current-head>', '--expected-branch', 'fix/380-mission-control-stabilization', '--result-comment', '<result-comment-id>', '--check'],
+    }],
+    parser_owner: 'scripts/mission-control/workflows/recover-review-eligibility.mjs',
+    safe_help_invocation: 'pnpm run bemoat:mission-control:recover-review-eligibility -- --help --json',
+    last_validation_before_mutation: 'Re-read the absent Issue body, PR/base/head, protected-main policy, exact-head CI, and selected immutable RESULT immediately before the single leased/CAS write.',
+    post_write_readback: 'Re-read the Issue and confirm exactly one canonical AWAITING_REVIEW_1 block matches the trusted-derived projection; no comment or REVIEW_VERDICT mutation is permitted.',
+  }),
+
   }
 }

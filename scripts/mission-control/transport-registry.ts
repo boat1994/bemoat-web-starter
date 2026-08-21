@@ -108,6 +108,13 @@ export const CANONICAL_TRANSPORTS: ReadonlyArray<Readonly<CanonicalTransportRout
     exceptional: true,
   }),
   Object.freeze({
+    command: 'bemoat:mission-control:recover-review-eligibility',
+    role: 'STATE_PROJECTION',
+    owner: 'Missing-State Review Eligibility Recovery Transport',
+    purpose: 'recreate one uniquely reconstructed absent-state AWAITING_REVIEW_1 projection without publishing review evidence',
+    exceptional: true,
+  }),
+  Object.freeze({
     command: 'bemoat:mission-control:authorize-founder',
     role: 'FOUNDER_AUTHORIZATION',
     owner: 'Founder Authorization Recording Transport',

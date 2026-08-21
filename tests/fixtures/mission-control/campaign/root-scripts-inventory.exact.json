@@ -18,6 +18,7 @@
   "scripts/mission-control-merge-standard.mjs",
   "scripts/mission-control-merge.mjs",
   "scripts/mission-control-reconcile.mjs",
+  "scripts/mission-control-recover-review-eligibility.mjs",
   "scripts/mission-control-recover-review.mjs",
   "scripts/mission-control-recover-state.mjs",
   "scripts/mission-control-reopen.mjs",
