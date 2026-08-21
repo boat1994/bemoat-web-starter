@@ -122,7 +122,7 @@ export async function main(argv = process.argv.slice(2)) {
         try {
           const lsTree = runGh(['api', `repos/${repository}/git/trees/${mainRef.object.sha}?recursive=1`])
           const tree = JSON.parse(lsTree).tree
-          const node = tree.find((t) => t.path === BOOTSTRAP_CONTRACT.policy_source)
+          const node = tree.find((t) => t.path === BOOTSTRAP_CONTRACT.policySource)
           if (!node?.sha) throw new Error('policy not found in tree')
           policyBlobSha = node.sha
         } catch {
@@ -140,8 +140,8 @@ export async function main(argv = process.argv.slice(2)) {
           action: BOOTSTRAP_CONTRACT.action,
           scope: BOOTSTRAP_CONTRACT.scope,
           protectedBaseSha: mainRef.object.sha,
-          policySource: BOOTSTRAP_CONTRACT.policy_source,
-          policyVersion: BOOTSTRAP_CONTRACT.policy_version,
+          policySource: BOOTSTRAP_CONTRACT.policySource,
+          policyVersion: BOOTSTRAP_CONTRACT.policyVersion,
           policySha: policyBlobSha,
           founderLogin: authActor.login,
         }
