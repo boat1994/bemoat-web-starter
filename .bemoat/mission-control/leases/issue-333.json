@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "issue": "333",
-  "transition_identity": "repair-333-1787107423399",
-  "observed_body_sha256": "c72e0c059c0ffdd58577adbda7d5465fbf1ddc641ce75166ab1daf8c4823acd8",
-  "holder": "mission-control",
-  "status": "released",
-  "updated_at": "2026-08-19T02:43:47.445Z"
+  "transition_identity": "{\"taskId\":\"333\",\"phase\":\"Delta Review\",\"role\":\"REVIEW_VERDICT\",\"contentHash\":\"5427b729301128051845bb9f55f042cc1a8fcb84127276247c573180e74e46f7\"}",
+  "observed_body_sha256": "93710483c35f08682360ab7bcb50194b00c6d212564ccab232ad66ed914dda99",
+  "holder": "mission-control-reconcile",
+  "status": "held",
+  "updated_at": "2026-08-21T19:52:11.668Z"
 }
