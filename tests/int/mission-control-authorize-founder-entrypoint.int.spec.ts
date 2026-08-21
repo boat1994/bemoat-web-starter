@@ -98,7 +98,7 @@ describe('authorize-founder workflow', () => {
     vi.mocked(taskBootstrapGithub.createTaskBootstrapGithubAdapter).mockReturnValue(adapterMock as any)
 
     await main(['100', '--scope', 'merge', '--json'])
-    
+
     expect(stdoutData).toContain('"classification":"SUCCESS"')
     expect(stdoutData).toContain('bemoat:mission-control:merge-standard')
     expect(process.exitCode).toBe(0)
@@ -151,7 +151,7 @@ describe('authorize-founder workflow', () => {
     vi.mocked(taskBootstrapGithub.createTaskBootstrapGithubAdapter).mockReturnValue(adapterMock as any)
 
     await main(['100', '--scope', 'merge', '--json'])
-    
+
     expect(stdoutData).toContain('"classification":"STATE_CONFLICT"')
     expect(stdoutData).toContain('malformed, partial, or ambiguous')
     expect(process.exitCode).toBe(3)

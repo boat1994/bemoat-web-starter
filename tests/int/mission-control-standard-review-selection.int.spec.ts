@@ -38,6 +38,20 @@ describe('STANDARD/non-managed REVIEW_VERDICT selection', () => {
     })).toMatchObject({ id: '777' })
   })
 
+  it('selects exact target and ignores historical verdicts for older heads', () => {
+    expect(selectStandard({
+      comments: [
+        verdict('775', 'a'.repeat(40)),
+        verdict('776', staleHead),
+        verdict('777', head),
+      ],
+      issueNumber: 100,
+      livePr,
+      exactHead: head,
+    })).toMatchObject({ id: '777' })
+  })
+
+
   it('rejects duplicate exact-target verdicts', () => {
     expect(() => selectStandard({
       comments: [verdict('777'), verdict('778')],

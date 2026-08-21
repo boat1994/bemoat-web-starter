@@ -266,10 +266,12 @@ export function selectLiveReviewVerdictComment({
       const binding = resolveMergeReviewVerdictBinding(body)
       if (
         String(binding.pr ?? '') !== expectedPr ||
-        normalizeAuthorityBase(binding.base) !== expectedBase ||
-        normalizeAuthorityHead(binding.reviewed_head) !== expectedHead
+        normalizeAuthorityBase(binding.base) !== expectedBase
       ) {
         if (rejectNonExactTargets) throw new Error('STATE_CONFLICT: REVIEW_VERDICT binds a stale or wrong Issue/PR/base/head target')
+        continue
+      }
+      if (normalizeAuthorityHead(binding.reviewed_head) !== expectedHead) {
         continue
       }
       if (requireNonSuperseded && binding.non_superseded !== true) {
