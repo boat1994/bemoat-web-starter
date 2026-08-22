@@ -58,6 +58,10 @@ const STARTER_ONLY_INT_TESTS: { path: string; reason: string }[] = [
     reason: 'Direct coverage for the extracted merge task DONE projection seam is starter harness validation only',
   },
   {
+    path: 'tests/int/github-comment-identity.int.spec.ts',
+    reason: 'Shared primitive tests are starter-only until explicitly moved to harness sync',
+  },
+  {
     path: 'tests/int/mission-control-task-attestation.int.spec.ts',
     reason: 'Direct task-attestation typed-boundary characterization is starter harness validation only',
   },

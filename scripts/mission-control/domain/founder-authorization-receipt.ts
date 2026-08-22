@@ -68,6 +68,6 @@ export function validateFounderAuthorizationReceipt({ authorizationComment, pare
   assertImmutableCommentSnapshot(receipt, 'authorization receipt')
   try { parseFounderAuthorizationReceipt(String(property(receipt, 'body') ?? '')) } catch { receiptError('authorization receipt is malformed') }
   if (String(property(receipt, 'body') ?? '') !== expectedBody) receiptError('authorization receipt does not bind the exact authorization ID and body hash')
-  const receiptIssueNumber = resolveParentIssueIdentity(receipt as { issue_number?: unknown; issue_url?: unknown })
+  const receiptIssueNumber = resolveParentIssueIdentity(receipt as { issue_number?: unknown; issue_url?: unknown }, repository)
   if (!/^\d+$/.test(String(property(receipt, 'id') ?? '')) || author(receipt) !== founderLogin || String(receiptIssueNumber ?? '') !== String(issueNumber)) receiptError('authorization receipt identity is invalid')
 }
