@@ -31,6 +31,15 @@ function externalError(message, cause) {
 
 function issueState(value) { return String(value ?? '').toUpperCase() }
 
+function isProtectedBootstrapWorkflow(env, repository) {
+  return env?.GITHUB_ACTIONS === 'true' &&
+    env.GITHUB_REPOSITORY === repository &&
+    env.GITHUB_WORKFLOW === 'Mission Control Task Bootstrap' &&
+    env.GITHUB_REF === 'refs/heads/main' &&
+    /^[0-9a-f]{40}$/i.test(String(env.GITHUB_SHA ?? '')) &&
+    /^[1-9]\d*$/.test(String(env.GITHUB_RUN_ID ?? ''))
+}
+
 function issueFromRest(issue, repo) {
   const nodeId = String(issue.node_id ?? issue.id)
   return {
@@ -135,18 +144,31 @@ export function createTaskBootstrapGithubAdapter({ repository, env = process.env
       const ref = api(`repos/${repository}/git/ref/heads/${encodeURIComponent(branch)}`, { label: `${branch} protected ref` })
       return { sha: ref.object?.sha }
     },
-    async getPolicy({ ref, path }) {
+    async getPolicy({ ref, path, sourceCommit = BOOTSTRAP_CONTRACT.protectedBaseSha }) {
       const data = api(`repos/${repository}/contents/${path}?ref=${encodeURIComponent(ref)}`, { label: `policy ${path}` })
       const content = Buffer.from(String(data.content ?? '').replace(/\n/g, ''), 'base64').toString('utf8')
       const version = content.match(/(?:^|\n)version:\s*([0-9]+\.[0-9]+\.[0-9]+)/)?.[1] ?? null
-      // The genesis policy tuple is pinned to the approved protected-base
-      // commit while the file is read from the protected main ref. This keeps
-      // the post-genesis workflow usable after main advances by the reviewed
-      // genesis merge itself.
-      return { path, version, blobSha: data.sha, sourceCommit: BOOTSTRAP_CONTRACT.protectedBaseSha, content }
+      return { path, version, blobSha: data.sha, sourceCommit, content }
     },
     async getFounderLogins() {
-      return String(env.BEMOAT_FOUNDER_LOGINS ?? '').split(',').map((login) => login.trim()).filter(Boolean)
+      // The protected workflow injects this repository-owned variable into the
+      // canonical bootstrap process. The workflow token cannot read Actions
+      // variables through REST, so do not replace the trusted injection with a
+      // second API read that is unavailable to that token. Arbitrary process
+      // input is never accepted as Founder authority: non-workflow callers use
+      // the existing repository REST read instead.
+      const value = isProtectedBootstrapWorkflow(env, repository)
+        ? String(env.BEMOAT_FOUNDER_LOGINS ?? '').trim()
+        : String(api(`repos/${repository}/actions/variables/BEMOAT_FOUNDER_LOGINS`, { label: 'repository Founder allowlist' }).value ?? '').trim()
+      const logins = value.split(',').map((login) => login.trim()).filter(Boolean)
+      if (logins.length === 0 || logins.some((login) => !/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/.test(login))) {
+        throw externalError('repository Actions variable BEMOAT_FOUNDER_LOGINS is invalid')
+      }
+      return logins
+    },
+    async getAuthenticatedUser() {
+      const user = api('user', { label: 'authenticated GitHub actor' })
+      return { login: user.login }
     },
     async createIssue({ title, body }) {
       const issue = api(`repos/${repository}/issues`, { method: 'POST', input: JSON.stringify({ title, body }), label: 'provisional Issue creation' })
@@ -157,11 +179,11 @@ export function createTaskBootstrapGithubAdapter({ repository, env = process.env
       return issueFromRest(issue, repository)
     },
     postIssueComment: postComment,
-    async acquireCreationLease({ requestId }) {
-      return leaseProtocol.acquireLease({ issueNumber: 262, requestId, scope: 'repository-task-creation' })
+    async acquireCreationLease({ issueNumber = BOOTSTRAP_CONTRACT.parentIssue, requestId }) {
+      return leaseProtocol.acquireLease({ issueNumber, requestId, scope: 'repository-task-creation' })
     },
-    async releaseCreationLease({ requestId, lease }) {
-      return leaseProtocol.releaseLease({ issueNumber: 262, requestId, scope: 'repository-task-creation', lease })
+    async releaseCreationLease({ issueNumber = BOOTSTRAP_CONTRACT.parentIssue, requestId, lease }) {
+      return leaseProtocol.releaseLease({ issueNumber, requestId, scope: 'repository-task-creation', lease })
     },
     async acquireIssueLease({ issueNumber, requestId, scope = 'task-bootstrap-projection', expectedBodySha256 }) {
       return leaseProtocol.acquireLease({ issueNumber, requestId, scope, expectedBodySha256 })

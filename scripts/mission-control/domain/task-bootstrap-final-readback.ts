@@ -44,11 +44,13 @@ export async function verifyFinalTask(input: RuntimeObject = {}): Promise<Runtim
   if (expectedBody != null && issue.body !== expectedBody) {
     throw blockedExternal('Task Issue body readback differs from the body projected by the winning lease')
   }
-  let pullRequest: RuntimeObject
-  try {
-    pullRequest = await github!.getPullRequest(BOOTSTRAP_CONTRACT.pullRequest)
-  } catch (error) {
-    throw blockedExternal('PR evidence was unavailable during final Task readback', error)
+  let pullRequest: RuntimeObject | null = null
+  if (context?.targetMode !== 'planning_no_pr') {
+    try {
+      pullRequest = await github!.getPullRequest(BOOTSTRAP_CONTRACT.pullRequest)
+    } catch (error) {
+      throw blockedExternal('PR evidence was unavailable during final Task readback', error)
+    }
   }
   const repository = context?.repository as RuntimeObject | undefined
   const preflight = runCanonicalManagedTaskPreflight({
@@ -57,7 +59,7 @@ export async function verifyFinalTask(input: RuntimeObject = {}): Promise<Runtim
     repository: repository?.nameWithOwner as string | undefined,
     publicKey: context?.publicKey as string | undefined,
     signingKeyId: context?.signingKeyId as string | undefined,
-    expectedProtectedBaseSha: BOOTSTRAP_CONTRACT.protectedBaseSha,
+    expectedProtectedBaseSha: context?.protectedBaseSha as string | undefined ?? BOOTSTRAP_CONTRACT.protectedBaseSha,
     expectedAuthorization: { ...authorization, parentIssue: context?.parentIssue } as RuntimeObject,
     expectedWorkflow: context?.workflow as RuntimeObject | undefined,
     policy: context?.policy as RuntimeObject | undefined,
@@ -84,9 +86,9 @@ export async function verifyFinalTask(input: RuntimeObject = {}): Promise<Runtim
     parentIssue: context?.parentIssue,
     taskIssue: issue,
     pullRequest,
-    base: BOOTSTRAP_CONTRACT.base,
-    head: BOOTSTRAP_CONTRACT.head,
-    protectedBaseSha: BOOTSTRAP_CONTRACT.protectedBaseSha,
+    base: context?.targetMode === 'planning_no_pr' ? BOOTSTRAP_CONTRACT.base : BOOTSTRAP_CONTRACT.base,
+    head: context?.targetMode === 'planning_no_pr' ? null : BOOTSTRAP_CONTRACT.head,
+    protectedBaseSha: context?.protectedBaseSha ?? BOOTSTRAP_CONTRACT.protectedBaseSha,
     requestId,
     attestation: parsedAttestation.envelope,
   })

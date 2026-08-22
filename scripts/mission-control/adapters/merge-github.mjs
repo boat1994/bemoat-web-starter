@@ -22,6 +22,12 @@ export function runNodeTransport(args, env = process.env) {
   return result.stdout.trim()
 }
 
+export function readProtectedRef(runGh, repo, base = 'main') {
+  return JSON.parse(runGh([
+    'api', `repos/${repo}/git/ref/heads/${base}`,
+  ]))
+}
+
 export function createProductionMergeDeps({ runGh = defaultRunGh, runNode = runNodeTransport } = {}) {
   return {
     runGh,
@@ -49,9 +55,7 @@ export function createProductionMergeDeps({ runGh = defaultRunGh, runNode = runN
     readFounderLoginsVariable: async (repo) => JSON.parse(runGh([
       'api', `repos/${repo}/actions/variables/BEMOAT_FOUNDER_LOGINS`,
     ])),
-    readProtectedRef: async (repo, base = 'main') => JSON.parse(runGh([
-      'api', `repos/${repo}/git/ref/heads/${base}`,
-    ])),
+    readProtectedRef: async (repo, base = 'main') => readProtectedRef(runGh, repo, base),
     markReadyForReview: async (prNumber, repo) => runGh(['pr', 'ready', String(prNumber), '--repo', repo]),
     mergePullRequest: async ({ prNumber, repo, expectedHead }) => runGh([
       'pr', 'merge', String(prNumber), '--repo', repo, '--merge', '--match-head-commit', expectedHead,

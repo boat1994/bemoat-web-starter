@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
 import { canonicalSerialize, createSignedEnvelope, sha256Hex, verifySignedEnvelope } from '../../scripts/mission-control/domain/task-attestation.mjs'
+import { createTaskBootstrapGithubAdapter } from '../../scripts/mission-control/adapters/task-bootstrap-github.mjs'
 import {
   PROVISIONAL_TASK_END,
   PROVISIONAL_TASK_MARKER,
@@ -19,6 +20,29 @@ const workflowPath = '.github/workflows/mission-control-task-bootstrap.yml'
 
 const AUTHORIZATION_COMMENT_ID = '9001'
 const FOUNDER_LOGIN = 'boat1994'
+
+type TestAdapterOptions = {
+  repository: string
+  env?: Record<string, string | undefined>
+  runGh?: (args: string[]) => unknown
+}
+
+const createTestAdapter = createTaskBootstrapGithubAdapter as unknown as (
+  options: TestAdapterOptions,
+) => ReturnType<typeof createTaskBootstrapGithubAdapter>
+
+function protectedWorkflowEnv(allowlist: string | undefined): Record<string, string | undefined> {
+  return {
+    BEMOAT_FOUNDER_LOGINS: allowlist,
+    GITHUB_ACTIONS: 'true',
+    GITHUB_REPOSITORY: BOOTSTRAP_CONTRACT.repository,
+    GITHUB_WORKFLOW: 'Mission Control Task Bootstrap',
+    GITHUB_REF: 'refs/heads/main',
+    GITHUB_SHA: 'a'.repeat(40),
+    GITHUB_RUN_ID: '123',
+  }
+}
+
 const REQUEST_INPUT = {
   repository: BOOTSTRAP_CONTRACT.repository,
   authorizationCommentId: AUTHORIZATION_COMMENT_ID,
@@ -65,6 +89,85 @@ function expectStateConflict(action: () => unknown, message?: string) {
 }
 
 describe('Mission Control bootstrap transport contract', () => {
+  it('uses the protected workflow-injected Founder allowlist without a Variables REST read', async () => {
+    const calls: string[][] = []
+    const adapter = createTestAdapter({
+      repository: BOOTSTRAP_CONTRACT.repository,
+      env: protectedWorkflowEnv('boat1994,other-founder'),
+      runGh: (args: string[]) => {
+        calls.push(args)
+        throw new Error(`unexpected GitHub API call: ${args.join(' ')}`)
+      },
+    })
+
+    await expect(adapter.getFounderLogins()).resolves.toEqual(['boat1994', 'other-founder'])
+    expect(calls).toEqual([])
+  })
+
+  it.each([
+    ['missing', undefined],
+    ['empty', ''],
+    ['malformed', 'boat1994,not a login'],
+  ])('fails closed for a %s protected workflow Founder allowlist', async (_label, value) => {
+    const adapter = createTestAdapter({
+      repository: BOOTSTRAP_CONTRACT.repository,
+      env: protectedWorkflowEnv(value),
+      runGh: () => { throw new Error('unexpected GitHub API call') },
+    })
+
+    await expect(adapter.getFounderLogins()).rejects.toThrow('repository Actions variable BEMOAT_FOUNDER_LOGINS is invalid')
+  })
+
+  it('accepts a trusted Founder authorization for an existing planning-only Task Issue', async () => {
+    const typed = await import('../../scripts/mission-control/domain/task-bootstrap-authorization.ts')
+    const body = typed.createFounderAuthorizationBody({
+      parentIssue: 380,
+      taskIssue: 380,
+      pullRequest: null,
+      head: null,
+      targetMode: 'planning_no_pr',
+      commentId: AUTHORIZATION_COMMENT_ID,
+    })
+    const authorization = typed.parseFounderTaskBootstrapAuthorization(body)
+
+    expect(typed.validateFounderTaskBootstrapAuthorization({
+      authorization,
+      authorizationComment: {
+        id: AUTHORIZATION_COMMENT_ID,
+        body,
+        user: { login: FOUNDER_LOGIN },
+        issue_number: 380,
+      },
+      parentIssue: { number: 380 },
+      repository: BOOTSTRAP_CONTRACT.repository,
+      founderLogins: [FOUNDER_LOGIN],
+    })).toMatchObject({
+      valid: true,
+      authorLogin: FOUNDER_LOGIN,
+      commentId: AUTHORIZATION_COMMENT_ID,
+      authorization: {
+        bundle_kind: 'task-bootstrap-existing',
+        task_issue: 380,
+        target_mode: 'planning_no_pr',
+        pr: null,
+        exact_head: null,
+        reviewed_head: null,
+      },
+    })
+  })
+
+  it('uses null PR and head values in the deterministic planning-only request identity', () => {
+    const result = buildTaskBootstrapRequestIdentity({
+      ...REQUEST_INPUT,
+      parentIssue: 380,
+      pullRequest: null,
+      head: null,
+      targetMode: 'planning_no_pr',
+    })
+
+    expect(result.tuple).toMatchObject({ parent_issue: 380, pull_request: null, head: null })
+  })
+
   it('characterizes the raw JSON trust-boundary parser and exact failure shape', async () => {
     const typed = await import('../../scripts/mission-control/domain/task-bootstrap-authorization.ts')
 
@@ -90,7 +193,55 @@ describe('Mission Control bootstrap transport contract', () => {
     expectStateConflict(() => typed.parseFounderTaskBootstrapAuthorization('```{}'), 'comment must contain exactly one raw JSON object')
   })
 
-  it('preserves deterministic genesis fixture values, coercions, placeholder IDs, and detached hash', async () => {
+  it('accepts the exact live Batch 1 Founder decision record and rejects prose or altered bindings', async () => {
+    const typed = await import('../../scripts/mission-control/domain/task-bootstrap-authorization.ts')
+    const body = `## FOUNDER_DECISION
+
+**Decision:** APPROVE BOOTSTRAP RECOVERY BATCH 1
+**Authority:** Founder
+**Author:** @boat1994
+**Repository:** boat1994/bemoat-web-starter
+**Task / Issue:** #380
+**Protected base:** main@35bdd8689c5ff52a5d51f98419ae498f0971090c
+**Policy:** docs/mission-control/mission-control-guide.md
+**Policy version:** 1.3.0
+**Policy source SHA:** 56443e2b8e07b8d8325d6b5fdef7b49f305b1e1f
+**Objective:** Bootstrap Recovery Batch 1 — generalize canonical managed-task bootstrap for an already-registered managed Issue such as #380.
+**Scope:** bootstrap control-plane contract repair only; preserve the protected environment, Actions-only signing private key, trusted Founder identity, immutable authorization, non-supersession, signed attestation, deterministic request identity, CAS/lease/readback, idempotent retry, and fail-closed ambiguity handling.
+**Action:** implement and publish the bounded Bootstrap Recovery Batch 1 repair.
+**Immutable comment reference:** true
+**Non-superseded:** true
+
+**Explicit exclusions:** final merge; Batches A-D implementation; mutation or merge of PR #378; mutation or reopen of #373; mutation, retry, merge, or rebase of PR #369; modification or rebase of PR #366; #333 reconciliation or resumption; #336; deploy; migration; child sync; production; destructive; unrelated work.
+
+This decision does not authorize forging historical #262/#263 bindings, direct managed-state YAML mutation, manual attestation fabrication, bypassing canonical bootstrap, or impersonating Founder identity.`
+    const authorization = typed.parseFounderTaskBootstrapAuthorization(body)
+    expect(typed.validateFounderTaskBootstrapAuthorization({
+      authorization,
+      authorizationComment: { id: '5350702619', body, user: { login: 'boat1994' }, issue_number: 380 },
+      parentIssue: { number: 380 },
+      repository: typed.BOOTSTRAP_CONTRACT.repository,
+      founderLogins: ['boat1994'],
+      expected: { ...typed.BOOTSTRAP_CONTRACT, parentIssue: 380, pullRequest: null, head: null, protectedBaseSha: '35bdd8689c5ff52a5d51f98419ae498f0971090c', policySha: '56443e2b8e07b8d8325d6b5fdef7b49f305b1e1f' } as unknown as NonNullable<Parameters<typeof typed.validateFounderTaskBootstrapAuthorization>[0]>['expected'],
+    })).toMatchObject({ valid: true, commentId: '5350702619', bodySha256: sha256Hex(body) })
+    expect(() => typed.validateFounderTaskBootstrapAuthorization({
+      authorization,
+      authorizationComment: { id: '5350702620', body, user: { login: 'boat1994' }, issue_number: 380 },
+      parentIssue: { number: 380 },
+      repository: typed.BOOTSTRAP_CONTRACT.repository,
+      founderLogins: ['boat1994'],
+      expected: { ...typed.BOOTSTRAP_CONTRACT, parentIssue: 380, pullRequest: null, head: null, protectedBaseSha: '35bdd8689c5ff52a5d51f98419ae498f0971090c', policySha: '56443e2b8e07b8d8325d6b5fdef7b49f305b1e1f' } as unknown as NonNullable<Parameters<typeof typed.validateFounderTaskBootstrapAuthorization>[0]>['expected'],
+    })).toThrow('record does not bind the trusted Founder, target, scope, policy, or comment identity')
+    expect(() => typed.parseFounderTaskBootstrapAuthorization('## FOUNDER_DECISION\n\nI approve this.')).toThrow('comment body must contain the exact structured Founder decision fields')
+    expect(() => typed.validateFounderTaskBootstrapAuthorization({
+      authorization: { ...authorization, action: 'merge' },
+      authorizationComment: { id: '5350702619', body, user: { login: 'boat1994' }, issue_number: 380 },
+      parentIssue: { number: 380 }, repository: typed.BOOTSTRAP_CONTRACT.repository, founderLogins: ['boat1994'],
+      expected: { ...typed.BOOTSTRAP_CONTRACT, parentIssue: 380, pullRequest: null, head: null, protectedBaseSha: '35bdd8689c5ff52a5d51f98419ae498f0971090c', policySha: '56443e2b8e07b8d8325d6b5fdef7b49f305b1e1f' } as unknown as NonNullable<Parameters<typeof typed.validateFounderTaskBootstrapAuthorization>[0]>['expected'],
+    })).toThrow('record does not bind the trusted Founder, target, scope, policy, or comment identity')
+  })
+
+  it('preserves deterministic genesis fixture values and coercions', async () => {
     const typed = await import('../../scripts/mission-control/domain/task-bootstrap-authorization.ts')
     const body = typed.createFounderAuthorizationBody({ parentIssue: '262', commentId: 9001 })
     const authorization = typed.parseFounderTaskBootstrapAuthorization(body)
@@ -119,9 +270,7 @@ describe('Mission Control bootstrap transport contract', () => {
       scope: typed.BOOTSTRAP_AUTHORIZATION_SCOPE,
       action: typed.BOOTSTRAP_AUTHORIZATION_ACTION,
     })
-    expect(authorization.comment_sha256).toBe(
-      sha256Hex(canonicalSerialize({ ...authorization, comment_sha256: null })),
-    )
+    expect(authorization.comment_sha256).toBeUndefined()
     expect(typed.createFounderAuthorizationBody({ commentId: null })).toContain('"comment_id": "<immutable-comment-id>"')
   })
 
@@ -213,6 +362,23 @@ describe('Mission Control bootstrap transport contract', () => {
     })).toMatchObject({ valid: true, authorLogin: FOUNDER_LOGIN })
   })
 
+  it('requires the supplied immutable comment ID and returns the raw live body hash', async () => {
+    const typed = await import('../../scripts/mission-control/domain/task-bootstrap-authorization.ts')
+    const body = typed.createFounderAuthorizationBody({ commentId: null })
+    const authorization = typed.parseFounderTaskBootstrapAuthorization(body)
+    expectStateConflict(() => typed.validateFounderTaskBootstrapAuthorization({
+      authorization,
+      authorizationComment: { id: '9001', body, user: { login: FOUNDER_LOGIN }, issue_number: typed.BOOTSTRAP_CONTRACT.parentIssue },
+      parentIssue: { number: typed.BOOTSTRAP_CONTRACT.parentIssue }, repository: typed.BOOTSTRAP_CONTRACT.repository, founderLogins: [FOUNDER_LOGIN],
+    }), 'record does not bind the trusted Founder, target, scope, policy, or comment identity')
+    const valid = typed.validateFounderTaskBootstrapAuthorization({
+      authorization: { ...authorization, comment_id: '9001' },
+      authorizationComment: { id: '9001', body, user: { login: FOUNDER_LOGIN }, issue_number: typed.BOOTSTRAP_CONTRACT.parentIssue },
+      parentIssue: { number: typed.BOOTSTRAP_CONTRACT.parentIssue }, repository: typed.BOOTSTRAP_CONTRACT.repository, founderLogins: [FOUNDER_LOGIN],
+    })
+    expect(valid.bodySha256).toBe(sha256Hex(body))
+  })
+
   it('fails closed for Founder, trusted-login, comment-identity, and genesis tuple bindings', async () => {
     const typed = await import('../../scripts/mission-control/domain/task-bootstrap-authorization.ts')
     const cases: Array<[string, (authorization: Record<string, unknown>, comment: Record<string, unknown>) => void]> = [
@@ -256,7 +422,7 @@ describe('Mission Control bootstrap transport contract', () => {
     }
   })
 
-  it('preserves optional parent/comment issue checks and detached comment hash behavior', async () => {
+  it('preserves optional parent/comment issue checks without trusting detached hashes', async () => {
     const typed = await import('../../scripts/mission-control/domain/task-bootstrap-authorization.ts')
     const { authorization, authorizationComment } = authorizationFixture(typed)
     const base = {
@@ -271,11 +437,7 @@ describe('Mission Control bootstrap transport contract', () => {
     expectStateConflict(() => typed.validateFounderTaskBootstrapAuthorization({ ...base, parentIssue: { number: 999 } }), 'authorization parent Issue does not match the genesis parent')
     expectStateConflict(() => typed.validateFounderTaskBootstrapAuthorization({ ...base, authorizationComment: { ...authorizationComment, issue_number: 999 } }), 'authorization comment is not attached to the parent Issue')
 
-    const withoutDetachedHash = { ...authorization }
-    delete withoutDetachedHash.comment_sha256
-    expect(typed.validateFounderTaskBootstrapAuthorization({ ...base, authorization: withoutDetachedHash })).toMatchObject({ valid: true })
-    expectStateConflict(() => typed.validateFounderTaskBootstrapAuthorization({ ...base, authorization: { ...authorization, comment_sha256: 'not-a-sha' } }), 'comment_sha256 is not a SHA-256 digest')
-    expectStateConflict(() => typed.validateFounderTaskBootstrapAuthorization({ ...base, authorization: { ...authorization, comment_sha256: 'a'.repeat(64) } }), 'authorization detached comment hash does not match')
+    expect(typed.validateFounderTaskBootstrapAuthorization({ ...base, authorization })).toMatchObject({ valid: true, bodySha256: sha256Hex(authorizationComment.body) })
   })
 
   it('preserves supersession arrays, same-ID exclusion, malformed-superseder ignore, and no timestamp ordering', async () => {

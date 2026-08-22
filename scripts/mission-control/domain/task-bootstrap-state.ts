@@ -7,6 +7,10 @@ type BuildInitialTaskStateOptions = {
   attestation?: unknown
   managedStateSha256?: unknown
   now?: unknown
+  targetMode?: unknown
+  parentIssue?: { number?: unknown } | null
+  base?: unknown
+  policy?: { path?: unknown, version?: unknown, blobSha?: unknown } | null
 }
 
 type TaskBootstrapState = {
@@ -16,8 +20,8 @@ type TaskBootstrapState = {
   full_review_count: 0
   approved_base: string
   active_task_issue: string
-  active_pr: string
-  current_head: string
+  active_pr: string | null
+  current_head: string | null
   last_reviewed_head: null
   guide_version: string
   guide_source_ref: 'main'
@@ -50,7 +54,12 @@ export function buildInitialTaskState({
   attestation,
   managedStateSha256 = null,
   now = null,
+  targetMode = null,
+  parentIssue = null,
+  base = BOOTSTRAP_CONTRACT.base,
+  policy = null,
 }: BuildInitialTaskStateOptions = {}): TaskBootstrapState {
+  const planning = targetMode === 'planning_no_pr'
   const attestationShape = attestation as AttestationShape | null | undefined
   const payload = attestationShape?.payload ?? {}
   const payloadShape = payload as { attestation_schema?: unknown }
@@ -59,28 +68,29 @@ export function buildInitialTaskState({
     state: 'AWAITING_REVIEW_1',
     review_cycle: 0,
     full_review_count: 0,
-    approved_base: BOOTSTRAP_CONTRACT.base,
+    approved_base: planning ? String(base) : BOOTSTRAP_CONTRACT.base,
     active_task_issue: `#${issueNumber}`,
-    active_pr: `#${BOOTSTRAP_CONTRACT.pullRequest}`,
-    current_head: BOOTSTRAP_CONTRACT.head,
+    active_pr: planning ? null : `#${BOOTSTRAP_CONTRACT.pullRequest}`,
+    current_head: planning ? null : BOOTSTRAP_CONTRACT.head,
     last_reviewed_head: null,
-    guide_version: BOOTSTRAP_CONTRACT.policyVersion,
+    guide_version: planning ? String(policy?.version) : BOOTSTRAP_CONTRACT.policyVersion,
     guide_source_ref: 'main',
-    guide_source_sha: BOOTSTRAP_CONTRACT.policySha,
+    guide_source_sha: planning ? String(policy?.blobSha) : BOOTSTRAP_CONTRACT.policySha,
     open_blockers: [],
     follow_up_issues: [],
     next_permitted_action: 'Run read-only Review 1 preflight; do not start Review 1.',
     material_change_status: 'none',
     updated_at: now,
     updated_by: 'Mission Control Task Bootstrap',
-    parent_issue: `#${BOOTSTRAP_CONTRACT.parentIssue}`,
-    policy_source: BOOTSTRAP_CONTRACT.policySource,
-    policy_version: BOOTSTRAP_CONTRACT.policyVersion,
-    policy_sha: BOOTSTRAP_CONTRACT.policySha,
+    parent_issue: `#${planning ? parentIssue?.number : BOOTSTRAP_CONTRACT.parentIssue}`,
+    policy_source: planning ? String(policy?.path) : BOOTSTRAP_CONTRACT.policySource,
+    policy_version: planning ? String(policy?.version) : BOOTSTRAP_CONTRACT.policyVersion,
+    policy_sha: planning ? String(policy?.blobSha) : BOOTSTRAP_CONTRACT.policySha,
     bootstrap_request_id: requestId,
     task_attestation_schema: payloadShape.attestation_schema ?? TASK_ATTESTATION_SCHEMA,
     task_attestation_key_id: attestationShape?.key_id ?? null,
     task_attestation_sha256: attestation ? canonicalHash(attestation) : null,
     managed_state_sha256: managedStateSha256,
+    ...(planning ? { workflow_mode: 'planning_no_pr' as const } : {}),
   }
 }

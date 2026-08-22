@@ -1,5 +1,11 @@
+import {
+  compareFileSystemSnapshots,
+  runCliBoundaryCase,
+} from '../helpers/cli-boundary-harness'
 import { describe, expect, it } from 'vitest'
 
+import { getCommandContract } from '../../scripts/cli/command-contract.mjs'
+import { createHelpEnvelopeV1 } from '../../scripts/cli/command-help.mjs'
 import {
   main,
   parseReopenArgs,
@@ -22,6 +28,13 @@ const POLICY_SOURCE_SHA = 'e79694467b89dace927c27a1022ec3d260a4a43c'
 const AUTHORIZATION_COMMENT = '5193626365'
 const RESULT_COMMENT = '5193868664'
 const REVIEW_VERDICT_COMMENT = '5194028692'
+const REOPEN_COMMAND = 'bemoat:mission-control:reopen'
+const JSON_HELP_PERMUTATIONS = [
+  ['--help', '--json'],
+  ['--json', '--help'],
+  ['-h', '--json'],
+  ['--json', '-h'],
+] as const
 type JsonObject = Record<string, unknown>
 type HarnessIssue = {
   body: string
@@ -86,6 +99,58 @@ function baseState(overrides: JsonObject = {}): JsonObject {
     updated_by: 'Mission Control',
     campaign_issue: null,
     campaign_slice: null,
+    ...overrides,
+  }
+}
+
+function review4Record(overrides: JsonObject = {}): JsonObject {
+  return {
+    review_number: 4,
+    pr_number: PR,
+    base: BASE,
+    reviewed_head: OLD_HEAD,
+    verdict: 'ELIGIBLE FOR FOUNDER REVIEW',
+    verdict_comment_id: REVIEW_VERDICT_COMMENT,
+    authorization: {
+      status: 'approved',
+      authority: 'Founder',
+      scope: 'review',
+      review_number: 4,
+      reviewed_head: OLD_HEAD,
+      action: 'Authorize bounded Review 4',
+      authorized_at: '2026-08-19T09:29:00+07:00',
+    },
+    finding_dispositions: [
+      { finding_id: 'MC-R1-001', disposition: 'resolved' },
+      { finding_id: 'MC-R1-002', disposition: 'resolved' },
+      { finding_id: 'MC-R1-003', disposition: 'resolved' },
+      { finding_id: 'MC-R1-004', disposition: 'resolved' },
+    ],
+    ...overrides,
+  }
+}
+
+function review5Record(): JsonObject {
+  return {
+    ...review4Record(),
+    review_number: 5,
+    authorization: {
+      status: 'approved',
+      authority: 'Founder',
+      scope: 'review',
+      review_number: 5,
+      reviewed_head: OLD_HEAD,
+      action: 'Authorize bounded Review 5',
+      authorized_at: '2026-08-20T09:29:00+07:00',
+    },
+  }
+}
+
+function postBudgetReview4Options(overrides: JsonObject = {}) {
+  return {
+    ...options,
+    expectedReviewCycle: '3',
+    expectedFullReviewCount: '1',
     ...overrides,
   }
 }
@@ -272,6 +337,164 @@ describe('runReopen', () => {
     })
   })
 
+  it('still reopens when post_budget_reviews is an empty array', async () => {
+    const harness = createHarness({
+      state: {
+        post_budget_reviews: [],
+      },
+    })
+
+    const result = await runReopen({ options, deps: harness.deps })
+    const state = stateFromHarness(harness)
+
+    expect(result.outcome).toBe('REOPENED')
+    expect(state.post_budget_reviews).toEqual([])
+    expect(state.review_cycle).toBe(1)
+    expect(state.full_review_count).toBe(1)
+    expect(state.last_reviewed_head).toBe(OLD_HEAD)
+    expect(state.current_head).toBe(NEW_HEAD)
+  })
+
+  it('reopens a Review-4-shaped task without replacing post-budget lineage or resetting counters', async () => {
+    const review4 = review4Record()
+    const review4Options = postBudgetReview4Options()
+    const harness = createHarness({
+      state: {
+        review_cycle: 3,
+        full_review_count: 1,
+        post_budget_reviews: [review4],
+        finding_lineage: clone(review4.finding_dispositions),
+      },
+      authorizationComment: {
+        authorization: { review_cycle: 3 },
+      },
+    })
+    const originalReview4 = clone(harness.issue.managedState.post_budget_reviews)
+
+    const result = await runReopen({ options: review4Options, deps: harness.deps })
+    const state = stateFromHarness(harness)
+
+    expect(result.outcome).toBe('REOPENED')
+    expect(harness.writes).toBe(1)
+    expect(state.state).toBe('FOUNDER_AUTHORIZED_CORRECTION')
+    expect(state.current_head).toBe(NEW_HEAD)
+    expect(state.last_reviewed_head).toBe(OLD_HEAD)
+    expect(state.review_cycle).toBe(3)
+    expect(state.full_review_count).toBe(1)
+    expect(state.latest_result_comment_id).toBe(RESULT_COMMENT)
+    expect(state.latest_review_verdict_comment_id).toBe(REVIEW_VERDICT_COMMENT)
+    expect(state.post_budget_reviews).toEqual(originalReview4)
+    expect(state.post_budget_reviews).toEqual([review4])
+    expect(state.finding_lineage).toEqual(review4.finding_dispositions)
+    expect(state.founder_correction_authorization).toMatchObject({
+      authorization_id: 'reopen-284-1',
+      status: 'authorized',
+      scope: 'correction',
+      action: 'reopen',
+      for_review_number: 3,
+      review_cycle: 3,
+      old_reviewed_head: OLD_HEAD,
+      reviewed_head: NEW_HEAD,
+      exact_head: NEW_HEAD,
+      maximum_correction_deliveries: 1,
+      required_next_review: 'Delta Review',
+      correction_deliveries: 0,
+      delta_review_count: 0,
+    })
+    expect(state.next_permitted_action).toBe(
+      'Execute exactly one bounded correction RESULT, then one Delta Review.',
+    )
+  })
+
+  it('rejects unauthorized, stale, or wrong-head correction on a Review-4-shaped task', async () => {
+    const review4Options = postBudgetReview4Options()
+    const unauthorized = createHarness({
+      state: {
+        review_cycle: 3,
+        post_budget_reviews: [review4Record()],
+      },
+      authorizationComment: {
+        authorization: { review_cycle: 3, action: 'merge' },
+      },
+    })
+    await expect(runReopen({ options: review4Options, deps: unauthorized.deps })).rejects.toThrow('STATE_CONFLICT')
+    expect(unauthorized.writes).toBe(0)
+
+    const staleHead = createHarness({
+      state: {
+        review_cycle: 3,
+        post_budget_reviews: [review4Record({
+          reviewed_head: DRIFTED_HEAD,
+          authorization: {
+            status: 'approved',
+            authority: 'Founder',
+            scope: 'review',
+            review_number: 4,
+            reviewed_head: DRIFTED_HEAD,
+            action: 'Authorize bounded Review 4',
+            authorized_at: '2026-08-19T09:29:00+07:00',
+          },
+        })],
+      },
+      authorizationComment: {
+        authorization: { review_cycle: 3 },
+      },
+    })
+    await expect(runReopen({ options: review4Options, deps: staleHead.deps })).rejects.toThrow('STATE_CONFLICT')
+    expect(staleHead.writes).toBe(0)
+
+    const wrongNewHead = createHarness({
+      state: {
+        review_cycle: 3,
+        post_budget_reviews: [review4Record()],
+      },
+      authorizationComment: {
+        authorization: {
+          review_cycle: 3,
+          exact_head: DRIFTED_HEAD,
+          reviewed_head: DRIFTED_HEAD,
+        },
+      },
+    })
+    await expect(runReopen({ options: review4Options, deps: wrongNewHead.deps })).rejects.toThrow('STATE_CONFLICT')
+    expect(wrongNewHead.writes).toBe(0)
+  })
+
+  it('fails closed for multiple or ambiguous post-budget histories', async () => {
+    const review4Options = postBudgetReview4Options()
+    const multiple = createHarness({
+      state: {
+        review_cycle: 3,
+        post_budget_reviews: [review4Record(), review5Record()],
+      },
+      authorizationComment: {
+        authorization: { review_cycle: 3 },
+      },
+    })
+    await expect(runReopen({ options: review4Options, deps: multiple.deps })).rejects.toThrow('STATE_CONFLICT')
+    expect(multiple.writes).toBe(0)
+
+    const malformed = createHarness({
+      state: {
+        review_cycle: 3,
+        post_budget_reviews: [{ review_number: 4 }],
+      },
+      authorizationComment: {
+        authorization: { review_cycle: 3 },
+      },
+    })
+    await expect(runReopen({ options: review4Options, deps: malformed.deps })).rejects.toThrow('STATE_CONFLICT')
+    expect(malformed.writes).toBe(0)
+
+    const nonArray = createHarness({
+      state: {
+        post_budget_reviews: { review_number: 4 },
+      },
+    })
+    await expect(runReopen({ options, deps: nonArray.deps })).rejects.toThrow('STATE_CONFLICT')
+    expect(nonArray.writes).toBe(0)
+  })
+
   it('returns NO_OP only after validating the complete post-state and live evidence', async () => {
     const harness = createHarness()
 
@@ -443,5 +666,61 @@ describe('runReopen', () => {
 
     await expect(main([flag], deps)).resolves.toMatchObject({ outcome: 'HELP' })
     expect(calls).toEqual([])
+  })
+})
+
+describe('bemoat:mission-control:reopen CLI discovery', () => {
+  function runReopenCli(args: readonly string[]) {
+    const contract = getCommandContract(REOPEN_COMMAND)
+    if (!contract) throw new Error(`missing command contract: ${REOPEN_COMMAND}`)
+
+    return runCliBoundaryCase({
+      entrypoint: contract.entrypoint,
+      argv: ['--', ...args],
+      env: {
+        npm_lifecycle_event: REOPEN_COMMAND,
+        NO_COLOR: '1',
+      },
+    })
+  }
+
+  it('emits identical registry-derived schema-v1 HELP JSON for every option order', () => {
+    const contract = getCommandContract(REOPEN_COMMAND)
+    if (!contract) throw new Error(`missing command contract: ${REOPEN_COMMAND}`)
+    const expected = createHelpEnvelopeV1(contract)
+    const runs = JSON_HELP_PERMUTATIONS.map((args) => runReopenCli(args))
+
+    for (const run of runs) {
+      expect(run.status, `${run.stdout}\n${run.stderr}`).toBe(0)
+      expect(run.error).toBeNull()
+      expect(run.stderr).toBe('')
+      expect(run.filesystem_unchanged).toBe(true)
+      expect(run.poison_invocations).toEqual([])
+      expect(JSON.parse(run.stdout.trim())).toEqual(expected)
+    }
+
+    expect(runs.map((run) => run.stdout)).toEqual([
+      runs[0].stdout,
+      runs[0].stdout,
+      runs[0].stdout,
+      runs[0].stdout,
+    ])
+  })
+
+  it.each(['--help', '-h'])('keeps plain %s help equivalent and zero-write without runtime inputs', (flag) => {
+    const run = runReopenCli([flag])
+
+    expect(run.status).toBe(0)
+    expect(run.error).toBeNull()
+    expect(run.stderr).toBe('')
+    expect(run.stdout).toContain('Usage:')
+    expect(run.stdout).toContain(`pnpm run ${REOPEN_COMMAND}`)
+    expect(run.filesystem_unchanged).toBe(true)
+    expect(run.poison_invocations).toEqual([])
+
+    const otherFlag = flag === '--help' ? '-h' : '--help'
+    const otherRun = runReopenCli([otherFlag])
+    expect(compareFileSystemSnapshots(run.before, run.after)).toBe(true)
+    expect(run.stdout).toBe(otherRun.stdout)
   })
 })

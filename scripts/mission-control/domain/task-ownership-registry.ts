@@ -27,6 +27,7 @@ export function buildTaskOwnershipPayload({
   protectedBaseSha,
   attestation,
   signingKeyId,
+  workflowMode,
 }: {
   repository?: string
   requestId?: string
@@ -38,6 +39,7 @@ export function buildTaskOwnershipPayload({
   protectedBaseSha?: string
   attestation?: RuntimeObject
   signingKeyId?: string
+  workflowMode?: string | null
 } = {}): Record<string, unknown> {
   return {
     schema_version: 1,
@@ -50,14 +52,15 @@ export function buildTaskOwnershipPayload({
     task_issue_number: Number(taskIssue?.number),
     task_issue_id: taskIssue?.id,
     task_issue_node_id: taskIssue?.node_id,
-    pr_number: Number(pullRequest?.number),
-    pr_id: pullRequest?.id,
-    pr_node_id: pullRequest?.node_id,
+    pr_number: workflowMode === 'planning_no_pr' ? null : Number(pullRequest?.number),
+    pr_id: workflowMode === 'planning_no_pr' ? null : pullRequest?.id,
+    pr_node_id: workflowMode === 'planning_no_pr' ? null : pullRequest?.node_id,
     base,
     head,
     protected_base_sha: protectedBaseSha,
     attestation_sha256: canonicalHash(attestation),
     signing_key_id: signingKeyId,
+    workflow_mode: workflowMode ?? null,
   }
 }
 
@@ -102,6 +105,7 @@ export function verifyTaskOwnershipRecord(
     expectedProtectedBaseSha,
     expectedRequestId,
     expectedAttestationSha256,
+    expectedWorkflowMode,
   }: {
     publicKey?: string
     repository?: string
@@ -114,6 +118,7 @@ export function verifyTaskOwnershipRecord(
     expectedProtectedBaseSha?: string
     expectedRequestId?: string
     expectedAttestationSha256?: string
+    expectedWorkflowMode?: string | null
   } = {},
 ): VerificationResult {
   if (!record || record.attestation_schema !== TASK_REGISTRY_SCHEMA || record.operation !== TASK_REGISTRY_OPERATION || record.operation_version !== 1) {
@@ -131,13 +136,14 @@ export function verifyTaskOwnershipRecord(
   const payload = record.payload as Record<string, unknown>
   if (payload.registry_schema !== TASK_REGISTRY_SCHEMA || typeof payload.request_id !== 'string' ||
       !/^mc-task-bootstrap-v1-[0-9a-f]{64}$/.test(payload.request_id as string) ||
-      !Number.isInteger(payload.task_issue_number) || !Number.isInteger(payload.pr_number) ||
-      typeof payload.head !== 'string' || !/^[0-9a-f]{40}$/i.test(payload.head as string) ||
+      !Number.isInteger(payload.task_issue_number) ||
+      (payload.workflow_mode === 'planning_no_pr' ? payload.pr_number !== null || payload.head !== null : (!Number.isInteger(payload.pr_number) || typeof payload.head !== 'string' || !/^[0-9a-f]{40}$/i.test(payload.head as string))) ||
       typeof payload.attestation_sha256 !== 'string' || !/^[0-9a-f]{64}$/i.test(payload.attestation_sha256 as string) ||
       payload.signing_key_id !== record.key_id || typeof payload.protected_base_sha !== 'string' ||
       !/^[0-9a-f]{40}$/i.test(payload.protected_base_sha as string)) {
     return { ok: false, reason: 'registry ownership binding is invalid', record: null }
   }
+  if (expectedWorkflowMode != null && payload.workflow_mode !== expectedWorkflowMode) return { ok: false, reason: 'registry workflow mode does not match live evidence', record: null }
   const identityChecks: Array<[string, unknown]> = [
     ['parent_issue_number', expectedParentIssue?.number],
     ['task_issue_number', expectedTaskIssue?.number],

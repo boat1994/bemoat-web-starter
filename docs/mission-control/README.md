@@ -7,11 +7,12 @@ reading the entire guide first.
 
 ## What Mission Control is
 
-Mission Control determines the current **verified** project state from GitHub,
-selects **exactly one** permitted next action, routes that action to the correct
-role (Dev, Reviewer, or Founder), records the durable result in GitHub, and
-stops.
+Mission Control operates across two conceptual planes:
 
+- **Coordination / Global MC** (ChatGPT-side controller): Reconstructs verified GitHub state, selects one bounded next action, and routes it. It may execute a sequence of deterministic actions, returning to the Founder only for genuine gates or completion.
+- **Execution MC** (IDE-side orchestrator): Receives one bounded objective, loads repository rules, discovers the applicable public command contract, coordinates Dev/Test/Reviewer work, executes/verifies, and publishes durable state.
+
+Both layers use the same canonical Mission Control policy and GitHub durable state.
 It is **not** the default implementation agent, a perpetual reviewer, or an
 auto-merge system.
 
@@ -53,8 +54,8 @@ rollback and concurrent-write protection.
 Rules that change day-to-day behavior:
 
 - GitHub Issues/PR/CI are authoritative; chat is context only.
-- One bounded Mission Control action (or one state transition) per run.
-- A durable state transition does not by itself require another model run.
+- Deterministic canonical transitions may continue in one controller session without requiring Founder handoff.
+- A durable state transition does not by itself require returning to the Founder unless a gate is reached.
 - Review 2/3 never restart a repository-wide search after a small correction.
 - Minor/Nit cannot block completion.
 - Founder gate remains required for merge.

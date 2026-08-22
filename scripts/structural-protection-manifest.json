@@ -37,8 +37,8 @@
     "algorithm": "sha256",
     "files": [
       { "path": "tests/int/mission-control-adopt-finding.int.spec.ts", "sha256": "f5eed96613295c8c9e90e36fa0cdd218a4ab8c38c7070f23e79bceb2fa81a4eb" },
-      { "path": "tests/int/mission-control-merge-verdict-binding-entrypoint.int.spec.ts", "sha256": "fca0c2a99119861b5a6b4bdd428616b65e4d0a248080ddd39de50fa24e9fa363" },
-      { "path": "tests/int/mission-control-merge.int.spec.ts", "sha256": "e958895579dd01ae6591425aa3948e5745b40c842b884721a50b45fc7f11b7d3" }
+      { "path": "tests/int/mission-control-merge-verdict-binding-entrypoint.int.spec.ts", "sha256": "f4851f9ef3cf3d5b4a094d112a9ac0e778cd13616cc650b3be5bca5aaf1e4922" },
+      { "path": "tests/int/mission-control-merge.int.spec.ts", "sha256": "9bf43d984ebd80c489bed58e0a8b0a10e609c87c3bb8b0c9a4b841cb5df9618a" }
     ]
   }
 }

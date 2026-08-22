@@ -148,6 +148,7 @@ function createHarness(options: Record<string, any> = {}) {
   const deps: Record<string, any> = {
     readManagedIssue: async (issueNumber: number) => structuredClone(issues.get(issueNumber)),
     readPullRequest: async () => structuredClone(pull),
+    readProtectedRef: async () => ({ object: { sha: taskProtectedBaseSha } }),
     readFounderAuthorization: async (_repo: string, issueNumber: number) => {
       operations.push(`authorization:${issueNumber}`)
       return authorization({

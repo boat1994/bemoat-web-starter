@@ -65,6 +65,26 @@ None — not a main issue line
     expect(declarations.declaresMainIssue).toBe(true)
   })
 
+  it('parses the live Task tier Core declaration for optional STANDARD Issues', async () => {
+    const { deriveWorkflowProfile, parseIssueDeclarations } = await loadIssueDeclarations()
+    const declarations = parseIssueDeclarations(`
+Task tier: Core
+Mission Control mode: optional
+Expected profile: STANDARD
+`)
+
+    expect(declarations.taskSize).toBe('core')
+    expect(declarations.missionControlMode).toBe('optional')
+    expect(deriveWorkflowProfile(declarations)).toMatchObject({ name: 'STANDARD' })
+  })
+
+  it('retains the existing task declaration aliases', async () => {
+    const { parseIssueDeclarations } = await loadIssueDeclarations()
+    for (const declaration of ['Task size: Core', 'Tier: Core', 'This is a Core']) {
+      expect(parseIssueDeclarations(declaration).taskSize).toBe('core')
+    }
+  })
+
   it('parseDurableProgress malformed detection and fenced stripping', async () => {
     const { parseDurableProgress } = await loadIssueDeclarations()
     expect(parseDurableProgress('no section')).toEqual({

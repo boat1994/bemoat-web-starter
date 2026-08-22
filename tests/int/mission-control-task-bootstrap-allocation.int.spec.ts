@@ -100,6 +100,16 @@ function provisional(overrides: Record<string, unknown> = {}): Record<string, un
 }
 
 describe('task bootstrap allocation classification', () => {
+  it('allocates the Founder-authorized existing target only when registry ownership is compatible', () => {
+    expect(classifyTaskBootstrapAllocation({
+      request: { requestId: REQUEST.requestId },
+      context: { targetMode: 'planning_no_pr', parentIssue: { number: 380 }, pullRequest: null },
+      existingTaskIssue: { number: 380, body: '' },
+      registryRecords: [],
+      scanned: {},
+    })).toMatchObject({ kind: 'EXISTING_ISSUE', outcome: 'RECOVERED', issue: { number: 380 } })
+  })
+
   it('matches legacy native null TypeErrors and exact messages', async () => {
     const legacy = await loadLegacyAllocation()
     const cases = [

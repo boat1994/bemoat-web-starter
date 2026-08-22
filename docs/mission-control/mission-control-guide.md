@@ -41,9 +41,14 @@ The exact production command contract is [Mission Control command reference](./c
 ## Purpose
 
 Mission Control coordinates bounded work across Dev, Reviewer, and Founder so
-tasks converge within at most three normal review cycles. It reconstructs
-durable GitHub state, performs one permitted action or state transition, writes
-the result, identifies one next action, and stops.
+tasks converge within at most three normal review cycles.
+
+A long-lived controller may execute a sequence of separately bounded canonical objectives in the same controller session when, after each durable result, it fresh-reads GitHub/policy/CLI routing and the next routing decision is deterministic `COMMAND` with no new discretionary human authority.
+
+The controller stops and returns to the Founder only for:
+1. an actual Founder/human decision or authorization;
+2. `STATE_CONFLICT`, `BLOCKED_EXTERNAL`, `CLI_DISCOVERY_DEFECT`, unsupported route, or other fail-closed STOP;
+3. terminal completion.
 
 Mission Control is not an implementation agent and not a perpetual code
 reviewer.
@@ -383,6 +388,7 @@ Use these canonical mappings when that operation is already selected:
 | reconciliation | `bemoat:mission-control:reconcile` |
 | recover-review | `bemoat:mission-control:recover-review` |
 | missing managed-state recovery | `bemoat:mission-control:recover-state` |
+| missing-state review eligibility recovery | `bemoat:mission-control:recover-review-eligibility` |
 | reopen | `bemoat:mission-control:reopen` |
 | adopt-finding | `bemoat:mission-control:adopt-finding` |
 | merge | `bemoat:mission-control:merge` |
@@ -395,6 +401,7 @@ Candidate commands:
 - bemoat:mission-control:reconcile
 - bemoat:mission-control:review
 - bemoat:mission-control:recover-review
+- bemoat:mission-control:recover-review-eligibility
 
 Inspect each applicable candidate with `--help --json`.
 

@@ -12,6 +12,7 @@ import {
   buildNextState,
   sameReopenValue,
 } from '../domain/reopen-state-projection.ts'
+import { validatePostBudgetReviews } from '../domain/task-state-authorization.ts'
 import {
   createResultRendering,
   createRuntimeErrorRendering,
@@ -46,6 +47,9 @@ Supported pre-state and mutation:
   ELIGIBLE_FOR_FOUNDER_REVIEW -> FOUNDER_AUTHORIZED_CORRECTION
   The old head remains last_reviewed_head; the new head becomes unreviewed
   current_head. Counters and original RESULT/REVIEW_VERDICT identities remain.
+  Exactly one valid post-budget Review 4 record is preserved when present;
+  empty post-budget history remains valid. Multiple or ambiguous post-budget
+  histories fail closed.
 
 Classifications:
   REOPENED, NO_OP, STATE_CONFLICT, or BLOCKED_EXTERNAL.
@@ -217,7 +221,7 @@ function assertIssueIdentity(issue, options) {
   }
 }
 
-function assertReviewLineage(state) {
+function assertReviewLineage(state, options) {
   for (const [key, label] of [
     ['latest_result_comment_id', 'original RESULT comment ID'],
     ['latest_review_verdict_comment_id', 'original REVIEW_VERDICT comment ID'],
@@ -226,9 +230,28 @@ function assertReviewLineage(state) {
       throw stateConflict(`${label} is missing from managed Review 1 lineage`)
     }
   }
-  if (state.post_budget_reviews != null &&
-      (!Array.isArray(state.post_budget_reviews) || state.post_budget_reviews.length > 0)) {
+
+  const reviews = state.post_budget_reviews
+  if (reviews == null) return
+  if (!Array.isArray(reviews)) {
     throw stateConflict('reopen transport cannot replace post-budget review lineage')
+  }
+  if (reviews.length === 0) return
+
+  const validated = validatePostBudgetReviews(state)
+  if (validated.valid === false) {
+    throw stateConflict(validated.reason)
+  }
+  if (validated.reviews.length !== 1 || validated.reviews[0].review_number !== 4) {
+    throw stateConflict('reopen transport cannot replace post-budget review lineage')
+  }
+
+  const reviewedHead = normalizeSha(validated.reviews[0].reviewed_head)
+  if (reviewedHead !== normalizeSha(state.last_reviewed_head)) {
+    throw stateConflict('post-budget Review 4 reviewed_head does not match last_reviewed_head')
+  }
+  if (reviewedHead !== normalizeSha(options.expectedOldHead)) {
+    throw stateConflict('post-budget Review 4 reviewed_head does not match the expected old head')
   }
 }
 
@@ -268,7 +291,7 @@ function assertPreState(issue, state, options) {
   if (!Array.isArray(state.open_blockers) || !Array.isArray(state.follow_up_issues)) {
     throw stateConflict('managed blocker and follow-up lineage is incomplete')
   }
-  assertReviewLineage(state)
+  assertReviewLineage(state, options)
 }
 
 function assertPrPreflight(pr, options, expectedHead) {
@@ -339,7 +362,7 @@ function assertPostState(issue, state, pr, evidence, options) {
       !sameReopenValue(authorization.authorization_record, evidence.authorization)) {
     throw stateConflict('post-write Founder authorization record is incomplete or changed')
   }
-  assertReviewLineage(state)
+  assertReviewLineage(state, options)
   assertPrPreflight(pr, options, options.expectedNewHead)
 }
 

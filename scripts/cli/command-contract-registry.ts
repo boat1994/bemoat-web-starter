@@ -147,8 +147,10 @@ function contract({
   last_validation_before_mutation = null,
   post_write_readback = null,
   legacy_classification_map = {},
+  exceptional,
 }: ContractInput): CommandContract {
   const fields = transportFields(command)
+  const isExceptional = exceptional !== undefined ? exceptional : fields.exceptional
   const allInputs = [...required_inputs, ...optional_flags]
   const callerSuppliedValues = [...new Set(
     allInputs
@@ -184,7 +186,7 @@ function contract({
     role_contracts,
     next_action_rules,
     examples,
-    exceptional: fields.exceptional,
+    exceptional: isExceptional,
     transport_role: fields.transport_role,
     parser_owner,
     delegated_executable,
@@ -235,7 +237,7 @@ export interface CommandContract { [key: string]: unknown;
   stop_conditions: string[];
   retry_contract: { identical_retry: 'allowed'|'forbidden'|'conditional', classification: string|null, condition: string };
   role_contracts: Record<string, unknown>;
-  next_action_rules: { classification: string, next_action: NextAction }[];
+  next_action_rules: { classification: string, condition?: string, next_action: NextAction }[];
   examples: { description: string, argv: string[] }[];
   exceptional: boolean;
   transport_role: string|null;

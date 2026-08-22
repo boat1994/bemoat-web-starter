@@ -16,7 +16,10 @@ overrides chat, copied handoffs, local notes, or stale values.
 | `reopen` | Project Founder-authorized PR head drift to `FOUNDER_AUTHORIZED_CORRECTION`. |
 | `adopt-finding` | Append exactly one Founder-authorized finding to the active correction contract while preserving `CORRECTION_REQUIRED_1\|2` and review counters. |
 | `recover-state` | Exceptional recovery for one completely absent managed-state block when immutable evidence uniquely reconstructs the prior canonical state. It cannot repair malformed state, replay review, or invoke finding adoption. |
+| `recover-review-eligibility` | Exceptional recovery for one completely absent managed-state block when one immutable delivery RESULT, exact-head CI, and separate recorded-base/protected-main evidence uniquely reconstruct `AWAITING_REVIEW_1`. A predecessor RESULT is accepted only when the exact bounded structural-inventory correction to the live head is proven. It never publishes a verdict or increments review counters. |
+| `authorize-founder` | Record one immutable Founder task-bootstrap authorization body exactly once, binding the live returned comment ID and body hash through readback. |
 | `merge` | Finalize Founder-authorized merge. Uses the live PR head and an existing Founder JSON authorization comment. |
+| `merge-standard` | Finalize one explicit STANDARD/non-managed Founder-authorized merge. It is disjoint from managed `merge` and never creates or projects managed state. |
 | (none) | Stop and request human review if evidence disagrees, authentication fails, or preconditions mismatch. Never mutate state YAML directly. |
 
 ## Preflight checklist
@@ -33,6 +36,12 @@ a generic comment-repair API.
 - [ ] Active Task Issue has a valid managed state block.
 - [ ] The command's expected state matches the live Issue state.
 - [ ] There are no competing superseding comments blocking this transition.
+
+Managed commands additionally require the shared managed-state and expected-state
+checks. The STANDARD/non-managed merge route replaces only those two preflight
+checks with its disjoint exception: the live Issue must have no managed-state
+markers and must explicitly declare a
+policy-compatible Medium/Core tier with Mission Control optional or not required.
 
 ### Dispatch checks
 - [ ] Read Task Issue state without requiring an existing PR or CI.
@@ -53,6 +62,35 @@ a generic comment-repair API.
 - [ ] Requires an immutable Founder merge authority JSON comment.
 - [ ] Requires the authorized reviewed head to match the live PR head.
 - [ ] Exact-head CI is fully completed and successful.
+
+### STANDARD/non-managed merge checks
+- [ ] The live Issue has no managed-state block and explicit policy-compatible STANDARD declarations.
+- [ ] The live protected `main` ref and merged policy are read live; policy path/version/blob SHA and protected-base commit SHA are bound separately.
+- [ ] Exactly one active, non-superseded canonical `REVIEW_VERDICT` binds the exact Issue/PR/base/head, and its immutable comment ID is bound into Founder authorization and receipt evidence.
+- [ ] Exact-head CI and `CI (starter strict)` are successful, and the PR is open, non-draft, and mergeable.
+- [ ] The merge uses the exact authorized head and authoritative protected-base readback; an uncertain merge outcome is never blindly retried.
+
+Exact syntax:
+
+```text
+pnpm run bemoat:mission-control:merge-standard -- <issue-number> --repo <owner>/<repo> --authorization-comment <role-comment-id>
+```
+
+The STANDARD route reads the Issue, PR, comments, Founder authorization and
+receipt, protected `main`, and merged policy before the first merge mutation.
+It accepts only explicit STANDARD/non-managed eligibility. Managed, ambiguous,
+non-STANDARD, stale, duplicate, competing, superseded, wrong-target, malformed,
+or unavailable evidence fails closed. A successful merge changes only the exact
+authorized PR; the Issue body, managed-state markers, review evidence, and
+unrelated Issues/PRs are not mutated. An already merged exact tuple with
+protected-base readback is `NO_OP_IDENTICAL_RETRY`; an uncertain write stops
+after authoritative readback and never issues a blind retry.
+
+Structurally valid fake example:
+
+```text
+pnpm run bemoat:mission-control:merge-standard -- 379 --repo boat1994/bemoat-web-starter --authorization-comment 10000000000
+```
 
 ## Evidence vocabulary
 
@@ -348,6 +386,25 @@ pnpm run bemoat:mission-control:adopt-finding
 Recovery does not invoke that command automatically, and it is not a general
 replacement for `reconcile` or `recover-review`.
 
+### Review-eligibility recovery
+
+Use the dedicated route only when the managed-state block is wholly absent and
+the exact delivery RESULT/current PR head/CI tuple is uniquely reconstructable:
+
+```text
+pnpm run bemoat:mission-control:recover-review-eligibility -- <issue-number> \\
+  --repo <owner/repo> --expected-pr <number> --expected-base main \\
+  --expected-base-sha <recorded-pr-base-sha> \\
+  --protected-main-sha <current-protected-main-sha> \\
+  --expected-head <full-sha> --expected-branch <branch> \\
+  --result-comment <id> [--check]
+```
+
+The route appends only `AWAITING_REVIEW_1` with counters `0/0`; ordinary
+`review` remains the sole owner of future `REVIEW_VERDICT` publication and
+review-counter mutation. Recorded PR-base drift remains explicit evidence and
+is never normalized.
+
 ## Review
 
 Exact syntax:
@@ -452,11 +509,37 @@ Issue YAML directly. Re-read live evidence and use the one canonical transport
 whose preconditions match; otherwise stop for `STATE_CONFLICT` or
 `BLOCKED_EXTERNAL`.
 
-## Genesis managed-Task bootstrap
+## Managed-Task bootstrap
 
-The starter's one-time genesis transport is an ordinary, human-reviewed
-workflow. It is not a normal agent Issue-creation API and it does not create a
-Task for an Issue or PR supplied by the caller.
+### Immutable Founder authorization recording
+
+For an existing Task Issue whose Founder authorization is not yet durably
+recorded, use the repository-owned transport:
+
+```bash
+pnpm run bemoat:mission-control:authorize-founder -- <issue-number> \
+  --repo boat1994/bemoat-web-starter --json
+```
+
+The command derives the authenticated GitHub actor, Founder allowlist, target
+Issue, protected `main` SHA, and merged policy identity from live GitHub
+evidence. The Founder allowlist comes from the repository Actions variable
+`BEMOAT_FOUNDER_LOGINS`; caller environment values are not trusted. The
+transport serializes concurrent writers with the repository lease protocol,
+posts one final raw JSON `task-bootstrap-existing-v2` body with
+`comment_id: null`, then posts a separate immutable
+`task-bootstrap-existing-receipt-v1` body binding the returned positive comment
+ID to the exact authorization-body SHA-256. Both comments are independently
+read back and verified; neither is edited after creation.
+
+Malformed, conflicting, wrong-scope/action, duplicate, superseded, uncertain,
+or drifted evidence stops fail closed. An exact trusted replay returns
+`NO_OP_IDENTICAL_RETRY`. After `SUCCESS` or `NO_OP_IDENTICAL_RETRY`, bootstrap
+must independently re-read and validate the returned comment ID and live body.
+
+The starter's managed-Task bootstrap is an ordinary, human-reviewed workflow.
+It is not a normal agent Issue-creation API and it never accepts a caller-
+supplied target, PR, head, base, Issue body, or managed state.
 
 The only supported interface is:
 
@@ -474,17 +557,18 @@ environment. The workflow grants `issues: write`; contents, pull requests,
 checks, Actions evidence, statuses, metadata, and the policy source are read
 only.
 
-The caller cannot supply a PR number, head, base, Issue body, managed state,
-policy identity, or Task number. The trusted operation derives the genesis
-tuple from the immutable Founder authorization and live GitHub evidence:
-Issue #262, Draft/Open PR #263, `main`, the approved exact head, protected base,
-merged guide version/blob, and exact-head CI.
+For the historical genesis bundle, the trusted operation preserves the
+interpretable Issue #262 / Draft/Open PR #263 evidence. For a current existing-
+Task bundle, the immutable Founder authorization binds the target Issue and
+`planning_no_pr`; the operation derives the protected `main` base and merged
+policy live, projects `active_pr: null` and `current_head: null`, and never
+invents a PR/head binding.
 
 ## Recovery and verification
 
 Every request has a deterministic identity derived from the repository,
-authorization comment ID and exact body hash, parent, PR/head/base, protected
-base, and policy tuple. A provisional Issue records only that identity and is
+authorization comment ID and exact body hash, authorized target, optional
+PR/head/base, protected base, and policy tuple. A provisional Issue records only that identity and is
 not a managed Task. The same request recovers that exact Issue after an API,
 registry, projection, or readback failure; it never rebinds an existing Task
 or guesses an allocated Issue number.

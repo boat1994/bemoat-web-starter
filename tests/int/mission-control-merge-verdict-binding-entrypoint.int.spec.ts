@@ -157,6 +157,7 @@ function createZeroWriteDeps(options: {
       mergeCommit: options.prState === 'MERGED' ? { oid: mergeCommit } : null,
       body: 'Refs #254',
     }),
+    readProtectedRef: async () => ({ object: { sha: protectedBaseSha } }),
     readFounderAuthorization: async () => {
       operations.push('authorization')
       return {

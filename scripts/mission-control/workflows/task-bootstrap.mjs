@@ -3,6 +3,8 @@ import { parseMissionControlState } from '../domain/task-state.ts'
 import { compareAndSwapIssueBody } from './issue-body-cas.mjs'
 import {
   BOOTSTRAP_CONTRACT,
+  CURRENT_BOOTSTRAP_CONTRACT,
+  EXISTING_TASK_BOOTSTRAP_AUTHORIZATION_BUNDLE,
   parseFounderTaskBootstrapAuthorization,
   validateFounderTaskBootstrapAuthorization,
 } from '../domain/task-bootstrap-authorization.ts'
@@ -101,7 +103,8 @@ function finalTaskBody({ state, attestation }) {
   return renderCanonicalBootstrapTaskBody(state, attestation)
 }
 
-function buildTaskAttestation({ repository, parentIssue, taskIssue, pullRequest, authorization, requestId, workflow, policy, signingKeyId, privateKey, managedStateSha256 = null }) {
+function buildTaskAttestation({ repository, parentIssue, taskIssue, pullRequest, authorization, requestId, workflow, policy, signingKeyId, privateKey, managedStateSha256 = null, protectedBaseSha = BOOTSTRAP_CONTRACT.protectedBaseSha }) {
+  const planning = authorization.authorization?.target_mode === 'planning_no_pr'
   const payload = {
     attestation_schema: TASK_ATTESTATION_SCHEMA,
     operation: TASK_ATTESTATION_OPERATION,
@@ -110,7 +113,7 @@ function buildTaskAttestation({ repository, parentIssue, taskIssue, pullRequest,
     repository: repository.nameWithOwner,
     repository_id: repository.id,
     repository_node_id: repository.node_id,
-    protected_base_sha: BOOTSTRAP_CONTRACT.protectedBaseSha,
+    protected_base_sha: protectedBaseSha,
     founder_login: authorization.authorLogin,
     authorization_comment_id: authorization.commentId,
     authorization_body_sha256: authorization.bodySha256,
@@ -120,11 +123,12 @@ function buildTaskAttestation({ repository, parentIssue, taskIssue, pullRequest,
     task_issue_number: Number(taskIssue.number),
     task_issue_id: taskIssue.id,
     task_issue_node_id: taskIssue.node_id,
-    pr_number: Number(pullRequest.number),
-    pr_id: pullRequest.id,
-    pr_node_id: pullRequest.node_id,
-    base: pullRequest.baseRefName,
-    head: pullRequest.headRefOid,
+    pr_number: planning ? null : Number(pullRequest.number),
+    pr_id: planning ? null : pullRequest.id,
+    pr_node_id: planning ? null : pullRequest.node_id,
+    base: planning ? BOOTSTRAP_CONTRACT.base : pullRequest.baseRefName,
+    head: planning ? null : pullRequest.headRefOid,
+    ...(planning ? { workflow_mode: 'planning_no_pr' } : {}),
     policy_path: policy.path,
     policy_version: policy.version,
     policy_source_commit: policy.sourceCommit,
@@ -141,6 +145,14 @@ function buildTaskAttestation({ repository, parentIssue, taskIssue, pullRequest,
     payload,
     privateKey,
   })
+}
+
+function validateCurrentExistingTaskEvidence({ repository, taskIssue, mainCommit, policy, workflow, authorization }) {
+  if (repository.nameWithOwner !== CURRENT_BOOTSTRAP_CONTRACT.repository) throw blockedExternal('current bootstrap repository is not the protected repository')
+  if (!taskIssue?.number || taskIssue.number !== Number(authorization.authorization.task_issue) || taskIssue.state !== 'OPEN') throw stateConflict('authorized existing Task Issue is not the live open target')
+  if (mainCommit?.sha !== workflow.sha) throw stateConflict('workflow implementation SHA does not match the current protected main ref readback')
+  if (policy.sourceCommit !== mainCommit.sha || policy.path !== CURRENT_BOOTSTRAP_CONTRACT.policySource) throw stateConflict('merged-main policy source is not the current protected policy')
+  if (workflow.file !== CURRENT_BOOTSTRAP_CONTRACT.workflowFile || workflow.ref !== 'refs/heads/main' || !positiveId(workflow.runId)) throw stateConflict('workflow was not loaded from protected main')
 }
 
 function validateGenesisEvidence({ repository, parentIssue, pullRequest, mainCommit, policy, workflow }) {
@@ -301,11 +313,28 @@ export function createTaskBootstrapService({
     let context
     try {
       const liveRepository = await github.getRepository()
-      const parentIssue = await github.getIssue(BOOTSTRAP_CONTRACT.parentIssue)
-      const parentComments = await github.getIssueComments(BOOTSTRAP_CONTRACT.parentIssue)
       const authorizationComment = await github.getIssueComment(Number(founderAuthorizationCommentId))
       const authorization = parseFounderTaskBootstrapAuthorization(authorizationComment.body)
       const founderLogins = await github.getFounderLogins()
+      const current = authorization.bundle_kind === EXISTING_TASK_BOOTSTRAP_AUTHORIZATION_BUNDLE
+      const targetIssueNumber = current ? Number(authorization.task_issue) : BOOTSTRAP_CONTRACT.parentIssue
+      const parentIssue = await github.getIssue(targetIssueNumber)
+      const parentComments = await github.getIssueComments(targetIssueNumber)
+      const mainCommit = await github.getBranchCommit('main')
+      const policy = await github.getPolicy({
+        ref: 'main',
+        path: CURRENT_BOOTSTRAP_CONTRACT.policySource,
+        sourceCommit: current ? mainCommit?.sha : BOOTSTRAP_CONTRACT.protectedBaseSha,
+      })
+      const expected = current ? {
+        ...BOOTSTRAP_CONTRACT,
+        parentIssue: targetIssueNumber,
+        pullRequest: null,
+        head: null,
+        protectedBaseSha: mainCommit?.sha,
+        policySha: policy?.blobSha,
+        policyVersion: policy?.version,
+      } : BOOTSTRAP_CONTRACT
       const validatedAuthorization = validateFounderTaskBootstrapAuthorization({
         authorization,
         authorizationComment,
@@ -313,11 +342,12 @@ export function createTaskBootstrapService({
         repository: liveRepository.nameWithOwner,
         founderLogins,
         parentComments,
+        expected,
+        boundCommentId: founderAuthorizationCommentId,
       })
-      const pullRequest = await github.getPullRequest(BOOTSTRAP_CONTRACT.pullRequest)
-      const mainCommit = await github.getBranchCommit('main')
-      const policy = await github.getPolicy({ ref: 'main', path: BOOTSTRAP_CONTRACT.policySource })
-      validateGenesisEvidence({ repository: liveRepository, parentIssue, pullRequest, mainCommit, policy, workflow })
+      const pullRequest = current ? null : await github.getPullRequest(BOOTSTRAP_CONTRACT.pullRequest)
+      if (current) validateCurrentExistingTaskEvidence({ repository: liveRepository, taskIssue: parentIssue, mainCommit, policy, workflow, authorization: validatedAuthorization })
+      else validateGenesisEvidence({ repository: liveRepository, parentIssue, pullRequest, mainCommit, policy, workflow })
       context = {
         repository: liveRepository,
         parentIssue,
@@ -327,6 +357,8 @@ export function createTaskBootstrapService({
         publicKey,
         signingKeyId,
         authorization: validatedAuthorization,
+        targetMode: current ? 'planning_no_pr' : null,
+        protectedBaseSha: current ? mainCommit.sha : BOOTSTRAP_CONTRACT.protectedBaseSha,
       }
     } catch (error) {
       if (error.code === 'STATE_CONFLICT' || error.code === 'BLOCKED_EXTERNAL') throw error
@@ -337,26 +369,27 @@ export function createTaskBootstrapService({
       repository: context.repository.nameWithOwner,
       authorizationCommentId: context.authorization.commentId,
       authorizationBodySha256: context.authorization.bodySha256,
-      parentIssue: BOOTSTRAP_CONTRACT.parentIssue,
-      pullRequest: BOOTSTRAP_CONTRACT.pullRequest,
-      base: BOOTSTRAP_CONTRACT.base,
-      head: BOOTSTRAP_CONTRACT.head,
-      protectedBaseSha: BOOTSTRAP_CONTRACT.protectedBaseSha,
+      parentIssue: context.parentIssue.number,
+      pullRequest: context.pullRequest?.number ?? null,
+      base: context.pullRequest?.baseRefName ?? BOOTSTRAP_CONTRACT.base,
+      head: context.pullRequest?.headRefOid ?? null,
+      protectedBaseSha: context.protectedBaseSha,
       policyPath: context.policy.path,
       policyVersion: context.policy.version,
       policySha: context.policy.blobSha,
+      targetMode: context.targetMode,
     })
 
     if (check) {
-      return { ok: true, outcome: 'PREFLIGHT_SUCCESS', requestId: request.requestId, issue: { number: null, url: null } }
+      return { ok: true, outcome: 'PREFLIGHT_SUCCESS', requestId: request.requestId, targetMode: context.targetMode, issue: { number: null, url: null } }
     }
 
     let creationLease
     try {
       if (typeof github.acquireCreationLease === 'function') {
-        creationLease = await github.acquireCreationLease({ repository: context.repository.nameWithOwner, requestId: request.requestId })
+        creationLease = await github.acquireCreationLease({ repository: context.repository.nameWithOwner, issueNumber: context.parentIssue.number, requestId: request.requestId })
       } else if (typeof github.acquireIssueLease === 'function') {
-        creationLease = await github.acquireIssueLease({ issueNumber: BOOTSTRAP_CONTRACT.parentIssue, requestId: `creation:${request.requestId}`, scope: 'repository-task-creation' })
+        creationLease = await github.acquireIssueLease({ issueNumber: context.parentIssue.number, requestId: `creation:${request.requestId}`, scope: 'repository-task-creation' })
       } else {
         throw blockedExternal('repository-wide serialized creation lease is unavailable')
       }
@@ -366,10 +399,10 @@ export function createTaskBootstrapService({
         expectedPullRequest: context.pullRequest,
         expectedBase: BOOTSTRAP_CONTRACT.base,
         expectedHead: BOOTSTRAP_CONTRACT.head,
-        expectedProtectedBaseSha: BOOTSTRAP_CONTRACT.protectedBaseSha,
+        expectedProtectedBaseSha: context.protectedBaseSha,
       }
-      const registry = await readRegistryRecords(github, BOOTSTRAP_CONTRACT.parentIssue, publicKey, context.repository.nameWithOwner, signingKeyId, registryEvidence)
-      const scanned = await scanTaskIssues({
+      const registry = await readRegistryRecords(github, context.parentIssue.number, publicKey, context.repository.nameWithOwner, signingKeyId, context.targetMode ? { ...registryEvidence, expectedPullRequest: undefined, expectedHead: undefined } : registryEvidence)
+      const scanned = context.targetMode ? { provisional: null, signed: null } : await scanTaskIssues({
         github,
         request,
         publicKey,
@@ -382,7 +415,7 @@ export function createTaskBootstrapService({
         authorization: context.authorization,
       })
 
-      const allocation = classifyTaskBootstrapAllocation({ request, context, registryRecords: registry.records, scanned })
+      const allocation = classifyTaskBootstrapAllocation({ request, context, registryRecords: registry.records, scanned, existingTaskIssue: context.targetMode ? context.parentIssue : null })
       const existingRegistry = allocation.registry
       let taskIssue = allocation.issue
       const outcome = allocation.outcome
@@ -400,13 +433,28 @@ export function createTaskBootstrapService({
       }
       if (existingRegistry) {
         let existingIssue = taskIssue
-        const provisional = parseProvisionalTaskBody(existingIssue.body ?? '')
         const hasAttestation = String(existingIssue.body ?? '').includes('bemoat-mission-control-task-attestation:v1')
-        if (!hasAttestation && (!provisional.valid || !matchesProvisional(provisional.provisional, { request, context }))) {
-          throw stateConflict('existing parent registry points to an Issue that cannot be recovered without rebinding it')
+        if (context.targetMode) {
+          const existingState = parseMissionControlState(existingIssue.body ?? '')
+          if (existingState.present && (!existingState.valid || existingState.state?.active_task_issue !== `#${existingIssue.number}`)) {
+            throw stateConflict('existing target registry points to a Task projection that cannot be recovered without rebinding it')
+          }
+        } else {
+          const provisional = parseProvisionalTaskBody(existingIssue.body ?? '')
+          if (!hasAttestation && (!provisional.valid || !matchesProvisional(provisional.provisional, { request, context }))) {
+            throw stateConflict('existing parent registry points to an Issue that cannot be recovered without rebinding it')
+          }
         }
       }
       const taskIdentity = issueIdentity(taskIssue)
+
+      if (context.targetMode) {
+        const existingState = parseMissionControlState(taskIssue.body ?? '')
+        const hasAttestation = String(taskIssue.body ?? '').includes('bemoat-mission-control-task-attestation:v1')
+        if (existingState.present && (!existingState.valid || !hasAttestation)) {
+          throw stateConflict('existing target contains partial managed state and cannot be safely initialized')
+        }
+      }
 
       let attestation = null
       let projectedState = null
@@ -426,12 +474,17 @@ export function createTaskBootstrapService({
           policy: context.policy,
           signingKeyId,
           ['privateKey']: signingPrivateKey,
+          protectedBaseSha: context.protectedBaseSha,
         })
         const detachedState = buildInitialTaskState({
           issueNumber: taskIdentity.number,
           requestId: request.requestId,
           attestation: unsignedAttestation,
           now: null,
+          targetMode: context.targetMode,
+          parentIssue: context.parentIssue,
+          base: context.pullRequest?.baseRefName ?? BOOTSTRAP_CONTRACT.base,
+          policy: context.policy,
         })
         const managedStateSha256 = canonicalManagedStateBinding(detachedState)
         attestation = buildTaskAttestation({
@@ -445,6 +498,7 @@ export function createTaskBootstrapService({
           policy: context.policy,
           signingKeyId,
           ['privateKey']: signingPrivateKey,
+          protectedBaseSha: context.protectedBaseSha,
           managedStateSha256,
         })
         projectedState = buildInitialTaskState({
@@ -453,6 +507,10 @@ export function createTaskBootstrapService({
           attestation,
           managedStateSha256,
           now: null,
+          targetMode: context.targetMode,
+          parentIssue: context.parentIssue,
+          base: context.pullRequest?.baseRefName ?? BOOTSTRAP_CONTRACT.base,
+          policy: context.policy,
         })
       }
       if (attestation.payload.request_id !== request.requestId || attestation.payload.task_issue_number !== taskIdentity.number || attestation.payload.task_issue_id !== taskIdentity.id || attestation.payload.task_issue_node_id !== taskIdentity.node_id) {
@@ -465,26 +523,39 @@ export function createTaskBootstrapService({
           requestId: request.requestId,
           parentIssue: context.parentIssue,
           taskIssue: taskIdentity,
-          pullRequest: prIdentity(context.pullRequest),
-          base: BOOTSTRAP_CONTRACT.base,
-          head: BOOTSTRAP_CONTRACT.head,
-          protectedBaseSha: BOOTSTRAP_CONTRACT.protectedBaseSha,
+          pullRequest: context.targetMode ? null : prIdentity(context.pullRequest),
+          base: context.pullRequest?.baseRefName ?? BOOTSTRAP_CONTRACT.base,
+          head: context.pullRequest?.headRefOid ?? null,
+          protectedBaseSha: context.protectedBaseSha,
           attestation,
           signingKeyId,
+          workflowMode: context.targetMode,
         })
         const candidate = createTaskOwnershipRecord({ payload: registryPayload, ['privateKey']: signingPrivateKey, signingKeyId })
-        const refreshedRegistry = await readRegistryRecords(github, BOOTSTRAP_CONTRACT.parentIssue, publicKey, context.repository.nameWithOwner, signingKeyId, registryEvidence)
+        const refreshedRegistry = await readRegistryRecords(github, context.parentIssue.number, publicKey, context.repository.nameWithOwner, signingKeyId, context.targetMode ? { ...registryEvidence, expectedPullRequest: undefined, expectedHead: undefined } : registryEvidence)
         const duplicate = registryForRequest(refreshedRegistry.records, request.requestId)
         if (duplicate) {
           if (duplicate.record.payload.task_issue_number !== taskIdentity.number || duplicate.record.payload.task_issue_id !== taskIdentity.id) throw stateConflict('recovery found a conflicting parent registry owner')
           registryRecord = duplicate.record
         } else {
           try {
-            await github.postIssueComment(BOOTSTRAP_CONTRACT.parentIssue, renderTaskOwnershipRecord(candidate))
+            await github.postIssueComment(context.parentIssue.number, renderTaskOwnershipRecord(candidate))
           } catch (error) {
             throw blockedExternal('parent ownership registry write was ambiguous or unavailable', error)
           }
-          registryRecord = candidate
+          const readback = await readRegistryRecords(
+            github,
+            context.parentIssue.number,
+            publicKey,
+            context.repository.nameWithOwner,
+            signingKeyId,
+            context.targetMode ? { ...registryEvidence, expectedPullRequest: undefined, expectedHead: undefined, expectedRequestId: request.requestId } : { ...registryEvidence, expectedRequestId: request.requestId },
+          )
+          const winner = registryForRequest(readback.records, request.requestId)
+          if (!winner || winner.record.payload.task_issue_number !== taskIdentity.number || winner.record.payload.task_issue_id !== taskIdentity.id || winner.record.payload.task_issue_node_id !== taskIdentity.node_id) {
+            throw blockedExternal('parent ownership registry post-readback did not prove the exact allocated Task')
+          }
+          registryRecord = winner.record
         }
       }
 
@@ -514,16 +585,16 @@ export function createTaskBootstrapService({
         registryRecord,
         expectedBody: expectedFinalBody,
       })
-      return { ok: true, outcome, requestId: request.requestId, issue: verifiedIssue, registry: registryRecord, attestation }
+      return { ok: true, outcome, requestId: request.requestId, targetMode: context.targetMode, issue: verifiedIssue, registry: registryRecord, attestation }
     } catch (error) {
       if (error.code === 'PROJECTION_FAILED' || error.code === 'STATE_CONFLICT' || error.code === 'BLOCKED_EXTERNAL') throw error
       if (isAmbiguous(error)) throw blockedExternal('bootstrap evidence or mutation outcome is ambiguous; retry with the same authorization comment', error)
       throw error
     } finally {
       if (creationLease && typeof github.releaseCreationLease === 'function') {
-        try { await github.releaseCreationLease({ repository: context.repository.nameWithOwner, requestId: request.requestId, lease: creationLease }) } catch { /* next run revalidates durable evidence */ }
+        try { await github.releaseCreationLease({ repository: context.repository.nameWithOwner, issueNumber: context.parentIssue.number, requestId: request.requestId, lease: creationLease }) } catch { /* next run revalidates durable evidence */ }
       } else if (creationLease && typeof github.releaseIssueLease === 'function') {
-        try { await github.releaseIssueLease({ issueNumber: BOOTSTRAP_CONTRACT.parentIssue, requestId: `creation:${request.requestId}`, lease: creationLease }) } catch { /* next run revalidates durable evidence */ }
+        try { await github.releaseIssueLease({ issueNumber: context.parentIssue.number, requestId: `creation:${request.requestId}`, lease: creationLease }) } catch { /* next run revalidates durable evidence */ }
       }
     }
   }

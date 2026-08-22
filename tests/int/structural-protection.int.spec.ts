@@ -7,8 +7,8 @@ const root = resolve(process.cwd())
 const tempRoots: string[] = []
 const oracle = [
   ['tests/int/mission-control-adopt-finding.int.spec.ts', 'f5eed96613295c8c9e90e36fa0cdd218a4ab8c38c7070f23e79bceb2fa81a4eb'],
-  ['tests/int/mission-control-merge-verdict-binding-entrypoint.int.spec.ts', 'fca0c2a99119861b5a6b4bdd428616b65e4d0a248080ddd39de50fa24e9fa363'],
-  ['tests/int/mission-control-merge.int.spec.ts', 'e958895579dd01ae6591425aa3948e5745b40c842b884721a50b45fc7f11b7d3'],
+  ['tests/int/mission-control-merge-verdict-binding-entrypoint.int.spec.ts', 'f4851f9ef3cf3d5b4a094d112a9ac0e778cd13616cc650b3be5bca5aaf1e4922'],
+  ['tests/int/mission-control-merge.int.spec.ts', '9bf43d984ebd80c489bed58e0a8b0a10e609c87c3bb8b0c9a4b841cb5df9618a'],
 ] as const
 const productionExtensions = ['.mjs', '.ts'] as const
 const grandfathered = [
@@ -81,7 +81,7 @@ describe('structural protection guard', () => {
     expect((await guard()).map((entry: { rule: string }) => entry.rule)).toEqual([])
     expect(grandfathered).toHaveLength(25)
     expect(JSON.parse(readFileSync(join(root, 'scripts/structural-protection-manifest.json'), 'utf8'))).toEqual(manifest())
-    expect(scriptInventory(root)).toBe(259)
+    expect(scriptInventory(root)).toBe(273)
   })
 
   it('rejects malformed schema, types, unknown keys, ordering, duplicates, paths, and SHA values', async () => {

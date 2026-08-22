@@ -13,6 +13,7 @@ type Inputs = {
   pr?: Record<string, unknown> | null
   authorization?: Record<string, unknown> | null
   repo?: unknown
+  protectedBaseSha?: unknown
 }
 
 function validInputs(repo = STARTER_REPOSITORY): Required<Inputs> {
@@ -38,6 +39,7 @@ function validInputs(repo = STARTER_REPOSITORY): Required<Inputs> {
       reviewed_head: HEAD,
     },
     repo,
+    protectedBaseSha: PROTECTED_BASE_SHA,
   }
 }
 
@@ -101,19 +103,14 @@ describe('Mission Control merge head bindings', () => {
         reason: 'merged policy source SHA does not match the managed policy evidence',
       },
       {
-        name: 'malformed protected base SHA',
-        input: { ...validInputs(), pr: { ...validInputs().pr, baseRefOid: 'short' } },
-        reason: 'protected base commit SHA does not match the live PR base evidence',
-      },
-      {
-        name: 'null optional protected base SHA',
-        input: { ...validInputs(), pr: { ...validInputs().pr, baseRefOid: null } },
-        reason: 'protected base commit SHA does not match the live PR base evidence',
+        name: 'malformed live protected base SHA',
+        input: { ...validInputs(), protectedBaseSha: 'short' },
+        reason: 'protected base commit SHA does not match the live protected base ref evidence',
       },
       {
         name: 'strict protected base SHA mismatch',
         input: { ...validInputs(), authorization: { ...validInputs().authorization, protected_base_sha: PROTECTED_BASE_SHA.toUpperCase() } },
-        reason: 'protected base commit SHA does not match the live PR base evidence',
+        reason: 'protected base commit SHA does not match the live protected base ref evidence',
       },
       {
         name: 'Founder reviewed-head mismatch',
@@ -144,6 +141,7 @@ describe('Mission Control merge head bindings', () => {
           testCase.input.pr,
           testCase.input.authorization,
           testCase.input.repo,
+          testCase.input.protectedBaseSha,
         ),
       )
       expect(typedResult, testCase.name).toEqual({
@@ -154,7 +152,13 @@ describe('Mission Control merge head bindings', () => {
 
     for (const repo of [STARTER_REPOSITORY, OTHER_REPOSITORY]) {
       const input = validInputs(repo)
-      const typedResult = invoke(() => typed.classifyHeadBindings(input.state, input.pr, input.authorization, input.repo))
+      const typedResult = invoke(() => typed.classifyHeadBindings(input.state, input.pr, input.authorization, input.repo, input.protectedBaseSha))
+      expect(typedResult).toEqual({ kind: 'return', value: { valid: true, reviewedHead: HEAD, reason: null } })
+    }
+
+    for (const historicalBase of ['short', null]) {
+      const input = { ...validInputs(), pr: { ...validInputs().pr, baseRefOid: historicalBase } }
+      const typedResult = invoke(() => typed.classifyHeadBindings(input.state, input.pr, input.authorization, input.repo, input.protectedBaseSha))
       expect(typedResult).toEqual({ kind: 'return', value: { valid: true, reviewedHead: HEAD, reason: null } })
     }
   })
@@ -168,22 +172,22 @@ describe('Mission Control merge head bindings', () => {
     const missingPr: Inputs = { ...validInputs(), pr: undefined }
     const nullPr: Inputs = { ...validInputs(), pr: null }
 
-    expect(invoke(() => typed.classifyHeadBindings(missingState.state, missingState.pr, missingState.authorization, missingState.repo))).toEqual({
+    expect(invoke(() => typed.classifyHeadBindings(missingState.state, missingState.pr, missingState.authorization, missingState.repo, missingState.protectedBaseSha))).toEqual({
       kind: 'return',
       value: { valid: false, reviewedHead: undefined, reason: 'live PR base differs from the managed protected base' },
     })
-    expect(invoke(() => typed.classifyHeadBindings(nullState.state, nullState.pr, nullState.authorization, nullState.repo))).toEqual({
+    expect(invoke(() => typed.classifyHeadBindings(nullState.state, nullState.pr, nullState.authorization, nullState.repo, nullState.protectedBaseSha))).toEqual({
       kind: 'return',
       value: { valid: false, reviewedHead: undefined, reason: 'live PR base differs from the managed protected base' },
     })
     const missingRepo: Inputs = { ...validInputs(), repo: undefined }
-    expect(invoke(() => typed.classifyHeadBindings(missingRepo.state, missingRepo.pr, missingRepo.authorization, missingRepo.repo))).toEqual({
+    expect(invoke(() => typed.classifyHeadBindings(missingRepo.state, missingRepo.pr, missingRepo.authorization, missingRepo.repo, missingRepo.protectedBaseSha))).toEqual({
       kind: 'return',
       value: { valid: true, reviewedHead: HEAD, reason: null },
     })
 
     for (const input of [missingAuthorization, nullAuthorization, missingPr, nullPr]) {
-      expect(invoke(() => typed.classifyHeadBindings(input.state, input.pr, input.authorization, input.repo))).toMatchObject({
+      expect(invoke(() => typed.classifyHeadBindings(input.state, input.pr, input.authorization, input.repo, input.protectedBaseSha))).toMatchObject({
         kind: 'throw',
         value: { name: 'TypeError' },
       })
@@ -195,7 +199,7 @@ describe('Mission Control merge head bindings', () => {
     const input = validInputs()
     const snapshot = structuredClone(input)
     deepFreeze(input)
-    expect(invoke(() => typed.classifyHeadBindings(input.state, input.pr, input.authorization, input.repo))).toEqual({
+    expect(invoke(() => typed.classifyHeadBindings(input.state, input.pr, input.authorization, input.repo, input.protectedBaseSha))).toEqual({
       kind: 'return',
       value: { valid: true, reviewedHead: HEAD, reason: null },
     })
@@ -209,7 +213,7 @@ describe('Mission Control merge head bindings', () => {
         throw getterError
       },
     })
-    expect(invoke(() => typed.classifyHeadBindings(getterInput.state, getterInput.pr, getterInput.authorization, getterInput.repo))).toEqual({
+    expect(invoke(() => typed.classifyHeadBindings(getterInput.state, getterInput.pr, getterInput.authorization, getterInput.repo, getterInput.protectedBaseSha))).toEqual({
       kind: 'throw',
       value: { name: 'Error', message: 'native getter failure' },
     })

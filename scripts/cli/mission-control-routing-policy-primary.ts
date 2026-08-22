@@ -5,11 +5,14 @@ export const ALL_MUTATING_COMMANDS: string[] = [
   'bemoat:hooks:install',
   'bemoat:issue:comment',
   'bemoat:mission-control:adopt-finding',
+  'bemoat:mission-control:authorize-founder',
   'bemoat:mission-control:dispatch',
   'bemoat:mission-control:merge',
+  'bemoat:mission-control:merge-standard',
   'bemoat:mission-control:reconcile',
   'bemoat:mission-control:recover-review',
   'bemoat:mission-control:recover-state',
+  'bemoat:mission-control:recover-review-eligibility',
   'bemoat:mission-control:reopen',
   'bemoat:mission-control:review',
   'bemoat:mission-control:task-bootstrap',
@@ -62,6 +65,18 @@ function route({
 
 export function missionControlPrimaryRoutes() {
   return [
+  route({
+    route_key: 'no-task/founder-authorization-recording',
+    observed_state: null,
+    evidence_case: 'Founder authorization is present in the execution context but no immutable repository-owned comment is durable',
+    required_evidence_condition: 'Authenticated GitHub actor is a trusted Founder and live protected-base/policy/Issue evidence is complete.',
+    forbidden_evidence_condition: 'Caller-supplied identity, placeholder body, comment edit, conflicting comment, or uncertain POST/readback.',
+    permitted_operation: 'Record one final raw JSON Founder authorization body and verify its returned immutable ID/readback.',
+    canonical_command: 'bemoat:mission-control:authorize-founder',
+    required_review_type: null,
+    expected_post_state_or_gate: 'Durable immutable Founder authorization evidence',
+    decision: 'COMMAND',
+  }),
   route({
     route_key: 'no-task/exact-task-bootstrap-founder-authorization-workflow-tuple',
     observed_state: null,
@@ -208,6 +223,18 @@ export function missionControlPrimaryRoutes() {
     decision: 'COMMAND',
   }),
   route({
+    route_key: 'ELIGIBLE_FOR_FOUNDER_REVIEW/exact-merge-authorization-recording',
+    observed_state: 'ELIGIBLE_FOR_FOUNDER_REVIEW',
+    evidence_case: 'exact-merge-authorization-recording',
+    required_evidence_condition: 'A trusted Founder provides authorization for the complete repository/Task/PR/base and reviewed head.',
+    forbidden_evidence_condition: 'Head drift, duplicate authorization, competing authority, or agent invocation.',
+    permitted_operation: 'Record an immutable Founder merge authorization.',
+    canonical_command: 'bemoat:mission-control:authorize-founder',
+    required_review_type: null,
+    expected_post_state_or_gate: 'ELIGIBLE_FOR_FOUNDER_REVIEW with an immutable merge authorization and receipt',
+    decision: 'COMMAND',
+  }),
+  route({
     route_key: 'BLOCKED_FOR_FOUNDER_DECISION/missing-named-authorization',
     observed_state: 'BLOCKED_FOR_FOUNDER_DECISION',
     evidence_case: 'missing-named-authorization',
@@ -235,5 +262,19 @@ export function missionControlPrimaryRoutes() {
     decision: 'FOUNDER_GATE',
     stop_condition: 'Wait for explicit Founder merge or reopen authorization; no agent mutation is permitted.',
   }),
-  ]
+  route({
+    route_key: 'NOT_STATEFUL/standard-non-managed-founder-merge-completion',
+    observed_state: 'NOT_STATEFUL',
+    evidence_case: 'standard-non-managed-founder-merge-completion',
+    required_evidence_condition: 'Merged policy and live Issue declarations prove explicit STANDARD eligibility with no managed-state block; exact Founder authorization, one active exact-target REVIEW_VERDICT, exact-head CI, mergeability, and policy/protected-base identities are complete.',
+    forbidden_evidence_condition: 'Managed, ambiguous, non-STANDARD, stale, duplicate, competing, superseded, mismatched, or malformed evidence.',
+    permitted_operation: 'Merge the exact Founder-authorized non-managed PR head and verify protected-base readback.',
+    canonical_command: 'bemoat:mission-control:merge-standard',
+    required_review_type: null,
+    expected_post_state_or_gate: 'COMPLETE without managed-state mutation',
+    prohibited_commands: ['bemoat:mission-control:merge'],
+    decision: 'COMMAND',
+    stop_condition: 'Stop fail-closed on any managed/ambiguous shape, evidence conflict, head drift, failed CI, unavailable readback, or uncertain merge outcome.',
+  }),
+]
 }

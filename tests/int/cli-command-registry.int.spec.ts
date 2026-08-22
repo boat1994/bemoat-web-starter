@@ -50,13 +50,16 @@ const EXPECTED_PACKAGE_SCRIPTS: Record<string, string> = {
   'bemoat:guard:safety': 'node scripts/guard-pack.mjs',
   'bemoat:hooks:install': 'node scripts/install-git-hooks.mjs',
   'bemoat:issue:comment': 'node scripts/post-role-comment.mjs',
+  'bemoat:mission-control:adopt-finding': 'node scripts/mission-control-adopt-finding.mjs',
+  'bemoat:mission-control:authorize-founder': 'node scripts/mission-control-authorize-founder.mjs',
   'bemoat:mission-control:dispatch': 'node scripts/mission-control-dispatch.mjs',
   'bemoat:mission-control:merge': 'node scripts/mission-control-merge.mjs',
+  'bemoat:mission-control:merge-standard': 'node scripts/mission-control-merge-standard.mjs',
   'bemoat:mission-control:reconcile': 'node scripts/mission-control-reconcile.mjs',
   'bemoat:mission-control:recover-review': 'node scripts/mission-control-recover-review.mjs',
+  'bemoat:mission-control:recover-review-eligibility': 'node scripts/mission-control-recover-review-eligibility.mjs',
   'bemoat:mission-control:recover-state': 'node scripts/mission-control-recover-state.mjs',
   'bemoat:mission-control:reopen': 'node scripts/mission-control-reopen.mjs',
-  'bemoat:mission-control:adopt-finding': 'node scripts/mission-control-adopt-finding.mjs',
   'bemoat:mission-control:review': 'node scripts/mission-control-review.mjs',
   'bemoat:mission-control:task-bootstrap': 'node scripts/mission-control-task-create.mjs',
   'bemoat:test:int': 'cross-env NODE_OPTIONS=--no-deprecation vitest run --config ./vitest.config.mts',
@@ -77,10 +80,13 @@ const EXPECTED_COMMAND_TIERS: Record<string, 'A' | 'B' | 'C'> = {
   'bemoat:guard:safety': 'B',
   'bemoat:hooks:install': 'A',
   'bemoat:issue:comment': 'A',
+  'bemoat:mission-control:authorize-founder': 'A',
   'bemoat:mission-control:dispatch': 'A',
   'bemoat:mission-control:merge': 'A',
+  'bemoat:mission-control:merge-standard': 'A',
   'bemoat:mission-control:reconcile': 'A',
   'bemoat:mission-control:recover-review': 'A',
+  'bemoat:mission-control:recover-review-eligibility': 'A',
   'bemoat:mission-control:recover-state': 'A',
   'bemoat:mission-control:reopen': 'A',
   'bemoat:mission-control:adopt-finding': 'A',
@@ -241,6 +247,9 @@ function expectRegistryValid(
       `expected a valid command registry, received: ${error instanceof Error ? error.message : String(error)}`,
     )
   }
+  if (validationResultIsRejected(result)) {
+    throw new Error(`expected a valid command registry, received: ${JSON.stringify(result, null, 2)}`)
+  }
   expect(validationResultIsRejected(result)).toBe(false)
 }
 
@@ -259,7 +268,7 @@ function expectRegistryRejected(
 }
 
 describe('Task 1 command contract registry', () => {
-  it('classifies the exact 24-command package inventory once', () => {
+  it('classifies the exact 27-command package inventory once', () => {
     const packageCommands = Object.keys(PACKAGE_JSON.scripts)
       .filter((command) => command.startsWith('bemoat:'))
       .sort()
@@ -269,10 +278,10 @@ describe('Task 1 command contract registry', () => {
       .sort()
 
     expect(packageCommands).toEqual(Object.keys(EXPECTED_PACKAGE_SCRIPTS).sort())
-    expect(packageCommands).toHaveLength(24)
+    expect(packageCommands).toHaveLength(27)
     expect(registryCommands).toEqual(packageCommands)
     expect(classifiedCommands).toEqual(packageCommands)
-    expect(new Set(classifiedCommands).size).toBe(24)
+    expect(new Set(classifiedCommands).size).toBe(27)
 
     for (const command of packageCommands) {
       expect(getCommandContract(command)).toBe(COMMAND_CONTRACT_REGISTRY.commands[command])
@@ -280,7 +289,7 @@ describe('Task 1 command contract registry', () => {
     expect(getCommandContract('bemoat:unregistered')).toBeNull()
   })
 
-  it('uses tier totals A=13 B=8 C=3', () => {
+  it('uses tier totals A=15 B=8 C=3', () => {
     const counts = { A: 0, B: 0, C: 0 }
 
     for (const [command, expectedTier] of Object.entries(EXPECTED_COMMAND_TIERS)) {
@@ -289,9 +298,9 @@ describe('Task 1 command contract registry', () => {
       counts[expectedTier] += 1
     }
 
-    expect(counts).toEqual({ A: 13, B: 8, C: 3 })
-    expect(Object.keys(EXPECTED_COMMAND_TIERS)).toHaveLength(24)
-    expect(Object.keys(COMMAND_CONTRACT_REGISTRY.commands)).toHaveLength(24)
+    expect(counts).toEqual({ A: 16, B: 8, C: 3 })
+    expect(Object.keys(EXPECTED_COMMAND_TIERS)).toHaveLength(27)
+    expect(Object.keys(COMMAND_CONTRACT_REGISTRY.commands)).toHaveLength(27)
     expectRegistryValid()
   })
 
@@ -421,7 +430,7 @@ describe('Task 1 command contract registry', () => {
   })
 
   it('matches every canonical transport role and exceptional bit', () => {
-    expect(CANONICAL_TRANSPORTS).toHaveLength(9)
+    expect(CANONICAL_TRANSPORTS).toHaveLength(12)
 
     for (const transport of CANONICAL_TRANSPORTS) {
       const contract = asRecord(getCommandContract(transport.command), transport.command)

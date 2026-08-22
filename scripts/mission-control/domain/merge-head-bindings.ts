@@ -34,6 +34,7 @@ export function classifyHeadBindings(
   pr: PullRequest | null | undefined,
   authorization: FounderAuthorization | null | undefined,
   repo: unknown,
+  protectedBaseSha: unknown,
 ): HeadBindingsClassification {
   const reviewedHead = state?.last_reviewed_head
   if (!state?.approved_base || pr!.baseRefName !== state.approved_base) {
@@ -57,11 +58,11 @@ export function classifyHeadBindings(
       reason: 'merged policy source SHA does not match the managed policy evidence',
     }
   }
-  if (!FULL_SHA_RE.test(String(pr?.baseRefOid)) || authorization!.protected_base_sha !== pr!.baseRefOid) {
+  if (!FULL_SHA_RE.test(String(protectedBaseSha)) || authorization!.protected_base_sha !== protectedBaseSha) {
     return {
       valid: false,
       reviewedHead,
-      reason: 'protected base commit SHA does not match the live PR base evidence',
+      reason: 'protected base commit SHA does not match the live protected base ref evidence',
     }
   }
   if (authorization!.reviewed_head !== reviewedHead) {

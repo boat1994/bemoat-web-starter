@@ -19,6 +19,7 @@ export type MissionControlTransportRole =
   | 'REVIEW_VERDICT'
   | 'STATE_PROJECTION'
   | 'MERGE'
+  | 'FOUNDER_AUTHORIZATION'
 
 export type CanonicalTransportRoute = {
   command: string
@@ -79,6 +80,13 @@ export const CANONICAL_TRANSPORTS: ReadonlyArray<Readonly<CanonicalTransportRout
     exceptional: false,
   }),
   Object.freeze({
+    command: 'bemoat:mission-control:merge-standard',
+    role: 'MERGE',
+    owner: 'Founder-authorized STANDARD Merge Transport',
+    purpose: 'execute one exact Founder-authorized STANDARD/non-managed merge completion without managed-state projection',
+    exceptional: false,
+  }),
+  Object.freeze({
     command: 'bemoat:mission-control:reopen',
     role: 'STATE_PROJECTION',
     owner: 'Founder-authorized Reopen Transport',
@@ -98,6 +106,20 @@ export const CANONICAL_TRANSPORTS: ReadonlyArray<Readonly<CanonicalTransportRout
     owner: 'Missing Managed-State Recovery Transport',
     purpose: 'recreate one uniquely reconstructed absent managed-state projection without review or finding adoption',
     exceptional: true,
+  }),
+  Object.freeze({
+    command: 'bemoat:mission-control:recover-review-eligibility',
+    role: 'STATE_PROJECTION',
+    owner: 'Missing-State Review Eligibility Recovery Transport',
+    purpose: 'recreate one uniquely reconstructed absent-state AWAITING_REVIEW_1 projection without publishing review evidence',
+    exceptional: true,
+  }),
+  Object.freeze({
+    command: 'bemoat:mission-control:authorize-founder',
+    role: 'FOUNDER_AUTHORIZATION',
+    owner: 'Founder Authorization Recording Transport',
+    purpose: 'record one immutable Founder authorization with live ID/readback binding',
+    exceptional: false,
   }),
 ])
 
