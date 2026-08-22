@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "issue": "333",
-  "transition_identity": "{\"exception\":\"one-shot-333-review-verdict-id-normalization\",\"issue\":\"333\",\"from\":\"IC_kwDOS4T8888AAAABPhzgNg\",\"to\":\"5337047094\",\"field\":\"latest_review_verdict_comment_id\"}",
+  "transition_identity": "{\"command\":\"bemoat:mission-control:reopen\",\"issue\":\"333\",\"pr\":\"366\",\"old_head\":\"d3cf0176e07e3ce9c67ab26889742a59281b1f68\",\"new_head\":\"bdfb9454f0a34ab68b8b4805742bc4576737c691\",\"authorization_id\":\"founder-reopen-333-366-d3cf0176e07e3ce9c67ab26889742a59281b1f68-bdfb9454f0a34ab68b8b4805742bc4576737c691-a4d58f4b1d520ffe655d0b0fc7443b4927f70330\"}",
   "observed_body_sha256": "2f17ae7e05e2647446a2aa10c6489642184c1daba7a962755fe6b88a76159401",
-  "holder": "mission-control-one-shot-333-review-verdict-id-normalization",
-  "status": "released",
-  "updated_at": "2026-08-22T07:06:35.852Z"
+  "holder": "mission-control-reopen",
+  "status": "held",
+  "updated_at": "2026-08-22T08:00:32.589Z"
 }
