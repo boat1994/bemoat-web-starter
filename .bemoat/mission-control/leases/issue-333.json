@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "issue": "333",
-  "transition_identity": "{\"taskId\":\"333\",\"phase\":\"Delta Review\",\"role\":\"REVIEW_VERDICT\",\"contentHash\":\"5427b729301128051845bb9f55f042cc1a8fcb84127276247c573180e74e46f7\"}",
+  "transition_identity": "{\"exception\":\"one-shot-333-review-verdict-id-normalization\",\"issue\":\"333\",\"from\":\"IC_kwDOS4T8888AAAABPhzgNg\",\"to\":\"5337047094\",\"field\":\"latest_review_verdict_comment_id\"}",
   "observed_body_sha256": "c16f14476be197a43c906677792554ffdea4d577259a0aef1e0bc7744886280b",
-  "holder": "mission-control-reconcile",
-  "status": "released",
-  "updated_at": "2026-08-21T19:52:15.384Z"
+  "holder": "mission-control-one-shot-333-review-verdict-id-normalization",
+  "status": "held",
+  "updated_at": "2026-08-22T07:06:30.584Z"
 }
