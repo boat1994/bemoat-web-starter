@@ -123,7 +123,6 @@ export const managedPaths = [
   'docs/mission-control/modules/checklists.md', 'docs/mission-control/modules/templates-examples.md',
   'docs/mission-control/modules/troubleshooting.md', 'docs/mission-control/modules/migration-guidance.md',
   'docs/mission-control/modules/child-sync-operations.md',
-  'tests/int/github-comment-identity.int.spec.ts',
 ]
 
 export const seedOnlyPaths = [
