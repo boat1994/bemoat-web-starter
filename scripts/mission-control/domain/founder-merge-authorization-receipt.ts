@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { resolveParentIssueIdentity } from './github-comment-identity.ts'
 
 export const FOUNDER_MERGE_AUTHORIZATION_RECEIPT_FORMAT = 'merge-authorization-receipt-v1'
 
@@ -70,5 +71,6 @@ export function validateFounderMergeAuthorizationReceipt({ authorizationComment,
   assertImmutableCommentSnapshot(receipt, 'authorization receipt')
   try { parseFounderMergeAuthorizationReceipt(String(property(receipt, 'body') ?? '')) } catch { receiptError('authorization receipt is malformed') }
   if (String(property(receipt, 'body') ?? '') !== expectedBody) receiptError('authorization receipt does not bind the exact authorization ID and body hash')
-  if (!/^\d+$/.test(String(property(receipt, 'id') ?? '')) || author(receipt) !== founderLogin || String(property(receipt, 'issue_number') ?? '') !== String(issueNumber)) receiptError('authorization receipt identity is invalid')
+  const receiptIssueNumber = resolveParentIssueIdentity(receipt as { issue_number?: unknown; issue_url?: unknown }, repository)
+  if (!/^\d+$/.test(String(property(receipt, 'id') ?? '')) || author(receipt) !== founderLogin || String(receiptIssueNumber ?? '') !== String(issueNumber)) receiptError('authorization receipt identity is invalid')
 }
