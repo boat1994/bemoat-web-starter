@@ -58,71 +58,77 @@ function stubGhAndGit(
   writeFileSync(ghJs, `import { appendFileSync, readFileSync, writeFileSync, existsSync } from 'node:fs'
 const fixture = JSON.parse(readFileSync(${JSON.stringify(fixture)}, 'utf8'))
 const args = process.argv.slice(2)
-appendFileSync(${JSON.stringify(callsFile)}, 'gh ' + args.join(' ') + '\\n')
-if (args[0] === 'pr' && args[1] === 'view') {
-  if (args.includes('baseRepository')) {
-    console.error('Unknown JSON field: baseRepository')
-    process.exit(1)
-  }
-  process.stdout.write(JSON.stringify(fixture.prData))
-  process.exit(0)
-}
-if (args[0] === 'repo' && args[1] === 'view') {
-  process.stdout.write(fixture.repo)
-  process.exit(0)
-}
-if (args[0] === 'issue' && args[1] === 'view') {
-  if (existsSync(fixture.editedBody)) {
-    process.stdout.write(JSON.stringify({ body: readFileSync(fixture.editedBody, 'utf8') }))
-  } else {
-    process.stdout.write(JSON.stringify(fixture.issueData))
-  }
-  process.exit(0)
-}
-if (args[0] === 'issue' && args[1] === 'edit') {
-  if (fixture.failEdit) {
-    console.error('Simulated GitHub API error')
-    process.exit(1)
-  }
-  const bodyFile = args[args.indexOf('--body-file') + 1]
-  writeFileSync(fixture.editedBody, readFileSync(bodyFile, 'utf8'))
-  process.exit(0)
-}
-if (args[0] === 'api') {
-  if (args.includes('--paginate')) {
-    const comments = JSON.parse(readFileSync(fixture.commentsStore, 'utf8'))
-    const commentReads = fixture.commentReads || 0
-    fixture.commentReads = commentReads + 1
-    writeFileSync(${JSON.stringify(fixture)}, JSON.stringify(fixture))
-    const readback = fixture.finalReadbackDrift && commentReads >= 2
-      ? comments.map(comment => ({ ...comment, body: comment.body + '\\nTampered after projection' }))
-      : comments
-    process.stdout.write(JSON.stringify(readback))
-    process.exit(0)
-  }
-  if (args.includes('POST')) {
-    if (fixture.failPost) {
-      console.error('Simulated comment POST timeout')
+
+async function main() {
+  appendFileSync(${JSON.stringify(callsFile)}, 'gh ' + args.join(' ') + '\\n')
+  if (args[0] === 'pr' && args[1] === 'view') {
+    if (args.includes('baseRepository')) {
+      console.error('Unknown JSON field: baseRepository')
       process.exit(1)
     }
-    const input = args[args.indexOf('--input') + 1]
-    const payload = JSON.parse(readFileSync(input, 'utf8'))
-    const comments = JSON.parse(readFileSync(fixture.commentsStore, 'utf8'))
-    const posted = {
-      id: 9000 + comments.length,
-      body: payload.body,
-      user: { login: 'boat1994' },
-      author_association: 'OWNER',
-      html_url: 'https://github.com/acme/repo/issues/154#issuecomment-' + (9000 + comments.length),
-      created_at: '2026-07-29T00:00:00Z',
+    process.stdout.write(JSON.stringify(fixture.prData))
+    return
+  }
+  if (args[0] === 'repo' && args[1] === 'view') {
+    process.stdout.write(fixture.repo)
+    return
+  }
+  if (args[0] === 'issue' && args[1] === 'view') {
+    if (existsSync(fixture.editedBody)) {
+      process.stdout.write(JSON.stringify({ body: readFileSync(fixture.editedBody, 'utf8') }))
+    } else {
+      process.stdout.write(JSON.stringify(fixture.issueData))
     }
-    comments.push(posted)
-    writeFileSync(fixture.commentsStore, JSON.stringify(comments))
-    process.stdout.write(JSON.stringify(posted))
-    process.exit(0)
+    return
+  }
+  if (args[0] === 'issue' && args[1] === 'edit') {
+    if (fixture.failEdit) {
+      console.error('Simulated GitHub API error')
+      process.exit(1)
+    }
+    const bodyFile = args[args.indexOf('--body-file') + 1]
+    writeFileSync(fixture.editedBody, readFileSync(bodyFile, 'utf8'))
+    return
+  }
+  if (args[0] === 'api') {
+    if (args.includes('--paginate')) {
+      const comments = JSON.parse(readFileSync(fixture.commentsStore, 'utf8'))
+      const commentReads = fixture.commentReads || 0
+      fixture.commentReads = commentReads + 1
+      writeFileSync(${JSON.stringify(fixture)}, JSON.stringify(fixture))
+      const readback = fixture.finalReadbackDrift && commentReads >= 2
+        ? comments.map(comment => ({ ...comment, body: comment.body + '\\nTampered after projection' }))
+        : comments
+      const out = JSON.stringify(readback)
+      process.stdout.write(out, () => {
+        process.exit(0)
+      })
+      return
+    }
+    if (args.includes('POST')) {
+      if (fixture.failPost) {
+        console.error('Simulated comment POST timeout')
+        process.exit(1)
+      }
+      const input = args[args.indexOf('--input') + 1]
+      const payload = JSON.parse(readFileSync(input, 'utf8'))
+      const comments = JSON.parse(readFileSync(fixture.commentsStore, 'utf8'))
+      const posted = {
+        id: 9000 + comments.length,
+        body: payload.body,
+        user: { login: 'boat1994' },
+        author_association: 'OWNER',
+        html_url: 'https://github.com/acme/repo/issues/154#issuecomment-' + (9000 + comments.length),
+        created_at: '2026-07-29T00:00:00Z',
+      }
+      comments.push(posted)
+      writeFileSync(fixture.commentsStore, JSON.stringify(comments))
+      process.stdout.write(JSON.stringify(posted))
+      return
+    }
   }
 }
-process.exit(0)
+main()
 `)
 
   const ghExec = join(directory, 'gh')
@@ -775,4 +781,29 @@ describe('bemoat:agent:delivery', () => {
     expect(JSON.parse(readFileSync(stub.commentsStore, 'utf8'))).toHaveLength(1)
     expect(readFileSync(stub.editedBody, 'utf8')).toContain(`latest_result_comment_id: "${resultCommentId}"`)
   }, 10000)
+
+  it('handles comment payloads materially larger than 1 MiB without ENOBUFS (Issue #401)', async () => {
+    const { writeFileSync: write } = await import('node:fs')
+    const prData = {
+      headRefOid: 'abc1234',
+      headRefName: 'main',
+      baseRefName: 'main',
+      statusCheckRollup: [{ conclusion: 'SUCCESS', targetUrl: 'https://ci/abc1234' }],
+    }
+    const stub = stubGhAndGit(prData, { body: validIssueBody }, 'abc1234 refs/heads/main', 'main', 'abc1234')
+
+    const largeComment = {
+      id: 9999,
+      body: 'A'.repeat(1024 * 1024 * 2), // 2 MB to explicitly exceed the old 1 MB default
+      user: { login: 'boat1994' },
+      author_association: 'OWNER',
+      html_url: 'https://github.com/acme/repo/issues/154#issuecomment-9999',
+      created_at: '2026-07-29T00:00:00Z',
+    }
+    write(stub.commentsStore, JSON.stringify([largeComment]))
+
+    const result = run(['154'], { input: validResultBody, env: { PATH: stub.PATH } })
+    expect(result.status, result.stderr || result.stdout).toBe(0)
+    expect(result.stdout).toContain('SUCCESS: Delivery reconciliation successful')
+  }, 30000)
 })

@@ -22,8 +22,10 @@ import {
 const COMMAND = 'bemoat:agent:delivery'
 const ENTRYPOINT = 'scripts/agent-delivery.mjs'
 
+const GH_JSON_READ_BUFFER = 100 * 1024 * 1024 // 100 MB
+
 function run(command, args, options = {}) {
-  const result = spawnSync(command, args, { encoding: 'utf8', ...options })
+  const result = spawnSync(command, args, { encoding: 'utf8', maxBuffer: GH_JSON_READ_BUFFER, ...options })
   if (result.error || result.status !== 0) {
     throw new Error(`Command failed: ${command} ${args.join(' ')}\n${result.stderr || result.stdout || result.error?.message}`)
   }
@@ -31,7 +33,7 @@ function run(command, args, options = {}) {
 }
 
 function tryRun(command, args, options = {}) {
-  return spawnSync(command, args, { encoding: 'utf8', input: options.input, env: options.env, ...options })
+  return spawnSync(command, args, { encoding: 'utf8', input: options.input, env: options.env, maxBuffer: GH_JSON_READ_BUFFER, ...options })
 }
 
 function resolveDeliveryCommand() {
