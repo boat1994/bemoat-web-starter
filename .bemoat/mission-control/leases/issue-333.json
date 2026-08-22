@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "issue": "333",
-  "transition_identity": "{\"command\":\"bemoat:mission-control:reopen\",\"issue\":\"333\",\"pr\":\"366\",\"old_head\":\"d3cf0176e07e3ce9c67ab26889742a59281b1f68\",\"new_head\":\"bdfb9454f0a34ab68b8b4805742bc4576737c691\",\"authorization_id\":\"founder-reopen-333-366-d3cf0176e07e3ce9c67ab26889742a59281b1f68-bdfb9454f0a34ab68b8b4805742bc4576737c691-a4d58f4b1d520ffe655d0b0fc7443b4927f70330\"}",
+  "transition_identity": "{\"taskId\":\"333\",\"phase\":\"Delta Review\",\"role\":\"REVIEW_VERDICT\",\"contentHash\":\"5427b729301128051845bb9f55f042cc1a8fcb84127276247c573180e74e46f7\"}",
   "observed_body_sha256": "fd9ea91f6ccfbbf56e396aa3a5c1ed2115fad3c57c4599585d48a9d6eb731eb2",
-  "holder": "mission-control-reopen",
-  "status": "released",
-  "updated_at": "2026-08-22T08:00:36.769Z"
+  "holder": "mission-control-dispatch",
+  "status": "held",
+  "updated_at": "2026-08-22T08:06:32.904Z"
 }
