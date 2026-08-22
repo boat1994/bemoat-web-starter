@@ -262,9 +262,12 @@ export function parseMissionControlState(body: string = '') {
 
   const founderCorrection = state.founder_correction_authorization
   if (state.state === 'FOUNDER_AUTHORIZED_CORRECTION') {
-    if (hasPostBudgetReviews || (state.review_cycle !== 1 && state.review_cycle !== 3) || state.full_review_count !== 1 ||
+    if ((state.review_cycle !== 1 && state.review_cycle !== 3) || state.full_review_count !== 1 ||
         typeof state.active_pr !== 'string' || typeof state.current_head !== 'string') {
       return { present: true, valid: false, reason: 'Founder-authorized correction requires active PR and normal counters at 1/1 or 3/1' }
+    }
+    if (hasPostBudgetReviews && (postBudget.reviews.length !== 1 || postBudget.reviews[0].review_number !== 4)) {
+      return { present: true, valid: false, reason: 'Founder-authorized correction cannot replace post-budget review lineage' }
     }
     const authorization = validateFounderCorrectionAuthorization(founderCorrection, state, 'authorized', state.review_cycle)
     if (!authorization.valid) return { present: true, valid: false, reason: authorization.reason }
