@@ -5,6 +5,7 @@ import { join, resolve } from 'node:path'
 
 import { afterEach, describe, it, expect } from 'vitest'
 import { parseMissionControlState, renderMissionControlState } from '../../scripts/mission-control/domain/task-state.ts'
+import { classifyPostBudgetReview4ReopenCorrection } from '../../scripts/mission-control/domain/task-state-authorization.ts'
 import * as missionControlStateModule from '../../scripts/mission-control/domain/task-state.ts'
 import {
   analyzeProgressTracking,
@@ -1482,6 +1483,87 @@ describe('Issue #399 post-Review 4 reopen correction route', () => {
       }),
     })
     expect(reviewedParsed.state?.next_permitted_action).toMatch(/Founder merge/i)
+  })
+
+  it('rejects incomplete reopen discriminators that omit action, bundle_kind, or a cycle field', () => {
+    const incomplete: Array<Record<string, unknown>> = [
+      { bundle_kind: undefined },
+      { action: 'authorize-correction' },
+      { review_cycle: 2 },
+      { for_review_number: 2 },
+    ]
+    for (const override of incomplete) {
+      const state = authorizedReopenState({
+        founder_correction_authorization: reopenAuthorization(override),
+      })
+      expect(classifyPostBudgetReview4ReopenCorrection(state)).toEqual({ ok: false })
+    }
+
+    const dispatchedIncomplete = authorizedReopenState({
+      state: 'IN_PROGRESS',
+      founder_correction_authorization: reopenAuthorization({
+        status: 'consumed',
+        bundle_kind: undefined,
+        handoff_comment_id: '5379172102',
+        handoff_binding: {
+          schema_version: 1,
+          content_sha256: 'a'.repeat(64),
+          binding_sha256: 'b'.repeat(64),
+        },
+      }),
+    })
+    expect(parseRendered(dispatchedIncomplete)).toMatchObject({
+      valid: false,
+      reason: expect.stringContaining('does not authorize a correction transition'),
+    })
+  })
+
+  it('rejects a second Delta Review after the reopen route is already delta_reviewed', () => {
+    const delivered = authorizedReopenState({
+      state: 'AWAITING_REVIEW_3',
+      founder_correction_authorization: reopenAuthorization({
+        status: 'consumed',
+        correction_deliveries: 1,
+        reviewed_head: CORRECTION_HEAD,
+        handoff_comment_id: '5379172102',
+        handoff_binding: {
+          schema_version: 1,
+          content_sha256: 'a'.repeat(64),
+          binding_sha256: 'b'.repeat(64),
+        },
+      }),
+    })
+    const firstDelta = {
+      verdict: 'ELIGIBLE FOR FOUNDER REVIEW',
+      reviewType: 'delta',
+      reviewedHead: CORRECTION_HEAD,
+      findings: FINDING_IDS.map((finding_id) => ({ finding_id, disposition: 'resolved' })),
+      updatedAt: '2026-08-22T08:20:00.000Z',
+      updatedBy: 'Reviewer',
+    }
+    const reviewed = projectReviewVerdictState({
+      ...firstDelta,
+      prior: delivered,
+      commentId: '5390000001',
+      transitionIdentity: JSON.stringify({
+        taskId: '399',
+        phase: 'Delta Review',
+        role: 'REVIEW_VERDICT',
+        contentHash: 'a'.repeat(64),
+      }),
+    })
+    expect(reviewed.founder_correction_authorization).toMatchObject({ delta_review_count: 1 })
+    expect(() => projectReviewVerdictState({
+      ...firstDelta,
+      prior: reviewed,
+      commentId: '5390000002',
+      transitionIdentity: JSON.stringify({
+        taskId: '399',
+        phase: 'Delta Review',
+        role: 'REVIEW_VERDICT',
+        contentHash: 'b'.repeat(64),
+      }),
+    })).toThrow(/exactly one Delta Review/i)
   })
 
   it('still rejects ordinary post-budget IN_PROGRESS when Review 4 is already EFFR', () => {

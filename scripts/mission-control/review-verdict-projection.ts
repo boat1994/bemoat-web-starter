@@ -113,7 +113,10 @@ export function projectReviewVerdictState({
     updated_by: updatedBy,
   }
   const reopen = classifyPostBudgetReview4ReopenCorrection(prior)
-  if (reopen.ok && reopen.phase === 'delivered' && typedReviewType === 'delta') {
+  if (reopen.ok && typedReviewType === 'delta') {
+    if (reopen.phase !== 'delivered') {
+      throw new Error('STATE_CONFLICT: post-Review 4 reopen correction allows exactly one Delta Review')
+    }
     projected.founder_correction_authorization = {
       ...structuredClone(reopen.authorization),
       delta_review_count: 1,

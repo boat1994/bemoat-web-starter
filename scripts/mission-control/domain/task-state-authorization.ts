@@ -180,10 +180,10 @@ function isReopenCorrectionContract(authorization: unknown): authorization is Js
       authorization.scope !== 'correction') {
     return false
   }
-  if (authorization.action !== 'reopen' && authorization.bundle_kind !== 'founder-reopen') {
+  if (authorization.action !== 'reopen' || authorization.bundle_kind !== 'founder-reopen') {
     return false
   }
-  if (authorization.for_review_number !== 3 && authorization.review_cycle !== 3) return false
+  if (authorization.for_review_number !== 3 || authorization.review_cycle !== 3) return false
   if (authorization.delta_review_requirement !== true) return false
   if (authorization.required_next_review !== 'Delta Review') return false
   if (authorization.maximum_correction_deliveries !== 1) return false
