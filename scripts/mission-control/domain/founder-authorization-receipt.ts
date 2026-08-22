@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { resolveParentIssueIdentity } from './github-comment-identity.ts'
 
 export const FOUNDER_AUTHORIZATION_RECEIPT_FORMAT = 'task-bootstrap-existing-receipt-v1'
 
@@ -67,5 +68,6 @@ export function validateFounderAuthorizationReceipt({ authorizationComment, pare
   assertImmutableCommentSnapshot(receipt, 'authorization receipt')
   try { parseFounderAuthorizationReceipt(String(property(receipt, 'body') ?? '')) } catch { receiptError('authorization receipt is malformed') }
   if (String(property(receipt, 'body') ?? '') !== expectedBody) receiptError('authorization receipt does not bind the exact authorization ID and body hash')
-  if (!/^\d+$/.test(String(property(receipt, 'id') ?? '')) || author(receipt) !== founderLogin || String(property(receipt, 'issue_number') ?? '') !== String(issueNumber)) receiptError('authorization receipt identity is invalid')
+  const receiptIssueNumber = resolveParentIssueIdentity(receipt as { issue_number?: unknown; issue_url?: unknown })
+  if (!/^\d+$/.test(String(property(receipt, 'id') ?? '')) || author(receipt) !== founderLogin || String(receiptIssueNumber ?? '') !== String(issueNumber)) receiptError('authorization receipt identity is invalid')
 }
