@@ -3,6 +3,10 @@ import {
   normalizeAuthorityBase,
   normalizeAuthorityHead,
 } from './review-verdict-binding.mjs'
+import {
+  classifyPostBudgetReview4ReopenCorrection,
+  isPostBudgetReview4ReopenCorrectionContract,
+} from './domain/task-state-authorization.ts'
 export { proposeReviewReconciliation } from './review-verdict-projection.ts'
 
 const PRE_DELIVERY_STATES = new Set(['READY', 'IN_PROGRESS', 'CORRECTION_REQUIRED_1', 'CORRECTION_REQUIRED_2'])
@@ -265,6 +269,41 @@ export function proposeDeliveryReconciliation(evidence) {
 
   const managedState = evidence.managedState
   const correctionAuthorization = managedState?.founder_correction_authorization
+  if (isPostBudgetReview4ReopenCorrectionContract(managedState)) {
+    const reopen = classifyPostBudgetReview4ReopenCorrection(managedState)
+    if (reopen.ok && reopen.phase === 'delivered' && exactHeadMatches(managedState.current_head, head)) {
+      return {
+        ...structuredClone(managedState),
+        current_head: head,
+        updated_at: updatedAt,
+        updated_by: updatedBy,
+      }
+    }
+    if (!reopen.ok || reopen.phase !== 'dispatched') {
+      const error = new Error('STATE_CONFLICT: post-Review 4 reopen correction allows exactly one delivery')
+      error.classification = 'STATE_CONFLICT'
+      throw error
+    }
+    return {
+      ...structuredClone(managedState),
+      state: 'AWAITING_REVIEW_3',
+      review_cycle: 3,
+      full_review_count: 1,
+      approved_base: approvedBase,
+      active_task_issue: evidence.activeTaskIssue ? `#${evidence.activeTaskIssue}` : managedState.active_task_issue,
+      active_pr: `#${prNumber}`,
+      current_head: head,
+      last_reviewed_head: managedState.last_reviewed_head,
+      founder_correction_authorization: {
+        ...structuredClone(reopen.authorization),
+        correction_deliveries: 1,
+      },
+      next_permitted_action: `Reviewer performs bounded Delta Review on PR #${prNumber} at exact head ${head}.`,
+      material_change_status: 'none',
+      updated_at: updatedAt,
+      updated_by: updatedBy,
+    }
+  }
   if (managedState?.state === 'IN_PROGRESS' && managedState.review_cycle === 3 &&
       managedState.full_review_count === 1 && correctionAuthorization?.status === 'consumed' &&
       correctionAuthorization?.for_review_number === 3) {
