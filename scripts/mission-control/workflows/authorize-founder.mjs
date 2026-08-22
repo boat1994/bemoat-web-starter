@@ -168,16 +168,9 @@ export async function main(argv = process.argv.slice(2)) {
       const trustedContext = await readTrustedContext()
       result = await recordFounderMergeAuthorization({
         context: trustedContext.context,
-        readComments: async () => {
-          const pages = JSON.parse(runGh(['api', '--paginate', '--slurp', `repos/${repository}/issues/${issueNumber}/comments?per_page=100`]))
-          return pages.flat()
-        },
-        postComment: async (number, body) => {
-          return JSON.parse(runGh(['api', '-X', 'POST', `repos/${repository}/issues/${number}/comments`, '-f', `body=${body}`]))
-        },
-        readComment: async (id) => {
-          return JSON.parse(runGh(['api', `repos/${repository}/issues/comments/${id}`]))
-        },
+        readComments: () => github.getIssueComments(issueNumber),
+        postComment: (number, body) => github.postIssueComment(number, body),
+        readComment: (id) => github.getIssueComment(id),
         readContext: async () => (await readTrustedContext()).context,
         acquireLease: (request) => github.acquireIssueLease({ ...request, scope: 'founder-merge-authorization-recording' }),
         releaseLease: (request) => github.releaseIssueLease({ ...request, scope: 'founder-merge-authorization-recording' }),

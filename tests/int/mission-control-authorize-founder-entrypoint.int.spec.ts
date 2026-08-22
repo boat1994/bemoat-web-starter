@@ -42,7 +42,7 @@ describe('authorize-founder workflow', () => {
   })
 
   it('non-managed happy path uses the canonical valid REVIEW_VERDICT representation', async () => {
-    let postedBody = ''
+    const recordedComments: Array<Record<string, unknown>> = []
     const runGhMock = vi.mocked(mergeGithub.defaultRunGh)
     runGhMock.mockImplementation((args: string[]) => {
       const argsStr = args.join(' ')
@@ -54,12 +54,6 @@ describe('authorize-founder workflow', () => {
       }
       if (argsStr.includes('pr view 101 --repo boat1994/bemoat-web-starter')) {
         return JSON.stringify({ number: 101, state: 'OPEN', baseRefName: 'main', headRefOid: '1111111111111111111111111111111111111111' })
-      }
-      if (args[0] === 'api' && args[1] === '-X' && args[2] === 'POST' && args[3] === 'repos/boat1994/bemoat-web-starter/issues/100/comments') {
-        const fIndex = args.indexOf('-f')
-        const bodyArg = args[fIndex + 1]
-        postedBody = bodyArg.replace(/^body=/, '')
-        return JSON.stringify({ id: 999, body: postedBody, user: { login: 'boat1994' }, issue_number: 100 })
       }
       if (argsStr.includes('api --paginate --slurp repos/boat1994/bemoat-web-starter/issues/100/comments?per_page=100')) {
         return JSON.stringify([[
@@ -74,9 +68,6 @@ describe('authorize-founder workflow', () => {
       }
       if (argsStr.includes('repos/boat1994/bemoat-web-starter/actions/variables/BEMOAT_FOUNDER_LOGINS')) {
         return JSON.stringify({ value: 'boat1994' })
-      }
-      if (argsStr.includes('api repos/boat1994/bemoat-web-starter/issues/comments/999')) {
-        return JSON.stringify({ id: 999, body: postedBody, user: { login: 'boat1994' }, issue_number: 100 })
       }
       return '{}'
     })
@@ -94,6 +85,20 @@ describe('authorize-founder workflow', () => {
         sourceCommit: '3333333333333333333333333333333333333333',
         content: 'canonical_repository: boat1994/bemoat-web-starter\nMission Control mode: required\n| Medium/Core | STANDARD |',
       }),
+      getIssueComments: vi.fn(async () => recordedComments),
+      postIssueComment: vi.fn(async (issueNumber: number, body: string) => {
+        const comment = {
+          id: 999 + recordedComments.length,
+          body,
+          user: { login: 'boat1994' },
+          issue_number: issueNumber,
+          created_at: '2026-08-22T00:00:00Z',
+          updated_at: '2026-08-22T00:00:00Z',
+        }
+        recordedComments.push(comment)
+        return comment
+      }),
+      getIssueComment: vi.fn(async (id: string | number) => recordedComments.find((comment) => String(comment.id) === String(id))),
     }
     vi.mocked(taskBootstrapGithub.createTaskBootstrapGithubAdapter).mockReturnValue(adapterMock as any)
 
@@ -102,6 +107,10 @@ describe('authorize-founder workflow', () => {
     expect(stdoutData).toContain('"classification":"SUCCESS"')
     expect(stdoutData).toContain('bemoat:mission-control:merge-standard')
     expect(process.exitCode).toBe(0)
+    expect(adapterMock.getIssueComments).toHaveBeenCalled()
+    expect(adapterMock.postIssueComment).toHaveBeenCalled()
+    expect(adapterMock.getIssueComment).toHaveBeenCalled()
+    expect(runGhMock.mock.calls.some((args) => args[0]?.includes('-X') && args[0]?.includes('POST'))).toBe(false)
   })
 
   it('fails closed for non-managed path with base@sha negative coverage', async () => {
