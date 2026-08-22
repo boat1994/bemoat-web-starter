@@ -1,4 +1,5 @@
 import { normalizeAuthorityHead } from './review-verdict-binding.mjs'
+import { classifyPostBudgetReview4ReopenCorrection } from './domain/task-state-authorization.ts'
 
 export type CoreVerdict =
   | 'CORRECTION REQUIRED'
@@ -100,7 +101,7 @@ export function projectReviewVerdictState({
     typedVerdict === 'CORRECTION REQUIRED' || typedVerdict === 'BLOCKED FOR FOUNDER DECISION'
   const blockerIds = projectsContractBlockers ? immutableFindings : []
 
-  return {
+  const projected: Record<string, unknown> = {
     ...structuredClone(prior),
     ...proposal,
     current_head: exactReviewedHead,
@@ -111,6 +112,18 @@ export function projectReviewVerdictState({
     updated_at: updatedAt,
     updated_by: updatedBy,
   }
+  const reopen = classifyPostBudgetReview4ReopenCorrection(prior)
+  if (reopen.ok && typedReviewType === 'delta') {
+    if (reopen.phase !== 'delivered') {
+      throw new Error('STATE_CONFLICT: post-Review 4 reopen correction allows exactly one Delta Review')
+    }
+    projected.founder_correction_authorization = {
+      ...structuredClone(reopen.authorization),
+      delta_review_count: 1,
+      delta_review_comment_id: String(commentId),
+    }
+  }
+  return projected
 }
 
 export function proposeReviewReconciliation(input: ReviewReconciliationInput): ReviewReconciliation {

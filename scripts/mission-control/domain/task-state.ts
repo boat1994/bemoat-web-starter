@@ -1,13 +1,10 @@
 import yaml from 'yaml'
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 import {
-  validateBoundCorrectionAuthorization,
+  classifyPostBudgetReview4ReopenCorrection,
   validateFounderCorrectionAuthorization,
   validateObsoleteIssue155LegacyFields,
+  validatePostBudgetManagedState,
   validatePostBudgetReviews,
   validatePreReviewFounderDecisionGate,
 } from './task-state-authorization.ts'
@@ -223,42 +220,9 @@ export function parseMissionControlState(body: string = '') {
   if (state.review_cycle > 0 && typeof state.last_reviewed_head !== 'string') {
     return { present: true, valid: false, reason: 'reviewed cycles require last_reviewed_head' }
   }
-  if (hasPostBudgetReviews) {
-    const latestPostBudgetReview = postBudget.reviews.at(-1)!
-    if (state.review_cycle !== 3 || state.full_review_count !== 1) {
-      return { present: true, valid: false, reason: 'post-budget history must preserve the normal review budget counters at 3/1' }
-    }
-    if (state.last_reviewed_head !== latestPostBudgetReview.reviewed_head) {
-      return { present: true, valid: false, reason: 'last_reviewed_head must match the latest completed post-budget review' }
-    }
-    if (state.state === 'IN_PROGRESS') {
-      if (typeof latestPostBudgetReview.verdict !== 'string' ||
-          !['CORRECTION REQUIRED', 'BLOCKED FOR FOUNDER DECISION'].includes(latestPostBudgetReview.verdict)) {
-        return { present: true, valid: false, reason: 'post-budget verdict does not authorize a correction transition' }
-      }
-      const reviewEightCorrection = isRecord(state.founder_review_8_correction_authorization)
-        ? state.founder_review_8_correction_authorization
-        : null
-      const correctionAuthorization = latestPostBudgetReview.review_number === 8 && reviewEightCorrection
-        ? {
-            valid: reviewEightCorrection.status === 'consumed' &&
-              reviewEightCorrection.authority === 'Founder' &&
-              reviewEightCorrection.scope === 'correction' &&
-              reviewEightCorrection.for_review_number === 8 &&
-              reviewEightCorrection.reviewed_head === latestPostBudgetReview.reviewed_head &&
-              Array.isArray(reviewEightCorrection.finding_ids) &&
-              reviewEightCorrection.finding_ids.length > 0,
-            reason: 'Review 8 correction authorization must bind the latest completed review',
-          }
-        : validateBoundCorrectionAuthorization(state.founder_decision, latestPostBudgetReview)
-      if (!correctionAuthorization.valid) {
-        return { present: true, valid: false, reason: correctionAuthorization.reason }
-      }
-      if (typeof state.active_pr !== 'string' || typeof state.current_head !== 'string') {
-        return { present: true, valid: false, reason: 'post-budget correction requires active_pr and current_head' }
-      }
-    }
-  }
+  const reopenCorrection = classifyPostBudgetReview4ReopenCorrection(state)
+  const postBudgetState = validatePostBudgetManagedState(state, postBudget.reviews)
+  if (postBudgetState.valid === false) return { present: true, valid: false, reason: postBudgetState.reason }
 
   const founderCorrection = state.founder_correction_authorization
   if (state.state === 'FOUNDER_AUTHORIZED_CORRECTION') {
@@ -289,7 +253,11 @@ export function parseMissionControlState(body: string = '') {
     CORRECTION_REQUIRED_2: 2,
     AWAITING_REVIEW_3: 2,
   }
-  if (Object.hasOwn(expectedCycles, state.state) && state.review_cycle !== expectedCycles[state.state as keyof typeof expectedCycles]) {
+  const awaitingReopenDelta = reopenCorrection.ok && reopenCorrection.phase === 'delivered' &&
+    state.state === 'AWAITING_REVIEW_3'
+  if (Object.hasOwn(expectedCycles, state.state) &&
+      state.review_cycle !== expectedCycles[state.state as keyof typeof expectedCycles] &&
+      !awaitingReopenDelta) {
     return { present: true, valid: false, reason: 'state and review_cycle are inconsistent' }
   }
   const expectedFullReviewCounts = {
