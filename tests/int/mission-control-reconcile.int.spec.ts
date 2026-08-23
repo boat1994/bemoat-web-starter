@@ -2867,6 +2867,18 @@ describe('Task 2 current RESULT authorization correction', () => {
     ], 'RESULT', { taskId: '333', prNumber: '366', base: 'main', headSha: CURRENT_HEAD })).toBeNull()
   })
 
+  it('ignores stale or superseded current RESULT evidence before tuple selection', () => {
+    const currentBody = resultBody({ phase: 'Dev (synchronization)', head: CURRENT_HEAD })
+    const binding = { taskId: '333', prNumber: '366', base: 'main', headSha: CURRENT_HEAD }
+
+    expect(findLatestRoleComment([
+      { id: 'stale', body: `${currentBody}\n[superseded] not authoritative`, createdAt: '2026-08-23T14:00:00Z' },
+    ], 'RESULT', binding)).toBeNull()
+    expect(findLatestRoleComment([
+      { id: 'stale', body: `${currentBody}\nnot authoritative`, createdAt: '2026-08-23T14:00:00Z' },
+    ], 'RESULT', binding)).toBeNull()
+  })
+
   it('keeps duplicate current-bound RESULT comments as STATE_CONFLICT', async () => {
     const currentBody = resultBody({ phase: 'Dev (synchronization)', head: CURRENT_HEAD })
     const { identity, options } = buildTransitionMatchOptions({

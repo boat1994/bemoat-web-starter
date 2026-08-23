@@ -169,6 +169,72 @@ function managedState(overrides: Record<string, string> = {}) {
     .join('\n')}\n<!-- bemoat-mission-control-state:end -->`
 }
 
+function deliveredReview3State(): Record<string, unknown> {
+  const historicalHead = '3'.repeat(40)
+  const currentHead = '2'.repeat(40)
+  return {
+    schema_version: 1,
+    state: 'AWAITING_REVIEW_3',
+    review_cycle: 3,
+    full_review_count: 1,
+    approved_base: 'main',
+    active_task_issue: '#333',
+    active_pr: '#366',
+    current_head: currentHead,
+    last_reviewed_head: historicalHead,
+    post_budget_reviews: [{
+      review_number: 4,
+      reviewed_head: historicalHead,
+      verdict: 'ELIGIBLE FOR FOUNDER REVIEW',
+      authorization: {
+        status: 'approved', authority: 'Founder', scope: 'review', review_number: 4,
+        reviewed_head: historicalHead, action: 'Authorize bounded Review 4', authorized_at: '2026-08-19T09:29:00Z',
+      },
+      finding_dispositions: [{ finding_id: 'MC-R1-001', disposition: 'resolved' }],
+    }],
+    founder_correction_authorization: {
+      schema_version: 2,
+      authorization_id: 'founder-333-review-3',
+      status: 'consumed', authority: 'Founder', scope: 'correction', action: 'reopen', bundle_kind: 'founder-reopen',
+      for_review_number: 3, review_cycle: 3, reviewed_head: historicalHead, exact_head: historicalHead,
+      old_reviewed_head: historicalHead, protected_base_sha: 'a4d58f4b1d520ffe655d0b0fc7443b4927f70330',
+      original_result_comment_id: '5331236209',
+      authorization_record: {
+        exact_head: historicalHead, reviewed_head: historicalHead, old_reviewed_head: historicalHead,
+        protected_base_sha: 'a4d58f4b1d520ffe655d0b0fc7443b4927f70330',
+      },
+      finding_ids: ['MC-R1-001'], authorized_at: '2026-08-19T09:30:00Z', handoff_comment_id: '5379968710',
+      handoff_binding: { schema_version: 1, content_sha256: 'a'.repeat(64), binding_sha256: 'b'.repeat(64) },
+      delta_review_requirement: true, required_next_review: 'Delta Review', maximum_correction_deliveries: 1,
+      correction_deliveries: 1, delta_review_count: 0,
+    },
+    guide_version: '1.3.0', guide_source_ref: 'main', guide_source_sha: null as string | null,
+    open_blockers: [] as string[], finding_lineage: [{ finding_id: 'MC-R1-001', disposition: 'resolved' }], follow_up_issues: [] as string[],
+    next_permitted_action: 'Reviewer performs bounded Delta Review.', material_change_status: 'none',
+    updated_at: '2026-08-23T00:00:00Z', updated_by: 'Mission Control',
+  }
+}
+
+function runDeliveredReview3Analysis(comments: Array<Record<string, string>>) {
+  const root = createRepo('feature/408-current-result-authorization')
+  const commentsPayload = JSON.stringify({ comments }).replace(/'/g, `'"'"'`)
+  return analyzeProgressTracking({
+    cwd: root,
+    activeIssueNumber: '333',
+    activeIssueBody: `Mission Control mode: required\n${renderMissionControlState(deliveredReview3State())}`,
+    env: {
+      ...process.env,
+      PATH: withStubbedGh(root, `#!/usr/bin/env sh
+case "$*" in
+  *"issue view 333"*"comments"*) printf '%s' '${commentsPayload}' ;;
+  *"pr view 366"*) printf '%s' '{"title":"PR","url":"https://github.com/boat1994/bemoat-web-starter/pull/366","headRefName":"feature/408","baseRefName":"main","headRefOid":"2222222222222222222222222222222222222222","state":"OPEN","statusCheckRollup":[],"commits":[]}' ;;
+  *) echo "unexpected gh call: $*" >&2; exit 1 ;;
+esac
+`),
+    },
+  })
+}
+
 function issue243State(baselineSha: string, overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     schema_version: 1,
@@ -2266,6 +2332,21 @@ esac
     expect(analysis.blockers.filter((blocker: string) => blocker.includes('STATE_CONFLICT'))).toHaveLength(0)
     expect(analysis.report.reconciliation?.proposal?.type).toBe('delivery')
     expect(analysis.warnings.join(' ')).toContain('Deterministic delivery reconciliation available')
+  })
+
+  it.each([
+    ['no current RESULT', []],
+    ['duplicate current RESULT', [
+      { body: '## RESULT\n\n**Task / Issue:** #333\n**State:** base `main` · head `2222222222222222222222222222222222222222`\n**PR:** https://github.com/boat1994/bemoat-web-starter/pull/366\n**Summary:** one', createdAt: '2026-08-23T12:00:00Z' },
+      { body: '## RESULT\n\n**Task / Issue:** #333\n**State:** base `main` · head `2222222222222222222222222222222222222222`\n**PR:** https://github.com/boat1994/bemoat-web-starter/pull/366\n**Summary:** two', createdAt: '2026-08-23T12:01:00Z' },
+    ]],
+    ['stale-only current RESULT', [
+      { body: '## RESULT\n\n[superseded] not authoritative\n\n**Task / Issue:** #333\n**State:** base `main` · head `2222222222222222222222222222222222222222`\n**PR:** https://github.com/boat1994/bemoat-web-starter/pull/366', createdAt: '2026-08-23T12:00:00Z' },
+    ]],
+  ])('fails closed without throwing for %s in the deferred Review 3 preflight path', (_name, comments) => {
+    let analysis: any
+    expect(() => { analysis = runDeliveredReview3Analysis(comments) }).not.toThrow()
+    expect(analysis.blockers.join(' ')).toContain('STATE_MIGRATION_REQUIRED')
   })
 
   it('blocks when RESULT PR provenance does not match the live Active PR', () => {

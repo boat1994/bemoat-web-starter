@@ -292,7 +292,7 @@ export function analyzeProgressTracking({
       blockers.push('STATE_CONFLICT: state active_pr does not match the declared Active PR.')
     }
   }
-  if (stateNeedsPrEvidence && (!state.active_pr || !state.current_head)) {
+  if (stateNeedsPrEvidence && (!state?.active_pr || !state?.current_head)) {
     blockers.push('STATE_MIGRATION_REQUIRED: review or eligibility state requires active_pr and current_head.')
   }
   if (activePrRef) {

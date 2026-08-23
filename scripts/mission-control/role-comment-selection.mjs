@@ -1,4 +1,4 @@
-import { normalizeAuthorityBase, parseRoleCommentBody } from './review-verdict-binding.mjs'
+import { normalizeAuthorityBase, parseRoleCommentBody, selectActiveRoleComments } from './review-verdict-binding.mjs'
 import { normalizeTransitionIdentity } from './transition-identity.mjs'
 
 /**
@@ -9,7 +9,7 @@ import { normalizeTransitionIdentity } from './transition-identity.mjs'
  * @param {{ taskId?: string|number, prNumber?: string|number, base?: string, headSha?: string }=} binding
  */
 export function findLatestRoleComment(comments = [], role, binding = null) {
-  let matches = comments
+  let matches = selectActiveRoleComments(comments, role)
     .map((comment) => ({ comment, parsed: parseRoleCommentBody(comment.body ?? '') }))
     .filter((entry) => entry.parsed.role === role)
   if (binding) {
