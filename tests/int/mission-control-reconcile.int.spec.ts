@@ -2697,3 +2697,87 @@ describe('Issue #255 atomic role-transition regressions', () => {
     expect(state).not.toHaveProperty('state', 'PLANNING')
   })
 })
+
+describe('canonical RESULT current-transition selection', () => {
+  const CURRENT_HEAD = '2'.repeat(40)
+  const HISTORICAL_HEAD_ONE = '3'.repeat(40)
+  const HISTORICAL_HEAD_TWO = '4'.repeat(40)
+
+  function resultBody({ phase, head, pr = '366', summary = 'RESULT evidence' }: {
+    phase: string
+    head: string
+    pr?: string
+    summary?: string
+  }) {
+    return `## RESULT
+
+### Task log
+- Timestamp: 2026-08-23T12:00:00Z
+- Task / Issue: #333
+- Phase: ${phase}
+- Executing role: Dev / Builder
+
+**State:** branch \`refactor/333-wave-2-pure-domain\` · base \`main\` · head \`${head}\`
+**PR:** https://github.com/boat1994/bemoat-web-starter/pull/${pr}
+**Summary:** ${summary}
+`
+  }
+
+  it('ignores historical RESULT comments when resolving a new bound current delivery', async () => {
+    const currentBody = resultBody({ phase: 'Dev (synchronization)', head: CURRENT_HEAD })
+    const comments = [
+      { id: 'historical-one', body: resultBody({ phase: 'Dev (implementation)', head: HISTORICAL_HEAD_ONE }) },
+      { id: 'historical-two', body: resultBody({ phase: 'Dev (correction)', head: HISTORICAL_HEAD_TWO, pr: '339' }) },
+    ]
+    const { identity, options } = buildTransitionMatchOptions({
+      roleBody: currentBody,
+      role: 'RESULT',
+      verifiedBase: 'main',
+      verifiedHead: CURRENT_HEAD,
+    })
+    let postCount = 0
+
+    const result = await resolveRoleComment({
+      roleBody: currentBody,
+      role: 'RESULT',
+      identity,
+      options,
+      listComments: async () => comments,
+      postComment: async (body: string) => {
+        postCount += 1
+        return { id: 'current-result', body }
+      },
+    })
+
+    expect(result).toMatchObject({ created: true, comment: { id: 'current-result' } })
+    expect(postCount).toBe(1)
+  })
+
+  it('fails closed when multiple RESULT comments share current task/PR/base/head evidence', async () => {
+    const currentBody = resultBody({ phase: 'Dev (synchronization)', head: CURRENT_HEAD })
+    const competingBody = resultBody({
+      phase: 'Dev (synchronization)',
+      head: CURRENT_HEAD,
+      summary: 'competing current RESULT evidence',
+    })
+    const comments = [
+      { id: 'current-one', body: currentBody },
+      { id: 'current-two', body: competingBody },
+    ]
+    const { identity, options } = buildTransitionMatchOptions({
+      roleBody: currentBody,
+      role: 'RESULT',
+      verifiedBase: 'main',
+      verifiedHead: CURRENT_HEAD,
+    })
+
+    await expect(resolveRoleComment({
+      roleBody: currentBody,
+      role: 'RESULT',
+      identity,
+      options,
+      listComments: async () => comments,
+      postComment: async () => { throw new Error('competing current RESULT must not post') },
+    })).rejects.toThrow(/STATE_CONFLICT: competing role comments/)
+  })
+})
