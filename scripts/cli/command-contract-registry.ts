@@ -268,6 +268,29 @@ export interface RouteRow { [key: string]: unknown;
 
 
 const commands: Record<string, CommandContract> = {
+  'bemoat:context': contract({
+    command: 'bemoat:context',
+    tier: 'B',
+    entrypoint: 'scripts/agent-context.mjs',
+    purpose: 'Reconstruct deterministic bounded task context without mutation.',
+    operation: 'Read and normalize live GitHub and local Git evidence, then compute one pure route.',
+    required_inputs: [positional('issue_number', '<issue-number>', 'positive_integer', 'Issue number to reconstruct.')],
+    optional_flags: [flag('json', '--json', 'boolean', 'Emit deterministic machine-readable context output.')],
+    required_evidence: ['Canonical repository identity and live protected-base SHA.', 'Canonical policy path, version, and source/blob identity.', 'Issue objective, scope, acceptance criteria, dependencies, and durable comments.', 'Local branch, HEAD, upstream, origin identity, cleanliness, and push durability.', 'Unique active PR, exact head, CI/check, review, and applicable protection evidence when present.'],
+    reads: ['local Git refs, status, branch, upstream, and origin identity', 'GitHub repository, protected base, policy, Issue, comments, PR, checks, reviews, and protection'],
+    writes: [],
+    success_classifications: ['SUCCESS'],
+    next_action_rules: [
+      { classification: 'SUCCESS', next_action: nextAction('COMPLETE', null, 'The context was reconstructed without mutation.') },
+      { classification: 'BLOCKED_EXTERNAL', next_action: nextAction('STOP', null, 'Required external evidence is unavailable.') },
+      { classification: 'EVIDENCE_CONFLICT', next_action: nextAction('STOP', null, 'Required evidence is contradictory or ambiguous.') },
+    ],
+    stop_conditions: ['Stop fail-closed when required evidence is missing, unavailable, contradictory, or ambiguous.', 'Stop with LOCAL_STATE_NOT_DURABLE-style evidence when required local work is dirty, detached, unpushed, or local-only.'],
+    examples: [{ description: 'Reconstruct Issue context as JSON.', argv: ['410', '--json'] }],
+    parser_owner: 'scripts/agent-context.mjs',
+    safe_help_invocation: 'pnpm run bemoat:context -- --help --json',
+  }),
+
   'bemoat:agent:delivery': contract({
     command: 'bemoat:agent:delivery',
     tier: 'A',
