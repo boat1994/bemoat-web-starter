@@ -34,6 +34,28 @@ describe('GitHub Comment Projection', () => {
     expect(projected[0].body).toBe('<p>Fallback html</p>')
   })
 
+  it('derives the numeric issue comment id from the canonical URL when GraphQL id is nonnumeric', () => {
+    const projected = projectComments([{
+      id: 'IC_kwDOS4T8888AAAABQO4KUw',
+      databaseId: null,
+      body: '## RESULT\n\nlive result',
+      url: 'https://github.com/boat1994/bemoat-web-starter/issues/333#issuecomment-5384309331',
+    }]) as ProjectedComment[]
+
+    expect(projected[0].id).toBe('5384309331')
+  })
+
+  it('preserves a synthetic nonnumeric id when no numeric comment URL exists', () => {
+    const projected = projectComments([{
+      id: 'synthetic-result',
+      databaseId: null,
+      body: '## RESULT\n\nsynthetic result',
+      url: 'https://example.test/synthetic-result',
+    }]) as ProjectedComment[]
+
+    expect(projected[0].id).toBe('synthetic-result')
+  })
+
   it('preserves inline finding lineage metadata', () => {
     const raw = [{
       id: '3',

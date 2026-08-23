@@ -38,6 +38,14 @@ function hasApprovedOrDeliveryRoleBody(body, role) {
   return false
 }
 
+function projectCommentId(rawComment) {
+  const candidate = rawComment.id || rawComment.databaseId || rawComment.node_id
+  if (/^\d+$/.test(String(candidate ?? '').trim())) return candidate
+  const urlId = String(rawComment.url || rawComment.html_url || '')
+    .match(/(?:issuecomment-|comments\/)(\d+)(?:$|[/?#])/i)?.[1]
+  return urlId ?? candidate
+}
+
 /**
  * Select authoritative role comments using approval/delivery and supersession
  * semantics instead of timestamp-only comparison.
@@ -130,7 +138,7 @@ export function projectComments(comments = []) {
     }
 
     const projected = {
-      id: rawComment.id || rawComment.node_id,
+      id: projectCommentId(rawComment),
       url: rawComment.url,
       author: rawComment.author?.login || rawComment.user?.login || 'unknown',
       body: projectedBody

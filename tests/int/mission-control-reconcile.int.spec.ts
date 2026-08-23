@@ -7,6 +7,7 @@ import * as coordinatorTransitions from '../../scripts/mission-control/coordinat
 import { parseMissionControlState, renderMissionControlState } from '../../scripts/mission-control/domain/task-state.ts'
 import * as reviewVerdictProjectionFacade from '../../scripts/mission-control/review-verdict-projection.ts'
 import { getPostBudgetReviewEvidenceBlockers } from '../../scripts/mission-control/review-verdict-binding.mjs'
+import { projectComments } from '../../scripts/mission-control/diagnostics/github-comment-projection.mjs'
 
 // Shared .mjs scripts expose runtime behavior, not TypeScript declarations. Keep
 // the strict-project boundary explicit without changing the production API.
@@ -2969,6 +2970,25 @@ describe('Task 2 current RESULT authorization correction', () => {
       current_head: CURRENT_HEAD,
       latest_result_comment_id: currentResult.comment.id,
       latest_transition_identity: JSON.stringify(normalizeTransitionIdentity(currentResult.comment.body, { role: 'RESULT' })),
+    })
+  })
+
+  it('accepts the live GraphQL-shaped current RESULT after projection derives its numeric URL id', () => {
+    const [projectedComment] = projectComments([{
+      id: 'IC_kwDOS4T8888AAAABQO4KUw',
+      databaseId: null,
+      body: resultBody({ phase: 'Dev (synchronization)', head: CURRENT_HEAD }),
+      url: 'https://github.com/boat1994/bemoat-web-starter/issues/333#issuecomment-5384309331',
+    }])
+    const currentResult = {
+      comment: projectedComment,
+      parsed: parseRoleCommentBody(projectedComment.body),
+    }
+
+    expect(projectedComment.id).toBe('5384309331')
+    expect(validateDeliveredReopen(currentResult)).toMatchObject({
+      latest_result_comment_id: '5384309331',
+      current_head: CURRENT_HEAD,
     })
   })
 
