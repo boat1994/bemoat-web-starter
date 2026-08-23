@@ -439,13 +439,17 @@ See https://github.com/boat1994/bemoat-web-starter/pull/999
     expect(() => resolveMergeReviewVerdictBinding(duplicateCanonical)).toThrow(/STATE_CONFLICT/i)
   })
 
-  it('fails closed for repeated identical pull URL evidence', async () => {
+  it('accepts repeated identical pull URL evidence pointing to the same PR', async () => {
     const { resolveMergeReviewVerdictBinding } = await mergeTransport()
     const repeatedUrl = `${historicalFieldBody()}
 See https://github.com/boat1994/bemoat-web-starter/pull/${historicalPr}
 See https://github.com/boat1994/bemoat-web-starter/pull/${historicalPr}
 `
-    expect(() => resolveMergeReviewVerdictBinding(repeatedUrl)).toThrow(/STATE_CONFLICT.*PR/i)
+    expect(resolveMergeReviewVerdictBinding(repeatedUrl)).toMatchObject({
+      pr: String(historicalPr),
+      base: historicalBase,
+      reviewed_head: historicalHead,
+    })
   })
 
   it('fails closed when canonical base branch identity embeds a protected-base SHA (incident 5311615655)', async () => {
@@ -670,13 +674,6 @@ ${historicalHead}
     {
       name: 'exact omitted case: malformed canonical then malformed historical',
       body: `${malformedCanonicalBody({ canonicalFirst: true })}**PR:** PR #999 trailing
-`,
-    },
-    {
-      name: 'repeated identical pull URL evidence',
-      body: `${historicalFieldBody()}
-See https://github.com/boat1994/bemoat-web-starter/pull/${historicalPr}
-See https://github.com/boat1994/bemoat-web-starter/pull/${historicalPr}
 `,
     },
     {
