@@ -55,6 +55,61 @@ describe('GitHub Comment Projection', () => {
     expect(projected[0].id).toBe(5384309331)
   })
 
+  it('keeps later historical canonical RESULT tuples available to tuple-bound selection', () => {
+    const currentHead = '2'.repeat(40)
+    const historicalHead = '3'.repeat(40)
+    const resultBody = (pr: string, head: string, summary: string) => [
+      '## RESULT', '', '**Task / Issue:** #333',
+      `**State:** base \`main\` · head \`${head}\``,
+      `**PR:** https://github.com/boat1994/bemoat-web-starter/pull/${pr}`,
+      `**Summary:** ${summary}`,
+    ].join('\n')
+    const raw = [
+      { id: 'current', body: resultBody('366', currentHead, 'current'), createdAt: '2026-08-23T12:00:00Z' },
+      { id: 'historical', body: resultBody('365', historicalHead, 'historical'), createdAt: '2026-08-23T13:00:00Z' },
+    ]
+
+    const projected = projectComments(raw) as ProjectedComment[]
+    const selected = findLatestRoleComment(projected, 'RESULT', {
+      taskId: '333', prNumber: '366', base: 'main', headSha: currentHead,
+    })
+
+    expect(projected.map((comment) => comment.body)).toEqual(raw.map((comment) => comment.body))
+    expect(selected?.comment.id).toBe('current')
+  })
+
+  it('keeps duplicate current canonical RESULTs visible so tuple selection fails closed', () => {
+    const currentHead = '2'.repeat(40)
+    const resultBody = (summary: string) => [
+      '## RESULT', '', '**Task / Issue:** #333',
+      `**State:** base \`main\` · head \`${currentHead}\``,
+      '**PR:** https://github.com/boat1994/bemoat-web-starter/pull/366',
+      `**Summary:** ${summary}`,
+    ].join('\n')
+    const raw = [
+      { id: 'current-one', body: resultBody('one'), createdAt: '2026-08-23T12:00:00Z' },
+      { id: 'current-two', body: resultBody('two'), createdAt: '2026-08-23T13:00:00Z' },
+    ]
+
+    const projected = projectComments(raw) as ProjectedComment[]
+
+    expect(projected.map((comment) => comment.body)).toEqual(raw.map((comment) => comment.body))
+    expect(findLatestRoleComment(projected, 'RESULT', {
+      taskId: '333', prNumber: '366', base: 'main', headSha: currentHead,
+    })).toBeNull()
+  })
+
+  it('rejects contradictory positive numeric comment identities', () => {
+    const projected = projectComments([{
+      id: 'IC_kwDOS4T8888AAAABQO4KUw',
+      databaseId: 5384309331,
+      body: '## RESULT\n\ncontradictory identity',
+      url: 'https://github.com/boat1994/bemoat-web-starter/issues/333#issuecomment-5384309332',
+    }]) as ProjectedComment[]
+
+    expect(projected[0].id).toBeNull()
+  })
+
   it('preserves a synthetic nonnumeric id when no numeric comment URL exists', () => {
     const projected = projectComments([{
       id: 'synthetic-result',

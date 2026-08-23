@@ -5,6 +5,7 @@ import {
   isExplicitlyNonAuthoritativeRoleBody,
   selectActiveRoleComments,
 } from '../../mission-control-reconcile.mjs'
+import { normalizeTransitionIdentity } from '../../mission-control/transition-identity.mjs'
 
 function getCommentBody(comment) {
   return comment.body || comment.body_html || ''
@@ -38,14 +39,28 @@ function hasApprovedOrDeliveryRoleBody(body, role) {
   return false
 }
 
+function isBindableResultBody(body) {
+  const parsed = parseRoleCommentBody(body)
+  const identity = normalizeTransitionIdentity(body, { role: 'RESULT' })
+  return parsed.role === 'RESULT' &&
+    /^[1-9]\d*$/.test(identity.taskId) &&
+    /^[1-9]\d*$/.test(String(parsed.prNumber ?? '').trim()) &&
+    Boolean(parsed.base) &&
+    /^[0-9a-f]{40}$/i.test(String(parsed.headSha ?? '').trim()) &&
+    !isDiagnosticOrReconciliationRoleBody(body)
+}
+
 function projectCommentId(rawComment) {
-  const databaseId = rawComment.databaseId
-  if (/^[1-9]\d*$/.test(String(databaseId ?? '').trim())) return databaseId
-  const rawId = rawComment.id
-  if (/^[1-9]\d*$/.test(String(rawId ?? '').trim())) return rawId
+  const databaseId = String(rawComment.databaseId ?? '').trim()
+  const rawId = String(rawComment.id ?? '').trim()
   const urlId = String(rawComment.url || rawComment.html_url || '')
-    .match(/(?:issuecomment-|comments\/)(\d+)(?:$|[/?#])/i)?.[1]
-  return urlId ?? rawId ?? databaseId ?? rawComment.node_id
+    .match(/(?:issuecomment-|comments\/)(\d+)(?:$|[/?#])/i)?.[1] ?? null
+  const numericIds = [databaseId, rawId, urlId].filter((value) => /^[1-9]\d*$/.test(value))
+  if (new Set(numericIds).size > 1) return null
+  if (/^[1-9]\d*$/.test(databaseId)) return rawComment.databaseId
+  if (/^[1-9]\d*$/.test(rawId)) return rawComment.id
+  if (urlId) return urlId
+  return rawComment.id ?? rawComment.databaseId ?? rawComment.node_id ?? null
 }
 
 /**
@@ -66,8 +81,13 @@ export function selectAuthoritativeRoleComments(comments = [], role) {
   // is never selected as competing live authority.
   const active = selectActiveRoleComments(comments, role)
   const viable = active.map((comment) => ({ comment, body: getCommentBody(comment) }))
+  const bindableResults = role === 'RESULT'
+    ? viable.filter(({ body }) => isBindableResultBody(body))
+    : []
   const approved = viable.filter(({ body }) => hasApprovedOrDeliveryRoleBody(body, role))
   const diagnostic = viable.filter(({ body }) => isDiagnosticOrReconciliationRoleBody(body))
+
+  for (const { comment } of bindableResults) authoritative.add(comment)
 
   if (approved.length > 0) {
     const latestApproved = findLatestRoleComment(
