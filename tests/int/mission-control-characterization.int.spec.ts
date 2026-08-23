@@ -5,6 +5,7 @@ import { join, resolve } from 'node:path'
 
 import { afterEach, describe, it, expect } from 'vitest'
 import { parseMissionControlState, renderMissionControlState } from '../../scripts/mission-control/domain/task-state.ts'
+import { classifyPostBudgetReview4ReopenCorrection } from '../../scripts/mission-control/domain/task-state-authorization.ts'
 import * as missionControlStateModule from '../../scripts/mission-control/domain/task-state.ts'
 import {
   analyzeProgressTracking,
@@ -15,6 +16,8 @@ import {
   classifyReviewLag as rawClassifyReviewLag,
   proposeReviewReconciliation,
   proposeDeliveryReconciliation as rawProposeDeliveryReconciliation,
+  dispatchFounderAuthorizedCorrection as rawDispatchFounderAuthorizedCorrection,
+  projectReviewVerdictState as rawProjectReviewVerdictState,
   findLatestRoleComment,
   isGenuineStateConflict,
   parseRoleCommentBody,
@@ -24,6 +27,8 @@ import {
 const classifyDeliveryLag = rawClassifyDeliveryLag as unknown as (...args: any[]) => any
 const classifyReviewLag = rawClassifyReviewLag as unknown as (...args: any[]) => any
 const proposeDeliveryReconciliation = rawProposeDeliveryReconciliation as unknown as (...args: any[]) => any
+const dispatchFounderAuthorizedCorrection = rawDispatchFounderAuthorizedCorrection as unknown as (...args: any[]) => Promise<any>
+const projectReviewVerdictState = rawProjectReviewVerdictState as unknown as (...args: any[]) => any
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 const tempRoots: string[] = []
@@ -1232,5 +1237,446 @@ updated_by: "Mission Control"
         }
       }
     })
+  })
+})
+
+describe('Issue #399 post-Review 4 reopen correction route', () => {
+  const REVIEW4_HEAD = 'd3cf0176e07e3ce9c67ab26889742a59281b1f68'
+  const CORRECTION_HEAD = 'bdfb9454f0a34ab68b8b4805742bc4576737c691'
+  const AUTHORIZATION_ID = 'founder-reopen-399-fixture'
+  const RESULT_COMMENT = '5331236209'
+  const REVIEW4_COMMENT = '5337047094'
+  const FINDING_IDS = ['MC-R2-004', 'MC-R2-001', 'MC-R2-002', 'MC-R2-003']
+
+  function review4Record() {
+    return {
+      review_number: 4,
+      pr_number: '366',
+      base: 'main',
+      reviewed_head: REVIEW4_HEAD,
+      verdict: 'ELIGIBLE FOR FOUNDER REVIEW',
+      verdict_comment_id: REVIEW4_COMMENT,
+      authorization: {
+        status: 'approved',
+        authority: 'Founder',
+        scope: 'review',
+        review_number: 4,
+        reviewed_head: REVIEW4_HEAD,
+        action: 'Authorize bounded Review 4',
+        authorized_at: '2026-08-19T09:29:00+07:00',
+      },
+      finding_dispositions: FINDING_IDS.map((finding_id) => ({ finding_id, disposition: 'resolved' })),
+    }
+  }
+
+  function reopenAuthorization(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+      schema_version: 2,
+      status: 'authorized',
+      authority: 'Founder',
+      scope: 'correction',
+      action: 'reopen',
+      bundle_kind: 'founder-reopen',
+      authorization_id: AUTHORIZATION_ID,
+      for_review_number: 3,
+      review_cycle: 3,
+      reviewed_head: CORRECTION_HEAD,
+      exact_head: CORRECTION_HEAD,
+      old_reviewed_head: REVIEW4_HEAD,
+      finding_ids: FINDING_IDS,
+      authorized_at: '2026-08-22T07:58:39.222Z',
+      delta_review_requirement: true,
+      required_next_review: 'Delta Review',
+      maximum_correction_deliveries: 1,
+      correction_deliveries: 0,
+      delta_review_count: 0,
+      correction_result_comment_id: null as string | null,
+      delta_review_comment_id: null as string | null,
+      original_result_comment_id: RESULT_COMMENT,
+      original_review_verdict_comment_id: REVIEW4_COMMENT,
+      ...overrides,
+    }
+  }
+
+  function requiredFields(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+      schema_version: 1,
+      approved_base: 'main',
+      active_task_issue: '#399',
+      active_pr: '#366',
+      guide_version: '1.3.0',
+      guide_source_ref: 'main',
+      guide_source_sha: '3c40c0bc9ec43225f6088b1f6cd4431868f7fef7',
+      open_blockers: [] as string[],
+      follow_up_issues: [] as string[],
+      next_permitted_action: 'Execute exactly one bounded correction RESULT, then one Delta Review.',
+      material_change_status: 'none',
+      updated_at: '2026-08-22T08:00:31.705Z',
+      updated_by: 'Founder-authorized Reopen Transport',
+      latest_result_comment_id: RESULT_COMMENT,
+      latest_review_verdict_comment_id: REVIEW4_COMMENT,
+      ...overrides,
+    }
+  }
+
+  function authorizedReopenState(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+      ...requiredFields(),
+      state: 'FOUNDER_AUTHORIZED_CORRECTION',
+      review_cycle: 3,
+      full_review_count: 1,
+      current_head: CORRECTION_HEAD,
+      last_reviewed_head: REVIEW4_HEAD,
+      post_budget_reviews: [review4Record()],
+      founder_decision: review4Record().authorization,
+      founder_correction_authorization: reopenAuthorization(),
+      finding_lineage: FINDING_IDS.map((finding_id) => ({ finding_id, disposition: 'resolved' })),
+      ...overrides,
+    }
+  }
+
+  function parseRendered(state: Record<string, unknown>) {
+    return parseMissionControlState(renderMissionControlState(state))
+  }
+
+  it('keeps the authorized reopen pre-state valid with Review 4 EFFR lineage', () => {
+    const parsed = parseRendered(authorizedReopenState())
+    expect(parsed).toMatchObject({ present: true, valid: true })
+    expect(parsed.state).toMatchObject({
+      state: 'FOUNDER_AUTHORIZED_CORRECTION',
+      review_cycle: 3,
+      full_review_count: 1,
+      current_head: CORRECTION_HEAD,
+      last_reviewed_head: REVIEW4_HEAD,
+      post_budget_reviews: [expect.objectContaining({
+        review_number: 4,
+        verdict: 'ELIGIBLE FOR FOUNDER REVIEW',
+        verdict_comment_id: REVIEW4_COMMENT,
+      })],
+    })
+  })
+
+  it('dispatches, delivers, and Delta-Reviews the reopen route without resetting 3/1 or Review 4', async () => {
+    let live: Record<string, unknown> = authorizedReopenState()
+    const handoffBody = [
+      '## HANDOFF',
+      '',
+      '**Target:** Dev / Integration Builder',
+      `**Founder correction authorization:** \`${AUTHORIZATION_ID}\``,
+    ].join('\n')
+
+    const dispatched = await dispatchFounderAuthorizedCorrection({
+      readState: async () => live,
+      writeState: async (next: Record<string, unknown>): Promise<void> => { live = next },
+      reserveAuthorization: async (): Promise<{ reservation_id: string }> => ({ reservation_id: 'reopen-399' }),
+      releaseAuthorization: async (): Promise<void> => undefined,
+      retractHandoff: async (): Promise<void> => undefined,
+      postHandoff: async () => ({
+        id: '5379172102',
+        html_url: 'https://github.com/boat1994/bemoat-web-starter/issues/399#issuecomment-5379172102',
+        created_at: '2026-08-22T08:05:00Z',
+        updated_at: '2026-08-22T08:05:00Z',
+      }),
+      handoffBody,
+      updatedAt: '2026-08-22T08:05:00.000Z',
+      updatedBy: 'Mission Control',
+    })
+
+    expect(dispatched.outcome).toBe('DISPATCHED_FOUNDER_AUTHORIZED_CORRECTION')
+    const dispatchedParsed = parseRendered(live)
+    expect(dispatchedParsed).toMatchObject({ present: true, valid: true })
+    expect(dispatchedParsed.state).toMatchObject({
+      state: 'IN_PROGRESS',
+      review_cycle: 3,
+      full_review_count: 1,
+      current_head: CORRECTION_HEAD,
+      last_reviewed_head: REVIEW4_HEAD,
+      post_budget_reviews: [expect.objectContaining({
+        review_number: 4,
+        verdict: 'ELIGIBLE FOR FOUNDER REVIEW',
+        verdict_comment_id: REVIEW4_COMMENT,
+      })],
+      founder_decision: expect.objectContaining({ scope: 'review', review_number: 4 }),
+      founder_correction_authorization: expect.objectContaining({
+        status: 'consumed',
+        authorization_id: AUTHORIZATION_ID,
+        handoff_comment_id: '5379172102',
+        correction_deliveries: 0,
+        delta_review_count: 0,
+        original_result_comment_id: RESULT_COMMENT,
+        original_review_verdict_comment_id: REVIEW4_COMMENT,
+      }),
+    })
+
+    const delivered = proposeDeliveryReconciliation({
+      managedState: dispatchedParsed.state,
+      livePr: { number: '366', headRefOid: CORRECTION_HEAD, baseRefName: 'main' },
+      activeTaskIssue: '399',
+      latestResult: { parsed: { headSha: CORRECTION_HEAD, base: 'main', prNumber: '366' } },
+      updatedAt: '2026-08-22T08:10:00.000Z',
+      updatedBy: 'Mission Control',
+    })
+    const deliveredParsed = parseRendered(delivered)
+    expect(deliveredParsed).toMatchObject({ present: true, valid: true })
+    expect(deliveredParsed.state).toMatchObject({
+      state: 'AWAITING_REVIEW_3',
+      review_cycle: 3,
+      full_review_count: 1,
+      current_head: CORRECTION_HEAD,
+      last_reviewed_head: REVIEW4_HEAD,
+      post_budget_reviews: [expect.objectContaining({
+        review_number: 4,
+        verdict: 'ELIGIBLE FOR FOUNDER REVIEW',
+        verdict_comment_id: REVIEW4_COMMENT,
+        reviewed_head: REVIEW4_HEAD,
+      })],
+      founder_decision: expect.objectContaining({ scope: 'review', review_number: 4, status: 'approved' }),
+      founder_correction_authorization: expect.objectContaining({
+        status: 'consumed',
+        correction_deliveries: 1,
+        delta_review_count: 0,
+        original_result_comment_id: RESULT_COMMENT,
+        original_review_verdict_comment_id: REVIEW4_COMMENT,
+      }),
+    })
+    expect(deliveredParsed.state?.next_permitted_action).toMatch(/Delta Review/i)
+    expect(deliveredParsed.state?.material_change_status).not.toBe('founder_decision_required_for_review_4')
+
+    const reviewed = projectReviewVerdictState({
+      prior: deliveredParsed.state,
+      verdict: 'ELIGIBLE FOR FOUNDER REVIEW',
+      reviewType: 'delta',
+      reviewedHead: CORRECTION_HEAD,
+      commentId: '5390000001',
+      transitionIdentity: JSON.stringify({
+        taskId: '399',
+        phase: 'Delta Review',
+        role: 'REVIEW_VERDICT',
+        contentHash: 'a'.repeat(64),
+      }),
+      findings: FINDING_IDS.map((finding_id) => ({ finding_id, disposition: 'resolved' })),
+      updatedAt: '2026-08-22T08:20:00.000Z',
+      updatedBy: 'Reviewer',
+    })
+    const reviewedParsed = parseRendered(reviewed)
+    expect(reviewedParsed).toMatchObject({ present: true, valid: true })
+    expect(reviewedParsed.state).toMatchObject({
+      state: 'ELIGIBLE_FOR_FOUNDER_REVIEW',
+      review_cycle: 3,
+      full_review_count: 1,
+      current_head: CORRECTION_HEAD,
+      last_reviewed_head: CORRECTION_HEAD,
+      post_budget_reviews: [expect.objectContaining({
+        review_number: 4,
+        verdict: 'ELIGIBLE FOR FOUNDER REVIEW',
+        verdict_comment_id: REVIEW4_COMMENT,
+        reviewed_head: REVIEW4_HEAD,
+      })],
+      latest_result_comment_id: RESULT_COMMENT,
+      founder_correction_authorization: expect.objectContaining({
+        status: 'consumed',
+        correction_deliveries: 1,
+        delta_review_count: 1,
+        delta_review_comment_id: '5390000001',
+        original_result_comment_id: RESULT_COMMENT,
+        original_review_verdict_comment_id: REVIEW4_COMMENT,
+      }),
+    })
+    expect(reviewedParsed.state?.next_permitted_action).toMatch(/Founder merge/i)
+  })
+
+  it('rejects incomplete reopen discriminators that omit action, bundle_kind, or a cycle field', () => {
+    const incomplete: Array<Record<string, unknown>> = [
+      { bundle_kind: undefined },
+      { action: 'authorize-correction' },
+      { review_cycle: 2 },
+      { for_review_number: 2 },
+    ]
+    for (const override of incomplete) {
+      const state = authorizedReopenState({
+        founder_correction_authorization: reopenAuthorization(override),
+      })
+      expect(classifyPostBudgetReview4ReopenCorrection(state)).toEqual({ ok: false })
+    }
+
+    const dispatchedIncomplete = authorizedReopenState({
+      state: 'IN_PROGRESS',
+      founder_correction_authorization: reopenAuthorization({
+        status: 'consumed',
+        bundle_kind: undefined,
+        handoff_comment_id: '5379172102',
+        handoff_binding: {
+          schema_version: 1,
+          content_sha256: 'a'.repeat(64),
+          binding_sha256: 'b'.repeat(64),
+        },
+      }),
+    })
+    expect(parseRendered(dispatchedIncomplete)).toMatchObject({
+      valid: false,
+      reason: expect.stringContaining('does not authorize a correction transition'),
+    })
+  })
+
+  it('rejects a second Delta Review after the reopen route is already delta_reviewed', () => {
+    const delivered = authorizedReopenState({
+      state: 'AWAITING_REVIEW_3',
+      founder_correction_authorization: reopenAuthorization({
+        status: 'consumed',
+        correction_deliveries: 1,
+        reviewed_head: CORRECTION_HEAD,
+        handoff_comment_id: '5379172102',
+        handoff_binding: {
+          schema_version: 1,
+          content_sha256: 'a'.repeat(64),
+          binding_sha256: 'b'.repeat(64),
+        },
+      }),
+    })
+    const firstDelta = {
+      verdict: 'ELIGIBLE FOR FOUNDER REVIEW',
+      reviewType: 'delta',
+      reviewedHead: CORRECTION_HEAD,
+      findings: FINDING_IDS.map((finding_id) => ({ finding_id, disposition: 'resolved' })),
+      updatedAt: '2026-08-22T08:20:00.000Z',
+      updatedBy: 'Reviewer',
+    }
+    const reviewed = projectReviewVerdictState({
+      ...firstDelta,
+      prior: delivered,
+      commentId: '5390000001',
+      transitionIdentity: JSON.stringify({
+        taskId: '399',
+        phase: 'Delta Review',
+        role: 'REVIEW_VERDICT',
+        contentHash: 'a'.repeat(64),
+      }),
+    })
+    expect(reviewed.founder_correction_authorization).toMatchObject({ delta_review_count: 1 })
+    expect(() => projectReviewVerdictState({
+      ...firstDelta,
+      prior: reviewed,
+      commentId: '5390000002',
+      transitionIdentity: JSON.stringify({
+        taskId: '399',
+        phase: 'Delta Review',
+        role: 'REVIEW_VERDICT',
+        contentHash: 'b'.repeat(64),
+      }),
+    })).toThrow(/exactly one Delta Review/i)
+  })
+
+  it('still rejects ordinary post-budget IN_PROGRESS when Review 4 is already EFFR', () => {
+    const ordinary = authorizedReopenState({
+      state: 'IN_PROGRESS',
+      founder_correction_authorization: undefined,
+      founder_decision: {
+        status: 'approved',
+        authority: 'Founder',
+        scope: 'correction',
+        for_review_number: 4,
+        reviewed_head: REVIEW4_HEAD,
+        finding_ids: FINDING_IDS,
+        action: 'Authorize one bounded correction',
+        authorized_at: '2026-08-22T08:00:00Z',
+      },
+    })
+    delete (ordinary as { founder_correction_authorization?: unknown }).founder_correction_authorization
+    expect(parseRendered(ordinary)).toMatchObject({
+      valid: false,
+      reason: expect.stringContaining('does not authorize a correction transition'),
+    })
+  })
+
+  it('still returns ordinary Review 3 founder-correction delivery to a Review 4 Founder gate', () => {
+    const prior = {
+      ...requiredFields(),
+      state: 'IN_PROGRESS',
+      review_cycle: 3,
+      full_review_count: 1,
+      current_head: REVIEW4_HEAD,
+      last_reviewed_head: REVIEW4_HEAD,
+      post_budget_reviews: [] as unknown[],
+      founder_correction_authorization: reopenAuthorization({
+        status: 'consumed',
+        reviewed_head: REVIEW4_HEAD,
+        exact_head: REVIEW4_HEAD,
+        old_reviewed_head: REVIEW4_HEAD,
+        delta_review_requirement: false,
+        required_next_review: undefined,
+        handoff_comment_id: '5080099999',
+        handoff_binding: {
+          schema_version: 1,
+          content_sha256: 'a'.repeat(64),
+          binding_sha256: 'b'.repeat(64),
+        },
+      }),
+    }
+    const proposal = proposeDeliveryReconciliation({
+      managedState: prior,
+      livePr: { number: '366', headRefOid: CORRECTION_HEAD, baseRefName: 'main' },
+      activeTaskIssue: '399',
+      latestResult: { parsed: { headSha: CORRECTION_HEAD, base: 'main', prNumber: '366' } },
+    })
+    expect(proposal).toMatchObject({
+      state: 'BLOCKED_FOR_FOUNDER_DECISION',
+      review_cycle: 3,
+      full_review_count: 1,
+      post_budget_reviews: [],
+      founder_decision: { status: 'pending', scope: 'review', review_number: 4 },
+    })
+  })
+
+  it('rolls back an unverified reopen dispatch and rejects a second delivery', async () => {
+    const original = authorizedReopenState()
+    const live = original
+    let retracted = false
+    await expect(dispatchFounderAuthorizedCorrection({
+      readState: async () => live,
+      writeState: async (): Promise<void> => { throw new Error('postcondition: Issue state unreadable after write') },
+      reserveAuthorization: async (): Promise<{ reservation_id: string }> => ({ reservation_id: 'reopen-399' }),
+      releaseAuthorization: async (): Promise<void> => undefined,
+      retractHandoff: async (): Promise<void> => { retracted = true },
+      postHandoff: async () => ({
+        id: '5379172102',
+        created_at: '2026-08-22T08:05:00Z',
+        updated_at: '2026-08-22T08:05:00Z',
+      }),
+      handoffBody: `## HANDOFF\n\n**Target:** Dev / Integration Builder\n**Founder correction authorization:** \`${AUTHORIZATION_ID}\``,
+    })).rejects.toThrow('verified Founder authorization consumption')
+    expect(retracted).toBe(true)
+    expect(live).toEqual(original)
+
+    const firstDelivery = proposeDeliveryReconciliation({
+      managedState: {
+        ...original,
+        state: 'IN_PROGRESS',
+        founder_correction_authorization: reopenAuthorization({
+          status: 'consumed',
+          handoff_comment_id: '5379172102',
+          handoff_binding: {
+            schema_version: 1,
+            content_sha256: 'a'.repeat(64),
+            binding_sha256: 'b'.repeat(64),
+          },
+        }),
+      },
+      livePr: { number: '366', headRefOid: CORRECTION_HEAD, baseRefName: 'main' },
+      activeTaskIssue: '399',
+      latestResult: { parsed: { headSha: CORRECTION_HEAD, base: 'main', prNumber: '366' } },
+    })
+    expect(firstDelivery.state).toBe('AWAITING_REVIEW_3')
+    expect(() => proposeDeliveryReconciliation({
+      managedState: {
+        ...firstDelivery,
+        founder_correction_authorization: {
+          ...(firstDelivery.founder_correction_authorization as Record<string, unknown>),
+          correction_deliveries: 2,
+        },
+      },
+      livePr: { number: '366', headRefOid: CORRECTION_HEAD, baseRefName: 'main' },
+      activeTaskIssue: '399',
+      latestResult: { parsed: { headSha: CORRECTION_HEAD, base: 'main', prNumber: '366' } },
+    })).toThrow(/exactly one delivery/i)
   })
 })

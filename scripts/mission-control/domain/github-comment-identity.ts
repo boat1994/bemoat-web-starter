@@ -19,3 +19,50 @@ export function hasAuthoritativeIssueIdentity(
   if (`${owner}/${name}` !== repository || !/^[1-9]\d*$/.test(issue) || Number(issue) !== issueNumber) return false
   return comment.issue_number == null || (typeof comment.issue_number === 'number' && Number.isSafeInteger(comment.issue_number) && comment.issue_number === Number(issue))
 }
+
+export function resolveParentIssueIdentity(comment: IssueBoundComment, expectedRepository: string): string {
+  if (!expectedRepository || typeof expectedRepository !== 'string' || !expectedRepository.includes('/')) {
+    throw new Error('invalid expectedRepository')
+  }
+
+  let fromNumber: string | undefined
+  if (comment.issue_number != null) {
+    const num = String(comment.issue_number)
+    if (!/^[1-9]\d*$/.test(num)) {
+      throw new Error('invalid issue_number')
+    }
+    fromNumber = num
+  }
+
+  let fromUrl: string | undefined
+  if (comment.issue_url != null) {
+    if (typeof comment.issue_url !== 'string') {
+      throw new Error('issue_url must be a string')
+    }
+    const match = /^https:\/\/api\.github\.com\/repos\/([^/]+)\/([^/]+)\/issues\/([1-9]\d*)$/.exec(comment.issue_url)
+    if (!match) {
+      throw new Error('malformed issue_url')
+    }
+    const owner = match[1]
+    const name = match[2]
+    const issue = match[3]
+    
+    if (`${owner}/${name}` !== expectedRepository) {
+      throw new Error('issue_url repository mismatch')
+    }
+    fromUrl = issue
+  }
+
+  if (fromNumber !== undefined && fromUrl !== undefined) {
+    if (fromNumber !== fromUrl) {
+      throw new Error('issue_number and issue_url identify different issues')
+    }
+  }
+
+  const result = fromNumber ?? fromUrl
+  if (result === undefined) {
+    throw new Error('missing issue identity')
+  }
+
+  return result
+}

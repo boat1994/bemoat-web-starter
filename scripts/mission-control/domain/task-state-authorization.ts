@@ -168,6 +168,140 @@ export function validatePostBudgetReviews(state: JsonRecord): PostBudgetReviewVa
   return { valid: true, reviews: state.post_budget_reviews as JsonRecord[] }
 }
 
+export type PostBudgetReview4ReopenPhase =
+  | 'authorized'
+  | 'dispatched'
+  | 'delivered'
+  | 'delta_reviewed'
+
+function isReopenCorrectionContract(authorization: unknown): authorization is JsonRecord {
+  if (!isRecord(authorization) ||
+      authorization.authority !== 'Founder' ||
+      authorization.scope !== 'correction') {
+    return false
+  }
+  if (authorization.action !== 'reopen' || authorization.bundle_kind !== 'founder-reopen') {
+    return false
+  }
+  if (authorization.for_review_number !== 3 || authorization.review_cycle !== 3) return false
+  if (authorization.delta_review_requirement !== true) return false
+  if (authorization.required_next_review !== 'Delta Review') return false
+  if (authorization.maximum_correction_deliveries !== 1) return false
+  if (!Array.isArray(authorization.finding_ids) || authorization.finding_ids.length === 0 ||
+      authorization.finding_ids.some((findingId) => typeof findingId !== 'string' || findingId.length === 0)) {
+    return false
+  }
+  return true
+}
+
+export function isPostBudgetReview4ReopenCorrectionContract(state: unknown): state is JsonRecord {
+  if (!isRecord(state) || state.review_cycle !== 3 || state.full_review_count !== 1) return false
+  const reviews = state.post_budget_reviews
+  if (!Array.isArray(reviews) || reviews.length !== 1 || !isRecord(reviews[0]) || reviews[0].review_number !== 4) {
+    return false
+  }
+  return isReopenCorrectionContract(state.founder_correction_authorization)
+}
+
+export function classifyPostBudgetReview4ReopenCorrection(state: unknown):
+  | { ok: false }
+  | { ok: true; phase: PostBudgetReview4ReopenPhase; authorization: JsonRecord } {
+  if (!isPostBudgetReview4ReopenCorrectionContract(state)) return { ok: false }
+  const authorization = state.founder_correction_authorization as JsonRecord
+  const deliveries = authorization.correction_deliveries
+  const deltas = authorization.delta_review_count
+  if (state.state === 'FOUNDER_AUTHORIZED_CORRECTION' && authorization.status === 'authorized' &&
+      deliveries === 0 && deltas === 0) {
+    return { ok: true, phase: 'authorized', authorization }
+  }
+  if (state.state === 'IN_PROGRESS' && authorization.status === 'consumed' &&
+      deliveries === 0 && deltas === 0) {
+    return { ok: true, phase: 'dispatched', authorization }
+  }
+  if (state.state === 'AWAITING_REVIEW_3' && authorization.status === 'consumed' &&
+      deliveries === 1 && deltas === 0) {
+    return { ok: true, phase: 'delivered', authorization }
+  }
+  if ((state.state === 'ELIGIBLE_FOR_FOUNDER_REVIEW' || state.state === 'BLOCKED_FOR_FOUNDER_DECISION') &&
+      authorization.status === 'consumed' && deliveries === 1 && deltas === 1) {
+    return { ok: true, phase: 'delta_reviewed', authorization }
+  }
+  return { ok: false }
+}
+
+export function validatePostBudgetManagedState(
+  state: JsonRecord,
+  reviews: JsonRecord[],
+): { valid: true } | { valid: false; reason: string } {
+  if (reviews.length === 0) return { valid: true }
+  const latestPostBudgetReview = reviews.at(-1)!
+  const reopenCorrection = classifyPostBudgetReview4ReopenCorrection(state)
+  if (state.review_cycle !== 3 || state.full_review_count !== 1) {
+    return { valid: false, reason: 'post-budget history must preserve the normal review budget counters at 3/1' }
+  }
+  const historicalReviewedHead = state.last_reviewed_head === latestPostBudgetReview.reviewed_head
+  const reopenDeltaAdvancedHead = reopenCorrection.ok && reopenCorrection.phase === 'delta_reviewed' &&
+    state.last_reviewed_head === state.current_head &&
+    reopenCorrection.authorization.reviewed_head === state.current_head
+  if (!historicalReviewedHead && !reopenDeltaAdvancedHead) {
+    return { valid: false, reason: 'last_reviewed_head must match the latest completed post-budget review' }
+  }
+  if (state.state === 'IN_PROGRESS') {
+    if (reopenCorrection.ok && reopenCorrection.phase === 'dispatched') {
+      const authorization = validateFounderCorrectionAuthorization(
+        state.founder_correction_authorization,
+        state,
+        'consumed',
+        3,
+      )
+      if (!authorization.valid) {
+        return { valid: false, reason: authorization.reason ?? 'consumed Founder correction authorization is invalid' }
+      }
+    } else {
+      if (typeof latestPostBudgetReview.verdict !== 'string' ||
+          !['CORRECTION REQUIRED', 'BLOCKED FOR FOUNDER DECISION'].includes(latestPostBudgetReview.verdict)) {
+        return { valid: false, reason: 'post-budget verdict does not authorize a correction transition' }
+      }
+      const reviewEightCorrection = isRecord(state.founder_review_8_correction_authorization)
+        ? state.founder_review_8_correction_authorization
+        : null
+      const correctionAuthorization = latestPostBudgetReview.review_number === 8 && reviewEightCorrection
+        ? {
+            valid: reviewEightCorrection.status === 'consumed' &&
+              reviewEightCorrection.authority === 'Founder' &&
+              reviewEightCorrection.scope === 'correction' &&
+              reviewEightCorrection.for_review_number === 8 &&
+              reviewEightCorrection.reviewed_head === latestPostBudgetReview.reviewed_head &&
+              Array.isArray(reviewEightCorrection.finding_ids) &&
+              reviewEightCorrection.finding_ids.length > 0,
+            reason: 'Review 8 correction authorization must bind the latest completed review',
+          }
+        : validateBoundCorrectionAuthorization(state.founder_decision, latestPostBudgetReview)
+      if (!correctionAuthorization.valid) {
+        return {
+          valid: false,
+          reason: correctionAuthorization.reason ?? 'post-budget correction authorization is invalid',
+        }
+      }
+    }
+    if (typeof state.active_pr !== 'string' || typeof state.current_head !== 'string') {
+      return { valid: false, reason: 'post-budget correction requires active_pr and current_head' }
+    }
+  }
+  if (reopenCorrection.ok && (reopenCorrection.phase === 'delivered' || reopenCorrection.phase === 'delta_reviewed')) {
+    const authorization = validateFounderCorrectionAuthorization(
+      state.founder_correction_authorization,
+      state,
+      'consumed',
+      3,
+    )
+    if (!authorization.valid) {
+      return { valid: false, reason: authorization.reason ?? 'consumed Founder correction authorization is invalid' }
+    }
+  }
+  return { valid: true }
+}
+
 export function validatePreReviewFounderDecisionGate(state: JsonRecord) {
   if (state.active_pr !== null || state.current_head !== null || state.last_reviewed_head !== null) {
     return { valid: false, reason: 'pre-review Founder decision gate cannot bind an active PR or head' }
