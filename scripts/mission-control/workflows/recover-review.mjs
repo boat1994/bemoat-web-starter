@@ -4,6 +4,8 @@ import { createHash } from 'node:crypto'
 
 import yaml from 'yaml'
 
+import { createHelpEnvelopeV1, formatTextHelp } from '../../cli/command-help.mjs'
+import { parseCommandInvocation, resolveCommandIdentity } from '../../cli/command-invocation.mjs'
 import { analyzeExactHeadCi } from '../../agent-issue/exact-head-ci.mjs'
 import { parseCorrectionContract, parseCorrectionEvidenceMap, validateFindingIdentity } from '../domain/correction-contract.ts'
 import { scanGuideContent } from '../../guards/mission-control-contract/scan-guide.mjs'
@@ -807,6 +809,12 @@ export function createProductionDeps() {
 }
 
 export async function main(argv = process.argv.slice(2), deps = createProductionDeps()) {
+  if (argv.includes('--help') || argv.includes('-h')) {
+    const env = process.env.npm_lifecycle_event === 'test:int' ? { ...process.env, npm_lifecycle_event: undefined } : process.env
+    const invocation = parseCommandInvocation(resolveCommandIdentity({ fallback: 'bemoat:mission-control:recover-review', env, entrypoint: RECOVERY_FACADE_PATH }), argv)
+    process.stdout.write(invocation.format === 'json' ? `${JSON.stringify(createHelpEnvelopeV1(invocation.contract))}\n` : formatTextHelp(invocation.contract))
+    return { classification: 'HELP' }
+  }
   const options = parseRecoveryArgs(argv)
   const body = readFileSync(options.bodyFile, 'utf8')
   const result = await runReviewRecovery({ options, body, deps })

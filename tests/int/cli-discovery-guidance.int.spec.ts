@@ -25,6 +25,7 @@ const representativeCommands = [
   'bemoat:mission-control:dispatch',
   'bemoat:mission-control:reconcile',
   'bemoat:mission-control:review',
+  'bemoat:mission-control:recover-review',
 ] as const
 
 describe('Bemoat CLI discovery guidance', () => {
