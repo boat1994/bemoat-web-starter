@@ -81,6 +81,58 @@ export function validateBoundCorrectionAuthorization(authorization: unknown, lat
   return { valid: true }
 }
 
+/** Validate the trusted-derived current RESULT projection carried in managed state. */
+function hasCurrentResultBinding(state: JsonRecord, authorization: unknown) {
+  const taskId = String(state.active_task_issue ?? '').trim().replace(/^#/, '')
+  if (!taskId || !/^\d+$/.test(taskId) ||
+      typeof state.active_pr !== 'string' || !/^#?[1-9]\d*$/.test(state.active_pr.trim()) ||
+      typeof state.current_head !== 'string' || !/^[0-9a-f]{40}$/i.test(state.current_head.trim()) ||
+      typeof state.latest_result_comment_id !== 'string' || !/^[1-9]\d*$/.test(state.latest_result_comment_id.trim()) ||
+      typeof state.latest_transition_identity !== 'string' || !state.latest_transition_identity.trim()) {
+    return false
+  }
+
+  let identity: unknown
+  try {
+    identity = JSON.parse(state.latest_transition_identity)
+  } catch {
+    return false
+  }
+
+  if (!isRecord(authorization)) return false
+  const originalResultId = String(authorization.original_result_comment_id ?? '').trim()
+  if (!/^[1-9]\d*$/.test(originalResultId) || originalResultId === state.latest_result_comment_id.trim()) return false
+  return isRecord(identity) &&
+    identity.taskId === taskId &&
+    identity.role === 'RESULT' &&
+    typeof identity.phase === 'string' && identity.phase.trim().length > 0 &&
+    typeof identity.contentHash === 'string' && /^[0-9a-f]{64}$/.test(identity.contentHash)
+}
+
+function hasHistoricalDeliveredCorrectionBinding(authorization: unknown, state: JsonRecord) {
+  if (!isRecord(authorization) || typeof state.last_reviewed_head !== 'string') return false
+  const normalize = (value: unknown) => typeof value === 'string' ? value.trim().toLowerCase() : ''
+  const lastReviewedHead = state.last_reviewed_head.trim().toLowerCase()
+  const reviewedHead = normalize(authorization.reviewed_head)
+  const exactHead = normalize(authorization.exact_head)
+  const oldReviewedHead = normalize(authorization.old_reviewed_head)
+  const protectedBase = normalize(authorization.protected_base_sha)
+  const authorizationRecord = isRecord(authorization.authorization_record)
+    ? authorization.authorization_record
+    : null
+  const recordedProtectedBase = normalize(authorizationRecord?.protected_base_sha)
+  const recordedExactHead = normalize(authorizationRecord?.exact_head)
+  const recordedOldReviewedHead = normalize(authorizationRecord?.old_reviewed_head)
+  return /^[0-9a-f]{40}$/.test(reviewedHead) &&
+    exactHead === reviewedHead &&
+    /^[0-9a-f]{40}$/.test(lastReviewedHead) &&
+    oldReviewedHead === lastReviewedHead &&
+    /^[0-9a-f]{40}$/.test(protectedBase) &&
+    recordedProtectedBase === protectedBase &&
+    recordedExactHead === exactHead &&
+    recordedOldReviewedHead === oldReviewedHead
+}
+
 export function validateFounderCorrectionAuthorization(
   authorization: unknown,
   state: JsonRecord,
@@ -99,9 +151,20 @@ export function validateFounderCorrectionAuthorization(
   // A founder correction can either bind an exact reviewed head (for identical retries/reopens where no unreviewed work exists),
   // OR it can authorize a drifted live head by binding current_head, while last_reviewed_head remains the old one.
   // It always requires a last_reviewed_head (must happen after a review).
+  const deliveredReopenWithCurrentResult = expectedStatus === 'consumed' &&
+    expectedCycle === 3 &&
+    (() => {
+      const reopen = classifyPostBudgetReview4ReopenCorrection(state)
+      return reopen.ok && reopen.phase === 'delivered' &&
+        isRecord(authorization) && state.current_head !== authorization.reviewed_head &&
+        hasHistoricalDeliveredCorrectionBinding(authorization, state) &&
+        hasCurrentResultBinding(state, authorization)
+    })()
   if (authorization.status !== expectedStatus || !state.last_reviewed_head ||
-      (authorization.reviewed_head !== state.last_reviewed_head && authorization.reviewed_head !== state.current_head) ||
-      (state.current_head !== authorization.reviewed_head) ||
+      (!deliveredReopenWithCurrentResult && (
+        (authorization.reviewed_head !== state.last_reviewed_head && authorization.reviewed_head !== state.current_head) ||
+        state.current_head !== authorization.reviewed_head
+      )) ||
       !Array.isArray(authorization.finding_ids) ||
       authorization.finding_ids.length === 0 || authorization.finding_ids.some((id: unknown) => typeof id !== 'string' || !id)) {
     return { valid: false, reason: `Review ${expectedCycle} Founder correction authorization binding is invalid` }

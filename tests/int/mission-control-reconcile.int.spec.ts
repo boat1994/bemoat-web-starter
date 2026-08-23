@@ -921,9 +921,9 @@ describe('mission-control reconcile classifiers', () => {
       last_reviewed_head: 'review-4-head',
       guide_version: '1.0.0',
       guide_source_ref: 'main',
-      guide_source_sha: null,
-      open_blockers: [],
-      follow_up_issues: [],
+      guide_source_sha: null as string | null,
+      open_blockers: [] as string[],
+      follow_up_issues: [] as string[],
       next_permitted_action: 'none',
       material_change_status: 'none',
       updated_at: null,
@@ -1355,6 +1355,361 @@ describe('mission-control reconcile classifiers', () => {
       }],
       finding_lineage: [{ finding_id: 'MC-R2-004', disposition: 'resolved' }],
     })
+  })
+
+  const LIVE_REVIEW4_FINDING_IDS = ['MC-R2-004', 'MC-R2-001', 'MC-R2-002', 'MC-R2-003']
+  const liveReview4FindingLineage = LIVE_REVIEW4_FINDING_IDS.map((finding_id) => ({ finding_id, disposition: 'resolved' }))
+
+  it('accepts a delivered reopen at a new head when the current RESULT binding is present', () => {
+    const predecessorHead = 'bdfb9454f0a34ab68b8b4805742bc4576737c691'
+    const lastReviewedHead = 'd3cf0176e07e3ce9c67ab26889742a59281b1f68'
+    const synchronizedHead = '2cd4f3a375f227c6607199a4274e887630b970e0'
+    const review4 = {
+      review_number: 4,
+      reviewed_head: lastReviewedHead,
+      verdict: 'ELIGIBLE FOR FOUNDER REVIEW',
+      authorization: {
+        status: 'approved',
+        authority: 'Founder',
+        scope: 'review',
+        review_number: 4,
+        reviewed_head: lastReviewedHead,
+        action: 'Authorize bounded Review 4',
+        authorized_at: '2026-08-19T09:29:00+07:00',
+      },
+      finding_dispositions: liveReview4FindingLineage,
+    }
+    const prior = {
+      schema_version: 1,
+      state: 'IN_PROGRESS',
+      review_cycle: 3,
+      full_review_count: 1,
+      approved_base: 'main',
+      active_task_issue: '#333',
+      active_pr: '#366',
+      current_head: predecessorHead,
+      last_reviewed_head: lastReviewedHead,
+      post_budget_reviews: [review4],
+      founder_correction_authorization: {
+        schema_version: 2,
+        authorization_id: 'founder-333-review-3',
+        status: 'consumed',
+        authority: 'Founder',
+        scope: 'correction',
+        action: 'reopen',
+        bundle_kind: 'founder-reopen',
+        for_review_number: 3,
+        review_cycle: 3,
+        reviewed_head: predecessorHead,
+        exact_head: predecessorHead,
+        old_reviewed_head: lastReviewedHead,
+        protected_base_sha: 'a4d58f4b1d520ffe655d0b0fc7443b4927f70330',
+        original_result_comment_id: '5331236209',
+        authorization_record: {
+          exact_head: predecessorHead,
+          reviewed_head: predecessorHead,
+          old_reviewed_head: lastReviewedHead,
+          protected_base_sha: 'a4d58f4b1d520ffe655d0b0fc7443b4927f70330',
+        },
+        finding_ids: LIVE_REVIEW4_FINDING_IDS,
+        authorized_at: '2026-08-19T09:30:00+07:00',
+        handoff_comment_id: '5331236000',
+        handoff_binding: {
+          schema_version: 1,
+          content_sha256: 'a'.repeat(64),
+          binding_sha256: 'b'.repeat(64),
+        },
+        delta_review_requirement: true,
+        required_next_review: 'Delta Review',
+        maximum_correction_deliveries: 1,
+        correction_deliveries: 0,
+        delta_review_count: 0,
+      },
+      guide_version: '1.3.0',
+      guide_source_ref: 'main',
+      guide_source_sha: null as string | null,
+      open_blockers: [] as string[],
+      finding_lineage: liveReview4FindingLineage,
+      follow_up_issues: [] as string[],
+      next_permitted_action: 'Execute exactly one bounded correction RESULT, then one Delta Review.',
+      material_change_status: 'none',
+      updated_at: '2026-08-19T10:00:00Z',
+      updated_by: 'Mission Control',
+    }
+
+    const proposal = proposeDeliveryReconciliation({
+      managedState: prior,
+      livePr: { number: '366', headRefOid: synchronizedHead, baseRefName: 'main' },
+      activeTaskIssue: '333',
+      latestResult: { parsed: { prNumber: '366', base: 'main', headSha: synchronizedHead } },
+      updatedAt: '2026-08-23T00:00:00Z',
+    })
+
+    expect(proposal).toMatchObject({
+      state: 'AWAITING_REVIEW_3',
+      review_cycle: 3,
+      full_review_count: 1,
+      current_head: synchronizedHead,
+      last_reviewed_head: lastReviewedHead,
+      post_budget_reviews: [review4],
+      finding_lineage: prior.finding_lineage,
+      founder_correction_authorization: {
+        status: 'consumed',
+        reviewed_head: predecessorHead,
+        correction_deliveries: 1,
+      },
+    })
+
+    const parsed = parseMissionControlState(renderMissionControlState({
+      ...proposal,
+      latest_result_comment_id: '5384309331',
+      latest_transition_identity: JSON.stringify({
+        taskId: '333',
+        phase: 'Dev (synchronization)',
+        role: 'RESULT',
+        contentHash: 'c'.repeat(64),
+      }),
+    }))
+    expect(parsed).toMatchObject({
+      present: true,
+      valid: true,
+    })
+  })
+
+  it('keeps the delivered reopen historical same-head path valid without a new RESULT binding', () => {
+    const predecessorHead = 'bdfb9454f0a34ab68b8b4805742bc4576737c691'
+    const lastReviewedHead = 'd3cf0176e07e3ce9c67ab26889742a59281b1f68'
+    const prior = {
+      schema_version: 1,
+      state: 'AWAITING_REVIEW_3',
+      review_cycle: 3,
+      full_review_count: 1,
+      approved_base: 'main',
+      active_task_issue: '#333',
+      active_pr: '#366',
+      current_head: predecessorHead,
+      last_reviewed_head: lastReviewedHead,
+      post_budget_reviews: [{
+        review_number: 4,
+        reviewed_head: lastReviewedHead,
+        verdict: 'ELIGIBLE FOR FOUNDER REVIEW',
+        authorization: {
+          status: 'approved',
+          authority: 'Founder',
+          scope: 'review',
+          review_number: 4,
+          reviewed_head: lastReviewedHead,
+          action: 'Authorize bounded Review 4',
+          authorized_at: '2026-08-19T09:29:00+07:00',
+        },
+        finding_dispositions: liveReview4FindingLineage,
+      }],
+      founder_correction_authorization: {
+        schema_version: 2,
+        authorization_id: 'founder-333-review-3',
+        status: 'consumed',
+        authority: 'Founder',
+        scope: 'correction',
+        action: 'reopen',
+        bundle_kind: 'founder-reopen',
+        for_review_number: 3,
+        review_cycle: 3,
+        reviewed_head: predecessorHead,
+        exact_head: predecessorHead,
+        old_reviewed_head: lastReviewedHead,
+        protected_base_sha: 'a4d58f4b1d520ffe655d0b0fc7443b4927f70330',
+        original_result_comment_id: '5331236209',
+        authorization_record: {
+          exact_head: predecessorHead,
+          reviewed_head: predecessorHead,
+          old_reviewed_head: lastReviewedHead,
+          protected_base_sha: 'a4d58f4b1d520ffe655d0b0fc7443b4927f70330',
+        },
+        finding_ids: LIVE_REVIEW4_FINDING_IDS,
+        authorized_at: '2026-08-19T09:30:00+07:00',
+        handoff_comment_id: '5331236000',
+        handoff_binding: {
+          schema_version: 1,
+          content_sha256: 'a'.repeat(64),
+          binding_sha256: 'b'.repeat(64),
+        },
+        delta_review_requirement: true,
+        required_next_review: 'Delta Review',
+        maximum_correction_deliveries: 1,
+        correction_deliveries: 1,
+        delta_review_count: 0,
+      },
+      guide_version: '1.3.0',
+      guide_source_ref: 'main',
+      guide_source_sha: null as string | null,
+      open_blockers: [] as string[],
+      finding_lineage: liveReview4FindingLineage,
+      follow_up_issues: [] as string[],
+      next_permitted_action: 'Reviewer performs bounded Delta Review.',
+      material_change_status: 'none',
+      updated_at: '2026-08-23T00:00:00Z',
+      updated_by: 'Mission Control',
+    }
+
+    expect(parseMissionControlState(renderMissionControlState(prior))).toMatchObject({
+      present: true,
+      valid: true,
+    })
+  })
+
+  it('rejects a delivered reopen at a new head when the current RESULT binding is missing or invalid', () => {
+    const predecessorHead = 'bdfb9454f0a34ab68b8b4805742bc4576737c691'
+    const lastReviewedHead = 'd3cf0176e07e3ce9c67ab26889742a59281b1f68'
+    const synchronizedHead = '2cd4f3a375f227c6607199a4274e887630b970e0'
+    const state = {
+      schema_version: 1,
+      state: 'AWAITING_REVIEW_3',
+      review_cycle: 3,
+      full_review_count: 1,
+      approved_base: 'main',
+      active_task_issue: '#333',
+      active_pr: '#366',
+      current_head: synchronizedHead,
+      last_reviewed_head: lastReviewedHead,
+      post_budget_reviews: [{
+        review_number: 4,
+        reviewed_head: lastReviewedHead,
+        verdict: 'ELIGIBLE FOR FOUNDER REVIEW',
+        authorization: {
+          status: 'approved',
+          authority: 'Founder',
+          scope: 'review',
+          review_number: 4,
+          reviewed_head: lastReviewedHead,
+          action: 'Authorize bounded Review 4',
+          authorized_at: '2026-08-19T09:29:00+07:00',
+        },
+        finding_dispositions: liveReview4FindingLineage,
+      }],
+      founder_correction_authorization: {
+        schema_version: 2,
+        authorization_id: 'founder-333-review-3',
+        status: 'consumed',
+        authority: 'Founder',
+        scope: 'correction',
+        action: 'reopen',
+        bundle_kind: 'founder-reopen',
+        for_review_number: 3,
+        review_cycle: 3,
+        reviewed_head: predecessorHead,
+        exact_head: predecessorHead,
+        old_reviewed_head: lastReviewedHead,
+        protected_base_sha: 'a4d58f4b1d520ffe655d0b0fc7443b4927f70330',
+        original_result_comment_id: '5331236209',
+        authorization_record: {
+          exact_head: predecessorHead,
+          reviewed_head: predecessorHead,
+          old_reviewed_head: lastReviewedHead,
+          protected_base_sha: 'a4d58f4b1d520ffe655d0b0fc7443b4927f70330',
+        },
+        finding_ids: LIVE_REVIEW4_FINDING_IDS,
+        authorized_at: '2026-08-19T09:30:00+07:00',
+        handoff_comment_id: '5331236000',
+        handoff_binding: {
+          schema_version: 1,
+          content_sha256: 'a'.repeat(64),
+          binding_sha256: 'b'.repeat(64),
+        },
+        delta_review_requirement: true,
+        required_next_review: 'Delta Review',
+        maximum_correction_deliveries: 1,
+        correction_deliveries: 1,
+        delta_review_count: 0,
+      },
+      guide_version: '1.3.0',
+      guide_source_ref: 'main',
+      guide_source_sha: null as string | null,
+      open_blockers: [] as string[],
+      finding_lineage: liveReview4FindingLineage,
+      follow_up_issues: [] as string[],
+      next_permitted_action: 'Reviewer performs bounded Delta Review.',
+      material_change_status: 'none',
+      updated_at: '2026-08-23T00:00:00Z',
+      updated_by: 'Mission Control',
+    }
+
+    expect(parseMissionControlState(renderMissionControlState(state))).toMatchObject({
+      present: true,
+      valid: false,
+      reason: 'Review 3 Founder correction authorization binding is invalid',
+    })
+
+    const validCurrentBinding = {
+      ...state,
+      latest_result_comment_id: '5384309331',
+      latest_transition_identity: JSON.stringify({
+        taskId: '333',
+        phase: 'Dev (synchronization)',
+        role: 'RESULT',
+        contentHash: 'c'.repeat(64),
+      }),
+    }
+    expect(parseMissionControlState(renderMissionControlState(validCurrentBinding))).toMatchObject({
+      present: true,
+      valid: true,
+    })
+
+    const invalidBinding = {
+      ...validCurrentBinding,
+      latest_transition_identity: JSON.stringify({
+        taskId: '333',
+        phase: 'Dev (synchronization)',
+        role: 'REVIEW_VERDICT',
+        contentHash: 'c'.repeat(64),
+      }),
+    }
+    expect(parseMissionControlState(renderMissionControlState(invalidBinding))).toMatchObject({
+      present: true,
+      valid: false,
+      reason: 'Review 3 Founder correction authorization binding is invalid',
+    })
+
+    const historicalResultBinding = {
+      ...validCurrentBinding,
+      latest_result_comment_id: '5331236209',
+    }
+    expect(parseMissionControlState(renderMissionControlState(historicalResultBinding))).toMatchObject({
+      present: true,
+      valid: false,
+      reason: 'Review 3 Founder correction authorization binding is invalid',
+    })
+
+    const invalidHistoricalBinding = {
+      ...validCurrentBinding,
+      founder_correction_authorization: {
+        ...state.founder_correction_authorization,
+        exact_head: synchronizedHead,
+      },
+    }
+    expect(parseMissionControlState(renderMissionControlState(invalidHistoricalBinding))).toMatchObject({
+      present: true,
+      valid: false,
+      reason: 'Review 3 Founder correction authorization binding is invalid',
+    })
+
+    for (const historicalOverride of [
+      { reviewed_head: '1111111111111111111111111111111111111111' },
+      { old_reviewed_head: '1111111111111111111111111111111111111111' },
+      { protected_base_sha: 'not-a-full-sha' },
+    ]) {
+      const malformedHistoricalBinding = {
+        ...validCurrentBinding,
+        founder_correction_authorization: {
+          ...state.founder_correction_authorization,
+          ...historicalOverride,
+        },
+      }
+      expect(parseMissionControlState(renderMissionControlState(malformedHistoricalBinding))).toMatchObject({
+        present: true,
+        valid: false,
+        reason: 'Review 3 Founder correction authorization binding is invalid',
+      })
+    }
   })
 
   it('fails closed without writes when an older active malformed verdict precedes valid Review 4 evidence', async () => {
