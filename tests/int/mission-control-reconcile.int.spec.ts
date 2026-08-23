@@ -2697,3 +2697,228 @@ describe('Issue #255 atomic role-transition regressions', () => {
     expect(state).not.toHaveProperty('state', 'PLANNING')
   })
 })
+
+describe('Task 2 current RESULT authorization correction', () => {
+  const CURRENT_HEAD = '2'.repeat(40)
+  const HISTORICAL_HEAD = '3'.repeat(40)
+  const PROTECTED_BASE = 'a4d58f4b1d520ffe655d0b0fc7443b4927f70330'
+
+  function resultBody({ phase, head, pr = '366', summary = 'RESULT evidence' }: {
+    phase: string
+    head: string
+    pr?: string
+    summary?: string
+  }) {
+    return `## RESULT
+
+### Task log
+- Timestamp: 2026-08-23T12:00:00Z
+- Task / Issue: #333
+- Phase: ${phase}
+- Executing role: Dev / Builder
+
+**State:** branch \`fix/408-current-result-authorization\` · base \`main\` · head \`${head}\`
+**PR:** https://github.com/boat1994/bemoat-web-starter/pull/${pr}
+**Summary:** ${summary}
+`
+  }
+
+  function deliveredReopenState(overrides: Record<string, unknown> = {}) {
+    const state = {
+      schema_version: 1,
+      state: 'AWAITING_REVIEW_3',
+      review_cycle: 3,
+      full_review_count: 1,
+      approved_base: 'main',
+      active_task_issue: '#333',
+      active_pr: '#366',
+      current_head: CURRENT_HEAD,
+      last_reviewed_head: HISTORICAL_HEAD,
+      post_budget_reviews: [{
+        review_number: 4,
+        reviewed_head: HISTORICAL_HEAD,
+        verdict: 'ELIGIBLE FOR FOUNDER REVIEW',
+        authorization: {
+          status: 'approved',
+          authority: 'Founder',
+          scope: 'review',
+          review_number: 4,
+          reviewed_head: HISTORICAL_HEAD,
+          action: 'Authorize bounded Review 4',
+          authorized_at: '2026-08-19T09:29:00+07:00',
+        },
+        finding_dispositions: [{ finding_id: 'MC-R1-001', disposition: 'resolved' }],
+      }],
+      founder_correction_authorization: {
+        schema_version: 2,
+        authorization_id: 'founder-333-review-3',
+        status: 'consumed',
+        authority: 'Founder',
+        scope: 'correction',
+        action: 'reopen',
+        bundle_kind: 'founder-reopen',
+        for_review_number: 3,
+        review_cycle: 3,
+        reviewed_head: HISTORICAL_HEAD,
+        exact_head: HISTORICAL_HEAD,
+        old_reviewed_head: HISTORICAL_HEAD,
+        protected_base_sha: PROTECTED_BASE,
+        original_result_comment_id: '5331236209',
+        authorization_record: {
+          exact_head: HISTORICAL_HEAD,
+          reviewed_head: HISTORICAL_HEAD,
+          old_reviewed_head: HISTORICAL_HEAD,
+          protected_base_sha: PROTECTED_BASE,
+        },
+        finding_ids: ['MC-R1-001'],
+        authorized_at: '2026-08-19T09:30:00+07:00',
+        handoff_comment_id: '5379968710',
+        handoff_binding: {
+          schema_version: 1,
+          content_sha256: 'a'.repeat(64),
+          binding_sha256: 'b'.repeat(64),
+        },
+        delta_review_requirement: true,
+        required_next_review: 'Delta Review',
+        maximum_correction_deliveries: 1,
+        correction_deliveries: 1,
+        delta_review_count: 0,
+      },
+      guide_version: '1.3.0',
+      guide_source_ref: 'main',
+      guide_source_sha: null as string | null,
+      open_blockers: [] as string[],
+      finding_lineage: [{ finding_id: 'MC-R1-001', disposition: 'resolved' }],
+      follow_up_issues: [] as string[],
+      next_permitted_action: 'Reviewer performs bounded Delta Review.',
+      material_change_status: 'none',
+      updated_at: '2026-08-23T00:00:00Z',
+      updated_by: 'Mission Control',
+      ...overrides,
+    }
+    return state
+  }
+
+  it('selects the unique current RESULT when historical same-task RESULTs are present', async () => {
+    const currentBody = resultBody({ phase: 'Dev (synchronization)', head: CURRENT_HEAD })
+    const { identity, options } = buildTransitionMatchOptions({
+      roleBody: currentBody,
+      role: 'RESULT',
+      verifiedBase: 'main',
+      verifiedHead: CURRENT_HEAD,
+    })
+    const comments = [
+      { id: 'historical', body: resultBody({ phase: 'Dev (implementation)', head: HISTORICAL_HEAD }) },
+      { id: 'current', body: currentBody },
+    ]
+
+    const result = await resolveRoleComment({
+      roleBody: currentBody,
+      role: 'RESULT',
+      identity,
+      options,
+      listComments: async () => comments,
+      postComment: async () => { throw new Error('current RESULT should be reused') },
+    })
+
+    expect(result).toMatchObject({ created: false, comment: { id: 'current' } })
+  })
+
+  it('keeps duplicate current-bound RESULT comments as STATE_CONFLICT', async () => {
+    const currentBody = resultBody({ phase: 'Dev (synchronization)', head: CURRENT_HEAD })
+    const { identity, options } = buildTransitionMatchOptions({
+      roleBody: currentBody,
+      role: 'RESULT',
+      verifiedBase: 'main',
+      verifiedHead: CURRENT_HEAD,
+    })
+    const comments = [
+      { id: 'current-one', body: currentBody },
+      { id: 'current-two', body: resultBody({ phase: 'Dev (synchronization)', head: CURRENT_HEAD, summary: 'duplicate' }) },
+    ]
+
+    await expect(resolveRoleComment({
+      roleBody: currentBody,
+      role: 'RESULT',
+      identity,
+      options,
+      listComments: async () => comments,
+      postComment: async () => { throw new Error('duplicate current RESULT must not post') },
+    })).rejects.toThrow('STATE_CONFLICT: competing role comments for RESULT')
+  })
+
+  it('accepts a delivered reopen at a new head with a distinct current RESULT binding', () => {
+    const parsed = parseMissionControlState(renderMissionControlState(deliveredReopenState({
+      latest_result_comment_id: '5384309331',
+      latest_transition_identity: JSON.stringify({
+        taskId: '333',
+        phase: 'Dev (synchronization)',
+        role: 'RESULT',
+        contentHash: 'c'.repeat(64),
+      }),
+    })))
+
+    expect(parsed).toMatchObject({ present: true, valid: true })
+    expect(parsed.state).toMatchObject({
+      state: 'AWAITING_REVIEW_3',
+      review_cycle: 3,
+      full_review_count: 1,
+      last_reviewed_head: HISTORICAL_HEAD,
+    })
+  })
+
+  it('keeps a same-head delivered reopen valid without a new current RESULT binding', () => {
+    const state = deliveredReopenState({
+      current_head: HISTORICAL_HEAD,
+      founder_correction_authorization: {
+        ...deliveredReopenState().founder_correction_authorization,
+        reviewed_head: HISTORICAL_HEAD,
+        exact_head: HISTORICAL_HEAD,
+      },
+    })
+    expect(parseMissionControlState(renderMissionControlState(state))).toMatchObject({
+      present: true,
+      valid: true,
+    })
+  })
+
+  it('rejects a new-head delivered reopen with a mismatched immutable authorization record', () => {
+    const state = deliveredReopenState({
+      latest_result_comment_id: '5384309331',
+      latest_transition_identity: JSON.stringify({
+        taskId: '333',
+        phase: 'Dev (synchronization)',
+        role: 'RESULT',
+        contentHash: 'c'.repeat(64),
+      }),
+      founder_correction_authorization: {
+        ...deliveredReopenState().founder_correction_authorization,
+        authorization_record: {
+          ...deliveredReopenState().founder_correction_authorization.authorization_record,
+          reviewed_head: CURRENT_HEAD,
+        },
+      },
+    })
+
+    expect(parseMissionControlState(renderMissionControlState(state))).toMatchObject({
+      present: true,
+      valid: false,
+      reason: 'Review 3 Founder correction authorization binding is invalid',
+    })
+  })
+
+  it.each([
+    ['missing current RESULT', {}],
+    ['historical RESULT id', { latest_result_comment_id: '5331236209' }],
+    ['wrong RESULT role', {
+      latest_result_comment_id: '5384309331',
+      latest_transition_identity: JSON.stringify({ taskId: '333', phase: 'Dev (synchronization)', role: 'REVIEW_VERDICT', contentHash: 'c'.repeat(64) }),
+    }],
+  ])('rejects a new-head delivered reopen with %s evidence', (_name, overrides) => {
+    expect(parseMissionControlState(renderMissionControlState(deliveredReopenState(overrides)))).toMatchObject({
+      present: true,
+      valid: false,
+      reason: 'Review 3 Founder correction authorization binding is invalid',
+    })
+  })
+})
