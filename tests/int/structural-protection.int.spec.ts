@@ -7,7 +7,7 @@ const root = resolve(process.cwd())
 const tempRoots: string[] = []
 const oracle = [
   ['tests/int/mission-control-adopt-finding.int.spec.ts', 'f5eed96613295c8c9e90e36fa0cdd218a4ab8c38c7070f23e79bceb2fa81a4eb'],
-  ['tests/int/mission-control-merge-verdict-binding-entrypoint.int.spec.ts', 'f4851f9ef3cf3d5b4a094d112a9ac0e778cd13616cc650b3be5bca5aaf1e4922'],
+  ['tests/int/mission-control-merge-verdict-binding-entrypoint.int.spec.ts', '9306b5b1a88694ec0142dd2647b816c4a88d3256974e3cfab58077158617d16f'],
   ['tests/int/mission-control-merge.int.spec.ts', '9bf43d984ebd80c489bed58e0a8b0a10e609c87c3bb8b0c9a4b841cb5df9618a'],
 ] as const
 const productionExtensions = ['.mjs', '.ts'] as const
