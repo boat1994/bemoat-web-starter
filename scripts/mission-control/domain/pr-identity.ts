@@ -94,7 +94,7 @@ export function parseCompleteGitHubPullUrl(raw: unknown): ParseResult {
 }
 
 function isGitHubReviewDiscussionFragment(fragment: unknown): boolean {
-  return typeof fragment === 'string' && /^#discussion_r[0-9]+$/i.test(fragment)
+  return typeof fragment === 'string' && /^#(?:discussion_r[0-9]+|pullrequestreview-[1-9][0-9]*)$/i.test(fragment)
 }
 
 function isSourceThreadDiscussionPointer(candidate: unknown, canonicalIdentity: CanonicalIdentity | null, knownSourceThreads: Set<string> | null = null): boolean {
