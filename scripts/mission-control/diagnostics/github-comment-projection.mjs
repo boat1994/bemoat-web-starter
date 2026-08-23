@@ -39,11 +39,13 @@ function hasApprovedOrDeliveryRoleBody(body, role) {
 }
 
 function projectCommentId(rawComment) {
-  const candidate = rawComment.id || rawComment.databaseId || rawComment.node_id
-  if (/^\d+$/.test(String(candidate ?? '').trim())) return candidate
+  const databaseId = rawComment.databaseId
+  if (/^[1-9]\d*$/.test(String(databaseId ?? '').trim())) return databaseId
+  const rawId = rawComment.id
+  if (/^[1-9]\d*$/.test(String(rawId ?? '').trim())) return rawId
   const urlId = String(rawComment.url || rawComment.html_url || '')
     .match(/(?:issuecomment-|comments\/)(\d+)(?:$|[/?#])/i)?.[1]
-  return urlId ?? candidate
+  return urlId ?? rawId ?? databaseId ?? rawComment.node_id
 }
 
 /**

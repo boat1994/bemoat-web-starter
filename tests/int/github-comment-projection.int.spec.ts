@@ -45,6 +45,16 @@ describe('GitHub Comment Projection', () => {
     expect(projected[0].id).toBe('5384309331')
   })
 
+  it('prefers a positive databaseId over a nonnumeric GraphQL id without a URL', () => {
+    const projected = projectComments([{
+      id: 'IC_kwDOS4T8888AAAABQO4KUw',
+      databaseId: 5384309331,
+      body: '## RESULT\n\nlive result',
+    }]) as ProjectedComment[]
+
+    expect(projected[0].id).toBe(5384309331)
+  })
+
   it('preserves a synthetic nonnumeric id when no numeric comment URL exists', () => {
     const projected = projectComments([{
       id: 'synthetic-result',
