@@ -145,6 +145,23 @@ describe('PR identity extraction seam', () => {
     )).toEqual({ ok: true, identity: { owner: 'boat1994', repo: 'bemoat-web-starter', number: '200', key: 'boat1994/bemoat-web-starter#200' } })
   })
 
+  it('rejects noncanonical or absent fragments in contract source-thread evidence', async () => {
+    const domain = await import('../../scripts/mission-control/domain/pr-identity.ts')
+    const invalidSourceThreads = [
+      `${CANONICAL}#unrelated`,
+      `${CANONICAL}#pullrequestreview-0`,
+      `${CANONICAL}#pullrequestreview-01`,
+      CANONICAL,
+      '',
+    ]
+
+    for (const sourceThread of invalidSourceThreads) {
+      expect(domain.resolveCanonicalVerdictPrIdentity(verdictBody(), REPOSITORY, 'implementation_pr', null, {
+        findings: [{ id: 'MC-R1-412-001', source_thread: sourceThread }],
+      })).toEqual({ ok: false, errors: ['finding MC-R1-412-001 source_thread must use a canonical GitHub review fragment'] })
+    }
+  })
+
   it('rejects wrong-PR, cross-repository, malformed, query-bearing, and unrelated-fragment evidence', async () => {
     const domain = await import('../../scripts/mission-control/domain/pr-identity.ts')
     const reviewSubmission = `${CANONICAL}#pullrequestreview-5002862364`
