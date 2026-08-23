@@ -203,11 +203,12 @@ function resolveMergeReviewVerdictPr(body: string, canonicalBinding: CanonicalBi
   const pullMatches = [...body.matchAll(/\/pull\/(\d+)/g)].map((match) => match[1]).filter(
     (match): match is string => match !== undefined,
   )
-  if (pullMatches.length > 1) {
+  const uniquePulls = [...new Set(pullMatches)]
+  if (uniquePulls.length > 1) {
     throw stateConflict('REVIEW_VERDICT PR evidence is duplicated or ambiguous')
   }
-  if (pullMatches.length === 1) {
-    const pull = pullMatches[0]
+  if (uniquePulls.length === 1) {
+    const pull = uniquePulls[0]
     if (pull) recognized.push(pull)
   }
   return resolveUniqueRecognizedValues(recognized, 'PR')
