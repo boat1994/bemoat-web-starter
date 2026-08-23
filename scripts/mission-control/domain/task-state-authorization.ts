@@ -1,3 +1,6 @@
+import { normalizeAuthorityBase, parseRoleCommentBody } from '../review-verdict-binding.mjs'
+import { normalizeTransitionIdentity, transitionIdentityMatches } from '../transition-identity.mjs'
+
 type JsonRecord = Record<string, unknown>
 type PostBudgetReviewValidation =
   | { valid: true; reviews: JsonRecord[] }
@@ -81,32 +84,24 @@ export function validateBoundCorrectionAuthorization(authorization: unknown, lat
   return { valid: true }
 }
 
-/** Validate the trusted-derived current RESULT projection carried in managed state. */
-function hasCurrentResultBinding(state: JsonRecord, authorization: unknown) {
+/** Validate the trusted-derived current RESULT projection against selected live comment evidence. */
+function hasCurrentResultBinding(state: JsonRecord, authorization: unknown, currentResult: unknown) {
   const taskId = String(state.active_task_issue ?? '').trim().replace(/^#/, '')
-  if (!taskId || !/^\d+$/.test(taskId) ||
-      typeof state.active_pr !== 'string' || !/^#?[1-9]\d*$/.test(state.active_pr.trim()) ||
-      typeof state.current_head !== 'string' || !/^[0-9a-f]{40}$/i.test(state.current_head.trim()) ||
-      typeof state.latest_result_comment_id !== 'string' || !/^[1-9]\d*$/.test(state.latest_result_comment_id.trim()) ||
-      typeof state.latest_transition_identity !== 'string' || !state.latest_transition_identity.trim()) {
-    return false
-  }
-
-  let identity: unknown
-  try {
-    identity = JSON.parse(state.latest_transition_identity)
-  } catch {
-    return false
-  }
-
-  if (!isRecord(authorization)) return false
+  if (!taskId || !/^\d+$/.test(taskId) || typeof state.active_pr !== 'string' || !/^#?[1-9]\d*$/.test(state.active_pr.trim()) || typeof state.current_head !== 'string' || !/^[0-9a-f]{40}$/i.test(state.current_head.trim()) || typeof state.latest_result_comment_id !== 'string' || !/^[1-9]\d*$/.test(state.latest_result_comment_id.trim()) || typeof state.latest_transition_identity !== 'string' || !state.latest_transition_identity.trim()) return false
+  if (!isRecord(authorization) || !isRecord(currentResult) || !isRecord(currentResult.comment) || !isRecord(currentResult.parsed) || typeof currentResult.comment.body !== 'string') return false
+  const commentBody = currentResult.comment.body
+  const commentId = String(currentResult.comment.id ?? '').trim()
+  const commentParsed = parseRoleCommentBody(commentBody); const selectedParsed = currentResult.parsed
+  const commentIdentity = normalizeTransitionIdentity(commentBody, { role: 'RESULT' })
+  if (!/^[1-9]\d*$/.test(commentId) || commentId !== state.latest_result_comment_id.trim() || commentParsed.role !== 'RESULT' || selectedParsed.role !== 'RESULT' || String(selectedParsed.prNumber ?? '') !== String(commentParsed.prNumber ?? '') || normalizeAuthorityBase(selectedParsed.base) !== normalizeAuthorityBase(commentParsed.base) || String(selectedParsed.headSha ?? '').trim().toLowerCase() !== String(commentParsed.headSha ?? '').trim().toLowerCase()) return false
+  let persistedIdentity: unknown
+  try { persistedIdentity = JSON.parse(state.latest_transition_identity) } catch { return false }
+  if (!isRecord(persistedIdentity) || !transitionIdentityMatches(persistedIdentity, commentIdentity)) return false
   const originalResultId = String(authorization.original_result_comment_id ?? '').trim()
   if (!/^[1-9]\d*$/.test(originalResultId) || originalResultId === state.latest_result_comment_id.trim()) return false
-  return isRecord(identity) &&
-    identity.taskId === taskId &&
-    identity.role === 'RESULT' &&
-    typeof identity.phase === 'string' && identity.phase.trim().length > 0 &&
-    typeof identity.contentHash === 'string' && /^[0-9a-f]{64}$/.test(identity.contentHash)
+  const activePr = String(state.active_pr ?? '').trim().replace(/^#/, '')
+  const currentHead = String(state.current_head ?? '').trim().toLowerCase()
+  return commentIdentity.taskId === taskId && commentParsed.prNumber != null && String(commentParsed.prNumber).trim() === activePr && normalizeAuthorityBase(commentParsed.base) === normalizeAuthorityBase(state.approved_base) && /^[0-9a-f]{40}$/.test(currentHead) && /^[0-9a-f]{40}$/.test(String(commentParsed.headSha ?? '').trim().toLowerCase()) && String(commentParsed.headSha).trim().toLowerCase() === currentHead && typeof commentIdentity.phase === 'string' && commentIdentity.phase.trim().length > 0 && typeof commentIdentity.contentHash === 'string' && /^[0-9a-f]{64}$/.test(commentIdentity.contentHash)
 }
 
 function hasHistoricalDeliveredCorrectionBinding(authorization: unknown, state: JsonRecord) {
@@ -140,6 +135,7 @@ export function validateFounderCorrectionAuthorization(
   state: JsonRecord,
   expectedStatus: string,
   expectedCycle: number,
+  currentResult: unknown = null,
 ) {
   if (!isRecord(authorization) ||
       authorization.authority !== 'Founder' || authorization.scope !== 'correction' ||
@@ -160,7 +156,7 @@ export function validateFounderCorrectionAuthorization(
       return reopen.ok && reopen.phase === 'delivered' &&
         isRecord(authorization) && state.current_head !== authorization.reviewed_head &&
         hasHistoricalDeliveredCorrectionBinding(authorization, state) &&
-        hasCurrentResultBinding(state, authorization)
+        hasCurrentResultBinding(state, authorization, currentResult)
     })()
   if (authorization.status !== expectedStatus || !state.last_reviewed_head ||
       (!deliveredReopenWithCurrentResult && (
@@ -297,6 +293,7 @@ export function classifyPostBudgetReview4ReopenCorrection(state: unknown):
 export function validatePostBudgetManagedState(
   state: JsonRecord,
   reviews: JsonRecord[],
+  currentResult: unknown = null,
 ): { valid: true } | { valid: false; reason: string } {
   if (reviews.length === 0) return { valid: true }
   const latestPostBudgetReview = reviews.at(-1)!
@@ -318,6 +315,7 @@ export function validatePostBudgetManagedState(
         state,
         'consumed',
         3,
+        currentResult,
       )
       if (!authorization.valid) {
         return { valid: false, reason: authorization.reason ?? 'consumed Founder correction authorization is invalid' }
@@ -359,6 +357,7 @@ export function validatePostBudgetManagedState(
       state,
       'consumed',
       3,
+      currentResult,
     )
     if (!authorization.valid) {
       return { valid: false, reason: authorization.reason ?? 'consumed Founder correction authorization is invalid' }

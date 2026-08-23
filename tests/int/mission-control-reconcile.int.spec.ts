@@ -34,6 +34,7 @@ const {
   parsePaginatedGhApiJson,
   normalizeIssueComments,
   findMatchingComments,
+  findLatestRoleComment,
   proposeDeliveryReconciliation,
   proposeReviewReconciliation,
   projectReviewVerdictState,
@@ -2799,6 +2800,31 @@ describe('Task 2 current RESULT authorization correction', () => {
     return state
   }
 
+  function selectedCurrentResult({ body = resultBody({ phase: 'Dev (synchronization)', head: CURRENT_HEAD }), id = '5384309331' } = {}) {
+    return {
+      comment: { id, body },
+      parsed: parseRoleCommentBody(body),
+    }
+  }
+
+  function deliveredStateBoundToCurrentResult(currentResult: ReturnType<typeof selectedCurrentResult>, overrides: Record<string, unknown> = {}) {
+    return deliveredReopenState({
+      latest_result_comment_id: String(currentResult.comment.id),
+      latest_transition_identity: JSON.stringify(normalizeTransitionIdentity(currentResult.comment.body, { role: 'RESULT' })),
+      ...overrides,
+    })
+  }
+
+  function validateDeliveredReopen(currentResult: ReturnType<typeof selectedCurrentResult>, stateOverrides: Record<string, unknown> = {}) {
+    return proposeDeliveryReconciliation({
+      managedState: deliveredStateBoundToCurrentResult(currentResult, stateOverrides),
+      livePr: { number: '366', headRefOid: CURRENT_HEAD, baseRefName: 'main' },
+      activeTaskIssue: '333',
+      latestResult: currentResult,
+      updatedAt: '2026-08-23T00:00:00Z',
+    })
+  }
+
   it('selects the unique current RESULT when historical same-task RESULTs are present', async () => {
     const currentBody = resultBody({ phase: 'Dev (synchronization)', head: CURRENT_HEAD })
     const { identity, options } = buildTransitionMatchOptions({
@@ -2824,6 +2850,23 @@ describe('Task 2 current RESULT authorization correction', () => {
     expect(result).toMatchObject({ created: false, comment: { id: 'current' } })
   })
 
+  it('selects current RESULT evidence by task, PR, base, and full head before timestamp', () => {
+    const currentBody = resultBody({ phase: 'Dev (synchronization)', head: CURRENT_HEAD })
+    const selected = findLatestRoleComment([
+      { id: 'historical', body: resultBody({ phase: 'Dev (implementation)', head: HISTORICAL_HEAD }), createdAt: '2026-08-23T13:00:00Z' },
+      { id: 'current', body: currentBody, createdAt: '2026-08-23T12:00:00Z' },
+    ], 'RESULT', { taskId: '333', prNumber: '366', base: 'main', headSha: CURRENT_HEAD })
+
+    expect(selected?.comment.id).toBe('current')
+    expect(findLatestRoleComment([
+      { id: 'current-one', body: currentBody, createdAt: '2026-08-23T12:00:00Z' },
+      { id: 'current-two', body: currentBody, createdAt: '2026-08-23T12:01:00Z' },
+    ], 'RESULT', { taskId: '333', prNumber: '366', base: 'main', headSha: CURRENT_HEAD })).toBeNull()
+    expect(findLatestRoleComment([
+      { id: 'wrong-task', body: currentBody.replace('#333', '#999'), createdAt: '2026-08-23T14:00:00Z' },
+    ], 'RESULT', { taskId: '333', prNumber: '366', base: 'main', headSha: CURRENT_HEAD })).toBeNull()
+  })
+
   it('keeps duplicate current-bound RESULT comments as STATE_CONFLICT', async () => {
     const currentBody = resultBody({ phase: 'Dev (synchronization)', head: CURRENT_HEAD })
     const { identity, options } = buildTransitionMatchOptions({
@@ -2847,7 +2890,7 @@ describe('Task 2 current RESULT authorization correction', () => {
     })).rejects.toThrow('STATE_CONFLICT: competing role comments for RESULT')
   })
 
-  it('accepts a delivered reopen at a new head with a distinct current RESULT binding', () => {
+  it('rejects a delivered reopen at a new head when no selected RESULT comment is supplied', () => {
     const parsed = parseMissionControlState(renderMissionControlState(deliveredReopenState({
       latest_result_comment_id: '5384309331',
       latest_transition_identity: JSON.stringify({
@@ -2858,12 +2901,10 @@ describe('Task 2 current RESULT authorization correction', () => {
       }),
     })))
 
-    expect(parsed).toMatchObject({ present: true, valid: true })
-    expect(parsed.state).toMatchObject({
-      state: 'AWAITING_REVIEW_3',
-      review_cycle: 3,
-      full_review_count: 1,
-      last_reviewed_head: HISTORICAL_HEAD,
+    expect(parsed).toMatchObject({
+      present: true,
+      valid: false,
+      reason: 'Review 3 Founder correction authorization binding is invalid',
     })
   })
 
@@ -2905,6 +2946,53 @@ describe('Task 2 current RESULT authorization correction', () => {
       valid: false,
       reason: 'Review 3 Founder correction authorization binding is invalid',
     })
+  })
+
+  it('accepts a delivered reopen only when state is bound to the selected current RESULT comment', () => {
+    const currentResult = selectedCurrentResult()
+    const proposal = validateDeliveredReopen(currentResult)
+
+    expect(proposal).toMatchObject({
+      state: 'AWAITING_REVIEW_3',
+      current_head: CURRENT_HEAD,
+      latest_result_comment_id: currentResult.comment.id,
+      latest_transition_identity: JSON.stringify(normalizeTransitionIdentity(currentResult.comment.body, { role: 'RESULT' })),
+    })
+  })
+
+  it.each([
+    ['missing selected comment', { latestResult: { parsed: selectedCurrentResult().parsed } }],
+    ['wrong comment id', { stateOverrides: { latest_result_comment_id: '9999999999' } }],
+    ['wrong task', { currentResult: selectedCurrentResult({ body: resultBody({ phase: 'Dev (synchronization)', head: CURRENT_HEAD }).replace('Task / Issue: #333', 'Task / Issue: #999') }) }],
+    ['wrong PR', { currentResult: selectedCurrentResult({ body: resultBody({ phase: 'Dev (synchronization)', head: CURRENT_HEAD, pr: '999' }) }) }],
+    ['wrong base', { currentResult: selectedCurrentResult({ body: resultBody({ phase: 'Dev (synchronization)', head: CURRENT_HEAD }).replace('base `main`', 'base `release`') }) }],
+    ['wrong exact head', { currentResult: selectedCurrentResult({ body: resultBody({ phase: 'Dev (synchronization)', head: '4'.repeat(40) }) }) }],
+    ['wrong role', { currentResult: selectedCurrentResult({ body: resultBody({ phase: 'Dev (synchronization)', head: CURRENT_HEAD }).replace('## RESULT', '## HANDOFF') }) }],
+    ['malformed state identity', { stateOverrides: { latest_transition_identity: '{not-json' } }],
+    ['mismatched transition hash', { stateOverrides: {
+      latest_transition_identity: JSON.stringify({
+        taskId: '333',
+        phase: 'Dev (synchronization)',
+        role: 'RESULT',
+        contentHash: 'd'.repeat(64),
+      }),
+    } }],
+  ])('fails closed for %s current RESULT evidence', (_name, scenario) => {
+    const evidenceScenario = scenario as {
+      currentResult?: ReturnType<typeof selectedCurrentResult>
+      stateOverrides?: Record<string, unknown>
+      latestResult?: { parsed: ReturnType<typeof parseRoleCommentBody> }
+    }
+    const currentResult = evidenceScenario.currentResult ?? selectedCurrentResult()
+    const run = () => proposeDeliveryReconciliation({
+      managedState: deliveredStateBoundToCurrentResult(currentResult, evidenceScenario.stateOverrides),
+      livePr: { number: '366', headRefOid: CURRENT_HEAD, baseRefName: 'main' },
+      activeTaskIssue: '333',
+      latestResult: evidenceScenario.latestResult ?? currentResult,
+      updatedAt: '2026-08-23T00:00:00Z',
+    })
+
+    expect(run).toThrow(/STATE_CONFLICT|EVIDENCE_CONFLICT/)
   })
 
   it.each([
