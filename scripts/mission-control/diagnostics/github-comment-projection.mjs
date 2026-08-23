@@ -116,6 +116,7 @@ export function selectAuthoritativeRoleComments(comments = [], role) {
     const parsed = parseRoleCommentBody(body)
     if (!parsed.role) continue
     if (isExplicitlyNonAuthoritativeRoleBody(body)) continue
+    if (role === 'RESULT' && isDiagnosticOrReconciliationRoleBody(body)) continue
     const ts = Date.parse(comment.createdAt || comment.created_at || '')
     if (Number.isNaN(ts)) {
       authoritative.add(comment)
@@ -146,15 +147,18 @@ export function projectComments(comments = []) {
     }
 
     const isAuthoritative = authoritativeComments.has(rawComment)
+    const parsed = parseRoleCommentBody(body)
+    const isDiagnosticResult = parsed.role === 'RESULT' && isDiagnosticOrReconciliationRoleBody(body)
     const isFounderDecision =
-      body.includes('founder_decision:') ||
-      body.includes('Founder decision:') ||
-      /\b[Ff]ounder\s+gate:\s*Required\b/.test(body) ||
-      body.includes('ELIGIBLE FOR FOUNDER REVIEW')
+      !isDiagnosticResult && (
+        body.includes('founder_decision:') ||
+        body.includes('Founder decision:') ||
+        /\b[Ff]ounder\s+gate:\s*Required\b/.test(body) ||
+        body.includes('ELIGIBLE FOR FOUNDER REVIEW')
+      )
 
     let projectedBody = body
     if (!isAuthoritative && !isFounderDecision) {
-      const parsed = parseRoleCommentBody(body)
       if (parsed && parsed.role) {
         projectedBody = `[Superseded ${parsed.role} comment. View original at ${rawComment.url || 'GitHub'}]`
       } else if (body.length > 500) {
