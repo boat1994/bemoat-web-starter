@@ -7,6 +7,7 @@ import * as coordinatorTransitions from '../../scripts/mission-control/coordinat
 import { parseMissionControlState, renderMissionControlState } from '../../scripts/mission-control/domain/task-state.ts'
 import * as reviewVerdictProjectionFacade from '../../scripts/mission-control/review-verdict-projection.ts'
 import { getPostBudgetReviewEvidenceBlockers } from '../../scripts/mission-control/review-verdict-binding.mjs'
+import { projectComments } from '../../scripts/mission-control/diagnostics/github-comment-projection.mjs'
 
 // Shared .mjs scripts expose runtime behavior, not TypeScript declarations. Keep
 // the strict-project boundary explicit without changing the production API.
@@ -34,6 +35,7 @@ const {
   parsePaginatedGhApiJson,
   normalizeIssueComments,
   findMatchingComments,
+  findLatestRoleComment,
   proposeDeliveryReconciliation,
   proposeReviewReconciliation,
   projectReviewVerdictState,
@@ -2695,5 +2697,348 @@ describe('Issue #255 atomic role-transition regressions', () => {
     })
     expect(state.latest_transition_identity).toBe(JSON.stringify(normalizeTransitionIdentity(handoffBody)))
     expect(state).not.toHaveProperty('state', 'PLANNING')
+  })
+})
+
+describe('Task 2 current RESULT authorization correction', () => {
+  const CURRENT_HEAD = '2'.repeat(40)
+  const HISTORICAL_HEAD = '3'.repeat(40)
+  const PROTECTED_BASE = 'a4d58f4b1d520ffe655d0b0fc7443b4927f70330'
+
+  function resultBody({ phase, head, pr = '366', summary = 'RESULT evidence' }: {
+    phase: string
+    head: string
+    pr?: string
+    summary?: string
+  }) {
+    return `## RESULT
+
+### Task log
+- Timestamp: 2026-08-23T12:00:00Z
+- Task / Issue: #333
+- Phase: ${phase}
+- Executing role: Dev / Builder
+
+**State:** branch \`fix/408-current-result-authorization\` · base \`main\` · head \`${head}\`
+**PR:** https://github.com/boat1994/bemoat-web-starter/pull/${pr}
+**Summary:** ${summary}
+`
+  }
+
+  function deliveredReopenState(overrides: Record<string, unknown> = {}) {
+    const state = {
+      schema_version: 1,
+      state: 'AWAITING_REVIEW_3',
+      review_cycle: 3,
+      full_review_count: 1,
+      approved_base: 'main',
+      active_task_issue: '#333',
+      active_pr: '#366',
+      current_head: CURRENT_HEAD,
+      last_reviewed_head: HISTORICAL_HEAD,
+      post_budget_reviews: [{
+        review_number: 4,
+        reviewed_head: HISTORICAL_HEAD,
+        verdict: 'ELIGIBLE FOR FOUNDER REVIEW',
+        authorization: {
+          status: 'approved',
+          authority: 'Founder',
+          scope: 'review',
+          review_number: 4,
+          reviewed_head: HISTORICAL_HEAD,
+          action: 'Authorize bounded Review 4',
+          authorized_at: '2026-08-19T09:29:00+07:00',
+        },
+        finding_dispositions: [{ finding_id: 'MC-R1-001', disposition: 'resolved' }],
+      }],
+      founder_correction_authorization: {
+        schema_version: 2,
+        authorization_id: 'founder-333-review-3',
+        status: 'consumed',
+        authority: 'Founder',
+        scope: 'correction',
+        action: 'reopen',
+        bundle_kind: 'founder-reopen',
+        for_review_number: 3,
+        review_cycle: 3,
+        reviewed_head: HISTORICAL_HEAD,
+        exact_head: HISTORICAL_HEAD,
+        old_reviewed_head: HISTORICAL_HEAD,
+        protected_base_sha: PROTECTED_BASE,
+        original_result_comment_id: '5331236209',
+        authorization_record: {
+          exact_head: HISTORICAL_HEAD,
+          reviewed_head: HISTORICAL_HEAD,
+          old_reviewed_head: HISTORICAL_HEAD,
+          protected_base_sha: PROTECTED_BASE,
+        },
+        finding_ids: ['MC-R1-001'],
+        authorized_at: '2026-08-19T09:30:00+07:00',
+        handoff_comment_id: '5379968710',
+        handoff_binding: {
+          schema_version: 1,
+          content_sha256: 'a'.repeat(64),
+          binding_sha256: 'b'.repeat(64),
+        },
+        delta_review_requirement: true,
+        required_next_review: 'Delta Review',
+        maximum_correction_deliveries: 1,
+        correction_deliveries: 1,
+        delta_review_count: 0,
+      },
+      guide_version: '1.3.0',
+      guide_source_ref: 'main',
+      guide_source_sha: null as string | null,
+      open_blockers: [] as string[],
+      finding_lineage: [{ finding_id: 'MC-R1-001', disposition: 'resolved' }],
+      follow_up_issues: [] as string[],
+      next_permitted_action: 'Reviewer performs bounded Delta Review.',
+      material_change_status: 'none',
+      updated_at: '2026-08-23T00:00:00Z',
+      updated_by: 'Mission Control',
+      ...overrides,
+    }
+    return state
+  }
+
+  function selectedCurrentResult({ body = resultBody({ phase: 'Dev (synchronization)', head: CURRENT_HEAD }), id = '5384309331' } = {}) {
+    return {
+      comment: { id, body },
+      parsed: parseRoleCommentBody(body),
+    }
+  }
+
+  function deliveredStateBoundToCurrentResult(currentResult: ReturnType<typeof selectedCurrentResult>, overrides: Record<string, unknown> = {}) {
+    return deliveredReopenState({
+      latest_result_comment_id: String(currentResult.comment.id),
+      latest_transition_identity: JSON.stringify(normalizeTransitionIdentity(currentResult.comment.body, { role: 'RESULT' })),
+      ...overrides,
+    })
+  }
+
+  function validateDeliveredReopen(currentResult: ReturnType<typeof selectedCurrentResult>, stateOverrides: Record<string, unknown> = {}) {
+    return proposeDeliveryReconciliation({
+      managedState: deliveredStateBoundToCurrentResult(currentResult, stateOverrides),
+      livePr: { number: '366', headRefOid: CURRENT_HEAD, baseRefName: 'main' },
+      activeTaskIssue: '333',
+      latestResult: currentResult,
+      updatedAt: '2026-08-23T00:00:00Z',
+    })
+  }
+
+  it('selects the unique current RESULT when historical same-task RESULTs are present', async () => {
+    const currentBody = resultBody({ phase: 'Dev (synchronization)', head: CURRENT_HEAD })
+    const { identity, options } = buildTransitionMatchOptions({
+      roleBody: currentBody,
+      role: 'RESULT',
+      verifiedBase: 'main',
+      verifiedHead: CURRENT_HEAD,
+    })
+    const comments = [
+      { id: 'historical', body: resultBody({ phase: 'Dev (implementation)', head: HISTORICAL_HEAD }) },
+      { id: 'current', body: currentBody },
+    ]
+
+    const result = await resolveRoleComment({
+      roleBody: currentBody,
+      role: 'RESULT',
+      identity,
+      options,
+      listComments: async () => comments,
+      postComment: async () => { throw new Error('current RESULT should be reused') },
+    })
+
+    expect(result).toMatchObject({ created: false, comment: { id: 'current' } })
+  })
+
+  it('selects current RESULT evidence by task, PR, base, and full head before timestamp', () => {
+    const currentBody = resultBody({ phase: 'Dev (synchronization)', head: CURRENT_HEAD })
+    const selected = findLatestRoleComment([
+      { id: 'historical', body: resultBody({ phase: 'Dev (implementation)', head: HISTORICAL_HEAD }), createdAt: '2026-08-23T13:00:00Z' },
+      { id: 'current', body: currentBody, createdAt: '2026-08-23T12:00:00Z' },
+    ], 'RESULT', { taskId: '333', prNumber: '366', base: 'main', headSha: CURRENT_HEAD })
+
+    expect(selected?.comment.id).toBe('current')
+    expect(findLatestRoleComment([
+      { id: 'current-one', body: currentBody, createdAt: '2026-08-23T12:00:00Z' },
+      { id: 'current-two', body: currentBody, createdAt: '2026-08-23T12:01:00Z' },
+    ], 'RESULT', { taskId: '333', prNumber: '366', base: 'main', headSha: CURRENT_HEAD })).toBeNull()
+    expect(findLatestRoleComment([
+      { id: 'wrong-task', body: currentBody.replace('#333', '#999'), createdAt: '2026-08-23T14:00:00Z' },
+    ], 'RESULT', { taskId: '333', prNumber: '366', base: 'main', headSha: CURRENT_HEAD })).toBeNull()
+  })
+
+  it('ignores stale or superseded current RESULT evidence before tuple selection', () => {
+    const currentBody = resultBody({ phase: 'Dev (synchronization)', head: CURRENT_HEAD })
+    const binding = { taskId: '333', prNumber: '366', base: 'main', headSha: CURRENT_HEAD }
+
+    expect(findLatestRoleComment([
+      { id: 'stale', body: `${currentBody}\n[superseded] not authoritative`, createdAt: '2026-08-23T14:00:00Z' },
+    ], 'RESULT', binding)).toBeNull()
+    expect(findLatestRoleComment([
+      { id: 'stale', body: `${currentBody}\nnot authoritative`, createdAt: '2026-08-23T14:00:00Z' },
+    ], 'RESULT', binding)).toBeNull()
+  })
+
+  it('keeps duplicate current-bound RESULT comments as STATE_CONFLICT', async () => {
+    const currentBody = resultBody({ phase: 'Dev (synchronization)', head: CURRENT_HEAD })
+    const { identity, options } = buildTransitionMatchOptions({
+      roleBody: currentBody,
+      role: 'RESULT',
+      verifiedBase: 'main',
+      verifiedHead: CURRENT_HEAD,
+    })
+    const comments = [
+      { id: 'current-one', body: currentBody },
+      { id: 'current-two', body: resultBody({ phase: 'Dev (synchronization)', head: CURRENT_HEAD, summary: 'duplicate' }) },
+    ]
+
+    await expect(resolveRoleComment({
+      roleBody: currentBody,
+      role: 'RESULT',
+      identity,
+      options,
+      listComments: async () => comments,
+      postComment: async () => { throw new Error('duplicate current RESULT must not post') },
+    })).rejects.toThrow('STATE_CONFLICT: competing role comments for RESULT')
+  })
+
+  it('rejects a delivered reopen at a new head when no selected RESULT comment is supplied', () => {
+    const parsed = parseMissionControlState(renderMissionControlState(deliveredReopenState({
+      latest_result_comment_id: '5384309331',
+      latest_transition_identity: JSON.stringify({
+        taskId: '333',
+        phase: 'Dev (synchronization)',
+        role: 'RESULT',
+        contentHash: 'c'.repeat(64),
+      }),
+    })))
+
+    expect(parsed).toMatchObject({
+      present: true,
+      valid: false,
+      reason: 'Review 3 Founder correction authorization binding is invalid',
+    })
+  })
+
+  it('keeps a same-head delivered reopen valid without a new current RESULT binding', () => {
+    const state = deliveredReopenState({
+      current_head: HISTORICAL_HEAD,
+      founder_correction_authorization: {
+        ...deliveredReopenState().founder_correction_authorization,
+        reviewed_head: HISTORICAL_HEAD,
+        exact_head: HISTORICAL_HEAD,
+      },
+    })
+    expect(parseMissionControlState(renderMissionControlState(state))).toMatchObject({
+      present: true,
+      valid: true,
+    })
+  })
+
+  it('rejects a new-head delivered reopen with a mismatched immutable authorization record', () => {
+    const state = deliveredReopenState({
+      latest_result_comment_id: '5384309331',
+      latest_transition_identity: JSON.stringify({
+        taskId: '333',
+        phase: 'Dev (synchronization)',
+        role: 'RESULT',
+        contentHash: 'c'.repeat(64),
+      }),
+      founder_correction_authorization: {
+        ...deliveredReopenState().founder_correction_authorization,
+        authorization_record: {
+          ...deliveredReopenState().founder_correction_authorization.authorization_record,
+          reviewed_head: CURRENT_HEAD,
+        },
+      },
+    })
+
+    expect(parseMissionControlState(renderMissionControlState(state))).toMatchObject({
+      present: true,
+      valid: false,
+      reason: 'Review 3 Founder correction authorization binding is invalid',
+    })
+  })
+
+  it('accepts a delivered reopen only when state is bound to the selected current RESULT comment', () => {
+    const currentResult = selectedCurrentResult()
+    const proposal = validateDeliveredReopen(currentResult)
+
+    expect(proposal).toMatchObject({
+      state: 'AWAITING_REVIEW_3',
+      current_head: CURRENT_HEAD,
+      latest_result_comment_id: currentResult.comment.id,
+      latest_transition_identity: JSON.stringify(normalizeTransitionIdentity(currentResult.comment.body, { role: 'RESULT' })),
+    })
+  })
+
+  it('accepts the live GraphQL-shaped current RESULT after projection derives its numeric URL id', () => {
+    const [projectedComment] = projectComments([{
+      id: 'IC_kwDOS4T8888AAAABQO4KUw',
+      databaseId: null,
+      body: resultBody({ phase: 'Dev (synchronization)', head: CURRENT_HEAD }),
+      url: 'https://github.com/boat1994/bemoat-web-starter/issues/333#issuecomment-5384309331',
+    }])
+    const currentResult = {
+      comment: projectedComment,
+      parsed: parseRoleCommentBody(projectedComment.body),
+    }
+
+    expect(projectedComment.id).toBe('5384309331')
+    expect(validateDeliveredReopen(currentResult)).toMatchObject({
+      latest_result_comment_id: '5384309331',
+      current_head: CURRENT_HEAD,
+    })
+  })
+
+  it.each([
+    ['missing selected comment', { latestResult: { parsed: selectedCurrentResult().parsed } }],
+    ['wrong comment id', { stateOverrides: { latest_result_comment_id: '9999999999' } }],
+    ['wrong task', { currentResult: selectedCurrentResult({ body: resultBody({ phase: 'Dev (synchronization)', head: CURRENT_HEAD }).replace('Task / Issue: #333', 'Task / Issue: #999') }) }],
+    ['wrong PR', { currentResult: selectedCurrentResult({ body: resultBody({ phase: 'Dev (synchronization)', head: CURRENT_HEAD, pr: '999' }) }) }],
+    ['wrong base', { currentResult: selectedCurrentResult({ body: resultBody({ phase: 'Dev (synchronization)', head: CURRENT_HEAD }).replace('base `main`', 'base `release`') }) }],
+    ['wrong exact head', { currentResult: selectedCurrentResult({ body: resultBody({ phase: 'Dev (synchronization)', head: '4'.repeat(40) }) }) }],
+    ['wrong role', { currentResult: selectedCurrentResult({ body: resultBody({ phase: 'Dev (synchronization)', head: CURRENT_HEAD }).replace('## RESULT', '## HANDOFF') }) }],
+    ['malformed state identity', { stateOverrides: { latest_transition_identity: '{not-json' } }],
+    ['mismatched transition hash', { stateOverrides: {
+      latest_transition_identity: JSON.stringify({
+        taskId: '333',
+        phase: 'Dev (synchronization)',
+        role: 'RESULT',
+        contentHash: 'd'.repeat(64),
+      }),
+    } }],
+  ])('fails closed for %s current RESULT evidence', (_name, scenario) => {
+    const evidenceScenario = scenario as {
+      currentResult?: ReturnType<typeof selectedCurrentResult>
+      stateOverrides?: Record<string, unknown>
+      latestResult?: { parsed: ReturnType<typeof parseRoleCommentBody> }
+    }
+    const currentResult = evidenceScenario.currentResult ?? selectedCurrentResult()
+    const run = () => proposeDeliveryReconciliation({
+      managedState: deliveredStateBoundToCurrentResult(currentResult, evidenceScenario.stateOverrides),
+      livePr: { number: '366', headRefOid: CURRENT_HEAD, baseRefName: 'main' },
+      activeTaskIssue: '333',
+      latestResult: evidenceScenario.latestResult ?? currentResult,
+      updatedAt: '2026-08-23T00:00:00Z',
+    })
+
+    expect(run).toThrow(/STATE_CONFLICT|EVIDENCE_CONFLICT/)
+  })
+
+  it.each([
+    ['missing current RESULT', {}],
+    ['historical RESULT id', { latest_result_comment_id: '5331236209' }],
+    ['wrong RESULT role', {
+      latest_result_comment_id: '5384309331',
+      latest_transition_identity: JSON.stringify({ taskId: '333', phase: 'Dev (synchronization)', role: 'REVIEW_VERDICT', contentHash: 'c'.repeat(64) }),
+    }],
+  ])('rejects a new-head delivered reopen with %s evidence', (_name, overrides) => {
+    expect(parseMissionControlState(renderMissionControlState(deliveredReopenState(overrides)))).toMatchObject({
+      present: true,
+      valid: false,
+      reason: 'Review 3 Founder correction authorization binding is invalid',
+    })
   })
 })

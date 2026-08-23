@@ -144,7 +144,10 @@ type PlanningLineageResult =
   | { ok: false; reason: string }
 
 /** @returns {{present: boolean, valid: boolean, reason?: string, state: MissionControlState | null}} */
-export function parseMissionControlState(body: string = '') {
+export function parseMissionControlState(
+  body: string = '',
+  options: { currentResult?: unknown; deferCurrentResultBinding?: boolean } = {},
+) {
   const starts = [...body.matchAll(/<!--\s*bemoat-mission-control-state:start\s*-->/g)]
   const ends = [...body.matchAll(/<!--\s*bemoat-mission-control-state:end\s*-->/g)]
   const hasLegacyHeader = body.includes('## MISSION_CONTROL_STATE')
@@ -221,8 +224,12 @@ export function parseMissionControlState(body: string = '') {
     return { present: true, valid: false, reason: 'reviewed cycles require last_reviewed_head' }
   }
   const reopenCorrection = classifyPostBudgetReview4ReopenCorrection(state)
-  const postBudgetState = validatePostBudgetManagedState(state, postBudget.reviews)
-  if (postBudgetState.valid === false) return { present: true, valid: false, reason: postBudgetState.reason }
+  const postBudgetState = validatePostBudgetManagedState(state, postBudget.reviews, options.currentResult)
+  const deferredCurrentResult = options.deferCurrentResultBinding === true &&
+    reopenCorrection.ok && reopenCorrection.phase === 'delivered' && options.currentResult == null
+  if (postBudgetState.valid === false && !deferredCurrentResult) {
+    return { present: true, valid: false, reason: postBudgetState.reason }
+  }
 
   const founderCorrection = state.founder_correction_authorization
   if (state.state === 'FOUNDER_AUTHORIZED_CORRECTION') {

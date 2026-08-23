@@ -6,7 +6,9 @@ import {
 import {
   classifyPostBudgetReview4ReopenCorrection,
   isPostBudgetReview4ReopenCorrectionContract,
+  validatePostBudgetManagedState,
 } from './domain/task-state-authorization.ts'
+import { normalizeTransitionIdentity, serializeTransitionIdentity } from './transition-identity.mjs'
 export { proposeReviewReconciliation } from './review-verdict-projection.ts'
 
 const PRE_DELIVERY_STATES = new Set(['READY', 'IN_PROGRESS', 'CORRECTION_REQUIRED_1', 'CORRECTION_REQUIRED_2'])
@@ -37,6 +39,27 @@ function exactHeadMatches(left, right) {
     normalizedLeft.length === 40 && normalizedRight.length === 40 &&
     normalizedLeft === normalizedRight,
   )
+}
+
+function bindSelectedCurrentResult(state, currentResult) {
+  const comment = currentResult?.comment
+  if (!comment || comment.id == null || typeof comment.body !== 'string') return state
+  return { ...state, latest_result_comment_id: String(comment.id), latest_transition_identity: serializeTransitionIdentity(normalizeTransitionIdentity(comment.body, { role: 'RESULT' })) }
+}
+
+function validateReopenDelivery(state, currentResult, { requireCurrentResult = false } = {}) {
+  if (!requireCurrentResult && !currentResult?.comment) return state
+  const validation = validatePostBudgetManagedState(
+    state,
+    Array.isArray(state.post_budget_reviews) ? state.post_budget_reviews : [],
+    currentResult,
+  )
+  if (!validation.valid) {
+    const error = new Error(`STATE_CONFLICT: ${validation.reason}`)
+    error.classification = 'STATE_CONFLICT'
+    throw error
+  }
+  return state
 }
 
 function parseImmutableFindingDispositions(body = '') {
@@ -272,37 +295,15 @@ export function proposeDeliveryReconciliation(evidence) {
   if (isPostBudgetReview4ReopenCorrectionContract(managedState)) {
     const reopen = classifyPostBudgetReview4ReopenCorrection(managedState)
     if (reopen.ok && reopen.phase === 'delivered' && exactHeadMatches(managedState.current_head, head)) {
-      return {
-        ...structuredClone(managedState),
-        current_head: head,
-        updated_at: updatedAt,
-        updated_by: updatedBy,
-      }
+      return validateReopenDelivery({ ...structuredClone(managedState), current_head: head, updated_at: updatedAt, updated_by: updatedBy }, evidence.latestResult, { requireCurrentResult: true })
     }
     if (!reopen.ok || reopen.phase !== 'dispatched') {
       const error = new Error('STATE_CONFLICT: post-Review 4 reopen correction allows exactly one delivery')
       error.classification = 'STATE_CONFLICT'
       throw error
     }
-    return {
-      ...structuredClone(managedState),
-      state: 'AWAITING_REVIEW_3',
-      review_cycle: 3,
-      full_review_count: 1,
-      approved_base: approvedBase,
-      active_task_issue: evidence.activeTaskIssue ? `#${evidence.activeTaskIssue}` : managedState.active_task_issue,
-      active_pr: `#${prNumber}`,
-      current_head: head,
-      last_reviewed_head: managedState.last_reviewed_head,
-      founder_correction_authorization: {
-        ...structuredClone(reopen.authorization),
-        correction_deliveries: 1,
-      },
-      next_permitted_action: `Reviewer performs bounded Delta Review on PR #${prNumber} at exact head ${head}.`,
-      material_change_status: 'none',
-      updated_at: updatedAt,
-      updated_by: updatedBy,
-    }
+    const proposal = bindSelectedCurrentResult({ ...structuredClone(managedState), state: 'AWAITING_REVIEW_3', review_cycle: 3, full_review_count: 1, approved_base: approvedBase, active_task_issue: evidence.activeTaskIssue ? `#${evidence.activeTaskIssue}` : managedState.active_task_issue, active_pr: `#${prNumber}`, current_head: head, last_reviewed_head: managedState.last_reviewed_head, founder_correction_authorization: { ...structuredClone(reopen.authorization), correction_deliveries: 1 }, next_permitted_action: `Reviewer performs bounded Delta Review on PR #${prNumber} at exact head ${head}.`, material_change_status: 'none', updated_at: updatedAt, updated_by: updatedBy }, evidence.latestResult)
+    return validateReopenDelivery(proposal, evidence.latestResult)
   }
   if (managedState?.state === 'IN_PROGRESS' && managedState.review_cycle === 3 &&
       managedState.full_review_count === 1 && correctionAuthorization?.status === 'consumed' &&

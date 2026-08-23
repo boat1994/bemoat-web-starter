@@ -2,11 +2,34 @@ import {
   normalizeTransitionIdentity,
   serializeTransitionIdentity,
 } from './transition-identity.mjs'
-import { selectActiveRoleComments } from './review-verdict-binding.mjs'
+import {
+  normalizeAuthorityBase,
+  parseRoleCommentBody,
+  selectActiveRoleComments,
+} from './review-verdict-binding.mjs'
 import {
   findMatchingComments,
   recoverAmbiguousPost,
 } from './comment-evidence.ts'
+
+function selectCurrentResultComments(comments, identity, options) {
+  const bindings = options?.bindings ?? {}
+  const taskId = String(bindings.taskId ?? identity.taskId ?? '').trim()
+  const prNumber = String(bindings.prNumber ?? '').trim()
+  const base = normalizeAuthorityBase(bindings.base)
+  const headSha = String(bindings.headSha ?? '').trim().toLowerCase()
+
+  if (!taskId || !prNumber || !base || !/^[0-9a-f]{40}$/.test(headSha)) return null
+
+  return comments.filter((comment) => {
+    const parsed = parseRoleCommentBody(comment.body ?? '')
+    const commentIdentity = normalizeTransitionIdentity(comment.body ?? '')
+    return commentIdentity.taskId === taskId &&
+      String(parsed.prNumber ?? '').trim() === prNumber &&
+      normalizeAuthorityBase(parsed.base) === base &&
+      String(parsed.headSha ?? '').trim().toLowerCase() === headSha
+  })
+}
 
 /**
  * Resolve an authoritative role comment, creating it only when no matching
@@ -40,7 +63,11 @@ export async function resolveRoleComment({
     }
   }
   if (identity.taskId) {
-    const sameTaskComments = activeRoleComments.filter((comment) =>
+    const currentResultComments = role === 'RESULT'
+      ? selectCurrentResultComments(activeRoleComments, identity, options)
+      : null
+    const competitionComments = currentResultComments ?? activeRoleComments
+    const sameTaskComments = competitionComments.filter((comment) =>
       normalizeTransitionIdentity(comment.body ?? '').taskId === identity.taskId,
     )
     if (sameTaskComments.length > 1) {

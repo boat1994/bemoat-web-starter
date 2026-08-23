@@ -5,6 +5,7 @@ import {
   isExplicitlyNonAuthoritativeRoleBody,
   selectActiveRoleComments,
 } from '../../mission-control-reconcile.mjs'
+import { normalizeTransitionIdentity } from '../../mission-control/transition-identity.mjs'
 
 function getCommentBody(comment) {
   return comment.body || comment.body_html || ''
@@ -38,6 +39,30 @@ function hasApprovedOrDeliveryRoleBody(body, role) {
   return false
 }
 
+function isBindableResultBody(body) {
+  const parsed = parseRoleCommentBody(body)
+  const identity = normalizeTransitionIdentity(body, { role: 'RESULT' })
+  return parsed.role === 'RESULT' &&
+    /^[1-9]\d*$/.test(identity.taskId) &&
+    /^[1-9]\d*$/.test(String(parsed.prNumber ?? '').trim()) &&
+    Boolean(parsed.base) &&
+    /^[0-9a-f]{40}$/i.test(String(parsed.headSha ?? '').trim()) &&
+    !isDiagnosticOrReconciliationRoleBody(body)
+}
+
+function projectCommentId(rawComment) {
+  const databaseId = String(rawComment.databaseId ?? '').trim()
+  const rawId = String(rawComment.id ?? '').trim()
+  const urlId = String(rawComment.url || rawComment.html_url || '')
+    .match(/(?:issuecomment-|comments\/)(\d+)(?:$|[/?#])/i)?.[1] ?? null
+  const numericIds = [databaseId, rawId, urlId].filter((value) => /^[1-9]\d*$/.test(value))
+  if (new Set(numericIds).size > 1) return null
+  if (/^[1-9]\d*$/.test(databaseId)) return rawComment.databaseId
+  if (/^[1-9]\d*$/.test(rawId)) return rawComment.id
+  if (urlId) return urlId
+  return rawComment.id ?? rawComment.databaseId ?? rawComment.node_id ?? null
+}
+
 /**
  * Select authoritative role comments using approval/delivery and supersession
  * semantics instead of timestamp-only comparison.
@@ -56,8 +81,16 @@ export function selectAuthoritativeRoleComments(comments = [], role) {
   // is never selected as competing live authority.
   const active = selectActiveRoleComments(comments, role)
   const viable = active.map((comment) => ({ comment, body: getCommentBody(comment) }))
-  const approved = viable.filter(({ body }) => hasApprovedOrDeliveryRoleBody(body, role))
+  const bindableResults = role === 'RESULT'
+    ? viable.filter(({ body }) => isBindableResultBody(body))
+    : []
+  const selectable = role === 'RESULT'
+    ? viable.filter(({ body }) => !isDiagnosticOrReconciliationRoleBody(body))
+    : viable
+  const approved = selectable.filter(({ body }) => hasApprovedOrDeliveryRoleBody(body, role))
   const diagnostic = viable.filter(({ body }) => isDiagnosticOrReconciliationRoleBody(body))
+
+  for (const { comment } of bindableResults) authoritative.add(comment)
 
   if (approved.length > 0) {
     const latestApproved = findLatestRoleComment(
@@ -65,15 +98,15 @@ export function selectAuthoritativeRoleComments(comments = [], role) {
       role,
     )
     if (latestApproved) authoritative.add(latestApproved.comment)
-  } else if (diagnostic.length > 0) {
+  } else if (diagnostic.length > 0 && role !== 'RESULT') {
     const latestDiagnostic = findLatestRoleComment(
       diagnostic.map(({ comment }) => comment),
       role,
     )
     if (latestDiagnostic) authoritative.add(latestDiagnostic.comment)
-  } else if (viable.length > 0) {
+  } else if (selectable.length > 0) {
     const latest = findLatestRoleComment(
-      viable.map(({ comment }) => comment),
+      selectable.map(({ comment }) => comment),
       role,
     )
     if (latest) authoritative.add(latest.comment)
@@ -83,6 +116,7 @@ export function selectAuthoritativeRoleComments(comments = [], role) {
     const parsed = parseRoleCommentBody(body)
     if (!parsed.role) continue
     if (isExplicitlyNonAuthoritativeRoleBody(body)) continue
+    if (role === 'RESULT' && isDiagnosticOrReconciliationRoleBody(body)) continue
     const ts = Date.parse(comment.createdAt || comment.created_at || '')
     if (Number.isNaN(ts)) {
       authoritative.add(comment)
@@ -113,15 +147,18 @@ export function projectComments(comments = []) {
     }
 
     const isAuthoritative = authoritativeComments.has(rawComment)
+    const parsed = parseRoleCommentBody(body)
+    const isDiagnosticResult = parsed.role === 'RESULT' && isDiagnosticOrReconciliationRoleBody(body)
     const isFounderDecision =
-      body.includes('founder_decision:') ||
-      body.includes('Founder decision:') ||
-      /\b[Ff]ounder\s+gate:\s*Required\b/.test(body) ||
-      body.includes('ELIGIBLE FOR FOUNDER REVIEW')
+      !isDiagnosticResult && (
+        body.includes('founder_decision:') ||
+        body.includes('Founder decision:') ||
+        /\b[Ff]ounder\s+gate:\s*Required\b/.test(body) ||
+        body.includes('ELIGIBLE FOR FOUNDER REVIEW')
+      )
 
     let projectedBody = body
     if (!isAuthoritative && !isFounderDecision) {
-      const parsed = parseRoleCommentBody(body)
       if (parsed && parsed.role) {
         projectedBody = `[Superseded ${parsed.role} comment. View original at ${rawComment.url || 'GitHub'}]`
       } else if (body.length > 500) {
@@ -130,7 +167,7 @@ export function projectComments(comments = []) {
     }
 
     const projected = {
-      id: rawComment.id || rawComment.node_id,
+      id: projectCommentId(rawComment),
       url: rawComment.url,
       author: rawComment.author?.login || rawComment.user?.login || 'unknown',
       body: projectedBody

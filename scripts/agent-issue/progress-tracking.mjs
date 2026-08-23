@@ -93,20 +93,18 @@ export function analyzeProgressTracking({
     relevantPlanSection: null,
     reconciliation: null,
   }
-
   const durableProgress = report.durableProgress
   const taskSize = declarations.taskSize
   const isSmallTask = taskSize === 'small'
   const activeIssueSource = stripFencedCodeBlocks(activeIssueBody)
-  const stateAnalysis = parseMissionControlState(activeIssueBody)
+  let stateAnalysis = parseMissionControlState(activeIssueBody, { deferCurrentResultBinding: true })
   const stateRequired =
     declarations.missionControlMode === 'required' ||
     (taskSize === 'core' && declarations.declaresMainIssue && declarations.declaresImplementationPlan) ||
     (stateAnalysis.valid && stateAnalysis.present)
-  const state = stateAnalysis.state
+  let state = stateAnalysis.state
   let resolvedActiveIssueState = activeIssueState
   const stateNeedsPrEvidence = stateAnalysis.valid && stateRequiresPrEvidence(state)
-
   report.missionControlState = stateAnalysis
   if (!stateAnalysis.present) {
     if (stateRequired) {
@@ -240,19 +238,20 @@ export function analyzeProgressTracking({
   const stateActivePrRef =
     state?.active_pr === null || state?.active_pr === undefined ? null : String(state.active_pr)
   let activePrRef = declaredActivePrRef || stateActivePrRef
-
   const preDeliveryLag =
     stateAnalysis.valid &&
     state &&
     ['READY', 'IN_PROGRESS'].includes(state.state) &&
     (!state.active_pr || !state.current_head || state.state !== 'AWAITING_REVIEW_1')
   const postReviewLag = stateAnalysis.valid && state && (/^(AWAITING_REVIEW_|CORRECTION_REQUIRED_)/.test(state.state) || isPostBudgetReviewState(state))
-
   let latestResult = null; let latestVerdict = null
   if (stateRequired && activeIssueNumber && (preDeliveryLag || postReviewLag)) {
     const commentResult = fetchIssueComments(cwd, activeIssueNumber, env)
     if (commentResult.ok) {
-      latestResult = findLatestRoleComment(commentResult.comments, 'RESULT'); latestVerdict = findLatestRoleComment(commentResult.comments, 'REVIEW_VERDICT')
+      const currentResultBinding = state?.state === 'AWAITING_REVIEW_3'
+        ? { taskId: state.active_task_issue, prNumber: state.active_pr, base: state.approved_base, headSha: state.current_head }
+        : null
+      latestResult = findLatestRoleComment(commentResult.comments, 'RESULT', currentResultBinding); latestVerdict = findLatestRoleComment(commentResult.comments, 'REVIEW_VERDICT')
       const managedPrNumber = parsePrReference(activePrRef || stateActivePrRef)?.number ?? null
       blockers.push(...getPostBudgetReviewEvidenceBlockers(commentResult.comments, activeIssueNumber, managedPrNumber, state))
       if (latestResult && state?.updated_at) {
@@ -278,8 +277,9 @@ export function analyzeProgressTracking({
     } else if (postReviewLag && isPostBudgetReviewState(state)) {
       blockers.push(...getPostBudgetReviewEvidenceBlockers(null, activeIssueNumber, null, state))
     }
+    stateAnalysis = parseMissionControlState(activeIssueBody, { currentResult: latestResult }); state = stateAnalysis.state
+    report.missionControlState = stateAnalysis; if (!stateAnalysis.valid) blockers.push(`STATE_MIGRATION_REQUIRED: ${stateAnalysis.reason}.`)
   }
-
   if (stateAnalysis.valid && declaredActivePrRef && stateActivePrRef) {
     const declaredPr = parsePrReference(declaredActivePrRef)
     const recordedPr = parsePrReference(stateActivePrRef)
@@ -292,7 +292,7 @@ export function analyzeProgressTracking({
       blockers.push('STATE_CONFLICT: state active_pr does not match the declared Active PR.')
     }
   }
-  if (stateNeedsPrEvidence && (!state.active_pr || !state.current_head)) {
+  if (stateNeedsPrEvidence && (!state?.active_pr || !state?.current_head)) {
     blockers.push('STATE_MIGRATION_REQUIRED: review or eligibility state requires active_pr and current_head.')
   }
   if (activePrRef) {
