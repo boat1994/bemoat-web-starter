@@ -84,7 +84,10 @@ export function selectAuthoritativeRoleComments(comments = [], role) {
   const bindableResults = role === 'RESULT'
     ? viable.filter(({ body }) => isBindableResultBody(body))
     : []
-  const approved = viable.filter(({ body }) => hasApprovedOrDeliveryRoleBody(body, role))
+  const selectable = role === 'RESULT'
+    ? viable.filter(({ body }) => !isDiagnosticOrReconciliationRoleBody(body))
+    : viable
+  const approved = selectable.filter(({ body }) => hasApprovedOrDeliveryRoleBody(body, role))
   const diagnostic = viable.filter(({ body }) => isDiagnosticOrReconciliationRoleBody(body))
 
   for (const { comment } of bindableResults) authoritative.add(comment)
@@ -95,15 +98,15 @@ export function selectAuthoritativeRoleComments(comments = [], role) {
       role,
     )
     if (latestApproved) authoritative.add(latestApproved.comment)
-  } else if (diagnostic.length > 0) {
+  } else if (diagnostic.length > 0 && role !== 'RESULT') {
     const latestDiagnostic = findLatestRoleComment(
       diagnostic.map(({ comment }) => comment),
       role,
     )
     if (latestDiagnostic) authoritative.add(latestDiagnostic.comment)
-  } else if (viable.length > 0) {
+  } else if (selectable.length > 0) {
     const latest = findLatestRoleComment(
-      viable.map(({ comment }) => comment),
+      selectable.map(({ comment }) => comment),
       role,
     )
     if (latest) authoritative.add(latest.comment)

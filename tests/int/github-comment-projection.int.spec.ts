@@ -99,6 +99,36 @@ describe('GitHub Comment Projection', () => {
     })).toBeNull()
   })
 
+  it('compacts diagnostic RESULT evidence even when it contains a complete current tuple', () => {
+    const currentHead = '4'.repeat(40)
+    const diagnosticBody = [
+      '## RESULT',
+      '',
+      '### Mission Control state-conflict reconciliation',
+      '',
+      '**Task / Issue:** #333',
+      `**State:** base \`main\` · head \`${currentHead}\``,
+      '**PR:** https://github.com/boat1994/bemoat-web-starter/pull/366',
+      '',
+      '### Local-only evidence',
+      '',
+      'No repository code was changed.',
+    ].join('\n')
+    const raw = [{
+      id: 'diagnostic-current',
+      body: diagnosticBody,
+      createdAt: '2026-08-23T14:00:00Z',
+      url: 'http://diagnostic-current',
+    }]
+
+    const projected = projectComments(raw) as ProjectedComment[]
+
+    expect(projected[0].body).toContain('[Superseded RESULT comment')
+    expect(findLatestRoleComment(projected, 'RESULT', {
+      taskId: '333', prNumber: '366', base: 'main', headSha: currentHead,
+    })).toBeNull()
+  })
+
   it('rejects contradictory positive numeric comment identities', () => {
     const projected = projectComments([{
       id: 'IC_kwDOS4T8888AAAABQO4KUw',
