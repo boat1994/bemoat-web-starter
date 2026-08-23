@@ -2,6 +2,8 @@ import { createHash } from 'node:crypto'
 
 import { describe, expect, it } from 'vitest'
 
+import { runCliBoundaryCase } from '../helpers/cli-boundary-harness'
+
 const INCIDENT_HEAD = 'c44bf1bc379fe4160946dce96e5a4d7abae7b5b0'
 const PREVIOUS_REVIEW_HEAD = '301ae166052af036ce4d727be59d8d20cc8c02d1'
 const INCIDENT_BASE_SHA = '88b306c7e055751f78b9ced5922607eee2d1037f'
@@ -578,6 +580,29 @@ The PR #275 is ready, but this is not a canonical binding.
     expect(() => parseRecoveryArgs(['274', '--repo', 'other/repo'])).toThrow(
       /--expected-pr is required/,
     )
+  })
+
+  it('emits registered JSON help and performs zero mutation', () => {
+    const result = runCliBoundaryCase({
+      entrypoint: 'scripts/mission-control-recover-review.mjs',
+      argv: ['--', '--help', '--json'],
+      env: { npm_lifecycle_event: 'bemoat:mission-control:recover-review', NO_COLOR: '1' },
+    })
+    const jsonLine = [...result.stdout.split('\n')].reverse().find((line) => line.trim().startsWith('{'))
+    expect(JSON.parse(jsonLine ?? '')).toMatchObject({
+      command: 'bemoat:mission-control:recover-review',
+      mode: 'help',
+      classification: 'HELP',
+    })
+    expect(result.status).toBe(0)
+    expect(result.filesystem_unchanged).toBe(true)
+    expect(result.poison_invocations).toEqual([])
+  })
+
+  it('keeps parseRecoveryArgs rejecting help and json flags', async () => {
+    const { parseRecoveryArgs } = await workflowModulePromise
+    expect(() => parseRecoveryArgs(['--help', '--json'])).toThrow(/unexpected argument: --help/)
+    expect(() => parseRecoveryArgs(['--json'])).toThrow(/unexpected argument: --json/)
   })
 
   it('accepts divergent incident and execution bases', async () => {
