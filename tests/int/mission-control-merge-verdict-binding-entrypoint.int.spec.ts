@@ -39,6 +39,8 @@ function canonicalBody(pr = historicalPr, head = historicalHead, base = historic
   return `## REVIEW_VERDICT
 
 **Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+**Task:** Issue #${historicalTask}
+**Repository:** \`boat1994/bemoat-web-starter\`
 **PR / base / head:** PR #${pr} · \`${base}\` · \`${head}\`
 `
 }
@@ -47,6 +49,7 @@ function canonicalPullBody(pr = historicalPr, head = historicalHead, base = hist
   return `## REVIEW_VERDICT
 
 **Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+**Task:** Issue #${historicalTask}
 **PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/${pr} · \`${base}\` · \`${head}\`
 `
 }
@@ -55,6 +58,7 @@ function pullUrlBody(pr = historicalPr, head = historicalHead, base = historical
   return `## REVIEW_VERDICT
 
 **Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+**Task:** Issue #${historicalTask}
 **Approved base:** \`${base}@${policySourceSha}\`
 **Exact head reviewed:** \`${head}\`
 
@@ -71,6 +75,7 @@ function historicalFieldBody({
 
 **Verdict:** ELIGIBLE FOR FOUNDER REVIEW
 **Task:** Issue #${historicalTask}
+**Repository:** \`boat1994/bemoat-web-starter\`
 **PR:** ${pr}
 **Exact reviewed head:** ${head}
 **Approved base:** \`${historicalBase}@${policySourceSha}\`
@@ -106,11 +111,13 @@ const WRITE_KEYS = [
 ] as const
 
 function createZeroWriteDeps(options: {
-  verdictBody: string
-  prState?: string
+  simulateConflicts?: boolean,
+  verdictBody?: string,
+  prState?: 'OPEN' | 'MERGED',
   isDraft?: boolean
   includeReconcile?: boolean
-}) {
+} = {}) {
+  options.verdictBody = options.verdictBody ?? canonicalBody()
   const writes: string[] = []
   const operations: string[] = []
   const calls: Record<string, number> = Object.fromEntries(WRITE_KEYS.map((key) => [key, 0]))
@@ -135,6 +142,8 @@ function createZeroWriteDeps(options: {
         current_head: historicalHead,
         last_reviewed_head: historicalHead,
         approved_base: historicalBase,
+        repository: 'boat1994/bemoat-web-starter',
+        issue: String(historicalTask),
         guide_source_sha: policySourceSha,
         guide_version: '1.3.0',
         latest_review_verdict_comment_id: historicalCommentId,
@@ -239,7 +248,7 @@ describe('production merge REVIEW_VERDICT binding', () => {
     expect(body).toContain('**Exact reviewed head:** `31afbb8619c58877109a2448e2388a3bb16727d6`')
   })
 
-  it('live comment 5162624753 binds #254/#258/main/exact head', async () => {
+  it('live comment 5162624753 extracts partial bindings without repo/issue and fails validation', async () => {
     const { parseProductionMergeReviewVerdict, validateMergeReviewVerdict } = await mergeTransport()
     const reviewVerdict = parseProductionMergeReviewVerdict(historicalFixtureBody(), historicalCommentId)
 
@@ -248,19 +257,23 @@ describe('production merge REVIEW_VERDICT binding', () => {
       verdict: 'ELIGIBLE FOR FOUNDER REVIEW',
       pr: String(historicalPr),
       base: historicalBase,
+      repository: null,
+      issue: String(historicalTask),
       reviewed_head: historicalHead,
       non_superseded: true,
     })
 
-    expect(validateMergeReviewVerdict({
+    expect(() => validateMergeReviewVerdict({
       reviewVerdict,
       expected: {
         commentId: historicalCommentId,
         exactHead: historicalHead,
         pr: historicalPr,
         base: historicalBase,
+        repository: 'boat1994/bemoat-web-starter',
+        issue: String(historicalTask),
       },
-    })).toBe(true)
+    })).toThrow(/STATE_CONFLICT/)
   })
 
   it('accepts unique **PR:** PR #N historical field', async () => {
@@ -278,11 +291,15 @@ describe('production merge REVIEW_VERDICT binding', () => {
     expect(resolveMergeReviewVerdictBinding(canonicalPullBody())).toMatchObject({
       pr: String(historicalPr),
       base: historicalBase,
+        repository: 'boat1994/bemoat-web-starter',
+        issue: String(historicalTask),
       reviewed_head: historicalHead,
     })
     expect(resolveMergeReviewVerdictBinding(canonicalBody())).toMatchObject({
       pr: String(historicalPr),
       base: historicalBase,
+        repository: 'boat1994/bemoat-web-starter',
+        issue: String(historicalTask),
       reviewed_head: historicalHead,
     })
   })
@@ -292,6 +309,8 @@ describe('production merge REVIEW_VERDICT binding', () => {
     expect(resolveMergeReviewVerdictBinding(pullUrlBody())).toMatchObject({
       pr: String(historicalPr),
       base: historicalBase,
+        repository: 'boat1994/bemoat-web-starter',
+        issue: String(historicalTask),
       reviewed_head: historicalHead,
     })
   })
@@ -305,6 +324,8 @@ Reviewed again at https://github.com/boat1994/bemoat-web-starter/pull/${historic
     expect(resolveMergeReviewVerdictBinding(body)).toMatchObject({
       pr: String(historicalPr),
       base: historicalBase,
+        repository: 'boat1994/bemoat-web-starter',
+        issue: String(historicalTask),
       reviewed_head: historicalHead,
     })
 
@@ -318,6 +339,8 @@ Reviewed again at https://github.com/boat1994/bemoat-web-starter/pull/${historic
     expect(resolveMergeReviewVerdictBinding(agreeingCanonical)).toMatchObject({
       pr: String(historicalPr),
       base: historicalBase,
+        repository: 'boat1994/bemoat-web-starter',
+        issue: null,
       reviewed_head: historicalHead,
     })
   })
@@ -335,6 +358,8 @@ Reviewed again at https://github.com/boat1994/bemoat-web-starter/pull/${historic
         exactHead: historicalHead,
         pr: historicalPr,
         base: historicalBase,
+        repository: 'boat1994/bemoat-web-starter',
+        issue: String(historicalTask),
       },
     })).toThrow(/STATE_CONFLICT/)
   })
@@ -352,6 +377,8 @@ Reviewed again at https://github.com/boat1994/bemoat-web-starter/pull/${historic
         exactHead: historicalHead,
         pr: historicalPr,
         base: historicalBase,
+        repository: 'boat1994/bemoat-web-starter',
+        issue: String(historicalTask),
       },
     })).toThrow(/STATE_CONFLICT/)
   })
@@ -448,6 +475,8 @@ See https://github.com/boat1994/bemoat-web-starter/pull/${historicalPr}
     expect(resolveMergeReviewVerdictBinding(repeatedUrl)).toMatchObject({
       pr: String(historicalPr),
       base: historicalBase,
+        repository: 'boat1994/bemoat-web-starter',
+        issue: String(historicalTask),
       reviewed_head: historicalHead,
     })
   })
@@ -529,13 +558,14 @@ Incidental prose mentions PR #258 without a recognized field.
       pr: null,
       reviewed_head: historicalHead,
       base: historicalBase,
+        repository: null,
+        issue: null,
     })
   })
 
   it('completion-recovery preflight reaches the next gate with zero writes', async () => {
     const { runFounderAuthorizedMerge } = await mergeTransport()
     const { deps, writes, operations } = createZeroWriteDeps({
-      verdictBody: historicalFixtureBody(),
       prState: 'MERGED',
       // Already-merged recovery reaches verify-base after mutationStarted; omit
       // reconcile so this probe stays focused on pre-RESULT write absence.
@@ -778,6 +808,8 @@ describe('merge REVIEW_VERDICT TypeScript boundary', () => {
     expect(canonical.resolveMergeReviewVerdictBinding(body)).toMatchObject({
       pr: String(historicalPr),
       base: historicalBase,
+        repository: 'boat1994/bemoat-web-starter',
+        issue: String(historicalTask),
       reviewed_head: historicalHead,
     })
     expect(canonical.parseProductionMergeReviewVerdict(body, commentId)).toMatchObject({
@@ -816,6 +848,8 @@ describe('merge REVIEW_VERDICT TypeScript boundary', () => {
     expect(resolveMergeReviewVerdictBinding(body)).toMatchObject({
       pr: String(historicalPr),
       base: historicalBase,
+        repository: null,
+        issue: null,
       reviewed_head: historicalHead,
     })
 
@@ -824,6 +858,8 @@ describe('merge REVIEW_VERDICT TypeScript boundary', () => {
     )).toMatchObject({
       pr: String(historicalPr),
       base: historicalBase,
+        repository: null,
+        issue: null,
       reviewed_head: historicalHead,
     })
     expect(() => resolveMergeReviewVerdictBinding(
@@ -843,6 +879,8 @@ describe('merge REVIEW_VERDICT TypeScript boundary', () => {
       exactHead: historicalHead,
       pr: 'not-a-pr',
       base: historicalBase,
+        repository: 'boat1994/bemoat-web-starter',
+        issue: String(historicalTask),
     }
     const reviewVerdict: {
       comment_id: string
@@ -850,12 +888,16 @@ describe('merge REVIEW_VERDICT TypeScript boundary', () => {
       pr: string | null
       base: string
       reviewed_head: string
+      repository: string | null
+      issue: string | null
       non_superseded: boolean
     } = {
       comment_id: historicalCommentId,
       verdict: 'ELIGIBLE FOR FOUNDER REVIEW',
       pr: null,
       base: historicalBase,
+        repository: 'boat1994/bemoat-web-starter',
+        issue: String(historicalTask),
       reviewed_head: historicalHead,
       non_superseded: true,
     }
@@ -868,7 +910,7 @@ describe('merge REVIEW_VERDICT TypeScript boundary', () => {
       expected,
     })).toEqual({
       valid: false,
-      reason: 'latest review verdict is changed, superseded, or does not bind the exact PR, base, and reviewed head',
+      reason: 'latest review verdict is changed, superseded, or does not bind the exact repository, Issue, PR, base, and reviewed head',
     })
   })
 })

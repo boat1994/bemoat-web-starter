@@ -325,6 +325,8 @@ export async function runFounderAuthorizedMerge({
       exactHead: reviewedHead,
       pr: prNumber,
       base: state.approved_base,
+      repository: repo,
+      issue: issueNumber,
     },
   })
   verifyHeadBindings(state, pr, authorization, repo, protectedBaseSha)
@@ -549,7 +551,7 @@ export async function runFounderAuthorizedMerge({
         const currentReviewVerdict = await deps.readReviewVerdict(repo, issueNumber, reviewCommentId)
         validateMergeReviewVerdict({
           reviewVerdict: currentReviewVerdict,
-          expected: { commentId: reviewCommentId, exactHead: reviewedHead, pr: prNumber, base: state.approved_base },
+          expected: { commentId: reviewCommentId, exactHead: reviewedHead, pr: prNumber, base: state.approved_base, repository: repo, issue: issueNumber },
         })
         verifyNoAutomaticClosure(pr, issueNumber, repo)
         verifyMergeability(pr)

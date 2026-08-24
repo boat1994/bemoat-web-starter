@@ -169,6 +169,8 @@ export function routeContext(evidence: NormalizedContextEvidence): ContextDecisi
             exactHead: activePr.headSha,
             pr: activePr.number,
             base: evidence.protectedBase.branch,
+            repository: evidence.repository.nameWithOwner,
+            issue: evidence.issue.number,
           },
         })
         if (classification.valid) {

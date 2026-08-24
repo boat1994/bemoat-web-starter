@@ -108,7 +108,7 @@ function verification(overrides: Record<string, unknown> = {}) {
 describe('bemoat:context pure routing', () => {
   const validVerdict = {
     id: 100,
-    body: `## REVIEW_VERDICT\n**Verdict:** ELIGIBLE FOR FOUNDER REVIEW\n**PR / base / head:** PR #411 · \`main\` · \`${headSha}\``,
+    body: `## REVIEW_VERDICT\n**Verdict:** ELIGIBLE FOR FOUNDER REVIEW\n**Task:** Issue #410\n**Repository:** \`boat1994/bemoat-web-starter\`\n**PR / base / head:** PR #411 · \`main\` · \`${headSha}\``,
     createdAt: '2026-08-01T00:00:00Z',
     url: 'https://github.com/boat1994/bemoat-web-starter/issues/410#issuecomment-100',
   }
@@ -120,7 +120,7 @@ describe('bemoat:context pure routing', () => {
   }
   const staleVerdict = {
     id: 102,
-    body: `## REVIEW_VERDICT\n**Verdict:** ELIGIBLE FOR FOUNDER REVIEW\n**PR / base / head:** PR #411 · \`main\` · \`c${'c'.repeat(39)}\``,
+    body: `## REVIEW_VERDICT\n**Verdict:** ELIGIBLE FOR FOUNDER REVIEW\n**Task:** Issue #410\n**Repository:** \`boat1994/bemoat-web-starter\`\n**PR / base / head:** PR #411 · \`main\` · \`c${'c'.repeat(39)}\``,
     createdAt: '2026-08-01T00:00:00Z',
     url: 'https://github.com/boat1994/bemoat-web-starter/issues/410#issuecomment-102',
   }
@@ -138,7 +138,7 @@ describe('bemoat:context pure routing', () => {
   }
   const wrongBaseVerdict = {
     id: 105,
-    body: `## REVIEW_VERDICT\n**Verdict:** ELIGIBLE FOR FOUNDER REVIEW\n**PR / base / head:** PR #411 · \`wrongbase\` · \`${headSha}\``,
+    body: `## REVIEW_VERDICT\n**Verdict:** ELIGIBLE FOR FOUNDER REVIEW\n**Task:** Issue #410\n**Repository:** \`boat1994/bemoat-web-starter\`\n**PR / base / head:** PR #411 · \`wrongbase\` · \`${headSha}\``,
     createdAt: '2026-08-01T00:00:00Z',
     url: 'https://github.com/boat1994/bemoat-web-starter/issues/410#issuecomment-105',
   }
