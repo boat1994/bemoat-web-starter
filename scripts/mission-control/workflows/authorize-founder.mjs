@@ -35,23 +35,47 @@ const runGh = defaultRunGh
 
 async function resolveStandardReviewContext({ comments, issueNumber, repository }) {
   const active = selectActiveRoleComments(comments, 'REVIEW_VERDICT')
-  const prNumbers = new Set()
+  const openPrNumbers = new Set()
   for (const comment of active) {
     const taskIssue = resolveIssueScopingTaskNumber(comment.body ?? '')
     if (taskIssue != null && String(taskIssue) !== String(issueNumber)) continue
     const classification = classifyReviewVerdictBindingEvidence(comment.body ?? '', { issueNumber })
     if (classification.status === 'malformed') throw classification.error
     if (classification.status !== 'valid') throw fail('STATE_CONFLICT', 'active REVIEW_VERDICT is missing canonical PR/base/head evidence')
-    prNumbers.add(resolvePrNumber(classification.binding.prNumber))
-  }
-  if (prNumbers.size !== 1) throw fail('STATE_CONFLICT', 'STANDARD authorization requires exactly one canonical active REVIEW_VERDICT PR target')
+    const candidatePrNumber = resolvePrNumber(classification.binding.prNumber)
 
-  const prNumber = [...prNumbers][0]
+    try {
+      const prData = JSON.parse(runGh(['pr', 'view', String(candidatePrNumber), '--repo', repository, '--json', 'state']))
+      if (prData.state === 'OPEN') {
+        openPrNumbers.add(candidatePrNumber)
+      }
+    } catch (_error) {
+      throw fail('STATE_CONFLICT', `Failed to read PR state for PR #${candidatePrNumber}`)
+    }
+  }
+  if (openPrNumbers.size !== 1) throw fail('STATE_CONFLICT', 'STANDARD authorization requires exactly one canonical active REVIEW_VERDICT PR target')
+
+  const prNumber = [...openPrNumbers][0]
   const pr = JSON.parse(runGh(['pr', 'view', String(prNumber), '--repo', repository, '--json', 'number,state,baseRefName,headRefOid']))
+  
+  const filteredComments = comments.filter((comment) => {
+    const role = comment.body?.match(/^##\s+(HANDOFF|RESULT|REVIEW_VERDICT)\s*$/m)?.[1]
+    if (role !== 'REVIEW_VERDICT') return true
+    const taskIssue = resolveIssueScopingTaskNumber(comment.body ?? '')
+    if (taskIssue != null && String(taskIssue) !== String(issueNumber)) return true
+    try {
+      const parsed = classifyReviewVerdictBindingEvidence(comment.body ?? '', { issueNumber })
+      if (parsed.status === 'valid' && String(parsed.binding.prNumber) !== String(prNumber)) {
+        return false
+      }
+    } catch (_e) {}
+    return true
+  })
+
   let selected
   try {
     selected = selectLiveReviewVerdictComment({
-      comments,
+      comments: filteredComments,
       issueNumber,
       livePr: pr,
       exactHead: pr.headRefOid,
