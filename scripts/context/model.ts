@@ -79,12 +79,17 @@ export interface HeadVerificationEvidence {
     required: boolean
     approved: boolean
     exactHead: boolean
+    approvedCount?: number
+    exactHeadApprovedCount?: number
   }
-  protection: {
-    available: boolean
-    requiredChecks: string[]
-    requiredApprovals: number
-  }
+  protection: ProtectionEvidence
+}
+
+export interface ProtectionEvidence {
+  available: boolean
+  source?: 'legacy' | 'native' | 'legacy+native' | 'unavailable'
+  requiredChecks: string[]
+  requiredApprovals: number
 }
 
 export interface RoleEvidence {

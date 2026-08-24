@@ -24,6 +24,7 @@ export function collectContextEvidence({
   const configuredRepo = env.GH_REPO && /^[^/\s]+\/[^/\s]+$/.test(env.GH_REPO) ? env.GH_REPO : null
   const repo = configuredRepo ?? localGit.originRepository
   const errors: string[] = []
+  if (!/^[1-9]\d*$/.test(issueNumber)) errors.push('EVIDENCE_CONFLICT: Issue identity is missing or malformed')
   if (!repo) errors.push('EVIDENCE_CONFLICT: canonical repository identity is unavailable')
   if (configuredRepo && localGit.originRepository && configuredRepo !== localGit.originRepository) {
     errors.push(`EVIDENCE_CONFLICT: configured repository ${configuredRepo} differs from origin ${localGit.originRepository}`)
@@ -34,15 +35,26 @@ export function collectContextEvidence({
     ? readProtectedPolicy({ repo, baseBranch: 'main', run, cwd, env })
     : { branch: 'main', sha: null, policy: null, errors: ['EVIDENCE_CONFLICT: policy cannot be bound without repository identity'] }
   const github = repo
-    ? readGithubEvidence({ cwd, env, repo, issueNumber, branch: localGit.branch === '<detached>' ? null : localGit.branch, run })
-    : { repository, issue: null, comments: [], activePrs: [], exactHead: null, errors: ['EVIDENCE_CONFLICT: GitHub evidence cannot be read without repository identity'] }
+    ? readGithubEvidence({
+      cwd,
+      env,
+      repo,
+      issueNumber,
+      branch: localGit.branch === '<detached>' ? null : localGit.branch,
+      protectedBaseSha: policyResult.sha,
+      run,
+    })
+    : {
+      repository,
+      issue: null,
+      comments: [],
+      activePrs: [],
+      exactHead: null,
+      protection: { available: false, source: 'unavailable' as const, requiredChecks: [], requiredApprovals: 0 },
+      errors: ['EVIDENCE_CONFLICT: GitHub evidence cannot be read without repository identity'],
+    }
   const roleEvidence = parseRoleEvidence(github.comments)
   const activePr = github.activePrs.length === 0 ? null : github.activePrs.length === 1 ? github.activePrs[0] : github.activePrs
-  if (github.activePrs.length === 1) {
-    const active = github.activePrs[0]
-    if (localGit.branch !== active.headBranch || localGit.head !== active.headSha) errors.push('LOCAL_STATE_NOT_DURABLE: local branch and HEAD do not match the active PR head')
-  }
-
   const issue = github.issue ?? {
     number: issueNumber,
     title: '',
@@ -75,7 +87,9 @@ export function collectContextEvidence({
       ...policyResult.errors,
       ...github.errors,
       ...roleEvidence.invalid.map((comment) => `EVIDENCE_CONFLICT: malformed role comment ${comment.id}`),
-      ...(github.issue ? [] : ['BLOCKED_EXTERNAL: Issue evidence is unavailable']),
+      ...(github.issue || github.errors.some((error) => error.startsWith('EVIDENCE_CONFLICT: Issue identity'))
+        ? []
+        : ['BLOCKED_EXTERNAL: Issue evidence is unavailable']),
     ])],
   })
 }

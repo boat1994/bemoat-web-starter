@@ -49,6 +49,7 @@ describe('bemoat:context neutral evidence adapters', () => {
         'rev-parse --abbrev-ref --symbolic-full-name @{upstream}': 'origin/feature/410-context\n',
         'remote get-url origin': 'git@github.com:boat1994/bemoat-web-starter.git\n',
         'rev-parse refs/remotes/origin/feature/410-context': `${'b'.repeat(40)}\n`,
+        'ls-remote --heads origin feature/410-context': `${'b'.repeat(40)}\trefs/heads/feature/410-context\n`,
       }
       if (_command === 'git') return response(local[key] ?? '')
       if (key.includes('git/ref/heads/main')) return response(JSON.stringify({ object: { sha: 'a'.repeat(40) } }))
@@ -87,6 +88,7 @@ describe('bemoat:context neutral evidence adapters', () => {
         'rev-parse --abbrev-ref --symbolic-full-name @{upstream}': 'origin/feature/410-context\n',
         'remote get-url origin': 'git@github.com:boat1994/bemoat-web-starter.git\n',
         'rev-parse refs/remotes/origin/feature/410-context': `${'b'.repeat(40)}\n`,
+        'ls-remote --heads origin feature/410-context': `${'b'.repeat(40)}\trefs/heads/feature/410-context\n`,
       }
       return response(values[key] ?? '')
     }

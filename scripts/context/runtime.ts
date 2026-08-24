@@ -58,6 +58,32 @@ export function asString(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value : null
 }
 
+export function isFullSha(value: unknown): value is string {
+  return typeof value === 'string' && /^[0-9a-f]{40}$/i.test(value.trim())
+}
+
+export function isPositiveInteger(value: unknown): value is string | number {
+  if (typeof value === 'number') return Number.isSafeInteger(value) && value > 0
+  return typeof value === 'string' && /^[1-9]\d*$/.test(value.trim())
+}
+
+export function isRepositoryObjectUrl(
+  value: unknown,
+  repo: string,
+  kind: 'issues' | 'pull',
+  number: string,
+): value is string {
+  if (typeof value !== 'string' || value.trim() === '') return false
+  try {
+    const url = new URL(value)
+    return url.protocol === 'https:' &&
+      url.hostname === 'github.com' &&
+      url.pathname === `/${repo}/${kind}/${number}`
+  } catch {
+    return false
+  }
+}
+
 export function normalizeOriginRepository(origin: string | null): string | null {
   if (!origin) return null
   if (origin.startsWith('git@github.com:')) return origin.slice('git@github.com:'.length).replace(/\.git$/, '')

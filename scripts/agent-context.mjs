@@ -3,37 +3,16 @@
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { createHelpEnvelopeV1, formatTextHelp } from './cli/command-help.mjs'
-import {
-  CliInvocationError,
-  parseCommandInvocation,
-  resolveCommandIdentity,
-} from './cli/command-invocation.mjs'
+import { ContextInvocationError, parseContextInvocation, renderContextHelp } from './context/cli.mjs'
 import { collectContextEvidence } from './context/evidence.ts'
 import { routeContext } from './context/router.ts'
 
-function renderHelp(invocation) {
-  if (invocation.format === 'json') {
-    process.stdout.write(`${JSON.stringify(createHelpEnvelopeV1(invocation.contract))}\n`)
-    return
-  }
-
-  process.stdout.write(formatTextHelp(invocation.contract))
-}
-
 function handleInvocationError(error) {
-  if (!(error instanceof CliInvocationError)) return false
+  if (!(error instanceof ContextInvocationError)) return false
 
-  process.stderr.write(`INVALID_INVOCATION: ${error.details.reason}\n`)
+  process.stderr.write(`INVALID_INVOCATION: ${error.message}\n`)
   process.exitCode = error.exit_code
   return true
-}
-
-function getFacadeEnvironment() {
-  const lifecycleEvent = process.env.npm_lifecycle_event
-  if (!lifecycleEvent || lifecycleEvent.startsWith('bemoat:')) return process.env
-
-  return { ...process.env, npm_lifecycle_event: undefined }
 }
 
 function createContextOutput(evidence, decision, issueNumber) {
@@ -82,23 +61,18 @@ function main() {
   let invocation
 
   try {
-    const command = resolveCommandIdentity({
-      fallback: 'bemoat:context',
-      env: getFacadeEnvironment(),
-      entrypoint: 'scripts/agent-context.mjs',
-    })
-    invocation = parseCommandInvocation(command, process.argv.slice(2))
+    invocation = parseContextInvocation(process.argv.slice(2))
   } catch (error) {
     if (handleInvocationError(error)) return
     throw error
   }
 
   if (invocation.mode === 'help') {
-    renderHelp(invocation)
+    process.stdout.write(renderContextHelp(invocation.format))
     return
   }
 
-  const issueNumber = String(invocation.values.issue_number)
+  const issueNumber = invocation.issueNumber
   const evidence = collectContextEvidence({ issueNumber })
   const decision = routeContext(evidence)
   const output = createContextOutput(evidence, decision, issueNumber)

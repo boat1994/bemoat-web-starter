@@ -3,6 +3,7 @@ import type {
   ContextDecision,
   NormalizedContextEvidence,
 } from './model.ts'
+import { isFullSha, isPositiveInteger, isRepositoryObjectUrl } from './runtime.ts'
 
 function evidenceUrls(evidence: NormalizedContextEvidence): string[] {
   const urls = [
@@ -34,36 +35,70 @@ function commandAction(description: string): ContextDecision['nextAction'] {
   return { type: 'COMMAND', command: null, description }
 }
 
+function identityErrors(evidence: NormalizedContextEvidence): string[] {
+  const errors: string[] = []
+  const repo = evidence.repository?.nameWithOwner ?? ''
+  if (!evidence.issue || typeof evidence.issue.number !== 'string' || !isPositiveInteger(evidence.issue.number)) {
+    errors.push('EVIDENCE_CONFLICT: Issue identity is missing or malformed')
+  }
+  if (!evidence.issue || typeof evidence.issue.title !== 'string' || typeof evidence.issue.state !== 'string' || !evidence.issue.title.trim() || !evidence.issue.state.trim() || !isRepositoryObjectUrl(evidence.issue.url, repo, 'issues', evidence.issue.number)) {
+    errors.push('EVIDENCE_CONFLICT: Issue identity fields are missing or empty')
+  }
+
+  if (!evidence.protectedBase || !evidence.protectedBase.branch.trim() || !isFullSha(evidence.protectedBase.sha)) {
+    errors.push('EVIDENCE_CONFLICT: protected base identity is missing or malformed')
+  }
+
+  const active = Array.isArray(evidence.activePr) ? evidence.activePr : evidence.activePr ? [evidence.activePr] : []
+  for (const pr of active) {
+    const number = pr && typeof pr.number === 'string' ? pr.number : '<unknown>'
+    if (!pr || typeof pr.number !== 'string' || !isPositiveInteger(pr.number) || !isRepositoryObjectUrl(pr.url, repo, 'pull', pr.number) || typeof pr.headBranch !== 'string' || !pr.headBranch.trim() || !isFullSha(pr.headSha) || typeof pr.state !== 'string' || !pr.state.trim()) {
+      errors.push(`EVIDENCE_CONFLICT: PR identity for #${number} is missing or malformed`)
+    }
+    if (!pr || typeof pr.baseBranch !== 'string' || !pr.baseBranch.trim() || typeof pr.baseSha !== 'string' || !isFullSha(pr.baseSha) || pr.baseBranch !== evidence.protectedBase.branch || pr.baseSha.toLowerCase() !== evidence.protectedBase.sha.toLowerCase()) {
+      errors.push(`EVIDENCE_CONFLICT: PR #${number} base identity is missing or malformed`)
+    }
+  }
+  return errors
+}
+
+function isProtectedOrIntegrationBranch(branch: string): boolean {
+  return /^(?:main|master|dev|develop|integration|staging|production)(?:\/.*)?$/i.test(branch)
+}
+
 export function routeContext(evidence: NormalizedContextEvidence): ContextDecision {
-  const baseReasons = [...evidence.evidenceErrors]
+  const baseReasons = [...evidence.evidenceErrors, ...identityErrors(evidence)]
   if (!evidence.localGit.clean || evidence.localGit.detached || !evidence.localGit.pushed || !evidence.localGit.durable) {
     baseReasons.push(
       ...evidence.localGit.reasons,
       'LOCAL_STATE_NOT_DURABLE: required local work is not clean, pushed, and attached to a durable branch',
     )
   }
+  if (Array.isArray(evidence.activePr)) baseReasons.push('EVIDENCE_CONFLICT: competing active PRs cannot be uniquely resolved')
 
   if (baseReasons.length > 0) {
     return decision(evidence, 'STOP', baseReasons, {
       type: 'STOP',
       command: null,
-      description: 'Resolve the evidence and local durability blockers before continuing.',
+      description: Array.isArray(evidence.activePr)
+        ? 'Resolve competing active PR evidence before continuing.'
+        : 'Resolve the evidence and local durability blockers before continuing.',
     })
   }
 
-  if (Array.isArray(evidence.activePr)) {
+  if (isProtectedOrIntegrationBranch(evidence.localGit.branch)) {
     return decision(evidence, 'STOP', [
-      'EVIDENCE_CONFLICT: competing active PRs cannot be uniquely resolved',
+      'EVIDENCE_CONFLICT: protected or integration branch cannot route IMPLEMENT',
     ], {
       type: 'STOP',
       command: null,
-      description: 'Resolve competing active PR evidence before continuing.',
+      description: 'Switch to a durable topic branch before continuing.',
     })
   }
 
   const activePr = evidence.activePr as ActivePullRequestEvidence | null
   if (!activePr) {
-    if (evidence.issue.state === 'CLOSED') {
+    if (evidence.issue.state.toUpperCase() === 'CLOSED') {
       return decision(evidence, 'STOP', [
         'EVIDENCE_CONFLICT: Issue is closed without a uniquely resolved merged PR',
       ], {
