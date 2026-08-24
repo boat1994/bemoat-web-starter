@@ -148,9 +148,13 @@ describe('Batch 7 characterization — CLI command metadata and routing policy l
   it('preserves registry composition through the compatibility facades', () => {
     const routeKeys = COMMAND_CONTRACT_REGISTRY.routes.map((route: any) => route.route_key)
     expect(routeKeys.slice(0, EXPECTED_PRIMARY_ROUTE_KEYS.length)).toEqual([...EXPECTED_PRIMARY_ROUTE_KEYS])
-    expect(routeKeys.slice(EXPECTED_PRIMARY_ROUTE_KEYS.length)).toEqual([...EXPECTED_RECOVERY_ROUTE_KEYS])
-    expect(routeKeys).toHaveLength(
+    expect(routeKeys.slice(
+      EXPECTED_PRIMARY_ROUTE_KEYS.length,
       EXPECTED_PRIMARY_ROUTE_KEYS.length + EXPECTED_RECOVERY_ROUTE_KEYS.length,
+    )).toEqual([...EXPECTED_RECOVERY_ROUTE_KEYS])
+    expect(routeKeys.at(-1)).toBe('NOT_STATEFUL_HANDOFF')
+    expect(routeKeys).toHaveLength(
+      EXPECTED_PRIMARY_ROUTE_KEYS.length + EXPECTED_RECOVERY_ROUTE_KEYS.length + 1,
     )
   })
 

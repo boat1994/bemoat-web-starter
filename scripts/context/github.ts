@@ -346,7 +346,11 @@ export function readGithubEvidence({
       errors.push(`EVIDENCE_CONFLICT: PR #${number} identity fields are missing or malformed`)
       continue
     }
-    if (protectedBaseSha && (baseBranch !== protectedBaseBranch || baseSha.toLowerCase() !== protectedBaseSha.toLowerCase())) {
+    const normalizedState = state.toUpperCase()
+    const merged = normalizedState === 'MERGED' || pr.mergeCommit != null
+    if (normalizedState === 'CLOSED' && !merged) continue
+
+    if (!merged && protectedBaseSha && (baseBranch !== protectedBaseBranch || baseSha.toLowerCase() !== protectedBaseSha.toLowerCase())) {
       errors.push(`EVIDENCE_CONFLICT: PR #${number} base does not match live protected ${protectedBaseBranch}@${protectedBaseSha}`)
     }
     const reviews = Array.isArray(pr.reviews) ? pr.reviews : []
@@ -364,7 +368,6 @@ export function readGithubEvidence({
       },
       protection,
     }
-    const normalizedState = state.toUpperCase()
     activePrs.push({
       number,
       state,
@@ -374,16 +377,21 @@ export function readGithubEvidence({
       baseSha,
       headBranch,
       headSha,
-      merged: normalizedState === 'MERGED' || pr.mergeCommit != null,
+      merged,
     })
     verifications.push(verification)
   }
-  const exactHead = activePrs.length === 1 ? verifications[0] ?? null : null
+  const unmergedPrs = activePrs.filter((pr) => !pr.merged)
+  const selectedPrs = unmergedPrs.length > 0 ? unmergedPrs : activePrs
+  const selectedNumbers = new Set(selectedPrs.map((pr) => pr.number))
+  const selectedVerifications = activePrs.flatMap((pr, index) =>
+    selectedNumbers.has(pr.number) && verifications[index] ? [verifications[index]] : [])
+  const exactHead = selectedPrs.length === 1 ? selectedVerifications[0] ?? null : null
   return {
     repository: repositoryEvidence(repo),
     issue,
     comments,
-    activePrs,
+    activePrs: selectedPrs,
     exactHead,
     protection,
     errors: [...new Set(errors)],

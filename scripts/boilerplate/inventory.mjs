@@ -26,7 +26,7 @@ export const managedPaths = [
   'scripts/guard-harness-contract.mjs', 'scripts/harness-contract',
   'scripts/guard-mission-control-contract.mjs', 'scripts/guards/mission-control-contract',
   'scripts/guards/build-script-contract.mjs', 'scripts/build.mjs', 'scripts/agent-issue.mjs',
-  'scripts/agent-issue', 'scripts/agent-context.mjs', 'scripts/context', 'scripts/agent-delivery.mjs',
+  'scripts/agent-issue', 'scripts/agent-context.mjs', 'scripts/context', 'scripts/agent-handoff.mjs', 'scripts/handoff', 'scripts/agent-delivery.mjs',
   'scripts/mission-control-reconcile.mjs', 'scripts/mission-control-task-create.mjs', 'scripts/mission-control-authorize-founder.mjs',
   'scripts/adapters/command-runner.mjs', 'scripts/mission-control-review.mjs',
   'scripts/mission-control-merge.mjs', 'scripts/mission-control-merge-standard.mjs', 'scripts/mission-control-dispatch.mjs',
@@ -60,6 +60,7 @@ export const managedPaths = [
   'tests/int/build-script-contract-guard.int.spec.ts', 'tests/int/build-wrapper.int.spec.ts',
   'tests/int/branch-safety.int.spec.ts', 'tests/int/agent-issue.int.spec.ts',
   'tests/int/context-parser.int.spec.ts', 'tests/int/context-router.int.spec.ts', 'tests/int/context-evidence.int.spec.ts', 'tests/int/context-cli.int.spec.ts', 'tests/int/context-corrections.int.spec.ts',
+  'tests/int/handoff-schema.int.spec.ts', 'tests/int/handoff-transport.int.spec.ts', 'tests/int/handoff-cli.int.spec.ts',
   'tests/int/agent-issue/process-runner.int.spec.ts',
   'tests/int/agent-issue/local-git-evidence.int.spec.ts',
   'tests/int/agent-issue/github-evidence.int.spec.ts',
@@ -137,7 +138,7 @@ export const packageSyncProposalPath = '.bemoat/package-sync-proposal.md'
 
 /** Namespaced scripts safe to add when missing during sync. Never overwrite existing entries. */
 export const managedPackageScripts = [
-  'bemoat:agent:issue', 'bemoat:context', 'bemoat:mission-control:dispatch', 'bemoat:mission-control:review', 'bemoat:mission-control:task-bootstrap',
+  'bemoat:agent:issue', 'bemoat:context', 'bemoat:handoff', 'bemoat:mission-control:dispatch', 'bemoat:mission-control:review', 'bemoat:mission-control:task-bootstrap',
   'bemoat:mission-control:merge', 'bemoat:mission-control:merge-standard', 'bemoat:mission-control:recover-review', 'bemoat:mission-control:reopen',
   'bemoat:mission-control:adopt-finding', 'bemoat:mission-control:recover-state', 'bemoat:mission-control:recover-review-eligibility', 'bemoat:mission-control:authorize-founder',
   'bemoat:agent:delivery', 'bemoat:issue:comment',

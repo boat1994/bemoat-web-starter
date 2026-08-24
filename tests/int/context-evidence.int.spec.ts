@@ -204,4 +204,58 @@ describe('bemoat:context neutral evidence adapters', () => {
       errors: [],
     })
   })
+
+  it('excludes closed-unmerged PRs from candidates (MC-R1-002)', () => {
+    const head = 'b'.repeat(40)
+    const run: ContextCommandRunner = (_command, args) => {
+      const key = args.join(' ')
+      if (key.startsWith('issue view 410')) {
+        return response(JSON.stringify({
+          number: 410, title: 'context protocol', state: 'OPEN', url: 'https://github.com/boat1994/bemoat-web-starter/issues/410', body: '# body', comments: [],
+        }))
+      }
+      if (key.startsWith('pr list')) {
+        return response(JSON.stringify([
+          { number: 411, url: 'https://github.com/boat1994/bemoat-web-starter/pull/411', headRefName: 'feature/410-context-merged', closingIssuesReferences: [{ number: 410 }] }, // Historical merged
+          { number: 412, url: 'https://github.com/boat1994/bemoat-web-starter/pull/412', headRefName: 'feature/410-context-closed', closingIssuesReferences: [{ number: 410 }] }, // Closed unmerged
+          { number: 413, url: 'https://github.com/boat1994/bemoat-web-starter/pull/413', headRefName: 'feature/410-context', closingIssuesReferences: [{ number: 410 }] }, // Active open
+        ]))
+      }
+      if (key.startsWith('pr view 411')) {
+        return response(JSON.stringify({
+          number: 411, state: 'MERGED', isDraft: false, url: 'https://github.com/boat1994/bemoat-web-starter/pull/411',
+          baseRefName: 'main', baseRefOid: 'a'.repeat(40), headRefName: 'feature/410-context-merged', headRefOid: 'oldsha',
+          mergeCommit: { oid: 'mergecommit' }, reviews: [], statusCheckRollup: []
+        }))
+      }
+      if (key.startsWith('pr view 412')) {
+        return response(JSON.stringify({
+          number: 412, state: 'CLOSED', isDraft: false, url: 'https://github.com/boat1994/bemoat-web-starter/pull/412',
+          baseRefName: 'main', baseRefOid: 'a'.repeat(40), headRefName: 'feature/410-context-closed', headRefOid: 'closedsha',
+          mergeCommit: null, reviews: [], statusCheckRollup: []
+        }))
+      }
+      if (key.startsWith('pr view 413')) {
+        return response(JSON.stringify({
+          number: 413, state: 'OPEN', isDraft: false, url: 'https://github.com/boat1994/bemoat-web-starter/pull/413',
+          baseRefName: 'main', baseRefOid: 'a'.repeat(40), headRefName: 'feature/410-context', headRefOid: head,
+          mergeCommit: null, reviews: [], statusCheckRollup: []
+        }))
+      }
+      if (key.includes('branches/main/protection')) {
+        return response(JSON.stringify({}))
+      }
+      return response('')
+    }
+
+    const evidence = readGithubEvidence({
+      cwd: '/repo', repo: 'boat1994/bemoat-web-starter', issueNumber: '410', branch: 'feature/410-context', run,
+    })
+    
+    // It should exclude the closed PR 412, but include merged PR 411 and open PR 413 in activePrs list from API
+    // Since 411 is merged, unmergedPrs will just be 413.
+    // The activePrs property from evidence should only contain unmerged if there's any, which is [413].
+    expect(evidence.activePrs.length).toBe(1)
+    expect(evidence.activePrs[0].number).toBe('413')
+  })
 })

@@ -1,6 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { CANONICAL_TRANSPORTS } from '../mission-control/transport-registry.ts'
 import { CORRECTION_EVIDENCE_CONTRACT } from '../mission-control/domain/correction-contract.ts'
+import { handoffCommands } from './handoff-command-metadata.ts'
+import { handoffRoutes } from './handoff-routing-policy.ts'
 import { missionControlPrimaryCommands } from './mission-control-command-metadata-primary.ts'
 import { missionControlRecoveryCommands } from './mission-control-command-metadata-recovery.ts'
 import { missionControlReviewCommands } from './mission-control-command-metadata-review.ts'
@@ -818,6 +820,7 @@ const commands: Record<string, CommandContract> = {
 
 
 const missionControlDependencies: any = { contract: contract as unknown as <T extends Record<string, unknown>>(value: T) => T, positional, stdinInput, flag, environment, nextAction }
+const protocolCommands = handoffCommands(missionControlDependencies)
 const missionControlCommands = {
   ...missionControlPrimaryCommands(missionControlDependencies),
   ...missionControlRecoveryCommands(missionControlDependencies),
@@ -829,11 +832,12 @@ const trailingCommands = Object.fromEntries(
 )
 delete commands['bemoat:test:int']
 delete commands['bemoat:typecheck']
-const orderedCommands = { ...commands, ...missionControlCommands, ...trailingCommands }
+const orderedCommands = { ...commands, ...protocolCommands, ...missionControlCommands, ...trailingCommands }
 
 const routes = [
   ...missionControlPrimaryRoutes(),
   ...missionControlRecoveryRoutes(),
+  ...handoffRoutes(),
 ]
 
 /**
