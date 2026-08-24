@@ -149,6 +149,7 @@ function readNativeProtection({
     if (Array.isArray(entry.rules)) continue
     if (typeof id !== 'number' && typeof id !== 'string') continue
     const detail = readJson<Record<string, unknown>>(run, 'gh', ['api', `repos/${repo}/rulesets/${id}`], { cwd, env })
+    if (detail.error) return { available: false, requiredChecks: [], requiredApprovals: 0, error: detail.error }
     if (detail.value && isRecord(detail.value)) details.push(detail.value)
   }
   const requirements = requiredRulesetRequirements([...active, ...details])
@@ -194,9 +195,10 @@ function reviewCounts(reviews: unknown[], headSha: string): { approvedCount: num
       asString(isRecord(value.author) ? value.author.login : null) ??
       asString(value.authorLogin) ?? `review-${index}`
     const state = String(value.state ?? '').toUpperCase()
+    const commitId = String(value.commitId ?? value.commit_id ?? (isRecord(value.commit) ? value.commit.oid : ''))
     latest.set(identity, {
       approved: state === 'APPROVED',
-      exactHead: state === 'APPROVED' && String(value.commitId ?? value.commit_id ?? '') === headSha,
+      exactHead: state === 'APPROVED' && commitId === headSha,
     })
   })
   const current = [...latest.values()].filter((review) => review.approved)
