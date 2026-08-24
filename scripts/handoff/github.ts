@@ -186,7 +186,7 @@ export function postHandoffComment({ repository, issueNumber, body, cwd, env, ru
   return run('gh', ['api', '--method', 'POST', `repos/${repository}/issues/${issueNumber}/comments`, '--input', '-'], {
     cwd,
     env,
-    input: body,
+    input: JSON.stringify({ body }),
   })
 }
 

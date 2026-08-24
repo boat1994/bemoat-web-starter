@@ -103,7 +103,14 @@ function runnerFor(world: World): HandoffCommandRunner {
     if (args[0] === 'api' && args.includes(`repos/${REPOSITORY}/issues/${ISSUE}/comments`)) {
       if (args.includes('--method') && args.includes('POST')) {
         world.postCount += 1
-        const body = options.input ?? ''
+        let payload: { body?: unknown }
+        try {
+          payload = JSON.parse(options.input ?? '') as { body?: unknown }
+        } catch {
+          return fail('GitHub comment POST body was not a JSON object')
+        }
+        if (typeof payload.body !== 'string') return fail('GitHub comment POST body field is missing')
+        const body = payload.body
         const next: Comment = {
           id: String(9000 + world.postCount),
           html_url: `${ISSUE_URL}#issuecomment-${9000 + world.postCount}`,
@@ -152,7 +159,9 @@ describe('bemoat:handoff neutral transport', () => {
     expect(world.comments[0].body).toMatch(/^## HANDOFF\n\n```json\n/)
     expect(world.comments[0].body).not.toMatch(/^## RESULT/m)
     expect(world.comments[0].body).toContain('"record_type": "HANDOFF"')
-    expect(world.calls.filter((call) => call.args.includes('--method') && call.args.includes('POST'))).toHaveLength(1)
+    const postCalls = world.calls.filter((call) => call.args.includes('--method') && call.args.includes('POST'))
+    expect(postCalls).toHaveLength(1)
+    expect(JSON.parse(postCalls[0]?.input ?? '')).toEqual({ body: world.comments[0].body })
   })
 
   it('performs no comment mutation when repository, Issue, head, or PR binding is wrong', async () => {
