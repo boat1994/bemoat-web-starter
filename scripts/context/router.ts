@@ -4,6 +4,7 @@ import type {
   NormalizedContextEvidence,
 } from './model.ts'
 import { isFullSha, isPositiveInteger, isRepositoryObjectUrl } from './runtime.ts'
+import { parseProductionMergeReviewVerdict, classifyMergeReviewVerdict } from '../mission-control/domain/merge-review-verdict.ts'
 
 function evidenceUrls(evidence: NormalizedContextEvidence): string[] {
   const urls = [
@@ -150,7 +151,34 @@ export function routeContext(evidence: NormalizedContextEvidence): ContextDecisi
 
   const isStandard = evidence.issue.workflowProfile === 'STANDARD'
   const semanticReviewRequired = isStandard
-  const semanticReviewSatisfied = verification.reviews.exactHeadApprovedCount && verification.reviews.exactHeadApprovedCount > 0
+
+  let semanticReviewSatisfied = false
+  if (semanticReviewRequired) {
+    const verdicts = evidence.durableContext.historicalResults.filter((r) =>
+      /^##\s+REVIEW_VERDICT\b/i.test(r.body),
+    )
+    const activeVerdicts = verdicts.filter((v) => !/superseded|not authoritative/i.test(v.body))
+    if (activeVerdicts.length === 1) {
+      try {
+        const activeVerdict = activeVerdicts[0]!
+        const parsed = parseProductionMergeReviewVerdict(activeVerdict.body, activeVerdict.id)
+        const classification = classifyMergeReviewVerdict({
+          reviewVerdict: parsed,
+          expected: {
+            commentId: activeVerdict.id,
+            exactHead: activePr.headSha,
+            pr: activePr.number,
+            base: evidence.protectedBase.branch,
+          },
+        })
+        if (classification.valid) {
+          semanticReviewSatisfied = true
+        }
+      } catch {
+        semanticReviewSatisfied = false
+      }
+    }
+  }
 
   if (
     (verification.reviews.required && !(verification.reviews.approved && verification.reviews.exactHead)) ||

@@ -81,7 +81,7 @@ export function parseRoleEvidence(comments: unknown[]): RoleEvidenceResult {
     if (!value || typeof value !== 'object') continue
     const comment = value as Partial<RoleEvidence>
     const body = typeof comment.body === 'string' ? comment.body : ''
-    const marker = body.match(/^##\s+(HANDOFF|RESULT)\b/i)?.[1]?.toUpperCase()
+    const marker = body.match(/^##\s+(HANDOFF|RESULT|REVIEW_VERDICT)\b/i)?.[1]?.toUpperCase()
     if (!marker) continue
 
     const normalized: RoleEvidence = {
