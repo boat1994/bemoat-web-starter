@@ -35,7 +35,6 @@ const runGh = defaultRunGh
 
 async function resolveStandardReviewContext({ comments, issueNumber, repository }) {
   const active = selectActiveRoleComments(comments, 'REVIEW_VERDICT')
-  const prNumbers = new Set()
   const openPrNumbers = new Set()
   for (const comment of active) {
     const taskIssue = resolveIssueScopingTaskNumber(comment.body ?? '')
@@ -44,7 +43,6 @@ async function resolveStandardReviewContext({ comments, issueNumber, repository 
     if (classification.status === 'malformed') throw classification.error
     if (classification.status !== 'valid') throw fail('STATE_CONFLICT', 'active REVIEW_VERDICT is missing canonical PR/base/head evidence')
     const candidatePrNumber = resolvePrNumber(classification.binding.prNumber)
-    prNumbers.add(candidatePrNumber)
 
     try {
       const prData = JSON.parse(runGh(['pr', 'view', String(candidatePrNumber), '--repo', repository, '--json', 'state']))
@@ -63,6 +61,8 @@ async function resolveStandardReviewContext({ comments, issueNumber, repository 
   const filteredComments = comments.filter((comment) => {
     const role = comment.body?.match(/^##\s+(HANDOFF|RESULT|REVIEW_VERDICT)\s*$/m)?.[1]
     if (role !== 'REVIEW_VERDICT') return true
+    const taskIssue = resolveIssueScopingTaskNumber(comment.body ?? '')
+    if (taskIssue != null && String(taskIssue) !== String(issueNumber)) return true
     try {
       const parsed = classifyReviewVerdictBindingEvidence(comment.body ?? '', { issueNumber })
       if (parsed.status === 'valid' && String(parsed.binding.prNumber) !== String(prNumber)) {
