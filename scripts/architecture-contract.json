@@ -52,6 +52,13 @@
       "migration_status": "migrated"
     },
     {
+      "path": "scripts/agent-handoff.mjs",
+      "facade_disposition": "composition_root",
+      "internal_destination": "scripts/handoff/",
+      "owning_slice": 7,
+      "migration_status": "migrated"
+    },
+    {
       "path": "scripts/agent-issue.mjs",
       "facade_disposition": "composition_root",
       "internal_destination": "scripts/agent-issue/issue-preflight.mjs",
