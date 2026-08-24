@@ -64,6 +64,7 @@ function nativeRuleset() {
 function githubRunner({
   issue = issuePayload(),
   pr = prPayload(),
+  prByNumber = {},
   prList = [{
     number: 411,
     body: 'Part of #410',
@@ -76,6 +77,7 @@ function githubRunner({
 }: {
   issue?: string
   pr?: string
+  prByNumber?: Record<string, string>
   prList?: unknown[]
   legacyProtection?: ContextCommandResult
   rulesets?: string
@@ -84,7 +86,7 @@ function githubRunner({
     const key = args.join(' ')
     if (key.startsWith('issue view 410')) return response(issue)
     if (key.startsWith('pr list')) return response(JSON.stringify(prList))
-    if (key.startsWith('pr view 411')) return response(pr)
+    if (key.startsWith('pr view ')) return response(prByNumber[args[2] ?? ''] ?? pr)
     if (key.includes('branches/main/protection')) return legacyProtection
     if (key.includes('/rulesets?')) return response(rulesets)
     return response('')
@@ -167,6 +169,45 @@ describe('MC-R1 bounded context corrections', () => {
       evidenceErrors: evidence.errors,
     }
     expect(routeContext(minimal).route).toBe('COMPLETE')
+  })
+
+  it('ignores a historical merged PR when a newer open PR is the current candidate', () => {
+    const currentHead = 'c'.repeat(40)
+    const currentPr = JSON.stringify({
+      number: 417,
+      state: 'OPEN',
+      isDraft: false,
+      url: 'https://github.com/boat1994/bemoat-web-starter/pull/417',
+      baseRefName: 'main',
+      baseRefOid: baseSha,
+      headRefName: 'feature/410-handoff-protocol',
+      headRefOid: currentHead,
+      mergeCommit: null,
+      reviews: [],
+      statusCheckRollup: [{ name: 'CI', conclusion: 'SUCCESS' }],
+    })
+    const prList: Record<string, unknown>[] = [
+      { number: 411, body: 'Part of #410', url: 'https://github.com/boat1994/bemoat-web-starter/pull/411', headRefName: 'feature/410-context', closingIssuesReferences: [] },
+      { number: 417, body: 'Part of #410', url: 'https://github.com/boat1994/bemoat-web-starter/pull/417', headRefName: 'feature/410-handoff-protocol', closingIssuesReferences: [] },
+    ]
+    const runner = githubRunner({
+      prList,
+      prByNumber: {
+        '411': prPayload({ state: 'MERGED', mergeCommit: { oid: 'd'.repeat(40) } }),
+        '417': currentPr,
+      },
+    })
+    const evidence = readGithubEvidence({
+      repo: 'boat1994/bemoat-web-starter',
+      issueNumber: '410',
+      branch: 'feature/410-handoff-protocol',
+      run: runner,
+    })
+
+    expect(evidence.activePrs).toHaveLength(1)
+    expect(evidence.activePrs[0]).toMatchObject({ number: '417', state: 'OPEN', headSha: currentHead })
+    expect(evidence.exactHead?.exactHead).toBe(currentHead)
+    expect(evidence.errors).not.toContain(expect.stringContaining('PR #411 base does not match'))
   })
 
   it('rejects a PR whose base differs from the live protected base and enforces all native approvals', () => {
