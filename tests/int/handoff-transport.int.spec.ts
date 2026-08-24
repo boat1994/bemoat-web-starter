@@ -95,6 +95,7 @@ function runnerFor(world: World): HandoffCommandRunner {
         headRefName: world.branch ?? BRANCH,
         headRefOid: world.head ?? HEAD_SHA,
         state: 'OPEN',
+        closingIssuesReferences: [{ number: Number(world.issueNumber ?? ISSUE), repository: { nameWithOwner: world.repository ?? REPOSITORY } }],
       }))
     }
     if (args[0] === 'api' && args.includes('repos/boat1994/bemoat-web-starter/git/ref/heads/main')) {
@@ -188,6 +189,44 @@ describe('bemoat:handoff neutral transport', () => {
       },
     }), wrongPr)).rejects.toMatchObject({ classification: 'EVIDENCE_CONFLICT' })
     expect(wrongPr.postCount).toBe(0)
+
+    const wrongPrBase: World = { comments: [], postCount: 0, calls: [] }
+    await expect(run(validRecord({
+      pr: {
+        number: '412',
+        url: PR_URL,
+        base: 'other-branch',
+        head: BRANCH,
+        head_sha: HEAD_SHA,
+      },
+    }), wrongPrBase)).rejects.toMatchObject({ classification: 'EVIDENCE_CONFLICT' })
+    expect(wrongPrBase.postCount).toBe(0)
+    
+    // Create a custom runner for unrelated/closed PR tests
+    const runCustom = async (worldOverrides: Partial<World>, prData: Record<string, unknown>, recordOverrides: Record<string, unknown> = {}) => {
+      const world: World = { comments: [], postCount: 0, calls: [], ...worldOverrides }
+      const customRunner: HandoffCommandRunner = (command, args, options = {}) => {
+        if (command === 'gh' && args[0] === 'pr' && args[1] === 'view') {
+          return { status: 0, stdout: JSON.stringify({
+            number: 412, url: PR_URL, baseRefName: 'main', baseRefOid: BASE_SHA,
+            headRefName: BRANCH, headRefOid: HEAD_SHA, state: 'OPEN',
+            closingIssuesReferences: [{ number: Number(ISSUE), repository: { nameWithOwner: REPOSITORY } }],
+            ...prData
+          }), stderr: '', error: null }
+        }
+        if (command === 'gh' && args[0] === 'pr' && args[1] === 'list') {
+          return { status: 0, stdout: JSON.stringify([prData]), stderr: '', error: null }
+        }
+        return runnerFor(world)(command, args, options)
+      }
+      const record = validRecord(recordOverrides)
+      await expect(async () => runHandoffWorkflow({ issueNumber: ISSUE, body: JSON.stringify(record), cwd: '/repo', env: process.env, run: customRunner })).rejects.toMatchObject({ classification: 'EVIDENCE_CONFLICT' })
+      expect(world.postCount).toBe(0)
+    }
+
+    await runCustom({}, { closingIssuesReferences: [] }, {}) // Unrelated PR
+    await runCustom({}, { state: 'CLOSED' }, {}) // Closed PR
+    await runCustom({}, { state: 'OPEN', closingIssuesReferences: [{ number: Number(ISSUE), repository: { nameWithOwner: REPOSITORY } }] }, { pr: null }) // Omitted applicable PR
   })
 
   it('does not alter Issue fields, labels, assignees, branches, PRs, state, receipts, or counters', async () => {
@@ -235,5 +274,30 @@ describe('bemoat:handoff neutral transport', () => {
     const world: World = { comments: [], postCount: 0, calls: [], failPost: true }
     await expect(run(validRecord(), world)).rejects.toMatchObject({ classification: 'AMBIGUOUS_RESULT' })
     expect(world.postCount).toBe(1)
+  })
+
+  it('stops and performs zero mutation if evidence drifts immediately before POST', async () => {
+    const world: World = { comments: [], postCount: 0, calls: [] }
+    let callCount = 0
+    const customRunner: HandoffCommandRunner = (command, args, options = {}) => {
+      if (command === 'gh' && args[0] === 'pr' && args[1] === 'view') {
+        callCount++
+        if (callCount > 1) { // On the second call (pre-POST revalidation)
+          return { status: 0, stdout: JSON.stringify({
+            number: 412, url: PR_URL, baseRefName: 'main', baseRefOid: BASE_SHA,
+            headRefName: BRANCH, headRefOid: 'drifted-sha', state: 'OPEN',
+            closingIssuesReferences: [{ number: Number(ISSUE), repository: { nameWithOwner: REPOSITORY } }]
+          }), stderr: '', error: null }
+        }
+        return { status: 0, stdout: JSON.stringify({
+          number: 412, url: PR_URL, baseRefName: 'main', baseRefOid: BASE_SHA,
+          headRefName: BRANCH, headRefOid: HEAD_SHA, state: 'OPEN',
+          closingIssuesReferences: [{ number: Number(ISSUE), repository: { nameWithOwner: REPOSITORY } }]
+        }), stderr: '', error: null }
+      }
+      return runnerFor(world)(command, args, options)
+    }
+    await expect(async () => runHandoffWorkflow({ issueNumber: ISSUE, body: JSON.stringify(validRecord()), cwd: '/repo', env: process.env, run: customRunner })).rejects.toMatchObject({ classification: 'EVIDENCE_CONFLICT' })
+    expect(world.postCount).toBe(0)
   })
 })

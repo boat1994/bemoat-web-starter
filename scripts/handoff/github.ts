@@ -107,7 +107,7 @@ export function readHandoffBinding({
   const protectedBaseSha = typeof baseRef.object?.sha === 'string' ? baseRef.object.sha.toLowerCase() : ''
   assertEqual(protectedBaseSha, record.protected_base.sha, 'protected base SHA binding')
 
-  const issue = json<{ number?: unknown; url?: unknown }>(
+  const issue = json<{ number?: unknown; url?: unknown; state?: unknown }>(
     run,
     'gh',
     ['issue', 'view', issueNumber, '--repo', repository, '--json', 'number,url,state'],
@@ -117,6 +117,7 @@ export function readHandoffBinding({
   )
   assertEqual(String(issue.number), issueNumber, 'Issue number binding')
   assertIssueUrl(issue.url, repository, issueNumber)
+  assertEqual(String(issue.state).toUpperCase(), 'OPEN', 'Issue state binding')
 
   if (record.pr !== null) {
     const pr = json<{
@@ -126,13 +127,56 @@ export function readHandoffBinding({
       baseRefOid?: unknown
       headRefName?: unknown
       headRefOid?: unknown
-    }>(run, 'gh', ['pr', 'view', record.pr.number, '--repo', repository, '--json', 'number,url,baseRefName,baseRefOid,headRefName,headRefOid,state'], cwd, env, 'Pull Request identity')
+      state?: unknown
+      title?: unknown
+      body?: unknown
+      closingIssuesReferences?: unknown[]
+    }>(run, 'gh', ['pr', 'view', record.pr.number, '--repo', repository, '--json', 'number,url,baseRefName,baseRefOid,headRefName,headRefOid,state,title,body,closingIssuesReferences'], cwd, env, 'Pull Request identity')
     assertEqual(String(pr.number), record.pr.number, 'PR number binding')
     assertEqual(pr.url, record.pr.url, 'PR URL binding')
+    assertEqual(String(pr.state).toUpperCase(), 'OPEN', 'PR state binding')
+    assertEqual(pr.baseRefName, baseBranch, 'PR live base branch binding')
     assertEqual(pr.baseRefName, record.pr.base, 'PR base branch binding')
     assertEqual(String(pr.baseRefOid).toLowerCase(), record.protected_base.sha, 'PR base SHA binding')
+    assertEqual(pr.headRefName, branch, 'PR live head branch binding')
     assertEqual(pr.headRefName, record.pr.head, 'PR head branch binding')
     assertEqual(String(pr.headRefOid).toLowerCase(), record.pr.head_sha, 'PR exact head binding')
+
+    const refs = pr.closingIssuesReferences
+    let isBound = false
+    if (Array.isArray(refs) && refs.some((r) => {
+      const ref = r as { number?: string | number, repository?: { nameWithOwner?: string } }
+      return String(ref?.number ?? '') === issueNumber && (!ref?.repository?.nameWithOwner || ref.repository.nameWithOwner === repository)
+    })) {
+      isBound = true
+    } else {
+      const prBody = `${String(pr.title ?? '')}\n${String(pr.body ?? '')}`
+      const escapedRepo = repository.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      const relation = new RegExp(`(?:part of|refs?|references|related to|closes|fix(?:es)?|resolves|task\\s*[/:-]?\\s*issue|issue)\\s*(?:${escapedRepo})?\\s*#${issueNumber}\\b`, 'i')
+      isBound = relation.test(prBody)
+    }
+    assertEqual(isBound, true, 'PR Issue linkage binding')
+  } else {
+    const prs = json<unknown[]>(run, 'gh', ['pr', 'list', '--repo', repository, '--state', 'open', '--search', `repo:${repository} #${issueNumber}`, '--json', 'number,state,title,body,closingIssuesReferences'], cwd, env, 'Active PR lookup')
+    if (Array.isArray(prs)) {
+      const hasApplicable = prs.some((p) => {
+        const pr = p as { state?: string, title?: string, body?: string, closingIssuesReferences?: { number?: string | number, repository?: { nameWithOwner?: string } }[] } | null | undefined
+        if (!pr || typeof pr !== 'object') return false
+        if (String(pr.state).toUpperCase() !== 'OPEN') return false
+        const refs = pr.closingIssuesReferences
+        if (Array.isArray(refs) && refs.some((r) => {
+          const ref = r as { number?: string | number, repository?: { nameWithOwner?: string } }
+          return String(ref?.number ?? '') === issueNumber && (!ref?.repository?.nameWithOwner || ref.repository.nameWithOwner === repository)
+        })) return true
+        const prBody = `${String(pr.title ?? '')}\n${String(pr.body ?? '')}`
+        const escapedRepo = repository.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        const relation = new RegExp(`(?:part of|refs?|references|related to|closes|fix(?:es)?|resolves|task\\s*[/:-]?\\s*issue|issue)\\s*(?:${escapedRepo})?\\s*#${issueNumber}\\b`, 'i')
+        return relation.test(prBody)
+      })
+      if (hasApplicable) {
+        throw new HandoffRuntimeError('EVIDENCE_CONFLICT', 'applicable active PR exists but was omitted from the HANDOFF record')
+      }
+    }
   }
 
   return {

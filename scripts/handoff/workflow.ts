@@ -109,6 +109,8 @@ export function runHandoffWorkflow({
     })
   }
 
+  // Immediate pre-POST revalidation to prevent drift (MC-R1-003)
+  readHandoffBinding({ cwd, env, issueNumber, record, run })
   const post = postHandoffComment({ repository: binding.repository, issueNumber, body: commentBody, cwd, env, run })
   const postedId = post.status === 0 && !post.error ? readPostedId(post.stdout) : null
   const after = list()
@@ -128,6 +130,8 @@ export function runHandoffWorkflow({
     }
     if (matches.length > 1) ambiguous('ambiguous HANDOFF POST produced competing exact comments')
     if (post.mutationPerformed === false) {
+      // Immediate pre-POST revalidation before retry (MC-R1-003)
+      readHandoffBinding({ cwd, env, issueNumber, record, run })
       const retry = postHandoffComment({ repository: binding.repository, issueNumber, body: commentBody, cwd, env, run })
       if (retry.error || retry.status !== 0) {
         ambiguous(`HANDOFF POST failed with no durable comment: ${commandFailure(retry, 'retry failed')}`, false)

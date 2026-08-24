@@ -348,6 +348,8 @@ export function readGithubEvidence({
     }
     const normalizedState = state.toUpperCase()
     const merged = normalizedState === 'MERGED' || pr.mergeCommit != null
+    if (normalizedState === 'CLOSED' && !merged) continue
+
     if (!merged && protectedBaseSha && (baseBranch !== protectedBaseBranch || baseSha.toLowerCase() !== protectedBaseSha.toLowerCase())) {
       errors.push(`EVIDENCE_CONFLICT: PR #${number} base does not match live protected ${protectedBaseBranch}@${protectedBaseSha}`)
     }
