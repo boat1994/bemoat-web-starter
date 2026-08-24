@@ -44,6 +44,9 @@ function identityErrors(evidence: NormalizedContextEvidence): string[] {
   if (!evidence.issue || typeof evidence.issue.title !== 'string' || typeof evidence.issue.state !== 'string' || !evidence.issue.title.trim() || !evidence.issue.state.trim() || !isRepositoryObjectUrl(evidence.issue.url, repo, 'issues', evidence.issue.number)) {
     errors.push('EVIDENCE_CONFLICT: Issue identity fields are missing or empty')
   }
+  if (evidence.issue && !evidence.issue.workflowProfile) {
+    errors.push('EVIDENCE_CONFLICT: Issue workflow profile cannot be derived from task size and Mission Control mode')
+  }
 
   if (!evidence.protectedBase || !evidence.protectedBase.branch.trim() || !isFullSha(evidence.protectedBase.sha)) {
     errors.push('EVIDENCE_CONFLICT: protected base identity is missing or malformed')
@@ -145,9 +148,20 @@ export function routeContext(evidence: NormalizedContextEvidence): ContextDecisi
     ], commandAction('Wait for or verify the exact-head checks bound to the active PR.'))
   }
 
-  if (verification.reviews.required && !(verification.reviews.approved && verification.reviews.exactHead)) {
+  const isStandard = evidence.issue.workflowProfile === 'STANDARD'
+  const semanticReviewRequired = isStandard
+  const semanticReviewSatisfied = verification.reviews.exactHeadApprovedCount && verification.reviews.exactHeadApprovedCount > 0
+
+  if (
+    (verification.reviews.required && !(verification.reviews.approved && verification.reviews.exactHead)) ||
+    (semanticReviewRequired && !semanticReviewSatisfied)
+  ) {
+    const reason = (verification.reviews.required && !(verification.reviews.approved && verification.reviews.exactHead))
+      ? `Exact-head checks pass, but required review evidence is not approved at ${activePr.headSha}.`
+      : `Exact-head checks pass, but STANDARD semantic review is missing at ${activePr.headSha}.`
+
     return decision(evidence, 'REVIEW', [
-      `Exact-head checks pass, but required review evidence is not approved at ${activePr.headSha}.`,
+      reason,
     ], commandAction('Review the durable implementation at the exact active PR head.'))
   }
 

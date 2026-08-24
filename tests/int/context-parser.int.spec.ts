@@ -35,6 +35,9 @@ Only the read-only context command.
         'Protected main policy.',
         'Exact-head CI evidence.',
       ],
+      taskSize: null,
+      missionControlMode: null,
+      workflowProfile: null,
     })
   })
 

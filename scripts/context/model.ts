@@ -40,6 +40,9 @@ export interface IssueEvidence {
   scope: string | null
   acceptanceCriteria: string[]
   dependencies: string[]
+  taskSize: string | null
+  missionControlMode: string | null
+  workflowProfile: string | null
 }
 
 export interface LocalGitEvidence {

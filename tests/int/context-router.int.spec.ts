@@ -38,6 +38,9 @@ function baseEvidence(
       scope: 'Context only.',
       acceptanceCriteria: ['The command is read-only.'],
       dependencies: [],
+      taskSize: 'core',
+      missionControlMode: 'optional',
+      workflowProfile: 'STANDARD',
     },
     localGit: {
       branch: 'feature/410-context',
@@ -90,6 +93,8 @@ function verification(overrides: Record<string, unknown> = {}) {
       required: true,
       approved: false,
       exactHead: false,
+      approvedCount: 0,
+      exactHeadApprovedCount: 0,
     },
     protection: {
       available: true,
@@ -167,11 +172,71 @@ describe('bemoat:context pure routing', () => {
     const decision = routeContext(baseEvidence({
       activePr: prEvidence(),
       currentHeadVerification: verification({
-        reviews: { required: true, approved: true, exactHead: true },
+        reviews: { required: true, approved: true, exactHead: true, approvedCount: 1, exactHeadApprovedCount: 1 },
       }),
     }))
 
     expect(decision.route).toBe('FOUNDER_GATE')
+  })
+
+  describe('semantic review policies', () => {
+    it('routes STANDARD + zero native approvals + no semantic review to REVIEW', () => {
+      const decision = routeContext(baseEvidence({
+        issue: { ...baseEvidence().issue, workflowProfile: 'STANDARD' },
+        activePr: prEvidence(),
+        currentHeadVerification: verification({
+          reviews: { required: false, approved: true, exactHead: true, approvedCount: 0, exactHeadApprovedCount: 0 },
+        }),
+      }))
+      expect(decision.route).toBe('REVIEW')
+      expect(decision.reasons.join(' ')).toMatch(/STANDARD semantic review is missing/i)
+    })
+
+    it('routes STANDARD + valid exact-head semantic review to FOUNDER_GATE', () => {
+      const decision = routeContext(baseEvidence({
+        issue: { ...baseEvidence().issue, workflowProfile: 'STANDARD' },
+        activePr: prEvidence(),
+        currentHeadVerification: verification({
+          reviews: { required: false, approved: true, exactHead: true, approvedCount: 1, exactHeadApprovedCount: 1 },
+        }),
+      }))
+      expect(decision.route).toBe('FOUNDER_GATE')
+    })
+
+    it('routes STANDARD + stale/wrong-head review to REVIEW', () => {
+      const decision = routeContext(baseEvidence({
+        issue: { ...baseEvidence().issue, workflowProfile: 'STANDARD' },
+        activePr: prEvidence(),
+        currentHeadVerification: verification({
+          reviews: { required: false, approved: true, exactHead: true, approvedCount: 1, exactHeadApprovedCount: 0 },
+        }),
+      }))
+      expect(decision.route).toBe('REVIEW')
+    })
+
+    it('routes FAST + zero native approvals directly to FOUNDER_GATE without semantic review', () => {
+      const decision = routeContext(baseEvidence({
+        issue: { ...baseEvidence().issue, workflowProfile: 'FAST' },
+        activePr: prEvidence(),
+        currentHeadVerification: verification({
+          reviews: { required: false, approved: true, exactHead: true, approvedCount: 0, exactHeadApprovedCount: 0 },
+        }),
+      }))
+      expect(decision.route).toBe('FOUNDER_GATE')
+    })
+
+    it('preserves MANAGED regression behavior (requires review if standard dictates, or follows native)', () => {
+      const decision = routeContext(baseEvidence({
+        issue: { ...baseEvidence().issue, workflowProfile: 'MANAGED' },
+        activePr: prEvidence(),
+        currentHeadVerification: verification({
+          reviews: { required: false, approved: true, exactHead: true, approvedCount: 0, exactHeadApprovedCount: 0 },
+        }),
+      }))
+      // In current logic, MANAGED falls through to FOUNDER_GATE if no native review is required,
+      // as only 'STANDARD' is checked for semanticReviewRequired.
+      expect(decision.route).toBe('FOUNDER_GATE')
+    })
   })
 
   it('stops when verification is bound to a stale or different PR head', () => {

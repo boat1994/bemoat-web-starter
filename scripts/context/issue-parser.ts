@@ -1,10 +1,14 @@
 import type { RoleEvidence } from './model.ts'
+import { parseIssueDeclarations, deriveWorkflowProfile } from '../agent-issue/issue-declarations.ts'
 
 interface ParsedIssueBody {
   objective: string | null
   scope: string | null
   acceptanceCriteria: string[]
   dependencies: string[]
+  taskSize: string | null
+  missionControlMode: string | null
+  workflowProfile: string | null
 }
 
 interface RoleEvidenceResult {
@@ -55,11 +59,16 @@ function matchingSection(map: Map<string, string[]>, pattern: RegExp): string[] 
 
 export function parseIssueBody(body: string): ParsedIssueBody {
   const map = sections(body)
+  const decls = parseIssueDeclarations(body)
+  const profile = deriveWorkflowProfile(decls)
   return {
     objective: firstParagraph(matchingSection(map, /^(goal|objective)$/)),
     scope: firstParagraph(matchingSection(map, /^scope$|objective boundary/)),
     acceptanceCriteria: listItems(matchingSection(map, /acceptance criteria/)),
     dependencies: listItems(matchingSection(map, /dependenc/)),
+    taskSize: decls.taskSize,
+    missionControlMode: decls.missionControlMode,
+    workflowProfile: profile?.name ?? null,
   }
 }
 
