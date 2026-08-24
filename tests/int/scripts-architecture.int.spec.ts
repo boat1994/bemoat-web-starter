@@ -93,6 +93,7 @@ describe('scripts architecture ratchet', () => {
         [
           'scripts/mission-control/',
           'scripts/agent-issue/',
+          'scripts/context/',
           'scripts/boilerplate/',
           'scripts/guards/',
           'scripts/adapters/',

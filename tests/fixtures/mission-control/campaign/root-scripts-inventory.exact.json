@@ -1,4 +1,5 @@
 [
+  "scripts/agent-context.mjs",
   "scripts/agent-delivery.mjs",
   "scripts/agent-issue.mjs",
   "scripts/bemoat-typecheck.mjs",
