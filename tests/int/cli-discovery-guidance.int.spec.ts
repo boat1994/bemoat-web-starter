@@ -77,8 +77,8 @@ describe('Bemoat CLI discovery guidance', () => {
   it('keeps discovery before direct issue-command execution', () => {
     for (const path of [canonicalPath, 'docs/agent-loop/issue-driven-branch-workflow.md']) {
       const guidance = read(path)
-      const discovery = guidance.indexOf('pnpm run bemoat:agent:issue -- --help --json')
-      const execution = guidance.indexOf('pnpm run bemoat:agent:issue -- <issue-number>')
+      const discovery = guidance.indexOf('pnpm run bemoat:context -- --help --json')
+      const execution = guidance.indexOf('pnpm run bemoat:context <issue-number>')
       expect(discovery, `${path} discovery example`).toBeGreaterThanOrEqual(0)
       expect(execution, `${path} execution example`).toBeGreaterThan(discovery)
     }

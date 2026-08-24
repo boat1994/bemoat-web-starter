@@ -15,15 +15,15 @@ For issue-based work, do not edit files first.
 Run:
 
 ```bash
-pnpm run bemoat:agent:issue -- --help --json
-pnpm run bemoat:agent:issue -- <issue-number>
+pnpm run bemoat:context -- --help --json
+pnpm run bemoat:context <issue-number>
 ```
 
 If the blocker is a dirty working tree, unrelated repo state, a failed git
 command, or anything that risks overwriting human work, report the blocker and
 do not edit files. If the only blocker is a clean protected or integration
 branch, treat it as branch setup: create an issue-related topic branch, rerun
-`pnpm run bemoat:agent:issue -- <issue-number>`, and continue only after the
+`pnpm run bemoat:context <issue-number>`, and continue only after the
 preflight passes.
 
 Run these in order. **Stop and report** if a hard blocker fails; do not modify
