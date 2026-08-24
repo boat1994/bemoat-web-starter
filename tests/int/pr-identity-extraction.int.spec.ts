@@ -132,6 +132,62 @@ describe('PR identity extraction seam', () => {
     })).toEqual(domain.resolveCanonicalVerdictPrIdentity(verdictBody(), REPOSITORY, 'implementation_pr', null, contract))
   })
 
+  it('accepts same-PR pull request review submission anchors as source-thread evidence', async () => {
+    const domain = await import('../../scripts/mission-control/domain/pr-identity.ts')
+    const reviewSubmission = `${CANONICAL}#pullrequestreview-5002862364`
+
+    expect(domain.resolveCanonicalVerdictPrIdentity(
+      verdictBody(CANONICAL, `\n**Source:** ${reviewSubmission}`),
+      REPOSITORY,
+      'implementation_pr',
+      null,
+      { findings: [{ id: 'MC-R1-001', source_thread: reviewSubmission }] },
+    )).toEqual({ ok: true, identity: { owner: 'boat1994', repo: 'bemoat-web-starter', number: '200', key: 'boat1994/bemoat-web-starter#200' } })
+  })
+
+  it('rejects noncanonical or absent fragments in contract source-thread evidence', async () => {
+    const domain = await import('../../scripts/mission-control/domain/pr-identity.ts')
+    const invalidSourceThreads = [
+      `${CANONICAL}#unrelated`,
+      `${CANONICAL}#pullrequestreview-0`,
+      `${CANONICAL}#pullrequestreview-01`,
+      CANONICAL,
+      '',
+    ]
+
+    for (const sourceThread of invalidSourceThreads) {
+      expect(domain.resolveCanonicalVerdictPrIdentity(verdictBody(), REPOSITORY, 'implementation_pr', null, {
+        findings: [{ id: 'MC-R1-412-001', source_thread: sourceThread }],
+      })).toEqual({ ok: false, errors: ['finding MC-R1-412-001 source_thread must use a canonical GitHub review fragment'] })
+    }
+  })
+
+  it('rejects wrong-PR, cross-repository, malformed, query-bearing, and unrelated-fragment evidence', async () => {
+    const domain = await import('../../scripts/mission-control/domain/pr-identity.ts')
+    const reviewSubmission = `${CANONICAL}#pullrequestreview-5002862364`
+    const wrongPrReviewSubmission = 'https://github.com/boat1994/bemoat-web-starter/pull/201#pullrequestreview-5002862364'
+    const otherRepositoryPull = 'https://github.com/other/repository/pull/200'
+
+    expect(domain.resolveCanonicalVerdictPrIdentity(
+      verdictBody(),
+      REPOSITORY,
+      'implementation_pr',
+      null,
+      { findings: [{ id: 'MC-R1-001', source_thread: wrongPrReviewSubmission }] },
+    )).toEqual({ ok: false, errors: ['finding MC-R1-001 source_thread PR identity boat1994/bemoat-web-starter#201 does not match canonical REVIEW_VERDICT target boat1994/bemoat-web-starter#200'] })
+    expect(domain.resolveCanonicalVerdictPrIdentity(verdictBody(otherRepositoryPull), REPOSITORY))
+      .toEqual({ ok: false, errors: ['REVIEW_VERDICT PR identity other/repository#200 does not match the current repository boat1994/bemoat-web-starter'] })
+    expect(domain.resolveCanonicalVerdictPrIdentity(verdictBody(), REPOSITORY, 'implementation_pr', null, {
+      findings: [{ id: 'MC-R1-001', source_thread: `${CANONICAL}junk#pullrequestreview-5002862364` }],
+    })).toEqual({ ok: false, errors: ['finding MC-R1-001 source_thread is not a complete canonical pull URL'] })
+    expect(domain.resolveCanonicalVerdictPrIdentity(verdictBody(CANONICAL, `\n**Source:** ${CANONICAL}?x=1#pullrequestreview-5002862364`), REPOSITORY))
+      .toEqual({ ok: false, errors: [`REVIEW_VERDICT contains malformed PR identity evidence (${CANONICAL}?x=1)`] })
+    expect(domain.resolveCanonicalVerdictPrIdentity(verdictBody(CANONICAL, `\n**Source:** ${CANONICAL}#unrelated`), REPOSITORY))
+      .toEqual({ ok: false, errors: [`REVIEW_VERDICT contains malformed PR identity evidence (${CANONICAL}#unrelated)`] })
+    expect(domain.resolveCanonicalVerdictPrIdentity(verdictBody(CANONICAL, `\n**Source:** ${reviewSubmission}`), REPOSITORY))
+      .toEqual({ ok: true, identity: { owner: 'boat1994', repo: 'bemoat-web-starter', number: '200', key: 'boat1994/bemoat-web-starter#200' } })
+  })
+
   it('keeps the TypeScript domain exports after facade removal', async () => {
     const typed = await import('../../scripts/mission-control/domain/pr-identity.ts')
 

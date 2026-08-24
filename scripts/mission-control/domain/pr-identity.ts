@@ -94,7 +94,7 @@ export function parseCompleteGitHubPullUrl(raw: unknown): ParseResult {
 }
 
 function isGitHubReviewDiscussionFragment(fragment: unknown): boolean {
-  return typeof fragment === 'string' && /^#discussion_r[0-9]+$/i.test(fragment)
+  return typeof fragment === 'string' && /^#(?:discussion_r[0-9]+|pullrequestreview-[1-9][0-9]*)$/i.test(fragment)
 }
 
 function isSourceThreadDiscussionPointer(candidate: unknown, canonicalIdentity: CanonicalIdentity | null, knownSourceThreads: Set<string> | null = null): boolean {
@@ -195,8 +195,11 @@ function validateFindingSourceThreads(canonicalIdentity: CanonicalIdentity, cont
   if (isNoneIdentity(canonicalIdentity)) return { ok: true, errors }
   for (const finding of contract.findings) {
     const thread = typeof finding.source_thread === 'string' ? finding.source_thread.trim() : ''
-    if (!thread) continue
     const hashIdx = thread.indexOf('#')
+    if (hashIdx < 0 || !isGitHubReviewDiscussionFragment(thread.slice(hashIdx))) {
+      errors.push(`finding ${finding.id} source_thread must use a canonical GitHub review fragment`)
+      continue
+    }
     const parsed = parseCompleteGitHubPullUrl(hashIdx >= 0 ? thread.slice(0, hashIdx) : thread)
     if (parsed.ok === false) errors.push(`finding ${finding.id} source_thread is not a complete canonical pull URL`)
     else if (parsed.identity.key !== canonicalIdentity.key) errors.push(`finding ${finding.id} source_thread PR identity ${parsed.identity.key} does not match canonical REVIEW_VERDICT target ${canonicalIdentity.key}`)
