@@ -66,6 +66,30 @@ function identityErrors(evidence: NormalizedContextEvidence): string[] {
   return errors
 }
 
+function reviewedHeadForApplicability(body: string): string | null {
+  // A parse failure is ignorable only when the recognized head proves that the
+  // malformed record belongs to an older PR head. Unknown or ambiguous heads
+  // remain fail-closed below.
+  const candidates: string[] = []
+  const canonicalLines = [...body.matchAll(/^\*\*PR \/ base \/ head:\*\*[ \t]*(.*)$/gm)]
+  for (const line of canonicalLines) {
+    const target = line[1]?.match(/^[^\r\n]*?\s*·\s*`[^`\r\n@]+`\s*·\s*`([^`\r\n]+)`[ \t]*$/)?.[1]
+    if (!target || !isFullSha(target)) return null
+    candidates.push(target.toLowerCase())
+  }
+
+  const exactHeadLines = [...body.matchAll(/^\*\*(?:Exact head reviewed|Exact reviewed head):\*\*[ \t]*(.*)$/gim)]
+  for (const line of exactHeadLines) {
+    const match = line[1]?.match(/^[ \t]*(?:`([0-9a-f]{40})`|([0-9a-f]{40}))[ \t]*$/i)
+    const target = match?.[1] ?? match?.[2]
+    if (!target) return null
+    candidates.push(target.toLowerCase())
+  }
+
+  const unique = [...new Set(candidates)]
+  return unique.length === 1 ? unique[0] ?? null : null
+}
+
 function isProtectedOrIntegrationBranch(branch: string): boolean {
   return /^(?:main|master|dev|develop|integration|staging|production)(?:\/.*)?$/i.test(branch)
 }
@@ -176,9 +200,10 @@ export function routeContext(evidence: NormalizedContextEvidence): ContextDecisi
           },
         })
         if (classification.valid) applicableVerdicts.push(verdict)
-        else if (parsed.reviewed_head === activePr.headSha) conflictingLiveHeadEvidence = true
+        else if (parsed.reviewed_head?.toLowerCase() === activePr.headSha.toLowerCase()) conflictingLiveHeadEvidence = true
       } catch {
-        malformedEvidence = true
+        const reviewedHead = reviewedHeadForApplicability(verdict.body)
+        if (!reviewedHead || reviewedHead === activePr.headSha.toLowerCase()) malformedEvidence = true
       }
     }
 

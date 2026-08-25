@@ -157,6 +157,26 @@ describe('bemoat:context pure routing', () => {
     url: 'https://github.com/boat1994/bemoat-web-starter/issues/410#issuecomment-107',
   }
 
+  function actual421ReviewVerdictBody(reviewedHead: string): string {
+    return `## REVIEW_VERDICT
+
+### Task log
+- Timestamp: 2026-08-25T14:00:00+07:00
+- Task / Issue: #421
+- Phase: Founder-authorized post-budget Review 4
+- Executing role: Reviewer
+
+### Review identity
+- Repository: \`boat1994/bemoat-web-starter\`
+- Task / Issue: #421
+- PR / base / head: PR #422 · \`main\` · \`${reviewedHead}\`
+
+**Task / Issue:** #421
+**Repository:** \`boat1994/bemoat-web-starter\`
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/422 · \`main\` · \`${reviewedHead}\`
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW`
+  }
+
   it('routes clean durable work without a PR to IMPLEMENT', () => {
     expect(routeContext(baseEvidence()).route).toBe('IMPLEMENT')
   })
@@ -307,6 +327,90 @@ describe('bemoat:context pure routing', () => {
       }))
 
       expect(decision.route).toBe('FOUNDER_GATE')
+    })
+
+    it('ignores malformed stale #421 predecessor evidence when a valid live-head verdict exists', () => {
+      const liveBaseSha = '832782c585eb4c122ea05404fc1a615b865d68bb'
+      const liveHeadSha = 'bbc264e9fa437c57a733f2a7f8a947001655405b'
+      const stalePredecessorHeadSha = '346c2f2817adc33757a4934aac7184e12c142ca1'
+      const liveVerdict = {
+        id: 900,
+        body: `## REVIEW_VERDICT\n**Task:** Issue #421\n**Repository:** \`boat1994/bemoat-web-starter\`\n**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/422 · \`main\` · \`${liveHeadSha}\`\n**Verdict:** ELIGIBLE FOR FOUNDER REVIEW`,
+        createdAt: '2026-08-25T15:30:00Z',
+        url: 'https://github.com/boat1994/bemoat-web-starter/issues/421#issuecomment-900',
+      }
+      const decision = routeContext(baseEvidence({
+        protectedBase: { ...baseEvidence().protectedBase, sha: liveBaseSha },
+        issue: {
+          ...baseEvidence().issue,
+          number: '421',
+          url: 'https://github.com/boat1994/bemoat-web-starter/issues/421',
+          workflowProfile: 'STANDARD',
+        },
+        localGit: { ...baseEvidence().localGit, branch: 'fix/421-standard-semantic-review', head: liveHeadSha },
+        activePr: prEvidence({
+          number: '422',
+          url: 'https://github.com/boat1994/bemoat-web-starter/pull/422',
+          headBranch: 'fix/421-standard-semantic-review',
+          headSha: liveHeadSha,
+          baseSha: liveBaseSha,
+        }),
+        currentHeadVerification: {
+          ...verification({ exactHead: liveHeadSha }),
+          reviews: { required: false, approved: true, exactHead: true, approvedCount: 0, exactHeadApprovedCount: 0 },
+        },
+        durableContext: {
+          latestHandoff: null,
+          historicalResults: [
+            {
+              id: 5406699778,
+              body: actual421ReviewVerdictBody(stalePredecessorHeadSha),
+              createdAt: '2026-08-25T06:58:56Z',
+              url: 'https://github.com/boat1994/bemoat-web-starter/issues/421#issuecomment-5406699778',
+            },
+            liveVerdict,
+          ],
+        },
+      }))
+
+      expect(decision.route).toBe('FOUNDER_GATE')
+    })
+
+    it('keeps malformed live-head #421 evidence fail-closed', () => {
+      const liveBaseSha = '832782c585eb4c122ea05404fc1a615b865d68bb'
+      const liveHeadSha = 'bbc264e9fa437c57a733f2a7f8a947001655405b'
+      const decision = routeContext(baseEvidence({
+        protectedBase: { ...baseEvidence().protectedBase, sha: liveBaseSha },
+        issue: {
+          ...baseEvidence().issue,
+          number: '421',
+          url: 'https://github.com/boat1994/bemoat-web-starter/issues/421',
+          workflowProfile: 'STANDARD',
+        },
+        localGit: { ...baseEvidence().localGit, branch: 'fix/421-standard-semantic-review', head: liveHeadSha },
+        activePr: prEvidence({
+          number: '422',
+          url: 'https://github.com/boat1994/bemoat-web-starter/pull/422',
+          headBranch: 'fix/421-standard-semantic-review',
+          headSha: liveHeadSha,
+          baseSha: liveBaseSha,
+        }),
+        currentHeadVerification: {
+          ...verification({ exactHead: liveHeadSha }),
+          reviews: { required: false, approved: true, exactHead: true, approvedCount: 0, exactHeadApprovedCount: 0 },
+        },
+        durableContext: {
+          latestHandoff: null,
+          historicalResults: [{
+            id: 5407357001,
+            body: actual421ReviewVerdictBody(liveHeadSha),
+            createdAt: '2026-08-25T08:05:39Z',
+            url: 'https://github.com/boat1994/bemoat-web-starter/issues/421#issuecomment-5407357001',
+          }],
+        },
+      }))
+
+      expect(decision.route).toBe('REVIEW')
     })
 
     it('routes CORRECTION REQUIRED REVIEW_VERDICT to REVIEW (does not satisfy gate)', () => {
