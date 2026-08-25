@@ -59,8 +59,12 @@ function identityErrors(evidence: NormalizedContextEvidence): string[] {
     if (!pr || typeof pr.number !== 'string' || !isPositiveInteger(pr.number) || !isRepositoryObjectUrl(pr.url, repo, 'pull', pr.number) || typeof pr.headBranch !== 'string' || !pr.headBranch.trim() || !isFullSha(pr.headSha) || typeof pr.state !== 'string' || !pr.state.trim()) {
       errors.push(`EVIDENCE_CONFLICT: PR identity for #${number} is missing or malformed`)
     }
-    if (!pr || typeof pr.baseBranch !== 'string' || !pr.baseBranch.trim() || typeof pr.baseSha !== 'string' || !isFullSha(pr.baseSha) || pr.baseBranch !== evidence.protectedBase.branch || pr.baseSha.toLowerCase() !== evidence.protectedBase.sha.toLowerCase()) {
+    const merged = Boolean(pr?.merged) || pr?.state?.toUpperCase() === 'MERGED'
+    if (!pr || typeof pr.baseBranch !== 'string' || !pr.baseBranch.trim() || typeof pr.baseSha !== 'string' || !isFullSha(pr.baseSha) || pr.baseBranch !== evidence.protectedBase.branch || (!merged && pr.baseSha.toLowerCase() !== evidence.protectedBase.sha.toLowerCase())) {
       errors.push(`EVIDENCE_CONFLICT: PR #${number} base identity is missing or malformed`)
+    }
+    if (merged && (!pr || typeof pr.mergeCommitSha !== 'string' || !isFullSha(pr.mergeCommitSha))) {
+      errors.push(`EVIDENCE_CONFLICT: PR #${number} merge commit identity is missing or malformed`)
     }
   }
   return errors
@@ -96,7 +100,9 @@ function isProtectedOrIntegrationBranch(branch: string): boolean {
 
 export function routeContext(evidence: NormalizedContextEvidence): ContextDecision {
   const baseReasons = [...evidence.evidenceErrors, ...identityErrors(evidence)]
-  if (!evidence.localGit.clean || evidence.localGit.detached || !evidence.localGit.pushed || !evidence.localGit.durable) {
+  const activeEvidence = evidence.activePr as ActivePullRequestEvidence | ActivePullRequestEvidence[] | null
+  const mergedPr = activeEvidence && !Array.isArray(activeEvidence) && (activeEvidence.merged || activeEvidence.state.toUpperCase() === 'MERGED')
+  if (!mergedPr && (!evidence.localGit.clean || evidence.localGit.detached || !evidence.localGit.pushed || !evidence.localGit.durable)) {
     baseReasons.push(
       ...evidence.localGit.reasons,
       'LOCAL_STATE_NOT_DURABLE: required local work is not clean, pushed, and attached to a durable branch',

@@ -15,7 +15,6 @@ import {
   repositoryEvidence,
   type ContextCommandRunner,
 } from './runtime.ts'
-
 export interface GithubEvidenceResult {
   repository: RepositoryEvidence
   issue: IssueEvidence | null
@@ -30,7 +29,6 @@ interface JsonResult<T> {
   value: T | null
   error: string | null
 }
-
 function readJson<T>(
   run: ContextCommandRunner,
   command: string,
@@ -56,7 +54,6 @@ function readJson<T>(
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
-
 function stringArray(value: unknown): string[] {
   return Array.isArray(value)
     ? value.filter((entry): entry is string => typeof entry === 'string' && entry.trim() !== '').map((entry) => entry.trim())
@@ -343,6 +340,7 @@ export function readGithubEvidence({
     const baseSha = asString(pr.baseRefOid)
     const headBranch = asString(pr.headRefName)
     const headSha = asString(pr.headRefOid)
+    const mergeCommitSha = isRecord(pr.mergeCommit) ? asString(pr.mergeCommit.oid) ?? asString(pr.mergeCommit.sha) : null
     if (!prNumber || prNumber !== number || !state || !url || !isRepositoryObjectUrl(url, repo, 'pull', number) || !baseBranch || !isFullSha(baseSha) || !headBranch || !isFullSha(headSha)) {
       errors.push(`EVIDENCE_CONFLICT: PR #${number} identity fields are missing or malformed`)
       continue
@@ -350,6 +348,7 @@ export function readGithubEvidence({
     const normalizedState = state.toUpperCase()
     const merged = normalizedState === 'MERGED' || pr.mergeCommit != null
     if (normalizedState === 'CLOSED' && !merged) continue
+    if (merged && (!mergeCommitSha || !isFullSha(mergeCommitSha))) { errors.push(`EVIDENCE_CONFLICT: PR #${number} merge commit identity is missing or malformed`); continue }
 
     if (!merged && protectedBaseSha && (baseBranch !== protectedBaseBranch || baseSha.toLowerCase() !== protectedBaseSha.toLowerCase())) {
       errors.push(`EVIDENCE_CONFLICT: PR #${number} base does not match live protected ${protectedBaseBranch}@${protectedBaseSha}`)
@@ -378,7 +377,7 @@ export function readGithubEvidence({
       baseSha,
       headBranch,
       headSha,
-      merged,
+      merged, mergeCommitSha: merged ? mergeCommitSha : null,
     })
     verifications.push(verification)
   }

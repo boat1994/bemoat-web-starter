@@ -75,6 +75,7 @@ function prEvidence(overrides: Record<string, unknown> = {}) {
     headBranch: 'feature/410-context',
     headSha,
     merged: false,
+    mergeCommitSha: null as string | null,
     ...overrides,
   }
 }
@@ -569,13 +570,52 @@ describe('bemoat:context pure routing', () => {
   it('routes a merged PR to COMPLETE', () => {
     const decision = routeContext(baseEvidence({
       issue: { ...baseEvidence().issue, state: 'CLOSED' },
-      activePr: prEvidence({ state: 'MERGED', merged: true }),
+      activePr: prEvidence({ state: 'MERGED', merged: true, mergeCommitSha: 'd'.repeat(40) }),
       currentHeadVerification: verification({
         reviews: { required: true, approved: true, exactHead: true },
       }),
     }))
 
     expect(decision.route).toBe('COMPLETE')
+  })
+
+  it('routes a merged PR to COMPLETE with its historical base and non-durable local checkout', () => {
+    const decision = routeContext(baseEvidence({
+      issue: { ...baseEvidence().issue, state: 'CLOSED' },
+      protectedBase: { ...baseEvidence().protectedBase, sha: 'c'.repeat(40) },
+      localGit: {
+        ...baseEvidence().localGit,
+        clean: true,
+        detached: true,
+        pushed: false,
+        durable: false,
+        reasons: ['LOCAL_STATE_NOT_DURABLE: repository is detached'],
+      },
+      activePr: prEvidence({
+        state: 'MERGED',
+        merged: true,
+        baseSha: sha,
+        mergeCommitSha: 'd'.repeat(40),
+      }),
+      currentHeadVerification: verification({
+        reviews: { required: true, approved: true, exactHead: true },
+      }),
+    }))
+
+    expect(decision.route).toBe('COMPLETE')
+  })
+
+  it('fails closed when merged PR evidence omits its merge commit', () => {
+    const decision = routeContext(baseEvidence({
+      issue: { ...baseEvidence().issue, state: 'CLOSED' },
+      activePr: prEvidence({ state: 'MERGED', merged: true, mergeCommitSha: null }),
+      currentHeadVerification: verification({
+        reviews: { required: true, approved: true, exactHead: true },
+      }),
+    }))
+
+    expect(decision.route).toBe('STOP')
+    expect(decision.reasons.join(' ')).toMatch(/merge commit/i)
   })
 
   it('stops for missing required evidence and competing PRs', () => {

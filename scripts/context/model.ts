@@ -67,6 +67,7 @@ export interface ActivePullRequestEvidence {
   headBranch: string
   headSha: string
   merged: boolean
+  mergeCommitSha: string | null
 }
 
 export interface HeadVerificationEvidence {
