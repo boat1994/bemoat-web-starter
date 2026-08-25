@@ -85,6 +85,7 @@ export interface HeadVerificationEvidence {
     exactHead: boolean
     approvedCount?: number
     exactHeadApprovedCount?: number
+    nativeReviews?: NativeReviewEvidence[]
   }
   protection: ProtectionEvidence
 }
@@ -94,6 +95,13 @@ export interface ProtectionEvidence {
   source?: 'legacy' | 'native' | 'legacy+native' | 'unavailable'
   requiredChecks: string[]
   requiredApprovals: number
+}
+
+export interface NativeReviewEvidence {
+  id: string | number | null
+  state: string
+  body: string
+  commitId: string | null
 }
 
 export interface RoleEvidence {
