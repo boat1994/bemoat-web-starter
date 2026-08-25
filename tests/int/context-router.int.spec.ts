@@ -262,6 +262,53 @@ describe('bemoat:context pure routing', () => {
       expect(decision.route).toBe('FOUNDER_GATE')
     })
 
+    it('selects the live verdict from historical predecessor REVIEW_VERDICT records', () => {
+      const liveBaseSha = '832782c585eb4c122ea05404fc1a615b865d68bb'
+      const liveHeadSha = '346c2f2817adc33757a4934aac7184e12c142ca1'
+      const predecessorHeadSha = '7f4ffbcc6582ee676341abf09fb55799875833b6'
+      const predecessorVerdict = {
+        id: 5400718189,
+        body: `## REVIEW_VERDICT\n**Verdict:** ELIGIBLE FOR FOUNDER REVIEW\n**Task:** Issue #421\n**Repository:** \`boat1994/bemoat-web-starter\`\n**PR / base / head:** PR #422 · \`main\` · \`${predecessorHeadSha}\``,
+        createdAt: '2026-08-24T20:08:50Z',
+        url: 'https://github.com/boat1994/bemoat-web-starter/issues/421#issuecomment-5400718189',
+      }
+      const liveVerdict = {
+        id: 5406699778,
+        body: `## REVIEW_VERDICT\n**Verdict:** ELIGIBLE FOR FOUNDER REVIEW\n**Task:** Issue #421\n**Repository:** \`boat1994/bemoat-web-starter\`\n**PR / base / head:** PR #422 · \`main\` · \`${liveHeadSha}\``,
+        createdAt: '2026-08-25T06:58:56Z',
+        url: 'https://github.com/boat1994/bemoat-web-starter/issues/421#issuecomment-5406699778',
+      }
+      const decision = routeContext(baseEvidence({
+        protectedBase: { ...baseEvidence().protectedBase, sha: liveBaseSha },
+        issue: {
+          ...baseEvidence().issue,
+          number: '421',
+          url: 'https://github.com/boat1994/bemoat-web-starter/issues/421',
+          workflowProfile: 'STANDARD',
+        },
+        localGit: { ...baseEvidence().localGit, branch: 'fix/421-standard-semantic-review', head: liveHeadSha },
+        activePr: prEvidence({
+          number: '422',
+          url: 'https://github.com/boat1994/bemoat-web-starter/pull/422',
+          headBranch: 'fix/421-standard-semantic-review',
+          headSha: liveHeadSha,
+          baseSha: liveBaseSha,
+        }),
+        currentHeadVerification: {
+          ...verification({
+            exactHead: liveHeadSha,
+          }),
+          reviews: { required: false, approved: true, exactHead: true, approvedCount: 0, exactHeadApprovedCount: 0 },
+        },
+        durableContext: {
+          latestHandoff: null,
+          historicalResults: [predecessorVerdict, liveVerdict],
+        },
+      }))
+
+      expect(decision.route).toBe('FOUNDER_GATE')
+    })
+
     it('routes CORRECTION REQUIRED REVIEW_VERDICT to REVIEW (does not satisfy gate)', () => {
       const decision = routeContext(baseEvidence({
         issue: { ...baseEvidence().issue, workflowProfile: 'STANDARD' },

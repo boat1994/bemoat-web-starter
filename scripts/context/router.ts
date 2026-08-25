@@ -157,15 +157,17 @@ export function routeContext(evidence: NormalizedContextEvidence): ContextDecisi
     const verdicts = evidence.durableContext.historicalResults.filter((r) =>
       /^##\s+REVIEW_VERDICT\b/i.test(r.body),
     )
-    const activeVerdicts = verdicts.filter((v) => !/superseded|not authoritative/i.test(v.body))
-    if (activeVerdicts.length === 1) {
+    const applicableVerdicts = []
+    let malformedEvidence = false
+    let conflictingLiveHeadEvidence = false
+
+    for (const verdict of verdicts) {
       try {
-        const activeVerdict = activeVerdicts[0]!
-        const parsed = parseProductionMergeReviewVerdict(activeVerdict.body, activeVerdict.id)
+        const parsed = parseProductionMergeReviewVerdict(verdict.body, verdict.id)
         const classification = classifyMergeReviewVerdict({
           reviewVerdict: parsed,
           expected: {
-            commentId: activeVerdict.id,
+            commentId: verdict.id,
             exactHead: activePr.headSha,
             pr: activePr.number,
             base: evidence.protectedBase.branch,
@@ -173,13 +175,14 @@ export function routeContext(evidence: NormalizedContextEvidence): ContextDecisi
             issue: evidence.issue.number,
           },
         })
-        if (classification.valid) {
-          semanticReviewSatisfied = true
-        }
+        if (classification.valid) applicableVerdicts.push(verdict)
+        else if (parsed.reviewed_head === activePr.headSha) conflictingLiveHeadEvidence = true
       } catch {
-        semanticReviewSatisfied = false
+        malformedEvidence = true
       }
     }
+
+    semanticReviewSatisfied = !malformedEvidence && !conflictingLiveHeadEvidence && applicableVerdicts.length === 1
   }
 
   if (
