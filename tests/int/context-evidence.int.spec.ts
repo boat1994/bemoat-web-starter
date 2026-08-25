@@ -174,7 +174,12 @@ describe('bemoat:context neutral evidence adapters', () => {
           headRefName: 'feature/410-context',
           headRefOid: head,
           mergeCommit: null,
-          reviews: [{ state: 'APPROVED', commitId: head }],
+          reviews: [{
+            id: 5020446813,
+            state: 'COMMENTED',
+            commitId: head,
+            body: `## REVIEW_VERDICT\n**Repository:** \`boat1994/bemoat-web-starter\`\n**Task / Issue:** #410\n**PR / base / head:** PR #411 · \`main\` · \`${head}\`\n**Verdict:** ELIGIBLE FOR FOUNDER REVIEW`,
+          }],
           statusCheckRollup: [{ name: 'CI', state: 'SUCCESS', conclusion: 'SUCCESS' }],
         }))
       }
@@ -199,7 +204,16 @@ describe('bemoat:context neutral evidence adapters', () => {
       exactHead: {
         exactHead: head,
         checks: { complete: true, failed: false },
-        reviews: { approved: true, exactHead: true },
+        reviews: {
+          approved: false,
+          exactHead: false,
+          nativeReviews: [{
+            id: 5020446813,
+            state: 'COMMENTED',
+            commitId: head,
+            body: expect.stringContaining('ELIGIBLE FOR FOUNDER REVIEW'),
+          }],
+        },
       },
       errors: [],
     })
