@@ -428,6 +428,67 @@ describe('bemoat:context pure routing', () => {
       expect(decision.route).toBe('REVIEW')
     })
 
+    it('routes durable STANDARD blocking review evidence to FIX without accepting reconciliation attempts', () => {
+      const reviewedHead = '0d7c77995e92391b49e042e182b54af2d561c87c'
+      const reviewBody = `## REVIEW_VERDICT
+
+### Task log
+- Phase: Independent Standard Semantic Review
+
+**Repository:** \`boat1994/bemoat-web-starter\`
+**Task / Issue:** #423
+**PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/424 · \`main\` · \`${reviewedHead}\`
+**Verdict:** CORRECTION REQUIRED
+
+### Immutable finding disposition
+\`source_thread\`: https://github.com/boat1994/bemoat-web-starter/blob/${reviewedHead}/scripts/context/github.ts#L348-L352`
+      const reconciliationBody = reviewBody.replace(
+        'Independent Standard Semantic Review',
+        'Evidence reconciliation (no semantic re-review)',
+      )
+
+      const decision = routeContext(baseEvidence({
+        protectedBase: {
+          ...baseEvidence().protectedBase,
+          sha: '6e09b0464d696dad97bf757f8a189fe81d2b74ec',
+        },
+        issue: {
+          ...baseEvidence().issue,
+          number: '423',
+          url: 'https://github.com/boat1994/bemoat-web-starter/issues/423',
+          workflowProfile: 'STANDARD',
+        },
+        localGit: {
+          ...baseEvidence().localGit,
+          branch: 'fix/423-post-merge-terminal-reconstruction',
+          head: reviewedHead,
+        },
+        activePr: prEvidence({
+          number: '424',
+          url: 'https://github.com/boat1994/bemoat-web-starter/pull/424',
+          headBranch: 'fix/423-post-merge-terminal-reconstruction',
+          headSha: reviewedHead,
+          baseSha: '6e09b0464d696dad97bf757f8a189fe81d2b74ec',
+        }),
+        currentHeadVerification: {
+          ...verification({ exactHead: reviewedHead }),
+          reviews: { required: false, approved: true, exactHead: true, approvedCount: 0, exactHeadApprovedCount: 0 },
+        },
+        durableContext: {
+          latestHandoff: null,
+          historicalResults: [
+            { id: 5409353625, body: reviewBody, createdAt: '2026-08-25T10:54:48Z', url: 'https://github.com/boat1994/bemoat-web-starter/issues/423#issuecomment-5409353625' },
+            { id: 5409520379, body: reconciliationBody, createdAt: '2026-08-25T11:11:32Z', url: 'https://github.com/boat1994/bemoat-web-starter/issues/423#issuecomment-5409520379' },
+            { id: 5409533378, body: reconciliationBody, createdAt: '2026-08-25T11:12:41Z', url: 'https://github.com/boat1994/bemoat-web-starter/issues/423#issuecomment-5409533378' },
+            { id: 5409552460, body: reconciliationBody, createdAt: '2026-08-25T11:14:23Z', url: 'https://github.com/boat1994/bemoat-web-starter/issues/423#issuecomment-5409552460' },
+          ],
+        },
+      }))
+
+      expect(decision.route).toBe('FIX')
+      expect(decision.nextAction.description).toMatch(/bounded correction/i)
+    })
+
     it('routes STANDARD + stale/wrong-head review to REVIEW', () => {
       const decision = routeContext(baseEvidence({
         issue: { ...baseEvidence().issue, workflowProfile: 'STANDARD' },

@@ -177,19 +177,24 @@ export function routeContext(evidence: NormalizedContextEvidence): ContextDecisi
   const semanticReviewRequired = isStandard
 
   let semanticReviewSatisfied = false
+  let blockingSemanticReview = false
   if (semanticReviewRequired) {
     const verdicts = evidence.durableContext.historicalResults.filter((r) =>
       /^##\s+REVIEW_VERDICT\b/i.test(r.body),
     )
-    const applicableVerdicts = []
+    const applicableVerdicts: Array<{ verdict: string; body: string }> = []
     let malformedEvidence = false
     let conflictingLiveHeadEvidence = false
 
     for (const verdict of verdicts) {
+      if (/evidence reconciliation\s*\(no semantic re-review\)/i.test(verdict.body)) continue
       try {
         const parsed = parseProductionMergeReviewVerdict(verdict.body, verdict.id)
         const classification = classifyMergeReviewVerdict({
-          reviewVerdict: parsed,
+          // The existing classifier intentionally recognizes only the
+          // non-blocking founder-review verdict. Reuse its complete identity
+          // binding for both current-protocol semantic outcomes below.
+          reviewVerdict: { ...parsed, verdict: 'ELIGIBLE FOR FOUNDER REVIEW' },
           expected: {
             commentId: verdict.id,
             exactHead: activePr.headSha,
@@ -199,7 +204,12 @@ export function routeContext(evidence: NormalizedContextEvidence): ContextDecisi
             issue: evidence.issue.number,
           },
         })
-        if (classification.valid) applicableVerdicts.push(verdict)
+        if (
+          classification.valid &&
+          (parsed.verdict === 'ELIGIBLE FOR FOUNDER REVIEW' || parsed.verdict === 'CORRECTION REQUIRED')
+        ) {
+          applicableVerdicts.push({ verdict: parsed.verdict, body: verdict.body })
+        }
         else if (parsed.reviewed_head?.toLowerCase() === activePr.headSha.toLowerCase()) conflictingLiveHeadEvidence = true
       } catch {
         const reviewedHead = reviewedHeadForApplicability(verdict.body)
@@ -208,6 +218,13 @@ export function routeContext(evidence: NormalizedContextEvidence): ContextDecisi
     }
 
     semanticReviewSatisfied = !malformedEvidence && !conflictingLiveHeadEvidence && applicableVerdicts.length === 1
+    blockingSemanticReview = semanticReviewSatisfied && applicableVerdicts[0]?.verdict === 'CORRECTION REQUIRED'
+  }
+
+  if (blockingSemanticReview) {
+    return decision(evidence, 'FIX', [
+      `Exact-head STANDARD semantic review identified a blocking finding at ${activePr.headSha}.`,
+    ], commandAction('Apply the bounded correction identified by the exact-head semantic review.'))
   }
 
   if (
