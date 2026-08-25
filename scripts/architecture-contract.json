@@ -38,6 +38,13 @@
   },
   "rootScripts": [
     {
+      "path": "scripts/agent-context-sync-base.mjs",
+      "facade_disposition": "composition_root",
+      "internal_destination": "scripts/context/",
+      "owning_slice": 7,
+      "migration_status": "migrated"
+    },
+    {
       "path": "scripts/agent-context.mjs",
       "facade_disposition": "composition_root",
       "internal_destination": "scripts/context/",

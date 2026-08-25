@@ -14,6 +14,7 @@ map, not a new state machine, routing configuration, or test DSL.
 | Non-terminal continuation requires durable local work. | Issue #410 portability contract | Dirty, detached, unpushed, local-only, or wrong-repository work routes `STOP`. |
 | Terminal merge evidence is authoritative. | Issue #410 plus merged Issue #423 / PR #424 behavior | A valid `MERGED` PR with a valid merge commit can route `COMPLETE` despite a historical base or irrelevant local checkout. |
 | Active PR evidence uses the live protected base and exact head. | Issue #410 exact-identity contract | An open PR with a stale/wrong base or stale head evidence cannot continue silently. |
+| A stale active PR may receive one bounded deterministic continuation without a per-incident Founder gate. | Founder decision on Issue #427 comment 5414458566 | `bemoat:context:sync-base` may synchronize protected `main` into the same PR branch only when live identity, ancestry, scope, and local durability remain exact; every ambiguity remains `STOP`. |
 | CI and semantic review bind to the exact current PR head. | Issue #410 verification contract and merged policy v1.3.0 | A new commit invalidates old CI/review satisfaction. |
 | Native evidence must agree with itself. | Issue #427 and CTX-423-001 | `OPEN` plus a merge commit, malformed merge identity, or competing PR/review evidence fails closed. |
 
@@ -28,6 +29,7 @@ map, not a new state machine, routing configuration, or test DSL.
 | Exact-head blocking semantic review with usable immutable finding | current head × blocking review | `FIX` | B | native `CORRECTION REQUIRED` case |
 | Exact-head clean semantic review and satisfied native requirements | current head × clean review | `FOUNDER_GATE` | B | clean native review case |
 | Stale active PR base with failed, pending, or fully satisfied downstream gates | base drift × CI/review state | `STOP` before downstream routing | B | story-first stale-base precedence table |
+| Otherwise-valid stale active PR with exact same-scope identity and durable local state | stale-base `STOP` × live identity × native ancestry | one bounded `bemoat:context:sync-base` continuation, then `VERIFY` on the new head | B | `context-sync.int.spec.ts`: authorized continuation and fail-closed siblings |
 | New PR head with old CI verification | head movement × stale CI | `STOP` | B | head-transition story and stale verification case |
 | New PR head with fresh CI but old semantic review | head movement × stale review | `REVIEW` | B | head-transition story and stale-review cases |
 | Valid merged PR with historical base and detached checkout | terminal merge × stale base × local non-durability | `COMPLETE` | B | terminal reconstruction transition |
@@ -52,22 +54,30 @@ production change.
 5. Sibling/dependency merge advances protected `main` while the active PR
    still records the old base → `STOP` before CI/review routing. File overlap
    does not authorize a different route because the normalized context model
-   has no authoritative dependency/overlap evidence.
+   has no authoritative dependency/overlap evidence. The Founder decision
+   recorded on Issue #427 authorizes the separate `bemoat:context:sync-base`
+   command to perform one ancestry- and
+   conflict-preflighted synchronization; the resulting head requires fresh
+   exact-head CI and semantic review.
 6. Founder manually merges the active PR → fresh reconstruction accepts valid
    native `MERGED` plus merge-commit evidence → `COMPLETE`, even though the PR
    retains its historical base and the local checkout is detached or irrelevant.
 7. Contradictory, malformed, missing, or competing native evidence interrupts
    the transition and fails closed.
 
-## Gap classification
+## Resolved continuation decision
 
-The active stale-base route is canonically `STOP`: Issue #410 requires stale
-protected-base evidence to fail closed, and `FIX`/`FOUNDER_GATE` require valid
-downstream evidence that a stale base cannot satisfy.
-
-What happens *after* that STOP is not uniquely defined. Canonical sources do
-not say whether updating/rebasing the PR is a bounded `FIX`, requires a
-`FOUNDER_GATE`, or needs another authorized continuation. That is a C-class
-protocol/spec gap. Tests in this Issue protect the fail-closed STOP and must not
-encode post-STOP remediation semantics until Founder/architecture authority
-resolves this exact decision.
+The active stale-base route remains canonically `STOP`: Issue #410 requires
+stale protected-base evidence to fail closed. Founder authority in Issue #427
+comment 5414458566 resolves the post-`STOP` continuation contract for one
+narrow case without imposing a new per-incident Founder gate. Live evidence
+must uniquely bind the same Issue, PR, protected branch, old base, current head,
+and scope, and native Git must prove that protected `main` advanced from the old
+base and that the PR head contains it. Only then may the separate
+`bemoat:context:sync-base` command perform one deterministic fetch, conflict
+preflight, merge, push, and remote readback. Wrong identity, missing or
+ambiguous evidence, non-durable local state, ancestry failure, conflict, head
+drift, external failure, or uncertain post-mutation state remains fail-closed
+with a canonical result classification and `STOP` routing. The synchronized
+head invalidates CI and semantic review and routes back through read-only
+`bemoat:context` for verification.

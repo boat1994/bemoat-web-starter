@@ -6,6 +6,8 @@ import { handoffRoutes } from './handoff-routing-policy.ts'
 import { missionControlPrimaryCommands } from './mission-control-command-metadata-primary.ts'
 import { missionControlRecoveryCommands } from './mission-control-command-metadata-recovery.ts'
 import { missionControlReviewCommands } from './mission-control-command-metadata-review.ts'
+import { contextSyncCommands } from './context-sync-command-metadata.ts'
+import { contextSyncRoutes } from './context-sync-routing-policy.ts'
 import { missionControlPrimaryRoutes } from './mission-control-routing-policy-primary.ts'
 import { missionControlRecoveryRoutes } from './mission-control-routing-policy-recovery.ts'
 
@@ -832,11 +834,12 @@ const trailingCommands = Object.fromEntries(
 )
 delete commands['bemoat:test:int']
 delete commands['bemoat:typecheck']
-const orderedCommands = { ...commands, ...protocolCommands, ...missionControlCommands, ...trailingCommands }
+const orderedCommands = { ...commands, ...contextSyncCommands(missionControlDependencies), ...protocolCommands, ...missionControlCommands, ...trailingCommands }
 
 const routes = [
   ...missionControlPrimaryRoutes(),
   ...missionControlRecoveryRoutes(),
+  ...contextSyncRoutes(),
   ...handoffRoutes(),
 ]
 
