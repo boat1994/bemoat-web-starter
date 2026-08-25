@@ -59,7 +59,13 @@ function identityErrors(evidence: NormalizedContextEvidence): string[] {
     if (!pr || typeof pr.number !== 'string' || !isPositiveInteger(pr.number) || !isRepositoryObjectUrl(pr.url, repo, 'pull', pr.number) || typeof pr.headBranch !== 'string' || !pr.headBranch.trim() || !isFullSha(pr.headSha) || typeof pr.state !== 'string' || !pr.state.trim()) {
       errors.push(`EVIDENCE_CONFLICT: PR identity for #${number} is missing or malformed`)
     }
-    const merged = Boolean(pr?.merged) || pr?.state?.toUpperCase() === 'MERGED'
+    const stateMerged = pr?.state?.toUpperCase() === 'MERGED'
+    const mergeCommitPresent = pr?.mergeCommitSha !== null && pr?.mergeCommitSha !== undefined
+    const validMergeCommit = typeof pr?.mergeCommitSha === 'string' && isFullSha(pr.mergeCommitSha)
+    if (!pr || Boolean(pr.merged) !== stateMerged || (stateMerged ? !validMergeCommit : mergeCommitPresent)) {
+      errors.push(`EVIDENCE_CONFLICT: PR #${number} state and merge commit evidence disagree`)
+    }
+    const merged = stateMerged && Boolean(pr?.merged) && validMergeCommit
     if (!pr || typeof pr.baseBranch !== 'string' || !pr.baseBranch.trim() || typeof pr.baseSha !== 'string' || !isFullSha(pr.baseSha) || pr.baseBranch !== evidence.protectedBase.branch || (!merged && pr.baseSha.toLowerCase() !== evidence.protectedBase.sha.toLowerCase())) {
       errors.push(`EVIDENCE_CONFLICT: PR #${number} base identity is missing or malformed`)
     }

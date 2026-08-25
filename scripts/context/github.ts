@@ -344,8 +344,8 @@ export function readGithubEvidence({
       errors.push(`EVIDENCE_CONFLICT: PR #${number} identity fields are missing or malformed`)
       continue
     }
-    const normalizedState = state.toUpperCase()
-    const merged = normalizedState === 'MERGED' || pr.mergeCommit != null
+    const normalizedState = state.toUpperCase(), merged = normalizedState === 'MERGED'
+    if (!merged && pr.mergeCommit != null) { errors.push(`EVIDENCE_CONFLICT: PR #${number} state and merge commit evidence disagree`); continue }
     if (normalizedState === 'CLOSED' && !merged) continue
     if (merged && (!mergeCommitSha || !isFullSha(mergeCommitSha))) { errors.push(`EVIDENCE_CONFLICT: PR #${number} merge commit identity is missing or malformed`); continue }
 

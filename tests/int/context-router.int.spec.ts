@@ -857,6 +857,25 @@ describe('bemoat:context pure routing', () => {
     expect(decision.route).toBe('COMPLETE')
   })
 
+  it('fails closed when OPEN state contradicts merge-commit evidence instead of routing COMPLETE', () => {
+    const decision = routeContext(baseEvidence({
+      issue: { ...baseEvidence().issue, state: 'OPEN' },
+      protectedBase: { ...baseEvidence().protectedBase, sha: 'a'.repeat(40) },
+      activePr: prEvidence({
+        state: 'OPEN',
+        merged: true,
+        baseSha: 'c'.repeat(40),
+        mergeCommitSha: 'd'.repeat(40),
+      }),
+      currentHeadVerification: verification({
+        reviews: { required: true, approved: true, exactHead: true },
+      }),
+    }))
+
+    expect(decision.route).toBe('STOP')
+    expect(decision.reasons.join(' ')).toMatch(/state and merge commit|base identity/i)
+  })
+
   it('routes a merged PR to COMPLETE with its historical base and non-durable local checkout', () => {
     const decision = routeContext(baseEvidence({
       issue: { ...baseEvidence().issue, state: 'CLOSED' },

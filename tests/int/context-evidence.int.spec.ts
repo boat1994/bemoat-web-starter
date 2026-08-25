@@ -279,6 +279,60 @@ describe('bemoat:context neutral evidence adapters', () => {
     })
   })
 
+  it('fails closed when an OPEN PR carries a valid merge commit', () => {
+    const head = 'b'.repeat(40)
+    const mergeCommit = 'd'.repeat(40)
+    const run: ContextCommandRunner = (_command, args) => {
+      const key = args.join(' ')
+      if (key.startsWith('issue view 421')) {
+        return response(JSON.stringify({
+          number: 421,
+          title: 'semantic review routing',
+          state: 'OPEN',
+          url: 'https://github.com/boat1994/bemoat-web-starter/issues/421',
+          body: '# body',
+          comments: [],
+        }))
+      }
+      if (key.startsWith('pr list')) {
+        return response(JSON.stringify([{
+          number: 422,
+          url: 'https://github.com/boat1994/bemoat-web-starter/pull/422',
+          headRefName: 'fix/421-standard-semantic-review',
+          closingIssuesReferences: [{ number: 421 }],
+        }]))
+      }
+      if (key.startsWith('pr view 422')) {
+        return response(JSON.stringify({
+          number: 422,
+          state: 'OPEN',
+          isDraft: false,
+          url: 'https://github.com/boat1994/bemoat-web-starter/pull/422',
+          baseRefName: 'main',
+          baseRefOid: 'a'.repeat(40),
+          headRefName: 'fix/421-standard-semantic-review',
+          headRefOid: head,
+          mergeCommit: { oid: mergeCommit },
+          reviews: [],
+          statusCheckRollup: [],
+        }))
+      }
+      if (key.includes('branches/main/protection')) return response(JSON.stringify({}))
+      return response('')
+    }
+
+    const evidence = readGithubEvidence({
+      cwd: '/repo',
+      repo: 'boat1994/bemoat-web-starter',
+      issueNumber: '421',
+      branch: 'fix/421-standard-semantic-review',
+      run,
+    })
+
+    expect(evidence.activePrs).toEqual([])
+    expect(evidence.errors).toContain('EVIDENCE_CONFLICT: PR #422 state and merge commit evidence disagree')
+  })
+
   it('excludes closed-unmerged PRs from candidates (MC-R1-002)', () => {
     const head = 'b'.repeat(40)
     const run: ContextCommandRunner = (_command, args) => {
