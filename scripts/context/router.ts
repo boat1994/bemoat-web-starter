@@ -117,11 +117,6 @@ function hasBlockingFinding(body: string, expectedHead: string): boolean {
   }
 }
 
-function isIndependentStandardReview(body: string): boolean {
-  return /(?:^|\n)-\s*Phase:\s*Independent Standard Semantic Review\s*$/im.test(body) &&
-    /(?:^|\n)-\s*Executing role:\s*Reviewer\s*$/im.test(body)
-}
-
 function isProtectedOrIntegrationBranch(branch: string): boolean {
   return /^(?:main|master|dev|develop|integration|staging|production)(?:\/.*)?$/i.test(branch)
 }
@@ -240,7 +235,7 @@ export function routeContext(evidence: NormalizedContextEvidence): ContextDecisi
           ? parsed.verdict
           : null
         const validCorrection = acceptedVerdict === 'CORRECTION REQUIRED' &&
-          isIndependentStandardReview(verdict.body) && hasBlockingFinding(verdict.body, activePr.headSha)
+          hasBlockingFinding(verdict.body, activePr.headSha)
         if (classification.valid && (acceptedVerdict === 'ELIGIBLE FOR FOUNDER REVIEW' || validCorrection)) {
           applicableVerdicts.push({ verdict: acceptedVerdict, body: verdict.body })
         }

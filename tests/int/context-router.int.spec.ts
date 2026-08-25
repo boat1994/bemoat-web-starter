@@ -495,6 +495,29 @@ describe('bemoat:context pure routing', () => {
       expect(decision.nextAction.description).toMatch(/bounded correction/i)
     })
 
+    it('uses exact-head current-protocol evidence without role-marker prose', () => {
+      const reviewedHead = headSha
+      const reviewBody = `## REVIEW_VERDICT
+**Repository:** \`boat1994/bemoat-web-starter\`
+**Task / Issue:** #410
+**PR / base / head:** PR #411 · \`main\` · \`${reviewedHead}\`
+**Verdict:** CORRECTION REQUIRED
+
+### Immutable finding disposition
+\`\`\`json
+{ "schema_version": 1, "mode": "implementation_pr", "reviewed_head": "${reviewedHead}", "findings": [{ "id": "CTX-001", "canonical_summary": "Fix it", "source_thread": "https://github.com/boat1994/bemoat-web-starter/pull/411#discussion_r1", "required_evidence": ["Evidence"] }] }
+\`\`\``
+      const decision = routeContext(baseEvidence({
+        activePr: prEvidence(),
+        currentHeadVerification: verification({
+          reviews: { required: false, approved: true, exactHead: true, approvedCount: 1, exactHeadApprovedCount: 1 },
+        }),
+        durableContext: { latestHandoff: null, historicalResults: [{ ...correctionVerdict, body: reviewBody }] },
+      }))
+
+      expect(decision.route).toBe('FIX')
+    })
+
     it('keeps an exact-bound CORRECTION REQUIRED verdict without a blocking finding on REVIEW', () => {
       const reviewedHead = '0d7c77995e92391b49e042e182b54af2d561c87c'
       const decision = routeContext(baseEvidence({
