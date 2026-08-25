@@ -143,6 +143,20 @@ describe('bemoat:context pure routing', () => {
     url: 'https://github.com/boat1994/bemoat-web-starter/issues/410#issuecomment-105',
   }
 
+  const genuineWrongIssueVerdict = {
+    id: 106,
+    body: `## REVIEW_VERDICT\n**Verdict:** ELIGIBLE FOR FOUNDER REVIEW\n**Task:** Issue #999\n**Repository:** \`boat1994/bemoat-web-starter\`\n**PR / base / head:** PR #411 · \`main\` · \`${headSha}\``,
+    createdAt: '2026-08-01T00:00:00Z',
+    url: 'https://github.com/boat1994/bemoat-web-starter/issues/410#issuecomment-106',
+  }
+
+  const genuineWrongRepoVerdict = {
+    id: 107,
+    body: `## REVIEW_VERDICT\n**Verdict:** ELIGIBLE FOR FOUNDER REVIEW\n**Task:** Issue #410\n**Repository:** \`other/repository\`\n**PR / base / head:** PR #411 · \`main\` · \`${headSha}\``,
+    createdAt: '2026-08-01T00:00:00Z',
+    url: 'https://github.com/boat1994/bemoat-web-starter/issues/410#issuecomment-107',
+  }
+
   it('routes clean durable work without a PR to IMPLEMENT', () => {
     expect(routeContext(baseEvidence()).route).toBe('IMPLEMENT')
   })
@@ -303,6 +317,36 @@ describe('bemoat:context pure routing', () => {
         durableContext: {
           latestHandoff: null,
           historicalResults: [wrongBaseVerdict],
+        },
+      }))
+      expect(decision.route).toBe('REVIEW')
+    })
+
+    it('routes STANDARD + genuine wrong Issue review to REVIEW (fail closed)', () => {
+      const decision = routeContext(baseEvidence({
+        issue: { ...baseEvidence().issue, workflowProfile: 'STANDARD' },
+        activePr: prEvidence(),
+        currentHeadVerification: verification({
+          reviews: { required: false, approved: true, exactHead: true, approvedCount: 1, exactHeadApprovedCount: 1 },
+        }),
+        durableContext: {
+          latestHandoff: null,
+          historicalResults: [genuineWrongIssueVerdict],
+        },
+      }))
+      expect(decision.route).toBe('REVIEW')
+    })
+
+    it('routes STANDARD + genuine wrong repository review to REVIEW (fail closed)', () => {
+      const decision = routeContext(baseEvidence({
+        issue: { ...baseEvidence().issue, workflowProfile: 'STANDARD' },
+        activePr: prEvidence(),
+        currentHeadVerification: verification({
+          reviews: { required: false, approved: true, exactHead: true, approvedCount: 1, exactHeadApprovedCount: 1 },
+        }),
+        durableContext: {
+          latestHandoff: null,
+          historicalResults: [genuineWrongRepoVerdict],
         },
       }))
       expect(decision.route).toBe('REVIEW')
