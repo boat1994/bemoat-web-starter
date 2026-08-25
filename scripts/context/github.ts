@@ -3,6 +3,7 @@ import type {
   ActivePullRequestEvidence,
   HeadVerificationEvidence,
   IssueEvidence,
+  NativeReviewEvidence,
   ProtectionEvidence,
   RepositoryEvidence,
   RoleEvidence,
@@ -186,8 +187,14 @@ function checkEvidence(statusChecks: unknown, requiredChecks: string[]): HeadVer
     required: requiredChecks.length > 0,
   }
 }
-
-function reviewCounts(reviews: unknown[], headSha: string): { approvedCount: number; exactHeadApprovedCount: number } {
+function reviewEvidence(value: unknown): NativeReviewEvidence {
+  const record = isRecord(value) ? value : {}, rawId = record.id ?? record.databaseId ?? record.database_id ?? record.node_id
+  const id = typeof rawId === 'string' || (typeof rawId === 'number' && Number.isSafeInteger(rawId)) ? rawId : null
+  const state = typeof record.state === 'string' ? record.state : '', body = typeof record.body === 'string' ? record.body : '', rawCommitId = record.commitId ?? record.commit_id ?? (isRecord(record.commit) ? record.commit.oid : null)
+  const commitId = typeof rawCommitId === 'string' && rawCommitId.trim() ? rawCommitId : null
+  return { id, state, body, commitId }
+}
+function reviewCounts(reviews: unknown[], headSha: string): { approvedCount: number; exactHeadApprovedCount: number; nativeReviews: NativeReviewEvidence[] } {
   const latest = new Map<string, { approved: boolean; exactHead: boolean }>()
   reviews.forEach((value, index) => {
     if (!isRecord(value)) return
@@ -196,18 +203,11 @@ function reviewCounts(reviews: unknown[], headSha: string): { approvedCount: num
       asString(value.authorLogin) ?? `review-${index}`
     const state = String(value.state ?? '').toUpperCase()
     const commitId = String(value.commitId ?? value.commit_id ?? (isRecord(value.commit) ? value.commit.oid : ''))
-    latest.set(identity, {
-      approved: state === 'APPROVED',
-      exactHead: state === 'APPROVED' && commitId === headSha,
-    })
+    latest.set(identity, { approved: state === 'APPROVED', exactHead: state === 'APPROVED' && commitId === headSha })
   })
   const current = [...latest.values()].filter((review) => review.approved)
-  return {
-    approvedCount: current.length,
-    exactHeadApprovedCount: current.filter((review) => review.exactHead).length,
-  }
+  return { approvedCount: current.length, exactHeadApprovedCount: current.filter((review) => review.exactHead).length, nativeReviews: reviews.map((value) => reviewEvidence(value)) }
 }
-
 function issueBound(record: Record<string, unknown>, repo: string, issueNumber: string): boolean {
   const refs = record.closingIssuesReferences
   if (Array.isArray(refs) && refs.some((reference) => {
@@ -215,7 +215,6 @@ function issueBound(record: Record<string, unknown>, repo: string, issueNumber: 
     const referenceRepo = isRecord(reference.repository) ? asString(reference.repository.nameWithOwner) : null
     return !referenceRepo || referenceRepo === repo
   })) return true
-
   const body = `${String(record.title ?? '')}\n${String(record.body ?? '')}`
   const escapedRepo = repo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const relation = new RegExp(`(?:part of|refs?|references|related to|closes|fix(?:es)?|resolves|task\\s*[/:-]?\\s*issue|issue)\\s*(?:${escapedRepo})?\\s*#${issueNumber}\\b`, 'i')
@@ -366,6 +365,7 @@ export function readGithubEvidence({
         exactHead: requiredApprovals === 0 || counts.exactHeadApprovedCount >= requiredApprovals,
         approvedCount: counts.approvedCount,
         exactHeadApprovedCount: counts.exactHeadApprovedCount,
+        nativeReviews: counts.nativeReviews,
       },
       protection,
     }

@@ -105,6 +105,36 @@ function verification(overrides: Record<string, unknown> = {}) {
   }
 }
 
+function nativeReview(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 200,
+    state: 'COMMENTED',
+    commitId: headSha,
+    body: `## REVIEW_VERDICT
+**Repository:** \`boat1994/bemoat-web-starter\`
+**Task / Issue:** #410
+**PR / base / head:** PR #411 · \`main\` · \`${headSha}\`
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW`,
+    ...overrides,
+  }
+}
+
+function nativeBlockingReview(overrides: Record<string, unknown> = {}) {
+  return nativeReview({
+    body: `## REVIEW_VERDICT
+**Repository:** \`boat1994/bemoat-web-starter\`
+**Task / Issue:** #410
+**PR / base / head:** PR #411 · \`main\` · \`${headSha}\`
+**Verdict:** CORRECTION REQUIRED
+
+### Immutable finding disposition
+\`\`\`json
+{ "schema_version": 1, "mode": "implementation_pr", "reviewed_head": "${headSha}", "findings": [{ "id": "CTX-001", "canonical_summary": "Fix it", "source_thread": "https://github.com/boat1994/bemoat-web-starter/pull/411#discussion_r1", "required_evidence": ["Evidence"] }] }
+\`\`\``,
+    ...overrides,
+  })
+}
+
 describe('bemoat:context pure routing', () => {
   const validVerdict = {
     id: 100,
@@ -280,6 +310,77 @@ describe('bemoat:context pure routing', () => {
         },
       }))
       expect(decision.route).toBe('FOUNDER_GATE')
+    })
+
+    it('routes a clean exact-head native COMMENTED review to FOUNDER_GATE', () => {
+      const currentHeadVerification = verification({
+        reviews: {
+          required: false,
+          approved: true,
+          exactHead: true,
+          approvedCount: 0,
+          exactHeadApprovedCount: 0,
+          nativeReviews: [nativeReview()],
+        },
+      })
+      const decision = routeContext(baseEvidence({
+        issue: { ...baseEvidence().issue, workflowProfile: 'STANDARD' },
+        activePr: prEvidence(),
+        currentHeadVerification,
+      }))
+
+      expect(decision.route).toBe('FOUNDER_GATE')
+    })
+
+    it('routes an exact-head native CORRECTION REQUIRED review with a usable finding to FIX', () => {
+      const currentHeadVerification = verification({
+        reviews: {
+          required: false,
+          approved: true,
+          exactHead: true,
+          approvedCount: 0,
+          exactHeadApprovedCount: 0,
+          nativeReviews: [nativeBlockingReview()],
+        },
+      })
+      const decision = routeContext(baseEvidence({
+        issue: { ...baseEvidence().issue, workflowProfile: 'STANDARD' },
+        activePr: prEvidence(),
+        currentHeadVerification,
+      }))
+
+      expect(decision.route).toBe('FIX')
+    })
+
+    const nativeReviewCases: Array<[string, Record<string, unknown>, { duplicate?: boolean }?]> = [
+      ['stale commit binding', { commitId: 'c'.repeat(40) }],
+      ['wrong reviewed head', { body: nativeReview().body.replace(headSha, 'c'.repeat(40)) }],
+      ['malformed body', { body: '## REVIEW_VERDICT\n**Verdict:** ELIGIBLE FOR FOUNDER REVIEW' }],
+      ['ambiguous exact-head reviews', { id: 201 }, { duplicate: true }],
+      ['competing exact-head verdicts', { body: nativeBlockingReview().body }, { duplicate: true }],
+    ]
+    it.each(nativeReviewCases)('keeps native review evidence fail-closed for %s', (_label, reviewOverrides, options = {}) => {
+      const body = typeof reviewOverrides.body === 'string' ? reviewOverrides.body : undefined
+      const reviews = options.duplicate
+        ? [nativeReview(reviewOverrides), nativeReview({ id: 201, ...(body ? { body } : {}) })]
+        : [nativeReview(reviewOverrides)]
+      const currentHeadVerification = verification({
+        reviews: {
+          required: false,
+          approved: true,
+          exactHead: true,
+          approvedCount: 0,
+          exactHeadApprovedCount: 0,
+          nativeReviews: reviews,
+        },
+      })
+      const decision = routeContext(baseEvidence({
+        issue: { ...baseEvidence().issue, workflowProfile: 'STANDARD' },
+        activePr: prEvidence(),
+        currentHeadVerification,
+      }))
+
+      expect(decision.route).toBe('REVIEW')
     })
 
     it('selects the live verdict from historical predecessor REVIEW_VERDICT records', () => {
@@ -570,6 +671,30 @@ describe('bemoat:context pure routing', () => {
         '### Immutable finding disposition',
         '\x60\x60\x60json',
         serializedFinding(reviewedHead),
+        '\x60\x60\x60',
+      ].join('\n')
+      const decision = routeContext(baseEvidence({
+        activePr: prEvidence(),
+        currentHeadVerification: verification(),
+        durableContext: { latestHandoff: null, historicalResults: [{ ...correctionVerdict, body: reviewBody }] },
+      }))
+
+      expect(decision.route).toBe('REVIEW')
+    })
+
+    it.each([
+      ['duplicate finding IDs', `{ "schema_version": 1, "mode": "implementation_pr", "reviewed_head": "${headSha}", "findings": [{ "id": "CTX-001", "canonical_summary": "Fix it", "source_thread": "thread-1", "required_evidence": ["Evidence"] }, { "id": "CTX-001", "canonical_summary": "Fix it twice", "source_thread": "thread-2", "required_evidence": ["Evidence"] }] }`],
+      ['multiple fenced correction contracts', `{ "schema_version": 1, "mode": "implementation_pr", "reviewed_head": "${headSha}", "findings": [{ "id": "CTX-001", "canonical_summary": "Fix it", "source_thread": "thread", "required_evidence": ["Evidence"] }] }\n\n\`\`\`json\n{ "schema_version": 1, "mode": "implementation_pr", "reviewed_head": "${headSha}", "findings": [{ "id": "CTX-002", "canonical_summary": "Fix that", "source_thread": "thread", "required_evidence": ["Evidence"] }] }\n\`\`\``],
+    ])('keeps CORRECTION REQUIRED with %s on REVIEW', (_label, findingBlocks) => {
+      const reviewBody = [
+        '## REVIEW_VERDICT',
+        '**Repository:** \x60boat1994/bemoat-web-starter\x60',
+        '**Task / Issue:** #410',
+        '**PR / base / head:** PR #411 · \x60main\x60 · \x60' + headSha + '\x60',
+        '**Verdict:** CORRECTION REQUIRED',
+        '### Immutable finding disposition',
+        '\x60\x60\x60json',
+        findingBlocks,
         '\x60\x60\x60',
       ].join('\n')
       const decision = routeContext(baseEvidence({

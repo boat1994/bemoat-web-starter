@@ -92,7 +92,9 @@ function reviewedHeadForApplicability(body: string): string | null {
 
 function hasBlockingFinding(body: string, expectedHead: string): boolean {
   const section = body.match(/###\s+Immutable finding disposition\s*\n([\s\S]*?)(?=\n###|\n##|$)/i)?.[1] ?? ''
-  const serialized = section.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1]
+  const fenced = [...section.matchAll(/```(?:json)?\s*([\s\S]*?)```/gi)]
+  if (fenced.length > 1) return false
+  const serialized = fenced[0]?.[1]
     ?? section.match(/`(\{[\s\S]*\})`/)?.[1]
   if (!serialized) return false
 
@@ -103,11 +105,15 @@ function hasBlockingFinding(body: string, expectedHead: string): boolean {
     if (record.schema_version !== 1 || typeof record.reviewed_head !== 'string' ||
       record.reviewed_head.toLowerCase() !== expectedHead.toLowerCase()) return false
     const findings = record.findings
-    return Array.isArray(findings) && findings.length > 0 && findings.every((finding) => {
+    if (!Array.isArray(findings) || findings.length === 0) return false
+    const findingIds = new Set<string>()
+    return findings.every((finding) => {
       if (!finding || typeof finding !== 'object' || Array.isArray(finding)) return false
       const findingRecord = finding as { id?: unknown; canonical_summary?: unknown; source_thread?: unknown; required_evidence?: unknown }
-      return typeof findingRecord.id === 'string' && findingRecord.id.trim() !== '' &&
-        typeof findingRecord.canonical_summary === 'string' && findingRecord.canonical_summary.trim() !== '' &&
+      const id = typeof findingRecord.id === 'string' ? findingRecord.id.trim() : ''
+      if (!id || findingIds.has(id)) return false
+      findingIds.add(id)
+      return typeof findingRecord.canonical_summary === 'string' && findingRecord.canonical_summary.trim() !== '' &&
         typeof findingRecord.source_thread === 'string' && findingRecord.source_thread.trim() !== '' &&
         Array.isArray(findingRecord.required_evidence) && findingRecord.required_evidence.length > 0 &&
         findingRecord.required_evidence.every((item) => typeof item === 'string' && item.trim() !== '')
@@ -213,17 +219,16 @@ export function routeContext(evidence: NormalizedContextEvidence): ContextDecisi
     let malformedEvidence = false
     let conflictingLiveHeadEvidence = false
 
-    for (const verdict of verdicts) {
-      if (/evidence reconciliation\s*\(no semantic re-review\)/i.test(verdict.body)) continue
+    const inspectVerdict = (id: string | number, body: string): void => {
       try {
-        const parsed = parseProductionMergeReviewVerdict(verdict.body, verdict.id)
+        const parsed = parseProductionMergeReviewVerdict(body, id)
         const classification = classifyMergeReviewVerdict({
           // The existing classifier intentionally recognizes only the
           // non-blocking founder-review verdict. Reuse its complete identity
           // binding for both current-protocol semantic outcomes below.
           reviewVerdict: { ...parsed, verdict: 'ELIGIBLE FOR FOUNDER REVIEW' },
           expected: {
-            commentId: verdict.id,
+            commentId: id,
             exactHead: activePr.headSha,
             pr: activePr.number,
             base: evidence.protectedBase.branch,
@@ -235,15 +240,34 @@ export function routeContext(evidence: NormalizedContextEvidence): ContextDecisi
           ? parsed.verdict
           : null
         const validCorrection = acceptedVerdict === 'CORRECTION REQUIRED' &&
-          hasBlockingFinding(verdict.body, activePr.headSha)
+          hasBlockingFinding(body, activePr.headSha)
         if (classification.valid && (acceptedVerdict === 'ELIGIBLE FOR FOUNDER REVIEW' || validCorrection)) {
-          applicableVerdicts.push({ verdict: acceptedVerdict, body: verdict.body })
+          applicableVerdicts.push({ verdict: acceptedVerdict, body })
         }
         else if (parsed.reviewed_head?.toLowerCase() === activePr.headSha.toLowerCase()) conflictingLiveHeadEvidence = true
       } catch {
-        const reviewedHead = reviewedHeadForApplicability(verdict.body)
+        const reviewedHead = reviewedHeadForApplicability(body)
         if (!reviewedHead || reviewedHead === activePr.headSha.toLowerCase()) malformedEvidence = true
       }
+    }
+
+    for (const verdict of verdicts) {
+      if (/evidence reconciliation\s*\(no semantic re-review\)/i.test(verdict.body)) continue
+      inspectVerdict(verdict.id, verdict.body)
+    }
+
+    for (const review of verification.reviews.nativeReviews ?? []) {
+      if (!/^##\s+REVIEW_VERDICT\b/i.test(review.body)) continue
+      if (!review.commitId || !isFullSha(review.commitId)) {
+        malformedEvidence = true
+        continue
+      }
+      if (review.commitId.toLowerCase() !== activePr.headSha.toLowerCase()) continue
+      if (review.id === null || !review.state.trim()) {
+        malformedEvidence = true
+        continue
+      }
+      inspectVerdict(review.id, review.body)
     }
 
     semanticReviewSatisfied = !malformedEvidence && !conflictingLiveHeadEvidence && applicableVerdicts.length === 1
