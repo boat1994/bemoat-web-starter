@@ -161,7 +161,7 @@ describe('MC-R1 bounded context corrections', () => {
       repository: { owner: 'boat1994', name: 'bemoat-web-starter', nameWithOwner: 'boat1994/bemoat-web-starter', url: 'https://github.com/boat1994/bemoat-web-starter' },
       protectedBase: { branch: 'main', sha: baseSha, source: 'live GitHub ref', url: 'https://github.com/boat1994/bemoat-web-starter/tree/main' },
       policy: { path: 'docs/mission-control/mission-control-guide.md', policyId: 'bemoat-mission-control', version: '1.3.0', sourceSha: baseSha, url: 'https://github.com/boat1994/bemoat-web-starter/blob/main/docs/mission-control/mission-control-guide.md' },
-      issue: { number: '410', title: 'context', state: 'CLOSED', url: 'https://github.com/boat1994/bemoat-web-starter/issues/410', objective: null, scope: null, acceptanceCriteria: [], dependencies: [] },
+      issue: { number: '410', title: 'context', state: 'CLOSED', url: 'https://github.com/boat1994/bemoat-web-starter/issues/410', objective: null, scope: null, acceptanceCriteria: [], dependencies: [], taskSize: 'core', missionControlMode: 'optional', workflowProfile: 'STANDARD' },
       localGit: { branch: 'feature/410-other-agent', head: headSha, upstream: 'origin/feature/410-other-agent', originRepository: 'boat1994/bemoat-web-starter', clean: true, detached: false, pushed: true, durable: true, reasons: [] },
       activePr: evidence.activePrs[0],
       currentHeadVerification: evidence.exactHead,
@@ -263,7 +263,7 @@ describe('MC-R1 bounded context corrections', () => {
       repository: { owner: 'boat1994', name: 'bemoat-web-starter', nameWithOwner: 'boat1994/bemoat-web-starter', url: 'https://github.com/boat1994/bemoat-web-starter' },
       protectedBase: { branch: 'main', sha: baseSha, source: 'live GitHub ref', url: 'https://github.com/boat1994/bemoat-web-starter/tree/main' },
       policy: { path: 'docs/mission-control/mission-control-guide.md', policyId: 'bemoat-mission-control', version: '1.3.0', sourceSha: baseSha, url: 'https://github.com/boat1994/bemoat-web-starter/blob/main/docs/mission-control/mission-control-guide.md' },
-      issue: { number: '410', title: 'context', state: 'OPEN', url: 'https://github.com/boat1994/bemoat-web-starter/issues/410', objective: null, scope: null, acceptanceCriteria: [], dependencies: [] },
+      issue: { number: '410', title: 'context', state: 'OPEN', url: 'https://github.com/boat1994/bemoat-web-starter/issues/410', objective: null, scope: null, acceptanceCriteria: [], dependencies: [], taskSize: 'core', missionControlMode: 'optional', workflowProfile: 'STANDARD' },
       localGit: { branch: 'main', head: headSha, upstream: 'origin/main', originRepository: 'boat1994/bemoat-web-starter', clean: true, detached: false, pushed: true, durable: true, reasons: [] },
       activePr: null, currentHeadVerification: null, durableContext: { latestHandoff: null, historicalResults: [] }, evidenceErrors: [],
     }

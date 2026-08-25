@@ -64,6 +64,9 @@ export function collectContextEvidence({
     scope: null,
     acceptanceCriteria: [],
     dependencies: [],
+    taskSize: null,
+    missionControlMode: null,
+    workflowProfile: null,
   }
   const policy = policyResult.policy ?? {
     path: 'docs/mission-control/mission-control-guide.md',

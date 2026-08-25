@@ -4,6 +4,7 @@ import type {
   NormalizedContextEvidence,
 } from './model.ts'
 import { isFullSha, isPositiveInteger, isRepositoryObjectUrl } from './runtime.ts'
+import { parseProductionMergeReviewVerdict, classifyMergeReviewVerdict } from '../mission-control/domain/merge-review-verdict.ts'
 
 function evidenceUrls(evidence: NormalizedContextEvidence): string[] {
   const urls = [
@@ -44,6 +45,9 @@ function identityErrors(evidence: NormalizedContextEvidence): string[] {
   if (!evidence.issue || typeof evidence.issue.title !== 'string' || typeof evidence.issue.state !== 'string' || !evidence.issue.title.trim() || !evidence.issue.state.trim() || !isRepositoryObjectUrl(evidence.issue.url, repo, 'issues', evidence.issue.number)) {
     errors.push('EVIDENCE_CONFLICT: Issue identity fields are missing or empty')
   }
+  if (evidence.issue && !evidence.issue.workflowProfile) {
+    errors.push('EVIDENCE_CONFLICT: Issue workflow profile cannot be derived from task size and Mission Control mode')
+  }
 
   if (!evidence.protectedBase || !evidence.protectedBase.branch.trim() || !isFullSha(evidence.protectedBase.sha)) {
     errors.push('EVIDENCE_CONFLICT: protected base identity is missing or malformed')
@@ -60,6 +64,30 @@ function identityErrors(evidence: NormalizedContextEvidence): string[] {
     }
   }
   return errors
+}
+
+function reviewedHeadForApplicability(body: string): string | null {
+  // A parse failure is ignorable only when the recognized head proves that the
+  // malformed record belongs to an older PR head. Unknown or ambiguous heads
+  // remain fail-closed below.
+  const candidates: string[] = []
+  const canonicalLines = [...body.matchAll(/^\*\*PR \/ base \/ head:\*\*[ \t]*(.*)$/gm)]
+  for (const line of canonicalLines) {
+    const target = line[1]?.match(/^[^\r\n]*?\s*·\s*`[^`\r\n@]+`\s*·\s*`([^`\r\n]+)`[ \t]*$/)?.[1]
+    if (!target || !isFullSha(target)) return null
+    candidates.push(target.toLowerCase())
+  }
+
+  const exactHeadLines = [...body.matchAll(/^\*\*(?:Exact head reviewed|Exact reviewed head):\*\*[ \t]*(.*)$/gim)]
+  for (const line of exactHeadLines) {
+    const match = line[1]?.match(/^[ \t]*(?:`([0-9a-f]{40})`|([0-9a-f]{40}))[ \t]*$/i)
+    const target = match?.[1] ?? match?.[2]
+    if (!target) return null
+    candidates.push(target.toLowerCase())
+  }
+
+  const unique = [...new Set(candidates)]
+  return unique.length === 1 ? unique[0] ?? null : null
 }
 
 function isProtectedOrIntegrationBranch(branch: string): boolean {
@@ -145,9 +173,53 @@ export function routeContext(evidence: NormalizedContextEvidence): ContextDecisi
     ], commandAction('Wait for or verify the exact-head checks bound to the active PR.'))
   }
 
-  if (verification.reviews.required && !(verification.reviews.approved && verification.reviews.exactHead)) {
+  const isStandard = evidence.issue.workflowProfile === 'STANDARD'
+  const semanticReviewRequired = isStandard
+
+  let semanticReviewSatisfied = false
+  if (semanticReviewRequired) {
+    const verdicts = evidence.durableContext.historicalResults.filter((r) =>
+      /^##\s+REVIEW_VERDICT\b/i.test(r.body),
+    )
+    const applicableVerdicts = []
+    let malformedEvidence = false
+    let conflictingLiveHeadEvidence = false
+
+    for (const verdict of verdicts) {
+      try {
+        const parsed = parseProductionMergeReviewVerdict(verdict.body, verdict.id)
+        const classification = classifyMergeReviewVerdict({
+          reviewVerdict: parsed,
+          expected: {
+            commentId: verdict.id,
+            exactHead: activePr.headSha,
+            pr: activePr.number,
+            base: evidence.protectedBase.branch,
+            repository: evidence.repository.nameWithOwner,
+            issue: evidence.issue.number,
+          },
+        })
+        if (classification.valid) applicableVerdicts.push(verdict)
+        else if (parsed.reviewed_head?.toLowerCase() === activePr.headSha.toLowerCase()) conflictingLiveHeadEvidence = true
+      } catch {
+        const reviewedHead = reviewedHeadForApplicability(verdict.body)
+        if (!reviewedHead || reviewedHead === activePr.headSha.toLowerCase()) malformedEvidence = true
+      }
+    }
+
+    semanticReviewSatisfied = !malformedEvidence && !conflictingLiveHeadEvidence && applicableVerdicts.length === 1
+  }
+
+  if (
+    (verification.reviews.required && !(verification.reviews.approved && verification.reviews.exactHead)) ||
+    (semanticReviewRequired && !semanticReviewSatisfied)
+  ) {
+    const reason = (verification.reviews.required && !(verification.reviews.approved && verification.reviews.exactHead))
+      ? `Exact-head checks pass, but required review evidence is not approved at ${activePr.headSha}.`
+      : `Exact-head checks pass, but STANDARD semantic review is missing at ${activePr.headSha}.`
+
     return decision(evidence, 'REVIEW', [
-      `Exact-head checks pass, but required review evidence is not approved at ${activePr.headSha}.`,
+      reason,
     ], commandAction('Review the durable implementation at the exact active PR head.'))
   }
 
