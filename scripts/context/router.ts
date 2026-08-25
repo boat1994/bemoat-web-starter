@@ -90,7 +90,7 @@ function reviewedHeadForApplicability(body: string): string | null {
   return unique.length === 1 ? unique[0] ?? null : null
 }
 
-function hasBlockingFinding(body: string): boolean {
+function hasBlockingFinding(body: string, expectedHead: string): boolean {
   const section = body.match(/###\s+Immutable finding disposition\s*\n([\s\S]*?)(?=\n###|\n##|$)/i)?.[1] ?? ''
   const serialized = section.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1]
     ?? section.match(/`(\{[\s\S]*\})`/)?.[1]
@@ -99,14 +99,18 @@ function hasBlockingFinding(body: string): boolean {
   try {
     const parsed: unknown = JSON.parse(serialized)
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return false
-    const findings = (parsed as { findings?: unknown }).findings
+    const record = parsed as { schema_version?: unknown; reviewed_head?: unknown; findings?: unknown }
+    if (record.schema_version !== 1 || typeof record.reviewed_head !== 'string' ||
+      record.reviewed_head.toLowerCase() !== expectedHead.toLowerCase()) return false
+    const findings = record.findings
     return Array.isArray(findings) && findings.length > 0 && findings.every((finding) => {
       if (!finding || typeof finding !== 'object' || Array.isArray(finding)) return false
-      const record = finding as { id?: unknown; canonical_summary?: unknown; required_evidence?: unknown }
-      return typeof record.id === 'string' && record.id.trim() !== '' &&
-        typeof record.canonical_summary === 'string' && record.canonical_summary.trim() !== '' &&
-        Array.isArray(record.required_evidence) && record.required_evidence.length > 0 &&
-        record.required_evidence.every((item) => typeof item === 'string' && item.trim() !== '')
+      const findingRecord = finding as { id?: unknown; canonical_summary?: unknown; source_thread?: unknown; required_evidence?: unknown }
+      return typeof findingRecord.id === 'string' && findingRecord.id.trim() !== '' &&
+        typeof findingRecord.canonical_summary === 'string' && findingRecord.canonical_summary.trim() !== '' &&
+        typeof findingRecord.source_thread === 'string' && findingRecord.source_thread.trim() !== '' &&
+        Array.isArray(findingRecord.required_evidence) && findingRecord.required_evidence.length > 0 &&
+        findingRecord.required_evidence.every((item) => typeof item === 'string' && item.trim() !== '')
     })
   } catch {
     return false
@@ -236,7 +240,7 @@ export function routeContext(evidence: NormalizedContextEvidence): ContextDecisi
           ? parsed.verdict
           : null
         const validCorrection = acceptedVerdict === 'CORRECTION REQUIRED' &&
-          isIndependentStandardReview(verdict.body) && hasBlockingFinding(verdict.body)
+          isIndependentStandardReview(verdict.body) && hasBlockingFinding(verdict.body, activePr.headSha)
         if (classification.valid && (acceptedVerdict === 'ELIGIBLE FOR FOUNDER REVIEW' || validCorrection)) {
           applicableVerdicts.push({ verdict: acceptedVerdict, body: verdict.body })
         }

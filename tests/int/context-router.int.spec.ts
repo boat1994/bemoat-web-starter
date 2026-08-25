@@ -529,6 +529,35 @@ describe('bemoat:context pure routing', () => {
       expect(decision.route).toBe('REVIEW')
     })
 
+    it.each([
+      ['missing schema version', (head: string) => '{ "reviewed_head": "' + head + '", "findings": [{ "id": "CTX-001", "canonical_summary": "Fix it", "source_thread": "thread", "required_evidence": ["Evidence"] }] }'],
+      ['missing reviewed head', () => '{ "schema_version": 1, "findings": [{ "id": "CTX-001", "canonical_summary": "Fix it", "source_thread": "thread", "required_evidence": ["Evidence"] }] }'],
+      ['wrong reviewed head', () => '{ "schema_version": 1, "reviewed_head": "' + 'c'.repeat(40) + '", "findings": [{ "id": "CTX-001", "canonical_summary": "Fix it", "source_thread": "thread", "required_evidence": ["Evidence"] }] }'],
+      ['missing source thread', (head: string) => '{ "schema_version": 1, "reviewed_head": "' + head + '", "findings": [{ "id": "CTX-001", "canonical_summary": "Fix it", "required_evidence": ["Evidence"] }] }'],
+    ])('keeps CORRECTION REQUIRED with %s on REVIEW', (_label, serializedFinding) => {
+      const reviewedHead = headSha
+      const reviewBody = [
+        '## REVIEW_VERDICT',
+        '- Phase: Independent Standard Semantic Review',
+        '- Executing role: Reviewer',
+        '**Repository:** \x60boat1994/bemoat-web-starter\x60',
+        '**Task / Issue:** #410',
+        '**PR / base / head:** PR #411 · \x60main\x60 · \x60' + reviewedHead + '\x60',
+        '**Verdict:** CORRECTION REQUIRED',
+        '### Immutable finding disposition',
+        '\x60\x60\x60json',
+        serializedFinding(reviewedHead),
+        '\x60\x60\x60',
+      ].join('\n')
+      const decision = routeContext(baseEvidence({
+        activePr: prEvidence(),
+        currentHeadVerification: verification(),
+        durableContext: { latestHandoff: null, historicalResults: [{ ...correctionVerdict, body: reviewBody }] },
+      }))
+
+      expect(decision.route).toBe('REVIEW')
+    })
+
     it('routes STANDARD + stale/wrong-head review to REVIEW', () => {
       const decision = routeContext(baseEvidence({
         issue: { ...baseEvidence().issue, workflowProfile: 'STANDARD' },
