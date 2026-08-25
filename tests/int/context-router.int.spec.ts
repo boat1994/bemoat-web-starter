@@ -434,6 +434,8 @@ describe('bemoat:context pure routing', () => {
 
 ### Task log
 - Phase: Independent Standard Semantic Review
+- Executing role: Reviewer
+- Review type: Full semantic review
 
 **Repository:** \`boat1994/bemoat-web-starter\`
 **Task / Issue:** #423
@@ -441,7 +443,11 @@ describe('bemoat:context pure routing', () => {
 **Verdict:** CORRECTION REQUIRED
 
 ### Immutable finding disposition
-\`source_thread\`: https://github.com/boat1994/bemoat-web-starter/blob/${reviewedHead}/scripts/context/github.ts#L348-L352`
+\`source_thread\`: https://github.com/boat1994/bemoat-web-starter/blob/${reviewedHead}/scripts/context/github.ts#L348-L352
+
+\`\`\`json
+{ "schema_version": 1, "mode": "implementation_pr", "reviewed_head": "${reviewedHead}", "findings": [{ "id": "CTX-423-001", "canonical_summary": "Conflicting PR state and merge-commit evidence is accepted as merged terminal evidence.", "source_thread": "https://github.com/boat1994/bemoat-web-starter/blob/${reviewedHead}/scripts/context/github.ts#L348-L352", "required_evidence": ["Require authoritative merged-state evidence to agree with mergeCommit evidence."] }] }
+\`\`\``
       const reconciliationBody = reviewBody.replace(
         'Independent Standard Semantic Review',
         'Evidence reconciliation (no semantic re-review)',
@@ -487,6 +493,40 @@ describe('bemoat:context pure routing', () => {
 
       expect(decision.route).toBe('FIX')
       expect(decision.nextAction.description).toMatch(/bounded correction/i)
+    })
+
+    it('keeps an exact-bound CORRECTION REQUIRED verdict without a blocking finding on REVIEW', () => {
+      const reviewedHead = '0d7c77995e92391b49e042e182b54af2d561c87c'
+      const decision = routeContext(baseEvidence({
+        issue: {
+          ...baseEvidence().issue,
+          number: '423',
+          url: 'https://github.com/boat1994/bemoat-web-starter/issues/423',
+          workflowProfile: 'STANDARD',
+        },
+        activePr: prEvidence({
+          number: '424',
+          url: 'https://github.com/boat1994/bemoat-web-starter/pull/424',
+          headBranch: 'fix/423-post-merge-terminal-reconstruction',
+          headSha: reviewedHead,
+          baseSha: sha,
+        }),
+        currentHeadVerification: {
+          ...verification({ exactHead: reviewedHead }),
+          reviews: { required: false, approved: true, exactHead: true, approvedCount: 0, exactHeadApprovedCount: 0 },
+        },
+        durableContext: {
+          latestHandoff: null,
+          historicalResults: [{
+            id: 5409353625,
+            body: `## REVIEW_VERDICT\n### Task log\n- Phase: Independent Standard Semantic Review\n- Executing role: Reviewer\n- Review type: Full semantic review\n**Repository:** \`boat1994/bemoat-web-starter\`\n**Task / Issue:** #423\n**PR / base / head:** PR #424 · \`main\` · \`${reviewedHead}\`\n**Verdict:** CORRECTION REQUIRED\n### Immutable finding disposition\n\`{ "schema_version": 1, "mode": "implementation_pr", "reviewed_head": "${reviewedHead}", "findings": [] }\``,
+            createdAt: '2026-08-25T10:54:48Z',
+            url: 'https://github.com/boat1994/bemoat-web-starter/issues/410#issuecomment-5409353625',
+          }],
+        },
+      }))
+
+      expect(decision.route).toBe('REVIEW')
     })
 
     it('routes STANDARD + stale/wrong-head review to REVIEW', () => {
