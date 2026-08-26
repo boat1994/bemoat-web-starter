@@ -41,6 +41,55 @@ Only the read-only context command.
     })
   })
 
+  it('recognizes "Scope boundaries" as scope evidence', () => {
+    const parsed = parseIssueBody(`
+## Goal
+
+Some goal.
+
+## Scope boundaries
+
+Expected implementation is narrow.
+`)
+
+    expect(parsed.scope).toBe('Expected implementation is narrow.')
+  })
+
+  it('rejects unrelated headings for scope', () => {
+    const parsed = parseIssueBody(`
+## Goal
+
+Some goal.
+
+## Scoped things
+Not scope.
+
+## My Scope
+Not scope.
+
+## Boundaries of Scope
+Not scope.
+`)
+
+    expect(parsed.scope).toBeNull()
+  })
+
+  it('reconstructs both objective and scope for an Issue body shaped like live Issue #434', () => {
+    const parsed = parseIssueBody(`
+## Goal
+
+Fix the retained current-context Issue parser so the public bemoat:context:sync-base command recognizes the repository's existing "## Scope boundaries" heading as valid scope evidence.
+
+## Scope boundaries
+
+- scripts/context/issue-parser.ts
+- directly owned parser/context-sync tests
+`)
+
+    expect(parsed.objective).toBe('Fix the retained current-context Issue parser so the public bemoat:context:sync-base command recognizes the repository\'s existing "## Scope boundaries" heading as valid scope evidence.')
+    expect(parsed.scope).toBe('- scripts/context/issue-parser.ts\n- directly owned parser/context-sync tests')
+  })
+
   it('treats role comments as evidence and never projects historical RESULT into current state', () => {
     const comments = [
       {
