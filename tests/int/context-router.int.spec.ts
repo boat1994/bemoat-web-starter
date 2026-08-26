@@ -927,4 +927,150 @@ describe('bemoat:context pure routing', () => {
     expect(competing.route).toBe('STOP')
     expect(competing.reasons.join(' ')).toMatch(/competing|ambiguous/i)
   })
+
+  describe('story-first Context Story Matrix transitions', () => {
+    const advancedBaseSha = 'c'.repeat(40)
+
+    it.each([
+      {
+        story: 'a closed Issue without terminal PR evidence',
+        evidence: baseEvidence({ issue: { ...baseEvidence().issue, state: 'CLOSED' } }),
+        reason: /closed.*merged PR/i,
+      },
+      {
+        story: 'an active PR targeting the wrong base branch',
+        evidence: baseEvidence({ activePr: prEvidence({ baseBranch: 'release' }), currentHeadVerification: verification() }),
+        reason: /base identity/i,
+      },
+      {
+        story: 'a merged PR with a malformed merge commit',
+        evidence: baseEvidence({
+          issue: { ...baseEvidence().issue, state: 'CLOSED' },
+          activePr: prEvidence({ state: 'MERGED', merged: true, mergeCommitSha: 'malformed' }),
+          currentHeadVerification: verification(),
+        }),
+        reason: /merge commit/i,
+      },
+    ])('fails closed for $story', ({ evidence, reason }) => {
+      const decision = routeContext(evidence)
+
+      expect(decision.route).toBe('STOP')
+      expect(decision.reasons.join(' ')).toMatch(reason)
+    })
+
+    it.each([
+      {
+        story: 'failed CI cannot outrank a stale active PR base',
+        headVerification: verification({
+          checks: { status: 'FAILURE', complete: true, failed: true, pending: false, required: true },
+        }),
+        durableContext: baseEvidence().durableContext,
+      },
+      {
+        story: 'pending CI cannot outrank a stale active PR base',
+        headVerification: verification({
+          checks: { status: 'PENDING', complete: false, failed: false, pending: true, required: true },
+        }),
+        durableContext: baseEvidence().durableContext,
+      },
+      {
+        story: 'green CI and clean review cannot outrank a stale active PR base',
+        headVerification: verification({
+          reviews: { required: true, approved: true, exactHead: true, approvedCount: 1, exactHeadApprovedCount: 1 },
+        }),
+        durableContext: { latestHandoff: null, historicalResults: [validVerdict] },
+      },
+    ])('$story', ({ headVerification, durableContext }) => {
+      const decision = routeContext(baseEvidence({
+        protectedBase: { ...baseEvidence().protectedBase, sha: advancedBaseSha },
+        activePr: prEvidence({ baseSha: sha }),
+        currentHeadVerification: headVerification,
+        durableContext,
+      }))
+
+      expect(decision.route).toBe('STOP')
+      expect(decision.reasons.join(' ')).toMatch(/base identity/i)
+    })
+
+    it('stops when a sibling merge advances protected main under an active PR', () => {
+      const beforeSiblingMerge = routeContext(baseEvidence({
+        activePr: prEvidence(),
+        currentHeadVerification: verification({
+          checks: { status: 'PENDING', complete: false, failed: false, pending: true, required: true },
+        }),
+      }))
+      const afterSiblingMerge = routeContext(baseEvidence({
+        protectedBase: { ...baseEvidence().protectedBase, sha: advancedBaseSha },
+        activePr: prEvidence({ baseSha: sha }),
+        currentHeadVerification: verification({
+          checks: { status: 'PENDING', complete: false, failed: false, pending: true, required: true },
+        }),
+      }))
+
+      expect(beforeSiblingMerge.route).toBe('VERIFY')
+      expect(afterSiblingMerge.route).toBe('STOP')
+    })
+
+    it('invalidates old CI and review evidence across a PR head transition', () => {
+      const newHeadSha = 'd'.repeat(40)
+      const beforeCommit = routeContext(baseEvidence({
+        activePr: prEvidence(),
+        currentHeadVerification: verification({
+          reviews: { required: true, approved: true, exactHead: true, approvedCount: 1, exactHeadApprovedCount: 1 },
+        }),
+        durableContext: { latestHandoff: null, historicalResults: [validVerdict] },
+      }))
+      const staleCiAfterCommit = routeContext(baseEvidence({
+        localGit: { ...baseEvidence().localGit, head: newHeadSha },
+        activePr: prEvidence({ headSha: newHeadSha }),
+        currentHeadVerification: verification(),
+        durableContext: { latestHandoff: null, historicalResults: [validVerdict] },
+      }))
+      const freshCiStaleReview = routeContext(baseEvidence({
+        localGit: { ...baseEvidence().localGit, head: newHeadSha },
+        activePr: prEvidence({ headSha: newHeadSha }),
+        currentHeadVerification: verification({
+          exactHead: newHeadSha,
+          reviews: { required: false, approved: true, exactHead: true, approvedCount: 0, exactHeadApprovedCount: 0 },
+        }),
+        durableContext: { latestHandoff: null, historicalResults: [validVerdict] },
+      }))
+
+      expect(beforeCommit.route).toBe('FOUNDER_GATE')
+      expect(staleCiAfterCommit.route).toBe('STOP')
+      expect(freshCiStaleReview.route).toBe('REVIEW')
+    })
+
+    it('reconstructs a Founder manual merge as terminal despite historical base and local checkout', () => {
+      const beforeMerge = routeContext(baseEvidence({
+        activePr: prEvidence(),
+        currentHeadVerification: verification({
+          reviews: { required: true, approved: true, exactHead: true, approvedCount: 1, exactHeadApprovedCount: 1 },
+        }),
+        durableContext: { latestHandoff: null, historicalResults: [validVerdict] },
+      }))
+      const afterManualMerge = routeContext(baseEvidence({
+        issue: { ...baseEvidence().issue, state: 'CLOSED' },
+        protectedBase: { ...baseEvidence().protectedBase, sha: advancedBaseSha },
+        localGit: {
+          ...baseEvidence().localGit,
+          branch: '<detached>',
+          detached: true,
+          pushed: false,
+          durable: false,
+          reasons: ['LOCAL_STATE_NOT_DURABLE: repository is detached'],
+        },
+        activePr: prEvidence({
+          state: 'MERGED',
+          merged: true,
+          baseSha: sha,
+          mergeCommitSha: 'e'.repeat(40),
+        }),
+        currentHeadVerification: verification(),
+      }))
+
+      expect(beforeMerge.route).toBe('FOUNDER_GATE')
+      expect(afterManualMerge.route).toBe('COMPLETE')
+    })
+  })
 })

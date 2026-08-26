@@ -40,6 +40,7 @@
     "boilerplate:check": "node scripts/check-boilerplate-drift.mjs",
     "bemoat:agent:delivery": "node scripts/agent-delivery.mjs",
     "bemoat:context": "node scripts/agent-context.mjs",
+    "bemoat:context:sync-base": "node scripts/agent-context-sync-base.mjs",
     "bemoat:handoff": "node scripts/agent-handoff.mjs",
     "bemoat:agent:issue": "node scripts/agent-issue.mjs",
     "bemoat:mission-control:dispatch": "node scripts/mission-control-dispatch.mjs",
