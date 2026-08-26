@@ -1,12 +1,13 @@
-import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
-import { describe, expect, it } from 'vitest'
+import { afterAll, describe, expect, it } from 'vitest'
 
 const repoRoot = process.cwd()
 const acceptanceFixtureRoot = resolve(repoRoot, 'tests/fixtures/acceptance/child-project')
 const guardFixturesRoot = resolve(repoRoot, 'tests/fixtures/guard')
-const tempChildRoot = resolve(repoRoot, '.tmp-starter-acceptance-child')
+const tempChildRoot = mkdtempSync(join(tmpdir(), 'bemoat-starter-acceptance-child-'))
 
 /** Child-facing bemoat:* scripts sync must be able to add when missing. */
 const REQUIRED_CHILD_BEMOAT_SCRIPTS = [
@@ -43,6 +44,14 @@ function copyDirectory(source: string, target: string) {
 }
 
 describe('starter acceptance suite v1', () => {
+  afterAll(() => {
+    rmSync(tempChildRoot, { recursive: true, force: true })
+  })
+
+  it('keeps the simulated child outside the checkout', () => {
+    expect(tempChildRoot).not.toBe(resolve(repoRoot, '.tmp-starter-acceptance-child'))
+  })
+
   describe('child-facing bemoat:* scripts', () => {
     it('exposes required managed scripts in package.json', () => {
       const packageJSON = JSON.parse(readFileSync(resolve(repoRoot, 'package.json'), 'utf8'))
