@@ -30,6 +30,7 @@ map, not a new state machine, routing configuration, or test DSL.
 | Exact-head clean semantic review and satisfied native requirements | current head × clean review | `FOUNDER_GATE` | B | clean native review case |
 | Stale active PR base with failed, pending, or fully satisfied downstream gates | base drift × CI/review state | `STOP` before downstream routing | B | story-first stale-base precedence table |
 | Otherwise-valid stale active PR with exact same-scope identity and durable local state | stale-base `STOP` × live identity × native ancestry | one bounded `bemoat:context:sync-base` continuation, then `VERIFY` on the new head | B | `context-sync.int.spec.ts`: authorized continuation and fail-closed siblings |
+| Stale PR branch predates the sync command, with an exact protected-main command source and one explicit durable target worktree | source-command identity × target canonicalization × stale-base eligibility | the protected-main registered command may run the existing bounded synchronization against only that target; every source/target ambiguity remains `STOP` | B | `context-sync.int.spec.ts`: protected-main bootstrap lifecycle and source/target drift cases |
 | New PR head with old CI verification | head movement × stale CI | `STOP` | B | head-transition story and stale verification case |
 | New PR head with fresh CI but old semantic review | head movement × stale review | `REVIEW` | B | head-transition story and stale-review cases |
 | Valid merged PR with historical base and detached checkout | terminal merge × stale base × local non-durability | `COMPLETE` | B | terminal reconstruction transition |
@@ -59,10 +60,24 @@ production change.
    command to perform one ancestry- and
    conflict-preflighted synchronization; the resulting head requires fresh
    exact-head CI and semantic review.
-6. Founder manually merges the active PR → fresh reconstruction accepts valid
+6. If the stale PR branch predates the registered sync implementation, invoke
+   that implementation from the exact protected-main checkout against one
+   explicit target:
+
+   ```bash
+   pnpm --dir <protected-main-worktree> run bemoat:context:sync-base -- \
+     <issue-number> --target-worktree <absolute-path> --json
+   ```
+
+   The command canonicalizes both roots, proves the source is clean and at the
+   live protected-main SHA, and collects all mutable-worktree evidence from the
+   target. It does not create or remove worktrees, copy command files, or mutate
+   Issue/PR metadata. PR #420 remains unchanged until the independent Issue #430
+   correction is Founder-manually merged and freshly reconstructed.
+7. Founder manually merges the active PR → fresh reconstruction accepts valid
    native `MERGED` plus merge-commit evidence → `COMPLETE`, even though the PR
    retains its historical base and the local checkout is detached or irrelevant.
-7. Contradictory, malformed, missing, or competing native evidence interrupts
+8. Contradictory, malformed, missing, or competing native evidence interrupts
    the transition and fails closed.
 
 ## Resolved continuation decision

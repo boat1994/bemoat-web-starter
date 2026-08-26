@@ -2,6 +2,7 @@ import type { ActivePullRequestEvidence, ContextDecision, NormalizedContextEvide
 import { isFullSha } from './runtime.ts'
 import { routeContext } from './router.ts'
 import { runContextCommand, type ContextCommandResult, type ContextCommandRunner } from './runtime.ts'
+import { verifyContextSyncSource } from './sync-worktree.ts'
 
 export type ContextSyncClassification = 'SUCCESS' | 'EVIDENCE_CONFLICT' | 'HEAD_DRIFT' | 'BLOCKED_EXTERNAL' | 'AMBIGUOUS_RESULT'
 
@@ -104,12 +105,19 @@ function readback(run: ContextCommandRunner, command: string, args: string[], cw
 export function synchronizeContext({
   evidence,
   cwd = process.cwd(),
+  sourceCwd = null,
   run = runContextCommand,
 }: {
   evidence: NormalizedContextEvidence
   cwd?: string
+  sourceCwd?: string | null
   run?: ContextCommandRunner
 }): ContextSyncResult {
+  const sourceErrors = sourceCwd
+    ? verifyContextSyncSource({ sourceCwd, evidence, run })
+    : []
+  if (sourceErrors.length > 0) return stop('EVIDENCE_CONFLICT', sourceErrors)
+
   const authorization = authorizeContextSync(evidence)
   if (!authorization.allowed) return stop('EVIDENCE_CONFLICT', authorization.reasons)
 
@@ -146,6 +154,17 @@ export function synchronizeContext({
   if (oldBaseInHead.status !== 0 || oldBaseInHead.error) return stop('EVIDENCE_CONFLICT', ['EVIDENCE_CONFLICT: active PR head does not contain its recorded base'])
   const mergeTree = run('git', ['merge-tree', '--write-tree', 'HEAD', 'FETCH_HEAD'], { cwd })
   if (mergeTree.status !== 0 || mergeTree.error) return stop('EVIDENCE_CONFLICT', ['EVIDENCE_CONFLICT: protected-base synchronization has a merge conflict'])
+
+  const sourceDrift = sourceCwd
+    ? verifyContextSyncSource({ sourceCwd, evidence, run })
+    : []
+  if (sourceDrift.length > 0) {
+    return stop('HEAD_DRIFT', sourceDrift.map((reason) => reason.replace(/^EVIDENCE_CONFLICT:/, 'HEAD_DRIFT:')))
+  }
+  for (const [label, args, expected] of checks) {
+    const value = readback(run, 'git', args, cwd)
+    if (value !== expected) return stop('HEAD_DRIFT', [`HEAD_DRIFT: ${label} changed immediately before synchronization`])
+  }
 
   const protectedBeforeMerge = remoteSha(readback(run, 'git', ['ls-remote', '--heads', remote, evidence.protectedBase.branch], cwd))
   const branchBeforeMerge = remoteSha(readback(run, 'git', ['ls-remote', '--heads', remote, activePr.headBranch], cwd))

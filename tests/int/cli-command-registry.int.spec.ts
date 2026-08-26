@@ -310,6 +310,20 @@ describe('Task 1 command contract registry', () => {
     expectRegistryValid()
   })
 
+  it('registers one optional absolute target worktree path for context base synchronization', () => {
+    const contract = getCommandContract('bemoat:context:sync-base')
+    expect(contract?.optional_flags).toContainEqual(expect.objectContaining({
+      name: 'target_worktree',
+      syntax: '--target-worktree <absolute-path>',
+      kind: 'flag',
+      value_type: 'path',
+      required: false,
+      source: 'caller',
+      multiple: false,
+    }))
+    expect(contract?.optional_flags?.filter((input) => input.name === 'target_worktree')).toHaveLength(1)
+  })
+
   it('requires every schema-v1 command field and existing entrypoint', () => {
     expect(COMMAND_CONTRACT_SCHEMA_VERSION).toBe(1)
     expect(COMMAND_CONTRACT_REGISTRY.schema_version).toBe(1)
