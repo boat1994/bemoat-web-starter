@@ -3,6 +3,7 @@ import type {
   ActivePullRequestEvidence,
   HeadVerificationEvidence,
   IssueEvidence,
+  NativeReviewEvidence,
   ProtectionEvidence,
   RepositoryEvidence,
   RoleEvidence,
@@ -15,7 +16,6 @@ import {
   repositoryEvidence,
   type ContextCommandRunner,
 } from './runtime.ts'
-
 export interface GithubEvidenceResult {
   repository: RepositoryEvidence
   issue: IssueEvidence | null
@@ -30,7 +30,6 @@ interface JsonResult<T> {
   value: T | null
   error: string | null
 }
-
 function readJson<T>(
   run: ContextCommandRunner,
   command: string,
@@ -56,7 +55,6 @@ function readJson<T>(
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
-
 function stringArray(value: unknown): string[] {
   return Array.isArray(value)
     ? value.filter((entry): entry is string => typeof entry === 'string' && entry.trim() !== '').map((entry) => entry.trim())
@@ -186,8 +184,14 @@ function checkEvidence(statusChecks: unknown, requiredChecks: string[]): HeadVer
     required: requiredChecks.length > 0,
   }
 }
-
-function reviewCounts(reviews: unknown[], headSha: string): { approvedCount: number; exactHeadApprovedCount: number } {
+function reviewEvidence(value: unknown): NativeReviewEvidence {
+  const record = isRecord(value) ? value : {}, rawId = record.id ?? record.databaseId ?? record.database_id ?? record.node_id
+  const id = typeof rawId === 'string' || (typeof rawId === 'number' && Number.isSafeInteger(rawId)) ? rawId : null
+  const state = typeof record.state === 'string' ? record.state : '', body = typeof record.body === 'string' ? record.body : '', rawCommitId = record.commitId ?? record.commit_id ?? (isRecord(record.commit) ? record.commit.oid : null)
+  const commitId = typeof rawCommitId === 'string' && rawCommitId.trim() ? rawCommitId : null
+  return { id, state, body, commitId }
+}
+function reviewCounts(reviews: unknown[], headSha: string): { approvedCount: number; exactHeadApprovedCount: number; nativeReviews: NativeReviewEvidence[] } {
   const latest = new Map<string, { approved: boolean; exactHead: boolean }>()
   reviews.forEach((value, index) => {
     if (!isRecord(value)) return
@@ -196,18 +200,11 @@ function reviewCounts(reviews: unknown[], headSha: string): { approvedCount: num
       asString(value.authorLogin) ?? `review-${index}`
     const state = String(value.state ?? '').toUpperCase()
     const commitId = String(value.commitId ?? value.commit_id ?? (isRecord(value.commit) ? value.commit.oid : ''))
-    latest.set(identity, {
-      approved: state === 'APPROVED',
-      exactHead: state === 'APPROVED' && commitId === headSha,
-    })
+    latest.set(identity, { approved: state === 'APPROVED', exactHead: state === 'APPROVED' && commitId === headSha })
   })
   const current = [...latest.values()].filter((review) => review.approved)
-  return {
-    approvedCount: current.length,
-    exactHeadApprovedCount: current.filter((review) => review.exactHead).length,
-  }
+  return { approvedCount: current.length, exactHeadApprovedCount: current.filter((review) => review.exactHead).length, nativeReviews: reviews.map((value) => reviewEvidence(value)) }
 }
-
 function issueBound(record: Record<string, unknown>, repo: string, issueNumber: string): boolean {
   const refs = record.closingIssuesReferences
   if (Array.isArray(refs) && refs.some((reference) => {
@@ -215,7 +212,6 @@ function issueBound(record: Record<string, unknown>, repo: string, issueNumber: 
     const referenceRepo = isRecord(reference.repository) ? asString(reference.repository.nameWithOwner) : null
     return !referenceRepo || referenceRepo === repo
   })) return true
-
   const body = `${String(record.title ?? '')}\n${String(record.body ?? '')}`
   const escapedRepo = repo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const relation = new RegExp(`(?:part of|refs?|references|related to|closes|fix(?:es)?|resolves|task\\s*[/:-]?\\s*issue|issue)\\s*(?:${escapedRepo})?\\s*#${issueNumber}\\b`, 'i')
@@ -277,6 +273,7 @@ export function readGithubEvidence({
         scope: parsed.scope,
         acceptanceCriteria: parsed.acceptanceCriteria,
         dependencies: parsed.dependencies,
+        taskSize: parsed.taskSize, missionControlMode: parsed.missionControlMode, workflowProfile: parsed.workflowProfile,
       }
     }
   }
@@ -342,13 +339,15 @@ export function readGithubEvidence({
     const baseSha = asString(pr.baseRefOid)
     const headBranch = asString(pr.headRefName)
     const headSha = asString(pr.headRefOid)
+    const mergeCommitSha = isRecord(pr.mergeCommit) ? asString(pr.mergeCommit.oid) ?? asString(pr.mergeCommit.sha) : null
     if (!prNumber || prNumber !== number || !state || !url || !isRepositoryObjectUrl(url, repo, 'pull', number) || !baseBranch || !isFullSha(baseSha) || !headBranch || !isFullSha(headSha)) {
       errors.push(`EVIDENCE_CONFLICT: PR #${number} identity fields are missing or malformed`)
       continue
     }
-    const normalizedState = state.toUpperCase()
-    const merged = normalizedState === 'MERGED' || pr.mergeCommit != null
+    const normalizedState = state.toUpperCase(), merged = normalizedState === 'MERGED'
+    if (!merged && pr.mergeCommit != null) { errors.push(`EVIDENCE_CONFLICT: PR #${number} state and merge commit evidence disagree`); continue }
     if (normalizedState === 'CLOSED' && !merged) continue
+    if (merged && (!mergeCommitSha || !isFullSha(mergeCommitSha))) { errors.push(`EVIDENCE_CONFLICT: PR #${number} merge commit identity is missing or malformed`); continue }
 
     if (!merged && protectedBaseSha && (baseBranch !== protectedBaseBranch || baseSha.toLowerCase() !== protectedBaseSha.toLowerCase())) {
       errors.push(`EVIDENCE_CONFLICT: PR #${number} base does not match live protected ${protectedBaseBranch}@${protectedBaseSha}`)
@@ -365,6 +364,7 @@ export function readGithubEvidence({
         exactHead: requiredApprovals === 0 || counts.exactHeadApprovedCount >= requiredApprovals,
         approvedCount: counts.approvedCount,
         exactHeadApprovedCount: counts.exactHeadApprovedCount,
+        nativeReviews: counts.nativeReviews,
       },
       protection,
     }
@@ -377,7 +377,7 @@ export function readGithubEvidence({
       baseSha,
       headBranch,
       headSha,
-      merged,
+      merged, mergeCommitSha: merged ? mergeCommitSha : null,
     })
     verifications.push(verification)
   }

@@ -55,6 +55,7 @@
     "scripts/agent-issue.mjs",
     "scripts/agent-issue",
     "scripts/agent-context.mjs",
+    "scripts/agent-context-sync-base.mjs",
     "scripts/context",
     "scripts/agent-handoff.mjs",
     "scripts/handoff",
@@ -125,6 +126,7 @@
     "tests/int/context-router.int.spec.ts",
     "tests/int/context-evidence.int.spec.ts",
     "tests/int/context-cli.int.spec.ts",
+    "tests/int/context-sync.int.spec.ts",
     "tests/int/context-corrections.int.spec.ts",
     "tests/int/handoff-schema.int.spec.ts",
     "tests/int/handoff-transport.int.spec.ts",
@@ -262,6 +264,7 @@
   "managedPackageScripts": [
     "bemoat:agent:issue",
     "bemoat:context",
+    "bemoat:context:sync-base",
     "bemoat:handoff",
     "bemoat:mission-control:dispatch",
     "bemoat:mission-control:review",

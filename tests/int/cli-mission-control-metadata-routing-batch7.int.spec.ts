@@ -152,9 +152,10 @@ describe('Batch 7 characterization — CLI command metadata and routing policy l
       EXPECTED_PRIMARY_ROUTE_KEYS.length,
       EXPECTED_PRIMARY_ROUTE_KEYS.length + EXPECTED_RECOVERY_ROUTE_KEYS.length,
     )).toEqual([...EXPECTED_RECOVERY_ROUTE_KEYS])
+    expect(routeKeys.at(-2)).toBe('context_sync_base')
     expect(routeKeys.at(-1)).toBe('NOT_STATEFUL_HANDOFF')
     expect(routeKeys).toHaveLength(
-      EXPECTED_PRIMARY_ROUTE_KEYS.length + EXPECTED_RECOVERY_ROUTE_KEYS.length + 1,
+      EXPECTED_PRIMARY_ROUTE_KEYS.length + EXPECTED_RECOVERY_ROUTE_KEYS.length + 2,
     )
   })
 

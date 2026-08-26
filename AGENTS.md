@@ -14,6 +14,7 @@ recreate long-form framework manuals here.
 | Starter vs child ownership | `docs/agent-loop/source-of-truth.md`, `docs/harness-sync-contract.md` |
 | Issue branch workflow | `docs/agent-loop/issue-driven-branch-workflow.md`, `docs/workflow/git-flow.md` |
 | Agent loop and checklist | `docs/agent-loop/README.md`, `docs/agent-loop/checklist.md` |
+| Story-first semantic testing | `AGENTS.md`, `docs/agent-loop/context-story-matrix.md` |
 | Self red-team scope gate | `docs/agent-loop/self-red-team-scope-gate.md`, `docs/agent-loop/self-red-team-scope-gate-prompt.md` |
 | Security and migrations | `docs/agent-loop/security-and-migrations.md`, `docs/schema-evolution.md` |
 | Payload CMS rules | `.cursor/rules/payload-overview.md` and related `.cursor/rules/payload-*.md` / topic files; fallback `.agents/skills/payload-cms.md` |
@@ -123,6 +124,31 @@ Real-agent operation must not directly import `Coordinator`, Productive-Only
 policy helpers, workflow services, adapters, transition functions, parsers, or
 projection helpers. Internal imports remain valid for automated tests, but do
 not prove public CLI usability.
+
+## Story-First Semantic Testing
+
+Before changing deterministic harness semantics—routing, evidence
+interpretation, authority, mutation safety, fail-closed behavior, or workflow
+transitions—extract the canonical invariant and write the risk-relevant story
+coverage first. Use a bounded combination of invariant, pairwise, and lifecycle
+transition stories rather than a brute-force Cartesian product.
+
+Run the new characterization or failing story against the current protected
+baseline before changing production semantics. Classify every red story as
+exactly one of:
+
+- **Implementation defect:** canonical behavior is unambiguous and the
+  implementation disagrees.
+- **Missing coverage:** current behavior is correct but lacked explicit story
+  protection.
+- **Protocol/spec gap:** canonical evidence does not uniquely define the
+  expected behavior.
+
+When a semantic defect is found, inspect the bounded neighboring state
+combinations that could fail for the same reason. Never make a protocol/spec
+gap green by inventing routing semantics; stop for the required architecture or
+Founder decision. This rule does not impose ceremonial test-first work on
+trivial mechanical edits that cannot change deterministic behavior.
 
 A help invocation must perform no mutation: it creates no comment, changes no
 state, and creates no branch, issue, or PR. For contracts whose

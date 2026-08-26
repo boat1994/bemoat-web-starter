@@ -40,6 +40,9 @@ export interface IssueEvidence {
   scope: string | null
   acceptanceCriteria: string[]
   dependencies: string[]
+  taskSize: string | null
+  missionControlMode: string | null
+  workflowProfile: string | null
 }
 
 export interface LocalGitEvidence {
@@ -64,6 +67,7 @@ export interface ActivePullRequestEvidence {
   headBranch: string
   headSha: string
   merged: boolean
+  mergeCommitSha: string | null
 }
 
 export interface HeadVerificationEvidence {
@@ -81,6 +85,7 @@ export interface HeadVerificationEvidence {
     exactHead: boolean
     approvedCount?: number
     exactHeadApprovedCount?: number
+    nativeReviews?: NativeReviewEvidence[]
   }
   protection: ProtectionEvidence
 }
@@ -90,6 +95,13 @@ export interface ProtectionEvidence {
   source?: 'legacy' | 'native' | 'legacy+native' | 'unavailable'
   requiredChecks: string[]
   requiredApprovals: number
+}
+
+export interface NativeReviewEvidence {
+  id: string | number | null
+  state: string
+  body: string
+  commitId: string | null
 }
 
 export interface RoleEvidence {

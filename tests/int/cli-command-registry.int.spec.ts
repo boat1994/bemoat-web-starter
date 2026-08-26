@@ -40,6 +40,7 @@ const EXPECTED_PACKAGE_SCRIPTS: Record<string, string> = {
   'bemoat:agent:delivery': 'node scripts/agent-delivery.mjs',
   'bemoat:agent:issue': 'node scripts/agent-issue.mjs',
   'bemoat:context': 'node scripts/agent-context.mjs',
+  'bemoat:context:sync-base': 'node scripts/agent-context-sync-base.mjs',
   'bemoat:handoff': 'node scripts/agent-handoff.mjs',
   'bemoat:boilerplate:check': 'node scripts/check-boilerplate-drift.mjs',
   'bemoat:boilerplate:sync': 'node scripts/sync-boilerplate.mjs',
@@ -72,6 +73,7 @@ const EXPECTED_COMMAND_TIERS: Record<string, 'A' | 'B' | 'C'> = {
   'bemoat:agent:delivery': 'A',
   'bemoat:agent:issue': 'B',
   'bemoat:context': 'B',
+  'bemoat:context:sync-base': 'A',
   'bemoat:handoff': 'A',
   'bemoat:boilerplate:check': 'B',
   'bemoat:boilerplate:sync': 'A',
@@ -272,7 +274,7 @@ function expectRegistryRejected(
 }
 
 describe('Task 1 command contract registry', () => {
-  it('classifies the exact 29-command package inventory once', () => {
+  it('classifies the exact 30-command package inventory once', () => {
     const packageCommands = Object.keys(PACKAGE_JSON.scripts)
       .filter((command) => command.startsWith('bemoat:'))
       .sort()
@@ -282,10 +284,10 @@ describe('Task 1 command contract registry', () => {
       .sort()
 
     expect(packageCommands).toEqual(Object.keys(EXPECTED_PACKAGE_SCRIPTS).sort())
-    expect(packageCommands).toHaveLength(29)
+    expect(packageCommands).toHaveLength(30)
     expect(registryCommands).toEqual(packageCommands)
     expect(classifiedCommands).toEqual(packageCommands)
-    expect(new Set(classifiedCommands).size).toBe(29)
+    expect(new Set(classifiedCommands).size).toBe(30)
 
     for (const command of packageCommands) {
       expect(getCommandContract(command)).toBe(COMMAND_CONTRACT_REGISTRY.commands[command])
@@ -293,7 +295,7 @@ describe('Task 1 command contract registry', () => {
     expect(getCommandContract('bemoat:unregistered')).toBeNull()
   })
 
-  it('uses tier totals A=17 B=9 C=3', () => {
+  it('uses tier totals A=18 B=9 C=3', () => {
     const counts = { A: 0, B: 0, C: 0 }
 
     for (const [command, expectedTier] of Object.entries(EXPECTED_COMMAND_TIERS)) {
@@ -302,10 +304,24 @@ describe('Task 1 command contract registry', () => {
       counts[expectedTier] += 1
     }
 
-    expect(counts).toEqual({ A: 17, B: 9, C: 3 })
-    expect(Object.keys(EXPECTED_COMMAND_TIERS)).toHaveLength(29)
-    expect(Object.keys(COMMAND_CONTRACT_REGISTRY.commands)).toHaveLength(29)
+    expect(counts).toEqual({ A: 18, B: 9, C: 3 })
+    expect(Object.keys(EXPECTED_COMMAND_TIERS)).toHaveLength(30)
+    expect(Object.keys(COMMAND_CONTRACT_REGISTRY.commands)).toHaveLength(30)
     expectRegistryValid()
+  })
+
+  it('registers one optional absolute target worktree path for context base synchronization', () => {
+    const contract = getCommandContract('bemoat:context:sync-base')
+    expect(contract?.optional_flags).toContainEqual(expect.objectContaining({
+      name: 'target_worktree',
+      syntax: '--target-worktree <absolute-path>',
+      kind: 'flag',
+      value_type: 'path',
+      required: false,
+      source: 'caller',
+      multiple: false,
+    }))
+    expect(contract?.optional_flags?.filter((input) => input.name === 'target_worktree')).toHaveLength(1)
   })
 
   it('requires every schema-v1 command field and existing entrypoint', () => {

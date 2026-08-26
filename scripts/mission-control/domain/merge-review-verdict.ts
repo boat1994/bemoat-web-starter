@@ -9,6 +9,8 @@ type MergeReviewVerdictBinding = {
   pr: string | null
   base: string | null
   reviewed_head: string | null
+  repository: string | null
+  issue: string | null
   non_superseded: boolean
 }
 
@@ -21,6 +23,8 @@ type MergeReviewVerdictExpected = {
   exactHead: unknown
   pr: unknown
   base: unknown
+  repository: unknown
+  issue: unknown
 }
 
 type MergeReviewVerdictClassification = {
@@ -46,6 +50,8 @@ function resolveMergeReviewVerdictBindingInternal(body: unknown): MergeReviewVer
   const pr = resolveMergeReviewVerdictPr(text, canonicalBinding)
   const reviewedHead = resolveMergeReviewVerdictHead(text, canonicalBinding)
   const base = resolveMergeReviewVerdictBase(text, canonicalBinding)
+  const repository = resolveMergeReviewVerdictRepository(text)
+  const issue = resolveMergeReviewVerdictIssue(text)
   assertCompleteHistoricalPair({ text, pr, reviewedHead })
 
   return {
@@ -53,6 +59,8 @@ function resolveMergeReviewVerdictBindingInternal(body: unknown): MergeReviewVer
     pr,
     base,
     reviewed_head: reviewedHead,
+    repository,
+    issue,
     non_superseded: !/superseded|not authoritative/i.test(text),
   }
 }
@@ -70,6 +78,8 @@ export function parseProductionMergeReviewVerdict(
     pr: binding.pr,
     base: binding.base,
     reviewed_head: binding.reviewed_head,
+    repository: binding.repository,
+    issue: binding.issue,
     non_superseded: binding.non_superseded,
   }
 }
@@ -78,7 +88,7 @@ export function classifyMergeReviewVerdict({
   reviewVerdict,
   expected,
 }: {
-  reviewVerdict: unknown
+  reviewVerdict: ProductionMergeReviewVerdict
   expected: MergeReviewVerdictExpected
 }): MergeReviewVerdictClassification {
   let valid: unknown
@@ -93,13 +103,15 @@ export function classifyMergeReviewVerdict({
       reviewVerdict.reviewed_head === expected.exactHead &&
       resolvePrNumber(reviewVerdict.pr) === resolvePrNumber(expected.pr) &&
       reviewVerdict.base === expected.base &&
+      reviewVerdict.repository === expected.repository &&
+      String(reviewVerdict.issue) === String(expected.issue) &&
       reviewVerdict.non_superseded === true
   }
   return {
     valid,
     reason: valid
       ? null
-      : 'latest review verdict is changed, superseded, or does not bind the exact PR, base, and reviewed head',
+      : 'latest review verdict is changed, superseded, or does not bind the exact repository, Issue, PR, base, and reviewed head',
   }
 }
 
@@ -285,4 +297,52 @@ function assertCompleteHistoricalPair({
   if (!hasHistoricalPr && !hasHistoricalHead) return
   if (pr && reviewedHead) return
   throw stateConflict('REVIEW_VERDICT historical binding is partial, duplicated, or ambiguous')
+}
+
+function resolveMergeReviewVerdictRepository(body: string): string | null {
+  const recognized: string[] = []
+  
+  const repositoryFieldMatches = [...body.matchAll(/^[ \t]*(?:-[ \t]*)?(?:\*\*|__)?Repository:(?:\*\*|__)?[ \t]*(?:`([^`\s]+)`|([^`\s]+))[ \t]*$/gim)]
+  if (repositoryFieldMatches.length > 1) {
+    throw stateConflict('REVIEW_VERDICT Repository field is duplicated or ambiguous')
+  }
+  if (repositoryFieldMatches.length === 1) {
+    const repo = repositoryFieldMatches[0]?.[1] ?? repositoryFieldMatches[0]?.[2]
+    if (repo) recognized.push(repo.toLowerCase())
+  }
+
+  const urlRepoMatches = [...body.matchAll(/github\.com\/([a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+)\/(?:pull|issues)\/\d+/gi)]
+  const uniqueUrlRepos = [...new Set(urlRepoMatches.map(m => m[1]!.toLowerCase()))]
+  if (uniqueUrlRepos.length > 1) {
+    throw stateConflict('REVIEW_VERDICT repository evidence from URLs is duplicated or ambiguous')
+  }
+  if (uniqueUrlRepos.length === 1) {
+    recognized.push(uniqueUrlRepos[0]!)
+  }
+
+  return resolveUniqueRecognizedValues(recognized, 'Repository')
+}
+
+function resolveMergeReviewVerdictIssue(body: string): string | null {
+  const recognized: string[] = []
+  
+  const taskFieldMatches = [...body.matchAll(/^[ \t]*(?:-[ \t]*)?(?:\*\*|__)?Task(?:\s*\/\s*Issue)?(?:(?:\*\*|__)?|:(?:\*\*|__)?)[ \t]*(?:Issue[ \t]*)?#?(\d+)[ \t]*$/gim)]
+  if (taskFieldMatches.length > 1) {
+    throw stateConflict('REVIEW_VERDICT Issue field is duplicated or ambiguous')
+  }
+  if (taskFieldMatches.length === 1) {
+    const issue = taskFieldMatches[0]?.[1] ?? taskFieldMatches[0]?.[2]
+    if (issue) recognized.push(issue)
+  }
+
+  const issueUrlMatches = [...body.matchAll(/github\.com\/[^\s/]+\/[^\s/]+?\/issues\/(\d+)/gi)]
+  const uniqueIssueUrls = [...new Set(issueUrlMatches.map(m => m[1]!))]
+  if (uniqueIssueUrls.length > 1) {
+    throw stateConflict('REVIEW_VERDICT Issue evidence from URLs is duplicated or ambiguous')
+  }
+  if (uniqueIssueUrls.length === 1) {
+    recognized.push(uniqueIssueUrls[0]!)
+  }
+
+  return resolveUniqueRecognizedValues(recognized, 'Issue')
 }

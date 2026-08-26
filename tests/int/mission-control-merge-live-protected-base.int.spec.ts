@@ -100,12 +100,14 @@ function createIncidentHarness(options: {
     },
     readFounderAuthorization: async () => structuredClone(founderAuthorization),
     readTrustedFounderLogins: async () => ['boat1994'],
-    readReviewVerdict: async () => ({
+    readReviewVerdict: async (_repo: string, _issueNumber: number) => ({
       comment_id: reviewCommentId,
       verdict: 'ELIGIBLE FOR FOUNDER REVIEW',
       reviewed_head: reviewedHead,
       pr: prNumber,
       base: 'main',
+      repository: _repo,
+      issue: String(_issueNumber),
       non_superseded: true,
     }),
     markReadyForReview: async () => {
