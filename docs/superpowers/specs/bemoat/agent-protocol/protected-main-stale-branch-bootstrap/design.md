@@ -9,8 +9,8 @@ branch_template: "fix/430-protected-main-target-worktree"
 transition_target: "FOUNDER_GATE"
 planning_base_sha: "153973a591eb9672ddc201dcd21f9d9e8bbddce8"
 execution_base_rule: "resolve_live_protected_base_at_dispatch"
-paired_spec: null
-paired_plan: null
+paired_spec: "docs/superpowers/specs/bemoat/agent-protocol/protected-main-stale-branch-bootstrap/design.md"
+paired_plan: "docs/superpowers/plans/bemoat/agent-protocol/protected-main-stale-branch-bootstrap/plan.md"
 ```
 <!-- bemoat-task-identity:end -->
 
