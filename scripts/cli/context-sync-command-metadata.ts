@@ -8,24 +8,30 @@ export function contextSyncCommands(dependencies: CommandMetadataDependencies) {
       command: 'bemoat:context:sync-base',
       tier: 'A',
       entrypoint: 'scripts/agent-context-sync-base.mjs',
-      purpose: 'Perform one bounded protected-main synchronization into the same stale active PR branch.',
-      operation: 'Validate live Issue/PR/base/head/scope, ancestry, and clean durable state before fetch/merge/push/readback.',
+      purpose: 'Perform one bounded protected-main synchronization into the same stale active PR branch, optionally from an exact protected-main command checkout into one explicit target worktree.',
+      operation: 'Resolve canonical source and target roots, validate protected-main command identity plus live target Issue/PR/base/head/scope, ancestry, and clean durable state, then fetch/merge/push/read back only in the target.',
       accepted_pre_states: ['Active PR with stale protected base and otherwise-valid continuation.'],
       required_inputs: [
         positional('issue_number', '<issue-number>', 'positive_integer', 'Issue number owning the stale active PR.'),
       ],
-      optional_flags: [flag('json', '--json', 'boolean', 'Emit canonical machine-readable result.')],
+      optional_flags: [
+        flag('json', '--json', 'boolean', 'Emit canonical machine-readable result.'),
+        flag('target_worktree', '--target-worktree <absolute-path>', 'path', 'Absolute canonicalizable path to the stale active PR worktree; omit for same-worktree mode.'),
+      ],
       trusted_derived_values: [
-        'live Issue, PR, protected-base, local Git, ancestry, and remote branch evidence',
+        'canonical command-source root and live protected-main SHA/repository identity',
+        'live target Issue, PR, protected-base, local Git, ancestry, and remote branch evidence',
       ],
       required_evidence: [
         'Same Issue/PR/base/head.',
+        'In explicit-target mode, clean canonical command source at the exact live protected-main SHA and canonical target repository.',
         'Old base ancestor of protected main and PR head.',
-        'Clean attached pushed durable state tracking the canonical origin PR branch, plus remote readback.',
+        'Clean attached pushed durable target state tracking the canonical origin PR branch, plus remote readback.',
         'Merge-tree preflight and exact post-write head.',
       ],
       reads: [
-        'local Git refs/status/ancestry/merge-tree',
+        'command-source Git root/HEAD/status/origin in explicit-target mode',
+        'target Git refs/status/ancestry/merge-tree',
         'GitHub Issue/PR/base/checks/reviews',
       ],
       writes: [
@@ -44,14 +50,16 @@ export function contextSyncCommands(dependencies: CommandMetadataDependencies) {
         },
       ],
       stop_conditions: [
-        'Stop with canonical evidence, drift, external, or ambiguous classifications on any failed gate.',
+        'Stop before mutation when an explicit target is relative, unavailable, not a directory, or aliases the command source.',
+        'Stop with canonical evidence, source/target drift, external, or ambiguous classifications on any failed gate.',
       ],
       examples: [
         { description: 'Synchronize an otherwise-valid stale active PR base.', argv: ['427', '--json'] },
+        { description: 'Run the protected-main command against one explicit stale PR worktree.', argv: ['410', '--target-worktree', '/absolute/path/to/stale-pr', '--json'] },
       ],
       parser_owner: 'scripts/agent-context-sync-base.mjs',
       safe_help_invocation: 'pnpm run bemoat:context:sync-base -- --help --json',
-      last_validation_before_mutation: 'Re-read clean status, branch, HEAD, protected-base ref, PR branch ref, and ancestry immediately before merge and push.',
+      last_validation_before_mutation: 'Re-read explicit source root/HEAD/status/origin, target clean status/branch/HEAD, protected-base ref, and PR branch ref immediately before target merge.',
       post_write_readback: 'Confirm clean branch and remote exact head; CI and semantic review must rerun.',
     }),
   }

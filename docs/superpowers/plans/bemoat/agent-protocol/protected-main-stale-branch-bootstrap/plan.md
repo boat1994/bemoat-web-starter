@@ -44,6 +44,7 @@ paired_plan: "docs/superpowers/plans/bemoat/agent-protocol/protected-main-stale-
 - Modify `scripts/cli/context-sync-command-metadata.ts`: expose the public flag and exact source/target evidence contract.
 - Modify `tests/int/context-sync.int.spec.ts`: story-first lifecycle, path, source, target, drift, unchanged same-worktree, and mutation-boundary coverage.
 - Modify `tests/int/cli-command-registry.int.spec.ts`: assert registry/help shape for the new path flag.
+- Modify `tests/int/structural-protection.int.spec.ts`: advance the exact script inventory by one for the new bounded module.
 - Modify `docs/agent-loop/context-story-matrix.md`: record the protected-main bootstrap lifecycle and invocation boundary.
 - Keep the paired design and plan task-identity blocks byte-equivalent.
 
@@ -66,7 +67,7 @@ paired_plan: "docs/superpowers/plans/bemoat/agent-protocol/protected-main-stale-
 - Consumes: `collectContextEvidence({ issueNumber, cwd })`, `runContextCommand`, `normalizeOriginRepository`, `NormalizedContextEvidence`, and the existing `synchronizeContext` mutation rail.
 - Produces: `resolveContextSyncRoots(input): ContextSyncRoots`, `verifyContextSyncSource(input): string[]`, optional `sourceCwd` support in `synchronizeContext`, and the registered `target_worktree` caller value.
 
-- [ ] **Step 1: Add the failing protected-main bootstrap story**
+- [x] **Step 1: Add the failing protected-main bootstrap story**
 
 Extend `tests/int/context-sync.int.spec.ts` with an explicit source root and stale target root. Record every command and `options.cwd`, then assert that bootstrap mode uses `/protected-main` for source identity reads and `/stale-pr` for all target evidence and mutation operations:
 
@@ -137,7 +138,7 @@ expect(help.optional_flags).toContainEqual(expect.objectContaining({
 
 Add table cases for duplicate, relative, missing, non-directory, source-equal, and symlink-aliased target paths. Each case must assert `INVALID_INVOCATION`, `mutation_performed: false`, and no `git merge` or `git push` call.
 
-- [ ] **Step 2: Run the red story and classify it**
+- [x] **Step 2: Run the red story and classify it**
 
 Run:
 
@@ -149,7 +150,7 @@ Expected: FAIL because `sourceCwd` and `--target-worktree` are not yet supported
 
 Record the story as an implementation defect under the newly Founder-approved Issue #430 contract. Inspect the bounded neighboring cases from Step 1; do not change production behavior until this red result is observed.
 
-- [ ] **Step 3: Register the public path flag**
+- [x] **Step 3: Register the public path flag**
 
 In `scripts/cli/context-sync-command-metadata.ts`, add this optional input after `--json`:
 
@@ -166,7 +167,7 @@ Update the same contract's operation, trusted-derived values, required evidence,
 
 In `tests/int/cli-command-registry.int.spec.ts`, assert that the registered command exposes exactly one `target_worktree` optional path input and that registry validation remains green.
 
-- [ ] **Step 4: Implement canonical root selection**
+- [x] **Step 4: Implement canonical root selection**
 
 Create `scripts/context/sync-worktree.ts` with these exact public types and function:
 
@@ -217,7 +218,7 @@ return { sourceCwd: canonicalSource, targetCwd: canonicalTarget, bootstrap: true
 
 Catch filesystem failures and convert them to `ContextSyncWorktreeError` without exposing a stack trace or mutating either root.
 
-- [ ] **Step 5: Implement protected-main source verification**
+- [x] **Step 5: Implement protected-main source verification**
 
 In `scripts/context/sync-worktree.ts`, add:
 
@@ -255,7 +256,7 @@ Return a deduplicated reason array unless all of the following hold:
 
 Use precise `EVIDENCE_CONFLICT: protected-main command source ...` reasons. Do not require a source branch, upstream, pushed state, or attachment; detached exact-SHA source worktrees are valid.
 
-- [ ] **Step 6: Connect the public entrypoint to the two roots**
+- [x] **Step 6: Connect the public entrypoint to the two roots**
 
 Modify `scripts/agent-context-sync-base.mjs` after invocation parsing:
 
@@ -279,7 +280,7 @@ const result = synchronizeContext({
 
 Catch `ContextSyncWorktreeError` and rethrow `new CliInvocationError('--target-worktree', error.message)` so the public envelope is `INVALID_INVOCATION` with `mutation_performed: false`. Keep help handling mutation-free and before root resolution.
 
-- [ ] **Step 7: Gate synchronization on source identity and final target revalidation**
+- [x] **Step 7: Gate synchronization on source identity and final target revalidation**
 
 Modify `synchronizeContext` in `scripts/context/sync.ts` to accept:
 
@@ -307,7 +308,7 @@ for (const [label, args, expected] of checks) {
 
 Then retain the existing protected-base and PR-branch `ls-remote` revalidation, merge, push, and readback without broad refactoring. All target Git calls use `cwd`; all source verification calls use `sourceCwd`.
 
-- [ ] **Step 8: Make the story and bounded neighbors green**
+- [x] **Step 8: Make the story and bounded neighbors green**
 
 Complete the Step 1 fixtures so source verification returns the protected SHA and canonical origin on both reads, target `HEAD` changes only after merge, and target remote head changes only after push.
 
@@ -327,7 +328,7 @@ pnpm exec vitest run tests/int/context-sync.int.spec.ts tests/int/cli-command-re
 
 Expected: both files pass and every mutation assertion binds to `/stale-pr` only.
 
-- [ ] **Step 9: Document the lifecycle extension**
+- [x] **Step 9: Document the lifecycle extension**
 
 Update `docs/agent-loop/context-story-matrix.md` with one bounded story row and lifecycle paragraph:
 
@@ -339,7 +340,7 @@ Stale PR branch predates sync-base command × exact protected-main source × exp
 
 Document the `pnpm --dir <protected-main-worktree> ... --target-worktree <absolute-path>` invocation. State that the command does not create/remove worktrees and that PR #420 remains untouched until Issue #430 is Founder-manually merged.
 
-- [ ] **Step 10: Run full validation**
+- [x] **Step 10: Run full validation**
 
 Run in order:
 
@@ -359,7 +360,7 @@ Expected:
 - Full guard/lint/typecheck/integration suite passes with zero warnings.
 - Diff check emits no output.
 
-- [ ] **Step 11: Review and commit one focused correction**
+- [x] **Step 11: Review and commit one focused correction**
 
 Verify:
 

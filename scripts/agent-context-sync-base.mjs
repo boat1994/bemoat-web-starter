@@ -5,6 +5,7 @@ import { CliInvocationError, parseCommandInvocation, resolveCommandIdentity } fr
 import { classificationExitCode, createResultEnvelopeV1 } from './cli/command-result.mjs'
 import { collectContextEvidence } from './context/evidence.ts'
 import { synchronizeContext } from './context/sync.ts'
+import { ContextSyncWorktreeError, resolveContextSyncRoots } from './context/sync-worktree.ts'
 
 const COMMAND = 'bemoat:context:sync-base'
 const ENTRYPOINT = 'scripts/agent-context-sync-base.mjs'
@@ -66,8 +67,24 @@ function main() {
     command = resolveCommandIdentity({ fallback: COMMAND, env: process.env, entrypoint: ENTRYPOINT })
     invocation = parseCommandInvocation(command, process.argv.slice(2))
     if (invocation.mode === 'help') return renderHelp(invocation)
-    const evidence = collectContextEvidence({ issueNumber: invocation.values.issue_number })
-    const result = synchronizeContext({ evidence })
+    let roots
+    try {
+      roots = resolveContextSyncRoots({
+        sourceCwd: process.cwd(),
+        targetWorktree: invocation.values.target_worktree ?? null,
+      })
+    } catch (error) {
+      if (error instanceof ContextSyncWorktreeError) {
+        throw new CliInvocationError('--target-worktree', error.message)
+      }
+      throw error
+    }
+    const evidence = collectContextEvidence({ cwd: roots.targetCwd, issueNumber: invocation.values.issue_number })
+    const result = synchronizeContext({
+      evidence,
+      cwd: roots.targetCwd,
+      sourceCwd: roots.bootstrap ? roots.sourceCwd : null,
+    })
     return renderResult({ command, format: invocation.format, issueNumber: invocation.values.issue_number, result, evidence })
   } catch (error) {
     return renderError({ command, format: invocation?.format ?? (process.argv.includes('--json') ? 'json' : 'text'), error, values: invocation?.values })
