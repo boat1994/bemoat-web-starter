@@ -54,12 +54,12 @@ files or areas to inspect, expected validation, and notable risks or
 assumptions. They must wait for an explicit human trigger such as `proceed`,
 `continue`, `start dev`, `เริ่มได้`, or `dev ได้` before editing files.
 
-After that trigger, agents **must complete the full branch-to-PR workflow** by default — implement, check, commit, push, audit acceptance criteria, open PR, publish a HANDOFF on the source issue with `bemoat:handoff` — without stopping after implementation or asking permission to commit/push/open PR/comment. See [GitHub Workflow](../../AGENTS.md#github-workflow) and [Handoff Protocol](../../AGENTS.md#handoff-protocol) for stop conditions.
+After that trigger, agents **must complete the applicable branch-to-PR workflow** by default — implement, check, commit, push, audit acceptance criteria, open PR, and, when required by the workflow profile or an applicable review gate, publish a HANDOFF on the source issue with `bemoat:handoff` — without stopping after implementation or asking permission to commit/push/open PR/comment. FAST work without an applicable review or handoff gate may omit HANDOFF and REVIEW_VERDICT. See [GitHub Workflow](../../AGENTS.md#github-workflow) and [Handoff Protocol](../../AGENTS.md#handoff-protocol) for stop conditions.
 
 ## High-level loop
 
 ```text
-task → read AGENTS.md + agent-loop → git status & issue branch → intent checkpoint → human trigger → edit → test → show diff → commit → push → AC audit → open or update PR → publish HANDOFF → notify user
+task → read AGENTS.md + agent-loop → git status & issue branch → intent checkpoint → human trigger → edit → test → show diff → commit → push → AC audit → open or update PR → publish applicable HANDOFF → notify user
                                                                                                                                                                       ↓
                                                                                                                                                 CI → review → merge (human only)
 ```
@@ -77,7 +77,7 @@ task → read AGENTS.md + agent-loop → git status & issue branch → intent ch
 | **Push** | Push the branch to origin. |
 | **AC audit** | Before PR creation/update and final reporting, copy or summarize the source issue acceptance criteria. Mark each item `Done`, `Not done`, `Not applicable`, or `Waiting for CI / human review`, and include brief evidence for completed items. Do not routinely edit the Issue checklist from Dev work; Mission Control pre-merge reconciliation follows [role-handoff-contract.md](./role-handoff-contract.md#pre-merge-checklist-reconciliation-gate). |
 | **Open PR** | Open a new PR or **update the existing PR** if the branch already has one. Fill out the [pull request template](../../.github/pull_request_template.md). Include `Closes #<issue-number>`, summary, test plan, acceptance criteria audit, risks, and human-review notes. **Migration PRs:** draft only — see [migration-draft-pr.md](./migration-draft-pr.md). |
-| **Publish HANDOFF** | Publish the final cross-agent protocol record using `bemoat:handoff` (with appropriate route). See [Handoff Protocol](../../AGENTS.md#handoff-protocol). |
+| **Publish HANDOFF** | For profiles or review gates that require cross-agent coordination, publish the final protocol record using `bemoat:handoff` (with appropriate route). FAST work without an applicable review or handoff gate may omit HANDOFF and REVIEW_VERDICT. See [Handoff Protocol](../../AGENTS.md#handoff-protocol). |
 | **Notify user** | Task summary, branch, files changed, commands run, test result, commit hash, PR URL, risks, and human-review items. |
 | **CI** | GitHub Actions must pass; inspect logs on failure—do not guess. |
 | **Review** | Human or reviewer agent; watch Payload, migration, Cloudflare, sync risks. |

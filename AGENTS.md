@@ -277,7 +277,7 @@ commit" or "docs only, no PR."
     `Refs #<issue-number>`. Do not place a closing keyword for the source
     campaign issue in either the PR body or merge-bearing commit message for an
     intermediate slice.
-14. Publish one `HANDOFF` with `pnpm run bemoat:handoff <issue-number>` using the appropriate route.
+14. When required by the workflow profile or an applicable review gate, publish one `HANDOFF` with `pnpm run bemoat:handoff <issue-number>` using the appropriate route. FAST work without an applicable review or handoff gate may omit HANDOFF and REVIEW_VERDICT.
 15. Notify the user with the final response checklist below.
 16. Do not merge.
 
@@ -427,8 +427,11 @@ motion risks.
 
 ## Handoff Protocol
 
-When work comes from a GitHub issue, opening the PR is not the final step.
-After opening or updating the PR, you must publish the single final cross-agent protocol record using `bemoat:handoff`.
+When work comes from a GitHub issue and its workflow profile or applicable
+review gate requires cross-agent coordination, opening the PR is not the final
+step. After opening or updating the PR, you must publish the single final
+cross-agent protocol record using `bemoat:handoff`. FAST work without an
+applicable review or handoff gate may omit HANDOFF and REVIEW_VERDICT.
 
 `bemoat:handoff` is the single final cross-agent protocol record. `RESULT` is migration-only historical compatibility, not the final protocol. The `HANDOFF` record must be appended using the `bemoat:handoff` CLI tool.
 
