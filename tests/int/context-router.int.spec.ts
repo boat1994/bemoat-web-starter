@@ -2,6 +2,11 @@ import { describe, expect, it } from 'vitest'
 
 import { routeContext } from '../../scripts/context/router.ts'
 import type { NormalizedContextEvidence } from '../../scripts/context/model.ts'
+import {
+  classifyMergeReviewVerdict,
+  parseProductionMergeReviewVerdict,
+  resolveMergeReviewVerdictBinding,
+} from '../../scripts/mission-control/domain/merge-review-verdict.ts'
 
 const sha = 'a'.repeat(40)
 const headSha = 'b'.repeat(40)
@@ -1072,5 +1077,50 @@ describe('bemoat:context pure routing', () => {
       expect(beforeMerge.route).toBe('FOUNDER_GATE')
       expect(afterManualMerge.route).toBe('COMPLETE')
     })
+  })
+})
+
+describe('retained REVIEW_VERDICT Issue identity compatibility', () => {
+  const head = 'a'.repeat(40)
+  const valid = (issueFields: string) => `## REVIEW_VERDICT
+**Repository:** \`boat1994/bemoat-web-starter\`
+${issueFields}
+**PR / base / head:** PR #435 · \`main\` · \`${head}\`
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW`
+
+  it('A: retains one valid Task / Issue field', () => {
+    expect(resolveMergeReviewVerdictBinding(valid('**Task / Issue:** #434')).issue).toBe('434')
+  })
+
+  it('B: normalizes identical valid duplicate Task / Issue fields', () => {
+    expect(resolveMergeReviewVerdictBinding(valid('**Task / Issue:** #434\n- Task / Issue: #434')).issue).toBe('434')
+  })
+
+  it('C: rejects conflicting valid Issue identities', () => {
+    expect(() => resolveMergeReviewVerdictBinding(valid('**Task / Issue:** #434\n- Task / Issue: #999'))).toThrow(/duplicated or ambiguous/)
+  })
+
+  it('D: rejects a malformed recognized duplicate beside valid evidence', () => {
+    expect(() => resolveMergeReviewVerdictBinding(valid('**Task / Issue:** #434\n- Task / Issue: not-an-issue'))).toThrow(/malformed|ambiguous/)
+  })
+
+  it('E: reconstructs the durable repeated-identity shape of comment 5426416809', () => {
+    const body = valid(`### Review identity\n- Task / Issue: #434\n\n**Task / Issue:** #434`)
+    expect(parseProductionMergeReviewVerdict(body, '5426416809').issue).toBe('434')
+  })
+
+  it('F: rejects a parsed Issue that differs from the caller expected Issue', () => {
+    const parsed = parseProductionMergeReviewVerdict(valid('**Task / Issue:** #434'), '5426416809')
+    expect(classifyMergeReviewVerdict({
+      reviewVerdict: parsed,
+      expected: {
+        commentId: '5426416809',
+        exactHead: head,
+        pr: '435',
+        base: 'main',
+        repository: 'boat1994/bemoat-web-starter',
+        issue: '436',
+      },
+    }).valid).toBe(false)
   })
 })
