@@ -15,15 +15,15 @@ For issue-based work, do not edit files first.
 Run:
 
 ```bash
-pnpm run bemoat:agent:issue -- --help --json
-pnpm run bemoat:agent:issue -- <issue-number>
+pnpm run bemoat:context -- --help --json
+pnpm run bemoat:context <issue-number>
 ```
 
 If the blocker is a dirty working tree, unrelated repo state, a failed git
 command, or anything that risks overwriting human work, report the blocker and
 do not edit files. If the only blocker is a clean protected or integration
 branch, treat it as branch setup: create an issue-related topic branch, rerun
-`pnpm run bemoat:agent:issue -- <issue-number>`, and continue only after the
+`pnpm run bemoat:context <issue-number>`, and continue only after the
 preflight passes.
 
 Run these in order. **Stop and report** if a hard blocker fails; do not modify
@@ -86,7 +86,10 @@ and `dev ได้`.
 
 This checkpoint controls the start of file edits only. Once the human triggers
 implementation, continue the normal issue workflow through validation, commit,
-push, PR, and Task Issue `## RESULT` unless a stop condition applies.
+push, and PR. Publish the applicable cross-agent `HANDOFF` with the route
+required by the workflow profile or review gate, as described in
+[AGENTS.md#handoff-protocol](../../AGENTS.md#handoff-protocol), unless the
+profile has no applicable handoff gate.
 
 ## Implementation
 
@@ -99,10 +102,10 @@ push, PR, and Task Issue `## RESULT` unless a stop condition applies.
 When implementation is complete and checks pass:
 
 1. **Check whether the current branch already has an open PR** — use the GitHub skill or `gh pr list --head "$(git branch --show-current)"`.
-2. **Audit source issue acceptance criteria** — before PR creation/update and final reporting, copy or summarize every acceptance criterion. Mark each item `Done`, `Not done`, `Not applicable`, or `Waiting for CI / human review`; include brief evidence for completed items. Put the audit in the PR body and/or Task Issue `## RESULT` per [role-handoff-contract.md](./role-handoff-contract.md). Do not routinely edit the source Issue checklist from Dev/Builder work; pre-merge checklist reconciliation is Mission Control only ([reconciliation gate](./role-handoff-contract.md#pre-merge-checklist-reconciliation-gate)).
+2. **Audit source issue acceptance criteria** — before PR creation/update and final reporting, copy or summarize every acceptance criterion. Mark each item `Done`, `Not done`, `Not applicable`, or `Waiting for CI / human review`; include brief evidence for completed items. Put the audit in the PR body and/or applicable Task Issue handoff per [role-handoff-contract.md](./role-handoff-contract.md). Do not routinely edit the source Issue checklist from Dev/Builder work; pre-merge checklist reconciliation is Mission Control only ([reconciliation gate](./role-handoff-contract.md#pre-merge-checklist-reconciliation-gate)).
 3. **If no PR exists** — push the branch (`git push -u origin HEAD`) and **open a PR** targeting `dev`. In this starter only, target `main` while the bootstrap exception applies. Link the source issue (`Closes #N` in the PR body when appropriate).
 4. **If a PR already exists** — **update that PR** instead of opening a duplicate. Refresh the PR description and/or add a comment summarizing the completed work, files changed, commands run, test results, and acceptance criteria audit.
-5. **Do not mark the issue done** until PR status is clear (PR URL known, body/comment updated, `## RESULT` posted on the issue per [role-handoff-contract.md](./role-handoff-contract.md) and [AGENTS.md § Issue report](../../AGENTS.md#issue-report-after-pr-creation)).
+5. **Do not mark the issue done** until PR status is clear (PR URL known, body/comment updated, and any applicable `HANDOFF` posted per [AGENTS.md#handoff-protocol](../../AGENTS.md#handoff-protocol)).
 
 Agents **must not merge** — merge is human-only.
 

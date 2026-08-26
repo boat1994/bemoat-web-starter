@@ -156,6 +156,27 @@ state, and creates no branch, issue, or PR. For contracts whose
 `--json` is requested. A mismatch between runtime behavior and the command's
 actual registered contract remains `CLI_DISCOVERY_DEFECT`.
 
+## Canonical Cross-Agent Workflow
+
+The canonical cross-agent workflow for this repository is stateless and driven entirely by durable GitHub evidence.
+
+1. Read `AGENTS.md` and `docs/agent-loop/README.md`.
+2. Reconstruct context with `bemoat:context <issue-number>`.
+3. Execute exactly one bounded objective.
+4. Publish one `HANDOFF` with `bemoat:handoff <issue-number>`.
+5. The next agent reconstructs fresh from GitHub.
+
+The documentation makes clear that:
+- GitHub/native Git evidence is durable workflow state.
+- Chat/session/model memory is not authority.
+- `bemoat:context` is read-only.
+- `bemoat:handoff` is the single final cross-agent protocol record.
+- `RESULT` is migration-only historical compatibility, not the final protocol.
+- Route vocabulary is only: `IMPLEMENT` / `VERIFY` / `FIX` / `REVIEW` / `FOUNDER_GATE` / `COMPLETE` / `STOP`.
+- Required CI/review/protection comes from active native policy/evidence.
+- Dirty/uncommitted/unpushed/non-durable required local state fails closed.
+- No provider-specific controller or hidden state is required.
+
 ## Required First Steps Before File Edits
 
 For issue-based work, follow
@@ -165,15 +186,15 @@ For issue-based work, do not edit files first.
 Run:
 
 ```bash
-pnpm run bemoat:agent:issue -- --help --json
-pnpm run bemoat:agent:issue -- <issue-number>
+pnpm run bemoat:context -- --help --json
+pnpm run bemoat:context <issue-number>
 ```
 
 If the blocker is a dirty working tree, unrelated repo state, a failed git
 command, or anything that risks overwriting human work, report the blocker and
 do not edit files. If the only blocker is a clean protected or integration
 branch, treat it as branch setup: create an issue-related topic branch, rerun
-`pnpm run bemoat:agent:issue -- <issue-number>`, and continue only after the
+`pnpm run bemoat:context <issue-number>`, and continue only after the
 preflight passes.
 
 1. Read the issue or task, `AGENTS.md`, and `docs/agent-loop/README.md`.
@@ -232,14 +253,13 @@ automatically unless the user explicitly overrides it, for example "do not
 commit" or "docs only, no PR."
 
 1. Read `AGENTS.md` and `docs/agent-loop/README.md`.
-2. Inspect GitHub state when a URL, issue, PR, branch, commit, or CI run is in
-   scope.
+2. Reconstruct context with `pnpm run bemoat:context <issue-number>`.
 3. Classify task size using `docs/agent-loop/checklist.md` and use the minimum
    useful process for that tier.
 4. Run the branch gates above.
 5. For issue-based work, summarize implementation intent after preflight passes
    and wait for an explicit user trigger before editing files.
-6. Make the smallest complete change.
+6. Execute exactly one bounded objective. Make the smallest complete change.
 7. Run the required validation tier.
 8. Show `git status` and a diff summary.
 9. Commit exactly one focused change only if checks pass and only allowed files
@@ -257,7 +277,7 @@ commit" or "docs only, no PR."
     `Refs #<issue-number>`. Do not place a closing keyword for the source
     campaign issue in either the PR body or merge-bearing commit message for an
     intermediate slice.
-14. Post an implementation report comment on the source issue.
+14. When required by the workflow profile or an applicable review gate, publish one `HANDOFF` with `pnpm run bemoat:handoff <issue-number>` using the appropriate route. FAST work without an applicable review or handoff gate may omit HANDOFF and REVIEW_VERDICT.
 15. Notify the user with the final response checklist below.
 16. Do not merge.
 
@@ -405,39 +425,34 @@ continuity, and state choreography. Respect `prefers-reduced-motion`.
 Report the visual QA path, changed animation selectors/components, and remaining
 motion risks.
 
-## Issue Report After PR Creation
+## Handoff Protocol
 
-When work comes from a GitHub issue, opening the PR is not the final step.
-After opening or updating the PR, add a compact `## RESULT` comment on the
-source issue per the **operational** template in
-[role-handoff-contract.md](docs/agent-loop/role-handoff-contract.md).
-Gate-level reviewer summaries use `## REVIEW_VERDICT` on the same Task Issue;
-detailed code findings stay in PR review threads. Role comments are
-**compact deltas**—link canonical Issue/PR/evidence instead of restating the
-Issue body, full acceptance-criteria set, or command transcripts.
+When work comes from a GitHub issue and its workflow profile or applicable
+review gate requires cross-agent coordination, opening the PR is not the final
+step. After opening or updating the PR, you must publish the single final
+cross-agent protocol record using `bemoat:handoff`. FAST work without an
+applicable review or handoff gate may omit HANDOFF and REVIEW_VERDICT.
 
-The comment must cover (link evidence; do not paste long logs):
+`bemoat:handoff` is the single final cross-agent protocol record. `RESULT` is migration-only historical compatibility, not the final protocol. The `HANDOFF` record must be appended using the `bemoat:handoff` CLI tool.
 
-- PR URL and branch / head
-- Summary of changes and files changed
-- Commands and test results
-- Acceptance criteria audit
-- Remaining risks, human review needed, next handoff
+The route vocabulary is strictly limited to:
+`IMPLEMENT` / `VERIFY` / `FIX` / `REVIEW` / `FOUNDER_GATE` / `COMPLETE` / `STOP`.
+
+```bash
+pnpm run bemoat:handoff -- --help --json
+pnpm run bemoat:handoff <issue-number>
+```
 
 Before PR creation/update and final reporting, audit the source issue's
 acceptance criteria. Copy or summarize every criterion and mark each item as
 `Done`, `Not done`, `Not applicable`, or `Waiting for CI / human review`.
 Completed items must include brief evidence, such as changed files, validation
 commands, command results, or an explicit rationale. Put the audit in the PR
-body and/or the issue `## RESULT` comment.
+body.
 
 Do **not** routinely edit the source Issue checklist from Dev/Builder work.
 Pre-merge checklist ticks are Mission Control only, under the
 [pre-merge checklist reconciliation gate](docs/agent-loop/role-handoff-contract.md#pre-merge-checklist-reconciliation-gate).
-
-Prefer `## RESULT` (legacy `## Implementation PR ready` remains an accepted
-alias during transition). Paste the concise operational RESULT template from
-the role-handoff contract—not a self-contained restatement of the Issue.
 
 ## Final Response Format
 

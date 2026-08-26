@@ -77,11 +77,23 @@ describe('Bemoat CLI discovery guidance', () => {
   it('keeps discovery before direct issue-command execution', () => {
     for (const path of [canonicalPath, 'docs/agent-loop/issue-driven-branch-workflow.md']) {
       const guidance = read(path)
-      const discovery = guidance.indexOf('pnpm run bemoat:agent:issue -- --help --json')
-      const execution = guidance.indexOf('pnpm run bemoat:agent:issue -- <issue-number>')
+      const discovery = guidance.indexOf('pnpm run bemoat:context -- --help --json')
+      const execution = guidance.indexOf('pnpm run bemoat:context <issue-number>')
       expect(discovery, `${path} discovery example`).toBeGreaterThanOrEqual(0)
       expect(execution, `${path} execution example`).toBeGreaterThan(discovery)
     }
+  })
+
+  it('uses HANDOFF for gated issue delivery and preserves the FAST exception', () => {
+    const workflow = normalized(read('docs/agent-loop/issue-driven-branch-workflow.md'))
+    const readme = normalized(read('docs/agent-loop/README.md'))
+    const agents = normalized(read(canonicalPath))
+
+    expect(workflow).toMatch(/workflow profile or review gate.*HANDOFF.*AGENTS\.md#handoff-protocol/i)
+    expect(workflow).not.toMatch(/Task Issue.*`?## RESULT|RESULT.*posted on the issue/i)
+    expect(readme).toMatch(/workflow profile.*applicable review gate.*HANDOFF/i)
+    expect(readme).toMatch(/FAST.*without an applicable review or handoff gate.*omit HANDOFF/i)
+    expect(agents).toMatch(/FAST.*without an applicable review or handoff gate.*omit HANDOFF/i)
   })
 
   it('requires Mission Control discovery before selecting every public operation', () => {
