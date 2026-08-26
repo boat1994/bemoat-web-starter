@@ -63,7 +63,7 @@ export function parseIssueBody(body: string): ParsedIssueBody {
   const profile = deriveWorkflowProfile(decls)
   return {
     objective: firstParagraph(matchingSection(map, /^(goal|objective)$/)),
-    scope: firstParagraph(matchingSection(map, /^scope$|objective boundary/)),
+    scope: firstParagraph(matchingSection(map, /^scope(?: boundaries)?$|objective boundary/)),
     acceptanceCriteria: listItems(matchingSection(map, /acceptance criteria/)),
     dependencies: listItems(matchingSection(map, /dependenc/)),
     taskSize: decls.taskSize,

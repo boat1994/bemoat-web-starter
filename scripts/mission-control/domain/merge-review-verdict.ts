@@ -325,14 +325,15 @@ function resolveMergeReviewVerdictRepository(body: string): string | null {
 
 function resolveMergeReviewVerdictIssue(body: string): string | null {
   const recognized: string[] = []
-  
-  const taskFieldMatches = [...body.matchAll(/^[ \t]*(?:-[ \t]*)?(?:\*\*|__)?Task(?:\s*\/\s*Issue)?(?:(?:\*\*|__)?|:(?:\*\*|__)?)[ \t]*(?:Issue[ \t]*)?#?(\d+)[ \t]*$/gim)]
-  if (taskFieldMatches.length > 1) {
-    throw stateConflict('REVIEW_VERDICT Issue field is duplicated or ambiguous')
-  }
-  if (taskFieldMatches.length === 1) {
-    const issue = taskFieldMatches[0]?.[1] ?? taskFieldMatches[0]?.[2]
-    if (issue) recognized.push(issue)
+
+  const taskFieldMatches = [...body.matchAll(/^[ \t]*(?:-[ \t]*)?(?:\*\*|__)?(?:Task\s*\/\s*Issue(?:\*\*|__)?(?::(?:\*\*|__)?)?|Task(?:\*\*|__)?:(?:\*\*|__)?)[ \t]*(.*)$/gim)]
+  for (const match of taskFieldMatches) {
+    const rest = match[1] ?? ''
+    const issue = rest.match(/^[ \t]*(?:Issue[ \t]*)?#?(\d+)[ \t]*$/i)?.[1]
+    if (!issue) {
+      throw stateConflict('REVIEW_VERDICT Issue field is malformed, partial, or ambiguous')
+    }
+    recognized.push(issue)
   }
 
   const issueUrlMatches = [...body.matchAll(/github\.com\/[^\s/]+\/[^\s/]+?\/issues\/(\d+)/gi)]
