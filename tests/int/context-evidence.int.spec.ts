@@ -386,4 +386,58 @@ describe('bemoat:context neutral evidence adapters', () => {
     expect(evidence.activePrs.length).toBe(1)
     expect(evidence.activePrs[0].number).toBe('413')
   })
+
+  it('does not expose historical merged PRs as active candidates for an OPEN Issue', () => {
+    const run: ContextCommandRunner = (_command, args) => {
+      const key = args.join(' ')
+      if (key.startsWith('issue view 434')) {
+        return response(JSON.stringify({ number: 434, title: 'ignore historical merged PRs', state: 'OPEN', url: 'https://github.com/boat1994/bemoat-web-starter/issues/434', body: '# body', comments: [] }))
+      }
+      if (key.startsWith('pr list')) return response(JSON.stringify([1, 2, 3].map((number) => ({ number: 430 + number, url: `https://github.com/boat1994/bemoat-web-starter/pull/${430 + number}`, headRefName: `fix/434-history-${number}`, closingIssuesReferences: [{ number: 434 }] }))))
+      const match = key.match(/^pr view (43[1-3])/)
+      if (match) {
+        const number = match[1]
+        return response(JSON.stringify({ number: Number(number), state: 'MERGED', isDraft: false, url: `https://github.com/boat1994/bemoat-web-starter/pull/${number}`, baseRefName: 'main', baseRefOid: 'a'.repeat(40), headRefName: `fix/434-history-${Number(number) - 430}`, headRefOid: 'b'.repeat(40), mergeCommit: { oid: 'd'.repeat(40) }, reviews: [], statusCheckRollup: [] }))
+      }
+      if (key.includes('branches/main/protection')) return response(JSON.stringify({}))
+      return response('')
+    }
+
+    expect(readGithubEvidence({ cwd: '/repo', repo: 'boat1994/bemoat-web-starter', issueNumber: '434', branch: 'fix/434-ignore-historical-merged-prs', run })).toMatchObject({ activePrs: [], errors: [] })
+  })
+
+  it('does not expose one historical merged PR as active for an OPEN Issue', () => {
+    const run: ContextCommandRunner = (_command, args) => {
+      const key = args.join(' ')
+      if (key.startsWith('issue view 434')) return response(JSON.stringify({ number: 434, title: 'ignore historical merged PRs', state: 'OPEN', url: 'https://github.com/boat1994/bemoat-web-starter/issues/434', body: '# body', comments: [] }))
+      if (key.startsWith('pr list')) return response(JSON.stringify([{ number: 431, url: 'https://github.com/boat1994/bemoat-web-starter/pull/431', headRefName: 'fix/434-history', closingIssuesReferences: [{ number: 434 }] }]))
+      if (key.startsWith('pr view 431')) return response(JSON.stringify({ number: 431, state: 'MERGED', isDraft: false, url: 'https://github.com/boat1994/bemoat-web-starter/pull/431', baseRefName: 'main', baseRefOid: 'a'.repeat(40), headRefName: 'fix/434-history', headRefOid: 'b'.repeat(40), mergeCommit: { oid: 'd'.repeat(40) }, reviews: [], statusCheckRollup: [] }))
+      if (key.includes('branches/main/protection')) return response(JSON.stringify({}))
+      return response('')
+    }
+
+    expect(readGithubEvidence({ cwd: '/repo', repo: 'boat1994/bemoat-web-starter', issueNumber: '434', branch: 'fix/434-ignore-historical-merged-prs', run }).activePrs).toEqual([])
+  })
+
+  it('selects the sole unmerged PR when historical merged PRs are also present', () => {
+    const head = 'b'.repeat(40)
+    const run: ContextCommandRunner = (_command, args) => {
+      const key = args.join(' ')
+      if (key.startsWith('issue view 434')) return response(JSON.stringify({ number: 434, title: 'ignore historical merged PRs', state: 'OPEN', url: 'https://github.com/boat1994/bemoat-web-starter/issues/434', body: '# body', comments: [] }))
+      if (key.startsWith('pr list')) return response(JSON.stringify([
+        { number: 431, url: 'https://github.com/boat1994/bemoat-web-starter/pull/431', headRefName: 'fix/434-history-1', closingIssuesReferences: [{ number: 434 }] },
+        { number: 432, url: 'https://github.com/boat1994/bemoat-web-starter/pull/432', headRefName: 'fix/434-history-2', closingIssuesReferences: [{ number: 434 }] },
+        { number: 435, url: 'https://github.com/boat1994/bemoat-web-starter/pull/435', headRefName: 'fix/434-current', closingIssuesReferences: [{ number: 434 }] },
+      ]))
+      if (key.startsWith('pr view 431') || key.startsWith('pr view 432')) {
+        const number = key.includes('431') ? 431 : 432
+        return response(JSON.stringify({ number, state: 'MERGED', isDraft: false, url: `https://github.com/boat1994/bemoat-web-starter/pull/${number}`, baseRefName: 'main', baseRefOid: 'a'.repeat(40), headRefName: `fix/434-history-${number - 430}`, headRefOid: 'c'.repeat(40), mergeCommit: { oid: 'd'.repeat(40) }, reviews: [], statusCheckRollup: [] }))
+      }
+      if (key.startsWith('pr view 435')) return response(JSON.stringify({ number: 435, state: 'OPEN', isDraft: false, url: 'https://github.com/boat1994/bemoat-web-starter/pull/435', baseRefName: 'main', baseRefOid: 'a'.repeat(40), headRefName: 'fix/434-current', headRefOid: head, mergeCommit: null, reviews: [], statusCheckRollup: [] }))
+      if (key.includes('branches/main/protection')) return response(JSON.stringify({}))
+      return response('')
+    }
+
+    expect(readGithubEvidence({ cwd: '/repo', repo: 'boat1994/bemoat-web-starter', issueNumber: '434', branch: 'fix/434-ignore-historical-merged-prs', run })).toMatchObject({ activePrs: [{ number: '435', headSha: head }], errors: [] })
+  })
 })

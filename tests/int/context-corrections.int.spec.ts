@@ -19,11 +19,11 @@ function response(stdout: string, status = 0, stderr = ''): ContextCommandResult
   return { status, stdout, stderr, error: status === 0 ? null : new Error(stderr || 'command failed') }
 }
 
-function issuePayload() {
+function issuePayload(state = 'OPEN') {
   return JSON.stringify({
     number: 410,
     title: 'context protocol',
-    state: 'OPEN',
+    state,
     url: 'https://github.com/boat1994/bemoat-web-starter/issues/410',
     body: '## Goal\n\nReconstruct context.\n',
     comments: [],
@@ -154,6 +154,7 @@ describe('MC-R1 bounded context corrections', () => {
       issueNumber: '410',
       branch: 'feature/410-other-agent',
       run: githubRunner({
+        issue: issuePayload('CLOSED'),
         pr: prPayload({ state: 'MERGED', mergeCommit: { oid: 'c'.repeat(40) } }),
       }),
     })

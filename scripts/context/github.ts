@@ -382,7 +382,8 @@ export function readGithubEvidence({
     verifications.push(verification)
   }
   const unmergedPrs = activePrs.filter((pr) => !pr.merged)
-  const selectedPrs = unmergedPrs.length > 0 ? unmergedPrs : activePrs
+  // Merged history is terminal for CLOSED Issues, not active continuation evidence for OPEN Issues.
+  const selectedPrs = unmergedPrs.length > 0 ? unmergedPrs : issue?.state.toUpperCase() === 'OPEN' ? [] : activePrs
   const selectedNumbers = new Set(selectedPrs.map((pr) => pr.number))
   const selectedVerifications = activePrs.flatMap((pr, index) =>
     selectedNumbers.has(pr.number) && verifications[index] ? [verifications[index]] : [])
