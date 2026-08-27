@@ -1,8 +1,31 @@
 # Mission Control command reference
 
-This is the canonical usage contract for the repository-owned Mission Control
-transports. The scripts read GitHub live at execution time; live GitHub evidence
-overrides chat, copied handoffs, local notes, or stale values.
+The current supported cross-agent usage contract is the stateless
+context-to-handoff protocol. The scripts read GitHub live at execution time;
+live GitHub evidence overrides chat, copied handoffs, local notes, or stale
+values.
+
+## Current supported protocol
+
+```text
+bemoat:context <issue-number> --json
+→ one bounded objective
+→ bemoat:handoff <issue-number>
+→ fresh GitHub reconstruction
+```
+
+Run repository-defined CLI Discovery before invoking either command.
+`bemoat:context:sync-base` remains a bounded protected-main synchronization
+utility. Exact repository/base/PR/head/CI/review evidence, generic safety, and
+child-sync mechanics remain supported shared infrastructure.
+
+## Historical migration-only command reference
+
+Everything below documents the former stateful Mission Control transports for
+read/migration compatibility. It is not supported future routing. The legacy
+`bemoat:agent:delivery` and stateful delivery/review/reconcile/recovery/merge/
+task/role-comment commands remain registered only until separately authorized
+Phase 7 deletion slices prove their consumers and dependencies.
 
 ## Command selection
 

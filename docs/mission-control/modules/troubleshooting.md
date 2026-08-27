@@ -1,3 +1,7 @@
+> Current work reconstructs with `bemoat:context` and publishes only
+> `bemoat:handoff`. The stateful conflict/reconcile procedures below are
+> historical migration compatibility and must not be used as new routing.
+
 ## Conflict behavior
 
 Distinguish **bookkeeping lag** from **genuine conflict**:

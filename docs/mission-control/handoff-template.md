@@ -1,9 +1,9 @@
 # Mission Control handoff template
 
-Full reference field checklist for Mission Control `## HANDOFF` comments.
-For operational GitHub posts, prefer the compact-delta shape in
-[../agent-loop/role-handoff-contract.md](../agent-loop/role-handoff-contract.md)
-while retaining material risk fields below when omission would create risk.
+Current cross-agent handoffs are published with `bemoat:handoff` after fresh
+`bemoat:context` reconstruction. This template describes the stateless
+HANDOFF contract. Historical managed-task fields are retained at the end for
+read/migration compatibility only.
 
 The handoff must contain one bounded job or one explicitly named safe execution
 bundle. Bundles may contain only mechanically dependent steps with one authority
@@ -11,6 +11,35 @@ scope and one terminal durable outcome; they must not cross implementation,
 independent review, Founder approval, or production-operation gates.
 
 ## HANDOFF
+
+- Task / Issue:
+- Phase:
+- Executing role:
+- Target:
+- Objective:
+- Repository / branch:
+- Approved base / current head:
+- PR and exact-head CI:
+- Policy source/ref/SHA:
+- Exact bounded scope:
+- Out of scope:
+- Acceptance Criteria audit:
+- Required checks:
+- Stop conditions:
+- Founder gate:
+- Next permitted action:
+
+Publish this record with:
+
+```text
+pnpm run bemoat:handoff <issue-number>
+```
+
+The receiver must run `pnpm run bemoat:context <issue-number> --json` and
+verify all live bindings before acting. A HANDOFF does not create managed
+state, review counters, or a second protocol transport.
+
+### Historical migration-only managed-task fields
 
 - Repository:
 - Approved base:
@@ -30,7 +59,8 @@ independent review, Founder approval, or production-operation gates.
 - Required checks:
 - Required manual QA:
 - Stop condition:
-- Expected RESULT format:
+- Expected RESULT format: historical migration-only compatibility; current work
+  uses `bemoat:handoff` instead.
 
 ### Double-Loop Review fields (conditional)
 

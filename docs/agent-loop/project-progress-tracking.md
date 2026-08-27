@@ -2,9 +2,13 @@
 
 Canonical harness protocol for Core and multi-stage work across Bemoat starter and child projects.
 
-Do **not** introduce `implementation-stage.md`, a Project Status Card, or any second committed progress file. Use the existing artifacts with clear responsibility boundaries.
+Do **not** introduce `implementation-stage.md`, a Project Status Card, or any
+second committed progress file. The current cross-agent protocol is
+`bemoat:context` → one bounded objective → `bemoat:handoff` → fresh GitHub
+reconstruction. Use the existing GitHub and PR artifacts with clear
+responsibility boundaries.
 
-## Artifact model
+## Historical managed-state artifact model
 
 ```text
 Implementation Plan
@@ -155,7 +159,8 @@ work, and required manual QA.
 ### Before PR creation or update
 
 - audit the active Task Issue acceptance criteria
-- post or update the Task Issue `## RESULT` per [role-handoff-contract.md](./role-handoff-contract.md)
+- publish the current Task Issue `## HANDOFF` with `bemoat:handoff` per
+  [role-handoff-contract.md](./role-handoff-contract.md)
 - update only Main Issue milestones that are already durably proven
 - identify the current gate and next permitted action
 
@@ -190,11 +195,17 @@ Before closing a Task Issue or marking a durable Main Issue milestone:
 3. Confirm no open Critical or Important findings block the gate.
 4. Record founder approval only when explicitly given.
 5. Update the Main Issue only for durably proven milestone or gate changes.
-6. Post `## RESULT` on the Task Issue (implementation report) with PR URL, commands, test results, and acceptance criteria audit. See [role-handoff-contract.md](./role-handoff-contract.md).
+6. Publish the canonical `## HANDOFF` with `bemoat:handoff`, including PR URL,
+   exact head, commands, test results, acceptance criteria audit, and next
+   permitted action. See [role-handoff-contract.md](./role-handoff-contract.md).
 
-## Preflight (`bemoat:agent:issue`)
+## Preflight (`bemoat:context`)
 
-`pnpm run bemoat:agent:issue -- <issue-number>` stays **read-only**. It must never mutate issue checklists, plan files, PR state, branch state, or CI state.
+`pnpm run bemoat:context <issue-number> --json` stays **read-only**. It must
+never mutate issue checklists, plan files, PR state, branch state, or CI state.
+
+The former `bemoat:agent:issue` preflight remains migration-only historical
+compatibility and must not be selected for new work.
 
 Managed Mission Control state is opt-in, not tier-driven: it is required only
 for `Mission Control mode: required`, plus legacy Core tasks declaring both a

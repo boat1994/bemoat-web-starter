@@ -1,11 +1,18 @@
 # Agent roles
 
 Use these roles to split work across specialized agents. One session may play
-one role. For GitHub comment handoffs on Active Task Issues, follow
-[role-handoff-contract.md](./role-handoff-contract.md). Use
+one role. The current cross-agent protocol is `bemoat:context` for fresh
+reconstruction followed by `bemoat:handoff` for one bounded outcome. Use
 [state-template.md](./state-template.md) only for local/session recovery.
 
-## Mission Control
+## Current stateless role boundary
+
+Mission Control coordinates one bounded objective and publishes one HANDOFF;
+it does not create managed state or route through RESULT, REVIEW_VERDICT, or
+role-comment commands. Exact PR/head/CI evidence remains authoritative where
+the applicable review gate requires it.
+
+## Historical Mission Control role map
 
 **Purpose:** Orchestrate phases, post bounded compact-delta `## HANDOFF` comments, and authorize the next role.
 
@@ -15,7 +22,7 @@ one role. For GitHub comment handoffs on Active Task Issues, follow
 
 **Must not:** Infer founder approval; skip live GitHub state verification; paste self-contained restatements of Issue body, full ACs, or prior evidence (use compact deltas); autonomously start Review 4; reset review counters from chat history.
 
-## Role comment map
+## Historical role comment map
 
 | Role | Produces | Consumes |
 |------|----------|----------|

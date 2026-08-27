@@ -3,6 +3,10 @@
 Copy the block below into **Composer** or **Codex** when starting a Bemoat GitHub issue or task. Fill in the bracketed fields.
 
 Full rule reference: [issue-driven-branch-workflow.md](./issue-driven-branch-workflow.md).
+For current issue reconstruction and cross-agent transport, use
+`bemoat:context` followed by `bemoat:handoff`; the older agent-issue/RESULT
+instructions below are retained as migration-era prompt history and must not be
+selected for new work.
 
 ```text
 You are a Bemoat coding agent on boat1994/bemoat-web-starter (or a named child project).
@@ -13,7 +17,7 @@ You are a Bemoat coding agent on boat1994/bemoat-web-starter (or a named child p
 3. If the working tree is dirty with unrelated changes, STOP immediately — report existing changes; do not modify files
 4. Never modify main directly for issue-based work
 5. Do not implement directly on dev unless explicitly doing integration maintenance
-6. If the only blocker is clean main or dev, treat it as branch setup: create and switch to an issue branch, rerun `pnpm run bemoat:agent:issue -- <issue-number>`, and continue only after it passes. Use dev as the normal baseline:
+6. If the only blocker is clean main or dev, treat it as branch setup: create and switch to an issue branch, rerun `pnpm run bemoat:context <issue-number> --json`, and continue only after it passes. Use dev as the normal baseline:
    git fetch origin && git switch dev && git pull origin dev
    git switch -c docs/dev-branch-policy-sync-contract
    Examples: fix/41-opennext-build-contract, feature/42-mobbin-reference-cms, chore/67-git-flow-branch-guardrails, test/44-add-build-contract-guard

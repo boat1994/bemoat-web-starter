@@ -16,15 +16,14 @@ they must not duplicate it.
 branch.** Do not use an unmerged task-branch copy of this guide as operating
 policy.
 
-Compact GitHub comment transport (`## HANDOFF`, `## RESULT`,
-`## REVIEW_VERDICT`) follows
+The current cross-agent GitHub transport is the append-only `## HANDOFF` record
+published by `bemoat:handoff`. Historical `## RESULT` and
+`## REVIEW_VERDICT` records remain readable only for migration compatibility and
+are not the final protocol. The transport contract follows
 [role-handoff-contract.md](../agent-loop/role-handoff-contract.md). Full field
-checklists live in [handoff-template.md](./handoff-template.md) and
-[result-template.md](./result-template.md). For Core MC-gated review,
-`## REVIEW_VERDICT` must use the reviewer verdict enum in this guide. The
-role-handoff contract uses the same vocabulary for Core Mission Control work;
-do not invent alternate gate words such as bare `PASS` / `BLOCKED` for Core
-MC-gated tasks.
+checklists live in [handoff-template.md](./handoff-template.md). Historical
+RESULT/review field references remain in [result-template.md](./result-template.md)
+and the migration sections of the role-handoff contract.
 
 The exact production command contract is [Mission Control command reference](./command-reference.md).
 
@@ -38,10 +37,48 @@ The exact production command contract is [Mission Control command reference](./c
 <!-- bemoat-mc:invariant:durable-state-is-not-an-agent-stage -->
 <!-- bemoat-mc:invariant:changed-head-is-not-full-review-escalation -->
 
+## Current supported stateless protocol
+
+Issue [#410](https://github.com/boat1994/bemoat-web-starter/issues/410) and
+merged PR [#420](https://github.com/boat1994/bemoat-web-starter/pull/420)
+supersede the older stateful Mission Control operating surface. The supported
+cross-agent protocol has exactly two public protocol commands:
+
+1. `pnpm run bemoat:context <issue-number> --json` — read-only reconstruction
+   of the live repository, protected-base, Issue, PR, exact-head CI, review,
+   policy, and local-durability evidence, ending in one route.
+2. `pnpm run bemoat:handoff <issue-number>` — append one validated,
+   read-back-verified HANDOFF for the next bounded objective.
+
+The supported stateless loop is:
+
+```text
+AGENTS.md → bemoat:context → one bounded objective → bemoat:handoff → GitHub → fresh context
+```
+
+`bemoat:context:sync-base` remains a separately bounded protected-main
+synchronization utility. Generic branch/repository/secret/toolchain,
+exact-evidence, CLI Discovery, and child-sync safety remain retained
+infrastructure. The stateful delivery, review, reconciliation, recovery,
+merge, task, and role-comment machinery documented below is migration-only
+historical compatibility and is scheduled for dependency-safe Phase 7 pruning;
+this contract reconciliation does not delete or repair it.
+
+## Historical migration-only stateful contract
+
+The remaining sections preserve the old managed-state vocabulary, schemas,
+transport records, and safety invariants so existing Issues, comments, fixtures,
+and migration readers remain interpretable. They are not a supported future
+entrypoint or routing recommendation. New work must follow the stateless
+protocol above and must not select a legacy command because a historical state
+name or role-comment record appears in GitHub.
+
 ## Purpose
 
-Mission Control coordinates bounded work across Dev, Reviewer, and Founder so
-tasks converge within at most three normal review cycles.
+Historically, Mission Control coordinated bounded work across Dev, Reviewer, and
+Founder so tasks converged within at most three normal review cycles. This
+section is retained as migration guidance only; the current supported
+reconstruction and handoff contract is the stateless protocol above.
 
 A long-lived controller may execute a sequence of separately bounded canonical objectives in the same controller session when, after each durable result, it fresh-reads GitHub/policy/CLI routing and the next routing decision is deterministic `COMMAND` with no new discretionary human authority.
 
@@ -55,14 +92,17 @@ reviewer.
 
 ## Bemoat CLI Discovery
 
-Before selecting task bootstrap, dispatch, reconcile, review, recover-review,
-recover-state, reopen, merge, delivery, or role comment transport, Mission
-Control must follow
+For current work, perform repository-defined CLI Discovery before invoking
+`bemoat:context`, `bemoat:handoff`, `bemoat:context:sync-base`, or any retained
+generic safety command. For migration reads of the historical command surface,
+Mission Control must follow
 the canonical [Bemoat CLI Discovery](../../AGENTS.md#bemoat-cli-discovery) rule
-for the applicable public command. It must use the returned command contract
-and authoritative live state; it must not choose a command based solely on state
-names or remembered routing. A discovery failure stops as
-`CLI_DISCOVERY_DEFECT`.
+for the applicable public command. The historical command names, including the
+former role comment transport, remain listed in the public routing block below
+only so old evidence can be interpreted; they
+are not current supported routes. It must use the returned command contract and
+authoritative live state; it must not choose a command based solely on state
+names or remembered routing. A discovery failure stops as `CLI_DISCOVERY_DEFECT`.
 
 A durable state records authority, evidence, and the next permitted action; it is not an agent execution stage. A durable state transition does not itself require or authorize a separate model run.
 
@@ -74,7 +114,9 @@ required`. For backwards compatibility, a Core task that declares both a Main
 Issue and an Implementation Plan is also managed state. Small, Medium, and
 standalone Core tasks that do neither remain valid without a state block.
 
-`bemoat:agent:issue` is read-only. It classifies a missing state block on a
+`bemoat:context` is read-only. It reconstructs the current stateless route and
+never creates state. The historical `bemoat:agent:issue` preflight remains
+read-only for migration evidence only. It classifies a missing state block on a
 non-managed task as a warning; it must not initialize one. For a managed task,
 an absent or malformed block is `STATE_MIGRATION_REQUIRED`; disagreement with
 the live Issue/PR/base/head/terminal state is `STATE_CONFLICT`; and required
@@ -359,17 +401,27 @@ retaining full evidence in GitHub.
 
 ### Ready-to-paste prompt public CLI routing
 
-Every generated `Ready-to-paste prompt` that may invoke or mutate the harness,
-GitHub role comments, task state, review, reconciliation, dispatch, delivery,
-reopen, recovery, or merge state must contain a public CLI routing section. Add
-the block directly inside the productive HANDOFF or correction prompt; it is not
-a separate prompt-generation, prompt-review, or durable transition ceremony.
+Every generated `Ready-to-paste prompt` that may invoke or mutate the harness
+must contain a public CLI routing section. For the current supported protocol,
+the routing is fixed:
 
-When the operation is deterministic, name its canonical operation and command:
+| Current operation | Supported command |
+| --- | --- |
+| reconstruct live context | `bemoat:context` |
+| publish the final cross-agent record | `bemoat:handoff` |
+| synchronize protected `main` into the same stale PR branch | `bemoat:context:sync-base` |
+
+The historical stateful mappings below are retained for migration-only reads.
+They are not canonical future routing, and must not be used for new work. Add
+the block directly inside the productive HANDOFF/correction prompt; it is not a
+separate prompt-generation, prompt-review, or durable transition ceremony.
+
+When interpreting a historical operation, name its migration-only operation and
+command:
 
 ```text
-Canonical operation: reconciliation
-Canonical command: bemoat:mission-control:reconcile
+Historical migration-only operation: reconciliation
+Historical migration-only command: bemoat:mission-control:reconcile
 
 First inspect:
 pnpm run bemoat:mission-control:reconcile -- --help --json
@@ -377,7 +429,8 @@ pnpm run bemoat:mission-control:reconcile -- --help --json
 Then invoke the public entrypoint using only the documented inputs and live authoritative evidence.
 ```
 
-Use these canonical mappings when that operation is already selected:
+Use these historical migration-only mappings only when that legacy operation is
+already selected by durable migration evidence:
 
 | Operation | Canonical command |
 | --- | --- |
@@ -958,18 +1011,20 @@ file a new regression Issue. Minor cleanup uses follow-up Issues.
 
 ## Handoff contract
 
-Every handoff contains one bounded job or one explicitly named safe execution
-bundle. Use
-[handoff-template.md](./handoff-template.md) for the full field checklist. For
-operational GitHub comments, prefer the compact-delta shape in
-[role-handoff-contract.md](../agent-loop/role-handoff-contract.md). A bundle
-may not cross independent review, Founder approval, or production-operation
-gates.
+Every current handoff contains one bounded job or one explicitly named safe
+execution bundle and is published only with `bemoat:handoff`. Use
+[handoff-template.md](./handoff-template.md) for the current stateless field
+checklist. A bundle may not cross independent review, Founder approval, or
+production-operation gates. The old stateful dispatch/delivery handoff
+transport remains below only as migration-readable history.
 
 ## RESULT contract
 
-Dev and Reviewer report via [result-template.md](./result-template.md) and the
-compact operational templates in the role-handoff contract.
+`RESULT` is migration-only historical evidence, not the final cross-agent
+protocol. Do not create a new RESULT for current work. Existing RESULT and
+`REVIEW_VERDICT` comments may be read by migration tooling using
+[result-template.md](./result-template.md) and the historical sections of the
+role-handoff contract.
 
 Reviewer verdict for Core Mission Control work must be exactly one of:
 

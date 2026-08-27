@@ -1,3 +1,7 @@
+> Current work follows `bemoat:context` → one bounded objective →
+> `bemoat:handoff`. This managed-state completion gate is retained for
+> historical migration evidence only.
+
 ## Completion gate
 
 A task becomes `ELIGIBLE FOR FOUNDER REVIEW` only when all are true:
@@ -15,5 +19,4 @@ A task becomes `ELIGIBLE FOR FOUNDER REVIEW` only when all are true:
 Once eligible: stop searching for additional improvements; do not reopen for
 Important, Minor, or Nit; create bounded follow-up Issues where worthwhile;
 return one Founder action (review/merge/decline); do not merge automatically.
-
 

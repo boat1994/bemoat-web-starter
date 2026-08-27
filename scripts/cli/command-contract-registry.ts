@@ -299,8 +299,8 @@ const commands: Record<string, CommandContract> = {
     command: 'bemoat:agent:delivery',
     tier: 'A',
     entrypoint: 'scripts/agent-delivery.mjs',
-    purpose: 'Deliver one implementation RESULT after exact-head verification.',
-    operation: 'Post a canonical RESULT and project the leased Task Issue state.',
+    purpose: 'MIGRATION-ONLY HISTORICAL: Deliver one implementation RESULT after exact-head verification.',
+    operation: 'MIGRATION-ONLY HISTORICAL: Post a canonical RESULT and project the leased Task Issue state.',
     accepted_pre_states: [
       'IN_PROGRESS',
       'CORRECTION_REQUIRED_1',
@@ -371,8 +371,8 @@ const commands: Record<string, CommandContract> = {
     command: 'bemoat:agent:issue',
     tier: 'B',
     entrypoint: 'scripts/agent-issue.mjs',
-    purpose: 'Inspect an Issue and produce the agent preflight without mutation.',
-    operation: 'Run the read-only Issue preflight and correction-phase checks.',
+    purpose: 'MIGRATION-ONLY HISTORICAL: Inspect an Issue and produce the agent preflight without mutation.',
+    operation: 'MIGRATION-ONLY HISTORICAL: Run the read-only Issue preflight and correction-phase checks.',
     required_inputs: [
       positional('issue_number', '<issue-number>', 'positive_integer', 'Issue number to inspect.'),
     ],
@@ -628,8 +628,8 @@ const commands: Record<string, CommandContract> = {
     command: 'bemoat:issue:comment',
     tier: 'A',
     entrypoint: 'scripts/post-role-comment.mjs',
-    purpose: 'Validate or publish a role comment outside canonical state transports.',
-    operation: 'Validate a role comment and optionally post it without owning ordinary state transitions.',
+    purpose: 'MIGRATION-ONLY HISTORICAL: Validate or publish a role comment outside canonical state transports.',
+    operation: 'MIGRATION-ONLY HISTORICAL: Validate a role comment and optionally post it without owning ordinary state transitions.',
     accepted_pre_states: ['NOT_STATEFUL'],
     required_inputs: [
       positional('issue_number', '<issue-number>', 'positive_integer', 'Issue number receiving the role comment.'),

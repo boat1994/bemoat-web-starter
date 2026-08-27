@@ -1,5 +1,11 @@
 ## Existing-task migration behavior
 
+The Issue #410 stateless cutover is already authoritative for new work. This
+module applies only to reading or safely migrating pre-cutover stateful
+records; it does not authorize new RESULT, REVIEW_VERDICT, role-comment, or
+managed-state writes. New cross-agent transport is `bemoat:handoff` after
+`bemoat:context` reconstruction.
+
 For a managed existing task already under review without a valid state block:
 
 1. Reconstruct prior completed review rounds from Issue/PR comments where evidence is clear.

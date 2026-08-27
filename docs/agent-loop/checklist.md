@@ -53,7 +53,7 @@ ceremony:
 
 Keep checkpoint commits local and do not push them by default. Do not use their
 SHAs as PR, review, milestone, Mission Control, `current_head`, or CI evidence,
-and do not report them in `## RESULT`. Before review or PR evidence:
+and do not report them in a new `## HANDOFF`. Before review or PR evidence:
 
 1. Run the required validation tier.
 2. Squash all local checkpoints into one focused final commit.
@@ -129,8 +129,8 @@ Stop instead of committing if the task is ambiguous, forbidden files are require
       files, validation commands, command results, or explicit rationale
 - [ ] Source issue checklist left unchanged unless the user explicitly asked
       for it to be edited
-- [ ] Acceptance criteria audit included in the PR body and/or Task Issue
-      `## RESULT` comment per [role-handoff-contract.md](./role-handoff-contract.md)
+- [ ] Acceptance criteria audit included in the PR body and/or canonical Task
+      Issue `## HANDOFF` per [role-handoff-contract.md](./role-handoff-contract.md)
 - [ ] **Validation tier** same as before commit:
   - [ ] Starter docs-only → `pnpm run guard:safety`
   - [ ] Child docs-only → `pnpm run bemoat:guard:safety`
@@ -146,8 +146,8 @@ Stop instead of committing if the task is ambiguous, forbidden files are require
 - [ ] Clear answer: does this belong in starter or a child project?
 - [ ] Agent notes and [state-template.md](./state-template.md) updated for reviewers
       (local/session only; Task Issue handoffs use [role-handoff-contract.md](./role-handoff-contract.md))
-- [ ] Task Issue `## RESULT` posted per [role-handoff-contract.md](./role-handoff-contract.md)
-      operational (compact-delta) template
+- [ ] Canonical Task Issue `## HANDOFF` published with `bemoat:handoff` per
+      [role-handoff-contract.md](./role-handoff-contract.md)
 - [ ] [role-handoff-contract.md](./role-handoff-contract.md) manual validation checklist satisfied when acting on or posting handoffs
 - [ ] User notified with: task summary, branch, files changed, commands run, test result, commit hash, PR URL, risks, human review needed
 - [ ] **Did not merge** — merge is human-only
@@ -176,7 +176,8 @@ Run in **child repos** only. Full loop: [harness-sync-workflow.md](./harness-syn
 - [ ] `pnpm run bemoat:boilerplate:check -- --harness-only` run when available (or raw `boilerplate:check` only when the child defines that alias)
 - [ ] Diff review: harness paths only; no product code, secrets, or Cloudflare IDs
 - [ ] Branch pushed; PR opened or existing PR updated (no duplicate)
-- [ ] Task Issue `## RESULT` posted; **did not merge**
+- [ ] Task Issue `## HANDOFF` posted when the child sync objective requires
+      cross-agent transport; **did not merge**
 
 ## CI failure
 
@@ -191,9 +192,9 @@ Run in **child repos** only. Full loop: [harness-sync-workflow.md](./harness-syn
 
 - [ ] For Mission Control-managed tasks: durable state block and review cycle follow
       [../mission-control/mission-control-guide.md](../mission-control/mission-control-guide.md)
-- [ ] Reviewer `## REVIEW_VERDICT` posted on Task Issue when review gate applies;
-      [role-handoff-contract.md](./role-handoff-contract.md) manual validation checklist satisfied;
-      Core MC-gated verdicts use the enum in the Mission Control guide
+- [ ] Applicable review evidence is verified on the exact PR head; any
+      historical `## REVIEW_VERDICT` is treated as migration evidence, and the
+      next current route is published through `bemoat:handoff`
 - [ ] **Pre-merge checklist reconciliation** — Mission Control audited Issue checkboxes against live verified evidence and applied a safe body update (re-fetch confirmed) or obtained explicit founder acceptance of a mapped reconciliation comment per [role-handoff-contract.md](./role-handoff-contract.md#pre-merge-checklist-reconciliation-gate)
 - [ ] All required review threads resolved
 - [ ] CI green on the PR branch

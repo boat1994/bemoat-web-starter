@@ -8,8 +8,8 @@ export function missionControlRecoveryCommands(dependencies: CommandMetadataDepe
     command: 'bemoat:mission-control:adopt-finding',
     tier: 'A',
     entrypoint: 'scripts/mission-control-adopt-finding.mjs',
-    purpose: 'Append exactly one Founder-authorized finding to the active correction contract without changing CORRECTION_REQUIRED state or review counters.',
-    operation: 'Authenticate immutable Founder authorization, append one trusted-derived finding to a new authoritative CORRECTION_CONTRACT, and CAS-update only the active correction-contract identity.',
+    purpose: 'MIGRATION-ONLY HISTORICAL: Append exactly one Founder-authorized finding to the active correction contract without changing CORRECTION_REQUIRED state or review counters.',
+    operation: 'MIGRATION-ONLY HISTORICAL: Authenticate immutable Founder authorization, append one trusted-derived finding to a new authoritative CORRECTION_CONTRACT, and CAS-update only the active correction-contract identity.',
     accepted_pre_states: ['CORRECTION_REQUIRED_1', 'CORRECTION_REQUIRED_2'],
     required_inputs: [
       positional('issue_number', '<issue-number>', 'positive_integer', 'Managed Task Issue number.'),
@@ -121,8 +121,8 @@ export function missionControlRecoveryCommands(dependencies: CommandMetadataDepe
     command: 'bemoat:mission-control:recover-state',
     tier: 'A',
     entrypoint: 'scripts/mission-control-recover-state.mjs',
-    purpose: 'Recreate one absent Mission Control managed-state projection from uniquely reconstructable immutable evidence.',
-    operation: 'Authenticate the bounded recovery lineage, derive the canonical state, and append exactly one managed-state block through leased/CAS protection.',
+    purpose: 'MIGRATION-ONLY HISTORICAL: Recreate one absent Mission Control managed-state projection from uniquely reconstructable immutable evidence.',
+    operation: 'MIGRATION-ONLY HISTORICAL: Authenticate the bounded recovery lineage, derive the canonical state, and append exactly one managed-state block through leased/CAS protection.',
     accepted_pre_states: ['MANAGED_STATE_BLOCK_ABSENT'],
     required_inputs: [
       positional('issue_number', '<issue-number>', 'positive_integer', 'Managed Task Issue number.'),
@@ -238,8 +238,8 @@ export function missionControlRecoveryCommands(dependencies: CommandMetadataDepe
     command: 'bemoat:mission-control:recover-review-eligibility',
     tier: 'A',
     entrypoint: 'scripts/mission-control-recover-review-eligibility.mjs',
-    purpose: 'Recreate one absent managed-state projection at ordinary Review 1 eligibility from one immutable delivery RESULT and, when needed, one proven mechanical correction to the live head without publishing a verdict.',
-    operation: 'Authenticate the exact PR/base/head/protected-main/policy/CI/RESULT tuple and append exactly one AWAITING_REVIEW_1 block through leased/CAS protection; a predecessor RESULT is accepted only with the exact bounded inventory correction delta.',
+    purpose: 'MIGRATION-ONLY HISTORICAL: Recreate one absent managed-state projection at ordinary Review 1 eligibility from one immutable delivery RESULT and, when needed, one proven mechanical correction to the live head without publishing a verdict.',
+    operation: 'MIGRATION-ONLY HISTORICAL: Authenticate the exact PR/base/head/protected-main/policy/CI/RESULT tuple and append exactly one AWAITING_REVIEW_1 block through leased/CAS protection; a predecessor RESULT is accepted only with the exact bounded inventory correction delta.',
     accepted_pre_states: ['MANAGED_STATE_BLOCK_ABSENT'],
     required_inputs: [
       positional('issue_number', '<issue-number>', 'positive_integer', 'Managed Task Issue number.'),

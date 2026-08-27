@@ -8,8 +8,8 @@ export function missionControlReviewCommands(dependencies: CommandMetadataDepend
     command: 'bemoat:mission-control:reopen',
     tier: 'A',
     entrypoint: 'scripts/mission-control-reopen.mjs',
-    purpose: 'Project the exact Founder-authorized #285 reopen correction route.',
-    operation: 'Verify old/new heads and Founder authorization, then project bounded correction state.',
+    purpose: 'MIGRATION-ONLY HISTORICAL: Project the exact Founder-authorized #285 reopen correction route.',
+    operation: 'MIGRATION-ONLY HISTORICAL: Verify old/new heads and Founder authorization, then project bounded correction state.',
     accepted_pre_states: ['ELIGIBLE_FOR_FOUNDER_REVIEW'],
     required_inputs: [
       positional('issue_number', '<issue-number>', 'positive_integer', 'Managed Task Issue number.'),
@@ -85,8 +85,8 @@ export function missionControlReviewCommands(dependencies: CommandMetadataDepend
     command: 'bemoat:mission-control:review',
     tier: 'A',
     entrypoint: 'scripts/mission-control-review.mjs',
-    purpose: 'Publish one ordinary Full or Delta Review verdict.',
-    operation: 'Validate review evidence and project a leased/CAS REVIEW_VERDICT transition.',
+    purpose: 'MIGRATION-ONLY HISTORICAL: Publish one ordinary Full or Delta Review verdict.',
+    operation: 'MIGRATION-ONLY HISTORICAL: Validate review evidence and project a leased/CAS REVIEW_VERDICT transition.',
     accepted_pre_states: ['AWAITING_REVIEW_1', 'AWAITING_REVIEW_2', 'AWAITING_REVIEW_3'],
     required_inputs: [
       positional('issue_number', '<issue-number>', 'positive_integer', 'Managed Task Issue number.'),
@@ -143,8 +143,8 @@ export function missionControlReviewCommands(dependencies: CommandMetadataDepend
     command: 'bemoat:mission-control:task-bootstrap',
     tier: 'A',
     entrypoint: 'scripts/mission-control-task-create.mjs',
-    purpose: 'Create or initialize the Founder-authorized Mission Control Task Issue.',
-    operation: 'Verify signed Actions identity and project the initial Task state and ownership record.',
+    purpose: 'MIGRATION-ONLY HISTORICAL: Create or initialize the Founder-authorized Mission Control Task Issue.',
+    operation: 'MIGRATION-ONLY HISTORICAL: Verify signed Actions identity and project the initial Task state and ownership record.',
     accepted_pre_states: ['NOT_STATEFUL', 'EXISTING_REGISTERED_TASK'],
     required_inputs: [
       flag('founder_authorization_comment_id', '--founder-authorization-comment-id <id>', 'positive_integer', 'Immutable Founder authorization comment.', [], true),

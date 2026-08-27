@@ -60,14 +60,14 @@ describe('Batch 8 characterization — transport registry authority leaf', () =>
       exceptional: true,
       ordinary_owner: 'bemoat:mission-control:review',
       purpose:
-        'quarantine the exact approved #274/#275 raw-review incident and project its proven Review 2 result',
+        'MIGRATION-ONLY HISTORICAL: quarantine the exact approved #274/#275 raw-review incident and project its proven Review 2 result',
     })
     expect(getTransportRoute('bemoat:mission-control:recover-state')).toMatchObject({
       owner: 'Missing Managed-State Recovery Transport',
       role: 'STATE_PROJECTION',
       exceptional: true,
       purpose:
-        'recreate one uniquely reconstructed absent managed-state projection without review or finding adoption',
+        'MIGRATION-ONLY HISTORICAL: recreate one uniquely reconstructed absent managed-state projection without review or finding adoption',
     })
     expect(getTransportRoute('bemoat:mission-control:recover-review-eligibility')).toMatchObject({
       owner: 'Missing-State Review Eligibility Recovery Transport',

@@ -1,3 +1,7 @@
+> The examples below are historical migration-only RESULT/REVIEW_VERDICT and
+> managed-state records. Current cross-agent transport is `bemoat:handoff`
+> after `bemoat:context`; do not copy these examples for new work.
+
 ## Compact transition examples
 
 ### Delivery success (Delivery Coordinator)
