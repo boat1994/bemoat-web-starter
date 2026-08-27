@@ -18,7 +18,7 @@ The current supported cross-agent protocol has exactly two public commands:
 ```text
 bemoat:context <issue-number> --json
 → one bounded objective
-→ bemoat:handoff <issue-number>
+→ bemoat:handoff <issue-number> --body-file <strict-handoff.json>
 → fresh GitHub reconstruction
 ```
 

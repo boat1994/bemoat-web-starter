@@ -32,8 +32,13 @@ independent review, Founder approval, or production-operation gates.
 Publish this record with:
 
 ```text
-pnpm run bemoat:handoff <issue-number>
+pnpm run bemoat:handoff <issue-number> --body-file <strict-handoff.json>
 ```
+
+The body file (`<strict-handoff.json>`) must contain exactly one strict JSON
+HANDOFF record; Markdown, a fenced JSON block, and stdin are not accepted by the
+current public contract. Run `pnpm run bemoat:handoff -- --help --json` first
+and use its discovered required inputs exactly.
 
 The receiver must run `pnpm run bemoat:context <issue-number> --json` and
 verify all live bindings before acting. A HANDOFF does not create managed

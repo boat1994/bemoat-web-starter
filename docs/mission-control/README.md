@@ -13,7 +13,7 @@ read-only reconstruction command and one append-only handoff command:
 ```text
 bemoat:context <issue-number> --json
 → one bounded objective
-→ bemoat:handoff <issue-number>
+→ bemoat:handoff <issue-number> --body-file <strict-handoff.json>
 → fresh GitHub reconstruction
 ```
 
@@ -199,8 +199,12 @@ pnpm run bemoat:context <issue-number> --json
 After completing exactly one bounded objective, publish the durable handoff:
 
 ```text
-pnpm run bemoat:handoff <issue-number>
+pnpm run bemoat:handoff <issue-number> --body-file <strict-handoff.json>
 ```
+
+The body file must contain exactly one strict JSON HANDOFF record matching the
+machine-readable public contract; it is not a Markdown template or fenced JSON
+block.
 
 The next agent must fresh-reconstruct from GitHub. Historical review-cycle
 records remain readable but do not authorize a new stateful command.
@@ -245,7 +249,7 @@ Current protocol commands:
 pnpm run bemoat:context -- --help --json
 pnpm run bemoat:context <issue-number> --json
 pnpm run bemoat:handoff -- --help --json
-pnpm run bemoat:handoff <issue-number>
+pnpm run bemoat:handoff <issue-number> --body-file <strict-handoff.json>
 pnpm run bemoat:context:sync-base -- --help --json
 ```
 

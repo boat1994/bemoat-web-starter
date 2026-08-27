@@ -24,10 +24,10 @@ Prefer updating these docs over creating new templates or workflows.
 
 For Core or multi-stage initiatives, use the Main GitHub Issue checklist as the durable project-stage tracker and the Implementation Plan as the roadmap contract. See [project-progress-tracking.md](./project-progress-tracking.md). Use `.superpowers/sdd/progress.md` for temporary local/session progress only.
 
-Mission Control managed state is **not implied by Core**. Require it only when
-the task declares `Mission Control mode: required`, or for the legacy Core
-shape that declares both a Main Issue and an Implementation Plan. Otherwise a
-missing state block is warning-only; never silently create one during preflight.
+The current supported workflow for every tier is `bemoat:context` → one bounded
+objective → `bemoat:handoff` → fresh GitHub reconstruction. It never creates or
+requires managed Mission Control state. Legacy managed-state records are
+historical/migration-only evidence and cannot select a workflow for new work.
 
 When planning or specification expansion is material, use the
 [self red-team scope gate](./self-red-team-scope-gate.md) before adding another
@@ -190,8 +190,8 @@ Run in **child repos** only. Full loop: [harness-sync-workflow.md](./harness-syn
 
 ## Merge readiness
 
-- [ ] For Mission Control-managed tasks: durable state block and review cycle follow
-      [../mission-control/mission-control-guide.md](../mission-control/mission-control-guide.md)
+- [ ] The current route was freshly reconstructed with `bemoat:context`; no
+      managed-state block or review-cycle workflow is required for new work
 - [ ] Applicable review evidence is verified on the exact PR head; any
       historical `## REVIEW_VERDICT` is treated as migration evidence, and the
       next current route is published through `bemoat:handoff`
@@ -202,3 +202,10 @@ Run in **child repos** only. Full loop: [harness-sync-workflow.md](./harness-syn
 - [ ] Migration and Cloudflare risks acknowledged in PR
 - [ ] No sync-managed child edits that should have been upstreamed
 - [ ] Squash/merge only after checks and review—not on failing CI
+
+## Historical migration-only managed-state compatibility
+
+Older Issues may contain durable state blocks and review-cycle records. They
+remain readable only to interpret or migrate historical evidence; they are not
+a supported workflow, merge-readiness requirement, or routing option for new
+work.

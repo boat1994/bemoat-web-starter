@@ -9,6 +9,45 @@ import { CANONICAL_TRANSPORTS } from '../../scripts/mission-control/transport-re
 const ROOT = process.cwd()
 const read = (path: string) => readFileSync(resolve(ROOT, path), 'utf8')
 
+const CURRENT_AGENT_LOOP_WORKFLOW_DOCS = [
+  'docs/agent-loop/checklist.md',
+  'docs/agent-loop/project-progress-tracking.md',
+] as const
+
+const CURRENT_EXECUTABLE_HANDOFF_DOCS = [
+  'AGENTS.md',
+  'docs/agent-loop/role-handoff-contract.md',
+  'docs/mission-control/README.md',
+  'docs/mission-control/architecture-blueprint.md',
+  'docs/mission-control/command-reference.md',
+  'docs/mission-control/handoff-template.md',
+  'docs/mission-control/mission-control-guide.md',
+] as const
+
+function withoutHistoricalMarkdownSections(content: string): string {
+  const currentLines: string[] = []
+  let historicalLevel: number | null = null
+
+  for (const line of content.split('\n')) {
+    const heading = line.match(/^(#{1,6})\s+(.+)$/)
+    if (heading) {
+      const level = heading[1].length
+      if (historicalLevel !== null && level <= historicalLevel) historicalLevel = null
+      if (/historical|migration-only/i.test(heading[2])) historicalLevel = level
+    }
+    if (historicalLevel === null) currentLines.push(line)
+  }
+
+  return currentLines.join('\n')
+}
+
+function executableHandoffInvocations(content: string): string[] {
+  return content
+    .split('\n')
+    .map((line) => line.match(/pnpm run bemoat:handoff [^`]*/)?.[0]?.trim() ?? '')
+    .filter((line) => line !== '' && !line.includes('--help'))
+}
+
 const SUPPORTED_PROTOCOL_COMMANDS = [
   'bemoat:context',
   'bemoat:handoff',
@@ -116,6 +155,45 @@ describe('stateless public Mission Control contract', () => {
     )
     expect(read('docs/mission-control/command-reference.md')).toMatch(
       /historical migration-only[\s\S]*bemoat:agent:delivery/i,
+    )
+  })
+
+  it('rejects active managed-state workflow requirements outside an explicit historical boundary', () => {
+    const activeManagedStateRequirement = [
+      /Mission Control mode:\s*required/i,
+      /Mission Control-managed tasks?/i,
+      /managed (?:Mission Control )?state is (?:opt-in|required)/i,
+      /valid state block/i,
+    ]
+
+    for (const path of CURRENT_AGENT_LOOP_WORKFLOW_DOCS) {
+      const currentContent = withoutHistoricalMarkdownSections(read(path))
+      for (const pattern of activeManagedStateRequirement) {
+        expect(currentContent, `${path} contains active managed-state guidance: ${pattern}`).not.toMatch(pattern)
+      }
+    }
+  })
+
+  it('keeps current executable handoff examples consistent with required registry inputs', () => {
+    const handoffContract = COMMAND_CONTRACT_REGISTRY.commands['bemoat:handoff'] as {
+      required_inputs: Array<{ syntax: string }>
+    }
+    const requiredSyntax = handoffContract.required_inputs.map((input) => input.syntax.split(' ')[0])
+
+    expect(requiredSyntax).toEqual(['<issue-number>', '--body-file'])
+    let executableExampleCount = 0
+    for (const path of CURRENT_EXECUTABLE_HANDOFF_DOCS) {
+      const invocations = executableHandoffInvocations(withoutHistoricalMarkdownSections(read(path)))
+      executableExampleCount += invocations.length
+      for (const invocation of invocations) {
+        for (const syntax of requiredSyntax) {
+          expect(invocation, `${path} contradicts the bemoat:handoff public contract`).toContain(syntax)
+        }
+      }
+    }
+    expect(executableExampleCount).toBeGreaterThan(0)
+    expect(read('docs/mission-control/handoff-template.md')).toMatch(
+      /body file[^\n]*must contain exactly one strict JSON\s+HANDOFF record/i,
     )
   })
 })

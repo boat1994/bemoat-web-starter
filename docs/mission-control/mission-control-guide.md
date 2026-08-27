@@ -47,8 +47,9 @@ cross-agent protocol has exactly two public protocol commands:
 1. `pnpm run bemoat:context <issue-number> --json` — read-only reconstruction
    of the live repository, protected-base, Issue, PR, exact-head CI, review,
    policy, and local-durability evidence, ending in one route.
-2. `pnpm run bemoat:handoff <issue-number>` — append one validated,
-   read-back-verified HANDOFF for the next bounded objective.
+2. `pnpm run bemoat:handoff <issue-number> --body-file <strict-handoff.json>` —
+   append one validated, read-back-verified HANDOFF for the next bounded
+   objective. The body file contains exactly one strict JSON HANDOFF record.
 
 The supported stateless loop is:
 

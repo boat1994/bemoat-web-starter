@@ -207,11 +207,9 @@ never mutate issue checklists, plan files, PR state, branch state, or CI state.
 The former `bemoat:agent:issue` preflight remains migration-only historical
 compatibility and must not be selected for new work.
 
-Managed Mission Control state is opt-in, not tier-driven: it is required only
-for `Mission Control mode: required`, plus legacy Core tasks declaring both a
-Main Issue and an Implementation Plan. Missing state for other valid
-Small/Medium/standalone Core work is warning-only. Never silently initialize a
-state block.
+The current supported preflight does not require or initialize managed Mission
+Control state. New work is routed only from fresh GitHub/native Git evidence by
+`bemoat:context`.
 
 ### Hard blockers
 
@@ -224,9 +222,6 @@ Produce a clear blocker when:
 - exact-head CI is required by the current gate but current-head status cannot be verified
 - the current gate is blocked by unresolved Critical or Important findings
 - dependent work would begin before the Main Issue and GitHub evidence prove the prerequisite milestone
-- a managed task has no valid state block (`STATE_MIGRATION_REQUIRED`), or its
-  recorded Issue/PR/base/head/terminal state conflicts with live evidence
-  (`STATE_CONFLICT`)
 - required live Issue/PR/CI evidence cannot be retrieved (`BLOCKED_EXTERNAL`)
 
 ### Warnings only
@@ -237,13 +232,20 @@ Produce a warning, not a blocker, when:
 - the issue has no Implementation Plan because the work does not require one
 - the Main Issue is missing optional convenience metadata but the next permitted action is still deterministic
 - older CI exists but exact-head CI is also available and authoritative
-- a non-managed task has no Mission Control state block
 
 For Founder gates, block only on a declared current gate or the first
 incomplete Founder milestone. Future Founder milestones do not block the
 current permitted action.
 
 Do not silently fall back to a previous agent summary when declared GitHub or plan state is missing.
+
+### Historical migration-only stateful preflight behavior
+
+Retained compatibility readers may report `STATE_MIGRATION_REQUIRED` for an
+absent legacy managed-state block, `STATE_CONFLICT` for contradictory legacy
+state, or a warning for a non-managed historical task. These classifications
+exist only to interpret or migrate old records. They must not activate a
+stateful workflow or become a current preflight requirement.
 
 ## Child adoption contract
 
