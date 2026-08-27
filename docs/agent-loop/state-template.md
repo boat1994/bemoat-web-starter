@@ -1,10 +1,11 @@
 # Agent session state
 
 Copy this template for **local/session recovery** (interrupted work, PR
-descriptions, or private execution notes). For GitHub role transport between
-Mission Control, Dev, and Reviewer on an Active Task Issue, use
-[role-handoff-contract.md](./role-handoff-contract.md) (`## HANDOFF`, `## RESULT`,
-`## REVIEW_VERDICT`) instead of this template.
+descriptions, or private execution notes). For current GitHub transport between
+agents on an Active Task Issue, use `bemoat:context` followed by
+`bemoat:handoff`; see [role-handoff-contract.md](./role-handoff-contract.md).
+The historical RESULT and REVIEW_VERDICT shapes in that document are
+migration-only. This template is local/session recovery only.
 
 ```markdown
 ## Task

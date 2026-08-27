@@ -1,6 +1,31 @@
 # Role handoff comment contract
 
-Canonical GitHub comment format for handing work between Mission Control, Dev/Builder agents, and Reviewer/Red Team roles on an **Active Task Issue**.
+Current cross-agent transport is the append-only `## HANDOFF` record published
+by `bemoat:handoff` after `bemoat:context` reconstruction. `RESULT`,
+`REVIEW_VERDICT`, role comments, managed-state updates, and the stateful
+Mission Control commands below are migration-only historical compatibility; they
+are not alternate supported transports.
+
+## Current stateless handoff
+
+The supported loop is:
+
+```text
+bemoat:context <issue-number> --json
+→ one bounded objective
+→ bemoat:handoff <issue-number> --body-file <strict-handoff.json>
+→ fresh GitHub reconstruction
+```
+
+Each HANDOFF binds the repository, Issue, applicable base/PR/head evidence,
+bounded scope, verification result, stop conditions, and next permitted action.
+It does not create managed state, review counters, or a role-comment transport.
+
+## Historical role-comment and managed-state contract
+
+The remainder of this document preserves the former Mission Control comment
+shapes and stateful role machinery so existing Issues, comments, fixtures, and
+migration readers remain interpretable. Do not use it to select new work.
 
 This document defines **comment transport only**. It does not change artifact precedence. For source-of-truth boundaries, conflict resolution, exact-head CI, and Main Issue milestone rules, see [project-progress-tracking.md](./project-progress-tracking.md). For Mission Control review budget, durable Issue state markers, completion gates, and Core MC-gated `REVIEW_VERDICT` vocabulary, see [../mission-control/mission-control-guide.md](../mission-control/mission-control-guide.md).
 

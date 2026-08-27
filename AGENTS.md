@@ -163,7 +163,8 @@ The canonical cross-agent workflow for this repository is stateless and driven e
 1. Read `AGENTS.md` and `docs/agent-loop/README.md`.
 2. Reconstruct context with `bemoat:context <issue-number>`.
 3. Execute exactly one bounded objective.
-4. Publish one `HANDOFF` with `bemoat:handoff <issue-number>`.
+4. Publish one `HANDOFF` with `bemoat:handoff <issue-number> --body-file
+   <strict-handoff.json>` using exactly one strict JSON HANDOFF record.
 5. The next agent reconstructs fresh from GitHub.
 
 The documentation makes clear that:
@@ -277,7 +278,7 @@ commit" or "docs only, no PR."
     `Refs #<issue-number>`. Do not place a closing keyword for the source
     campaign issue in either the PR body or merge-bearing commit message for an
     intermediate slice.
-14. When required by the workflow profile or an applicable review gate, publish one `HANDOFF` with `pnpm run bemoat:handoff <issue-number>` using the appropriate route. FAST work without an applicable review or handoff gate may omit HANDOFF and REVIEW_VERDICT.
+14. When required by the workflow profile or an applicable review gate, publish one `HANDOFF` with `pnpm run bemoat:handoff <issue-number> --body-file <strict-handoff.json>` using exactly one strict JSON HANDOFF record and the appropriate route. FAST work without an applicable review or handoff gate may omit HANDOFF and REVIEW_VERDICT.
 15. Notify the user with the final response checklist below.
 16. Do not merge.
 
@@ -440,7 +441,7 @@ The route vocabulary is strictly limited to:
 
 ```bash
 pnpm run bemoat:handoff -- --help --json
-pnpm run bemoat:handoff <issue-number>
+pnpm run bemoat:handoff <issue-number> --body-file <strict-handoff.json>
 ```
 
 Before PR creation/update and final reporting, audit the source issue's

@@ -7,13 +7,20 @@ reading the entire guide first.
 
 ## What Mission Control is
 
-Mission Control operates across two conceptual planes:
+Mission Control currently coordinates stateless bounded work through one
+read-only reconstruction command and one append-only handoff command:
 
-- **Coordination / Global MC** (ChatGPT-side controller): Reconstructs verified GitHub state, selects one bounded next action, and routes it. It may execute a sequence of deterministic actions, returning to the Founder only for genuine gates or completion.
-- **Execution MC** (IDE-side orchestrator): Receives one bounded objective, loads repository rules, discovers the applicable public command contract, coordinates Dev/Test/Reviewer work, executes/verifies, and publishes durable state.
+```text
+bemoat:context <issue-number> --json
+→ one bounded objective
+→ bemoat:handoff <issue-number> --body-file <strict-handoff.json>
+→ fresh GitHub reconstruction
+```
 
-Both layers use the same canonical Mission Control policy and GitHub durable state.
-It is **not** the default implementation agent, a perpetual reviewer, or an
+`bemoat:context:sync-base` remains a retained protected-main synchronization
+utility. Exact repository/base/PR/head/CI/review evidence, CLI Discovery,
+generic safety, and child-sync rails remain shared infrastructure. Mission
+Control is not the default implementation agent, a perpetual reviewer, or an
 auto-merge system.
 
 ## What problem it solves
@@ -26,39 +33,36 @@ Without durable Mission Control state, work often:
 - treats chat history as the source of truth;
 - burns agent quota on process churn instead of product progress.
 
-Mission Control prevents that by keeping policy in the repository, state in
-GitHub, normal review to three cycles, and evidence on the exact PR head.
+The stateless protocol prevents that by keeping policy in the repository,
+durable workflow evidence in GitHub, and every route bound to fresh exact
+evidence. Historical managed-state records remain readable for migration only.
 
 ## How the workflow changes
 
-Before: chat session → implement → open-ended re-review → more nits → repeat.
+Before: chat session → stateful coordinator → open-ended re-review → repeat.
 
 After:
 
 ```text
-Mission Control HANDOFF
-  → Dev RESULT + state AWAITING_REVIEW_1 (atomic delivery)
-  → Review 1 (full, task-bounded)
-  → Correction RESULT (when required)
-  → Review 2 (delta only)
-  → Review 3 (Blocker/Critical verification only)
-  → ELIGIBLE FOR FOUNDER REVIEW
-  → Founder-approved merge
+bemoat:context
+  → one bounded implementation / verification objective
+  → bemoat:handoff (append-only HANDOFF)
+  → fresh GitHub reconstruction by the next agent
 ```
 
-For managed implementation dispatch, use
-`pnpm run bemoat:mission-control:dispatch -- <issue-number> --body-file <handoff.md>`
-to bind `READY -> IN_PROGRESS` to the existing `## HANDOFF` transport with
-rollback and concurrent-write protection.
+The older stateful dispatch/delivery/review/reconcile/recovery/merge/task and
+role-comment flow is documented below only as migration compatibility and is a
+Phase 7 deletion candidate. This reconciliation does not delete or repair it.
 
 Rules that change day-to-day behavior:
 
 - GitHub Issues/PR/CI are authoritative; chat is context only.
-- Deterministic canonical transitions may continue in one controller session without requiring Founder handoff.
-- A durable state transition does not by itself require returning to the Founder unless a gate is reached.
-- Review 2/3 never restart a repository-wide search after a small correction.
-- Minor/Nit cannot block completion.
-- Founder gate remains required for merge.
+- Each agent reconstructs live context before acting and publishes one final
+  HANDOFF when the bounded objective is complete or a gate is reached.
+- Chat/session memory is never workflow authority.
+- Exact repository/base/PR/head/CI/review evidence remains authoritative.
+- Generic safety and fail-closed behavior remain required.
+- Founder review or merge gates remain human-owned where applicable.
 
 ## Canonical files
 
@@ -69,26 +73,24 @@ Rules that change day-to-day behavior:
 | [`command-reference.md`](./command-reference.md) | Canonical command and credential-boundary reference |
 | [`../../prompts/mission-control/chatgpt-project-loader.md`](../../prompts/mission-control/chatgpt-project-loader.md) | Ready-to-paste ChatGPT Project instruction |
 | [`handoff-template.md`](./handoff-template.md) | Full `## HANDOFF` field checklist |
-| [`result-template.md`](./result-template.md) | Full `## RESULT` / verdict field checklist |
+| [`result-template.md`](./result-template.md) | Historical RESULT/review compatibility checklist; not the final protocol |
 | [`project-overrides.example.md`](./project-overrides.example.md) | Child override example |
 | [`../agent-loop/role-handoff-contract.md`](../agent-loop/role-handoff-contract.md) | Compact GitHub comment transport |
 
-**Authority:** For Core / multi-stage Mission Control work, reviewer verdicts and
-review-budget rules come from the guide. The role-handoff contract owns compact
-comment shape only; it must use the same verdict vocabulary (see below).
+**Authority:** The guide and `AGENTS.md` define the current context-to-handoff
+protocol. The role-handoff and RESULT documents retain historical comment
+formats only; they are not alternate supported transports.
 
 Normal Mission Control runs must load the guide from the **merged approved
 protected base**, never from an unmerged task branch.
 
-The one-time genesis managed-Task bootstrap is the exception for Issue
-creation: its implementation is reviewed as an ordinary PR, while its runtime
-still requires a separate exact Founder authorization, protected environment
-approval, live evidence, and signed readback. Do not execute it against Issue
-#262 during the implementation PR.
+The former managed-Task bootstrap and stateful runtime remain migration-only.
+Do not use them for new work or perform their Phase 7 deletion in this
+documentation reconciliation.
 
-## Reviewer verdict vocabulary (single source)
+## Historical reviewer verdict vocabulary (migration-only)
 
-For Core Mission Control review, `## REVIEW_VERDICT` must use exactly one of:
+For historical Core Mission Control records, `## REVIEW_VERDICT` uses exactly one of:
 
 ```text
 CORRECTION REQUIRED
@@ -186,21 +188,30 @@ updated_by: null
 Update only the content between the markers. Preserve human-authored Issue body
 outside them. Small standalone tasks may omit this ceremony.
 
-## Standard daily flow
+## Standard daily flow (current stateless protocol)
 
-Recommended kickoff when a valid handoff exists:
-
-```text
-Execute the latest approved ## HANDOFF in Issue #N after verifying live GitHub state.
-```
-
-When no valid handoff exists:
+Always begin by reconstructing current context:
 
 ```text
-Verify the live state of Issue #N and its active PR, identify exactly one permitted next action, and provide a compact ## HANDOFF.
+pnpm run bemoat:context <issue-number> --json
 ```
 
-Review cycle intent (details in the guide):
+After completing exactly one bounded objective, publish the durable handoff:
+
+```text
+pnpm run bemoat:handoff <issue-number> --body-file <strict-handoff.json>
+```
+
+The body file must contain exactly one strict JSON HANDOFF record matching the
+machine-readable public contract; it is not a Markdown template or fenced JSON
+block.
+
+The next agent must fresh-reconstruct from GitHub. Historical review-cycle
+records remain readable but do not authorize a new stateful command.
+
+## Historical review-cycle compatibility
+
+The following vocabulary is retained only for reading older managed Issues:
 
 | Cycle | Type | Scope |
 | --- | --- | --- |
@@ -208,10 +219,9 @@ Review cycle intent (details in the guide):
 | Review 2 | Delta | Enumerated findings + files since `last_reviewed_head` |
 | Review 3 | Blocker verification | Unresolved Blocker/Critical only |
 
-Important findings should be fixed inside remaining budget when bounded.
-Minor/Nit become follow-ups. After Review 3, Mission Control chooses
-`ELIGIBLE FOR FOUNDER REVIEW`, `BLOCKED FOR FOUNDER DECISION`, or
-`BLOCKED EXTERNAL`—never Review 4.
+Important findings, Minor/Nit dispositions, and Founder gates remain historical
+review evidence. New work records its bounded outcome and next route through
+`bemoat:handoff`; it does not create a new RESULT or REVIEW_VERDICT.
 
 ## Cost-aware review routing
 
@@ -231,7 +241,21 @@ Runtime model names are replaceable configuration: routing is based on required
 capability and proven risk. Review 3 remains bounded; unresolved non-convergence
 routes to #121 Double-Loop Review or Founder decision, never automatic Review 4.
 
-## Common commands
+## Current and historical commands
+
+Current protocol commands:
+
+```bash
+pnpm run bemoat:context -- --help --json
+pnpm run bemoat:context <issue-number> --json
+pnpm run bemoat:handoff -- --help --json
+pnpm run bemoat:handoff <issue-number> --body-file <strict-handoff.json>
+pnpm run bemoat:context:sync-base -- --help --json
+```
+
+The commands below are historical migration-only examples. Their registrations
+and help contracts remain until later dependency-safe Phase 7 deletion slices;
+they are not supported future routing.
 
 ```bash
 # Mission Control contract only
@@ -259,7 +283,7 @@ pnpm run bemoat:mission-control:recover-state -- <issue-number> --repo owner/rep
 pnpm run bemoat:boilerplate:sync -- --harness-only
 ```
 
-## Troubleshooting
+## Historical migration-only troubleshooting
 
 | Symptom | Response |
 | --- | --- |

@@ -1,3 +1,8 @@
+> Current work uses `bemoat:context` for read-only reconstruction and
+> `bemoat:handoff` for the final append-only cross-agent record. The managed
+> delivery/review/state procedures in this module are historical migration
+> compatibility only; they are not supported future routing.
+
 ## Double-Loop Review Gate
 
 The Double-Loop Review Gate is a **no-code diagnostic checkpoint** between a

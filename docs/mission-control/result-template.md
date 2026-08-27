@@ -1,8 +1,10 @@
-# Mission Control RESULT template
+# Historical Mission Control RESULT template
 
-Full reference field checklist for Mission Control `## RESULT` comments and
-review outcomes. For operational GitHub posts from Dev, prefer the compact-delta
-`## RESULT` in
+`RESULT` is migration-only historical evidence after the Issue #410 stateless
+cutover. Do not publish a new RESULT for current work; use `bemoat:handoff` and
+the stateless HANDOFF template instead. The fields below remain so existing
+comments and migration readers can be interpreted. For old operational GitHub
+posts from Dev, the compact-delta `## RESULT` in
 [../agent-loop/role-handoff-contract.md](../agent-loop/role-handoff-contract.md).
 For Core MC-gated review, post `## REVIEW_VERDICT` using exactly one verdict
 from the enum below. This is the same vocabulary as

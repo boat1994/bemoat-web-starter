@@ -12,10 +12,11 @@ Practical execution guide for Bemoat coding agents. Paste the [prompt seed](#pro
 
 **Default split:** GPT-5.5 plans and gates; Composer 2.5 implements. One session may play both — run the red-team pass before commit.
 
-## Standard loop
+## Standard loop (current stateless protocol)
 
 ```text
-Plan → git status & branch gates → Acceptance criteria → Implement → Test → Red team → Commit → PR (open or update) → Sync upstream (if reusable)
+`bemoat:context` → one bounded objective → implement/verify → commit → PR
+→ `bemoat:handoff` → fresh GitHub reconstruction
 ```
 
 | Phase | Owner | Output |
@@ -32,11 +33,10 @@ Plan → git status & branch gates → Acceptance criteria → Implement → Tes
 
 Full workflow rails: [README.md](./README.md), [checklist.md](./checklist.md), [AGENTS.md](../../AGENTS.md#default-agent-workflow).
 
-**Mission Control v1.1 (managed tasks):** Delivery Coordinator owns the atomic
-delivery transition — `## RESULT` plus managed state `AWAITING_REVIEW_1` with
-`active_pr` and `current_head` in the same run. Reviewer owns counters and
-`last_reviewed_head` atomically with `## REVIEW_VERDICT`. See
-[mission-control-guide.md § Execution roles](../mission-control/mission-control-guide.md#execution-roles-and-atomic-completions).
+The former managed-task `RESULT` / `REVIEW_VERDICT` / state-block workflow is
+historical migration compatibility. New cross-agent transport is the
+append-only HANDOFF published by `bemoat:handoff`; exact PR/head/CI and review
+evidence remain authoritative where the applicable gate requires them.
 
 ## Starter vs child — decision rule
 
@@ -143,7 +143,7 @@ Required first steps:
 3. Stop if working tree is dirty with unrelated changes
 4. Never modify main directly
 5. Do not routine-code directly on dev
-6. If the only blocker is clean main or dev, create an issue branch, rerun `pnpm run bemoat:agent:issue -- <issue-number>`, and continue only after it passes. Use dev as the normal baseline:
+6. If the only blocker is clean main or dev, create an issue branch, rerun `pnpm run bemoat:context <issue-number> --json`, and continue only after it passes. Use dev as the normal baseline:
    git fetch origin
    git switch dev
    git pull origin dev

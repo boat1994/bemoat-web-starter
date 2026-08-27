@@ -1,11 +1,41 @@
 # Mission Control Architecture Blueprint
 
-**Status:** Founder-approved **architectural direction** only.  
+**Status:** Founder-approved **architectural direction**, reconciled with the
+stateless #410 cutover in merged PR #420.
 **Approved target:** **Option B — Pristine Journey Hub**.  
+**Current authority:** Issue [#410](https://github.com/boat1994/bemoat-web-starter/issues/410)
+and merged PR [#420](https://github.com/boat1994/bemoat-web-starter/pull/420)
+define the supported public protocol.
 **Authority:** Founder decision on Issue [#340](https://github.com/boat1994/bemoat-web-starter/issues/340), derived from Draft PR [#341](https://github.com/boat1994/bemoat-web-starter/pull/341) design head `32944cc054b9023a1592dfb49c7d597536d15aac`.  
 **Design record (non-normative):** `docs/superpowers/specs/bemoat/mission-control/architecture/design.md` at that SHA.  
 **As-built evidence baseline:** protected `main@7cfd62b6197a2e95fc8dbe06e30e047550b85e2b` (PR #339 Phase-1 merge), as recorded in the approved design.  
 **Policy (unchanged):** `docs/mission-control/mission-control-guide.md` remains the only long-form operating policy. This blueprint does **not** compete with the guide.
+
+## Current supported protocol
+
+The current supported cross-agent protocol has exactly two public commands:
+
+```text
+bemoat:context <issue-number> --json
+→ one bounded objective
+→ bemoat:handoff <issue-number> --body-file <strict-handoff.json>
+→ fresh GitHub reconstruction
+```
+
+`bemoat:context:sync-base` remains a retained protected-main synchronization
+utility. Exact repository/base/PR/head/CI/review evidence, CLI Discovery,
+generic repository and child-sync safety, and fail-closed behavior remain
+shared retained infrastructure. The stateful delivery/review/reconcile/
+recovery/merge/task/role-comment surfaces below are migration-only historical
+records and Phase 7 deletion candidates; this reconciliation does not delete
+them. The Phase 7 deletion boundary remains one bounded cluster at a time.
+
+## Historical architecture and census
+
+Sections below preserve the earlier Option B design and as-built census for
+read compatibility. Their old `KEEP` labels and stateful command names are
+historical classifications, not current supported routing. Current ownership is
+the stateless protocol above and the reconciled guide.
 
 ---
 
@@ -21,8 +51,8 @@
 
 This document does **not** authorize:
 
-- pruning, deletion, or retirement of runtime files
-- runtime or guard changes
+- broad or multi-cluster pruning, deletion, or retirement of runtime files
+- runtime behavior repair or semantic redesign
 - merge of Draft PR [#341](https://github.com/boat1994/bemoat-web-starter/pull/341)
 - Issue [#333](https://github.com/boat1994/bemoat-web-starter/issues/333) Batch 6 / Cluster F
 - Issue #333 closure
@@ -30,15 +60,14 @@ This document does **not** authorize:
 
 Pruning and semantic simplification require **separate Founder authorization** after this blueprint is accepted as documentation.
 
-### Preserve (non-negotiable under Option B direction)
+### Preserve (non-negotiable under the current stateless cutover)
 
 - Founder authority
 - exact-head binding and CI
-- CAS / concurrency and fail-closed semantics
-- deterministic reconciliation
-- `recover-state`
-- `reopen`
-- real-world partial / ambiguous-failure recovery under correct canonical operation
+- exact repository/base/PR/head/CI/review evidence mechanics
+- CLI Discovery and safe-help semantics
+- generic repository, secret, toolchain, destructive-operation, and child-sync safety
+- fail-closed behavior for ambiguous or unavailable evidence
 
 ### Temporary incident posture
 
@@ -80,21 +109,20 @@ Static reachability alone is insufficient for deletion authority. Deletion remai
 ## 3. Supported execution architecture (target)
 
 ```mermaid
-flowchart TB
-    A[Founder / Agents] --> B[Supported Public Command Surface]
-    B --> C[Application / Workflows]
-    C --> D[Typed Domain + State Machine + Authority]
-    C --> E[Ports]
-    E --> F[GitHub / Git / CI / Filesystem Adapters]
-    X[External runtime values] -->|unknown to Zod where required| F
-    I[Incident island recover-review] -.->|TEMPORARY #274/#275 only| C
+flowchart LR
+    A[Agent or Founder intent] --> B[bemoat:context]
+    B --> C[One bounded objective]
+    C --> D[bemoat:handoff]
+    D --> E[GitHub durable evidence]
+    E --> B
+    S[bemoat:context:sync-base] -.->|retained bounded utility| E
 ```
 
 Option B refuses unsupported mimicry: agents must not reconstruct lifecycle by reading implementation source or mutating managed state ad hoc.
 
 ---
 
-## 4. High-level journey map
+## 4. Historical stateful journey map
 
 ```mermaid
 flowchart LR
@@ -123,7 +151,7 @@ Normal-success paths and exceptional recovery paths remain visibly distinct.
 
 ---
 
-## 5. Canonical Journey Atlas (target dispositions)
+## 5. Historical Journey Atlas (migration-only dispositions)
 
 Journey dispositions below are **architectural direction** for Option B. They do **not** authorize pruning of implementing files.
 
@@ -143,11 +171,11 @@ flowchart LR
 
 | Field | Content |
 | --- | --- |
-| Purpose | Reconstruct authoritative policy + live durable Task state before any mutating journey |
-| Canonical commands | `pnpm run bemoat:agent:issue -- <n>` (read-only); policy load from protected `main` guide; raw GitHub reads for verification |
+| Purpose | Reconstruct authoritative policy, live GitHub evidence, and local durability before one bounded objective |
+| Canonical commands | `pnpm run bemoat:context <n> --json` (read-only); policy load from protected `main` guide; raw GitHub reads for verification |
 | Durable writes | **None** |
 | Unsupported | Reconstructing transitions by reading/mimicking implementation source; manual YAML edits |
-| Disposition | **KEEP** (CORE) |
+| Disposition | **RETAINED STATELESS** (CORE) |
 
 ### J2 — Task bootstrap / start
 
@@ -156,7 +184,7 @@ flowchart LR
 | Purpose | Founder-authorized managed-Task genesis (exceptional) |
 | Canonical entrypoint | Protected workflow `mission-control-task-bootstrap.yml` + Founder authorization comment |
 | Ordinary start | After a managed Task exists: **J3** (preceded by J1). `bemoat:agent:issue` does not create Tasks |
-| Disposition | **KEEP** as **PLATFORM / exceptional genesis** |
+| Disposition | **MIGRATION-ONLY HISTORICAL / PHASE-7 DELETE CANDIDATE** |
 
 ### J3 — Dispatch → HANDOFF
 
@@ -164,7 +192,7 @@ flowchart LR
 | --- | --- |
 | Canonical command | `pnpm run bemoat:mission-control:dispatch` |
 | State | Authorized path to `IN_PROGRESS` with HANDOFF |
-| Disposition | **KEEP** (CORE) |
+| Disposition | **MIGRATION-ONLY HISTORICAL / PHASE-7 DELETE CANDIDATE** |
 
 ### J4 — Delivery → RESULT → `AWAITING_REVIEW_1`
 
@@ -172,7 +200,7 @@ flowchart LR
 | --- | --- |
 | Canonical command | `pnpm run bemoat:agent:delivery` |
 | Trust | Exact head; required CI; single PR binding |
-| Disposition | **KEEP** (CORE) |
+| Disposition | **MIGRATION-ONLY HISTORICAL / PHASE-7 DELETE CANDIDATE** |
 
 ### J5 — Review → `REVIEW_VERDICT`
 
@@ -180,14 +208,14 @@ flowchart LR
 | --- | --- |
 | Canonical command | `pnpm run bemoat:mission-control:review` |
 | Note | Do **not** use `recover-review` for ordinary review failure |
-| Disposition | **KEEP** (CORE) |
+| Disposition | **MIGRATION-ONLY HISTORICAL / PHASE-7 DELETE CANDIDATE** |
 
 ### J6 — Correction → bounded Delta Review
 
 | Field | Content |
 | --- | --- |
 | Commands | correction preflight → dispatch → delivery → delta review; optional `adopt-finding` |
-| Disposition | **KEEP** (CORE); `adopt-finding` **KEEP** (CORE / authority) |
+| Disposition | **MIGRATION-ONLY HISTORICAL / PHASE-7 DELETE CANDIDATE** |
 
 ### J7 — Founder merge → `DONE`
 
@@ -195,7 +223,7 @@ flowchart LR
 | --- | --- |
 | Canonical command | `pnpm run bemoat:mission-control:merge` |
 | Trust | Founder allowlist; exact reviewed head; policy identity |
-| Disposition | **KEEP** (CORE) |
+| Disposition | **MIGRATION-ONLY HISTORICAL / PHASE-7 DELETE CANDIDATE** |
 
 ### J8 — Deterministic reconciliation
 
@@ -203,7 +231,7 @@ flowchart LR
 | --- | --- |
 | Canonical command | `pnpm run bemoat:mission-control:reconcile` |
 | Scope | Routing-only projection repair; cannot initialize state, replay reviews, or invent verdicts |
-| Disposition | **KEEP** (SAFETY / real-world recovery) |
+| Disposition | **MIGRATION-ONLY HISTORICAL / PHASE-7 DELETE CANDIDATE** |
 
 ### J9 — Real-world recovery
 
@@ -214,21 +242,21 @@ flowchart LR
 | Purpose | Quarantine only the approved Issue **#274** / PR **#275** raw-review incident |
 | Canonical command | `pnpm run bemoat:mission-control:recover-review` |
 | Live consumer (reverified for this blueprint step) | Issue #274 **OPEN**; PR #275 **OPEN** (mergeable: CONFLICTING) |
-| Disposition | **TEMPORARY KEEP** while live; do not port as generic capability |
+| Disposition | **MIGRATION-ONLY HISTORICAL / PHASE-7 DELETE CANDIDATE**; retain only until the later bounded deletion proves no live consumer |
 
 #### J9b — `recover-state`
 
 | Field | Content |
 | --- | --- |
 | Purpose | Recreate one wholly absent managed-state block from uniquely reconstructable immutable evidence |
-| Disposition | **KEEP** (exceptional real-world recovery) |
+| Disposition | **MIGRATION-ONLY HISTORICAL / PHASE-7 DELETE CANDIDATE** |
 
 #### J9c — `reopen`
 
 | Field | Content |
 | --- | --- |
 | Purpose | Project Founder-authorized PR head drift to `FOUNDER_AUTHORIZED_CORRECTION` |
-| Disposition | **KEEP** (CORE / Founder authority) |
+| Disposition | **MIGRATION-ONLY HISTORICAL / PHASE-7 DELETE CANDIDATE** |
 
 ### J10 — Canonical role-comment publication / readback
 
@@ -236,7 +264,7 @@ flowchart LR
 | --- | --- |
 | Canonical command | `pnpm run bemoat:issue:comment` |
 | Active dependency | `diagnostics/github-comment-projection` used by role-comment + agent-issue evidence paths |
-| Disposition | **KEEP** publication path (CORE); comment-projection **KEEP until consumer closed / consolidated** |
+| Disposition | **MIGRATION-ONLY HISTORICAL / PHASE-7 DELETE CANDIDATE**; shared comment projection remains retained until current consumers are closed or consolidated |
 
 ### J11 — Child / harness sync (PLATFORM-adjacent)
 
@@ -264,11 +292,11 @@ Option B minimizes duplicate independent implementations of the same invariant w
 
 ---
 
-## 7. CURRENT AS-BUILT map (descriptive)
+## 7. HISTORICAL AS-BUILT map (descriptive)
 
 Evidence root for the census that informed Option B: `main@7cfd62b6197a2e95fc8dbe06e30e047550b85e2b`. Live refs must be reverified before any later prune authorization.
 
-### 7.1 Public command surface
+### 7.1 Historical public command surface
 
 | Command | Role |
 | --- | --- |
@@ -289,7 +317,7 @@ Evidence root for the census that informed Option B: `main@7cfd62b6197a2e95fc8db
 
 **Unsupported agent behavior (explicit):** reconstructing lifecycle by reading implementation source; ad-hoc managed-state mutation; replacing canonical commands with raw `gh issue edit`.
 
-### 7.2 Domain / state / authority ownership (as-built)
+### 7.2 Historical domain / state / authority ownership (as-built)
 
 | Concern | Owner (as-built) |
 | --- | --- |
@@ -303,7 +331,7 @@ Evidence root for the census that informed Option B: `main@7cfd62b6197a2e95fc8db
 
 Durable SoT: Issue managed-state markers + immutable role comments + PR head/CI; Founder auth comments for merge/reopen/adoption/recovery.
 
-### 7.3 Runtime trust / Zod boundaries
+### 7.3 Runtime trust / Zod boundaries (retained boundary)
 
 | Boundary | As-built |
 | --- | --- |
@@ -314,7 +342,7 @@ Durable SoT: Issue managed-state markers + immutable role comments + PR head/CI;
 
 Principle: unknown external runtime values → Zod (or equivalent fail-closed parse) at adapter/CLI boundary; domain prefers typed modules.
 
-### 7.4 Reconciliation / recovery classes
+### 7.4 Historical reconciliation / recovery classes
 
 | Mechanism | Class |
 | --- | --- |
@@ -324,7 +352,7 @@ Principle: unknown external runtime values → Zod (or equivalent fail-closed pa
 | `reopen` | Founder-authorized correction path (**KEEP**) |
 | Agent-bypass compatibility shims | Candidates for semantic simplification **only after separate Founder prune auth** — not “recovery” |
 
-### 7.5 Compatibility facades (evidence-backed candidates — not deletion authority)
+### 7.5 Compatibility facades (Phase 7 candidates — not deletion authority in this change)
 
 | Path | Tentative class |
 | --- | --- |
@@ -381,21 +409,21 @@ Source: `GUARD_PACK` in `scripts/guards/pack.mjs` on protected main. Aggregator 
 
 | Dimension | Option B target |
 | --- | --- |
-| Supported journeys | J1–J11 as dispositioned (J11 PLATFORM-adjacent); refuse unsupported mimicry |
-| Public command surface | Canonical commands only; Class A facades removable only after separate Founder prune auth; Class B bypass-only compatibility removable only after separate Founder prune auth with live-consumer checks |
-| Recovery posture | Keep J8 + J9b + J9c; J9a remains **INCIDENT_SPECIFIC** until #274/#275 resolved — **not** promoted to generic API |
+| Supported journeys | Stateless context reconstruction → one bounded objective → HANDOFF; J11 remains PLATFORM-adjacent; refuse unsupported mimicry |
+| Public command surface | `bemoat:context` and `bemoat:handoff`, plus retained generic safety/discovery/sync utilities; legacy facades remain only for migration compatibility until separately pruned |
+| Recovery posture | Preserve exact evidence and generic fail-closed/child-sync safety; stateful recovery commands are historical compatibility, not a supported future API |
 | Compatibility posture | Least tolerance for agent-bypass; fail closed on non-canonical entry |
 | Guard strategy | Retain PLATFORM guards (1–8, 10); keep MC contract + drift initially; SPLIT structural-protection concerns; rebaseline `scripts-architecture` to this blueprint under later auth; optional drift MERGE once TS owns matrices |
 | TS/Zod ownership | Port only journey-justified modules; do not TypeScript-port prune candidates |
 | Estimated surviving TS migration surface (after future authorized prune) | ~**35–45** semantic MC files after Class A + evidence-backed Class B (excludes TEMPORARY incident modules until retired) — planning estimate only |
 | Risks if pruning is later authorized carelessly | Over-pruning if live consumers missed; short-term breakage for out-of-contract agent habits |
 
-### Pruning / simplification classes (still unauthorized)
+### Pruning / simplification classes (separately bounded by Issue #410)
 
 | Class | Meaning | Authorization |
 | --- | --- | --- |
-| **A. Low-risk dead/facade cleanup** | Collapse re-export-only `.mjs` after importers/tests updated | **Not authorized** by this blueprint |
-| **B. Intentional semantic simplification** | Retire bypass-tolerance or duplicate SoT | **Not authorized** by this blueprint |
+| **A. Low-risk dead/facade cleanup** | Collapse re-export-only `.mjs` after importers/tests updated | Issue #410 Phase 7, one approved cluster at a time |
+| **B. Intentional semantic simplification** | Retire bypass-tolerance or duplicate SoT | Requires a separately bounded objective and proof |
 | **C. Temporary incident-specific** | Keep until live consumer closed | Keep posture only |
 | **D. Permanent real-world recovery** | Keep under correct canonical operation | Preserve |
 
@@ -415,23 +443,24 @@ Draft PR #341 remains a design PR. It is **not** merged by this blueprint step.
 
 ## 11. Remaining Founder decisions (after this documentation step)
 
-1. Whether to authorize **pruning** (Class A first recommended) as a separate gate.
+1. Execute the already-authorized Issue #410 Phase 7 deletion slices one coherent cluster at a time; this reconciliation is a prerequisite and does not execute Slice 1.
 2. Whether **`frontend-seo`** remains in the central pack vs platform-only optional pack.
 3. Whether **`structural-protection` line-count ratchet** is retired/split after decomposition goals, while retaining oracle hashes.
 4. When **#274/#275** close, whether to delete or redesign `recover-review` (default proposal: delete incident transport after consumer closed).
-5. Sequencing of Class A facade cleanup vs Class B semantic simplification.
+5. Sequencing of later Class B semantic simplification after the Phase 7 deletion slices.
 6. Whether Draft PR #341 should remain open as historical design evidence, be closed without merge, or be superseded by other docs PRs.
 
 ---
 
 ## 12. Stop / non-claims
 
-This blueprint publishes Founder-approved **Option B architectural direction**.
+This blueprint publishes Founder-approved **Option B architectural direction** as
+reconciled by Issue #410 and merged PR #420.
 
 It does **not**:
 
-- prune files
-- modify guards or Mission Control runtime
+- delete the Phase 7 facade cluster
+- repair or redesign the legacy Stateful Mission Control runtime
 - merge PR #341
 - start Issue #333 Batch 6 / Cluster F
 - close Issue #333 or Issue #340 by itself
