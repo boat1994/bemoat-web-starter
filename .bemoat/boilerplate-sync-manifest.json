@@ -126,6 +126,7 @@
     "tests/int/context-router.int.spec.ts",
     "tests/int/context-evidence.int.spec.ts",
     "tests/int/context-cli.int.spec.ts",
+    "tests/int/context-skill.int.spec.ts",
     "tests/int/context-sync.int.spec.ts",
     "tests/int/context-corrections.int.spec.ts",
     "tests/int/handoff-schema.int.spec.ts",
