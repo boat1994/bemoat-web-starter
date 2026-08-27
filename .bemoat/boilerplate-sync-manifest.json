@@ -132,6 +132,7 @@
     "tests/int/handoff-schema.int.spec.ts",
     "tests/int/handoff-transport.int.spec.ts",
     "tests/int/handoff-cli.int.spec.ts",
+    "tests/int/handoff-skill.int.spec.ts",
     "tests/int/agent-issue/process-runner.int.spec.ts",
     "tests/int/agent-issue/local-git-evidence.int.spec.ts",
     "tests/int/agent-issue/github-evidence.int.spec.ts",

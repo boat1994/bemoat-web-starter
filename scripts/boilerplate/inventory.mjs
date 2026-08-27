@@ -60,7 +60,7 @@ export const managedPaths = [
   'tests/int/build-script-contract-guard.int.spec.ts', 'tests/int/build-wrapper.int.spec.ts',
   'tests/int/branch-safety.int.spec.ts', 'tests/int/agent-issue.int.spec.ts',
   'tests/int/context-parser.int.spec.ts', 'tests/int/context-router.int.spec.ts', 'tests/int/context-evidence.int.spec.ts', 'tests/int/context-cli.int.spec.ts', 'tests/int/context-skill.int.spec.ts', 'tests/int/context-sync.int.spec.ts', 'tests/int/context-corrections.int.spec.ts',
-  'tests/int/handoff-schema.int.spec.ts', 'tests/int/handoff-transport.int.spec.ts', 'tests/int/handoff-cli.int.spec.ts',
+  'tests/int/handoff-schema.int.spec.ts', 'tests/int/handoff-transport.int.spec.ts', 'tests/int/handoff-cli.int.spec.ts', 'tests/int/handoff-skill.int.spec.ts',
   'tests/int/agent-issue/process-runner.int.spec.ts',
   'tests/int/agent-issue/local-git-evidence.int.spec.ts',
   'tests/int/agent-issue/github-evidence.int.spec.ts',
