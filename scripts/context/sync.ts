@@ -3,6 +3,7 @@ import { isFullSha } from './runtime.ts'
 import { routeContext } from './router.ts'
 import { runContextCommand, type ContextCommandResult, type ContextCommandRunner } from './runtime.ts'
 import { verifyContextSyncSource } from './sync-worktree.ts'
+import { parseHandoffBody, renderHandoffComment } from '../handoff/schema.ts'
 
 export type ContextSyncClassification = 'SUCCESS' | 'EVIDENCE_CONFLICT' | 'HEAD_DRIFT' | 'BLOCKED_EXTERNAL' | 'AMBIGUOUS_RESULT'
 
@@ -55,6 +56,31 @@ function staleBaseError(evidence: NormalizedContextEvidence, prNumber: string): 
   return `EVIDENCE_CONFLICT: PR #${prNumber} base does not match live protected ${evidence.protectedBase.branch}@${evidence.protectedBase.sha}`
 }
 
+function latestHandoffBindsScope(evidence: NormalizedContextEvidence, activePr: ActivePullRequestEvidence): boolean {
+  const body = evidence.durableContext.latestHandoff?.body
+  const match = body?.match(/^## HANDOFF\n\n```json\n([\s\S]+)\n```\n$/)
+  if (!match) return false
+
+  try {
+    const handoff = parseHandoffBody(match[1])
+    return renderHandoffComment(handoff) === body &&
+      handoff.repository === evidence.repository.nameWithOwner &&
+      handoff.issue_number === evidence.issue.number &&
+      handoff.branch === activePr.headBranch &&
+      handoff.exact_head === activePr.headSha &&
+      handoff.local_durability.durable === true &&
+      handoff.protected_base.branch === activePr.baseBranch &&
+      handoff.protected_base.sha === activePr.baseSha &&
+      handoff.pr?.number === activePr.number &&
+      handoff.pr.url === activePr.url &&
+      handoff.pr.base === activePr.baseBranch &&
+      handoff.pr.head === activePr.headBranch &&
+      handoff.pr.head_sha === activePr.headSha
+  } catch {
+    return false
+  }
+}
+
 export function authorizeContextSync(evidence: NormalizedContextEvidence): Authorization {
   const activePr = evidence.activePr
   if (Array.isArray(activePr)) return { allowed: false, route: 'STOP', reasons: ['EVIDENCE_CONFLICT: competing active PRs cannot be uniquely resolved'] }
@@ -85,7 +111,8 @@ export function authorizeContextSync(evidence: NormalizedContextEvidence): Autho
   if (evidence.localGit.originRepository !== evidence.repository.nameWithOwner) {
     return { allowed: false, route: 'STOP', reasons: ['EVIDENCE_CONFLICT: local origin is not the active repository'] }
   }
-  if (!evidence.issue.objective?.trim() || !evidence.issue.scope?.trim()) {
+  const scopeBound = Boolean(evidence.issue.scope?.trim()) || latestHandoffBindsScope(evidence, activePr)
+  if (!evidence.issue.objective?.trim() || !scopeBound) {
     return { allowed: false, route: 'STOP', reasons: ['EVIDENCE_CONFLICT: Issue objective and scope are required to bind the synchronization'] }
   }
   const preMovement = structuredClone(evidence)
