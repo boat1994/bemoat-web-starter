@@ -358,18 +358,12 @@ describe('bemoat:context pure routing', () => {
       expect(decision.route).toBe('FIX')
     })
 
-    const nativeReviewCases: Array<[string, Record<string, unknown>, { duplicate?: boolean }?]> = [
+    const nativeReviewCases: Array<[string, Record<string, unknown>]> = [
       ['stale commit binding', { commitId: 'c'.repeat(40) }],
       ['wrong reviewed head', { body: nativeReview().body.replace(headSha, 'c'.repeat(40)) }],
       ['malformed body', { body: '## REVIEW_VERDICT\n**Verdict:** ELIGIBLE FOR FOUNDER REVIEW' }],
-      ['ambiguous exact-head reviews', { id: 201 }, { duplicate: true }],
-      ['competing exact-head verdicts', { body: nativeBlockingReview().body }, { duplicate: true }],
     ]
-    it.each(nativeReviewCases)('keeps native review evidence fail-closed for %s', (_label, reviewOverrides, options = {}) => {
-      const body = typeof reviewOverrides.body === 'string' ? reviewOverrides.body : undefined
-      const reviews = options.duplicate
-        ? [nativeReview(reviewOverrides), nativeReview({ id: 201, ...(body ? { body } : {}) })]
-        : [nativeReview(reviewOverrides)]
+    it.each(nativeReviewCases)('keeps native review evidence fail-closed for %s', (_label, reviewOverrides) => {
       const currentHeadVerification = verification({
         reviews: {
           required: false,
@@ -377,7 +371,7 @@ describe('bemoat:context pure routing', () => {
           exactHead: true,
           approvedCount: 0,
           exactHeadApprovedCount: 0,
-          nativeReviews: reviews,
+          nativeReviews: [nativeReview(reviewOverrides)],
         },
       })
       const decision = routeContext(baseEvidence({
@@ -388,6 +382,47 @@ describe('bemoat:context pure routing', () => {
 
       expect(decision.route).toBe('REVIEW')
     })
+
+    it('routes multiple compatible exact-head native reviews to FOUNDER_GATE', () => {
+      const currentHeadVerification = verification({
+        reviews: {
+          required: false,
+          approved: true,
+          exactHead: true,
+          approvedCount: 0,
+          exactHeadApprovedCount: 0,
+          nativeReviews: [nativeReview(), nativeReview({ id: 201 })],
+        },
+      })
+      const decision = routeContext(baseEvidence({
+        issue: { ...baseEvidence().issue, workflowProfile: 'STANDARD' },
+        activePr: prEvidence(),
+        currentHeadVerification,
+      }))
+
+      expect(decision.route).toBe('FOUNDER_GATE')
+    })
+
+    it('keeps native review evidence fail-closed for genuinely competing exact-head verdicts', () => {
+      const currentHeadVerification = verification({
+        reviews: {
+          required: false,
+          approved: true,
+          exactHead: true,
+          approvedCount: 0,
+          exactHeadApprovedCount: 0,
+          nativeReviews: [nativeReview(), nativeReview({ id: 201, body: nativeBlockingReview().body })],
+        },
+      })
+      const decision = routeContext(baseEvidence({
+        issue: { ...baseEvidence().issue, workflowProfile: 'STANDARD' },
+        activePr: prEvidence(),
+        currentHeadVerification,
+      }))
+
+      expect(decision.route).toBe('REVIEW')
+    })
+
 
     it('selects the live verdict from historical predecessor REVIEW_VERDICT records', () => {
       const liveBaseSha = '832782c585eb4c122ea05404fc1a615b865d68bb'
@@ -787,8 +822,8 @@ describe('bemoat:context pure routing', () => {
       expect(decision.route).toBe('REVIEW')
     })
 
-    it('routes malformed or ambiguous competing verdict evidence to REVIEW (fail closed)', () => {
-      const decisionAmbiguous = routeContext(baseEvidence({
+    it('routes multiple compatible valid exact-head reviews to FOUNDER_GATE', () => {
+      const decisionCompatible = routeContext(baseEvidence({
         issue: { ...baseEvidence().issue, workflowProfile: 'STANDARD' },
         activePr: prEvidence(),
         currentHeadVerification: verification({
@@ -799,7 +834,22 @@ describe('bemoat:context pure routing', () => {
           historicalResults: [validVerdict, validVerdict],
         },
       }))
-      expect(decisionAmbiguous.route).toBe('REVIEW')
+      expect(decisionCompatible.route).toBe('FOUNDER_GATE')
+    })
+
+    it('routes genuinely conflicting, malformed, or ambiguous verdict evidence to REVIEW (fail closed)', () => {
+      const decisionConflicting = routeContext(baseEvidence({
+        issue: { ...baseEvidence().issue, workflowProfile: 'STANDARD' },
+        activePr: prEvidence(),
+        currentHeadVerification: verification({
+          reviews: { required: false, approved: true, exactHead: true, approvedCount: 1, exactHeadApprovedCount: 1 },
+        }),
+        durableContext: {
+          latestHandoff: null,
+          historicalResults: [validVerdict, correctionVerdict],
+        },
+      }))
+      expect(decisionConflicting.route).toBe('REVIEW')
 
       const decisionMalformed = routeContext(baseEvidence({
         issue: { ...baseEvidence().issue, workflowProfile: 'STANDARD' },

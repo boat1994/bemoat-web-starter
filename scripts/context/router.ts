@@ -282,8 +282,13 @@ export function routeContext(evidence: NormalizedContextEvidence): ContextDecisi
       inspectVerdict(review.id, review.body)
     }
 
-    semanticReviewSatisfied = !malformedEvidence && !conflictingLiveHeadEvidence && applicableVerdicts.length === 1
-    blockingSemanticReview = semanticReviewSatisfied && applicableVerdicts[0]?.verdict === 'CORRECTION REQUIRED'
+    const uniqueVerdicts = [...new Set(applicableVerdicts.map((v) => v.verdict))]
+    if (uniqueVerdicts.length > 1) {
+      conflictingLiveHeadEvidence = true
+    }
+
+    semanticReviewSatisfied = !malformedEvidence && !conflictingLiveHeadEvidence && applicableVerdicts.length >= 1
+    blockingSemanticReview = semanticReviewSatisfied && uniqueVerdicts[0] === 'CORRECTION REQUIRED'
   }
 
   if (blockingSemanticReview) {
