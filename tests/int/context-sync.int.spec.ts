@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { ContextCommandResult, ContextCommandRunner } from '../../scripts/context/runtime.ts'
 import type { NormalizedContextEvidence } from '../../scripts/context/model.ts'
+import type { HandoffRecord } from '../../scripts/handoff/schema.ts'
 import { authorizeContextSync, synchronizeContext } from '../../scripts/context/sync.ts'
 import { ContextSyncWorktreeError, resolveContextSyncRoots } from '../../scripts/context/sync-worktree.ts'
 import { runCliBoundaryCase } from '../helpers/cli-boundary-harness'
@@ -29,6 +30,42 @@ function baseEvidence(overrides: Partial<NormalizedContextEvidence> = {}): Norma
 
 function response(stdout = '', status = 0): ContextCommandResult {
   return { status, stdout, stderr: status === 0 ? '' : 'failed', error: null }
+}
+
+function strictHandoff(overrides: Partial<HandoffRecord> = {}) {
+  const record: HandoffRecord = {
+    schema_version: 1,
+    record_type: 'HANDOFF',
+    repository: 'boat1994/bemoat-web-starter',
+    issue_number: '427',
+    objective: 'Continue the bounded stale-base objective.',
+    permitted_scope: ['Synchronize protected main into the same active PR branch.'],
+    prohibited_scope: ['Do not merge the PR or broaden the Issue objective.'],
+    executing_agent: 'Execution / IDE Mission Control',
+    provider: 'OpenAI Codex',
+    branch: prHeadBranch,
+    exact_head: head,
+    protected_base: { branch: 'main', sha: oldBase },
+    pr: {
+      number: '428',
+      url: 'https://github.com/boat1994/bemoat-web-starter/pull/428',
+      base: 'main',
+      head: prHeadBranch,
+      head_sha: head,
+    },
+    verified_evidence: [{ kind: 'context', value: 'The bounded active PR evidence is durable.', url: null }],
+    route: 'VERIFY',
+    next_action: { route: 'VERIFY', description: 'Verify the exact durable implementation.' },
+    stop_conditions: ['Stop on identity, scope, head, base, or durability drift.'],
+    local_durability: { required: true, durable: true, reason: null },
+    ...overrides,
+  }
+  return {
+    id: 'IC_scope_binding',
+    body: `## HANDOFF\n\n\`\`\`json\n${JSON.stringify(record, null, 2)}\n\`\`\`\n`,
+    createdAt: '2026-08-27T16:47:04Z',
+    url: 'https://github.com/boat1994/bemoat-web-starter/issues/427#issuecomment-scope-binding',
+  }
 }
 
 describe('bounded stale-base synchronization', () => {
@@ -146,6 +183,48 @@ describe('bounded stale-base synchronization', () => {
 
   it('authorizes one sync only for otherwise-valid same-scope stale active PR evidence', () => {
     expect(authorizeContextSync(baseEvidence())).toMatchObject({ allowed: true, route: 'VERIFY' })
+  })
+
+  it('authorizes a #441-shaped Issue through its exact current strict HANDOFF scope binding', () => {
+    const evidence = baseEvidence({
+      issue: {
+        ...baseEvidence().issue,
+        objective: 'Add paired provider-portable Context and Handoff skills.',
+        scope: null,
+        acceptanceCriteria: ['The skills remain thin stateless adapters.'],
+      },
+      durableContext: { latestHandoff: strictHandoff(), historicalResults: [] },
+    })
+
+    expect(authorizeContextSync(evidence)).toMatchObject({ allowed: true, route: 'VERIFY' })
+  })
+
+  it.each([
+    ['missing HANDOFF', null],
+    ['malformed HANDOFF', { ...strictHandoff(), body: '## HANDOFF\n\nnot-json' }],
+    ['wrong repository', strictHandoff({ repository: 'other/repository' })],
+    ['wrong Issue', strictHandoff({ issue_number: '441' })],
+    ['wrong protected base', strictHandoff({ protected_base: { branch: 'main', sha: protectedBase } })],
+    ['wrong exact head', strictHandoff({ exact_head: advancedAgain, pr: { number: '428', url: 'https://github.com/boat1994/bemoat-web-starter/pull/428', base: 'main', head: prHeadBranch, head_sha: advancedAgain } })],
+    ['wrong PR', strictHandoff({ pr: { number: '442', url: 'https://github.com/boat1994/bemoat-web-starter/pull/442', base: 'main', head: prHeadBranch, head_sha: head } })],
+    ['wrong branch', strictHandoff({ branch: 'feature/other', pr: { number: '428', url: 'https://github.com/boat1994/bemoat-web-starter/pull/428', base: 'main', head: 'feature/other', head_sha: head } })],
+    ['non-durable HANDOFF state', strictHandoff({ local_durability: { required: false, durable: false, reason: null } })],
+  ])('keeps Issue scope fail-closed for %s', (_story, latestHandoff) => {
+    const evidence = baseEvidence({
+      issue: { ...baseEvidence().issue, scope: null },
+      durableContext: { latestHandoff, historicalResults: [] },
+    })
+
+    expect(authorizeContextSync(evidence)).toMatchObject({ allowed: false, route: 'STOP' })
+  })
+
+  it('keeps a missing Issue objective fail-closed even with an exact strict HANDOFF', () => {
+    const evidence = baseEvidence({
+      issue: { ...baseEvidence().issue, objective: null, scope: null },
+      durableContext: { latestHandoff: strictHandoff(), historicalResults: [] },
+    })
+
+    expect(authorizeContextSync(evidence)).toMatchObject({ allowed: false, route: 'STOP' })
   })
 
   it('does not require a per-incident Founder HANDOFF once the bounded command contract is merged', () => {

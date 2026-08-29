@@ -55,6 +55,24 @@ Expected implementation is narrow.
     expect(parsed.scope).toBe('Expected implementation is narrow.')
   })
 
+  it.each([
+    'Objective boundary',
+    'Current objective boundary',
+    'Historical objective boundary',
+  ])('does not treat "%s" prose as durable Issue scope authority', (heading) => {
+    const parsed = parseIssueBody(`
+## Goal
+
+Some goal.
+
+## ${heading}
+
+This text may describe an earlier workflow checkpoint.
+`)
+
+    expect(parsed.scope).toBeNull()
+  })
+
   it('rejects unrelated headings for scope', () => {
     const parsed = parseIssueBody(`
 ## Goal
