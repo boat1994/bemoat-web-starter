@@ -69,14 +69,6 @@ Pruning and semantic simplification require **separate Founder authorization** a
 - generic repository, secret, toolchain, destructive-operation, and child-sync safety
 - fail-closed behavior for ambiguous or unavailable evidence
 
-### Temporary incident posture
-
-| Capability | Posture |
-| --- | --- |
-| `recover-review` | **`INCIDENT_SPECIFIC` / TEMPORARY** for Issue [#274](https://github.com/boat1994/bemoat-web-starter/issues/274) / PR [#275](https://github.com/boat1994/bemoat-web-starter/pull/275) until that live consumer is separately resolved. Not a generic review-recovery API. Do not delete from static reachability alone; do not promote to core. |
-
----
-
 ## 1. Documentation roles
 
 | Artifact | Role |
@@ -207,7 +199,7 @@ flowchart LR
 | Field | Content |
 | --- | --- |
 | Canonical command | Retired; no executable managed-review command remains |
-| Note | Historical verdict evidence remains readable where required; `recover-review` remains incident-specific and is not an ordinary review replacement |
+| Note | Historical verdict evidence remains readable where required; no executable managed-review writer remains |
 | Disposition | **RETIRED / READ-ONLY COMPATIBILITY** |
 
 ### J6 — Correction → bounded Delta Review
@@ -234,15 +226,6 @@ flowchart LR
 | Disposition | **MIGRATION-ONLY HISTORICAL / PHASE-7 DELETE CANDIDATE** |
 
 ### J9 — Real-world recovery
-
-#### J9a — `recover-review` (**INCIDENT_SPECIFIC** / TEMPORARY)
-
-| Field | Content |
-| --- | --- |
-| Purpose | Quarantine only the approved Issue **#274** / PR **#275** raw-review incident |
-| Canonical command | `pnpm run bemoat:mission-control:recover-review` |
-| Live consumer (reverified for this blueprint step) | Issue #274 **OPEN**; PR #275 **OPEN** (mergeable: CONFLICTING) |
-| Disposition | **MIGRATION-ONLY HISTORICAL / PHASE-7 DELETE CANDIDATE**; retain only until the later bounded deletion proves no live consumer |
 
 #### J9b — `recover-state`
 
@@ -304,7 +287,6 @@ Evidence root for the census that informed Option B: `main@7cfd62b6197a2e95fc8db
 | `bemoat:agent:delivery` | Delivery (J4) |
 | `bemoat:mission-control:merge` | Merge (J7) |
 | `bemoat:mission-control:reconcile` | Reconcile (J8) |
-| `bemoat:mission-control:recover-review` | **INCIDENT_SPECIFIC** J9a |
 | `bemoat:mission-control:recover-state` | J9b |
 | `bemoat:mission-control:reopen` | J9c |
 | `bemoat:mission-control:adopt-finding` | J6 optional |
@@ -325,7 +307,7 @@ Evidence root for the census that informed Option B: `main@7cfd62b6197a2e95fc8db
 | Campaign parse/validate/normalize | `domain/campaign-*` (Zod boundary in validator) |
 | Correction contract | correction-contract modules |
 | Reconciliation analysis | bounded-reconciliation / reconciliation modules + `workflows/reconcile` |
-| Recover-review / recover-state | dedicated workflows + adapters + domain evidence modules |
+| Recover-state | dedicated workflow + adapter + domain evidence modules |
 
 Durable SoT: Issue managed-state markers + immutable role comments + PR head/CI; Founder auth comments for merge/reopen/adoption/recovery.
 
@@ -346,7 +328,6 @@ Principle: unknown external runtime values → Zod (or equivalent fail-closed pa
 | --- | --- |
 | `reconcile` | Real-world routing repair (**KEEP**) |
 | `recover-state` | Exceptional absent-state reconstruction (**KEEP**) |
-| `recover-review` | **INCIDENT_SPECIFIC** #274/#275 only (**TEMPORARY**) |
 | `reopen` | Founder-authorized correction path (**KEEP**) |
 | Agent-bypass compatibility shims | Candidates for semantic simplification **only after separate Founder prune auth** — not “recovery” |
 
@@ -374,7 +355,6 @@ Inventory counts on baseline (design evidence): **87** `scripts/mission-control/
 
 | Consumer | Implication |
 | --- | --- |
-| Issue #274 / PR #275 | Pins `recover-review` as TEMPORARY |
 | Issue #333 | Migration frozen pending architecture checkpoint; Batch 6 **not** authorized by this blueprint |
 
 ---
@@ -444,9 +424,8 @@ Draft PR #341 remains a design PR. It is **not** merged by this blueprint step.
 1. Execute the already-authorized Issue #410 Phase 7 deletion slices one coherent cluster at a time; this reconciliation is a prerequisite and does not execute Slice 1.
 2. Whether **`frontend-seo`** remains in the central pack vs platform-only optional pack.
 3. Whether **`structural-protection` line-count ratchet** is retired/split after decomposition goals, while retaining oracle hashes.
-4. When **#274/#275** close, whether to delete or redesign `recover-review` (default proposal: delete incident transport after consumer closed).
-5. Sequencing of later Class B semantic simplification after the Phase 7 deletion slices.
-6. Whether Draft PR #341 should remain open as historical design evidence, be closed without merge, or be superseded by other docs PRs.
+4. Sequencing of later Class B semantic simplification after the Phase 7 deletion slices.
+5. Whether Draft PR #341 should remain open as historical design evidence, be closed without merge, or be superseded by other docs PRs.
 
 ---
 

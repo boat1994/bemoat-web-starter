@@ -34,7 +34,6 @@ STANDARD merge wrappers have been deleted.
 | --- | --- |
 | `delivery` | Owns the transition of a successful implementation to `AWAITING_REVIEW_1`. (Note: Delivery is a workflow boundary, not a standalone CLI script in this reference). |
 | `review` | Submit a Full Review 1 or Delta Review verdict, update counters and target states. |
-| `recover-review` | Exceptional, exact-incident transport for the approved #274/#275 raw-review quarantine; it is not ordinary review. |
 | `reconcile` | Repair state routing mismatch. Requires an existing valid managed-state block. Cannot initialize state, replay reviews, post verdicts, or increment counters. |
 | `reopen` | Project Founder-authorized PR head drift to `FOUNDER_AUTHORIZED_CORRECTION`. |
 | `adopt-finding` | Append exactly one Founder-authorized finding to the active correction contract while preserving `CORRECTION_REQUIRED_1\|2` and review counters. |
@@ -49,9 +48,8 @@ STANDARD merge wrappers have been deleted.
 Before invoking a command, manually verify these specific values to avoid `STATE_CONFLICT` or `BLOCKED_EXTERNAL`.
 Consult the machine-readable `scripts/mission-control/transport-registry.mjs`
 before any durable write. It is the ownership map: ordinary
-`REVIEW_VERDICT` publication belongs only to `review`; `recover-review` is an
-exceptional quarantine/projector for its pinned incident and cannot be used as
-a generic comment-repair API.
+`REVIEW_VERDICT` publication belongs only to retained historical evidence paths;
+the managed review writer is retired.
 
 ### Shared checks (all commands)
 - [ ] Active repository matches command target.
@@ -125,75 +123,64 @@ Example canonical `REVIEW_VERDICT` body (all values are fake):
 **Next:** Founder review
 ```
 
-## Review recovery
+## Reconcile checks
+- [ ] Requires an existing valid managed state.
+- [ ] Requires matching evidence (active PR, exact head, existing `REVIEW_VERDICT` comments).
 
-Exact syntax:
+### Retired merge wrappers
 
-```text
-pnpm run bemoat:mission-control:recover-review -- 274 \
-  --repo boat1994/bemoat-web-starter \
-  --expected-pr 275 --expected-base main \
-  --expected-state AWAITING_REVIEW_2 \
-  --expected-head <full-40-character-sha> \
-  --expected-review-cycle 1 --expected-full-review-count 1 \
-  --review-type delta \
-  --issue-source-comment 5187836238 \
-  --pr-source-comment 5187837555 \
-  --original-review-comment <immutable-comment-id> \
-  --correction-result-comment <immutable-comment-id> \
-  --body-file <canonical-recovery-verdict.md>
+No managed or STANDARD custom merge command is executable. Use Context to
+reconstruct native GitHub Issue, pull-request, review, check, mergeability,
+protection, and protected-base evidence. Stop fail-closed on ambiguity; do not
+substitute a new command, receipt, state projection, or transport.
+
+## Evidence vocabulary
+
+Keep these values distinct in every handoff and invocation:
+
+| Value | Meaning and authoritative source |
+| --- | --- |
+| Task Issue | The directly managed Issue passed as the command's positional `<issue-number>`; read its live state block and body with `gh issue view <n>`. |
+| Parent/campaign Issue | A campaign Issue referenced by the live Founder authorization and its projection binding; it is not the Task Issue and is not a substitute positional argument. |
+| PR number | The active PR bound by the Task Issue state and verified with live `gh pr view`; it is not the Issue number. |
+| Base branch | The live PR target branch (`baseRefName`), which must match the approved base in the Task Issue state. |
+| Protected-base SHA | The live commit SHA of the protected base branch (`baseRefOid` / current protected ref), used for ancestry and exact-base checks; do not copy an older approved SHA from chat. |
+| Exact PR head SHA | The live PR `headRefOid` at the moment of the command. Must be the complete 40-character SHA. CI and every review/merge authorization must match this exact SHA. |
+| Role comment ID | The immutable GitHub Issue comment ID returned by the live API: HANDOFF for protocol coordination, active `REVIEW_VERDICT` for reconcile/merge, and Founder authorization for merge. |
+| Verdict body / verdict file | The complete historical `## REVIEW_VERDICT` body or the live role comment body selected by retained reconciliation/readers. A file path is only transport. Retained readers collect every recognized PR/base/head source before selection and fail closed on duplicate, conflicting, partial, multiline, short-SHA, or malformed evidence. |
+
+Do not infer any supplied value from a chat transcript. Re-read the Task Issue,
+campaign authorization, PR, comments, protected base, and exact head live before
+running a transport.
+
+Examples of accepted bodies:
+- [HANDOFF](handoff-template.md)
+- `REVIEW_VERDICT`: Use a minimal structurally complete canonical template containing all required role-comment fields. Do not describe `result-template.md` as a complete accepted body unless it actually contains all required role-comment fields.
+
+Example canonical `REVIEW_VERDICT` body (all values are fake):
+
+```markdown
+## REVIEW_VERDICT
+
+### Task log
+- Timestamp: `2026-08-01T12:00:00+00:00`
+- Task / Issue: #9999
+- Phase: Reviewer
+- Executing role: Reviewer
+
+**PR / base / head:** https://github.com/fake/repo/pull/9999 · `main` · `1111111111111111111111111111111111111111`
+**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
+**Findings:** Critical: None · Important: None
+**Gates:** exact-head CI pass
+**Next:** Founder review
 ```
 
-This command is restricted to the approved Issue #274 / PR #275 incident. It
-re-reads the live Task state, PR/base/head, protected base, merged policy,
-exact-head `CI` and `CI (starter strict)`, source-comment locations and hashes,
-reviewer identity, original finding contract, correction RESULT evidence, and
-later role evidence. The two raw source comments remain unchanged.
+## Retired review recovery
 
-### Recovery identity contract
-
-The recovery receipt carries three distinct identities:
-
-- `incident_base_sha` is the historical incident binding: PR #275
-  `baseRefOid`, preserved as immutable managed-state/incident lineage. It is
-  history only and is **not** the current policy source.
-- `execution_policy_sha` is the live protected `main` tip used for this
-  trusted recovery transport and for canonical Mission Control policy/guide
-  loading. It is included in the typed receipt and transition identity, and
-  must be re-read and verified immediately before any mutation.
-- `policy_source_sha` remains the separate merged-guide content/blob identity.
-  It does not replace either base commit, and a content/blob SHA must not be
-  treated as the policy execution ref.
-
-`incident_base_sha` and `execution_policy_sha` are independent bindings.
-`incident_base_sha === execution_policy_sha` is neither required nor a
-validation condition. Policy is loaded from `execution_policy_sha` only—not
-from the historical incident base and not from a moving `main` ref after the
-execution SHA has been established.
-
-The body must contain exactly one v2 typed recovery receipt marker pair. Its
-canonical serialized record includes both base bindings and
-`policy_source_sha`; changing either base changes the transition identity. A
-legacy v1 receipt or record with the ambiguous single field
-`protected_base_sha` is rejected fail-closed rather than silently
-reinterpreted.
-
-The body must contain one canonical `REVIEW_VERDICT` plus exactly one typed
-recovery receipt. Recovery consumes the exact `AWAITING_REVIEW_2` `1/1`
-pre-state and projects `ELIGIBLE_FOR_FOUNDER_REVIEW`; resulting counters `2/1`, preserving
-the original Review 1 and correction RESULT lineage. It posts only to the
-Task Issue, uses the repository-wide fenced lease and expected-body CAS, and
-returns `NO_OP` for an identical retry. An uncertain comment POST is resumed
-by matching the same typed receipt; it never creates a duplicate.
-
-Before recovery, review, reconcile, and merge fail closed with
-`NONCANONICAL_ROLE_EVIDENCE` while relevant raw evidence is unaccounted for.
-After recovery, only the matching receipt's exact source IDs and hashes are
-quarantined. Any later, competing, or malformed role evidence remains a
-stop condition. This is the exceptional #274/#275 incident-class transport
-only; it is not a generic recovery API or arbitrary comment-repair transport.
-Do not run it during implementation of another task or against live historical
-artifacts in the hotfix setup.
+The incident-specific `recover-review` transport for Issue #274 / PR #275 was
+deleted in Phase 7. Historical receipt and verdict evidence remains readable by
+retained reconciliation and recovery readers, but no executable command or
+generic comment-repair route remains.
 
 ## Reconcile
 
@@ -337,7 +324,8 @@ pnpm run bemoat:mission-control:adopt-finding
 ```
 
 Recovery does not invoke that command automatically, and it is not a general
-replacement for `reconcile` or `recover-review`.
+replacement for `reconcile`.
+
 
 ### Review-eligibility recovery
 
@@ -358,12 +346,51 @@ Founder gate because the managed review writer is retired. It does not publish
 `REVIEW_VERDICT` evidence or mutate review counters. Recorded PR-base drift
 remains explicit evidence and is never normalized.
 
+### Retained migration commands
+
+Reconciliation uses `pnpm run bemoat:mission-control:reconcile` with
+`[--repo <owner>/<repo>]` and requires an existing valid managed state.
+
+Founder-authorized finding adoption uses:
+
+```text
+pnpm run bemoat:mission-control:adopt-finding
+--repo <owner>/<repo>
+--expected-base <branch>
+--expected-base-sha <full-sha>
+--expected-state <CORRECTION_REQUIRED_1|CORRECTION_REQUIRED_2>
+--expected-reviewed-head <full-sha>
+--expected-adoption-head <full-sha>
+--predecessor-comment <id>
+--authorization-comment <id>
+```
+
+Missing managed-state recovery uses:
+
+```text
+pnpm run bemoat:mission-control:recover-state
+--repo <owner>/<repo>
+--expected-base <branch>
+--expected-base-sha <full-sha>
+--predecessor-comment <id>
+--adoption-authorization-comment <id>
+--implementation-result-comment <id>
+--implementation-review-comment <id>
+--recovery-authorization-comment <id>
+--lineage-correction-authorization-comment <id>
+--correction-result-comment <id>
+--correction-review-comment <id>
+```
+
+Retained reconciliation rejects `NONCANONICAL_ROLE_EVIDENCE`; historical
+review evidence may show resulting counters `2/1` without granting a review
+writer.
+
 ## Review
 
 The managed review writer is retired. No public executable ordinary-review
 command publishes managed `REVIEW_VERDICT` state or increments review counters.
-The incident-specific `recover-review` quarantine remains migration-only and is
-not an ordinary review route. Historical verdicts remain readable only where
+Historical verdicts remain readable only where
 retained Context, reconciliation, or migration evidence requires them. A
 historical `AWAITING_REVIEW_*` projection stops at a Founder gate; do not
 substitute generic comment posting, manual Issue-body edits, recovery commands,

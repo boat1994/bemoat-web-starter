@@ -56,7 +56,6 @@ const EXPECTED_PACKAGE_SCRIPTS: Record<string, string> = {
   'bemoat:mission-control:adopt-finding': 'node scripts/mission-control-adopt-finding.mjs',
   'bemoat:mission-control:authorize-founder': 'node scripts/mission-control-authorize-founder.mjs',
   'bemoat:mission-control:reconcile': 'node scripts/mission-control-reconcile.mjs',
-  'bemoat:mission-control:recover-review': 'node scripts/mission-control-recover-review.mjs',
   'bemoat:mission-control:recover-review-eligibility': 'node scripts/mission-control-recover-review-eligibility.mjs',
   'bemoat:mission-control:recover-state': 'node scripts/mission-control-recover-state.mjs',
   'bemoat:mission-control:reopen': 'node scripts/mission-control-reopen.mjs',
@@ -83,7 +82,6 @@ const EXPECTED_COMMAND_TIERS: Record<string, 'A' | 'B' | 'C'> = {
   'bemoat:issue:comment': 'A',
   'bemoat:mission-control:authorize-founder': 'A',
   'bemoat:mission-control:reconcile': 'A',
-  'bemoat:mission-control:recover-review': 'A',
   'bemoat:mission-control:recover-review-eligibility': 'A',
   'bemoat:mission-control:recover-state': 'A',
   'bemoat:mission-control:reopen': 'A',
@@ -275,10 +273,10 @@ describe('Task 1 command contract registry', () => {
       .sort()
 
     expect(packageCommands).toEqual(Object.keys(EXPECTED_PACKAGE_SCRIPTS).sort())
-    expect(packageCommands).toHaveLength(25)
+    expect(packageCommands).toHaveLength(24)
     expect(registryCommands).toEqual(packageCommands)
     expect(classifiedCommands).toEqual(packageCommands)
-    expect(new Set(classifiedCommands).size).toBe(25)
+    expect(new Set(classifiedCommands).size).toBe(24)
 
     for (const command of packageCommands) {
       expect(getCommandContract(command)).toBe(COMMAND_CONTRACT_REGISTRY.commands[command])
@@ -295,9 +293,9 @@ describe('Task 1 command contract registry', () => {
       counts[expectedTier] += 1
     }
 
-    expect(counts).toEqual({ A: 13, B: 9, C: 3 })
-    expect(Object.keys(EXPECTED_COMMAND_TIERS)).toHaveLength(25)
-    expect(Object.keys(COMMAND_CONTRACT_REGISTRY.commands)).toHaveLength(25)
+    expect(counts).toEqual({ A: 12, B: 9, C: 3 })
+    expect(Object.keys(EXPECTED_COMMAND_TIERS)).toHaveLength(24)
+    expect(Object.keys(COMMAND_CONTRACT_REGISTRY.commands)).toHaveLength(24)
     expectRegistryValid()
   })
 
@@ -441,7 +439,7 @@ describe('Task 1 command contract registry', () => {
   })
 
   it('matches every canonical transport role and exceptional bit', () => {
-    expect(CANONICAL_TRANSPORTS).toHaveLength(7)
+    expect(CANONICAL_TRANSPORTS).toHaveLength(6)
 
     for (const transport of CANONICAL_TRANSPORTS) {
       const contract = asRecord(getCommandContract(transport.command), transport.command)
@@ -521,82 +519,6 @@ describe('Task 1 command contract registry', () => {
     expect(SYNC_MANIFEST.managedPaths).toEqual(managedPaths)
     expect(SYNC_MANIFEST.managedPackageScripts).toEqual(managedPackageScripts)
     expectRegistryValid()
-  })
-
-  it('matches unchanged parser input boundaries and transition-gate compatibility', () => {
-    const recovery = asRecord(
-      getCommandContract('bemoat:mission-control:recover-review'),
-      'recover-review',
-    )
-    expect((recovery.required_inputs as JsonRecord[]).map((input) => input.name)).toEqual([
-      'issue_number',
-      'repository',
-      'expected_pr',
-      'expected_base',
-      'expected_state',
-      'expected_head',
-      'expected_review_cycle',
-      'expected_full_review_count',
-      'review_type',
-      'issue_source_comment',
-      'pr_source_comment',
-      'original_review_comment',
-      'correction_result_comment',
-      'body_file',
-    ])
-    expect(recovery.optional_flags).toEqual([])
-    expect((recovery.required_inputs as JsonRecord[]).every(
-      (input) => input.kind !== 'stdin' && input.required === true,
-    )).toBe(true)
-
-    const bootstrap = asRecord(
-      getCommandContract('bemoat:mission-control:task-bootstrap'),
-      'task-bootstrap',
-    )
-    const runId = (bootstrap.optional_flags as JsonRecord[]).find(
-      (input) => input.name === 'GITHUB_RUN_ID',
-    )
-    expect(runId).toMatchObject({
-      kind: 'environment',
-      value_type: 'positive_integer',
-      required: false,
-      source: 'trusted_derived',
-    })
-
-    const sync = asRecord(getCommandContract('bemoat:boilerplate:sync'), 'boilerplate:sync')
-    const syncInputs = sync.optional_flags as JsonRecord[]
-    expect(syncInputs.find((input) => input.name === 'skip_mc_transition_gate')).toMatchObject({
-      kind: 'flag',
-      syntax: '--skip-mc-transition-gate',
-      source: 'caller',
-    })
-    expect(syncInputs.find(
-      (input) => input.name === 'BEMOAT_SKIP_MC_TRANSITION_CHILD_SYNC_GATE',
-    )).toMatchObject({
-      kind: 'environment',
-      values: ['1'],
-      source: 'trusted_derived',
-    })
-    expect(syncInputs.find((input) => input.name === 'require_mc_transition_gate')).toMatchObject({
-      kind: 'flag',
-      syntax: '--require-mc-transition-gate',
-      source: 'caller',
-    })
-
-    for (const name of [
-      'BEMOAT_REQUIRE_MC_TRANSITION_CHILD_SYNC_GATE',
-      'BEMOAT_CHILD_SYNC_182_MERGED',
-      'BEMOAT_CHILD_SYNC_184_MERGED',
-      'BEMOAT_CHILD_SYNC_LIVE_RECONSTRUCTED',
-      'BEMOAT_CHILD_SYNC_FRESH_HANDOFF',
-    ]) {
-      expect(syncInputs.find((input) => input.name === name), name).toMatchObject({
-        kind: 'environment',
-        required: false,
-        values: ['1'],
-        source: 'trusted_derived',
-      })
-    }
   })
 
   it('maps every emitted legacy outcome for task bootstrap', () => {

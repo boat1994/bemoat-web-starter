@@ -39,13 +39,6 @@ export type AssertTransportRouteOptions = {
 
 export const CANONICAL_TRANSPORTS: ReadonlyArray<Readonly<CanonicalTransportRoute>> = Object.freeze([
   Object.freeze({
-    command: 'bemoat:mission-control:recover-review',
-    role: 'REVIEW_VERDICT',
-    owner: 'Mission Control Recovery Transport',
-    purpose: 'MIGRATION-ONLY HISTORICAL: quarantine the exact approved #274/#275 raw-review incident and project its proven Review 2 result',
-    exceptional: true,
-  }),
-  Object.freeze({
     command: 'bemoat:mission-control:reconcile',
     role: 'STATE_PROJECTION',
     owner: 'State Reconciler',

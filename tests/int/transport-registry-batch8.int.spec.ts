@@ -7,7 +7,6 @@ import {
 } from '../../scripts/mission-control/transport-registry.mjs'
 
 const EXPECTED_TRANSPORT_COMMANDS = [
-  'bemoat:mission-control:recover-review',
   'bemoat:mission-control:reconcile',
   'bemoat:mission-control:reopen',
   'bemoat:mission-control:adopt-finding',
@@ -17,7 +16,6 @@ const EXPECTED_TRANSPORT_COMMANDS = [
 ] as const
 
 const EXPECTED_EXCEPTIONAL_COMMANDS = [
-  'bemoat:mission-control:recover-review',
   'bemoat:mission-control:recover-state',
   'bemoat:mission-control:recover-review-eligibility',
 ] as const
@@ -41,20 +39,10 @@ describe('Batch 8 characterization — transport registry authority leaf', () =>
     expect(exceptional).toEqual([...EXPECTED_EXCEPTIONAL_COMMANDS])
 
     const retainedReviewReaders = CANONICAL_TRANSPORTS.filter((route) => route.role === 'REVIEW_VERDICT')
-    expect(retainedReviewReaders).toHaveLength(1)
-    expect(retainedReviewReaders.map((route) => route.command)).toEqual([
-      'bemoat:mission-control:recover-review',
-    ])
+    expect(retainedReviewReaders).toHaveLength(0)
   })
 
-  it('preserves recover-review quarantine semantics and recover-state exceptional authority', () => {
-    expect(getTransportRoute('bemoat:mission-control:recover-review')).toMatchObject({
-      owner: 'Mission Control Recovery Transport',
-      role: 'REVIEW_VERDICT',
-      exceptional: true,
-      purpose:
-        'MIGRATION-ONLY HISTORICAL: quarantine the exact approved #274/#275 raw-review incident and project its proven Review 2 result',
-    })
+  it('preserves recover-state exceptional authority', () => {
     expect(getTransportRoute('bemoat:mission-control:recover-state')).toMatchObject({
       owner: 'Missing Managed-State Recovery Transport',
       role: 'STATE_PROJECTION',
@@ -91,19 +79,6 @@ describe('Batch 8 characterization — transport registry authority leaf', () =>
     expect(() => assertTransportRoute('bemoat:mission-control:dispatch')).toThrow(
       'STATE_CONFLICT: no canonical Mission Control transport is registered for bemoat:mission-control:dispatch',
     )
-    expect(() =>
-      assertTransportRoute('bemoat:mission-control:recover-review', {
-        role: 'REVIEW_VERDICT',
-        allowExceptional: false,
-      }),
-    ).toThrow(
-      'STATE_CONFLICT: exceptional transport bemoat:mission-control:recover-review is not allowed on the ordinary path',
-    )
   })
 
-  it('assertTransportRoute allows exceptional routes by default and validates matching roles', () => {
-    expect(assertTransportRoute('bemoat:mission-control:recover-review', { role: 'REVIEW_VERDICT' })).toMatchObject({
-      exceptional: true,
-    })
-  })
 })

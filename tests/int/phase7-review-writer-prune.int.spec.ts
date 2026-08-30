@@ -39,10 +39,45 @@ describe('Phase 7 managed review writer deletion boundary', () => {
       'scripts/mission-control/review-verdict-binding.mjs',
       'scripts/mission-control/review-verdict-projection.ts',
       'scripts/mission-control/review-verdict-integration-transition.mjs',
-      'scripts/mission-control/workflows/recover-review.mjs',
     ]) expect(existsSync(resolve(ROOT, path)), path).toBe(true)
 
     expect(scripts['bemoat:context']).toBe('node scripts/agent-context.mjs')
     expect(scripts['bemoat:handoff']).toBe('node scripts/agent-handoff.mjs')
+  })
+
+  it('removes the exceptional recover-review transport cluster while retaining shared recovery readers', () => {
+    const scripts = packageScripts()
+    const routes = [...missionControlPrimaryRoutes(), ...missionControlRecoveryRoutes()]
+
+    expect(scripts['bemoat:mission-control:recover-review']).toBeUndefined()
+    expect(COMMAND_CONTRACT_REGISTRY.commands['bemoat:mission-control:recover-review']).toBeUndefined()
+    expect(ALL_MUTATING_COMMANDS).not.toContain('bemoat:mission-control:recover-review')
+    expect(CANONICAL_TRANSPORTS.map((transport) => transport.command)).not.toContain('bemoat:mission-control:recover-review')
+    expect(routes.flatMap((route) => [route.canonical_command, ...route.prohibited_commands])).not.toContain(
+      'bemoat:mission-control:recover-review',
+    )
+
+    for (const path of [
+      'scripts/mission-control-recover-review.mjs',
+      'scripts/mission-control/workflows/recover-review.mjs',
+      'scripts/mission-control/adapters/recover-review-github.mjs',
+      'tests/int/mission-control-recover-review.int.spec.ts',
+      'tests/int/mission-control-recover-review-github-adapter.int.spec.ts',
+    ]) expect(existsSync(resolve(ROOT, path)), path).toBe(false)
+
+    for (const path of [
+      'scripts/mission-control/domain/review-recovery.mjs',
+      'scripts/mission-control/workflows/reconcile.mjs',
+    ]) expect(existsSync(resolve(ROOT, path)), path).toBe(true)
+
+    expect(readFileSync(resolve(ROOT, 'scripts/mission-control/workflows/reconcile.mjs'), 'utf8')).toContain(
+      "from '../domain/review-recovery.mjs'",
+    )
+
+    const retainedReaderSource = readFileSync(resolve(ROOT, 'scripts/mission-control/domain/review-recovery.mjs'), 'utf8')
+    const reconcileSource = readFileSync(resolve(ROOT, 'scripts/mission-control/workflows/reconcile.mjs'), 'utf8')
+    expect(retainedReaderSource).not.toContain('bemoat:mission-control:recover-review')
+    expect(reconcileSource).not.toContain('Use ${rawEvidence.recoveryCommand}')
+    expect(reconcileSource).toContain('FOUNDER_GATE')
   })
 })
