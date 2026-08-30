@@ -259,7 +259,6 @@ describe('mission-control contract guard', () => {
 
     const operationCommands = [
       'bemoat:mission-control:reconcile',
-      'bemoat:mission-control:recover-review',
       'bemoat:mission-control:reopen',
       'bemoat:issue:comment',
     ]

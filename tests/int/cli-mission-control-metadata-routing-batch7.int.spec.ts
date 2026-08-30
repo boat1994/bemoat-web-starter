@@ -18,7 +18,6 @@ const EXPECTED_ALL_MUTATING_COMMANDS = [
   'bemoat:mission-control:adopt-finding',
   'bemoat:mission-control:authorize-founder',
   'bemoat:mission-control:reconcile',
-  'bemoat:mission-control:recover-review',
   'bemoat:mission-control:recover-state',
   'bemoat:mission-control:recover-review-eligibility',
   'bemoat:mission-control:reopen',
@@ -28,7 +27,6 @@ const EXPECTED_ALL_MUTATING_COMMANDS = [
 const EXPECTED_PRIMARY_COMMANDS = [
   'bemoat:mission-control:authorize-founder',
   'bemoat:mission-control:reconcile',
-  'bemoat:mission-control:recover-review',
 ] as const
 
 const EXPECTED_RECOVERY_COMMANDS = [
@@ -64,7 +62,6 @@ const EXPECTED_RECOVERY_ROUTE_KEYS = [
   'ELIGIBLE_FOR_FOUNDER_REVIEW/complete-founder-old-new-head-reopen-tuple',
   'ANY_STATE/unauthorized-head-drift',
   'ANY_STATE/proven-routing-only-projection-drift',
-  'ANY_STATE/exact-quarantined-274-275-incident-tuple',
   'ANY_STATE/absent-managed-state-unique-reconstruction',
   'ANY_STATE/absent-managed-state-review-eligibility-reconstruction',
   'DONE/exact-identical-merge-completion-retry',
@@ -114,7 +111,7 @@ describe('Batch 7 characterization — CLI command metadata and routing policy l
       ...EXPECTED_RECOVERY_ROUTE_KEYS,
     ])
     expect(missionControlPrimaryRoutes()).toHaveLength(14)
-    expect(missionControlRecoveryRoutes()).toHaveLength(16)
+    expect(missionControlRecoveryRoutes()).toHaveLength(15)
   })
 
   it('expands prohibited_commands from ALL_MUTATING_COMMANDS for founder-gate routes', () => {
@@ -159,14 +156,10 @@ describe('Batch 7 characterization — CLI command metadata and routing policy l
     ]))
   })
 
-  it('preserves Class C recover-review and Class D recover-state metadata bindings', () => {
+  it('preserves Class D recover-state metadata bindings', () => {
     const deps = metadataDependencies()
-    const primary = missionControlPrimaryCommands(deps)
     const recovery = missionControlRecoveryCommands(deps)
 
-    expect(primary['bemoat:mission-control:recover-review'].parser_owner).toBe(
-      'scripts/mission-control/workflows/recover-review.mjs',
-    )
     expect(recovery['bemoat:mission-control:recover-state'].accepted_pre_states).toEqual([
       'MANAGED_STATE_BLOCK_ABSENT',
     ])

@@ -6,24 +6,6 @@ const REQUIRED_RECONCILE_ARGS = [
   '[--repo <owner>/<repo>]'
 ]
 
-const REQUIRED_RECOVERY_ARGS = [
-  'pnpm run bemoat:mission-control:recover-review',
-  '-- 274',
-  '--repo boat1994/bemoat-web-starter',
-  '--expected-pr 275',
-  '--expected-base main',
-  '--expected-state AWAITING_REVIEW_2',
-  '--expected-head <full-40-character-sha>',
-  '--expected-review-cycle 1',
-  '--expected-full-review-count 1',
-  '--review-type delta',
-  '--issue-source-comment 5187836238',
-  '--pr-source-comment 5187837555',
-  '--original-review-comment <immutable-comment-id>',
-  '--correction-result-comment <immutable-comment-id>',
-  '--body-file <canonical-recovery-verdict.md>',
-]
-
 const REQUIRED_ADOPT_FINDING_ARGS = [
   'pnpm run bemoat:mission-control:adopt-finding',
   '-- <issue-number>',
@@ -73,12 +55,6 @@ export function scanCommandReferenceContent(relativePath, content) {
     }
   }
 
-  for (const arg of REQUIRED_RECOVERY_ARGS) {
-    if (!content.includes(arg)) {
-      violations.push(violation('MC029', relativePath, `Command reference missing review-recovery arg: ${arg}`))
-    }
-  }
-
   for (const arg of REQUIRED_ADOPT_FINDING_ARGS) {
     if (!content.includes(arg)) {
       violations.push(violation('MC030', relativePath, `Command reference missing adopt-finding arg: ${arg}`))
@@ -97,7 +73,6 @@ export function scanCommandReferenceContent(relativePath, content) {
     '| `reconcile` |',
     '| `adopt-finding` |',
     '| `recover-state` |',
-    '| `recover-review` |',
   ]
 
   for (const phrase of expectedTableHeaders) {
@@ -119,7 +94,6 @@ export function scanCommandReferenceContent(relativePath, content) {
     'Do not edit the immutable authorization comment.',
     '### Review checks',
     '### Reconcile checks',
-    '## Review recovery',
     'scripts/mission-control/transport-registry.mjs',
     'NONCANONICAL_ROLE_EVIDENCE',
     'resulting counters `2/1`',

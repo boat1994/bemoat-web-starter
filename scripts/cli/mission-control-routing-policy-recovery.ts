@@ -105,19 +105,6 @@ export function missionControlRecoveryRoutes() {
     decision: 'COMMAND',
   }),
   route({
-    route_key: 'ANY_STATE/exact-quarantined-274-275-incident-tuple',
-    observed_state: null,
-    evidence_case: 'exact-quarantined-274-275-incident-tuple',
-    required_evidence_condition: 'The exact pinned #274/#275 incident tuple and quarantined raw-review evidence are complete.',
-    forbidden_evidence_condition: 'Any ordinary review tuple or mismatch in the pinned incident identity.',
-    permitted_operation: 'Run exceptional recovery only.',
-    canonical_command: 'bemoat:mission-control:recover-review',
-    required_review_type: 'delta',
-    expected_post_state_or_gate: 'AWAITING_REVIEW_2 projection from quarantined evidence',
-    prohibited_commands: [],
-    decision: 'COMMAND',
-  }),
-  route({
     route_key: 'ANY_STATE/absent-managed-state-unique-reconstruction',
     observed_state: null,
     evidence_case: 'absent-managed-state-unique-reconstruction',
@@ -129,7 +116,6 @@ export function missionControlRecoveryRoutes() {
     expected_post_state_or_gate: 'Trusted-derived historical managed state with finding adoption still pending.',
     prohibited_commands: [
       'bemoat:mission-control:reconcile',
-      'bemoat:mission-control:recover-review',
       'bemoat:mission-control:adopt-finding',
     ],
     decision: 'COMMAND',

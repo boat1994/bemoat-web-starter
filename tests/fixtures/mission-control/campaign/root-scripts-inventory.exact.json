@@ -18,7 +18,6 @@
   "scripts/mission-control-authorize-founder.mjs",
   "scripts/mission-control-reconcile.mjs",
   "scripts/mission-control-recover-review-eligibility.mjs",
-  "scripts/mission-control-recover-review.mjs",
   "scripts/mission-control-recover-state.mjs",
   "scripts/mission-control-reopen.mjs",
   "scripts/mission-control-task-create.mjs",

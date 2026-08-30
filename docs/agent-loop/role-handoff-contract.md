@@ -240,11 +240,12 @@ Separate evidence clearly in every `RESULT` and `REVIEW_VERDICT`:
 
 Do not present local-only evidence as GitHub-verified. Do not infer founder approval from CI green or a reviewer `ELIGIBLE FOR FOUNDER REVIEW`.
 
-## Pinned review-recovery receipt contract
+## Pinned review-recovery receipt contract (historical, non-executable)
 
-The exceptional `bemoat:mission-control:recover-review` route uses the
-existing `## REVIEW_VERDICT` comment shape and a typed v2 receipt. It is
-restricted to the approved #274/#275 incident class; this section does not
+Historical review-recovery receipts use the existing `## REVIEW_VERDICT`
+comment shape and a typed v2 receipt. They are restricted to the approved
+#274/#275 incident class and are read-only migration evidence; the former
+recover-review transport is retired and non-executable. This section does not
 create a new comment type or a generic recovery API.
 
 The receipt has three non-interchangeable identities:

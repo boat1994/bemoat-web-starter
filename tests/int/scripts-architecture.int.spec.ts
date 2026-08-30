@@ -50,7 +50,6 @@ describe('scripts architecture ratchet', () => {
     const adapterRoot = join(process.cwd(), 'scripts/mission-control/adapters')
     const adapters = [
       'merge-github.mjs',
-      'recover-review-github.mjs',
       'recover-state-github.mjs',
       'reopen-github.mjs',
     ]

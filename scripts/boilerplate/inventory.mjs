@@ -29,7 +29,7 @@ export const managedPaths = [
   'scripts/agent-issue', 'scripts/agent-context.mjs', 'scripts/agent-context-sync-base.mjs', 'scripts/context', 'scripts/agent-handoff.mjs', 'scripts/handoff',
   'scripts/mission-control-reconcile.mjs', 'scripts/mission-control-task-create.mjs', 'scripts/mission-control-authorize-founder.mjs',
   'scripts/adapters/command-runner.mjs',
-  'scripts/mission-control-recover-review.mjs', 'scripts/mission-control-reopen.mjs',
+  'scripts/mission-control-reopen.mjs',
   'scripts/mission-control-adopt-finding.mjs', 'scripts/mission-control-recover-state.mjs', 'scripts/mission-control-recover-review-eligibility.mjs',
   'scripts/mission-control/workflows/issue-body-cas.mjs', 'scripts/post-role-comment.mjs',
   'scripts/cli',
@@ -105,7 +105,6 @@ export const managedPaths = [
   'tests/int/scripts-architecture.int.spec.ts', 'tests/int/campaign-schema.int.spec.ts', 'tests/int/campaign-normalize.int.spec.ts', 'tests/int/campaign-equality.int.spec.ts',
   'tests/int/scripts-entrypoints-contract.int.spec.ts',
   'tests/int/mission-control-merge-authorization-recording.int.spec.ts', 'tests/int/mission-control-merge-github-adapter.int.spec.ts', 'tests/int/mission-control-issue-body-cas.int.spec.ts',
-  'tests/int/mission-control-recover-review.int.spec.ts', 'tests/int/mission-control-recover-review-github-adapter.int.spec.ts',
   'tests/int/mission-control-reopen.int.spec.ts', 'tests/int/mission-control-reopen-github-adapter.int.spec.ts',
   'tests/int/active-correction-contract.int.spec.ts',
   'tests/int/mission-control-adopt-finding.int.spec.ts', 'tests/int/mission-control-adopt-finding-github-adapter.int.spec.ts', 'tests/int/mission-control-adopt-finding-rendering.int.spec.ts',
@@ -137,7 +136,7 @@ export const packageSyncProposalPath = '.bemoat/package-sync-proposal.md'
 /** Namespaced scripts safe to add when missing during sync. Never overwrite existing entries. */
 export const managedPackageScripts = [
   'bemoat:agent:issue', 'bemoat:context', 'bemoat:context:sync-base', 'bemoat:handoff', 'bemoat:mission-control:task-bootstrap',
-  'bemoat:mission-control:recover-review', 'bemoat:mission-control:reopen',
+  'bemoat:mission-control:reopen',
   'bemoat:mission-control:adopt-finding', 'bemoat:mission-control:recover-state', 'bemoat:mission-control:recover-review-eligibility', 'bemoat:mission-control:authorize-founder',
   'bemoat:issue:comment',
   'bemoat:branch:check', 'bemoat:guard:safety', 'bemoat:guard:pack',

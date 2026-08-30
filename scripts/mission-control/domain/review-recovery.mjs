@@ -15,7 +15,6 @@ import { createHash } from 'node:crypto'
  */
 export const RECOVERY_SCHEMA_VERSION = 2
 export const RECOVERY_RECORD_KIND = 'review_recovery'
-export const RECOVERY_COMMAND = 'bemoat:mission-control:recover-review'
 export const RECOVERY_SOURCE_COMMENT_IDS = Object.freeze({
   taskIssue: '5187836238',
   prConversation: '5187837555',
@@ -401,7 +400,6 @@ export function detectUnaccountedReviewEvidence({
         ok: false,
         code: 'STATE_CONFLICT',
         reason: `invalid recovery receipt on comment ${commentId(comment)}`,
-        recoveryCommand: RECOVERY_COMMAND,
       }
     }
   }
@@ -410,7 +408,6 @@ export function detectUnaccountedReviewEvidence({
       ok: false,
       code: 'STATE_CONFLICT',
       reason: 'multiple canonical review recovery receipts exist',
-      recoveryCommand: RECOVERY_COMMAND,
     }
   }
 
@@ -465,7 +462,6 @@ export function detectUnaccountedReviewEvidence({
       code: 'NONCANONICAL_ROLE_EVIDENCE',
       reason: 'relevant REVIEW_VERDICT evidence is not projected or quarantined',
       unaccounted,
-      recoveryCommand: RECOVERY_COMMAND,
     }
   }
   if (receipt && (receipt.repository !== repository || receipt.task_issue !== Number(taskIssue) || receipt.pr !== Number(activePr))) {
@@ -473,7 +469,6 @@ export function detectUnaccountedReviewEvidence({
       ok: false,
       code: 'STATE_CONFLICT',
       reason: 'recovery receipt is not bound to the active repository, Task Issue, and PR',
-      recoveryCommand: RECOVERY_COMMAND,
     }
   }
   return {
@@ -482,4 +477,3 @@ export function detectUnaccountedReviewEvidence({
     recoveryReceipt: receipt,
   }
 }
-

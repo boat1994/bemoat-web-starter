@@ -90,7 +90,7 @@ async function runProductionReviewVerdictReconciliation(options, createCoordinat
       prComments,
     })
     if (!rawEvidence.ok) {
-      throw new Error(`${rawEvidence.code}: ${rawEvidence.reason}. Use ${rawEvidence.recoveryCommand}.`)
+      throw new Error(`${rawEvidence.code}: ${rawEvidence.reason}. FOUNDER_GATE — retained incident evidence is historical; the recovery transport is retired and non-executable.`)
     }
   }
   const verdictComment = selectLiveReviewVerdictComment({
@@ -219,7 +219,7 @@ export async function runProductionBoundedReconciliation({ createCoordinator, ge
         prComments,
       })
       if (!rawEvidence.ok) {
-        throw new Error(`${rawEvidence.code}: ${rawEvidence.reason}. Use ${rawEvidence.recoveryCommand}.`)
+        throw new Error(`${rawEvidence.code}: ${rawEvidence.reason}. FOUNDER_GATE — retained incident evidence is historical; the recovery transport is retired and non-executable.`)
       }
     }
     const analysis = analyzeProgressTracking({
