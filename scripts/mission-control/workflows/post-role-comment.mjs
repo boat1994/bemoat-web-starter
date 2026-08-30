@@ -1,6 +1,7 @@
 import { isCorrectionPhaseResult, validateCorrectionRoleComment } from '../domain/correction-contract.ts'
 import { resolveAuthoritativeCorrectionContract } from '../domain/active-correction-contract.ts'
-import { classifyReviewVerdictBindingEvidence, findMatchingComments, normalizeIssueComments, parsePaginatedGhApiJson, parseRoleCommentBody, resolveProductionCommentTrust, verifyPostedCommentReadback } from '../review-verdict-binding.mjs'
+import { classifyReviewVerdictBindingEvidence, parseRoleCommentBody } from '../review-verdict-binding.mjs'
+import { findMatchingComments, normalizeIssueComments, parsePaginatedGhApiJson, resolveProductionCommentTrust, verifyPostedCommentReadback } from '../comment-evidence.ts'
 import { findLatestRoleComment } from '../role-comment-selection.mjs'
 import { normalizeTransitionIdentity } from '../transition-identity.mjs'
 import { projectComments, selectAuthoritativeRoleComments } from '../diagnostics/github-comment-projection.mjs'

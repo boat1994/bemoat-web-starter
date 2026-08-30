@@ -185,6 +185,7 @@
     "tests/int/mission-control-task-state-boundary.int.spec.ts",
     "tests/int/mission-control-child-portability.int.spec.ts",
     "tests/int/mission-control-brainstorming.int.spec.ts",
+    "tests/int/mission-control-recovery-deletion.int.spec.ts",
     "tests/int/toolchain-contract.int.spec.ts",
     "tests/int/vitest-process-lock.int.spec.ts",
     "tests/int/starter-acceptance.int.spec.ts",

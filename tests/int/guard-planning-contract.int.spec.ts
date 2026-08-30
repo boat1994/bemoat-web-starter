@@ -533,7 +533,7 @@ esac
       'Found: incompatible Mission Control state',
     )
     expect(mod.formatPlanningContractViolations(result.violations)[0]).toContain(
-      'Reason: recorded state is DONE or conflicts with task issue. Corrective action: Reconcile Mission Control state on issue #170',
+      'Reason: recorded state is DONE or conflicts with task issue. Corrective action: Reconstruct Mission Control state on issue #170',
     )
   })
 

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { readFileSync, writeFileSync, unlinkSync } from 'node:fs'
-import { spawnSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import { runMissionControlContractGuard } from '../../scripts/guards/mission-control-contract/runner.mjs'
 
 describe('Mission Control command reference contract', () => {
@@ -37,31 +36,14 @@ describe('Mission Control command reference contract', () => {
     expect(missingInvariantViolations).toHaveLength(0)
   })
 
-  it('proves the canonical REVIEW_VERDICT example passes the real post-role-comment validation/check path', () => {
+  it('documents that retired REVIEW_VERDICT publishing has no public writer', () => {
     const md = readFileSync('docs/mission-control/command-reference.md', 'utf8')
-    const match = md.match(/```markdown\n(## REVIEW_VERDICT[\s\S]*?)```/)
-    expect(match).not.toBeNull()
-    if (!match?.[1]) {
-      throw new Error('expected REVIEW_VERDICT markdown fence in command-reference.md')
-    }
-
-    writeFileSync('.tmp-test-verdict.md', match[1])
-    const result = spawnSync('node', ['scripts/post-role-comment.mjs', '--', '123', '--body-file', '.tmp-test-verdict.md', '--check'], { encoding: 'utf8' })
-    unlinkSync('.tmp-test-verdict.md')
-    expect(result.status).toBe(0)
+    expect(md).toContain('The managed review writer and custom managed/STANDARD merge wrappers are\nretired.')
+    expect(md).toContain('No public command\npublishes managed `REVIEW_VERDICT` state')
   })
 
-  it('proves removal or corruption of required fields fails', () => {
+  it('keeps retired REVIEW_VERDICT publishing out of the command reference', () => {
     const md = readFileSync('docs/mission-control/command-reference.md', 'utf8')
-    const match = md.match(/```markdown\n(## REVIEW_VERDICT[\s\S]*?)```/)
-    expect(match).not.toBeNull()
-    if (!match?.[1]) {
-      throw new Error('expected REVIEW_VERDICT markdown fence in command-reference.md')
-    }
-    writeFileSync('.tmp-test-verdict-fail.md', match[1].replace('**Verdict:** ELIGIBLE FOR FOUNDER REVIEW', ''))
-    const result = spawnSync('node', ['scripts/post-role-comment.mjs', '--', '123', '--body-file', '.tmp-test-verdict-fail.md', '--check'], { encoding: 'utf8' })
-    unlinkSync('.tmp-test-verdict-fail.md')
-    expect(result.status).toBe(3)
-    expect(result.stderr).toContain('EVIDENCE_CONFLICT')
+    expect(md).not.toMatch(/```markdown\n## REVIEW_VERDICT[\s\S]*?```/)
   })
 })
