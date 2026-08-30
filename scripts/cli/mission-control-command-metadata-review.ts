@@ -81,64 +81,6 @@ export function missionControlReviewCommands(dependencies: CommandMetadataDepend
     },
   }),
 
-  'bemoat:mission-control:review': contract({
-    command: 'bemoat:mission-control:review',
-    tier: 'A',
-    entrypoint: 'scripts/mission-control-review.mjs',
-    purpose: 'MIGRATION-ONLY HISTORICAL: Publish one ordinary Full or Delta Review verdict.',
-    operation: 'MIGRATION-ONLY HISTORICAL: Validate review evidence and project a leased/CAS REVIEW_VERDICT transition.',
-    accepted_pre_states: ['AWAITING_REVIEW_1', 'AWAITING_REVIEW_2', 'AWAITING_REVIEW_3'],
-    required_inputs: [
-      positional('issue_number', '<issue-number>', 'positive_integer', 'Managed Task Issue number.'),
-      flag('body_file', '--body-file <path>', 'path', 'Read the review body from this file.', [], true),
-      flag('expected_state', '--expected-state <state>', 'enum', 'Expected managed review state.', ['AWAITING_REVIEW_1', 'AWAITING_REVIEW_2', 'AWAITING_REVIEW_3'], true),
-      flag('review_type', '--review-type <type>', 'enum', 'Full or Delta review.', ['full', 'delta'], true),
-      flag('expected_head', '--expected-head <full-sha>', 'full_sha', 'Exact reviewed PR head.', [], true),
-    ],
-    optional_flags: [
-      flag('repository', '--repo <owner/repository>', 'repository', 'Repository containing the Task Issue.'),
-    ],
-    trusted_derived_values: ['reviewer identity', 'live Task/PR/comment/check evidence', 'lease/CAS holder identity'],
-    required_evidence: [
-      'Canonical verdict body and review type.',
-      'Exact PR/base/head/check evidence.',
-      'Current managed state and review counters.',
-    ],
-    reads: ['verdict body', 'Task/PR/comments/checks'],
-    writes: ['REVIEW_VERDICT comment', 'leased/CAS Issue state and counters'],
-    success_classifications: ['SUCCESS', 'NO_OP_IDENTICAL_RETRY'],
-    retry_contract: {
-      identical_retry: 'conditional',
-      classification: 'NO_OP_IDENTICAL_RETRY',
-      condition: 'An identical retry is allowed only when the same review identity and exact head are already projected.',
-    },
-    next_action_rules: [
-      {
-        classification: 'SUCCESS',
-        next_action: nextAction('FOUNDER_GATE', null, 'The historical stateful dispatch transport was retired; stop before continuing this migration-only route.'),
-      },
-      {
-        classification: 'NO_OP_IDENTICAL_RETRY',
-        next_action: nextAction('COMPLETE', null, 'The identical review verdict is already durable.'),
-      },
-    ],
-    examples: [
-      {
-        description: 'Publish a full review verdict.',
-        argv: ['284', '--body-file', './review.md', '--expected-state', 'AWAITING_REVIEW_1', '--review-type', 'full', '--expected-head', '<full-sha>'],
-      },
-    ],
-    parser_owner: 'scripts/mission-control-review.mjs',
-    safe_help_invocation: 'pnpm run bemoat:mission-control:review -- --help --json',
-    last_validation_before_mutation: 'Re-read the verdict, current state/counters, exact PR head, and live comment evidence immediately before the lease/CAS write.',
-    post_write_readback: 'Re-read the REVIEW_VERDICT comment and managed state and confirm the exact review identity, counters, and resulting state.',
-    legacy_classification_map: {
-      REVIEWED: 'SUCCESS',
-      RECOVERABLE_ROUTING_DRIFT: 'AMBIGUOUS_RESULT',
-      NO_OP: 'NO_OP_IDENTICAL_RETRY',
-    },
-  }),
-
   'bemoat:mission-control:task-bootstrap': contract({
     command: 'bemoat:mission-control:task-bootstrap',
     tier: 'A',

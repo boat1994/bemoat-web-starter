@@ -23,7 +23,6 @@
   "scripts/mission-control-recover-review.mjs",
   "scripts/mission-control-recover-state.mjs",
   "scripts/mission-control-reopen.mjs",
-  "scripts/mission-control-review.mjs",
   "scripts/mission-control-task-create.mjs",
   "scripts/post-role-comment.mjs",
   "scripts/sync-boilerplate.mjs"

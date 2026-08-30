@@ -216,9 +216,9 @@ function makeResultEnvelope() {
       exact_head: FULL_LOWERCASE_SHA,
     },
     next_action: {
-      type: 'COMMAND',
-      command: 'bemoat:mission-control:review',
-      reason: 'The delivered head is ready for the registered review route.',
+      type: 'FOUNDER_GATE',
+      command: null,
+      reason: 'The managed review writer is retired.',
     },
     details: {
       legacy_classification: 'DELIVERED',

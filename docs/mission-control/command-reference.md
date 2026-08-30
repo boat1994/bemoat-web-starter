@@ -383,48 +383,21 @@ pnpm run bemoat:mission-control:recover-review-eligibility -- <issue-number> \\
   --result-comment <id> [--check]
 ```
 
-The route appends only `AWAITING_REVIEW_1` with counters `0/0`; ordinary
-`review` remains the sole owner of future `REVIEW_VERDICT` publication and
-review-counter mutation. Recorded PR-base drift remains explicit evidence and
-is never normalized.
+The route appends only `AWAITING_REVIEW_1` with counters `0/0`, then stops at a
+Founder gate because the managed review writer is retired. It does not publish
+`REVIEW_VERDICT` evidence or mutate review counters. Recorded PR-base drift
+remains explicit evidence and is never normalized.
 
 ## Review
 
-Exact syntax:
-
-```text
-pnpm run bemoat:mission-control:review -- <issue-number> --body-file <verdict-file> --expected-state <state> --review-type <full|delta> --expected-head <exact-pr-head-sha> [--repo <owner>/<repo>]
-```
-
-Positional arguments and flags:
-
-- `<issue-number>` is the positive Task Issue number.
-- `--body-file` is the complete verdict body/file; it must be a valid `## REVIEW_VERDICT`.
-- `--expected-state` is the live managed-state value expected before the review write. Obtain this by running `gh issue view <n>` and inspecting the YAML block.
-- `--review-type` is exactly `full` or `delta`. `full` maps to a normal Full Review 1 cycle (requiring the initial review-cycle state). `delta` maps to a bounded Delta Review (requiring an existing review cycle).
-- `--expected-head` is the exact live PR head SHA being reviewed. Must be a complete 40-character live `headRefOid`.
-- `--repo` is optional `owner/repo`.
-
-Preconditions and sources: read the live Task Issue state, active PR, base
-branch, exact head, and CI before creating the verdict file. The verdict body
-must itself identify the live PR, base, exact head, and Core verdict enum; the file path is only transport, not the verdict evidence itself. `full` requires the initial review-cycle state;
-`delta` requires an existing review cycle. The command posts the role comment,
-then performs CAS/readback verification against the live Issue and PR.
-
-Fetch PR head: `gh pr view 456 --json headRefOid`
-
-Structurally valid fake example:
-
-```text
-pnpm run bemoat:mission-control:review -- 123 --body-file .tmp/verdict.md --expected-state AWAITING_REVIEW_1 --review-type full --expected-head 8888888888888888888888888888888888888888 --repo user/repo
-```
-
-Missing required flags, a malformed verdict, stale state, wrong review type,
-or any PR/base/head mismatch fails closed as `STATE_CONFLICT`. Unavailable
-GitHub or CI evidence is `BLOCKED_EXTERNAL`. Note that GitHub evidence that cannot be read is `BLOCKED_EXTERNAL`, while CI that is present but not verified is treated as a runtime validation failure (e.g., `STATE_CONFLICT` during review). Exact-head CI must match the
-current PR head, not merely an earlier reviewed commit. Do not use a manually
-edited Issue body, direct `gh issue edit`, manual YAML, or an ad hoc verdict
-script as a substitute.
+The managed review writer is retired. No public executable ordinary-review
+command publishes managed `REVIEW_VERDICT` state or increments review counters.
+The incident-specific `recover-review` quarantine remains migration-only and is
+not an ordinary review route. Historical verdicts remain readable only where
+retained Context, merge, reconciliation, or migration evidence requires them. A
+historical `AWAITING_REVIEW_*` projection stops at a Founder gate; do not
+substitute generic comment posting, manual Issue-body edits, recovery commands,
+or a replacement transport.
 
 ## Merge
 

@@ -96,16 +96,10 @@ authorized action. A ratification, implementation-only decision, ambiguous or
 fabricated comment, superseded decision, scope mismatch, or non-merge action is
 not merge authority.
 
-Reviewer completion uses the repository-owned atomic facade, not the generic
-comment transport:
-
-```bash
-pnpm run bemoat:mission-control:review -- <issue-number> --body-file <verdict.md> \
-  --expected-state <state> --review-type <full|delta> --expected-head <sha>
-```
-
-`bemoat:issue:comment` remains a validation/posting primitive and does not
-project managed state.
+The managed review writer is retired. Historical `REVIEW_VERDICT` evidence may
+still be read for migration compatibility, but no supported command publishes
+managed review state or mutates review counters. `bemoat:issue:comment` is not
+a replacement review transport and must not be used to project managed state.
 
 A **State Reconciler** may normalize facts that are already proven. It may not
 choose product behavior, expand scope, waive review, or infer missing

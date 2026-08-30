@@ -62,7 +62,6 @@ const EXPECTED_PACKAGE_SCRIPTS: Record<string, string> = {
   'bemoat:mission-control:recover-review-eligibility': 'node scripts/mission-control-recover-review-eligibility.mjs',
   'bemoat:mission-control:recover-state': 'node scripts/mission-control-recover-state.mjs',
   'bemoat:mission-control:reopen': 'node scripts/mission-control-reopen.mjs',
-  'bemoat:mission-control:review': 'node scripts/mission-control-review.mjs',
   'bemoat:mission-control:task-bootstrap': 'node scripts/mission-control-task-create.mjs',
   'bemoat:test:int': 'cross-env NODE_OPTIONS=--no-deprecation vitest run --config ./vitest.config.mts',
   'bemoat:typecheck': 'node scripts/bemoat-typecheck.mjs',
@@ -93,7 +92,6 @@ const EXPECTED_COMMAND_TIERS: Record<string, 'A' | 'B' | 'C'> = {
   'bemoat:mission-control:recover-state': 'A',
   'bemoat:mission-control:reopen': 'A',
   'bemoat:mission-control:adopt-finding': 'A',
-  'bemoat:mission-control:review': 'A',
   'bemoat:mission-control:task-bootstrap': 'A',
   'bemoat:test:int': 'C',
   'bemoat:typecheck': 'C',
@@ -271,7 +269,7 @@ function expectRegistryRejected(
 }
 
 describe('Task 1 command contract registry', () => {
-  it('classifies the exact 30-command package inventory once', () => {
+  it('classifies the exact 27-command package inventory once', () => {
     const packageCommands = Object.keys(PACKAGE_JSON.scripts)
       .filter((command) => command.startsWith('bemoat:'))
       .sort()
@@ -281,10 +279,10 @@ describe('Task 1 command contract registry', () => {
       .sort()
 
     expect(packageCommands).toEqual(Object.keys(EXPECTED_PACKAGE_SCRIPTS).sort())
-    expect(packageCommands).toHaveLength(28)
+    expect(packageCommands).toHaveLength(27)
     expect(registryCommands).toEqual(packageCommands)
     expect(classifiedCommands).toEqual(packageCommands)
-    expect(new Set(classifiedCommands).size).toBe(28)
+    expect(new Set(classifiedCommands).size).toBe(27)
 
     for (const command of packageCommands) {
       expect(getCommandContract(command)).toBe(COMMAND_CONTRACT_REGISTRY.commands[command])
@@ -292,7 +290,7 @@ describe('Task 1 command contract registry', () => {
     expect(getCommandContract('bemoat:unregistered')).toBeNull()
   })
 
-  it('uses tier totals A=16 B=9 C=3', () => {
+  it('uses tier totals A=15 B=9 C=3', () => {
     const counts = { A: 0, B: 0, C: 0 }
 
     for (const [command, expectedTier] of Object.entries(EXPECTED_COMMAND_TIERS)) {
@@ -301,9 +299,9 @@ describe('Task 1 command contract registry', () => {
       counts[expectedTier] += 1
     }
 
-    expect(counts).toEqual({ A: 16, B: 9, C: 3 })
-    expect(Object.keys(EXPECTED_COMMAND_TIERS)).toHaveLength(28)
-    expect(Object.keys(COMMAND_CONTRACT_REGISTRY.commands)).toHaveLength(28)
+    expect(counts).toEqual({ A: 15, B: 9, C: 3 })
+    expect(Object.keys(EXPECTED_COMMAND_TIERS)).toHaveLength(27)
+    expect(Object.keys(COMMAND_CONTRACT_REGISTRY.commands)).toHaveLength(27)
     expectRegistryValid()
   })
 
@@ -447,7 +445,7 @@ describe('Task 1 command contract registry', () => {
   })
 
   it('matches every canonical transport role and exceptional bit', () => {
-    expect(CANONICAL_TRANSPORTS).toHaveLength(10)
+    expect(CANONICAL_TRANSPORTS).toHaveLength(9)
 
     for (const transport of CANONICAL_TRANSPORTS) {
       const contract = asRecord(getCommandContract(transport.command), transport.command)
@@ -562,17 +560,6 @@ describe('Task 1 command contract registry', () => {
     expect((recovery.required_inputs as JsonRecord[]).every(
       (input) => input.kind !== 'stdin' && input.required === true,
     )).toBe(true)
-
-    const review = asRecord(getCommandContract('bemoat:mission-control:review'), 'review')
-    expect((review.required_inputs as JsonRecord[]).map((input) => input.name)).toEqual([
-      'issue_number',
-      'body_file',
-      'expected_state',
-      'review_type',
-      'expected_head',
-    ])
-    expect((review.optional_flags as JsonRecord[]).map((input) => input.name)).toEqual(['repository'])
-    expect((review.required_inputs as JsonRecord[]).some((input) => input.kind === 'stdin')).toBe(false)
 
     const bootstrap = asRecord(
       getCommandContract('bemoat:mission-control:task-bootstrap'),

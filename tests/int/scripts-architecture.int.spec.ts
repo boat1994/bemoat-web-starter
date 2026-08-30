@@ -143,7 +143,7 @@ describe('scripts architecture ratchet', () => {
       cycleEdges: [],
       adapters: {
         'scripts/adapters/command-runner.mjs': {
-          importers: ['scripts/mission-control-review.mjs'],
+          importers: ['scripts/mission-control/adapters/task-bootstrap-github.mjs'],
         },
       },
     })
@@ -163,7 +163,7 @@ describe('scripts architecture ratchet', () => {
       cycleEdges: [],
       adapters: {
         'scripts/adapters/command-runner.mjs': {
-          importers: ['scripts/mission-control-review.mjs'],
+          importers: ['scripts/mission-control/adapters/task-bootstrap-github.mjs'],
         },
       },
     })
@@ -171,7 +171,7 @@ describe('scripts architecture ratchet', () => {
 
     const violations = validateArchitectureContract(root)
     expect(violations).toContain(
-      'Missing expected importer for adapter scripts/adapters/command-runner.mjs: scripts/mission-control-review.mjs',
+      'Missing expected importer for adapter scripts/adapters/command-runner.mjs: scripts/mission-control/adapters/task-bootstrap-github.mjs',
     )
   })
 

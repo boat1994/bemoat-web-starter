@@ -24,7 +24,6 @@ const EXPECTED_ALL_MUTATING_COMMANDS = [
   'bemoat:mission-control:recover-state',
   'bemoat:mission-control:recover-review-eligibility',
   'bemoat:mission-control:reopen',
-  'bemoat:mission-control:review',
   'bemoat:mission-control:task-bootstrap',
 ] as const
 
@@ -44,7 +43,6 @@ const EXPECTED_RECOVERY_COMMANDS = [
 
 const EXPECTED_REVIEW_COMMANDS = [
   'bemoat:mission-control:reopen',
-  'bemoat:mission-control:review',
   'bemoat:mission-control:task-bootstrap',
 ] as const
 
@@ -53,12 +51,11 @@ const EXPECTED_PRIMARY_ROUTE_KEYS = [
   'no-task/exact-task-bootstrap-founder-authorization-workflow-tuple',
   'READY/retired-stateful-dispatch',
   'IN_PROGRESS/retired-delivery-coordinator',
-  'AWAITING_REVIEW_1/exact-full-review-evidence',
+  'AWAITING_REVIEW_1/retired-managed-review-writer',
   'CORRECTION_REQUIRED_1/founder-authorized-finding-adoption',
-  'AWAITING_REVIEW_2/exact-delta-review-evidence',
+  'AWAITING_REVIEW_2/retired-managed-review-writer',
   'CORRECTION_REQUIRED_2/founder-authorized-finding-adoption',
-  'AWAITING_REVIEW_3/exact-bounded-delta-review-evidence',
-  'AWAITING_REVIEW_3/exact-blocker-verification-evidence',
+  'AWAITING_REVIEW_3/retired-managed-review-writer',
   'FOUNDER_AUTHORIZED_CORRECTION/unconsumed-exact-authorization',
   'ELIGIBLE_FOR_FOUNDER_REVIEW/exact-merge-authorization-recording',
   'BLOCKED_FOR_FOUNDER_DECISION/missing-named-authorization',
@@ -120,13 +117,13 @@ describe('Batch 7 characterization — CLI command metadata and routing policy l
     expect(missionControlRecoveryRoutes().map((route: any) => route.route_key)).toEqual([
       ...EXPECTED_RECOVERY_ROUTE_KEYS,
     ])
-    expect(missionControlPrimaryRoutes()).toHaveLength(15)
+    expect(missionControlPrimaryRoutes()).toHaveLength(14)
     expect(missionControlRecoveryRoutes()).toHaveLength(16)
   })
 
   it('expands prohibited_commands from ALL_MUTATING_COMMANDS for founder-gate routes', () => {
     const founderGateRoutes = missionControlPrimaryRoutes().filter((route: any) => route.decision === 'FOUNDER_GATE')
-    expect(founderGateRoutes).toHaveLength(5)
+    expect(founderGateRoutes).toHaveLength(8)
     for (const route of founderGateRoutes) {
       expect(route.prohibited_commands).toEqual([...ALL_MUTATING_COMMANDS])
     }

@@ -288,7 +288,6 @@ export const REQUIRED_CLI_PROMPT_GUIDE_PHRASES = [
   'precise reason for every raw mutation exception',
   'CLI_DISCOVERY_DEFECT',
   'Purely conversational Founder decisions',
-  'bemoat:mission-control:review',
   'bemoat:mission-control:reconcile',
   'bemoat:mission-control:recover-review',
   'bemoat:mission-control:recover-state',

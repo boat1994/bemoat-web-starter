@@ -895,8 +895,6 @@ exit 0
   })
 })
 
-const CANONICAL_FULL_UPPERCASE_SHA = 'ABCDEF0123456789ABCDEF0123456789ABCDEF01'
-const CANONICAL_FULL_LOWERCASE_SHA = CANONICAL_FULL_UPPERCASE_SHA.toLowerCase()
 const CANONICAL_REPOSITORY = 'boat1994/bemoat-web-starter'
 const CANONICAL_UPPERCASE_REPOSITORY = 'BOAT1994/BEMOAT-WEB-STARTER'
 
@@ -921,19 +919,6 @@ const _CANONICAL_HANDOFF_BODY = `## HANDOFF
 **Objective:** Implement the bounded change.
 **Links:** Issue #284
 **Next:** Dev posts RESULT
-`
-
-const CANONICAL_REVIEW_BODY = `## REVIEW_VERDICT
-### Task log
-- Timestamp: 2026-08-06T00:00:00+00:00
-- Task / Issue: #284
-- Phase: Reviewer
-- Executing role: Reviewer
-**PR / base / head:** PR #285 · \`main\` · \`${CANONICAL_FULL_UPPERCASE_SHA}\`
-**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
-**Findings:** Critical: None · Important: None
-**Gates:** exact-head CI pass
-**Next:** Founder merge authorization
 `
 
 type CanonicalTransportCase = TierACase & {
@@ -975,52 +960,6 @@ const CANONICAL_TRANSPORT_CASES: readonly CanonicalTransportCase[] = [
     expectedExit: 0,
     expectedPrNumber: null,
     expectedExactHead: null,
-  },
-  {
-    label: 'ordinary review',
-    command: 'bemoat:mission-control:review',
-    entrypoint: 'scripts/mission-control-review.mjs',
-    bodyFile: 'review.md',
-    body: CANONICAL_REVIEW_BODY,
-    registryArgs: [
-      '284',
-      '--body-file',
-      './review.md',
-      '--expected-state',
-      'AWAITING_REVIEW_1',
-      '--review-type',
-      'full',
-      '--expected-head',
-      CANONICAL_FULL_UPPERCASE_SHA,
-    ],
-    resultArgs: [
-      '284',
-      '--repo',
-      CANONICAL_UPPERCASE_REPOSITORY,
-      '--body-file',
-      './review.md',
-      '--expected-state',
-      'AWAITING_REVIEW_1',
-      '--review-type',
-      'full',
-      '--expected-head',
-      CANONICAL_FULL_UPPERCASE_SHA,
-    ],
-    expectedClassification: 'BLOCKED_EXTERNAL',
-    expectedExit: 3,
-    expectedPrNumber: '285',
-    expectedExactHead: CANONICAL_FULL_LOWERCASE_SHA,
-    invalidAuthorityArgs: [
-      '284',
-      '--body-file',
-      './review.md',
-      '--expected-state',
-      'AWAITING_REVIEW_1',
-      '--review-type',
-      'full',
-      '--expected-head',
-      'abc1234',
-    ],
   },
 ]
 

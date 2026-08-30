@@ -31,7 +31,6 @@ export type CanonicalTransportRoute = {
   owner: string
   purpose: string
   exceptional: boolean
-  ordinary_owner?: string
 }
 
 export type AssertTransportRouteOptions = {
@@ -41,17 +40,9 @@ export type AssertTransportRouteOptions = {
 
 export const CANONICAL_TRANSPORTS: ReadonlyArray<Readonly<CanonicalTransportRoute>> = Object.freeze([
   Object.freeze({
-    command: 'bemoat:mission-control:review',
-    role: 'REVIEW_VERDICT',
-    owner: 'Reviewer',
-    purpose: 'MIGRATION-ONLY HISTORICAL: publish an ordinary Full or Delta Review verdict',
-    exceptional: false,
-  }),
-  Object.freeze({
     command: 'bemoat:mission-control:recover-review',
     role: 'REVIEW_VERDICT',
     owner: 'Mission Control Recovery Transport',
-    ordinary_owner: 'bemoat:mission-control:review',
     purpose: 'MIGRATION-ONLY HISTORICAL: quarantine the exact approved #274/#275 raw-review incident and project its proven Review 2 result',
     exceptional: true,
   }),
