@@ -37,7 +37,6 @@ const SYNC_MANIFEST = JSON.parse(
 }
 
 const EXPECTED_PACKAGE_SCRIPTS: Record<string, string> = {
-  'bemoat:agent:delivery': 'node scripts/agent-delivery.mjs',
   'bemoat:agent:issue': 'node scripts/agent-issue.mjs',
   'bemoat:context': 'node scripts/agent-context.mjs',
   'bemoat:context:sync-base': 'node scripts/agent-context-sync-base.mjs',
@@ -70,7 +69,6 @@ const EXPECTED_PACKAGE_SCRIPTS: Record<string, string> = {
 }
 
 const EXPECTED_COMMAND_TIERS: Record<string, 'A' | 'B' | 'C'> = {
-  'bemoat:agent:delivery': 'A',
   'bemoat:agent:issue': 'B',
   'bemoat:context': 'B',
   'bemoat:context:sync-base': 'A',
@@ -284,10 +282,10 @@ describe('Task 1 command contract registry', () => {
       .sort()
 
     expect(packageCommands).toEqual(Object.keys(EXPECTED_PACKAGE_SCRIPTS).sort())
-    expect(packageCommands).toHaveLength(30)
+    expect(packageCommands).toHaveLength(29)
     expect(registryCommands).toEqual(packageCommands)
     expect(classifiedCommands).toEqual(packageCommands)
-    expect(new Set(classifiedCommands).size).toBe(30)
+    expect(new Set(classifiedCommands).size).toBe(29)
 
     for (const command of packageCommands) {
       expect(getCommandContract(command)).toBe(COMMAND_CONTRACT_REGISTRY.commands[command])
@@ -304,9 +302,9 @@ describe('Task 1 command contract registry', () => {
       counts[expectedTier] += 1
     }
 
-    expect(counts).toEqual({ A: 18, B: 9, C: 3 })
-    expect(Object.keys(EXPECTED_COMMAND_TIERS)).toHaveLength(30)
-    expect(Object.keys(COMMAND_CONTRACT_REGISTRY.commands)).toHaveLength(30)
+    expect(counts).toEqual({ A: 17, B: 9, C: 3 })
+    expect(Object.keys(EXPECTED_COMMAND_TIERS)).toHaveLength(29)
+    expect(Object.keys(COMMAND_CONTRACT_REGISTRY.commands)).toHaveLength(29)
     expectRegistryValid()
   })
 
@@ -450,7 +448,7 @@ describe('Task 1 command contract registry', () => {
   })
 
   it('matches every canonical transport role and exceptional bit', () => {
-    expect(CANONICAL_TRANSPORTS).toHaveLength(12)
+    expect(CANONICAL_TRANSPORTS).toHaveLength(11)
 
     for (const transport of CANONICAL_TRANSPORTS) {
       const contract = asRecord(getCommandContract(transport.command), transport.command)
@@ -627,12 +625,8 @@ describe('Task 1 command contract registry', () => {
     }
   })
 
-  it('maps every emitted legacy outcome for delivery and task bootstrap', () => {
+  it('maps every emitted legacy outcome for task bootstrap', () => {
     const emittedOutcomes = {
-      'bemoat:agent:delivery': {
-        DELIVERED: 'SUCCESS',
-        RECOVERABLE_ROUTING_DRIFT: 'AMBIGUOUS_RESULT',
-      },
       'bemoat:mission-control:task-bootstrap': {
         CREATED: 'SUCCESS',
         RECOVERED: 'SUCCESS',
@@ -652,25 +646,25 @@ describe('Task 1 command contract registry', () => {
 
   const registryRejectionCases: Array<[string, (registry: RegistryFixture) => void]> = [
     ['missing schema field', (registry) => {
-      delete commandRecord(registry, 'bemoat:agent:delivery').purpose
+      delete commandRecord(registry, 'bemoat:mission-control:dispatch').purpose
     }],
     ['extra command key', (registry) => {
-      registry.commands['bemoat:fake'] = clone(commandRecord(registry, 'bemoat:agent:delivery'))
+      registry.commands['bemoat:fake'] = clone(commandRecord(registry, 'bemoat:mission-control:dispatch'))
     }],
     ['duplicate command identity', (registry) => {
-      commandRecord(registry, 'bemoat:agent:delivery').command = 'bemoat:agent:issue'
+      commandRecord(registry, 'bemoat:mission-control:dispatch').command = 'bemoat:agent:issue'
     }],
     ['non-v1 schema', (registry) => {
       registry.schema_version = 2
     }],
     ['missing entrypoint', (registry) => {
-      commandRecord(registry, 'bemoat:agent:delivery').entrypoint = 'scripts/not-an-entrypoint.mjs'
+      commandRecord(registry, 'bemoat:mission-control:dispatch').entrypoint = 'scripts/not-an-entrypoint.mjs'
     }],
     ['stale package binding', (registry) => {
-      commandRecord(registry, 'bemoat:agent:delivery').entrypoint = 'scripts/agent-issue.mjs'
+      commandRecord(registry, 'bemoat:mission-control:dispatch').entrypoint = 'scripts/agent-issue.mjs'
     }],
     ['unclassified package command', (registry) => {
-      delete registry.commands['bemoat:agent:delivery']
+      delete registry.commands['bemoat:mission-control:dispatch']
     }],
     ['Tier C custom parser', (registry) => {
       commandRecord(registry, 'bemoat:check').parser_owner = 'scripts/custom-parser.mjs'
@@ -690,7 +684,7 @@ describe('Task 1 command contract registry', () => {
       )
     }],
     ['duplicate singleton syntax', (registry) => {
-      const inputs = commandRecord(registry, 'bemoat:agent:delivery').required_inputs as JsonRecord[]
+      const inputs = commandRecord(registry, 'bemoat:mission-control:dispatch').required_inputs as JsonRecord[]
       inputs[1].syntax = inputs[0].syntax
     }],
   ]
@@ -703,28 +697,28 @@ describe('Task 1 command contract registry', () => {
 
   it('rejects an unregistered package command and a stale package binding fixture', () => {
     const unregisteredPackage = clone(PACKAGE_JSON)
-    unregisteredPackage.scripts['bemoat:unregistered'] = 'node scripts/agent-delivery.mjs'
+    unregisteredPackage.scripts['bemoat:unregistered'] = 'node scripts/not-registered.mjs'
     expectRegistryRejected(clone(COMMAND_CONTRACT_REGISTRY), unregisteredPackage)
 
     const stalePackage = clone(PACKAGE_JSON)
-    stalePackage.scripts['bemoat:agent:delivery'] = 'node scripts/agent-issue.mjs'
+    stalePackage.scripts['bemoat:mission-control:dispatch'] = 'node scripts/agent-issue.mjs'
     expectRegistryRejected(clone(COMMAND_CONTRACT_REGISTRY), stalePackage)
   })
 
   it('rejects caller input reclassified as trusted-derived', () => {
     const registry = clone(COMMAND_CONTRACT_REGISTRY) as RegistryFixture
-    const delivery = commandRecord(registry, 'bemoat:agent:delivery')
-    const issueNumber = (delivery.required_inputs as JsonRecord[]).find(
+    const dispatch = commandRecord(registry, 'bemoat:mission-control:dispatch')
+    const issueNumber = (dispatch.required_inputs as JsonRecord[]).find(
       (input) => input.name === 'issue_number',
     )
-    if (!issueNumber) throw new Error('delivery issue_number fixture is missing')
+    if (!issueNumber) throw new Error('dispatch issue_number fixture is missing')
 
     issueNumber.source = 'trusted_derived'
-    delivery.caller_supplied_values = (delivery.caller_supplied_values as string[])
+    dispatch.caller_supplied_values = (dispatch.caller_supplied_values as string[])
       .filter((value) => value !== 'issue_number')
-    delivery.trusted_derived_values = [
+    dispatch.trusted_derived_values = [
       'issue_number',
-      ...(delivery.trusted_derived_values as string[]),
+      ...(dispatch.trusted_derived_values as string[]),
     ]
 
     expectRegistryRejected(registry)

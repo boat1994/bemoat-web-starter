@@ -1,7 +1,6 @@
 [
   "scripts/agent-context-sync-base.mjs",
   "scripts/agent-context.mjs",
-  "scripts/agent-delivery.mjs",
   "scripts/agent-handoff.mjs",
   "scripts/agent-issue.mjs",
   "scripts/bemoat-typecheck.mjs",

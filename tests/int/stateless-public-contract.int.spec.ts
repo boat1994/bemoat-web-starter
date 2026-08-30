@@ -54,7 +54,6 @@ const SUPPORTED_PROTOCOL_COMMANDS = [
 ] as const
 
 const MIGRATION_ONLY_COMMANDS = [
-  'bemoat:agent:delivery',
   'bemoat:agent:issue',
   'bemoat:issue:comment',
   'bemoat:mission-control:adopt-finding',
@@ -72,7 +71,6 @@ const MIGRATION_ONLY_COMMANDS = [
 ] as const
 
 const MIGRATION_ONLY_TRANSPORT_COMMANDS = [
-  'bemoat:agent:delivery',
   'bemoat:mission-control:adopt-finding',
   'bemoat:mission-control:authorize-founder',
   'bemoat:mission-control:dispatch',

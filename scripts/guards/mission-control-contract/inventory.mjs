@@ -289,7 +289,6 @@ export const REQUIRED_CLI_PROMPT_GUIDE_PHRASES = [
   'CLI_DISCOVERY_DEFECT',
   'Purely conversational Founder decisions',
   'bemoat:mission-control:dispatch',
-  'bemoat:agent:delivery',
   'bemoat:mission-control:review',
   'bemoat:mission-control:reconcile',
   'bemoat:mission-control:recover-review',

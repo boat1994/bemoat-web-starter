@@ -9,7 +9,6 @@
     "docs/mission-control/modules/procedures.md",
     "docs/mission-control/modules/templates-examples.md",
     "docs/mission-control/modules/troubleshooting.md",
-    "scripts/agent-delivery.mjs",
     "scripts/agent-issue.mjs",
     "scripts/correction-contract.mjs",
     "scripts/guard-harness-contract.mjs",

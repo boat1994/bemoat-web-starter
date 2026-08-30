@@ -38,9 +38,9 @@ describe('mission-control dispatch result rendering', () => {
       pr_number: '335',
       exact_head: HANDOFF.headSha.toLowerCase(),
       next_action: {
-        type: 'COMMAND',
-        command: 'bemoat:agent:delivery',
-        reason: 'The dispatch claim is ready for one delivery RESULT.',
+        type: 'FOUNDER_GATE',
+        command: null,
+        reason: 'The historical delivery coordinator was retired; stop before continuing this migration-only route.',
       },
       details: {
         legacy_classification: 'DISPATCHED',

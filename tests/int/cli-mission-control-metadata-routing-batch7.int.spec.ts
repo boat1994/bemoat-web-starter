@@ -12,7 +12,6 @@ import { missionControlRecoveryRoutes } from '../../scripts/cli/mission-control-
 import { COMMAND_CONTRACT_REGISTRY } from '../../scripts/cli/command-contract-registry.mjs'
 
 const EXPECTED_ALL_MUTATING_COMMANDS = [
-  'bemoat:agent:delivery',
   'bemoat:boilerplate:sync',
   'bemoat:hooks:install',
   'bemoat:issue:comment',
@@ -55,13 +54,11 @@ const EXPECTED_PRIMARY_ROUTE_KEYS = [
   'no-task/founder-authorization-recording',
   'no-task/exact-task-bootstrap-founder-authorization-workflow-tuple',
   'READY/valid-handoff-inputs',
-  'IN_PROGRESS/complete-exact-head-delivery-evidence',
+  'IN_PROGRESS/retired-delivery-coordinator',
   'AWAITING_REVIEW_1/exact-full-review-evidence',
   'CORRECTION_REQUIRED_1/founder-authorized-finding-adoption',
-  'CORRECTION_REQUIRED_1/bounded-correction-result-evidence',
   'AWAITING_REVIEW_2/exact-delta-review-evidence',
   'CORRECTION_REQUIRED_2/founder-authorized-finding-adoption',
-  'CORRECTION_REQUIRED_2/bounded-correction-result-evidence',
   'AWAITING_REVIEW_3/exact-bounded-delta-review-evidence',
   'AWAITING_REVIEW_3/exact-blocker-verification-evidence',
   'FOUNDER_AUTHORIZED_CORRECTION/unconsumed-exact-authorization',
@@ -125,13 +122,13 @@ describe('Batch 7 characterization — CLI command metadata and routing policy l
     expect(missionControlRecoveryRoutes().map((route: any) => route.route_key)).toEqual([
       ...EXPECTED_RECOVERY_ROUTE_KEYS,
     ])
-    expect(missionControlPrimaryRoutes()).toHaveLength(17)
+    expect(missionControlPrimaryRoutes()).toHaveLength(15)
     expect(missionControlRecoveryRoutes()).toHaveLength(16)
   })
 
   it('expands prohibited_commands from ALL_MUTATING_COMMANDS for founder-gate routes', () => {
     const founderGateRoutes = missionControlPrimaryRoutes().filter((route: any) => route.decision === 'FOUNDER_GATE')
-    expect(founderGateRoutes).toHaveLength(2)
+    expect(founderGateRoutes).toHaveLength(3)
     for (const route of founderGateRoutes) {
       expect(route.prohibited_commands).toEqual([...ALL_MUTATING_COMMANDS])
     }

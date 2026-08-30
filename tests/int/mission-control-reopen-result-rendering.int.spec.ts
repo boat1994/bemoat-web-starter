@@ -41,8 +41,8 @@ describe('mission-control reopen result rendering', () => {
       pr_number: '285',
       exact_head: OPTIONS.expectedNewHead.toLowerCase(),
       next_action: {
-        type: 'COMMAND',
-        command: 'bemoat:agent:delivery',
+        type: 'FOUNDER_GATE',
+        command: null,
       },
       details: {
         legacy_classification: 'REOPENED',
