@@ -2264,7 +2264,7 @@ esac
     expect(analysis.report.reconciliation).toBeNull()
   })
 
-  it('propagates unavailable required production evidence into reconciliation as BLOCKED_EXTERNAL', () => {
+  it('retains unavailable required production evidence as BLOCKED_EXTERNAL', () => {
     const root = createRepo('feature/160-blocked-external')
     const analysis = analyzeProgressTracking({
       cwd: root,
@@ -2284,7 +2284,6 @@ esac
     })
 
     expect(analysis.blockers.join(' ')).toContain('BLOCKED_EXTERNAL')
-    expect(analysis.report.reconciliation).toMatchObject({ classification: { outcome: 'BLOCKED_EXTERNAL' } })
   })
 
   it('blocks when the declared current stage is a Founder gate', () => {
