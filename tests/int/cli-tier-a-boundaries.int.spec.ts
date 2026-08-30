@@ -911,7 +911,7 @@ const CANONICAL_ROLE_COMMENT_BODY = `## RESULT
 **Next:** Reviewer posts REVIEW_VERDICT
 `
 
-const CANONICAL_HANDOFF_BODY = `## HANDOFF
+const _CANONICAL_HANDOFF_BODY = `## HANDOFF
 ### Task log
 - Timestamp: 2026-08-06T00:00:00+00:00
 - Task / Issue: #284
@@ -975,40 +975,6 @@ const CANONICAL_TRANSPORT_CASES: readonly CanonicalTransportCase[] = [
     expectedExit: 0,
     expectedPrNumber: null,
     expectedExactHead: null,
-  },
-  {
-    label: 'dispatch',
-    command: 'bemoat:mission-control:dispatch',
-    entrypoint: 'scripts/mission-control-dispatch.mjs',
-    bodyFile: 'handoff.md',
-    body: CANONICAL_HANDOFF_BODY,
-    registryArgs: [
-      '284',
-      '--repo',
-      CANONICAL_REPOSITORY,
-      '--body-file',
-      './handoff.md',
-    ],
-    resultArgs: [
-      '284',
-      '--repo',
-      CANONICAL_UPPERCASE_REPOSITORY,
-      '--body-file',
-      './handoff.md',
-    ],
-    expectedClassification: 'BLOCKED_EXTERNAL',
-    expectedExit: 3,
-    expectedPrNumber: null,
-    expectedExactHead: null,
-    invalidAuthorityArgs: [
-      '284',
-      '--repo',
-      CANONICAL_REPOSITORY,
-      '--body-file',
-      './handoff.md',
-      '--planning-base-sha',
-      'abc1234',
-    ],
   },
   {
     label: 'ordinary review',

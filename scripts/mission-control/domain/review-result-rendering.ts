@@ -147,7 +147,7 @@ export function createResultRendering({ command, options, result, repository, ob
       : null,
     next_action: replayed
       ? { type: 'COMPLETE', command: null, reason: 'The identical REVIEW_VERDICT retry is already durable; no further dispatch is required.' }
-      : { type: 'COMMAND', command: 'bemoat:mission-control:dispatch', reason: 'The resulting review state determines the next bounded dispatch or Founder gate.' },
+      : { type: 'FOUNDER_GATE', command: null, reason: 'The historical stateful dispatch transport was retired; stop before continuing this migration-only route.' },
     details: {
       legacy_classification: replayed ? 'NO_OP' : outcome,
       legacy_output: [output],

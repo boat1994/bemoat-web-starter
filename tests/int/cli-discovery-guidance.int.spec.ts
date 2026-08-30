@@ -22,7 +22,6 @@ const pointerPaths = [
 const managedGuidancePaths = [canonicalPath, ...pointerPaths]
 const representativeCommands = [
   'bemoat:agent:issue',
-  'bemoat:mission-control:dispatch',
   'bemoat:mission-control:reconcile',
   'bemoat:mission-control:review',
   'bemoat:mission-control:recover-review',

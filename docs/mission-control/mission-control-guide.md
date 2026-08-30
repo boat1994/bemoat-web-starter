@@ -436,7 +436,7 @@ already selected by durable migration evidence:
 | Operation | Canonical command |
 | --- | --- |
 | task bootstrap | `bemoat:mission-control:task-bootstrap` |
-| dispatch | `bemoat:mission-control:dispatch` |
+| dispatch | Retired; no executable migration command remains. Historical dispatch state is read-only and stops at the Founder gate. |
 | delivery | `bemoat:agent:delivery` |
 | review | `bemoat:mission-control:review` |
 | reconciliation | `bemoat:mission-control:reconcile` |

@@ -261,25 +261,11 @@ If the first reconcile command returns a classified failure, the CLI prints its
 `finalReason`, then its initial `reason`, then the deterministic safe fallback;
 it must never emit a blank `ERROR:` diagnostic.
 
-### Atomic implementation dispatch
+### Retired stateful dispatch
 
-Campaign slice-range authority is independent from the root-script migration
-map. The root-script ownership contract remains bounded to slices `1`–`7`;
-an authority-backed campaign projection may append contiguous campaign rows
-beyond `7` without authorizing scripts-root refactoring or implementation of
-those future slices. Such projections must preserve the existing rows and
-append empty `NOT_STARTED` rows only.
-
-Use the managed dispatch action for a bounded implementation handoff:
-
-```bash
-pnpm run bemoat:mission-control:dispatch -- <issue-number> --body-file <handoff.md>
-```
-
-The action validates `READY`, writes `IN_PROGRESS`, posts exactly one existing
-`## HANDOFF`, and verifies the resulting state. If HANDOFF publication fails,
-it rolls the state back only when a fresh read proves no concurrent Issue edit;
-otherwise it fails closed without overwriting the concurrent writer.
+The former stateful implementation-dispatch transport is retired. Historical
+dispatch state is read-only and stops at the Founder gate; no replacement
+command or direct Issue-body mutation is authorized.
 
 ### Founder-authorized correction after normal Review 3
 
@@ -290,20 +276,9 @@ immutable finding IDs, and `post_budget_reviews: []`.
 
 Its versioned `founder_correction_authorization` binds an `authorization_id`,
 Review 3, reviewed head, finding set, Founder authority, scope, and timestamp.
-Dispatch requires its unconsumed `status: authorized` record:
-
-```bash
-pnpm run bemoat:mission-control:dispatch -- <issue-number> --founder-correction --body-file <handoff.md>
-```
-
-Dispatch first acquires a repository-scoped, single-winner reservation for the
-authorization identity. It then posts one HANDOFF and records `status:
-consumed` with that exact comment ID plus a SHA-256 binding over the immutable
-authority, target, PR, exact head/correction base, Review 3, scope, finding
-chain, comment timestamps, and complete HANDOFF content. The reservation is
-released only after the consumed state is freshly verified. Failed or
-indeterminate writes retain the reservation unless a fresh read proves safe
-compensation, so concurrent dispatch cannot publish two successful HANDOFFs.
+The retired stateful transport no longer consumes this authorization or posts a
+correction HANDOFF. Historical authorization bindings remain read-only and
+fail closed when evidence is incomplete, stale, or conflicting.
 
 Correction preflight accepts the consumed authorization only when the bound
 comment still exists, is byte-identical, and remains the latest approved,

@@ -24,7 +24,6 @@ const {
   classifyReconciliation,
   classifyDeliveryLag,
   classifyReviewLag,
-  dispatchManagedTask,
   parseRoleCommentBody,
   proposeDeliveryReconciliation,
   proposeReviewReconciliation,
@@ -458,34 +457,16 @@ describe('pinned commit object probe classification (MC-DOG-R1-006)', () => {
 })
 
 describe('mission-control phase 1 dogfood scenarios (S1-S10)', () => {
-  it('S1: complete delivery chain READY -> IN_PROGRESS -> HANDOFF -> RESULT -> AWAITING_REVIEW_1', async () => {
+  it('S1: complete retained delivery chain IN_PROGRESS -> RESULT -> AWAITING_REVIEW_1', async () => {
     const measurements = createMeasurementSink()
-    let state: any = {
-      state: 'READY',
+    const state: any = {
+      state: 'IN_PROGRESS',
       review_cycle: 0,
       full_review_count: 0,
       finding_lineage: [],
       active_pr: null,
       current_head: null,
     }
-
-    const dispatch = await dispatchManagedTask({
-      readState: async () => state,
-      writeState: async (next: any) => {
-        measurements.simulated_state_writes += 1
-        state = next
-      },
-      postHandoff: async (body: string) => {
-        measurements.simulated_role_comments += 1
-        return { id: 'handoff-s1', body }
-      },
-      handoffBody: '## HANDOFF\n\nBounded Dev work for #169',
-    })
-
-    expect(dispatch.outcome).toBe('DISPATCHED')
-    expect(state.state).toBe('IN_PROGRESS')
-    expect(measurements.simulated_state_writes).toBe(1)
-    expect(measurements.simulated_role_comments).toBe(1)
 
     const parsedResult = parseRoleCommentBody(sampleResultBody)
     const deliveryLag = classifyDeliveryLag(

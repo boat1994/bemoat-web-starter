@@ -26,7 +26,6 @@ export function handoffRoutes(): HandoffRoute[] {
     required_review_type: null,
     expected_post_state_or_gate: 'One read-back-verified HANDOFF comment; no workflow-state projection.',
     prohibited_commands: [
-      'bemoat:mission-control:dispatch',
       'bemoat:mission-control:review',
       'bemoat:mission-control:reconcile',
     ],

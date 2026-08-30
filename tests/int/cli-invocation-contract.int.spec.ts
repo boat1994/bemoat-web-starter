@@ -22,7 +22,7 @@ import {
 
 type JsonRecord = Record<string, unknown>
 
-const TIER_A_COMMAND = 'bemoat:mission-control:dispatch'
+const TIER_A_COMMAND = 'bemoat:issue:comment'
 const TIER_B_COMMAND = 'bemoat:agent:issue'
 const BRANCH_COMMAND = 'bemoat:branch:check'
 const REOPEN_COMMAND = 'bemoat:mission-control:reopen'
@@ -398,7 +398,7 @@ describe('Task 2 CLI invocation and result contracts', () => {
 
     expect(() => resolveCommandIdentity({
       fallback: PACK_COMMAND,
-      env: { npm_lifecycle_event: 'bemoat:mission-control:dispatch' },
+      env: { npm_lifecycle_event: 'bemoat:mission-control:retired-dispatch' },
       entrypoint: pack.entrypoint,
     })).toThrow(CliInvocationError)
     expect(() => resolveCommandIdentity({

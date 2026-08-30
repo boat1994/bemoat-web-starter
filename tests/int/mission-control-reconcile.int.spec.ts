@@ -1,6 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import ts from 'typescript'
-
 /* eslint-disable @typescript-eslint/no-explicit-any -- untyped runtime .mjs boundary */
 import * as reconcileModule from '../../scripts/mission-control-reconcile.mjs'
 import * as coordinatorTransitions from '../../scripts/mission-control/coordinator-transitions.mjs'
@@ -18,8 +16,6 @@ const {
   classifyMergeDrift,
   classifyReviewLag,
   classifyTransition,
-  dispatchManagedTask,
-  dispatchFounderAuthorizedCorrection,
   isGenuineStateConflict,
   parseRoleCommentBody,
   parseCommentMarker,
@@ -56,48 +52,6 @@ const CoordinatorClass = reconcileModule.Coordinator as unknown as new (transpor
   reconcileReviewVerdict: (input: Record<string, unknown>) => Promise<Record<string, unknown>>
   resumeProjection: (input: Record<string, unknown>) => Promise<Record<string, unknown>>
   assertCompatibleSnapshot: (input: Record<string, unknown>) => Promise<Record<string, unknown>>
-}
-
-function hasExecutableBoundary(
-  source: string,
-  expected: {
-    moduleSpecifier: string
-    importedNames: string[]
-    calledNames: string[]
-    calledWithObjectNames?: string[]
-    constructedNames?: string[]
-  },
-) {
-  const sourceFile = ts.createSourceFile('boundary-fixture.mjs', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS)
-
-  const imports = sourceFile.statements
-    .filter(ts.isImportDeclaration)
-    .filter((statement) => ts.isStringLiteral(statement.moduleSpecifier) && statement.moduleSpecifier.text === expected.moduleSpecifier)
-    .flatMap((statement) => {
-      const bindings = statement.importClause?.namedBindings
-      return bindings && ts.isNamedImports(bindings)
-        ? bindings.elements.map((element) => element.name.text)
-        : []
-    })
-  const calledNames = new Set<string>()
-  const calledWithObjectNames = new Set<string>()
-  const constructedNames = new Set<string>()
-  const visit = (node: ts.Node) => {
-    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
-      calledNames.add(node.expression.text)
-      if (node.arguments[0] && ts.isObjectLiteralExpression(node.arguments[0])) {
-        calledWithObjectNames.add(node.expression.text)
-      }
-    }
-    if (ts.isNewExpression(node) && ts.isIdentifier(node.expression)) constructedNames.add(node.expression.text)
-    ts.forEachChild(node, visit)
-  }
-  visit(sourceFile)
-
-  return expected.importedNames.every((name) => imports.includes(name)) &&
-    expected.calledNames.every((name) => calledNames.has(name)) &&
-    (expected.calledWithObjectNames ?? []).every((name) => calledWithObjectNames.has(name)) &&
-    (expected.constructedNames ?? []).every((name) => constructedNames.has(name))
 }
 
 const sampleResult = `## RESULT
@@ -587,190 +541,6 @@ describe('mission-control reconcile classifiers', () => {
     expect(classifyReconciliation({ managedState: legacy }).outcome).toBe('NO_OP')
   })
 
-  it('consumes a Review 3 Founder authorization once and binds correction preflight to its HANDOFF', async () => {
-    let state: any = {
-      state: 'FOUNDER_AUTHORIZED_CORRECTION', review_cycle: 3, full_review_count: 1,
-      active_pr: '#172', current_head: 'reviewed-head', last_reviewed_head: 'reviewed-head', post_budget_reviews: [],
-      founder_correction_authorization: {
-        schema_version: 1, authorization_id: 'founder-171', status: 'authorized', authority: 'Founder',
-        scope: 'correction', for_review_number: 3, reviewed_head: 'reviewed-head', finding_ids: ['MC-R1-171-001'],
-        action: 'Authorize one bounded correction', authorized_at: '2026-07-26T01:30:29+07:00',
-      },
-    }
-    const writes: any[] = []
-    const reservations: string[] = []
-    const releases: string[] = []
-    const handoffBody = '## HANDOFF\n\n**Target:** Dev / Integration Builder\n\nCorrection work\n\n**Founder correction authorization:** `founder-171`'
-    const result = await dispatchFounderAuthorizedCorrection({
-      readState: async () => state,
-      writeState: async (next: any) => { state = next; writes.push(next) },
-      reserveAuthorization: async (authorization: { authorization_id: string }) => {
-        reservations.push(authorization.authorization_id)
-        return { reservation_id: 'reservation-171' }
-      },
-      releaseAuthorization: async (reservation: { reservation_id: string }) => { releases.push(reservation.reservation_id) },
-      postHandoff: async () => ({
-        id: '5080099999',
-        html_url: 'https://github.com/boat1994/bemoat-web-starter/issues/171#issuecomment-5080099999',
-        created_at: '2026-07-26T01:40:00Z',
-        updated_at: '2026-07-26T01:40:00Z',
-      }),
-      retractHandoff: async (): Promise<void> => undefined,
-      handoffBody,
-    })
-
-    expect(result.outcome).toBe('DISPATCHED_FOUNDER_AUTHORIZED_CORRECTION')
-    expect(writes).toHaveLength(1)
-    expect(state).toMatchObject({
-      state: 'IN_PROGRESS', review_cycle: 3, full_review_count: 1,
-      founder_correction_authorization: {
-        status: 'consumed', authorization_id: 'founder-171', handoff_comment_id: '5080099999',
-        handoff_binding: {
-          schema_version: 1,
-          content_sha256: expect.stringMatching(/^[0-9a-f]{64}$/),
-          binding_sha256: expect.stringMatching(/^[0-9a-f]{64}$/),
-          correction_base: 'reviewed-head',
-          finding_ids: ['MC-R1-171-001'],
-        },
-      },
-    })
-    expect(reservations).toEqual(['founder-171'])
-    expect(releases).toEqual(['reservation-171'])
-    await expect(dispatchFounderAuthorizedCorrection({
-      readState: async () => state, writeState: async (): Promise<void> => undefined, postHandoff: async () => ({ id: 'again' }),
-      handoffBody: '## HANDOFF\n\nreplay',
-    })).rejects.toThrow('unconsumed Founder correction authorization')
-  })
-
-  it('freezes the complete authorized Founder record in the consumed HANDOFF binding', async () => {
-    let state: any = {
-      state: 'FOUNDER_AUTHORIZED_CORRECTION', review_cycle: 3, full_review_count: 1,
-      active_pr: '#172', current_head: 'reviewed-head', last_reviewed_head: 'reviewed-head', post_budget_reviews: [],
-      founder_correction_authorization: {
-        schema_version: 2, authorization_id: 'founder-171', status: 'authorized', authority: 'Founder',
-        scope: 'correction', for_review_number: 3, reviewed_head: 'reviewed-head', finding_ids: ['MC-R1-171-001'],
-        action: 'Authorize one bounded correction', authorized_at: '2026-07-26T01:30:29+07:00',
-      },
-    }
-    const result = await dispatchFounderAuthorizedCorrection({
-      readState: async () => state,
-      writeState: async (next: any) => { state = next },
-      reserveAuthorization: async () => ({ reservation_id: 'winner' }),
-      releaseAuthorization: async (): Promise<void> => undefined,
-      postHandoff: async () => ({ id: 'handoff-1', created_at: 'now', updated_at: 'now' }),
-      retractHandoff: async (): Promise<void> => undefined,
-      handoffBody: '## HANDOFF\n\n**Target:** Dev / Integration Builder\n**Founder correction authorization:** `founder-171`',
-      updatedAt: '2026-07-26T02:00:00Z',
-      updatedBy: 'Mission Control',
-    })
-
-    expect(result.state).toMatchObject({
-      updated_at: '2026-07-26T02:00:00Z', updated_by: 'Mission Control',
-      founder_correction_authorization: {
-        handoff_binding: {
-          authorization_snapshot: {
-            authorization_id: 'founder-171', authority: 'Founder', status: 'authorized',
-            action: 'Authorize one bounded correction', authorized_at: '2026-07-26T01:30:29+07:00',
-            scope: 'correction', for_review_number: 3, reviewed_head: 'reviewed-head',
-            finding_ids: ['MC-R1-171-001'],
-          },
-        },
-      },
-    })
-  })
-
-  it('allows exactly one concurrent Founder-correction dispatcher to publish a HANDOFF', async () => {
-    const original: any = {
-      state: 'FOUNDER_AUTHORIZED_CORRECTION', review_cycle: 3, full_review_count: 1,
-      active_pr: '#172', current_head: 'reviewed-head', last_reviewed_head: 'reviewed-head', post_budget_reviews: [],
-      founder_correction_authorization: {
-        schema_version: 2, authorization_id: 'founder-171', status: 'authorized', authority: 'Founder',
-        scope: 'correction', for_review_number: 3, reviewed_head: 'reviewed-head', finding_ids: ['MC-R1-171-001'],
-        action: 'Authorize one bounded correction', authorized_at: '2026-07-26T01:30:29+07:00',
-      },
-    }
-    let state = structuredClone(original)
-    let reserved = false
-    const comments: string[] = []
-    const dispatch = () => dispatchFounderAuthorizedCorrection({
-      readState: async () => state,
-      writeState: async (next: any) => { state = next },
-      reserveAuthorization: async () => {
-        if (reserved) throw new Error('reservation already exists')
-        reserved = true
-        return { reservation_id: 'winner' }
-      },
-      releaseAuthorization: async () => { reserved = false },
-      postHandoff: async (body: string) => {
-        comments.push(body)
-        return { id: 'winner', created_at: '2026-07-26T01:40:00Z', updated_at: '2026-07-26T01:40:00Z' }
-      },
-      retractHandoff: async (): Promise<void> => undefined,
-      handoffBody: '## HANDOFF\n\n**Target:** Dev / Integration Builder\n**Founder correction authorization:** `founder-171`',
-    })
-
-    const results = await Promise.allSettled([dispatch(), dispatch()])
-    expect(results.filter((entry) => entry.status === 'fulfilled')).toHaveLength(1)
-    expect(results.filter((entry) => entry.status === 'rejected')).toHaveLength(1)
-    expect(comments).toHaveLength(1)
-    expect(state.founder_correction_authorization.status).toBe('consumed')
-  })
-
-  it('treats an acknowledged consumed write as success after a write-side transport error', async () => {
-    let state: any = {
-      state: 'FOUNDER_AUTHORIZED_CORRECTION', review_cycle: 3, full_review_count: 1,
-      active_pr: '#172', current_head: 'reviewed-head', last_reviewed_head: 'reviewed-head', post_budget_reviews: [],
-      founder_correction_authorization: {
-        schema_version: 2, authorization_id: 'founder-171', status: 'authorized', authority: 'Founder',
-        scope: 'correction', for_review_number: 3, reviewed_head: 'reviewed-head', finding_ids: ['MC-R1-171-001'],
-        action: 'Authorize one bounded correction', authorized_at: '2026-07-26T01:30:29+07:00',
-      },
-    }
-    let released = false
-    let retracted = false
-    const result = await dispatchFounderAuthorizedCorrection({
-      readState: async () => state,
-      writeState: async (next: any) => { state = next; throw new Error('response lost after write') },
-      reserveAuthorization: async () => ({ reservation_id: 'winner' }),
-      releaseAuthorization: async () => { released = true },
-      postHandoff: async () => ({ id: 'handoff-1', created_at: 'now', updated_at: 'now' }),
-      retractHandoff: async () => { retracted = true },
-      handoffBody: '## HANDOFF\n\n**Target:** Dev / Integration Builder\n**Founder correction authorization:** `founder-171`',
-    })
-
-    expect(result.outcome).toBe('DISPATCHED_FOUNDER_AUTHORIZED_CORRECTION')
-    expect(released).toBe(true)
-    expect(retracted).toBe(false)
-  })
-
-  it('retains the reservation when post-write verification and HANDOFF rollback are indeterminate', async () => {
-    const original: any = {
-      state: 'FOUNDER_AUTHORIZED_CORRECTION', review_cycle: 3, full_review_count: 1,
-      active_pr: '#172', current_head: 'reviewed-head', last_reviewed_head: 'reviewed-head', post_budget_reviews: [],
-      founder_correction_authorization: {
-        schema_version: 2, authorization_id: 'founder-171', status: 'authorized', authority: 'Founder',
-        scope: 'correction', for_review_number: 3, reviewed_head: 'reviewed-head', finding_ids: ['MC-R1-171-001'],
-        action: 'Authorize one bounded correction', authorized_at: '2026-07-26T01:30:29+07:00',
-      },
-    }
-    let reads = 0
-    let released = false
-    await expect(dispatchFounderAuthorizedCorrection({
-      readState: async () => {
-        reads += 1
-        if (reads >= 3) throw new Error('verification unavailable')
-        return original
-      },
-      writeState: async (): Promise<void> => undefined,
-      reserveAuthorization: async () => ({ reservation_id: 'winner' }),
-      releaseAuthorization: async () => { released = true },
-      postHandoff: async () => ({ id: 'handoff-1', created_at: 'now', updated_at: 'now' }),
-      retractHandoff: async () => { throw new Error('rollback unavailable') },
-      handoffBody: '## HANDOFF\n\n**Target:** Dev / Integration Builder\n**Founder correction authorization:** `founder-171`',
-    })).rejects.toThrow('verified Founder authorization consumption')
-    expect(released).toBe(false)
-  })
-
   it('preserves Review 3 history and returns correction delivery to a separate Founder decision', () => {
     const prior: any = {
       state: 'IN_PROGRESS', review_cycle: 3, full_review_count: 1,
@@ -1030,49 +800,6 @@ describe('mission-control reconcile classifiers', () => {
     expect(writes[0]).toMatchObject({ state: 'DONE', review_cycle: 3, full_review_count: 1 })
     expect(writes[0].finding_lineage).toEqual([{ finding_id: 'MC-R1-002', disposition: 'resolved' }])
     expect(second.outcome).toBe('NO_OP')
-  })
-
-  it('dispatches READY to IN_PROGRESS with one HANDOFF or rolls the state back', async () => {
-    let state: any = { state: 'READY', review_cycle: 0, full_review_count: 0, finding_lineage: [] }
-    const writes: string[] = []
-    const comments: string[] = []
-    const success = await dispatchManagedTask({
-      readState: async () => state,
-      writeState: async (next: any) => { state = next; writes.push(next.state) },
-      postHandoff: async (body: string) => { comments.push(body) },
-      handoffBody: '## HANDOFF\n\nBounded Dev work',
-    })
-
-    expect(success.outcome).toBe('DISPATCHED')
-    expect(writes).toEqual(['IN_PROGRESS'])
-    expect(comments).toEqual(['## HANDOFF\n\nBounded Dev work'])
-
-    state = { state: 'READY', review_cycle: 0, full_review_count: 0, finding_lineage: [] }
-    writes.length = 0
-    await expect(dispatchManagedTask({
-      readState: async () => state,
-      writeState: async (next: any) => { state = next; writes.push(next.state) },
-      postHandoff: async () => { throw new Error('offline') },
-      handoffBody: '## HANDOFF\n\nBounded Dev work',
-    })).rejects.toThrow('dispatch rolled back')
-    expect(writes).toEqual(['IN_PROGRESS', 'READY'])
-    expect(state.state).toBe('READY')
-  })
-
-  it('retracts a successful HANDOFF when concurrent state mutation invalidates its durable transition', async () => {
-    let state: any = { state: 'READY', review_cycle: 0, full_review_count: 0, finding_lineage: [] }
-    const retracted: string[] = []
-    await expect(dispatchManagedTask({
-      readState: async () => state,
-      writeState: async (next: any) => { state = next },
-      postHandoff: async () => {
-        state = { ...state, state: 'BLOCKED_EXTERNAL' }
-        return { id: 'handoff-1' }
-      },
-      retractHandoff: async (comment: { id: string }) => { retracted.push(comment.id) },
-      handoffBody: '## HANDOFF\n\nBounded Dev work',
-    })).rejects.toThrow('concurrent state change')
-    expect(retracted).toEqual(['handoff-1'])
   })
 
   it('parses RESULT and REVIEW_VERDICT role comments', () => {
@@ -2300,76 +2027,6 @@ Bounded implementation work.
       { state: 'IN_PROGRESS', review_cycle: 1 },
       { state: 'IN_PROGRESS', review_cycle: 1 },
     )).toBe(true)
-  })
-
-  it('preserves retained child harness closures', async () => {
-    const { readFileSync } = await import('node:fs')
-    const { join } = await import('node:path')
-    const dispatchSource = readFileSync(
-      join(process.cwd(), 'scripts/mission-control-dispatch.mjs'),
-      'utf8',
-    )
-    const dispatchWorkflowSource = readFileSync(
-      join(process.cwd(), 'scripts/mission-control/workflows/dispatch.mjs'),
-      'utf8',
-    )
-    expect(hasExecutableBoundary(dispatchSource, {
-      moduleSpecifier: './mission-control/workflows/dispatch.mjs',
-      importedNames: ['executeDispatchWorkflow'],
-      calledNames: ['executeDispatchWorkflow'],
-      calledWithObjectNames: ['executeDispatchWorkflow'],
-    })).toBe(true)
-    expect(hasExecutableBoundary(dispatchWorkflowSource, {
-      moduleSpecifier: '../../mission-control-reconcile.mjs',
-      importedNames: [
-        'dispatchFounderAuthorizedCorrection',
-        'Coordinator',
-        'resolveProductionCommentTrust',
-      ],
-      calledNames: [
-        'dispatchFounderAuthorizedCorrection',
-        'listLiveComments',
-        'resolveProductionCommentTrust',
-      ],
-      constructedNames: ['Coordinator'],
-    })).toBe(true)
-    expect(dispatchSource).not.toContain('const comments = []')
-    expect(reconcileModule.Coordinator).toBeTruthy()
-    expect(reconcileModule.normalizeTransitionIdentity).toBeTruthy()
-    expect(reconcileModule.resolveProductionCommentTrust).toBeTruthy()
-  })
-
-  it('rejects comment-only dispatch boundary fixtures', () => {
-    const commentOnlyRoot = `
-      // import { executeDispatchWorkflow } from './mission-control/workflows/dispatch.mjs'
-      // executeDispatchWorkflow({
-    `
-    const commentOnlyWorkflow = `
-      // import { Coordinator, dispatchFounderAuthorizedCorrection, resolveProductionCommentTrust } from '../../mission-control-reconcile.mjs'
-      // listLiveComments
-      // new Coordinator(
-    `
-
-    expect(hasExecutableBoundary(commentOnlyRoot, {
-      moduleSpecifier: './mission-control/workflows/dispatch.mjs',
-      importedNames: ['executeDispatchWorkflow'],
-      calledNames: ['executeDispatchWorkflow'],
-      calledWithObjectNames: ['executeDispatchWorkflow'],
-    })).toBe(false)
-    expect(hasExecutableBoundary(commentOnlyWorkflow, {
-      moduleSpecifier: '../../mission-control-reconcile.mjs',
-      importedNames: [
-        'dispatchFounderAuthorizedCorrection',
-        'Coordinator',
-        'resolveProductionCommentTrust',
-      ],
-      calledNames: [
-        'dispatchFounderAuthorizedCorrection',
-        'listLiveComments',
-        'resolveProductionCommentTrust',
-      ],
-      constructedNames: ['Coordinator'],
-    })).toBe(false)
   })
 
   it('requires #182 and #184 merged/green and fresh child-sync HANDOFF', async () => {

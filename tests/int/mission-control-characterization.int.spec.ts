@@ -16,7 +16,6 @@ import {
   classifyReviewLag as rawClassifyReviewLag,
   proposeReviewReconciliation,
   proposeDeliveryReconciliation as rawProposeDeliveryReconciliation,
-  dispatchFounderAuthorizedCorrection as rawDispatchFounderAuthorizedCorrection,
   projectReviewVerdictState as rawProjectReviewVerdictState,
   findLatestRoleComment,
   isGenuineStateConflict,
@@ -27,7 +26,6 @@ import {
 const classifyDeliveryLag = rawClassifyDeliveryLag as unknown as (...args: any[]) => any
 const classifyReviewLag = rawClassifyReviewLag as unknown as (...args: any[]) => any
 const proposeDeliveryReconciliation = rawProposeDeliveryReconciliation as unknown as (...args: any[]) => any
-const dispatchFounderAuthorizedCorrection = rawDispatchFounderAuthorizedCorrection as unknown as (...args: any[]) => Promise<any>
 const projectReviewVerdictState = rawProjectReviewVerdictState as unknown as (...args: any[]) => any
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
@@ -1356,34 +1354,20 @@ describe('Issue #399 post-Review 4 reopen correction route', () => {
     })
   })
 
-  it('dispatches, delivers, and Delta-Reviews the reopen route without resetting 3/1 or Review 4', async () => {
-    let live: Record<string, unknown> = authorizedReopenState()
-    const handoffBody = [
-      '## HANDOFF',
-      '',
-      '**Target:** Dev / Integration Builder',
-      `**Founder correction authorization:** \`${AUTHORIZATION_ID}\``,
-    ].join('\n')
-
-    const dispatched = await dispatchFounderAuthorizedCorrection({
-      readState: async () => live,
-      writeState: async (next: Record<string, unknown>): Promise<void> => { live = next },
-      reserveAuthorization: async (): Promise<{ reservation_id: string }> => ({ reservation_id: 'reopen-399' }),
-      releaseAuthorization: async (): Promise<void> => undefined,
-      retractHandoff: async (): Promise<void> => undefined,
-      postHandoff: async () => ({
-        id: '5379172102',
-        html_url: 'https://github.com/boat1994/bemoat-web-starter/issues/399#issuecomment-5379172102',
-        created_at: '2026-08-22T08:05:00Z',
-        updated_at: '2026-08-22T08:05:00Z',
+  it('delivers and Delta-Reviews the reopen route without resetting 3/1 or Review 4', async () => {
+    const dispatchedParsed = parseRendered({
+      ...authorizedReopenState(),
+      state: 'IN_PROGRESS',
+      founder_correction_authorization: reopenAuthorization({
+        status: 'consumed',
+        handoff_comment_id: '5379172102',
+        handoff_binding: {
+          schema_version: 1,
+          content_sha256: 'a'.repeat(64),
+          binding_sha256: 'b'.repeat(64),
+        },
       }),
-      handoffBody,
-      updatedAt: '2026-08-22T08:05:00.000Z',
-      updatedBy: 'Mission Control',
     })
-
-    expect(dispatched.outcome).toBe('DISPATCHED_FOUNDER_AUTHORIZED_CORRECTION')
-    const dispatchedParsed = parseRendered(live)
     expect(dispatchedParsed).toMatchObject({ present: true, valid: true })
     expect(dispatchedParsed.state).toMatchObject({
       state: 'IN_PROGRESS',
@@ -1627,26 +1611,8 @@ describe('Issue #399 post-Review 4 reopen correction route', () => {
     })
   })
 
-  it('rolls back an unverified reopen dispatch and rejects a second delivery', async () => {
+  it('rejects a second reopen correction delivery', async () => {
     const original = authorizedReopenState()
-    const live = original
-    let retracted = false
-    await expect(dispatchFounderAuthorizedCorrection({
-      readState: async () => live,
-      writeState: async (): Promise<void> => { throw new Error('postcondition: Issue state unreadable after write') },
-      reserveAuthorization: async (): Promise<{ reservation_id: string }> => ({ reservation_id: 'reopen-399' }),
-      releaseAuthorization: async (): Promise<void> => undefined,
-      retractHandoff: async (): Promise<void> => { retracted = true },
-      postHandoff: async () => ({
-        id: '5379172102',
-        created_at: '2026-08-22T08:05:00Z',
-        updated_at: '2026-08-22T08:05:00Z',
-      }),
-      handoffBody: `## HANDOFF\n\n**Target:** Dev / Integration Builder\n**Founder correction authorization:** \`${AUTHORIZATION_ID}\``,
-    })).rejects.toThrow('verified Founder authorization consumption')
-    expect(retracted).toBe(true)
-    expect(live).toEqual(original)
-
     const firstDelivery = proposeDeliveryReconciliation({
       managedState: {
         ...original,

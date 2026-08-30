@@ -2,7 +2,7 @@
 import type { CommandMetadataDependencies } from './mission-control-command-metadata-deps.ts'
 
 export function missionControlPrimaryCommands(dependencies: CommandMetadataDependencies) {
-  const { contract, positional, stdinInput, flag, nextAction } = dependencies
+  const { contract, positional, flag, nextAction } = dependencies
   return {
   'bemoat:mission-control:authorize-founder': contract({
     command: 'bemoat:mission-control:authorize-founder',
@@ -59,65 +59,6 @@ export function missionControlPrimaryCommands(dependencies: CommandMetadataDepen
     legacy_classification_map: {
       NO_OP: 'NO_OP_IDENTICAL_RETRY',
       RECORDED: 'SUCCESS',
-    },
-  }),
-  'bemoat:mission-control:dispatch': contract({
-    command: 'bemoat:mission-control:dispatch',
-    tier: 'A',
-    entrypoint: 'scripts/mission-control-dispatch.mjs',
-    purpose: 'MIGRATION-ONLY HISTORICAL: Claim the next Mission Control delivery or authorized correction.',
-    operation: 'MIGRATION-ONLY HISTORICAL: Validate HANDOFF evidence and project one leased dispatch transition.',
-    accepted_pre_states: ['READY', 'FOUNDER_AUTHORIZED_CORRECTION'],
-    required_inputs: [
-      positional('issue_number', '<issue-number>', 'positive_integer', 'Managed Task Issue number.'),
-      stdinInput('handoff_body', 'Canonical HANDOFF body when --body-file is not used.'),
-    ],
-    optional_flags: [
-      flag('repository', '--repo <owner/repository>', 'repository', 'Repository containing the Task Issue.'),
-      flag('body_file', '--body-file <path>', 'path', 'Read the HANDOFF body from this file instead of stdin.'),
-      flag('founder_correction', '--founder-correction', 'boolean', 'Consume the exact Founder correction authorization route.'),
-      flag('workflow_mode', '--workflow-mode <mode>', 'enum', 'Explicit workflow mode.', ['planning_no_pr', 'implementation_pr']),
-      flag('planning_base_sha', '--planning-base-sha <full-sha>', 'full_sha', 'Exact planning authorization base SHA.'),
-    ],
-    trusted_derived_values: ['workflow identity', 'repository-owned policy version and source SHA', 'branch reservation evidence'],
-    required_evidence: [
-      'Task Issue state and active-task identity.',
-      'Canonical HANDOFF evidence and immutable transition identity.',
-      'Workflow mode and planning lineage when applicable.',
-      'Branch reservation evidence for the selected operation.',
-    ],
-    reads: ['Issue/state/comments/PR', 'HANDOFF body', 'branch reservation evidence'],
-    writes: ['HANDOFF comment', 'leased/CAS Issue state', 'temporary reservation ref with cleanup'],
-    success_classifications: ['SUCCESS', 'NO_OP_IDENTICAL_RETRY'],
-    retry_contract: {
-      identical_retry: 'conditional',
-      classification: 'NO_OP_IDENTICAL_RETRY',
-      condition: 'An identical retry is allowed only when the same HANDOFF transition identity is already projected.',
-    },
-    next_action_rules: [
-      {
-        classification: 'SUCCESS',
-        next_action: nextAction('FOUNDER_GATE', null, 'The historical delivery coordinator was retired; stop before continuing this migration-only route.'),
-      },
-      {
-        classification: 'NO_OP_IDENTICAL_RETRY',
-        next_action: nextAction('COMPLETE', null, 'The identical dispatch claim is already durable.'),
-      },
-    ],
-    examples: [
-      {
-        description: 'Dispatch a canonical HANDOFF.',
-        argv: ['284', '--repo', 'boat1994/bemoat-web-starter', '--body-file', './handoff.md'],
-      },
-    ],
-    parser_owner: 'scripts/mission-control-dispatch.mjs',
-    safe_help_invocation: 'pnpm run bemoat:mission-control:dispatch -- --help --json',
-    last_validation_before_mutation: 'Re-read the Task Issue, HANDOFF evidence, policy lineage, and branch reservation immediately before the leased/CAS write.',
-    post_write_readback: 'Re-read the Issue, comments, and reservation cleanup state and confirm the projected dispatch identity.',
-    legacy_classification_map: {
-      DISPATCHED: 'SUCCESS',
-      DISPATCHED_FOUNDER_AUTHORIZED_CORRECTION: 'SUCCESS',
-      NO_OP: 'NO_OP_IDENTICAL_RETRY',
     },
   }),
   'bemoat:mission-control:merge': contract({

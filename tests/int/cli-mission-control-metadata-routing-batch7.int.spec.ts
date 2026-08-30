@@ -17,7 +17,6 @@ const EXPECTED_ALL_MUTATING_COMMANDS = [
   'bemoat:issue:comment',
   'bemoat:mission-control:adopt-finding',
   'bemoat:mission-control:authorize-founder',
-  'bemoat:mission-control:dispatch',
   'bemoat:mission-control:merge',
   'bemoat:mission-control:merge-standard',
   'bemoat:mission-control:reconcile',
@@ -31,7 +30,6 @@ const EXPECTED_ALL_MUTATING_COMMANDS = [
 
 const EXPECTED_PRIMARY_COMMANDS = [
   'bemoat:mission-control:authorize-founder',
-  'bemoat:mission-control:dispatch',
   'bemoat:mission-control:merge',
   'bemoat:mission-control:merge-standard',
   'bemoat:mission-control:reconcile',
@@ -53,7 +51,7 @@ const EXPECTED_REVIEW_COMMANDS = [
 const EXPECTED_PRIMARY_ROUTE_KEYS = [
   'no-task/founder-authorization-recording',
   'no-task/exact-task-bootstrap-founder-authorization-workflow-tuple',
-  'READY/valid-handoff-inputs',
+  'READY/retired-stateful-dispatch',
   'IN_PROGRESS/retired-delivery-coordinator',
   'AWAITING_REVIEW_1/exact-full-review-evidence',
   'CORRECTION_REQUIRED_1/founder-authorized-finding-adoption',
@@ -128,7 +126,7 @@ describe('Batch 7 characterization — CLI command metadata and routing policy l
 
   it('expands prohibited_commands from ALL_MUTATING_COMMANDS for founder-gate routes', () => {
     const founderGateRoutes = missionControlPrimaryRoutes().filter((route: any) => route.decision === 'FOUNDER_GATE')
-    expect(founderGateRoutes).toHaveLength(3)
+    expect(founderGateRoutes).toHaveLength(5)
     for (const route of founderGateRoutes) {
       expect(route.prohibited_commands).toEqual([...ALL_MUTATING_COMMANDS])
     }

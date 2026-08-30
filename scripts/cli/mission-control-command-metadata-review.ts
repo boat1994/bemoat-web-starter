@@ -115,7 +115,7 @@ export function missionControlReviewCommands(dependencies: CommandMetadataDepend
     next_action_rules: [
       {
         classification: 'SUCCESS',
-        next_action: nextAction('COMMAND', 'bemoat:mission-control:dispatch', 'The resulting review state determines the next bounded dispatch or Founder gate.'),
+        next_action: nextAction('FOUNDER_GATE', null, 'The historical stateful dispatch transport was retired; stop before continuing this migration-only route.'),
       },
       {
         classification: 'NO_OP_IDENTICAL_RETRY',
@@ -239,7 +239,7 @@ export function missionControlReviewCommands(dependencies: CommandMetadataDepend
     next_action_rules: [
       {
         classification: 'SUCCESS',
-        next_action: nextAction('COMMAND', 'bemoat:mission-control:dispatch', 'The bootstrapped Task is ready for HANDOFF dispatch.'),
+        next_action: nextAction('FOUNDER_GATE', null, 'The historical stateful dispatch transport was retired; stop before continuing this migration-only route.'),
       },
       {
         classification: 'NO_OP_IDENTICAL_RETRY',

@@ -1,15 +1,5 @@
 import { violation } from './violation.mjs'
 
-const REQUIRED_DISPATCH_ARGS = [
-  'pnpm run bemoat:mission-control:dispatch',
-  '-- <issue-number>',
-  '[--repo <owner>/<repo>]',
-  '[--body-file <handoff-file>]',
-  '[--founder-correction]',
-  '[--workflow-mode <mode>]',
-  '[--planning-base-sha <commit-sha>]'
-]
-
 const REQUIRED_REVIEW_ARGS = [
   'pnpm run bemoat:mission-control:review',
   '-- <issue-number>',
@@ -101,12 +91,6 @@ export function scanCommandReferenceContent(relativePath, content) {
     return violations
   }
 
-  for (const arg of REQUIRED_DISPATCH_ARGS) {
-    if (!content.includes(arg)) {
-      violations.push(violation('MC021', relativePath, `Command reference missing dispatch arg: ${arg}`))
-    }
-  }
-
   for (const arg of REQUIRED_REVIEW_ARGS) {
     if (!content.includes(arg)) {
       violations.push(violation('MC022', relativePath, `Command reference missing review arg: ${arg}`))
@@ -151,7 +135,6 @@ export function scanCommandReferenceContent(relativePath, content) {
 
   const expectedTableHeaders = [
     '| Command |',
-    '| `dispatch` |',
     '| `review` |',
     '| `reconcile` |',
     '| `adopt-finding` |',
@@ -176,10 +159,8 @@ export function scanCommandReferenceContent(relativePath, content) {
   }
 
   const semanticInvariants = [
-    'Dispatch does not own `AWAITING_REVIEW_1` transitions.',
     'Rerun the same canonical review command. Do not post another verdict manually.',
     'Do not edit the immutable authorization comment.',
-    '### Dispatch checks',
     '### Review checks',
     '### Reconcile checks',
     '### Merge checks',

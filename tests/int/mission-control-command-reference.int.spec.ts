@@ -10,7 +10,7 @@ describe('Mission Control command reference contract', () => {
       readFile: (filePath) => {
         const content = readFileSync(filePath, 'utf8')
         if (filePath.endsWith('command-reference.md')) {
-          return content.replace('Dispatch does not own `AWAITING_REVIEW_1` transitions.', '')
+          return content.replace('### Review checks', '')
         }
         return content
       }

@@ -62,7 +62,6 @@
     "scripts/adapters/command-runner.mjs",
     "scripts/mission-control-review.mjs",
     "scripts/mission-control-merge.mjs",
-    "scripts/mission-control-dispatch.mjs",
     "scripts/mission-control-recover-review.mjs",
     "scripts/mission-control-issue-body-cas.mjs",
     "scripts/post-role-comment.mjs",

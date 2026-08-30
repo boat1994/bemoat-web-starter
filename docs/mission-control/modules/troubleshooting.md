@@ -44,8 +44,7 @@ the child task transport.
 
 ### Issue-body write TOCTOU / lease CAS
 
-Protocol writers (`mission-control-dispatch`, `agent-delivery`, and
-`mission-control-reconcile` `writeState`) must not call unconditional
+Retained protocol writers and migration readers must not call unconditional
 `gh issue edit` after a live reread. They win a GitHub Contents API file-`sha`
 lease (branch `bemoat/mission-control-leases`) bound to transition identity +
 observed body hash via `scripts/mission-control/workflows/issue-body-cas.mjs`, then

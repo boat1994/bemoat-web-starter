@@ -13,7 +13,7 @@ import {
   limitTransitions,
 } from '../../scripts/mission-control/domain/productive-policy.mjs'
 
-const { Coordinator, dispatchFounderAuthorizedCorrection } = reconcileModule as unknown as Record<string, any>
+const { Coordinator } = reconcileModule as unknown as Record<string, any>
 
 const REVIEWED_HEAD = 'a'.repeat(40)
 const CHANGED_HEAD = 'b'.repeat(40)
@@ -252,71 +252,6 @@ describe('Productive-Only Mission Control gate correction', () => {
 
     expect(fixture.postCalls).toBe(0)
     expect(fixture.writeCalls).toBe(0)
-  })
-
-  it('22. Founder bounded AUTHORIZATION dispatch resolves directly to one HANDOFF.', async () => {
-    const fixture = createCoordinatorFixture({ state: 'READY', review_cycle: 0, full_review_count: 0 })
-
-    const result = await fixture.coordinator.integrateHandoff({
-      handoffBody: '## AUTHORIZATION\n\n**Task / Issue:** #292\n**Phase:** Dev (implementation)\n**Target:** bounded correction',
-      policy: {
-        founderDispatch: {
-          isFounderIssued: true,
-          isBoundedExecutionInstruction: true,
-        },
-        transition: {
-          changesAuthoritativeState: true,
-          producesEvidence: true,
-        },
-      },
-    })
-
-    expect(result.outcome).toBe('DISPATCHED')
-    expect(result.policy).toMatchObject({
-      dispatchMode: 'FOUNDER_BOUNDED_HANDOFF',
-      requiresPreparation: false,
-      requiresReadinessReview: false,
-      requiresSecondAuthorization: false,
-    })
-    expect(fixture.comments).toHaveLength(1)
-    expect(fixture.writeCalls).toBe(1)
-  })
-
-  it('23. Founder correction dispatch still rejects a non-Founder authorization before reservation.', async () => {
-    let reservations = 0
-    let posts = 0
-    let state: Record<string, unknown> = {
-      state: 'FOUNDER_AUTHORIZED_CORRECTION',
-      review_cycle: 3,
-      full_review_count: 1,
-      current_head: REVIEWED_HEAD,
-      last_reviewed_head: REVIEWED_HEAD,
-      founder_correction_authorization: {
-        schema_version: 2,
-        authorization_id: 'attacker-authorization',
-        status: 'authorized',
-        authority: 'Attacker',
-        scope: 'correction',
-        for_review_number: 3,
-        reviewed_head: REVIEWED_HEAD,
-        finding_ids: ['finding-1'],
-        action: 'bounded correction',
-        authorized_at: '2026-08-06T00:00:00Z',
-      },
-    }
-
-    await expect(dispatchFounderAuthorizedCorrection({
-      readState: async () => structuredClone(state),
-      writeState: async (next: Record<string, unknown>) => { state = structuredClone(next); return state },
-      reserveAuthorization: async () => { reservations += 1; return { reservation_id: 'reservation-1' } },
-      releaseAuthorization: async (): Promise<void> => undefined,
-      postHandoff: async () => { posts += 1; return { id: 'handoff-1' } },
-      retractHandoff: async (): Promise<void> => undefined,
-      handoffBody: '## AUTHORIZATION\n\n**Founder correction authorization:** `attacker-authorization`',
-    })).rejects.toThrow(/Founder/i)
-
-    expect(reservations).toBe(0)
-    expect(posts).toBe(0)
   })
 
   it('24. Metadata-only unchanged-head correction selects delta verification and preserves semantic evidence.', async () => {

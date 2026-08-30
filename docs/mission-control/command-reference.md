@@ -31,7 +31,6 @@ Phase 7 deletion slices prove their consumers and dependencies.
 
 | Command | Usage |
 | --- | --- |
-| `dispatch` | Start work on a Task Issue, claim `IN_PROGRESS` only. Dispatch does not own `AWAITING_REVIEW_1` transitions. |
 | `delivery` | Owns the transition of a successful implementation to `AWAITING_REVIEW_1`. (Note: Delivery is a workflow boundary, not a standalone CLI script in this reference). |
 | `review` | Submit a Full Review 1 or Delta Review verdict, update counters and target states. |
 | `recover-review` | Exceptional, exact-incident transport for the approved #274/#275 raw-review quarantine; it is not ordinary review. |
@@ -127,7 +126,7 @@ Keep these values distinct in every handoff and invocation:
 | Base branch | The live PR target branch (`baseRefName`), which must match the approved base in the Task Issue state. |
 | Protected-base SHA | The live commit SHA of the protected base branch (`baseRefOid` / current protected ref), used for ancestry and exact-base checks; do not copy an older approved SHA from chat. |
 | Exact PR head SHA | The live PR `headRefOid` at the moment of the command. Must be the complete 40-character SHA. CI and every review/merge authorization must match this exact SHA. |
-| Role comment ID | The immutable GitHub Issue comment ID returned by the live API: HANDOFF for dispatch, active `REVIEW_VERDICT` for reconcile/merge, and Founder authorization for merge. |
+| Role comment ID | The immutable GitHub Issue comment ID returned by the live API: HANDOFF for protocol coordination, active `REVIEW_VERDICT` for reconcile/merge, and Founder authorization for merge. |
 | Verdict body / verdict file | The complete `## REVIEW_VERDICT` body supplied by `--body-file` to review, or the live role comment body selected by reconcile/merge. A file path is only transport. New verdicts must contain canonical PR/base/head/verdict evidence. Reconcile requires canonical `**PR / base / head:**` evidence and fails closed on retired legacy labels. Merge transport collects every recognized PR/base/head source before selection and fails closed on duplicate fields, conflicting values, partial historical pairs, multiline, short-SHA, or malformed evidence. Recognized merge sources are one canonical `**PR / base / head:**` line (`/pull/N` or `PR #N`), `/pull/N` URL form, one historical `**PR:** PR #N`, one `**Exact head reviewed:**` and/or one `**Exact reviewed head:**`, and one `**Approved base:**`. A complete unique semantically identical binding across those permitted source forms is accepted only when each form appears at most once and all recognized values agree; first-match preference is prohibited. |
 
 Do not infer any supplied value from a chat transcript. Re-read the Task Issue,
@@ -155,45 +154,6 @@ Example canonical `REVIEW_VERDICT` body (all values are fake):
 **Gates:** exact-head CI pass
 **Next:** Founder review
 ```
-
-## Dispatch
-
-Exact syntax:
-
-```text
-pnpm run bemoat:mission-control:dispatch -- <issue-number> [--repo <owner>/<repo>] [--body-file <handoff-file>] [--founder-correction] [--workflow-mode <mode>] [--planning-base-sha <commit-sha>]
-```
-
-Positional arguments and flags:
-
-- `<issue-number>` is the positive Task Issue number.
-- `--repo` is optional `owner/repo`; otherwise the current `gh` repository is used.
-- `--body-file` supplies the complete `## HANDOFF`. Without it, dispatch reads stdin.
-- `--founder-correction` selects the Founder-authorized correction path. Valid only when the live state is `FOUNDER_AUTHORIZED_CORRECTION`.
-- `--workflow-mode` optionally records the mode in the managed state. Values must come from authoritative live authorization or plan evidence. Do not supply invented values.
-- `--planning-base-sha` optionally supplies the planning authorization base SHA. Must come from authoritative evidence.
-
-Preconditions and sources: the live Task Issue must have valid managed state.
-Normal dispatch must be in a dispatchable state and must post one valid HANDOFF,
-then verify the live state is `IN_PROGRESS` and bound to the returned comment ID.
-Founder correction additionally requires live `FOUNDER_AUTHORIZED_CORRECTION`
-state, unconsumed authorization, and a HANDOFF containing the live authorization
-identity. The base SHA and mode come from the live authorization/plan evidence,
-not an invented value.
-
-Fetch Task Issue values: `gh issue view 123 --json body,state`
-
-Structurally valid fake example:
-
-```text
-pnpm run bemoat:mission-control:dispatch -- 123 --repo user/repo --body-file payload-handoff.md --workflow-mode planning_no_pr --planning-base-sha 5555555555555555555555555555555555555555
-```
-
-Invalid inputs fail closed as `STATE_CONFLICT` for missing/invalid state,
-duplicate or malformed positional arguments, or a mismatched authorization;
-unavailable GitHub/comment/ref operations classify as `BLOCKED_EXTERNAL`.
-Never replace dispatch with a direct `gh issue edit`, manual YAML edit, or ad hoc
-transition script.
 
 ## Review recovery
 

@@ -176,9 +176,9 @@ function renderResult({ command, format, result }) {
         reason: 'The identical Task bootstrap is already durable.',
       }
       : {
-        type: 'COMMAND',
-        command: 'bemoat:mission-control:dispatch',
-        reason: 'The bootstrapped Task is ready for HANDOFF dispatch.',
+        type: 'FOUNDER_GATE',
+        command: null,
+        reason: 'The historical stateful dispatch transport was retired; stop before continuing this migration-only route.',
       },
     details: {
       legacy_classification: legacyClassification,
