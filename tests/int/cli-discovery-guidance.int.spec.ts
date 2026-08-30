@@ -22,7 +22,6 @@ const pointerPaths = [
 const managedGuidancePaths = [canonicalPath, ...pointerPaths]
 const representativeCommands = [
   'bemoat:agent:issue',
-  'bemoat:mission-control:reconcile',
 ] as const
 
 describe('Bemoat CLI discovery guidance', () => {
@@ -99,9 +98,7 @@ describe('Bemoat CLI discovery guidance', () => {
     for (const operation of [
       'task bootstrap',
       'dispatch',
-      'reconcile',
       'review',
-      'reopen',
       'merge',
       'delivery',
       'role comment transport',

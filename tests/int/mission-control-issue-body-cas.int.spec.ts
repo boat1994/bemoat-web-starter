@@ -8,11 +8,11 @@ import {
   leasePathForIssue,
 } from '../../scripts/mission-control/workflows/issue-body-cas.mjs'
 import {
-  Coordinator as CoordinatorClass,
   normalizeTransitionIdentity,
   serializeTransitionIdentity,
-  verifyStatePostcondition,
-} from '../../scripts/mission-control-reconcile.mjs'
+} from '../../scripts/mission-control/transition-identity.mjs'
+import { Coordinator as CoordinatorClass } from '../../scripts/mission-control/coordinator.mjs'
+import { verifyStatePostcondition } from '../../scripts/mission-control/state-verification.mjs'
 
 describe('mission-control issue-body lease CAS', () => {
   const repo = 'boat1994/bemoat-web-starter'

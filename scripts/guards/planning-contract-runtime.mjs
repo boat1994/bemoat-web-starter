@@ -232,7 +232,7 @@ function validateMissionControlCompatibility(stateAnalysis, contract, issueNumbe
     message: 'Incompatible Mission Control state on active task issue',
     found: 'incompatible Mission Control state',
     reason: 'recorded state is DONE or conflicts with task issue',
-    correctiveAction: `Reconcile Mission Control state on issue #${issueNumber}`,
+    correctiveAction: `Reconstruct Mission Control state on issue #${issueNumber}`,
   })]
 }
 export function verifyLiveTaskIdentity(options) {

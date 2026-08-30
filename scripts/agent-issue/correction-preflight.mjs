@@ -7,7 +7,7 @@ import {
 import {
   resolveAuthoritativeCorrectionContract,
 } from '../mission-control/domain/active-correction-contract.ts'
-import { findLatestRoleComment } from '../mission-control-reconcile.mjs'
+import { findLatestRoleComment } from '../mission-control/role-comment-selection.mjs'
 import {
   extractVerdictPrBaseAndHead,
 } from '../mission-control/domain/pr-identity.ts'

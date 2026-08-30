@@ -39,41 +39,6 @@ export type AssertTransportRouteOptions = {
 
 export const CANONICAL_TRANSPORTS: ReadonlyArray<Readonly<CanonicalTransportRoute>> = Object.freeze([
   Object.freeze({
-    command: 'bemoat:mission-control:reconcile',
-    role: 'STATE_PROJECTION',
-    owner: 'State Reconciler',
-    purpose: 'MIGRATION-ONLY HISTORICAL: repair routing-only projection drift after a failed canonical transport',
-    exceptional: false,
-  }),
-  Object.freeze({
-    command: 'bemoat:mission-control:reopen',
-    role: 'STATE_PROJECTION',
-    owner: 'Founder-authorized Reopen Transport',
-    purpose: 'MIGRATION-ONLY HISTORICAL: project Founder-authorized PR head drift to FOUNDER_AUTHORIZED_CORRECTION',
-    exceptional: false,
-  }),
-  Object.freeze({
-    command: 'bemoat:mission-control:adopt-finding',
-    role: 'STATE_PROJECTION',
-    owner: 'Founder-authorized Finding Adoption Transport',
-    purpose: 'MIGRATION-ONLY HISTORICAL: append one Founder-authorized finding to the active correction contract without changing CORRECTION_REQUIRED state',
-    exceptional: false,
-  }),
-  Object.freeze({
-    command: 'bemoat:mission-control:recover-state',
-    role: 'STATE_PROJECTION',
-    owner: 'Missing Managed-State Recovery Transport',
-    purpose: 'MIGRATION-ONLY HISTORICAL: recreate one uniquely reconstructed absent managed-state projection without review or finding adoption',
-    exceptional: true,
-  }),
-  Object.freeze({
-    command: 'bemoat:mission-control:recover-review-eligibility',
-    role: 'STATE_PROJECTION',
-    owner: 'Missing-State Review Eligibility Recovery Transport',
-    purpose: 'MIGRATION-ONLY HISTORICAL: recreate one uniquely reconstructed absent-state AWAITING_REVIEW_1 projection without publishing review evidence',
-    exceptional: true,
-  }),
-  Object.freeze({
     command: 'bemoat:mission-control:authorize-founder',
     role: 'FOUNDER_AUTHORIZATION',
     owner: 'Founder Authorization Recording Transport',

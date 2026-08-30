@@ -9,7 +9,6 @@ import {
   validatePostBudgetManagedState,
 } from './domain/task-state-authorization.ts'
 import { normalizeTransitionIdentity, serializeTransitionIdentity } from './transition-identity.mjs'
-export { proposeReviewReconciliation } from './review-verdict-projection.ts'
 
 const PRE_DELIVERY_STATES = new Set(['READY', 'IN_PROGRESS', 'CORRECTION_REQUIRED_1', 'CORRECTION_REQUIRED_2'])
 const CORE_VERDICTS = new Set([

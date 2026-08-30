@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 const root = resolve(process.cwd())
 const tempRoots: string[] = []
 const oracle = [
-  ['tests/int/mission-control-adopt-finding.int.spec.ts', 'f5eed96613295c8c9e90e36fa0cdd218a4ab8c38c7070f23e79bceb2fa81a4eb'],
+  ['tests/int/phase7-merge-wrappers-prune.int.spec.ts', 'bdf192a500a5d6a71e4b5f4241017e6f698bea23ed78412c56ca5f794e874d7d'],
 ] as const
 const productionExtensions = ['.mjs', '.ts'] as const
 const grandfathered = [
@@ -14,13 +14,9 @@ const grandfathered = [
   ['scripts/agent-issue/progress-tracking.mjs', 462], ['scripts/boilerplate/filesystem.mjs', 635],
   ['scripts/boilerplate/workflow.mjs', 465], ['scripts/check-boilerplate-drift.mjs', 552],
   ['scripts/cli/command-contract-registry.ts', 870], ['scripts/cli/command-contract.ts', 580],
-  ['scripts/mission-control-reconcile.mjs', 143],
   ['scripts/mission-control/domain/campaign-authority.ts', 630], ['scripts/mission-control/domain/campaign-validator.mjs', 482], ['scripts/mission-control/domain/correction-contract.mjs', 650], ['scripts/mission-control/domain/correction-contract.ts', 536],
-  ['scripts/mission-control/domain/recover-state-projection.mjs', 37], ['scripts/mission-control/domain/review-recovery.mjs', 485],
-  ['scripts/mission-control/workflows/adopt-finding.mjs', 564],
   ['scripts/mission-control/workflows/issue-body-cas.mjs', 438],
-  ['scripts/mission-control/workflows/recover-state.mjs', 1099],
-  ['scripts/mission-control/workflows/reopen.mjs', 918], ['scripts/mission-control/workflows/task-bootstrap.mjs', 658],
+  ['scripts/mission-control/workflows/task-bootstrap.mjs', 658],
   ['scripts/post-role-comment.mjs', 554],
 ] as const
 
@@ -72,9 +68,9 @@ async function guard(path = root) {
 describe('structural protection guard', () => {
   it('accepts the current repository with the exact inventory, baseline, and protected oracle', async () => {
     expect((await guard()).map((entry: { rule: string }) => entry.rule)).toEqual([])
-    expect(grandfathered).toHaveLength(20)
+    expect(grandfathered).toHaveLength(14)
     expect(JSON.parse(readFileSync(join(root, 'scripts/structural-protection-manifest.json'), 'utf8'))).toEqual(manifest())
-    expect(scriptInventory(root)).toBe(243)
+    expect(scriptInventory(root)).toBe(212)
   })
 
   it('rejects malformed schema, types, unknown keys, ordering, duplicates, paths, and SHA values', async () => {
@@ -117,19 +113,6 @@ describe('structural protection guard', () => {
     expect(await guard(path)).toEqual([])
     write(path, 'scripts/moved.mjs', `${'x\n'.repeat(401)}`)
     expect(await guard(path)).not.toEqual([])
-  })
-
-  it('rejects growth above an accepted ratcheted ceiling', async () => {
-    const path = fixture()
-    const target = 'scripts/mission-control-reconcile.mjs'
-    write(path, target, `${'x\n'.repeat(144)}`)
-    expect(await guard(path)).toEqual([{
-      rule: 'STRUCT012',
-      file: target,
-      message: '144 physical lines exceeds the maximum of 143.',
-    }])
-    write(path, target, `${'x\n'.repeat(143)}`)
-    expect(await guard(path)).toEqual([])
   })
 
   it('rejects changed, missing, symlinked, duplicate, reordered, or extra protected oracle entries', async () => {

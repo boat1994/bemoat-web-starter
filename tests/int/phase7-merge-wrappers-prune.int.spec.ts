@@ -8,7 +8,6 @@ import {
   missionControlPrimaryRoutes,
 } from '../../scripts/cli/mission-control-routing-policy-primary.mjs'
 import { missionControlRecoveryRoutes } from '../../scripts/cli/mission-control-routing-policy-recovery.mjs'
-import { parseFounderReopenAuthorization } from '../../scripts/mission-control/domain/reopen-authorization.ts'
 import { classifyMergeReviewVerdict } from '../../scripts/mission-control/domain/merge-review-verdict.ts'
 import { CANONICAL_TRANSPORTS } from '../../scripts/mission-control/transport-registry.mjs'
 
@@ -43,9 +42,8 @@ describe('Phase 7 merge-wrapper deletion boundary', () => {
     }
   })
 
-  it('retains migration readers still consumed by Context and reopen', () => {
+  it('retains migration readers still consumed by Context and Handoff', () => {
     expect(classifyMergeReviewVerdict).toBeTypeOf('function')
-    expect(parseFounderReopenAuthorization).toBeTypeOf('function')
     expect(COMMAND_CONTRACT_REGISTRY.commands['bemoat:context']).toBeDefined()
     expect(COMMAND_CONTRACT_REGISTRY.commands['bemoat:handoff']).toBeDefined()
   })

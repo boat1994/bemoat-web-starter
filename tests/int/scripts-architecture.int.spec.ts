@@ -50,8 +50,6 @@ describe('scripts architecture ratchet', () => {
     const adapterRoot = join(process.cwd(), 'scripts/mission-control/adapters')
     const adapters = [
       'merge-github.mjs',
-      'recover-state-github.mjs',
-      'reopen-github.mjs',
     ]
 
     for (const adapter of adapters) {
@@ -74,7 +72,7 @@ describe('scripts architecture ratchet', () => {
 
   it('preserves the approved nine-node sixteen-edge baseline SCC in the contract', () => {
     expect(architectureContract.cycleNodes).toHaveLength(9)
-    expect(architectureContract.cycleEdges).toHaveLength(16)
+    expect(architectureContract.cycleEdges).toHaveLength(12)
   })
 
   it('maps every root script exactly once with destination vocabulary and transitional harness-contract', () => {

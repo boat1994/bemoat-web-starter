@@ -1,10 +1,10 @@
 import { Buffer } from 'buffer'
 import {
   parseRoleCommentBody,
-  findLatestRoleComment,
   isExplicitlyNonAuthoritativeRoleBody,
   selectActiveRoleComments,
-} from '../../mission-control-reconcile.mjs'
+} from '../review-verdict-binding.mjs'
+import { findLatestRoleComment } from '../role-comment-selection.mjs'
 import { normalizeTransitionIdentity } from '../../mission-control/transition-identity.mjs'
 
 function getCommentBody(comment) {

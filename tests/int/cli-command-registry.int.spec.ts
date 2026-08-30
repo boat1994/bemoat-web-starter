@@ -53,12 +53,7 @@ const EXPECTED_PACKAGE_SCRIPTS: Record<string, string> = {
   'bemoat:guard:safety': 'node scripts/guard-pack.mjs',
   'bemoat:hooks:install': 'node scripts/install-git-hooks.mjs',
   'bemoat:issue:comment': 'node scripts/post-role-comment.mjs',
-  'bemoat:mission-control:adopt-finding': 'node scripts/mission-control-adopt-finding.mjs',
   'bemoat:mission-control:authorize-founder': 'node scripts/mission-control-authorize-founder.mjs',
-  'bemoat:mission-control:reconcile': 'node scripts/mission-control-reconcile.mjs',
-  'bemoat:mission-control:recover-review-eligibility': 'node scripts/mission-control-recover-review-eligibility.mjs',
-  'bemoat:mission-control:recover-state': 'node scripts/mission-control-recover-state.mjs',
-  'bemoat:mission-control:reopen': 'node scripts/mission-control-reopen.mjs',
   'bemoat:mission-control:task-bootstrap': 'node scripts/mission-control-task-create.mjs',
   'bemoat:test:int': 'cross-env NODE_OPTIONS=--no-deprecation vitest run --config ./vitest.config.mts',
   'bemoat:typecheck': 'node scripts/bemoat-typecheck.mjs',
@@ -81,11 +76,6 @@ const EXPECTED_COMMAND_TIERS: Record<string, 'A' | 'B' | 'C'> = {
   'bemoat:hooks:install': 'A',
   'bemoat:issue:comment': 'A',
   'bemoat:mission-control:authorize-founder': 'A',
-  'bemoat:mission-control:reconcile': 'A',
-  'bemoat:mission-control:recover-review-eligibility': 'A',
-  'bemoat:mission-control:recover-state': 'A',
-  'bemoat:mission-control:reopen': 'A',
-  'bemoat:mission-control:adopt-finding': 'A',
   'bemoat:mission-control:task-bootstrap': 'A',
   'bemoat:test:int': 'C',
   'bemoat:typecheck': 'C',
@@ -273,10 +263,10 @@ describe('Task 1 command contract registry', () => {
       .sort()
 
     expect(packageCommands).toEqual(Object.keys(EXPECTED_PACKAGE_SCRIPTS).sort())
-    expect(packageCommands).toHaveLength(24)
+    expect(packageCommands).toHaveLength(19)
     expect(registryCommands).toEqual(packageCommands)
     expect(classifiedCommands).toEqual(packageCommands)
-    expect(new Set(classifiedCommands).size).toBe(24)
+    expect(new Set(classifiedCommands).size).toBe(19)
 
     for (const command of packageCommands) {
       expect(getCommandContract(command)).toBe(COMMAND_CONTRACT_REGISTRY.commands[command])
@@ -293,9 +283,9 @@ describe('Task 1 command contract registry', () => {
       counts[expectedTier] += 1
     }
 
-    expect(counts).toEqual({ A: 12, B: 9, C: 3 })
-    expect(Object.keys(EXPECTED_COMMAND_TIERS)).toHaveLength(24)
-    expect(Object.keys(COMMAND_CONTRACT_REGISTRY.commands)).toHaveLength(24)
+    expect(counts).toEqual({ A: 7, B: 9, C: 3 })
+    expect(Object.keys(EXPECTED_COMMAND_TIERS)).toHaveLength(19)
+    expect(Object.keys(COMMAND_CONTRACT_REGISTRY.commands)).toHaveLength(19)
     expectRegistryValid()
   })
 
@@ -439,7 +429,7 @@ describe('Task 1 command contract registry', () => {
   })
 
   it('matches every canonical transport role and exceptional bit', () => {
-    expect(CANONICAL_TRANSPORTS).toHaveLength(6)
+    expect(CANONICAL_TRANSPORTS).toHaveLength(1)
 
     for (const transport of CANONICAL_TRANSPORTS) {
       const contract = asRecord(getCommandContract(transport.command), transport.command)
@@ -496,28 +486,6 @@ describe('Task 1 command contract registry', () => {
     for (const state of EXPECTED_STATES as any[]) {
       expect(routedStates, state).toContain(state)
     }
-    expectRegistryValid()
-  })
-
-  it('binds reopen facade workflow package script and managed rails', () => {
-    const facadePath = 'scripts/mission-control-reopen.mjs'
-    const workflowPath = 'scripts/mission-control/workflows/reopen.mjs'
-    const command = 'bemoat:mission-control:reopen'
-
-    expect(existsSync(resolve(REPOSITORY_ROOT, facadePath))).toBe(true)
-    expect(existsSync(resolve(REPOSITORY_ROOT, workflowPath))).toBe(true)
-    expect(PACKAGE_JSON.scripts[command]).toBe(`node ${facadePath}`)
-
-    const contract = asRecord(getCommandContract(command), command)
-    expect(contract.entrypoint).toBe(facadePath)
-    expect(contract.transport_role).toBe('STATE_PROJECTION')
-    expect(contract.exceptional).toBe(false)
-
-    expect(managedPaths).toContain(facadePath)
-    expect(managedPaths).toContain('scripts/mission-control')
-    expect(managedPackageScripts).toContain(command)
-    expect(SYNC_MANIFEST.managedPaths).toEqual(managedPaths)
-    expect(SYNC_MANIFEST.managedPackageScripts).toEqual(managedPackageScripts)
     expectRegistryValid()
   })
 

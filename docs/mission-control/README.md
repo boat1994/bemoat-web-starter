@@ -269,10 +269,8 @@ pnpm exec vitest run tests/int/boilerplate-sync.int.spec.ts
 pnpm exec vitest run tests/int/guard-pack.int.spec.ts
 
 # Terminal state projection only (the reconciler never closes Issues)
-pnpm run bemoat:mission-control:reconcile -- <issue-number> [--repo owner/repo]
 
 # Exceptional missing-state recovery (validation or one leased/CAS projection)
-pnpm run bemoat:mission-control:recover-state -- <issue-number> --repo owner/repo --check
 
 # Child harness pull (after starter merge)
 pnpm run bemoat:boilerplate:sync -- --harness-only
@@ -286,7 +284,7 @@ pnpm run bemoat:boilerplate:sync -- --harness-only
 | Plan / Issue / PR / state disagree (contradictory evidence) | `STATE CONFLICT` — one reconciliation action, then stop |
 | Valid PR/head/CI/RESULT but stale state block | Deterministic reconciliation or incomplete delivery — not `STATE CONFLICT` |
 | PR merged but managed Issue still open | `STATE CONFLICT` — reconstruct native GitHub evidence and stop; no custom merge wrapper may repair it |
-| Reconcile prints a classified failure | Use the non-empty diagnostic; the CLI falls back from `finalReason` to `reason` to a safe literal |
+| A retained command reports a classified failure | Use the non-empty diagnostic; the CLI falls back from `finalReason` to `reason` to a safe literal |
 | Active task mid-review without state block | `STATE MIGRATION REQUIRED` — migrate; do not reset budget |
 | PR head moved after a review | Prior verdict is historical only; cover the new exact head |
 | Want another full review after a tiny fix | Not allowed; assign Review 2 delta unless Founder authorizes material change |

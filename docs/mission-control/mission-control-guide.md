@@ -414,10 +414,8 @@ command:
 
 ```text
 Historical migration-only operation: reconciliation
-Historical migration-only command: bemoat:mission-control:reconcile
 
 First inspect:
-pnpm run bemoat:mission-control:reconcile -- --help --json
 
 Then invoke the public entrypoint using only the documented inputs and live authoritative evidence.
 ```
@@ -431,11 +429,6 @@ already selected by durable migration evidence:
 | dispatch | Retired; no executable migration command remains. Historical dispatch state is read-only and stops at the Founder gate. |
 | delivery | `bemoat:agent:delivery` |
 | review | Retired; no executable managed-review command remains. Historical verdict evidence is read-only and stops at the Founder gate. |
-| reconciliation | `bemoat:mission-control:reconcile` |
-| missing managed-state recovery | `bemoat:mission-control:recover-state` |
-| missing-state review eligibility recovery | `bemoat:mission-control:recover-review-eligibility` |
-| reopen | `bemoat:mission-control:reopen` |
-| adopt-finding | `bemoat:mission-control:adopt-finding` |
 | merge | Retired; no executable custom merge command remains. Context reconstructs native GitHub merge authority and evidence. |
 | role-comment transport | `bemoat:issue:comment` |
 
@@ -443,8 +436,6 @@ When live state still determines routing, name only the bounded candidate set:
 
 ```text
 Candidate commands:
-- bemoat:mission-control:reconcile
-- bemoat:mission-control:recover-review-eligibility
 
 Inspect each applicable candidate with `--help --json`.
 

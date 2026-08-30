@@ -25,7 +25,6 @@ type JsonRecord = Record<string, unknown>
 const TIER_A_COMMAND = 'bemoat:issue:comment'
 const TIER_B_COMMAND = 'bemoat:agent:issue'
 const BRANCH_COMMAND = 'bemoat:branch:check'
-const REOPEN_COMMAND = 'bemoat:mission-control:reopen'
 const PACK_COMMAND = 'bemoat:guard:pack'
 const SAFETY_COMMAND = 'bemoat:guard:safety'
 const FULL_UPPERCASE_SHA = 'ABCDEF0123456789ABCDEF0123456789ABCDEF01'
@@ -120,6 +119,8 @@ function commandContract(command: string) {
   return contract
 }
 
+/* retired reopen invocation cases were removed with the command family. */
+/*
 function reopenArguments({
   issueNumber = '284',
   repository = 'BOAT1994/BEMOAT-WEB-STARTER',
@@ -163,6 +164,7 @@ function reopenArguments({
     authorizationComment,
   ]
 }
+*/
 
 function expectInvalidInvocation(command: string, argv: string[]) {
   let thrown: unknown
@@ -303,6 +305,7 @@ describe('Task 2 CLI invocation and result contracts', () => {
     expect(tierBHelp).toContain(commandContract(TIER_B_COMMAND).entrypoint)
   })
 
+  /*
   it('normalizes positive integers repositories and full lowercase SHAs without lossy coercion', () => {
     const invocation = parseCommandInvocation(
       REOPEN_COMMAND,
@@ -371,6 +374,7 @@ describe('Task 2 CLI invocation and result contracts', () => {
     ])
   })
 
+  */
   it('accepts npm_lifecycle_event only when its registry entrypoint matches', () => {
     const pack = commandContract(PACK_COMMAND)
     const safety = commandContract(SAFETY_COMMAND)

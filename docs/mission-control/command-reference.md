@@ -1,9 +1,8 @@
 # Mission Control command reference
 
 The current supported cross-agent usage contract is the stateless
-context-to-handoff protocol. The scripts read GitHub live at execution time;
-live GitHub evidence overrides chat, copied handoffs, local notes, or stale
-values.
+context-to-handoff protocol. Scripts read GitHub live at execution time; live
+GitHub evidence overrides chat, copied handoffs, local notes, or stale values.
 
 ## Current supported protocol
 
@@ -19,416 +18,81 @@ Run repository-defined CLI Discovery before invoking either command.
 utility. Exact repository/base/PR/head/CI/review evidence, generic safety, and
 child-sync mechanics remain supported shared infrastructure.
 
-## Historical migration-only command reference
+## Retired stateful command families
 
-Everything below documents the former stateful Mission Control transports for
-read/migration compatibility. It is not supported future routing. The legacy
-`bemoat:agent:delivery` and stateful delivery/review/reconcile/recovery/merge/
-task/role-comment commands remain registered only until separately authorized
-Phase 7 deletion slices prove their consumers and dependencies. The managed and
-STANDARD merge wrappers have been deleted.
+The reconciliation, finding-adoption, recovery, reopen, delivery, review, and
+custom merge transports were removed in Phase 7. Historical Issue/comment
+evidence remains readable through retained Context, Handoff, diagnostics, and
+other migration readers; no executable route is available for those families.
+
+## Retained command: authorize-founder
+
+Record one immutable Founder task-bootstrap authorization body exactly once,
+binding the live returned comment ID and body hash through readback. Resolve the
+registered contract and safe help invocation through CLI Discovery before use.
 
 ## Command selection
 
 | Command | Usage |
 | --- | --- |
-| `delivery` | Owns the transition of a successful implementation to `AWAITING_REVIEW_1`. (Note: Delivery is a workflow boundary, not a standalone CLI script in this reference). |
-| `review` | Submit a Full Review 1 or Delta Review verdict, update counters and target states. |
-| `reconcile` | Repair state routing mismatch. Requires an existing valid managed-state block. Cannot initialize state, replay reviews, post verdicts, or increment counters. |
-| `reopen` | Project Founder-authorized PR head drift to `FOUNDER_AUTHORIZED_CORRECTION`. |
-| `adopt-finding` | Append exactly one Founder-authorized finding to the active correction contract while preserving `CORRECTION_REQUIRED_1\|2` and review counters. |
-| `recover-state` | Exceptional recovery for one completely absent managed-state block when immutable evidence uniquely reconstructs the prior canonical state. It cannot repair malformed state, replay review, or invoke finding adoption. |
-| `recover-review-eligibility` | Exceptional recovery for one completely absent managed-state block when one immutable delivery RESULT, exact-head CI, and separate recorded-base/protected-main evidence uniquely reconstruct `AWAITING_REVIEW_1`. A predecessor RESULT is accepted only when the exact bounded structural-inventory correction to the live head is proven. It never publishes a verdict or increments review counters. |
-| `authorize-founder` | Record one immutable Founder task-bootstrap authorization body exactly once, binding the live returned comment ID and body hash through readback. |
-| (retired merge wrappers) | No executable custom merge command remains. Context reconstructs ordinary native GitHub merge authority and evidence. |
-| (none) | Stop and request human review if evidence disagrees, authentication fails, or preconditions mismatch. Never mutate state YAML directly. |
+| `review` | Historical evidence is read-only; no managed review writer is available. |
+| `authorize-founder` | Record the retained immutable Founder authorization. |
+| `task-bootstrap` | Run only from its trusted Actions-owned contract. |
+| (none) | Stop and request human review when evidence disagrees. |
 
 ## Preflight checklist
 
-Before invoking a command, manually verify these specific values to avoid `STATE_CONFLICT` or `BLOCKED_EXTERNAL`.
-Consult the machine-readable `scripts/mission-control/transport-registry.mjs`
-before any durable write. It is the ownership map: ordinary
-`REVIEW_VERDICT` publication belongs only to retained historical evidence paths;
-the managed review writer is retired.
-
-### Shared checks (all commands)
-- [ ] Active repository matches command target.
-- [ ] Active Task Issue has a valid managed state block.
-- [ ] The command's expected state matches the live Issue state.
-- [ ] There are no competing superseding comments blocking this transition.
-
-Managed commands additionally require the shared managed-state and expected-state
-checks.
-
-### Dispatch checks
-- [ ] Read Task Issue state without requiring an existing PR or CI.
-- [ ] The provided body/file matches exactly the required structural format (e.g., `## HANDOFF`).
+Before invoking a retained command, verify the repository, live Issue, expected
+state, and absence of competing evidence. Resolve the registered contract and
+`scripts/mission-control/transport-registry.mjs` before any durable write.
 
 ### Review checks
-- [ ] Target PR is open and bound to the Task Issue.
-- [ ] Approved base branch strictly matches the PR base branch.
-- [ ] Live PR `headRefOid` is exactly 40 characters and fully synced.
-- [ ] Exact-head CI is fully completed and successful. CI present but pending or failed is invalid. Missing CI reads classify as `BLOCKED_EXTERNAL`.
-- [ ] The provided body/file matches exactly the structural format of `## REVIEW_VERDICT`.
 
-### Reconcile checks
-- [ ] Requires an existing valid managed state.
-- [ ] Requires matching evidence (active PR, exact head, existing `REVIEW_VERDICT` comments).
-
-### Retired merge wrappers
-
-No managed or STANDARD custom merge command is executable. Use Context to
-reconstruct native GitHub Issue, pull-request, review, check, mergeability,
-protection, and protected-base evidence. Stop fail-closed on ambiguity; do not
-substitute a new command, receipt, state projection, or transport.
-
-## Evidence vocabulary
-
-Keep these values distinct in every handoff and invocation:
-
-| Value | Meaning and authoritative source |
-| --- | --- |
-| Task Issue | The directly managed Issue passed as the command's positional `<issue-number>`; read its live state block and body with `gh issue view <n>`. |
-| Parent/campaign Issue | A campaign Issue referenced by the live Founder authorization and its projection binding; it is not the Task Issue and is not a substitute positional argument. |
-| PR number | The active PR bound by the Task Issue state and verified with live `gh pr view`; it is not the Issue number. |
-| Base branch | The live PR target branch (`baseRefName`), which must match the approved base in the Task Issue state. |
-| Protected-base SHA | The live commit SHA of the protected base branch (`baseRefOid` / current protected ref), used for ancestry and exact-base checks; do not copy an older approved SHA from chat. |
-| Exact PR head SHA | The live PR `headRefOid` at the moment of the command. Must be the complete 40-character SHA. CI and every review/merge authorization must match this exact SHA. |
-| Role comment ID | The immutable GitHub Issue comment ID returned by the live API: HANDOFF for protocol coordination, active `REVIEW_VERDICT` for reconcile/merge, and Founder authorization for merge. |
-| Verdict body / verdict file | The complete historical `## REVIEW_VERDICT` body or the live role comment body selected by retained reconciliation/readers. A file path is only transport. Retained readers collect every recognized PR/base/head source before selection and fail closed on duplicate, conflicting, partial, multiline, short-SHA, or malformed evidence. |
-
-Do not infer any supplied value from a chat transcript. Re-read the Task Issue,
-campaign authorization, PR, comments, protected base, and exact head live before
-running a transport.
-
-Examples of accepted bodies:
-- [HANDOFF](handoff-template.md)
-- `REVIEW_VERDICT`: Use a minimal structurally complete canonical template containing all required role-comment fields. Do not describe `result-template.md` as a complete accepted body unless it actually contains all required role-comment fields.
-
-Example canonical `REVIEW_VERDICT` body (all values are fake):
-
-```markdown
-## REVIEW_VERDICT
-
-### Task log
-- Timestamp: `2026-08-01T12:00:00+00:00`
-- Task / Issue: #9999
-- Phase: Reviewer
-- Executing role: Reviewer
-
-**PR / base / head:** https://github.com/fake/repo/pull/9999 · `main` · `1111111111111111111111111111111111111111`
-**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
-**Findings:** Critical: None · Important: None
-**Gates:** exact-head CI pass
-**Next:** Founder review
-```
-
-## Reconcile checks
-- [ ] Requires an existing valid managed state.
-- [ ] Requires matching evidence (active PR, exact head, existing `REVIEW_VERDICT` comments).
-
-### Retired merge wrappers
-
-No managed or STANDARD custom merge command is executable. Use Context to
-reconstruct native GitHub Issue, pull-request, review, check, mergeability,
-protection, and protected-base evidence. Stop fail-closed on ambiguity; do not
-substitute a new command, receipt, state projection, or transport.
-
-## Evidence vocabulary
-
-Keep these values distinct in every handoff and invocation:
-
-| Value | Meaning and authoritative source |
-| --- | --- |
-| Task Issue | The directly managed Issue passed as the command's positional `<issue-number>`; read its live state block and body with `gh issue view <n>`. |
-| Parent/campaign Issue | A campaign Issue referenced by the live Founder authorization and its projection binding; it is not the Task Issue and is not a substitute positional argument. |
-| PR number | The active PR bound by the Task Issue state and verified with live `gh pr view`; it is not the Issue number. |
-| Base branch | The live PR target branch (`baseRefName`), which must match the approved base in the Task Issue state. |
-| Protected-base SHA | The live commit SHA of the protected base branch (`baseRefOid` / current protected ref), used for ancestry and exact-base checks; do not copy an older approved SHA from chat. |
-| Exact PR head SHA | The live PR `headRefOid` at the moment of the command. Must be the complete 40-character SHA. CI and every review/merge authorization must match this exact SHA. |
-| Role comment ID | The immutable GitHub Issue comment ID returned by the live API: HANDOFF for protocol coordination, active `REVIEW_VERDICT` for reconcile/merge, and Founder authorization for merge. |
-| Verdict body / verdict file | The complete historical `## REVIEW_VERDICT` body or the live role comment body selected by retained reconciliation/readers. A file path is only transport. Retained readers collect every recognized PR/base/head source before selection and fail closed on duplicate, conflicting, partial, multiline, short-SHA, or malformed evidence. |
-
-Do not infer any supplied value from a chat transcript. Re-read the Task Issue,
-campaign authorization, PR, comments, protected base, and exact head live before
-running a transport.
-
-Examples of accepted bodies:
-- [HANDOFF](handoff-template.md)
-- `REVIEW_VERDICT`: Use a minimal structurally complete canonical template containing all required role-comment fields. Do not describe `result-template.md` as a complete accepted body unless it actually contains all required role-comment fields.
-
-Example canonical `REVIEW_VERDICT` body (all values are fake):
-
-```markdown
-## REVIEW_VERDICT
-
-### Task log
-- Timestamp: `2026-08-01T12:00:00+00:00`
-- Task / Issue: #9999
-- Phase: Reviewer
-- Executing role: Reviewer
-
-**PR / base / head:** https://github.com/fake/repo/pull/9999 · `main` · `1111111111111111111111111111111111111111`
-**Verdict:** ELIGIBLE FOR FOUNDER REVIEW
-**Findings:** Critical: None · Important: None
-**Gates:** exact-head CI pass
-**Next:** Founder review
-```
-
-## Retired review recovery
-
-The incident-specific `recover-review` transport for Issue #274 / PR #275 was
-deleted in Phase 7. Historical receipt and verdict evidence remains readable by
-retained reconciliation and recovery readers, but no executable command or
-generic comment-repair route remains.
-
-## Reconcile
-
-Exact syntax:
-
-```text
-pnpm run bemoat:mission-control:reconcile -- <issue-number> [--repo <owner>/<repo>]
-```
-
-Positional arguments and flags:
-
-- `<issue-number>` is the positive Task Issue number.
-- `--repo` is optional `owner/repo`; otherwise the current `gh` repository is used.
-
-Preconditions and sources: the live Task Issue must contain a valid managed
-state block. Reconcile cannot create or initialize a managed task. Reconcile does not post or replay role comments and does not increment review counters.
-For an eligible review state, reconcile selects exactly one active live
-`REVIEW_VERDICT` for that Task Issue whose bound PR matches the managed
-`active_pr` / live PR (historical transport reviews for a different PR remain
-preserved but non-competing), then requires its PR number, base branch,
-and exact head to match the live PR and state. New verdicts must use the
-canonical `**PR / base / head:**` field. Incidental prose, bare
-`PR #N`, pull URLs, multiline field values, or incomplete/duplicated/ambiguous
-binding fields fail closed and must not be treated as different-PR historical
-authority. Same-PR competing active verdicts remain `STATE_CONFLICT`. For other
-states it evaluates live Issue, PR, comment, campaign, and protected-base
-evidence before proposing an allowed deterministic repair. Valid NO_OP behavior
-means the state is already completely aligned. Routing-only repair behavior
-repairs routing lineage while preserving domain state, review cycle, counters,
-PR/head bindings, RESULT lineage, and verdict. It cannot bootstrap a missing
-managed-state block.
-
-Fetch active review verdicts: `gh issue view 123 --json comments`
-
-Structurally valid fake example:
-
-```text
-pnpm run bemoat:mission-control:reconcile -- 123 --repo user/repo
-```
-
-Reconcile is bookkeeping repair only: it does not replay Review, post a new
-`REVIEW_VERDICT`, or increment review counters. Missing evidence or unavailable
-GitHub reads fail closed as `BLOCKED_EXTERNAL`; competing, stale, malformed, or
-mismatched Issue/PR/base/head/comment evidence fails as `STATE_CONFLICT`.
-Never replace reconcile with direct `gh issue edit`, manual YAML, or an ad hoc
-transition script.
-
-## Adopt finding
-
-Exact syntax:
-
-```text
-pnpm run bemoat:mission-control:adopt-finding -- <issue-number> --repo <owner>/<repo> --expected-pr <number> --expected-base <branch> --expected-base-sha <full-sha> --expected-state <CORRECTION_REQUIRED_1|CORRECTION_REQUIRED_2> --expected-reviewed-head <full-sha> --expected-adoption-head <full-sha> --predecessor-comment <id> --authorization-comment <id> [--check] [--json]
-```
-
-Positional arguments and flags:
-
-- `<issue-number>` is the positive Task Issue number.
-- `--repo` is required `owner/repo`.
-- `--expected-pr` is the exact active Pull Request number.
-- `--expected-base` / `--expected-base-sha` bind the protected base name and SHA.
-- `--expected-state` must be `CORRECTION_REQUIRED_1` or `CORRECTION_REQUIRED_2`.
-- `--expected-reviewed-head` is the predecessor reviewed head preserved by adoption.
-- `--expected-adoption-head` is the live adoption head bound by Founder authorization.
-- `--predecessor-comment` is the immutable predecessor correction-contract comment ID.
-- `--authorization-comment` is the immutable Founder authorization comment ID.
-- `--check` validates without mutating managed state.
-- Finding ID, canonical summary, scope, and evidence requirements are trusted-derived from the Founder authorization and must never be caller-supplied.
-
-Preconditions and sources: authenticate one Founder adopt-finding authorization,
-verify the predecessor contract findings remain unchanged, append exactly one
-authorized finding into a new active correction-contract identity, and CAS-update
-only that identity. Leave the original `REVIEW_VERDICT`, review counters, and
-`CORRECTION_REQUIRED_*` state unchanged.
-
-Structurally valid fake example:
-
-```text
-pnpm run bemoat:mission-control:adopt-finding -- 276 --repo boat1994/bemoat-web-starter --expected-pr 292 --expected-base main --expected-base-sha 7cf51129144a355172a32d57a73b5fda9eae5504 --expected-state CORRECTION_REQUIRED_1 --expected-reviewed-head 24497c9891b03e4042ac34770a1dfd3b225be1e1 --expected-adoption-head 917f879bea53ced5bc9622bd28f46d45046973c4 --predecessor-comment 5213944977 --authorization-comment 5215031090 --check --json
-```
-
-Success routes exclusively to:
-
-```text
-pnpm run bemoat:agent:issue -- 276 --phase correction
-```
-
-## Missing managed-state recovery
-
-Exact syntax:
-
-```text
-pnpm run bemoat:mission-control:recover-state -- <issue-number> --repo <owner>/<repo> --expected-pr <number> --expected-base <branch> --expected-base-sha <full-sha> --expected-head <full-sha> --expected-branch <branch> --predecessor-comment <id> --adoption-authorization-comment <id> --implementation-result-comment <id> --implementation-review-comment <id> --recovery-authorization-comment <id> --lineage-correction-authorization-comment <id> --correction-result-comment <id> --correction-review-comment <id> [--check]
-```
-
-The command accepts only a wholly absent canonical managed-state marker pair.
-It derives the state, review counters, active PR/head, last reviewed head,
-finding set, policy identity, and authority-bearing fields from the live PR,
-protected `main`, and the selected immutable predecessor, Founder
-authorization, historical adopt-finding RESULT/review, original recovery
-authorization, current recovery RESULT/review, and lineage-correction
-authorization comments. The historical adopt-finding head remains the exact
- head bound by its original evidence. The recovery authorization-bound head,
-recovery implementation anchor head, correction-reviewed head, and live PR exact
-head are separate roles. The recovery anchor is independently bound by its
-RESULT/review and lineage authorization; the correction-reviewed head is bound
-by the explicit correction RESULT/review selectors and must equal the live PR
-exact head. Required ancestry relationships are proven by trusted Git evidence.
-No resulting state, counter, head, finding, or authority lineage is caller-supplied.
-
-Positional arguments and flags:
-
-- `<issue-number>` is the managed Task Issue number.
-- `--repo`, `--expected-pr`, `--expected-base`, `--expected-base-sha`, `--expected-head`, and `--expected-branch` bind the live repository, PR, protected base commit, exact current head, and branch. `--expected-base-sha` is the protected commit binding; the guide's separate blob SHA is fetched and derived by the transport.
-- `--predecessor-comment` selects the immutable predecessor correction contract.
-- `--adoption-authorization-comment` selects the existing Founder finding-adoption authorization.
-- `--implementation-result-comment` selects the RESULT proving adoption was not executed.
-- `--implementation-review-comment` selects the reviewed adopt-finding eligibility verdict.
-- `--recovery-authorization-comment` selects the Founder authorization for this exceptional recovery.
-- `--lineage-correction-authorization-comment` selects the immutable Founder authorization for `RECOVER-STATE-LINEAGE-001`; it binds the recovery-anchor RESULT/review selectors and the historical/recovery head roles.
-- `--correction-result-comment` explicitly selects the immutable correction RESULT that binds the correction-reviewed head.
-- `--correction-review-comment` explicitly selects the immutable bounded REVIEW_VERDICT that validates the correction-reviewed head.
-- `--check` performs the complete validation without writing the Issue body.
-
-The only successful mutation appends exactly one canonical state block through
-the existing leased/CAS Issue-body writer. It preserves the surrounding Issue
-body and all historical comments, never creates or alters an active correction
-contract identity, and never posts a review or RESULT. A valid existing state,
-malformed or partial markers, ambiguous or conflicting history, superseded or
-competing authority, unsupported or unproven ancestry, head/base drift,
-lease/CAS conflict, or ambiguous readback is a stop condition. An identical completed projection
-returns `NO_OP_IDENTICAL_RETRY` without writing. The appended projection carries
-one trusted-derived recovery-evidence fingerprint solely to prove that a retry
-uses the same immutable evidence; it is never a caller input.
-
-Success routes only to the already authorized command after fresh live
-verification:
-
-```text
-pnpm run bemoat:mission-control:adopt-finding
-```
-
-Recovery does not invoke that command automatically, and it is not a general
-replacement for `reconcile`.
-
-
-### Review-eligibility recovery
-
-Use the dedicated route only when the managed-state block is wholly absent and
-the exact delivery RESULT/current PR head/CI tuple is uniquely reconstructable:
-
-```text
-pnpm run bemoat:mission-control:recover-review-eligibility -- <issue-number> \\
-  --repo <owner/repo> --expected-pr <number> --expected-base main \\
-  --expected-base-sha <recorded-pr-base-sha> \\
-  --protected-main-sha <current-protected-main-sha> \\
-  --expected-head <full-sha> --expected-branch <branch> \\
-  --result-comment <id> [--check]
-```
-
-The route appends only `AWAITING_REVIEW_1` with counters `0/0`, then stops at a
-Founder gate because the managed review writer is retired. It does not publish
-`REVIEW_VERDICT` evidence or mutate review counters. Recorded PR-base drift
-remains explicit evidence and is never normalized.
-
-### Retained migration commands
-
-Reconciliation uses `pnpm run bemoat:mission-control:reconcile` with
-`[--repo <owner>/<repo>]` and requires an existing valid managed state.
-
-Founder-authorized finding adoption uses:
-
-```text
-pnpm run bemoat:mission-control:adopt-finding
---repo <owner>/<repo>
---expected-base <branch>
---expected-base-sha <full-sha>
---expected-state <CORRECTION_REQUIRED_1|CORRECTION_REQUIRED_2>
---expected-reviewed-head <full-sha>
---expected-adoption-head <full-sha>
---predecessor-comment <id>
---authorization-comment <id>
-```
-
-Missing managed-state recovery uses:
-
-```text
-pnpm run bemoat:mission-control:recover-state
---repo <owner>/<repo>
---expected-base <branch>
---expected-base-sha <full-sha>
---predecessor-comment <id>
---adoption-authorization-comment <id>
---implementation-result-comment <id>
---implementation-review-comment <id>
---recovery-authorization-comment <id>
---lineage-correction-authorization-comment <id>
---correction-result-comment <id>
---correction-review-comment <id>
-```
-
-Retained reconciliation rejects `NONCANONICAL_ROLE_EVIDENCE`; historical
-review evidence may show resulting counters `2/1` without granting a review
-writer.
-
-## Review
-
-The managed review writer is retired. No public executable ordinary-review
-command publishes managed `REVIEW_VERDICT` state or increments review counters.
-Historical verdicts remain readable only where
-retained Context, reconciliation, or migration evidence requires them. A
-historical `AWAITING_REVIEW_*` projection stops at a Founder gate; do not
-substitute generic comment posting, manual Issue-body edits, recovery commands,
-or a replacement transport.
-
-## Merge
-
-The custom managed and STANDARD merge wrappers are retired. Historical merge
-authorization and receipt evidence may remain readable for retained migration
-consumers, but no supported route executes a custom merge or writes terminal
-managed/campaign projections. Context reconstructs ordinary native GitHub merge
-authority and evidence.
+- [ ] Exact repository, base, PR, head, CI, and review evidence is live.
+- [ ] The provided evidence has one unambiguous canonical binding.
+- [ ] `NONCANONICAL_ROLE_EVIDENCE` fails closed.
+
+## Retained command: task-bootstrap
+
+Task bootstrap remains a migration-only Actions-owned command. It verifies the
+signed Founder authorization, trusted workflow identity, public key, current
+protected-base/policy evidence, and target ownership before creating or
+attesting the managed Task Issue.
+
+## Review and merge evidence
+
+The managed review writer and custom managed/STANDARD merge wrappers are
+retired. Historical verdicts, merge authorizations, and receipts remain
+readable where retained Context or diagnostics requires them. No public command
+publishes managed `REVIEW_VERDICT` state, increments review counters, or writes
+terminal managed projections. Context reconstructs ordinary native GitHub merge
+authority and evidence and stops fail-closed on ambiguity.
+
+Historical review evidence may show resulting counters `2/1` without granting
+a review writer. A failed historical transport must never be replayed: rerun
+the same canonical review command. Do not post another verdict manually.
+Do not edit the immutable authorization comment.
 
 ## Partial failure and retry behavior
 
 | Outcome | Meaning and retry handling |
 | --- | --- |
-| success | The operation completed fully and state was advanced. No retry needed. |
-| NO_OP | The state is already correctly aligned with live evidence. No retry needed. |
-| RECOVERABLE_ROUTING_DRIFT | The `REVIEW_VERDICT` comment was posted but state projection failed. Rerun the same canonical review command. Do not post another verdict manually. Do not edit Issue YAML. |
-| STATE_CONFLICT | State, PR, or comment evidence disagreed. Stop, refresh live context, and require live evidence reconstruction and the approved canonical reconcile/correction path. Require Founder decision when no canonical repair path exists. Preserve the prohibition on direct `gh issue edit`, manual YAML, and ad hoc transition scripts. |
-| BLOCKED_EXTERNAL | A GitHub or CI API read failed. Can safely retry after verifying external availability. |
-| AUTHORIZATION_VALIDATION_FAILURE | Do not edit the immutable authorization comment. Stop merge. Require a new Founder-authored immutable authorization record when the prior record is malformed or mismatched. Record supersession where required. |
+| `STATE_CONFLICT` | Stop, refresh live evidence, and require human review. |
+| `BLOCKED_EXTERNAL` | Retry only after external reads are available. |
+| `NO_OP` | The retained projection is already durable; no retry is needed. |
 
 ## Shared stop rule
 
 If live GitHub evidence disagrees with chat or a copied value, stop and classify
-the discrepancy fail closed. Never repair the discrepancy by editing managed
-Issue YAML directly. Re-read live evidence and use the one canonical transport
-whose preconditions match; otherwise stop for `STATE_CONFLICT` or
-`BLOCKED_EXTERNAL`.
+the discrepancy fail closed. Never repair managed Issue YAML directly. Re-read
+live evidence and use the one canonical transport whose preconditions match;
+otherwise stop for `STATE_CONFLICT` or `BLOCKED_EXTERNAL`.
 
 ## Managed-Task bootstrap
 
-### Immutable Founder authorization recording
-
 For an existing Task Issue whose Founder authorization is not yet durably
-recorded, use the repository-owned transport:
+recorded, use the repository-owned transport after resolving its registered
+contract:
 
 ```bash
 pnpm run bemoat:mission-control:authorize-founder -- <issue-number> \
@@ -437,85 +101,4 @@ pnpm run bemoat:mission-control:authorize-founder -- <issue-number> \
 
 The command derives the authenticated GitHub actor, Founder allowlist, target
 Issue, protected `main` SHA, and merged policy identity from live GitHub
-evidence. The Founder allowlist comes from the repository Actions variable
-`BEMOAT_FOUNDER_LOGINS`; caller environment values are not trusted. The
-transport serializes concurrent writers with the repository lease protocol,
-posts one final raw JSON `task-bootstrap-existing-v2` body with
-`comment_id: null`, then posts a separate immutable
-`task-bootstrap-existing-receipt-v1` body binding the returned positive comment
-ID to the exact authorization-body SHA-256. Both comments are independently
-read back and verified; neither is edited after creation.
-
-Malformed, conflicting, wrong-scope/action, duplicate, superseded, uncertain,
-or drifted evidence stops fail closed. An exact trusted replay returns
-`NO_OP_IDENTICAL_RETRY`. After `SUCCESS` or `NO_OP_IDENTICAL_RETRY`, bootstrap
-must independently re-read and validate the returned comment ID and live body.
-
-The starter's managed-Task bootstrap is an ordinary, human-reviewed workflow.
-It is not a normal agent Issue-creation API and it never accepts a caller-
-supplied target, PR, head, base, Issue body, or managed state.
-
-The only supported interface is:
-
-```bash
-gh workflow run mission-control-task-bootstrap.yml \
-  --repo boat1994/bemoat-web-starter \
-  --ref main \
-  -f founder_authorization_comment_id=<comment-id>
-```
-
-The workflow loads its implementation from protected `main`, serializes the
-repository-wide creation operation with `cancel-in-progress: false`, and waits
-for required Founder approval on the protected `mission-control-task-creation`
-environment. The workflow grants `issues: write`; contents, pull requests,
-checks, Actions evidence, statuses, metadata, and the policy source are read
-only.
-
-For the historical genesis bundle, the trusted operation preserves the
-interpretable Issue #262 / Draft/Open PR #263 evidence. For a current existing-
-Task bundle, the immutable Founder authorization binds the target Issue and
-`planning_no_pr`; the operation derives the protected `main` base and merged
-policy live, projects `active_pr: null` and `current_head: null`, and never
-invents a PR/head binding.
-
-## Recovery and verification
-
-Every request has a deterministic identity derived from the repository,
-authorization comment ID and exact body hash, authorized target, optional
-PR/head/base, protected base, and policy tuple. A provisional Issue records only that identity and is
-not a managed Task. The same request recovers that exact Issue after an API,
-registry, projection, or readback failure; it never rebinds an existing Task
-or guesses an allocated Issue number.
-
-The final Issue contains the exact initial `AWAITING_REVIEW_1` state with
-`review_cycle: 0` and `full_review_count: 0`, a canonical Ed25519 attestation,
-and a signed parent ownership-registry record. The payload binds repository and
-GitHub identities, Founder authority and body hash, parent/Task/PR identities,
-base/head, protected base, policy source/version/commit/blob, deterministic
-request ID, workflow file/ref/SHA/run ID, signing-key ID, schema, and operation
-version. Readers verify the public key, signature, canonical serialization,
-registry, state projection, live PR/head/base/policy, and exact-head CI before
-accepting the Task.
-
-CAS/lease conflicts, ambiguous API outcomes, changed authority/head/base,
-missing or failed CI, copied attestations, direct body edits, wrong keys, and
-failed readback are fail-closed. A successful result is emitted only after the
-durable Issue, registry, and canonical managed-task preflight all verify.
-
-## Credential ownership and child repositories
-
-The private Ed25519 key is an environment secret available only to the
-protected workflow step. The committed public key is verification material,
-not an Issue-write credential. Ordinary repository agents receive neither the
-private key nor a workflow-approval capability.
-
-Child repositories do not inherit the starter's private key or Founder
-environment. Their canonical readers fail closed when their own committed
-public key and protected signing configuration are absent or mismatched. A
-child must not reuse the starter key; child-specific key provisioning and
-environment protection are separate human-owned configuration.
-
-Rollback is operational rather than destructive: stop the workflow, preserve
-the provisional Issue and registry evidence, and diagnose or retry the same
-request. Do not delete, close, edit, or rebind an allocated Task as a rollback
-shortcut.
+evidence. Help invocations perform no mutation.

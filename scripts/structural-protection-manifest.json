@@ -13,17 +13,11 @@
       { "path": "scripts/check-boilerplate-drift.mjs", "max_lines": 552 },
       { "path": "scripts/cli/command-contract-registry.ts", "max_lines": 870 },
       { "path": "scripts/cli/command-contract.ts", "max_lines": 580 },
-      { "path": "scripts/mission-control-reconcile.mjs", "max_lines": 143 },
       { "path": "scripts/mission-control/domain/campaign-authority.ts", "max_lines": 630 },
       { "path": "scripts/mission-control/domain/campaign-validator.mjs", "max_lines": 482 },
       { "path": "scripts/mission-control/domain/correction-contract.mjs", "max_lines": 650 },
       { "path": "scripts/mission-control/domain/correction-contract.ts", "max_lines": 536 },
-      { "path": "scripts/mission-control/domain/recover-state-projection.mjs", "max_lines": 37 },
-      { "path": "scripts/mission-control/domain/review-recovery.mjs", "max_lines": 485 },
-      { "path": "scripts/mission-control/workflows/adopt-finding.mjs", "max_lines": 564 },
       { "path": "scripts/mission-control/workflows/issue-body-cas.mjs", "max_lines": 438 },
-      { "path": "scripts/mission-control/workflows/recover-state.mjs", "max_lines": 1099 },
-      { "path": "scripts/mission-control/workflows/reopen.mjs", "max_lines": 918 },
       { "path": "scripts/mission-control/workflows/task-bootstrap.mjs", "max_lines": 658 },
       { "path": "scripts/post-role-comment.mjs", "max_lines": 554 }
     ]
@@ -31,7 +25,7 @@
   "protected_oracle": {
     "algorithm": "sha256",
     "files": [
-      { "path": "tests/int/mission-control-adopt-finding.int.spec.ts", "sha256": "f5eed96613295c8c9e90e36fa0cdd218a4ab8c38c7070f23e79bceb2fa81a4eb" }
+      { "path": "tests/int/phase7-merge-wrappers-prune.int.spec.ts", "sha256": "bdf192a500a5d6a71e4b5f4241017e6f698bea23ed78412c56ca5f794e874d7d" }
     ]
   }
 }
