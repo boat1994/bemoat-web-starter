@@ -52,7 +52,7 @@ export async function runRecoverReviewEligibility({ options, deps, checkOnly = f
   const parsed = parseMissionControlState(reconstruction.issueBody)
   if (parsed.present) {
     if (parsed.valid && sameValue(parsed.state, reconstruction.state)) {
-      return { classification: 'NO_OP_IDENTICAL_RETRY', outcome: 'NO_OP', mutationPerformed: false, state: parsed.state, nextAction: { type: 'COMMAND', command: 'bemoat:mission-control:review', reason: `The identical Review 1 eligibility projection is already durable; ordinary review remains the next owner.` }, evidenceIds: reconstruction.state.recovery_base_binding, observedPreState: 'MANAGED_STATE_BLOCK_PRESENT' }
+      return { classification: 'NO_OP_IDENTICAL_RETRY', outcome: 'NO_OP', mutationPerformed: false, state: parsed.state, nextAction: { type: 'FOUNDER_GATE', command: null, reason: 'The identical Review 1 eligibility projection is already durable, but the managed review writer is retired.' }, evidenceIds: reconstruction.state.recovery_base_binding, observedPreState: 'MANAGED_STATE_BLOCK_PRESENT' }
     }
     throw classifiedError('STATE_CONFLICT', parsed.valid ? 'a valid managed state already exists with different content' : `managed state is malformed or partial: ${parsed.reason}`)
   }
@@ -62,7 +62,7 @@ export async function runRecoverReviewEligibility({ options, deps, checkOnly = f
   } catch (error) {
     throw classifiedError('STATE_CONFLICT', error instanceof Error ? error.message : String(error))
   }
-  const nextAction = { type: 'COMMAND', command: 'bemoat:mission-control:review', reason: `Publish the ordinary exact-head review for Issue #${options.issueNumber}; recovery does not publish a verdict.` }
+  const nextAction = { type: 'FOUNDER_GATE', command: null, reason: `The managed review writer is retired for Issue #${options.issueNumber}; recovery does not publish a verdict or mutate review counters.` }
   if (checkOnly) return { classification: 'SUCCESS', outcome: 'SUCCESS', mutationPerformed: false, state: reconstruction.state, nextAction, evidenceIds: reconstruction.state.recovery_base_binding, observedPreState: parsed.present ? 'MANAGED_STATE_BLOCK_PRESENT' : 'MANAGED_STATE_BLOCK_ABSENT', checkOnly: true }
 
   const latest = await readEvidence({ options, deps })

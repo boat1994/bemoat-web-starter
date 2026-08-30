@@ -1,15 +1,5 @@
 import { violation } from './violation.mjs'
 
-const REQUIRED_REVIEW_ARGS = [
-  'pnpm run bemoat:mission-control:review',
-  '-- <issue-number>',
-  '--body-file <verdict-file>',
-  '--expected-state <state>',
-  '--review-type <full|delta>',
-  '--expected-head <exact-pr-head-sha>',
-  '[--repo <owner>/<repo>]'
-]
-
 const REQUIRED_RECONCILE_ARGS = [
   'pnpm run bemoat:mission-control:reconcile',
   '-- <issue-number>',
@@ -89,12 +79,6 @@ export function scanCommandReferenceContent(relativePath, content) {
   if (content == null) {
     violations.push(violation('MC020', relativePath, 'Canonical Mission Control command reference is missing'))
     return violations
-  }
-
-  for (const arg of REQUIRED_REVIEW_ARGS) {
-    if (!content.includes(arg)) {
-      violations.push(violation('MC022', relativePath, `Command reference missing review arg: ${arg}`))
-    }
   }
 
   for (const arg of REQUIRED_RECONCILE_ARGS) {

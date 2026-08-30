@@ -103,7 +103,7 @@ describe('review-eligibility missing-state recovery', () => {
       last_reviewed_head: null,
       latest_review_verdict_comment_id: null,
       open_blockers: [],
-      next_permitted_action: expect.stringContaining('bemoat:mission-control:review'),
+      next_permitted_action: expect.stringContaining('managed review writer is retired'),
       recovery_base_binding: {
         recorded_pr_base_sha: recordedPrBaseSha,
         protected_main_sha: protectedMainSha,
@@ -138,7 +138,7 @@ describe('review-eligibility missing-state recovery', () => {
     const first = await runRecoverReviewEligibility({ options, deps: harness.deps })
     expect(first.classification).toBe('SUCCESS')
     expect(harness.writes).toBe(1)
-    expect(first.nextAction.command).toBe('bemoat:mission-control:review')
+    expect(first.nextAction).toMatchObject({ type: 'FOUNDER_GATE', command: null })
 
     const retry = await runRecoverReviewEligibility({ options, deps: harness.deps })
     expect(retry.classification).toBe('NO_OP_IDENTICAL_RETRY')

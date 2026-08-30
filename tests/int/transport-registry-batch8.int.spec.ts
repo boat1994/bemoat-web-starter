@@ -7,7 +7,6 @@ import {
 } from '../../scripts/mission-control/transport-registry.mjs'
 
 const EXPECTED_TRANSPORT_COMMANDS = [
-  'bemoat:mission-control:review',
   'bemoat:mission-control:recover-review',
   'bemoat:mission-control:reconcile',
   'bemoat:mission-control:merge',
@@ -43,10 +42,9 @@ describe('Batch 8 characterization — transport registry authority leaf', () =>
     )
     expect(exceptional).toEqual([...EXPECTED_EXCEPTIONAL_COMMANDS])
 
-    const ordinaryReviewOwners = CANONICAL_TRANSPORTS.filter((route) => route.role === 'REVIEW_VERDICT')
-    expect(ordinaryReviewOwners).toHaveLength(2)
-    expect(ordinaryReviewOwners.map((route) => route.command)).toEqual([
-      'bemoat:mission-control:review',
+    const retainedReviewReaders = CANONICAL_TRANSPORTS.filter((route) => route.role === 'REVIEW_VERDICT')
+    expect(retainedReviewReaders).toHaveLength(1)
+    expect(retainedReviewReaders.map((route) => route.command)).toEqual([
       'bemoat:mission-control:recover-review',
     ])
   })
@@ -56,7 +54,6 @@ describe('Batch 8 characterization — transport registry authority leaf', () =>
       owner: 'Mission Control Recovery Transport',
       role: 'REVIEW_VERDICT',
       exceptional: true,
-      ordinary_owner: 'bemoat:mission-control:review',
       purpose:
         'MIGRATION-ONLY HISTORICAL: quarantine the exact approved #274/#275 raw-review incident and project its proven Review 2 result',
     })
@@ -109,7 +106,6 @@ describe('Batch 8 characterization — transport registry authority leaf', () =>
   it('assertTransportRoute allows exceptional routes by default and validates matching roles', () => {
     expect(assertTransportRoute('bemoat:mission-control:recover-review', { role: 'REVIEW_VERDICT' })).toMatchObject({
       exceptional: true,
-      ordinary_owner: 'bemoat:mission-control:review',
     })
     expect(assertTransportRoute('bemoat:mission-control:merge', { role: 'MERGE' })).toMatchObject({
       role: 'MERGE',

@@ -99,7 +99,6 @@ export function missionControlRecoveryRoutes() {
     required_review_type: null,
     expected_post_state_or_gate: 'Verified routing projection',
     prohibited_commands: [
-      'bemoat:mission-control:review',
       'bemoat:mission-control:reopen',
       'bemoat:mission-control:merge',
     ],
@@ -115,7 +114,7 @@ export function missionControlRecoveryRoutes() {
     canonical_command: 'bemoat:mission-control:recover-review',
     required_review_type: 'delta',
     expected_post_state_or_gate: 'AWAITING_REVIEW_2 projection from quarantined evidence',
-    prohibited_commands: ['bemoat:mission-control:review'],
+    prohibited_commands: [],
     decision: 'COMMAND',
   }),
   route({
@@ -131,7 +130,6 @@ export function missionControlRecoveryRoutes() {
     prohibited_commands: [
       'bemoat:mission-control:reconcile',
       'bemoat:mission-control:recover-review',
-      'bemoat:mission-control:review',
       'bemoat:mission-control:adopt-finding',
     ],
     decision: 'COMMAND',
@@ -145,10 +143,9 @@ export function missionControlRecoveryRoutes() {
     permitted_operation: 'Recreate exactly one absent AWAITING_REVIEW_1 projection without publishing review evidence.',
     canonical_command: 'bemoat:mission-control:recover-review-eligibility',
     required_review_type: null,
-    expected_post_state_or_gate: 'AWAITING_REVIEW_1 with counters 0/0 and ordinary review selected next.',
+    expected_post_state_or_gate: 'FOUNDER_GATE — managed review writer retired',
     prohibited_commands: [
       'bemoat:mission-control:reconcile',
-      'bemoat:mission-control:review',
       'bemoat:mission-control:recover-state',
       'bemoat:mission-control:merge',
     ],

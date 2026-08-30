@@ -135,7 +135,7 @@ export function reconstructReviewEligibilityState(input) {
     latest_review_verdict_comment_id: null,
     open_blockers: [],
     follow_up_issues: [],
-    next_permitted_action: `Publish the ordinary exact-head review through bemoat:mission-control:review for Issue #${issueNumber}; do not infer a verdict.`,
+    next_permitted_action: `Founder gate for Issue #${issueNumber}: the managed review writer is retired; do not publish review state or mutate review counters.`,
     material_change_status: 'none',
     updated_at: resultComment.created_at ?? null,
     updated_by: 'Mission Control Missing-State Review Recovery',

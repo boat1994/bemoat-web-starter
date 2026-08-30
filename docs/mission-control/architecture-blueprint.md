@@ -206,9 +206,9 @@ flowchart LR
 
 | Field | Content |
 | --- | --- |
-| Canonical command | `pnpm run bemoat:mission-control:review` |
-| Note | Do **not** use `recover-review` for ordinary review failure |
-| Disposition | **MIGRATION-ONLY HISTORICAL / PHASE-7 DELETE CANDIDATE** |
+| Canonical command | Retired; no executable managed-review command remains |
+| Note | Historical verdict evidence remains readable where required; `recover-review` remains incident-specific and is not an ordinary review replacement |
+| Disposition | **RETIRED / READ-ONLY COMPATIBILITY** |
 
 ### J6 — Correction → bounded Delta Review
 
@@ -302,7 +302,6 @@ Evidence root for the census that informed Option B: `main@7cfd62b6197a2e95fc8db
 | --- | --- |
 | `bemoat:agent:issue` | Read-only reconstruction / preflight (J1) |
 | `bemoat:agent:delivery` | Delivery (J4) |
-| `bemoat:mission-control:review` | Review (J5/J6) |
 | `bemoat:mission-control:merge` | Merge (J7) |
 | `bemoat:mission-control:reconcile` | Reconcile (J8) |
 | `bemoat:mission-control:recover-review` | **INCIDENT_SPECIFIC** J9a |

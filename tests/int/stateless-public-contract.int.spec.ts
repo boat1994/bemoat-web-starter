@@ -65,7 +65,6 @@ const MIGRATION_ONLY_COMMANDS = [
   'bemoat:mission-control:recover-review-eligibility',
   'bemoat:mission-control:recover-state',
   'bemoat:mission-control:reopen',
-  'bemoat:mission-control:review',
   'bemoat:mission-control:task-bootstrap',
 ] as const
 
@@ -79,7 +78,6 @@ const MIGRATION_ONLY_TRANSPORT_COMMANDS = [
   'bemoat:mission-control:recover-review-eligibility',
   'bemoat:mission-control:recover-state',
   'bemoat:mission-control:reopen',
-  'bemoat:mission-control:review',
 ] as const
 
 const isCrossAgentProtocolCandidate = (command: string) => (

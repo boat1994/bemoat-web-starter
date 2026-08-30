@@ -366,16 +366,15 @@ async function createPinnedRecoveryScenario() {
 }
 
 describe('Mission Control review recovery transport', () => {
-  it('registers one exceptional recovery route without changing ordinary review ownership', async () => {
+  it('retains only the exceptional quarantined review recovery route', async () => {
     const { CANONICAL_TRANSPORTS, getTransportRoute } = await registryModulePromise
 
     expect(getTransportRoute('bemoat:mission-control:recover-review')).toMatchObject({
       owner: 'Mission Control Recovery Transport',
       role: 'REVIEW_VERDICT',
       exceptional: true,
-      ordinary_owner: 'bemoat:mission-control:review',
     })
-    expect(CANONICAL_TRANSPORTS.filter((route) => route.role === 'REVIEW_VERDICT')).toHaveLength(2)
+    expect(CANONICAL_TRANSPORTS.filter((route) => route.role === 'REVIEW_VERDICT')).toHaveLength(1)
   })
 
   it('requires the merged-guide Review 2 projection to be exactly 2/1', async () => {

@@ -278,13 +278,14 @@ export function missionControlRecoveryCommands(dependencies: CommandMetadataDepe
       condition: 'Only an exact existing projection with the same RESULT, base drift, protected main, head, policy, and CI evidence may return NO_OP_IDENTICAL_RETRY.',
     },
     next_action_rules: [
-      { classification: 'SUCCESS', next_action: nextAction('COMMAND', 'bemoat:mission-control:review', 'Ordinary review owns any future REVIEW_VERDICT and review-counter mutation; recovery never publishes a verdict.') },
-      { classification: 'NO_OP_IDENTICAL_RETRY', next_action: nextAction('COMMAND', 'bemoat:mission-control:review', 'The identical Review 1 eligibility projection is already durable; ordinary review remains the next owner.') },
+      { classification: 'SUCCESS', next_action: nextAction('FOUNDER_GATE', null, 'The managed review writer is retired; stop without publishing review state or mutating review counters.') },
+      { classification: 'NO_OP_IDENTICAL_RETRY', next_action: nextAction('FOUNDER_GATE', null, 'The identical Review 1 eligibility projection is already durable, but the managed review writer is retired.') },
     ],
     stop_conditions: [
       'Stop on any valid, malformed, partial, ambiguous, superseded, duplicated, competing, or executed evidence.',
       'Stop on PR/base/head/policy/CI drift, including recorded-base versus protected-main drift; never rebase or normalize it.',
       'Stop on stale CAS/lease or ambiguous Issue read/write/readback outcome.',
+      'Stop at the Founder gate after recovery because no supported managed review writer remains.',
     ],
     examples: [{
       description: 'Non-mutating exact review-eligibility recovery validation.',

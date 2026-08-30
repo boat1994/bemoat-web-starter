@@ -31,7 +31,6 @@
   "adapters": {
     "scripts/adapters/command-runner.mjs": {
       "importers": [
-        "scripts/mission-control-review.mjs",
         "scripts/mission-control/adapters/task-bootstrap-github.mjs"
       ]
     }
@@ -196,13 +195,6 @@
       "path": "scripts/mission-control-reopen.mjs",
       "facade_disposition": "composition_root",
       "internal_destination": "scripts/mission-control/workflows/reopen.mjs",
-      "owning_slice": 5,
-      "migration_status": "migrated"
-    },
-    {
-      "path": "scripts/mission-control-review.mjs",
-      "facade_disposition": "composition_root",
-      "internal_destination": "scripts/mission-control/workflows/review.mjs",
       "owning_slice": 5,
       "migration_status": "migrated"
     },

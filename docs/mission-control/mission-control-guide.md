@@ -438,7 +438,7 @@ already selected by durable migration evidence:
 | task bootstrap | `bemoat:mission-control:task-bootstrap` |
 | dispatch | Retired; no executable migration command remains. Historical dispatch state is read-only and stops at the Founder gate. |
 | delivery | `bemoat:agent:delivery` |
-| review | `bemoat:mission-control:review` |
+| review | Retired; no executable managed-review command remains. Historical verdict evidence is read-only and stops at the Founder gate. |
 | reconciliation | `bemoat:mission-control:reconcile` |
 | recover-review | `bemoat:mission-control:recover-review` |
 | missing managed-state recovery | `bemoat:mission-control:recover-state` |
@@ -453,7 +453,6 @@ When live state still determines routing, name only the bounded candidate set:
 ```text
 Candidate commands:
 - bemoat:mission-control:reconcile
-- bemoat:mission-control:review
 - bemoat:mission-control:recover-review
 - bemoat:mission-control:recover-review-eligibility
 
