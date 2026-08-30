@@ -97,7 +97,7 @@ export function missionControlPrimaryCommands(dependencies: CommandMetadataDepen
     next_action_rules: [
       {
         classification: 'SUCCESS',
-        next_action: nextAction('COMMAND', 'bemoat:agent:delivery', 'The dispatch claim is ready for one delivery RESULT.'),
+        next_action: nextAction('FOUNDER_GATE', null, 'The historical delivery coordinator was retired; stop before continuing this migration-only route.'),
       },
       {
         classification: 'NO_OP_IDENTICAL_RETRY',

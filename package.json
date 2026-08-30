@@ -38,7 +38,6 @@
     "typecheck": "node scripts/bemoat-typecheck.mjs",
     "boilerplate:sync": "node scripts/sync-boilerplate.mjs",
     "boilerplate:check": "node scripts/check-boilerplate-drift.mjs",
-    "bemoat:agent:delivery": "node scripts/agent-delivery.mjs",
     "bemoat:context": "node scripts/agent-context.mjs",
     "bemoat:context:sync-base": "node scripts/agent-context-sync-base.mjs",
     "bemoat:handoff": "node scripts/agent-handoff.mjs",

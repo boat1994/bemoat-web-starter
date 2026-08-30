@@ -2302,7 +2302,7 @@ Bounded implementation work.
     )).toBe(true)
   })
 
-  it('preserves child harness closures', async () => {
+  it('preserves retained child harness closures', async () => {
     const { readFileSync } = await import('node:fs')
     const { join } = await import('node:path')
     const dispatchSource = readFileSync(
@@ -2311,10 +2311,6 @@ Bounded implementation work.
     )
     const dispatchWorkflowSource = readFileSync(
       join(process.cwd(), 'scripts/mission-control/workflows/dispatch.mjs'),
-      'utf8',
-    )
-    const deliverySource = readFileSync(
-      join(process.cwd(), 'scripts/mission-control/workflows/agent-delivery.mjs'),
       'utf8',
     )
     expect(hasExecutableBoundary(dispatchSource, {
@@ -2338,11 +2334,6 @@ Bounded implementation work.
       constructedNames: ['Coordinator'],
     })).toBe(true)
     expect(dispatchSource).not.toContain('const comments = []')
-    expect(deliverySource).toContain('listLiveComments')
-    expect(deliverySource).toContain('parsePaginatedGhApiJson')
-    expect(deliverySource).toContain('resolveProductionCommentTrust')
-    expect(deliverySource).not.toContain('local-${')
-    expect(deliverySource).not.toContain('`local-')
     expect(reconcileModule.Coordinator).toBeTruthy()
     expect(reconcileModule.normalizeTransitionIdentity).toBeTruthy()
     expect(reconcileModule.resolveProductionCommentTrust).toBeTruthy()

@@ -101,9 +101,9 @@ export function createResultRendering({
         reason: 'The identical Founder-authorized reopen projection is already durable.',
       }
       : {
-        type: 'COMMAND',
-        command: 'bemoat:agent:delivery',
-        reason: 'The bounded correction delivery is the only next mutation.',
+        type: 'FOUNDER_GATE',
+        command: null,
+        reason: 'The historical delivery coordinator was retired; stop before continuing this migration-only route.',
       },
     details: {
       legacy_classification: result.outcome,

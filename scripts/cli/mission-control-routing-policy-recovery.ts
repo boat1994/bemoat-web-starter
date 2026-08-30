@@ -99,7 +99,6 @@ export function missionControlRecoveryRoutes() {
     required_review_type: null,
     expected_post_state_or_gate: 'Verified routing projection',
     prohibited_commands: [
-      'bemoat:agent:delivery',
       'bemoat:mission-control:review',
       'bemoat:mission-control:reopen',
       'bemoat:mission-control:merge',

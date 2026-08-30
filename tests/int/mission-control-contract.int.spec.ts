@@ -263,7 +263,6 @@ describe('mission-control contract guard', () => {
 
     const operationCommands = [
       'bemoat:mission-control:dispatch',
-      'bemoat:agent:delivery',
       'bemoat:mission-control:review',
       'bemoat:mission-control:reconcile',
       'bemoat:mission-control:recover-review',

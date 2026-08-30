@@ -8,7 +8,6 @@ import {
 
 const EXPECTED_TRANSPORT_COMMANDS = [
   'bemoat:mission-control:dispatch',
-  'bemoat:agent:delivery',
   'bemoat:mission-control:review',
   'bemoat:mission-control:recover-review',
   'bemoat:mission-control:reconcile',

@@ -923,21 +923,6 @@ const CANONICAL_HANDOFF_BODY = `## HANDOFF
 **Next:** Dev posts RESULT
 `
 
-const CANONICAL_DELIVERY_BODY = `## RESULT
-### Task log
-- Timestamp: 2026-08-06T00:00:00+00:00
-- Task / Issue: #284
-- Phase: Dev
-- Executing role: Dev / Builder
-**Task:** #284 · \`feature/284\` → \`main\` · head \`${CANONICAL_FULL_UPPERCASE_SHA}\`
-**PR:** https://github.com/${CANONICAL_REPOSITORY}/pull/285
-**Completed:** Added the bounded change.
-**Evidence:** Local — focused test → pass; GitHub — exact-head CI → pass
-**AC audit:** Done
-**Risks / escalation:** None
-**Next:** Reviewer posts REVIEW_VERDICT
-`
-
 const CANONICAL_REVIEW_BODY = `## REVIEW_VERDICT
 ### Task log
 - Timestamp: 2026-08-06T00:00:00+00:00
@@ -1024,31 +1009,6 @@ const CANONICAL_TRANSPORT_CASES: readonly CanonicalTransportCase[] = [
       '--planning-base-sha',
       'abc1234',
     ],
-  },
-  {
-    label: 'delivery',
-    command: 'bemoat:agent:delivery',
-    entrypoint: 'scripts/agent-delivery.mjs',
-    bodyFile: 'result.md',
-    body: CANONICAL_DELIVERY_BODY,
-    registryArgs: [
-      '284',
-      '--repo',
-      CANONICAL_REPOSITORY,
-      '--body-file',
-      './result.md',
-    ],
-    resultArgs: [
-      '284',
-      '--repo',
-      CANONICAL_UPPERCASE_REPOSITORY,
-      '--body-file',
-      './result.md',
-    ],
-    expectedClassification: 'BLOCKED_EXTERNAL',
-    expectedExit: 3,
-    expectedPrNumber: '285',
-    expectedExactHead: CANONICAL_FULL_LOWERCASE_SHA,
   },
   {
     label: 'ordinary review',

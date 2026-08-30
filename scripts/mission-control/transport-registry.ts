@@ -48,13 +48,6 @@ export const CANONICAL_TRANSPORTS: ReadonlyArray<Readonly<CanonicalTransportRout
     exceptional: false,
   }),
   Object.freeze({
-    command: 'bemoat:agent:delivery',
-    role: 'RESULT',
-    owner: 'Delivery Coordinator',
-    purpose: 'MIGRATION-ONLY HISTORICAL: project a successful implementation to AWAITING_REVIEW_1',
-    exceptional: false,
-  }),
-  Object.freeze({
     command: 'bemoat:mission-control:review',
     role: 'REVIEW_VERDICT',
     owner: 'Reviewer',

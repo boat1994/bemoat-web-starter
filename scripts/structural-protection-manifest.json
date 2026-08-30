@@ -6,7 +6,6 @@
     "line_count_algorithm": "physical-lines-v1",
     "soft_ceiling": 400,
     "grandfathered": [
-      { "path": "scripts/agent-delivery.mjs", "max_lines": 686 },
       { "path": "scripts/agent-issue/current-post-budget-authority.mjs", "max_lines": 646 },
       { "path": "scripts/agent-issue/progress-tracking.mjs", "max_lines": 462 },
       { "path": "scripts/boilerplate/filesystem.mjs", "max_lines": 635 },
