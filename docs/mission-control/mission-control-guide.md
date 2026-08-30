@@ -193,7 +193,7 @@ state.
 For bounded defects where root cause, acceptance criteria, and affected files are clear:
 - **No separate planning phase**: Bounded defects proceed directly to implementation (`READY` or `IN_PROGRESS`) without requiring a dedicated planning phase or separate plan document.
 - **No duplicate Founder approval gates**: If Founder authorization was already granted or the defect is pre-authorized correction work, do not insert a duplicate pre-implementation Founder review gate.
-- **Atomic Dev delivery**: Dev completes code changes, validation, Draft PR (`Refs #N` when Option A merge transport owns Issue closure; otherwise the repository's normal linkage), exact-head CI verification, `## RESULT` comment, and state advancement (`AWAITING_REVIEW_1`) atomically in one delivery run.
+- **Atomic Dev delivery**: Dev completes code changes, validation, Draft PR with the repository's normal Issue linkage, exact-head CI verification, `## RESULT` comment, and state advancement (`AWAITING_REVIEW_1`) atomically in one delivery run.
 - **Deterministic comment-timestamp filtering**: When evaluating live task progress in `READY` or `IN_PROGRESS`, role comments (`RESULT` or `REVIEW_VERDICT`) from earlier planning or diagnostic phases whose valid timestamps (`createdAt`) precede a valid `state.updated_at` are ignored by deterministic preflight guards (`#146`) to prevent stale comments from triggering false `STATE_CONFLICT` blockers or inferring stale PR references. If either timestamp is absent or malformed (`NaN`), the role comment is preserved for normal reconciliation or fail-closed rules rather than treating invalid timestamps as epoch zero (`MC-R1-003`).
 
 ## Safe execution bundles
@@ -241,9 +241,9 @@ policy_version: 1.3.0
 The runtime verifies the authenticated Founder against the repository-owned
 allowlist, the comment identity and hash, non-supersession, every repository
 and task/PR/head/base/policy-source binding, the exact
-`bundle_kind: merge-completion` tuple, and the exact scope/action. The merge
-transport never treats a generic `delivery`, implementation, ratification, or
-other bundle as merge authority. Ambiguous,
+`bundle_kind: merge-completion` tuple, and the exact scope/action. Retained
+migration readers never treat a generic `delivery`, implementation,
+ratification, or other bundle as merge authority. Ambiguous,
 fabricated, superseded, scope-mismatched, implementation-only, ratifying, or
 non-merge decisions fail closed and cannot authorize merge.
 
@@ -262,9 +262,6 @@ authority scope:
   projection;
 - deliver implementation → verify exact-head CI → post `RESULT` → project
   `AWAITING_REVIEW_1`;
-- after Founder merge approval, verify and merge the exact reviewed head → post
-  final `RESULT` → close the Task Issue → project Task/campaign `DONE` → select
-  the next campaign action without starting it.
 
 ## Prohibited cross-gate bundles
 
@@ -286,18 +283,13 @@ writer changes authority or state, evidence is ambiguous or unavailable, or the
 durable result conflicts with the action outcome. Reconciliation remains
 bounded, idempotent, and fail-closed; identical evidence is `NO_OP`.
 
-## Merge completion bundle
+## Native merge boundary
 
-After Founder merge approval, the merge completion bundle may verify the exact
-reviewed head and exact-head CI, merge with expected-head protection, verify the
-protected-base merge commit, post the final RESULT, close the Task Issue, write
-Task `DONE`, project the campaign slice as `DONE`, and select the next campaign
-action. It may not start that next action or add a new gate.
-
-Hard gates remain unchanged: implementation-plan Founder approval, exact-head
-independent review, exact-head CI, Founder merge approval, protected-base and
-merged-policy verification, and fail-closed behavior. No autonomous Review 4 or
-review-counter reset is introduced.
+The legacy managed and STANDARD merge-completion bundles are retired. Context
+may reconstruct native GitHub authority, reviews, checks, mergeability,
+protection, and protected-base evidence, but no supported custom transport
+merges a PR or writes a receipt, RESULT, Issue closure, managed `DONE` state, or
+campaign projection.
 
 ## Double-Loop Review Gate
 
@@ -445,7 +437,7 @@ already selected by durable migration evidence:
 | missing-state review eligibility recovery | `bemoat:mission-control:recover-review-eligibility` |
 | reopen | `bemoat:mission-control:reopen` |
 | adopt-finding | `bemoat:mission-control:adopt-finding` |
-| merge | `bemoat:mission-control:merge` |
+| merge | Retired; no executable custom merge command remains. Context reconstructs native GitHub merge authority and evidence. |
 | role-comment transport | `bemoat:issue:comment` |
 
 When live state still determines routing, name only the bounded candidate set:
@@ -785,42 +777,15 @@ Any normal state may transition to `BLOCKED_EXTERNAL`, `STATE_CONFLICT`, or
 `STATE_MIGRATION_REQUIRED` when proven. No backward transition without exact
 evidence and authorized reason.
 
-### Terminal completion contract (Option A)
+### Native merge boundary
 
-Merge transport owns the complete terminal transition. Before the first
-mutation it must verify the exact Founder merge authorization record, the
-non-superseded `ELIGIBLE FOR FOUNDER REVIEW` verdict, exact reviewed/current PR
-head, exact-head CI, protected base, policy, and mergeability. It then performs
-one bounded merge-completion bundle:
-
-```text
-verify authority/verdict/head/base/CI/mergeability
-→ mark ready when required
-→ merge with expected-head protection
-→ verify the protected-base merge commit
-→ post final RESULT
-→ close the managed Task Issue as completed
-→ write Task DONE
-→ project the campaign slice DONE
-→ select the next campaign action without starting it
-```
-
-The executable `bemoat:mission-control:merge` entrypoint requires a pinned,
-trusted Founder authorization comment whose authenticated author is listed in
-the repository Actions variable `BEMOAT_FOUNDER_LOGINS`. Its exact record binds
-the repository, Task Issue, PR, exact head/base, policy, scope, action, comment
-identity, and non-supersession evidence. The repository-owned allowlist supports
-personal and organization-owned child repositories without trusting caller
-environment state.
-
-Successful deterministic completion writes its terminal projection directly;
-it does not invoke reconciliation and does not perform a second `NO_OP` run.
-An already closed, merged, and `DONE` task is an idempotent `NO_OP` after the
-same evidence is verified. Separate reconciliation is permitted only when a projection fails,
-evidence is ambiguous/conflicting or unavailable, or a concurrent CAS/lease
-write occurs. Reconciliation remains bounded, idempotent,
-and fail-closed; it never closes or reopens an Issue. A failure after a partial
-merge or projection must stop and retain an actionable classification.
+The legacy managed and STANDARD custom merge wrappers are retired. No supported
+route writes a merge receipt, terminal RESULT, managed `DONE` state, Issue
+closure, or campaign projection as part of a custom merge protocol. Ordinary
+merge authority and completion evidence are reconstructed from native GitHub
+Issue, pull-request, review, check, protection, and protected-base evidence by
+`bemoat:context`. Historical authorization and merge evidence remains readable
+only where a retained migration consumer requires it.
 
 ## Review-cycle budget
 

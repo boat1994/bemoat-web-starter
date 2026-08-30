@@ -7,8 +7,6 @@ const root = resolve(process.cwd())
 const tempRoots: string[] = []
 const oracle = [
   ['tests/int/mission-control-adopt-finding.int.spec.ts', 'f5eed96613295c8c9e90e36fa0cdd218a4ab8c38c7070f23e79bceb2fa81a4eb'],
-  ['tests/int/mission-control-merge-verdict-binding-entrypoint.int.spec.ts', 'e69c60943f162844093cdb1a2a84b78b2e45d2c7bbbdb339bd4d081bfcd3d1d8'],
-  ['tests/int/mission-control-merge.int.spec.ts', 'c5d98eb7b403bef345cc8c153d43b487e03777447c59a914919e895b0c28d606'],
 ] as const
 const productionExtensions = ['.mjs', '.ts'] as const
 const grandfathered = [
@@ -21,7 +19,6 @@ const grandfathered = [
   ['scripts/mission-control/domain/recover-state-projection.mjs', 37], ['scripts/mission-control/domain/review-recovery.mjs', 485],
   ['scripts/mission-control/workflows/adopt-finding.mjs', 564],
   ['scripts/mission-control/workflows/issue-body-cas.mjs', 438],
-  ['scripts/mission-control/workflows/merge.mjs', 1124],
   ['scripts/mission-control/workflows/recover-review.mjs', 828],
   ['scripts/mission-control/workflows/recover-state.mjs', 1099],
   ['scripts/mission-control/workflows/reopen.mjs', 918], ['scripts/mission-control/workflows/task-bootstrap.mjs', 658],
@@ -76,16 +73,15 @@ async function guard(path = root) {
 describe('structural protection guard', () => {
   it('accepts the current repository with the exact inventory, baseline, and protected oracle', async () => {
     expect((await guard()).map((entry: { rule: string }) => entry.rule)).toEqual([])
-    expect(grandfathered).toHaveLength(22)
+    expect(grandfathered).toHaveLength(21)
     expect(JSON.parse(readFileSync(join(root, 'scripts/structural-protection-manifest.json'), 'utf8'))).toEqual(manifest())
-    expect(scriptInventory(root)).toBe(283)
+    expect(scriptInventory(root)).toBe(246)
   })
 
   it('rejects malformed schema, types, unknown keys, ordering, duplicates, paths, and SHA values', async () => {
     const cases: Record<string, unknown>[] = [
       { schema_version: '1' }, { extra: true }, { production_scripts: [] },
       { production_scripts: { ...manifest().production_scripts, soft_ceiling: 401 } },
-      { protected_oracle: { ...manifest().protected_oracle, files: [...manifest().protected_oracle.files].reverse() } },
       { protected_oracle: { ...manifest().protected_oracle, files: [...manifest().protected_oracle.files, manifest().protected_oracle.files[0]] } },
       { protected_oracle: { ...manifest().protected_oracle, files: [{ path: '../bad', sha256: 'a'.repeat(64) }] } },
       { protected_oracle: { ...manifest().protected_oracle, files: [{ path: oracle[0][0], sha256: 'A'.repeat(64) }] } },

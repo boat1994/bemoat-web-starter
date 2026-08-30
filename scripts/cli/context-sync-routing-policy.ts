@@ -29,8 +29,6 @@ export function contextSyncRoutes(): ContextSyncRoute[] {
       'bemoat:mission-control:authorize-founder',
       'bemoat:mission-control:reopen',
       'bemoat:mission-control:recover-state',
-      'bemoat:mission-control:merge',
-      'bemoat:mission-control:merge-standard',
     ],
     decision: 'COMMAND',
     stop_condition: 'Stop with canonical evidence, drift, external, or ambiguous classifications on any failed gate.',

@@ -25,7 +25,8 @@ Everything below documents the former stateful Mission Control transports for
 read/migration compatibility. It is not supported future routing. The legacy
 `bemoat:agent:delivery` and stateful delivery/review/reconcile/recovery/merge/
 task/role-comment commands remain registered only until separately authorized
-Phase 7 deletion slices prove their consumers and dependencies.
+Phase 7 deletion slices prove their consumers and dependencies. The managed and
+STANDARD merge wrappers have been deleted.
 
 ## Command selection
 
@@ -40,8 +41,7 @@ Phase 7 deletion slices prove their consumers and dependencies.
 | `recover-state` | Exceptional recovery for one completely absent managed-state block when immutable evidence uniquely reconstructs the prior canonical state. It cannot repair malformed state, replay review, or invoke finding adoption. |
 | `recover-review-eligibility` | Exceptional recovery for one completely absent managed-state block when one immutable delivery RESULT, exact-head CI, and separate recorded-base/protected-main evidence uniquely reconstruct `AWAITING_REVIEW_1`. A predecessor RESULT is accepted only when the exact bounded structural-inventory correction to the live head is proven. It never publishes a verdict or increments review counters. |
 | `authorize-founder` | Record one immutable Founder task-bootstrap authorization body exactly once, binding the live returned comment ID and body hash through readback. |
-| `merge` | Finalize Founder-authorized merge. Uses the live PR head and an existing Founder JSON authorization comment. |
-| `merge-standard` | Finalize one explicit STANDARD/non-managed Founder-authorized merge. It is disjoint from managed `merge` and never creates or projects managed state. |
+| (retired merge wrappers) | No executable custom merge command remains. Context reconstructs ordinary native GitHub merge authority and evidence. |
 | (none) | Stop and request human review if evidence disagrees, authentication fails, or preconditions mismatch. Never mutate state YAML directly. |
 
 ## Preflight checklist
@@ -60,10 +60,7 @@ a generic comment-repair API.
 - [ ] There are no competing superseding comments blocking this transition.
 
 Managed commands additionally require the shared managed-state and expected-state
-checks. The STANDARD/non-managed merge route replaces only those two preflight
-checks with its disjoint exception: the live Issue must have no managed-state
-markers and must explicitly declare a
-policy-compatible Medium/Core tier with Mission Control optional or not required.
+checks.
 
 ### Dispatch checks
 - [ ] Read Task Issue state without requiring an existing PR or CI.
@@ -80,39 +77,12 @@ policy-compatible Medium/Core tier with Mission Control optional or not required
 - [ ] Requires an existing valid managed state.
 - [ ] Requires matching evidence (active PR, exact head, existing `REVIEW_VERDICT` comments).
 
-### Merge checks
-- [ ] Requires an immutable Founder merge authority JSON comment.
-- [ ] Requires the authorized reviewed head to match the live PR head.
-- [ ] Exact-head CI is fully completed and successful.
+### Retired merge wrappers
 
-### STANDARD/non-managed merge checks
-- [ ] The live Issue has no managed-state block and explicit policy-compatible STANDARD declarations.
-- [ ] The live protected `main` ref and merged policy are read live; policy path/version/blob SHA and protected-base commit SHA are bound separately.
-- [ ] Exactly one active, non-superseded canonical `REVIEW_VERDICT` binds the exact Issue/PR/base/head, and its immutable comment ID is bound into Founder authorization and receipt evidence.
-- [ ] Exact-head CI and `CI (starter strict)` are successful, and the PR is open, non-draft, and mergeable.
-- [ ] The merge uses the exact authorized head and authoritative protected-base readback; an uncertain merge outcome is never blindly retried.
-
-Exact syntax:
-
-```text
-pnpm run bemoat:mission-control:merge-standard -- <issue-number> --repo <owner>/<repo> --authorization-comment <role-comment-id>
-```
-
-The STANDARD route reads the Issue, PR, comments, Founder authorization and
-receipt, protected `main`, and merged policy before the first merge mutation.
-It accepts only explicit STANDARD/non-managed eligibility. Managed, ambiguous,
-non-STANDARD, stale, duplicate, competing, superseded, wrong-target, malformed,
-or unavailable evidence fails closed. A successful merge changes only the exact
-authorized PR; the Issue body, managed-state markers, review evidence, and
-unrelated Issues/PRs are not mutated. An already merged exact tuple with
-protected-base readback is `NO_OP_IDENTICAL_RETRY`; an uncertain write stops
-after authoritative readback and never issues a blind retry.
-
-Structurally valid fake example:
-
-```text
-pnpm run bemoat:mission-control:merge-standard -- 379 --repo boat1994/bemoat-web-starter --authorization-comment 10000000000
-```
+No managed or STANDARD custom merge command is executable. Use Context to
+reconstruct native GitHub Issue, pull-request, review, check, mergeability,
+protection, and protected-base evidence. Stop fail-closed on ambiguity; do not
+substitute a new command, receipt, state projection, or transport.
 
 ## Evidence vocabulary
 
@@ -127,7 +97,7 @@ Keep these values distinct in every handoff and invocation:
 | Protected-base SHA | The live commit SHA of the protected base branch (`baseRefOid` / current protected ref), used for ancestry and exact-base checks; do not copy an older approved SHA from chat. |
 | Exact PR head SHA | The live PR `headRefOid` at the moment of the command. Must be the complete 40-character SHA. CI and every review/merge authorization must match this exact SHA. |
 | Role comment ID | The immutable GitHub Issue comment ID returned by the live API: HANDOFF for protocol coordination, active `REVIEW_VERDICT` for reconcile/merge, and Founder authorization for merge. |
-| Verdict body / verdict file | The complete `## REVIEW_VERDICT` body supplied by `--body-file` to review, or the live role comment body selected by reconcile/merge. A file path is only transport. New verdicts must contain canonical PR/base/head/verdict evidence. Reconcile requires canonical `**PR / base / head:**` evidence and fails closed on retired legacy labels. Merge transport collects every recognized PR/base/head source before selection and fails closed on duplicate fields, conflicting values, partial historical pairs, multiline, short-SHA, or malformed evidence. Recognized merge sources are one canonical `**PR / base / head:**` line (`/pull/N` or `PR #N`), `/pull/N` URL form, one historical `**PR:** PR #N`, one `**Exact head reviewed:**` and/or one `**Exact reviewed head:**`, and one `**Approved base:**`. A complete unique semantically identical binding across those permitted source forms is accepted only when each form appears at most once and all recognized values agree; first-match preference is prohibited. |
+| Verdict body / verdict file | The complete historical `## REVIEW_VERDICT` body or the live role comment body selected by retained reconciliation/readers. A file path is only transport. Retained readers collect every recognized PR/base/head source before selection and fail closed on duplicate, conflicting, partial, multiline, short-SHA, or malformed evidence. |
 
 Do not infer any supplied value from a chat transcript. Re-read the Task Issue,
 campaign authorization, PR, comments, protected base, and exact head live before
@@ -394,57 +364,18 @@ The managed review writer is retired. No public executable ordinary-review
 command publishes managed `REVIEW_VERDICT` state or increments review counters.
 The incident-specific `recover-review` quarantine remains migration-only and is
 not an ordinary review route. Historical verdicts remain readable only where
-retained Context, merge, reconciliation, or migration evidence requires them. A
+retained Context, reconciliation, or migration evidence requires them. A
 historical `AWAITING_REVIEW_*` projection stops at a Founder gate; do not
 substitute generic comment posting, manual Issue-body edits, recovery commands,
 or a replacement transport.
 
 ## Merge
 
-Exact syntax:
-
-```text
-pnpm run bemoat:mission-control:merge -- <issue-number> --repo <owner>/<repo> --authorization-comment <role-comment-id>
-```
-
-Positional arguments and flags:
-
-- `<issue-number>` is the positive Task Issue number.
-- `--repo` is required and identifies the repository.
-- `--authorization-comment` is the immutable live Founder authorization comment ID. Distinguish this ID from the `REVIEW_VERDICT` ID.
-
-Preconditions and sources: read the live Task Issue state, active PR, approved
-base branch, protected-base SHA, exact PR head, active review-verdict comment,
-Founder authorization body, and exact-head CI. The authorization comment body must
-be exactly one raw JSON object; Markdown fences, prose wrappers, strings, and arrays are prohibited. The authorization comment must
-bind the Task Issue, PR number, approved base, exact reviewed head, review
-verdict comment ID, policy source, and merge scope (e.g., `bundle_kind`, `scope`, `action`). The parent/campaign Issue
-and any blocker/slice binding come only from that live authorization. The active
-`REVIEW_VERDICT` must resolve a unique PR/base/exact-head binding by collecting
-every recognized source before selection: one canonical `**PR / base / head:**`
-line (`/pull/N` or `PR #N`), `/pull/N` plus `**Exact head reviewed:**`, and/or the
-bounded historical merge fields `**PR:** PR #N` and `**Exact reviewed head:**` /
-existing `**Exact head reviewed:**`, with `**Approved base:**` when present.
-Agreeing unique cross-source forms are accepted; conflicting, duplicate, partial,
-multiline, short-SHA, or malformed evidence fails closed. The PR must be
-open/mergeable (or already verifiably
-merged), and the authorized head must be passed to GitHub's exact-head merge
-operation.
-
-Fetch comment IDs: `gh issue view 123 --json comments`
-
-Structurally valid fake example:
-
-```text
-pnpm run bemoat:mission-control:merge -- 123 --repo user/repo --authorization-comment 10000000000
-```
-
-Missing authorization, wrong role-comment ID, stale verdict, wrong Task Issue,
-PR, base, protected-base ancestry, or exact head fails closed as
-`STATE_CONFLICT`; unavailable live GitHub, CI, or protected-base evidence is
-`BLOCKED_EXTERNAL`. Merge is Founder-authorized transport, not a review or
-reconcile shortcut. Direct `gh issue edit`, manual YAML, and ad hoc merge or
-transition scripts are prohibited substitutes.
+The custom managed and STANDARD merge wrappers are retired. Historical merge
+authorization and receipt evidence may remain readable for retained migration
+consumers, but no supported route executes a custom merge or writes terminal
+managed/campaign projections. Context reconstructs ordinary native GitHub merge
+authority and evidence.
 
 ## Partial failure and retry behavior
 

@@ -221,9 +221,9 @@ flowchart LR
 
 | Field | Content |
 | --- | --- |
-| Canonical command | `pnpm run bemoat:mission-control:merge` |
-| Trust | Founder allowlist; exact reviewed head; policy identity |
-| Disposition | **MIGRATION-ONLY HISTORICAL / PHASE-7 DELETE CANDIDATE** |
+| Canonical command | Retired; no executable custom merge command remains |
+| Trust | Native GitHub authority and evidence reconstructed by Context |
+| Disposition | **RETIRED / READ-ONLY COMPATIBILITY** |
 
 ### J8 — Deterministic reconciliation
 

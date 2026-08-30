@@ -5,7 +5,6 @@ import {
   REQUIRED_CORRECTION_GUIDE_PHRASES,
   REQUIRED_COST_AWARE_GUIDE_PHRASES,
   REQUIRED_LEAN_FOUNDER_DECISION_PHRASES,
-  REQUIRED_SAFE_BUNDLE_GUIDE_PHRASES,
 } from './inventory.mjs'
 import { violation } from './violation.mjs'
 
@@ -116,11 +115,6 @@ export function scanGuideContent(relativePath, content) {
       violations.push(
         violation('MC012', relativePath, `Guide missing lean Founder Decision invariant: ${phrase}`),
       )
-    }
-  }
-  for (const phrase of REQUIRED_SAFE_BUNDLE_GUIDE_PHRASES) {
-    if (!content.includes(phrase)) {
-      violations.push(violation('MC012', relativePath, `Guide missing safe execution bundle invariant: ${phrase}`))
     }
   }
   for (const phrase of REQUIRED_CORRECTION_GUIDE_PHRASES) {

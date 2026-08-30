@@ -46,18 +46,6 @@ const STARTER_ONLY_INT_TESTS: { path: string; reason: string }[] = [
     reason: 'Review CLI characterization tests are starter harness validation only',
   },
   {
-    path: 'tests/int/mission-control-merge-blocker-campaign-postconditions.int.spec.ts',
-    reason: 'Direct coverage for the extracted merge domain seam is starter harness validation only',
-  },
-  {
-    path: 'tests/int/mission-control-merge-campaign-state-projection.int.spec.ts',
-    reason: 'Direct coverage for the extracted merge campaign state projection seams is starter harness validation only',
-  },
-  {
-    path: 'tests/int/mission-control-merge-task-done-projection.int.spec.ts',
-    reason: 'Direct coverage for the extracted merge task DONE projection seam is starter harness validation only',
-  },
-  {
     path: 'tests/int/github-comment-identity.int.spec.ts',
     reason: 'Shared primitive tests are starter-only until explicitly moved to harness sync',
   },
@@ -72,10 +60,6 @@ const STARTER_ONLY_INT_TESTS: { path: string; reason: string }[] = [
   {
     path: 'tests/int/mission-control-authorize-founder-entrypoint.int.spec.ts',
     reason: 'Direct authorize-founder entrypoint integration coverage is starter harness validation only',
-  },
-  {
-    path: 'tests/int/mission-control-standard-merge.int.spec.ts',
-    reason: 'Direct STANDARD/non-managed merge transport integration coverage is starter harness validation only',
   },
   {
     path: 'tests/int/mission-control-standard-non-managed-eligibility.int.spec.ts',
@@ -122,8 +106,6 @@ const SYNCED_SUPERPOWERS_TEMPLATE_PATHS = [
 
 const MANAGED_BEMOAT_PACKAGE_SCRIPTS = [
   'bemoat:agent:issue',
-  'bemoat:mission-control:merge',
-  'bemoat:mission-control:merge-standard',
   'bemoat:issue:comment',
   'bemoat:branch:check',
   'bemoat:guard:safety',

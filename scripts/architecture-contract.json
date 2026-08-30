@@ -150,20 +150,6 @@
       "migration_status": "migrated"
     },
     {
-      "path": "scripts/mission-control-merge-standard.mjs",
-      "facade_disposition": "composition_root",
-      "internal_destination": "scripts/mission-control/workflows/merge-standard.mjs",
-      "owning_slice": 5,
-      "migration_status": "migrated"
-    },
-    {
-      "path": "scripts/mission-control-merge.mjs",
-      "facade_disposition": "composition_root",
-      "internal_destination": "scripts/mission-control/workflows/merge.mjs",
-      "owning_slice": 5,
-      "migration_status": "migrated"
-    },
-    {
       "path": "scripts/mission-control-reconcile.mjs",
       "facade_disposition": "composition_root",
       "internal_destination": "scripts/mission-control/workflows/reconcile.mjs",

@@ -20,7 +20,7 @@ reconstruction.
    use only the discovered public contract and its safe help invocation.
 5. Run `pnpm run bemoat:context <issue-number> --json` and use its fresh route;
    chat/local reports are not authoritative.
-6. Continue only for one bounded objective or explicitly authorized safe execution bundle at a time. Keep one authority scope and one terminal durable outcome per objective.
+6. Continue only for one bounded objective at a time. Keep one authority scope and one terminal durable outcome per objective.
 7. Publish the final cross-agent record with `pnpm run bemoat:handoff
    <issue-number>` and require fresh reconstruction next time.
 8. Fail closed when authority, policy, evidence, local durability, or command
@@ -42,9 +42,10 @@ recommendation, and Actions: **Approve** | **Decline**. Do not include
 Suggested model, Ready-to-paste, delivery checklists, or execution prompts
 before Approve. After **Approve** only: durable GitHub authorization + compact
 HANDOFF. After **Decline**: minimal stop/closure only. Historical
-`ELIGIBLE_FOR_FOUNDER_REVIEW` remains readable on the old merge path.
+`ELIGIBLE_FOR_FOUNDER_REVIEW` remains readable as historical evidence, but no
+custom merge wrapper remains.
 
-Historical compatibility phrases: Lean Founder Decision when state is `BLOCKED_FOR_FOUNDER_DECISION`; Actions: **Approve** | **Decline**; Do not include Suggested model, Ready-to-paste; After **Approve** only: durable GitHub authorization + compact HANDOFF; After **Decline**: minimal stop/closure only; Keep `ELIGIBLE_FOR_FOUNDER_REVIEW` on the default merge path; Compact bundle prompts must name the exact Task Issue/PR, authority comment and authenticated author, exact scope and action, exact policy/base/head, merged-policy source commit SHA, protected-base commit SHA, exact-head CI evidence, review verdict, stop conditions for authority/head/CI/verdict/mergeability/CAS/lease drift, and prohibited actions. Do not bundle across implementation, review, and merge gates. These are migration-only references.
+Historical compatibility phrases: Lean Founder Decision when state is `BLOCKED_FOR_FOUNDER_DECISION`; Actions: **Approve** | **Decline**; Do not include Suggested model, Ready-to-paste; After **Approve** only: durable GitHub authorization + compact HANDOFF; After **Decline**: minimal stop/closure only; Keep `ELIGIBLE_FOR_FOUNDER_REVIEW` readable as migration evidence. These are migration-only references.
 
 ## Historical REVIEW_VERDICT vocabulary
 
@@ -56,13 +57,6 @@ Historical records use exactly one: `CORRECTION REQUIRED` | `ELIGIBLE FOR FOUNDE
 Founder Decision stops stay lean — do not keep model/prompt boilerplate merely
 because the run is blocked. Valid stateless work requires no separate state
 projection run.
-
-Compact bundle prompts must name the repository and exact Task Issue/PR, the
-authority comment and authenticated author, exact scope and action, exact policy/base/head
-evidence including the merged-policy source commit SHA and protected-base commit SHA,
-exact-head CI evidence, review verdict, bounded objective, stop conditions for authority/head/CI/verdict/mergeability/CAS/lease drift,
-and prohibited actions. Do not bundle across implementation, review, and merge
-gates.
 
 Every mutation-capable Ready-to-paste prompt must include the guide's mandatory
 public CLI routing section: name the canonical command or bounded candidate set,

@@ -49,17 +49,18 @@ function route({
 export function missionControlRecoveryRoutes() {
   return [
   route({
-    route_key: 'ELIGIBLE_FOR_FOUNDER_REVIEW/exact-merge-authorization-current-reviewed-head',
+    route_key: 'ELIGIBLE_FOR_FOUNDER_REVIEW/retired-managed-merge-wrapper',
     observed_state: 'ELIGIBLE_FOR_FOUNDER_REVIEW',
-    evidence_case: 'exact-merge-authorization-current-reviewed-head',
-    required_evidence_condition: 'Exact Founder merge authorization and current reviewed head are verified.',
-    forbidden_evidence_condition: 'Head drift, stale authorization, competing authority, or reopen tuple.',
-    permitted_operation: 'Execute the Founder-authorized merge completion bundle.',
-    canonical_command: 'bemoat:mission-control:merge',
+    evidence_case: 'retired-managed-merge-wrapper',
+    required_evidence_condition: 'A historical managed merge-wrapper route is encountered after the custom merge transport has been retired.',
+    forbidden_evidence_condition: 'Any attempt to invoke or replace the retired custom merge wrapper.',
+    permitted_operation: null,
+    canonical_command: null,
     required_review_type: null,
-    expected_post_state_or_gate: 'DONE',
-    prohibited_commands: ['bemoat:mission-control:reopen'],
-    decision: 'COMMAND',
+    expected_post_state_or_gate: 'FOUNDER_GATE — native GitHub merge authority only',
+    prohibited_commands: ALL_MUTATING_COMMANDS,
+    decision: 'FOUNDER_GATE',
+    stop_condition: 'Stop at the Founder gate; Context must reconstruct any ordinary native GitHub merge authority and evidence.',
   }),
   route({
     route_key: 'ELIGIBLE_FOR_FOUNDER_REVIEW/complete-founder-old-new-head-reopen-tuple',
@@ -71,7 +72,7 @@ export function missionControlRecoveryRoutes() {
     canonical_command: 'bemoat:mission-control:reopen',
     required_review_type: null,
     expected_post_state_or_gate: 'FOUNDER_AUTHORIZED_CORRECTION',
-    prohibited_commands: ['bemoat:mission-control:merge'],
+    prohibited_commands: [],
     decision: 'COMMAND',
   }),
   route({
@@ -100,7 +101,6 @@ export function missionControlRecoveryRoutes() {
     expected_post_state_or_gate: 'Verified routing projection',
     prohibited_commands: [
       'bemoat:mission-control:reopen',
-      'bemoat:mission-control:merge',
     ],
     decision: 'COMMAND',
   }),
@@ -147,7 +147,6 @@ export function missionControlRecoveryRoutes() {
     prohibited_commands: [
       'bemoat:mission-control:reconcile',
       'bemoat:mission-control:recover-state',
-      'bemoat:mission-control:merge',
     ],
     decision: 'COMMAND',
   }),
@@ -157,11 +156,11 @@ export function missionControlRecoveryRoutes() {
     evidence_case: 'exact-identical-merge-completion-retry',
     required_evidence_condition: 'The exact merge-completion bundle, merge commit, closed Issue, and campaign projection are already verified.',
     forbidden_evidence_condition: 'Any changed head, authorization, merge commit, or terminal projection.',
-    permitted_operation: 'Verify the existing merge completion without mutation.',
-    canonical_command: 'bemoat:mission-control:merge',
+    permitted_operation: null,
+    canonical_command: null,
     required_review_type: null,
-    expected_post_state_or_gate: 'NO_OP_IDENTICAL_RETRY',
-    decision: 'COMMAND',
+    expected_post_state_or_gate: 'COMPLETE',
+    decision: 'COMPLETE',
   }),
   route({
     route_key: 'DONE/no-retry-request',

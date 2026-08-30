@@ -105,7 +105,7 @@ describe('authorize-founder workflow', () => {
     await main(['100', '--scope', 'merge', '--json'])
 
     expect(stdoutData).toContain('"classification":"SUCCESS"')
-    expect(stdoutData).toContain('bemoat:mission-control:merge-standard')
+    expect(stdoutData).toContain('"type":"FOUNDER_GATE","command":null')
     expect(process.exitCode).toBe(0)
     expect(adapterMock.getIssueComments).toHaveBeenCalled()
     expect(adapterMock.postIssueComment).toHaveBeenCalled()
@@ -208,7 +208,7 @@ describe('authorize-founder workflow', () => {
 
     await main(['100', '--scope', 'merge', '--json'])
     expect(stdoutData).toContain('"classification":"SUCCESS"')
-    expect(stdoutData).toContain('bemoat:mission-control:merge-standard')
+    expect(stdoutData).toContain('"type":"FOUNDER_GATE","command":null')
     expect(process.exitCode).toBe(0)
   })
 
@@ -314,7 +314,7 @@ describe('authorize-founder workflow', () => {
 
     await main(['100', '--scope', 'merge', '--json'])
     expect(stdoutData).toContain('"classification":"SUCCESS"')
-    expect(stdoutData).toContain('bemoat:mission-control:merge-standard')
+    expect(stdoutData).toContain('"type":"FOUNDER_GATE","command":null')
     expect(process.exitCode).toBe(0)
   })
 })

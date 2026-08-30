@@ -4,10 +4,7 @@ import {
   MODULE_MIGRATION_PATH,
   MODULE_PROCEDURES_PATH,
   MODULE_SECTION_MAP,
-  MODULE_TEMPLATES_PATH,
   REQUIRED_PLANNING_MIGRATION_PHRASES,
-  REQUIRED_SAFE_BUNDLE_PROCEDURE_PHRASES,
-  REQUIRED_SAFE_BUNDLE_TEMPLATE_PHRASES,
 } from './inventory.mjs'
 import { violation } from './violation.mjs'
 
@@ -61,23 +58,6 @@ export function scanModuleContent(relativePath, content) {
       violations.push(
         violation('MC012', relativePath, 'Module must define the Double-Loop gate as a no-code checkpoint'),
       )
-    }
-    for (const phrase of REQUIRED_SAFE_BUNDLE_PROCEDURE_PHRASES) {
-      if (!content.includes(phrase)) {
-        violations.push(
-          violation('MC012', relativePath, `Module missing safe merge-completion invariant: ${phrase}`),
-        )
-      }
-    }
-  }
-
-  if (relativePath === MODULE_TEMPLATES_PATH) {
-    for (const phrase of REQUIRED_SAFE_BUNDLE_TEMPLATE_PHRASES) {
-      if (!content.includes(phrase)) {
-        violations.push(
-          violation('MC012', relativePath, `Module missing complete merge template field: ${phrase}`),
-        )
-      }
     }
   }
 

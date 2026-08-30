@@ -65,7 +65,7 @@ export const MODULE_SECTION_MAP = {
     '## Allowed bundled flows',
     '## Prohibited cross-gate bundles',
     '## Reconciliation only on failure',
-    '## Merge completion bundle',
+    '## Native merge boundary',
     '## Roles and authority boundaries',
     '## Responsibility/source-of-truth model',
     '## Protocol compression',
@@ -243,38 +243,8 @@ export const REQUIRED_LEAN_FOUNDER_LOADER_PHRASES = [
   'Do not include Suggested model, Ready-to-paste',
   'After **Approve** only: durable GitHub authorization + compact HANDOFF',
   'After **Decline**: minimal stop/closure only',
-  'Keep `ELIGIBLE_FOR_FOUNDER_REVIEW` on the default merge path',
+  'Keep `ELIGIBLE_FOR_FOUNDER_REVIEW` readable as migration evidence',
   'Founder Decision stops stay lean',
-]
-
-export const REQUIRED_SAFE_BUNDLE_GUIDE_PHRASES = [
-  'one bounded objective with one authority scope',
-  'Successful bundles write their deterministic durable projection directly.',
-  'After Founder merge approval, the merge completion bundle may verify',
-  '### Generic Founder authorization record',
-  'trusted Founder identity',
-  'immutable decision comment/reference',
-  'non-supersession verification',
-  'exact scope/action',
-  'Separate reconciliation is permitted only when a projection fails',
-  'Hard gates remain unchanged',
-  'No autonomous Review 4 or',
-]
-
-export const REQUIRED_SAFE_BUNDLE_LOADER_PHRASES = [
-  'one bounded objective or explicitly authorized safe execution',
-  'Compact bundle prompts must name',
-  'exact Task Issue/PR',
-  'authority comment and authenticated author',
-  'exact scope and action',
-  'exact policy/base/head',
-  'merged-policy source commit SHA',
-  'protected-base commit SHA',
-  'exact-head CI evidence',
-  'review verdict',
-  'stop conditions for authority/head/CI/verdict/mergeability/CAS/lease drift',
-  'prohibited actions',
-  'Do not bundle across implementation, review,',
 ]
 
 export const REQUIRED_CLI_PROMPT_GUIDE_PHRASES = [
@@ -294,7 +264,6 @@ export const REQUIRED_CLI_PROMPT_GUIDE_PHRASES = [
   'bemoat:mission-control:recover-review-eligibility',
   'bemoat:mission-control:reopen',
   'bemoat:mission-control:adopt-finding',
-  'bemoat:mission-control:merge',
   'bemoat:issue:comment',
 ]
 
@@ -305,31 +274,6 @@ export const REQUIRED_CLI_PROMPT_LOADER_PHRASES = [
   'CLI_DISCOVERY_DEFECT',
   'inside the productive HANDOFF/correction prompt',
   'Purely conversational Founder decisions',
-]
-
-export const REQUIRED_SAFE_BUNDLE_PROCEDURE_PHRASES = [
-  'verify exact Founder authorization/verdict/head/base/CI/mergeability',
-  'merge the expected head',
-  'project campaign slice DONE',
-  'select, but do not start, the next campaign action',
-  'not merge authority',
-  'State Reconciler only after projection failure',
-]
-
-export const REQUIRED_SAFE_BUNDLE_TEMPLATE_PHRASES = [
-  'Repository: owner/repository',
-  'Task Issue: #N · PR: #N',
-  'Authority: comment <immutable-comment-id> · author @founder · scope `merge` · action `merge` · bundle `merge-completion`',
-  'merged-policy source `<exact-merged-policy-source-sha>`',
-  'protected base `main@<exact-protected-base-sha>`',
-  'full 40-hex',
-  'Exact-head CI:',
-  'Review verdict: `ELIGIBLE FOR FOUNDER REVIEW`',
-  'Stop before mutation on:',
-  'CAS, or lease drift',
-  'Prohibited:',
-  '`started: false`',
-  'Reconcile separately only after projection failure',
 ]
 
 export const REQUIRED_PLANNING_MIGRATION_PHRASES = [
