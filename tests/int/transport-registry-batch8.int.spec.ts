@@ -9,8 +9,6 @@ import {
 const EXPECTED_TRANSPORT_COMMANDS = [
   'bemoat:mission-control:recover-review',
   'bemoat:mission-control:reconcile',
-  'bemoat:mission-control:merge',
-  'bemoat:mission-control:merge-standard',
   'bemoat:mission-control:reopen',
   'bemoat:mission-control:adopt-finding',
   'bemoat:mission-control:recover-state',
@@ -106,10 +104,6 @@ describe('Batch 8 characterization — transport registry authority leaf', () =>
   it('assertTransportRoute allows exceptional routes by default and validates matching roles', () => {
     expect(assertTransportRoute('bemoat:mission-control:recover-review', { role: 'REVIEW_VERDICT' })).toMatchObject({
       exceptional: true,
-    })
-    expect(assertTransportRoute('bemoat:mission-control:merge', { role: 'MERGE' })).toMatchObject({
-      role: 'MERGE',
-      exceptional: false,
     })
   })
 })

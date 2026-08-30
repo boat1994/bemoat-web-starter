@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto'
 import {
   parseFounderMergeAuthorization,
   validateFounderAuthorizationRecord,
-} from '../../mission-control-merge.mjs'
+} from './merge-founder-authority.ts'
 import { cloneReopenValue } from './reopen-state-projection.ts'
 
 type Mapping = Record<string, unknown>

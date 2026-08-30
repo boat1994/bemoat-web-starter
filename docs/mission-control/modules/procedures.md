@@ -114,8 +114,8 @@ authorization.
 | `review_cycle`, `full_review_count` | Reviewer only (with `## REVIEW_VERDICT`) |
 | `last_reviewed_head` | Reviewer only |
 | Resulting correction/eligibility state | Reviewer or State Reconciler from verdict evidence |
-| Issue closure | Founder-authorized merge transport, after verified merge evidence |
-| `DONE` state projection | Merge transport during successful merge completion; State Reconciler only after projection failure, ambiguous/conflicting evidence, or a concurrent CAS/lease write |
+| Issue closure | Native GitHub evidence; no retained custom merge writer |
+| `DONE` state projection | Historical compatibility only; no retained merge-completion writer |
 | Issue acceptance criteria checklist | Mission Control pre-merge reconciliation only |
 
 Delivery and Reviewer roles may update **only** content between the
@@ -162,7 +162,7 @@ Apply this ordered classification before writing managed state:
 | Two authoritative live sources contradict each other | `STATE_CONFLICT` |
 | A managed task uses unambiguous legacy post-budget or Founder-authorization fields | deterministic migration |
 | One exact PR/head/CI/role-output chain is unambiguous and only bookkeeping lags | bookkeeping repair |
-| The PR is merged and otherwise valid, but the managed Issue is open | `STATE_CONFLICT`; merge transport must close the Issue |
+| The PR is merged and otherwise valid, but the managed Issue is open | `STATE_CONFLICT`; reconstruct native GitHub evidence and stop |
 | The Issue is closed/completed, its PR is merged, and the reviewed head matches | terminal repair to `DONE` |
 | The same live evidence is already represented canonically | no-op |
 
@@ -180,76 +180,10 @@ posts no role comment, and requires no model stage. After terminal repair,
 stale non-authoritative bookkeeping must never reopen the task.
 
 The reconciler owns no Issue lifecycle operation: it never closes or reopens an
-Issue. Option A assigns closure to merge transport. After Founder authorization,
-configure the repository Actions variable `BEMOAT_FOUNDER_LOGINS` as a
-comma-separated allowlist of GitHub user logins. This repository-owned setting
-is required for personal and organization-owned repositories; caller-provided
-environment values never establish Founder identity. Then record one trusted
-Issue comment containing the exact authorization object:
-
-```json
-{
-  "schema_version": 1,
-  "status": "approved",
-  "authority": "Founder",
-  "author_login": "<trusted-founder-login>",
-  "comment_id": "<immutable-decision-comment>",
-  "comment_sha256": "<sha256-of-comment-body>",
-  "immutable_comment_reference": true,
-  "non_superseded": true,
-  "repository": "owner/repository",
-  "bundle_kind": "merge-completion",
-  "scope": "merge",
-  "task_issue": 123,
-  "pr": 124,
-  "exact_head": "<exact-reviewed-head>",
-  "reviewed_head": "<exact-reviewed-head>",
-  "base": "main",
-  "policy_source_sha": "<exact-merged-policy-source-sha>",
-  "protected_base_sha": "<exact-protected-base-sha>",
-  "policy_version": "1.3.0",
-  "action": "merge"
-}
-```
-
-Then run the single terminal entrypoint with that comment ID:
-
-```bash
-pnpm run bemoat:mission-control:merge -- 123 \
-  --repo owner/repository \
-  --authorization-comment <comment-id>
-```
-
-The PR body must use `Refs #<issue>`. The PR title/body and every commit subject
-and body must not contain `Closes`, `Fixes`, or `Resolves` references to the
-managed Issue. The transport queries every commit through GitHub's paginated
-commits endpoint and rejects all of those automatic closing sources so GitHub
-cannot close the Issue before protected-base verification and the explicit
-closure step.
-
-The executable command performs this exact merge completion bundle:
-
-```text
-verify exact Founder authorization, non-superseded verdict, reviewed/current PR head, base, policy, exact-head CI, and mergeability
-→ mark the Draft PR ready when required
-→ merge with expected-head protection
-→ verify the merge commit on the protected base
-→ post final Task RESULT
-→ close only the directly managed Issue as completed
-→ write Task DONE and project the completed campaign slice
-→ select the next campaign action without starting it
-
-Separate reconciliation runs only if the final projection fails, evidence is
-ambiguous/conflicting or unavailable, or a concurrent CAS/lease write occurs;
-require either the proven repair or a fail-closed classification. Repeated
-identical evidence returns `NO_OP`.
-```
-
-If merge succeeds before Issue closure fails, rerun the same merge command; it
-does not merge twice. If Issue closure succeeds before `DONE` projection fails,
-rerun it; the already-closed Issue is not closed twice. An already-merged,
-closed, `DONE` task returns `NO_OP`. A delegated parent without direct
-`active_pr` ownership is never closed or projected by a child task transport.
+Issue. The legacy managed and STANDARD custom merge wrappers are retired.
+Context reconstructs ordinary merge authority and completion from native GitHub
+evidence; no retained command posts a terminal RESULT, closes an Issue, writes
+managed `DONE`, or projects campaign state as part of merge completion.
 
 If the first reconcile command returns a classified failure, the CLI prints its
 `finalReason`, then its initial `reason`, then the deterministic safe fallback;

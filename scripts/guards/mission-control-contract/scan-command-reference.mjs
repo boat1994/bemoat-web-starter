@@ -6,20 +6,6 @@ const REQUIRED_RECONCILE_ARGS = [
   '[--repo <owner>/<repo>]'
 ]
 
-const REQUIRED_MERGE_ARGS = [
-  'pnpm run bemoat:mission-control:merge',
-  '-- <issue-number>',
-  '--repo <owner>/<repo>',
-  '--authorization-comment <role-comment-id>'
-]
-
-const REQUIRED_STANDARD_MERGE_ARGS = [
-  'pnpm run bemoat:mission-control:merge-standard',
-  '-- <issue-number>',
-  '--repo <owner>/<repo>',
-  '--authorization-comment <role-comment-id>',
-]
-
 const REQUIRED_RECOVERY_ARGS = [
   'pnpm run bemoat:mission-control:recover-review',
   '-- 274',
@@ -87,18 +73,6 @@ export function scanCommandReferenceContent(relativePath, content) {
     }
   }
 
-  for (const arg of REQUIRED_MERGE_ARGS) {
-    if (!content.includes(arg)) {
-      violations.push(violation('MC024', relativePath, `Command reference missing merge arg: ${arg}`))
-    }
-  }
-
-  for (const arg of REQUIRED_STANDARD_MERGE_ARGS) {
-    if (!content.includes(arg)) {
-      violations.push(violation('MC032', relativePath, `Command reference missing STANDARD merge arg: ${arg}`))
-    }
-  }
-
   for (const arg of REQUIRED_RECOVERY_ARGS) {
     if (!content.includes(arg)) {
       violations.push(violation('MC029', relativePath, `Command reference missing review-recovery arg: ${arg}`))
@@ -123,8 +97,6 @@ export function scanCommandReferenceContent(relativePath, content) {
     '| `reconcile` |',
     '| `adopt-finding` |',
     '| `recover-state` |',
-    '| `merge` |',
-    '| `merge-standard` |',
     '| `recover-review` |',
   ]
 
@@ -147,7 +119,6 @@ export function scanCommandReferenceContent(relativePath, content) {
     'Do not edit the immutable authorization comment.',
     '### Review checks',
     '### Reconcile checks',
-    '### Merge checks',
     '## Review recovery',
     'scripts/mission-control/transport-registry.mjs',
     'NONCANONICAL_ROLE_EVIDENCE',

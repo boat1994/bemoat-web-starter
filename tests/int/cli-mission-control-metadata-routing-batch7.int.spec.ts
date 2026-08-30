@@ -17,8 +17,6 @@ const EXPECTED_ALL_MUTATING_COMMANDS = [
   'bemoat:issue:comment',
   'bemoat:mission-control:adopt-finding',
   'bemoat:mission-control:authorize-founder',
-  'bemoat:mission-control:merge',
-  'bemoat:mission-control:merge-standard',
   'bemoat:mission-control:reconcile',
   'bemoat:mission-control:recover-review',
   'bemoat:mission-control:recover-state',
@@ -29,8 +27,6 @@ const EXPECTED_ALL_MUTATING_COMMANDS = [
 
 const EXPECTED_PRIMARY_COMMANDS = [
   'bemoat:mission-control:authorize-founder',
-  'bemoat:mission-control:merge',
-  'bemoat:mission-control:merge-standard',
   'bemoat:mission-control:reconcile',
   'bemoat:mission-control:recover-review',
 ] as const
@@ -60,11 +56,11 @@ const EXPECTED_PRIMARY_ROUTE_KEYS = [
   'ELIGIBLE_FOR_FOUNDER_REVIEW/exact-merge-authorization-recording',
   'BLOCKED_FOR_FOUNDER_DECISION/missing-named-authorization',
   'ELIGIBLE_FOR_FOUNDER_REVIEW/missing-merge-authorization',
-  'NOT_STATEFUL/standard-non-managed-founder-merge-completion',
+  'NOT_STATEFUL/retired-standard-merge-wrapper',
 ] as const
 
 const EXPECTED_RECOVERY_ROUTE_KEYS = [
-  'ELIGIBLE_FOR_FOUNDER_REVIEW/exact-merge-authorization-current-reviewed-head',
+  'ELIGIBLE_FOR_FOUNDER_REVIEW/retired-managed-merge-wrapper',
   'ELIGIBLE_FOR_FOUNDER_REVIEW/complete-founder-old-new-head-reopen-tuple',
   'ANY_STATE/unauthorized-head-drift',
   'ANY_STATE/proven-routing-only-projection-drift',
@@ -123,7 +119,7 @@ describe('Batch 7 characterization — CLI command metadata and routing policy l
 
   it('expands prohibited_commands from ALL_MUTATING_COMMANDS for founder-gate routes', () => {
     const founderGateRoutes = missionControlPrimaryRoutes().filter((route: any) => route.decision === 'FOUNDER_GATE')
-    expect(founderGateRoutes).toHaveLength(8)
+    expect(founderGateRoutes).toHaveLength(9)
     for (const route of founderGateRoutes) {
       expect(route.prohibited_commands).toEqual([...ALL_MUTATING_COMMANDS])
     }
@@ -151,22 +147,14 @@ describe('Batch 7 characterization — CLI command metadata and routing policy l
     )
   })
 
-  it('publishes a disjoint STANDARD/non-managed merge contract and route', () => {
-    const deps = metadataDependencies()
-    const primary = missionControlPrimaryCommands(deps)
-    expect(primary['bemoat:mission-control:merge-standard']).toMatchObject({
-      accepted_pre_states: ['STANDARD_NON_MANAGED_ELIGIBLE'],
-      next_action_rules: expect.arrayContaining([
-        expect.objectContaining({ next_action: expect.objectContaining({ type: 'COMPLETE', command: null }) }),
-      ]),
-    })
-    expect(COMMAND_CONTRACT_REGISTRY.commands['bemoat:mission-control:merge-standard']).toMatchObject({ transport_role: 'MERGE' })
+  it('stops the retired STANDARD merge-wrapper route at a Founder gate', () => {
     expect(missionControlPrimaryRoutes()).toEqual(expect.arrayContaining([
       expect.objectContaining({
-        route_key: 'NOT_STATEFUL/standard-non-managed-founder-merge-completion',
+        route_key: 'NOT_STATEFUL/retired-standard-merge-wrapper',
         observed_state: 'NOT_STATEFUL',
-        canonical_command: 'bemoat:mission-control:merge-standard',
-        prohibited_commands: ['bemoat:mission-control:merge'],
+        canonical_command: null,
+        decision: 'FOUNDER_GATE',
+        prohibited_commands: [...ALL_MUTATING_COMMANDS],
       }),
     ]))
   })

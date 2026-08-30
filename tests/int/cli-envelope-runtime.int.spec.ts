@@ -28,7 +28,6 @@ const ISSUE = 'bemoat:agent:issue'
 const COMMENT = 'bemoat:issue:comment'
 const HOOKS = 'bemoat:hooks:install'
 const PACK = 'bemoat:guard:pack'
-const MERGE = 'bemoat:mission-control:merge'
 const CHECK = 'bemoat:boilerplate:check'
 const BRANCH = 'bemoat:branch:check'
 const MIXED_SHA = 'ABCDEF0123456789ABCDEF0123456789ABCDEF01'
@@ -437,11 +436,6 @@ describe('CLI envelope runtime characterization', () => {
         expectThrown(() => parseCommandInvocation(ISSUE, ['284', '--nope'])),
         '--nope',
         'unknown flag: --nope',
-      )
-      expectCliInvocation(
-        expectThrown(() => parseCommandInvocation(MERGE, ['284'])),
-        '--repo <owner/repository>',
-        'missing required input: repository',
       )
       expectCliInvocation(
         expectThrown(() => parseCommandInvocation(CHECK, ['--harness-only', '--full'])),

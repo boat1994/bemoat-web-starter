@@ -22,7 +22,6 @@ export type MissionControlTransportRole =
   | 'RESULT'
   | 'REVIEW_VERDICT'
   | 'STATE_PROJECTION'
-  | 'MERGE'
   | 'FOUNDER_AUTHORIZATION'
 
 export type CanonicalTransportRoute = {
@@ -51,20 +50,6 @@ export const CANONICAL_TRANSPORTS: ReadonlyArray<Readonly<CanonicalTransportRout
     role: 'STATE_PROJECTION',
     owner: 'State Reconciler',
     purpose: 'MIGRATION-ONLY HISTORICAL: repair routing-only projection drift after a failed canonical transport',
-    exceptional: false,
-  }),
-  Object.freeze({
-    command: 'bemoat:mission-control:merge',
-    role: 'MERGE',
-    owner: 'Founder-authorized Merge Transport',
-    purpose: 'MIGRATION-ONLY HISTORICAL: execute an existing Founder-authorized merge completion bundle',
-    exceptional: false,
-  }),
-  Object.freeze({
-    command: 'bemoat:mission-control:merge-standard',
-    role: 'MERGE',
-    owner: 'Founder-authorized STANDARD Merge Transport',
-    purpose: 'MIGRATION-ONLY HISTORICAL: execute one exact Founder-authorized STANDARD/non-managed merge completion without managed-state projection',
     exceptional: false,
   }),
   Object.freeze({

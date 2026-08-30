@@ -58,8 +58,6 @@ const MIGRATION_ONLY_COMMANDS = [
   'bemoat:issue:comment',
   'bemoat:mission-control:adopt-finding',
   'bemoat:mission-control:authorize-founder',
-  'bemoat:mission-control:merge',
-  'bemoat:mission-control:merge-standard',
   'bemoat:mission-control:reconcile',
   'bemoat:mission-control:recover-review',
   'bemoat:mission-control:recover-review-eligibility',
@@ -71,8 +69,6 @@ const MIGRATION_ONLY_COMMANDS = [
 const MIGRATION_ONLY_TRANSPORT_COMMANDS = [
   'bemoat:mission-control:adopt-finding',
   'bemoat:mission-control:authorize-founder',
-  'bemoat:mission-control:merge',
-  'bemoat:mission-control:merge-standard',
   'bemoat:mission-control:reconcile',
   'bemoat:mission-control:recover-review',
   'bemoat:mission-control:recover-review-eligibility',

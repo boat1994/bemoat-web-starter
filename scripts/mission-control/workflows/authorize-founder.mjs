@@ -185,6 +185,7 @@ export async function main(argv = process.argv.slice(2)) {
     }
 
     let result
+    let nextActionType
     let nextActionCommand
     let nextActionReason
 
@@ -199,8 +200,9 @@ export async function main(argv = process.argv.slice(2)) {
         acquireLease: (request) => github.acquireIssueLease({ ...request, scope: 'founder-merge-authorization-recording' }),
         releaseLease: (request) => github.releaseIssueLease({ ...request, scope: 'founder-merge-authorization-recording' }),
       })
-      nextActionCommand = trustedContext.standard ? 'bemoat:mission-control:merge-standard' : 'bemoat:mission-control:merge'
-      nextActionReason = 'Merge completion transport must independently revalidate the immutable authorization.'
+      nextActionType = 'FOUNDER_GATE'
+      nextActionCommand = null
+      nextActionReason = 'Custom merge wrappers are retired; Context must reconstruct native GitHub merge authority and evidence.'
     } else {
       const readTrustedContext = async () => {
         const mainRef = await readProtectedRef(runGh, repository, 'main')
@@ -256,13 +258,14 @@ export async function main(argv = process.argv.slice(2)) {
       })
 
       nextActionCommand = 'bemoat:mission-control:task-bootstrap'
+      nextActionType = 'COMMAND'
       nextActionReason = 'Bootstrap must independently revalidate the immutable authorization.'
     }
     
     const envelope = createResultEnvelopeV1({
       command, outcome: result.classification === 'NO_OP_IDENTICAL_RETRY' ? 'NO_OP' : 'SUCCESS', classification: result.classification,
       mutation_performed: result.mutationPerformed, repository: repository, issue_number: String(issueNumber),
-      next_action: { type: 'COMMAND', command: nextActionCommand, reason: nextActionReason },
+      next_action: { type: nextActionType, command: nextActionCommand, reason: nextActionReason },
       details: { comment_id: result.commentId, body_sha256: result.bodySha256, receipt_comment_id: result.receiptId },
     })
     if (invocation.format === 'json') process.stdout.write(`${JSON.stringify(envelope)}\n`)
