@@ -71,7 +71,7 @@ export function missionControlRecoveryRoutes() {
     canonical_command: 'bemoat:mission-control:reopen',
     required_review_type: null,
     expected_post_state_or_gate: 'FOUNDER_AUTHORIZED_CORRECTION',
-    prohibited_commands: ['bemoat:mission-control:merge', 'bemoat:mission-control:dispatch'],
+    prohibited_commands: ['bemoat:mission-control:merge'],
     decision: 'COMMAND',
   }),
   route({

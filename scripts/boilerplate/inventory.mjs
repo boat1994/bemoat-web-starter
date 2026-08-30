@@ -29,7 +29,7 @@ export const managedPaths = [
   'scripts/agent-issue', 'scripts/agent-context.mjs', 'scripts/agent-context-sync-base.mjs', 'scripts/context', 'scripts/agent-handoff.mjs', 'scripts/handoff',
   'scripts/mission-control-reconcile.mjs', 'scripts/mission-control-task-create.mjs', 'scripts/mission-control-authorize-founder.mjs',
   'scripts/adapters/command-runner.mjs', 'scripts/mission-control-review.mjs',
-  'scripts/mission-control-merge.mjs', 'scripts/mission-control-merge-standard.mjs', 'scripts/mission-control-dispatch.mjs',
+  'scripts/mission-control-merge.mjs', 'scripts/mission-control-merge-standard.mjs',
   'scripts/mission-control-recover-review.mjs', 'scripts/mission-control-reopen.mjs',
   'scripts/mission-control-adopt-finding.mjs', 'scripts/mission-control-recover-state.mjs', 'scripts/mission-control-recover-review-eligibility.mjs',
   'scripts/mission-control/workflows/issue-body-cas.mjs', 'scripts/post-role-comment.mjs',
@@ -70,7 +70,7 @@ export const managedPaths = [
   'tests/int/agent-issue/correction-pr-reconciliation.int.spec.ts',
   'tests/int/pr-identity-extraction.int.spec.ts',
   'tests/int/planning-no-pr-lineage.int.spec.ts', 'tests/fixtures/agent-issue',
-  'tests/int/github-comment-projection.int.spec.ts', 'tests/int/github-comment-projection-boundary.int.spec.ts', 'tests/int/phase7-delivery-facade-prune.int.spec.ts',
+  'tests/int/github-comment-projection.int.spec.ts', 'tests/int/github-comment-projection-boundary.int.spec.ts', 'tests/int/phase7-delivery-facade-prune.int.spec.ts', 'tests/int/phase7-dispatch-facade-prune.int.spec.ts',
   'tests/int/post-role-comment.int.spec.ts', 'tests/int/correction-contract.int.spec.ts',
   'tests/int/guard-pack.int.spec.ts', 'tests/int/guard-planning-contract.int.spec.ts',
   'tests/int/env-placeholder-guard-boundary.int.spec.ts',
@@ -112,7 +112,6 @@ export const managedPaths = [
   'tests/int/mission-control-adopt-finding.int.spec.ts', 'tests/int/mission-control-adopt-finding-github-adapter.int.spec.ts', 'tests/int/mission-control-adopt-finding-rendering.int.spec.ts',
   'tests/int/mission-control-recover-state.int.spec.ts', 'tests/int/mission-control-recover-state-evidence.int.spec.ts', 'tests/int/mission-control-review-eligibility-recovery.int.spec.ts',
   'tests/int/mission-control-correction-entrypoints.int.spec.ts', 'tests/int/mission-control-reopen-result-rendering.int.spec.ts',
-  'tests/int/mission-control-dispatch-result-rendering.int.spec.ts',
   'tests/int/mission-control-characterization.int.spec.ts', 'tests/int/mission-control-task-bootstrap-contract.int.spec.ts', 'tests/int/mission-control-task-bootstrap-allocation.int.spec.ts', 'tests/int/mission-control-task-bootstrap-state.int.spec.ts', 'tests/int/mission-control-task-bootstrap-registry-readback.int.spec.ts', 'tests/int/mission-control-task-bootstrap-lease.int.spec.ts', 'tests/int/mission-control-task-bootstrap-final-readback.int.spec.ts', 'tests/int/mission-control-task-initialization.int.spec.ts', 'tests/int/mission-control-task-state-boundary.int.spec.ts',
   'tests/int/mission-control-child-portability.int.spec.ts',
   'tests/int/mission-control-productive-policy.int.spec.ts',
@@ -138,7 +137,7 @@ export const packageSyncProposalPath = '.bemoat/package-sync-proposal.md'
 
 /** Namespaced scripts safe to add when missing during sync. Never overwrite existing entries. */
 export const managedPackageScripts = [
-  'bemoat:agent:issue', 'bemoat:context', 'bemoat:context:sync-base', 'bemoat:handoff', 'bemoat:mission-control:dispatch', 'bemoat:mission-control:review', 'bemoat:mission-control:task-bootstrap',
+  'bemoat:agent:issue', 'bemoat:context', 'bemoat:context:sync-base', 'bemoat:handoff', 'bemoat:mission-control:review', 'bemoat:mission-control:task-bootstrap',
   'bemoat:mission-control:merge', 'bemoat:mission-control:merge-standard', 'bemoat:mission-control:recover-review', 'bemoat:mission-control:reopen',
   'bemoat:mission-control:adopt-finding', 'bemoat:mission-control:recover-state', 'bemoat:mission-control:recover-review-eligibility', 'bemoat:mission-control:authorize-founder',
   'bemoat:issue:comment',

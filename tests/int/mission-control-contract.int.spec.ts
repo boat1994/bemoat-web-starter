@@ -262,7 +262,6 @@ describe('mission-control contract guard', () => {
     const loader = readFileSync(resolve(process.cwd(), mod.LOADER_PATH), 'utf8')
 
     const operationCommands = [
-      'bemoat:mission-control:dispatch',
       'bemoat:mission-control:review',
       'bemoat:mission-control:reconcile',
       'bemoat:mission-control:recover-review',

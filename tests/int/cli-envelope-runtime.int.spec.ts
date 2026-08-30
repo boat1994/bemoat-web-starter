@@ -24,7 +24,6 @@ import {
 
 type JsonRecord = Record<string, unknown>
 
-const DISPATCH = 'bemoat:mission-control:dispatch'
 const ISSUE = 'bemoat:agent:issue'
 const COMMENT = 'bemoat:issue:comment'
 const HOOKS = 'bemoat:hooks:install'
@@ -77,7 +76,7 @@ function expectThrown(run: () => unknown) {
 
 function minimalResult(overrides: Record<string, unknown> = {}) {
   return createResultEnvelopeV1({
-    command: DISPATCH,
+    command: COMMENT,
     outcome: 'SUCCESS',
     classification: 'SUCCESS',
     ...overrides,
@@ -161,7 +160,7 @@ describe('CLI envelope runtime characterization', () => {
   describe('createResultEnvelopeV1 and assertResultEnvelopeV1', () => {
     it('applies schema-v1 defaults and strips unknown create-input keys', () => {
       const envelope = createResultEnvelopeV1({
-        command: DISPATCH,
+        command: COMMENT,
         outcome: 'SUCCESS',
         classification: 'SUCCESS',
         extra: 'stripped',
@@ -170,7 +169,7 @@ describe('CLI envelope runtime characterization', () => {
       expect(Object.keys(envelope).sort()).toEqual([...RESULT_KEYS].sort())
       expect(envelope).toMatchObject({
         schema_version: 1,
-        command: DISPATCH,
+        command: COMMENT,
         mode: 'result',
         outcome: 'SUCCESS',
         classification: 'SUCCESS',
@@ -331,7 +330,7 @@ describe('CLI envelope runtime characterization', () => {
         mode: 'help',
         format: 'text',
       })
-      expect(parseCommandInvocation(DISPATCH, ['284'])).toMatchObject({
+      expect(parseCommandInvocation(COMMENT, ['284'])).toMatchObject({
         mode: 'run',
         values: { issue_number: '284' },
       })
@@ -425,12 +424,12 @@ describe('CLI envelope runtime characterization', () => {
         'value is required',
       )
       expectCliInvocation(
-        expectThrown(() => parseCommandInvocation(DISPATCH, ['284', '--body-file', ''])),
+        expectThrown(() => parseCommandInvocation(COMMENT, ['284', '--body-file', ''])),
         '--body-file',
         'value is required',
       )
       expectCliInvocation(
-        expectThrown(() => parseCommandInvocation(DISPATCH, ['284', '--body-file', '  '])),
+        expectThrown(() => parseCommandInvocation(COMMENT, ['284', '--body-file', '  '])),
         '--body-file',
         'value is required',
       )
@@ -476,7 +475,7 @@ describe('CLI envelope runtime characterization', () => {
         expectThrown(() => resolveCommandIdentity({
           fallback: PACK,
           env: {},
-          entrypoint: 'scripts/mission-control-dispatch.mjs',
+          entrypoint: 'scripts/not-a-facade.mjs',
         })),
         PACK,
         `fallback command entrypoint does not match the running facade: ${PACK}`,
@@ -518,7 +517,7 @@ describe('CLI envelope runtime characterization', () => {
       expect((contract.role_contracts as JsonRecord).HANDOFF).not.toBe('hacked')
       expect((contract.retry_contract as JsonRecord).identical_retry).toBe('conditional')
 
-      const tierA = formatTextHelp(getCommandContract(DISPATCH) as Record<string, unknown>)
+      const tierA = formatTextHelp(getCommandContract(COMMENT) as Record<string, unknown>)
       const tierB = formatTextHelp(getCommandContract(ISSUE) as Record<string, unknown>)
       const commentHelp = formatTextHelp(contract as Record<string, unknown>)
       expect(tierA).toContain('AUTHORITY AND TRUST BOUNDARY')

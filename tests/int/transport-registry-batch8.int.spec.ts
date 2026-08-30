@@ -7,7 +7,6 @@ import {
 } from '../../scripts/mission-control/transport-registry.mjs'
 
 const EXPECTED_TRANSPORT_COMMANDS = [
-  'bemoat:mission-control:dispatch',
   'bemoat:mission-control:review',
   'bemoat:mission-control:recover-review',
   'bemoat:mission-control:reconcile',
@@ -84,10 +83,7 @@ describe('Batch 8 characterization — transport registry authority leaf', () =>
   })
 
   it('normalizes getTransportRoute input and returns null for unknown commands', () => {
-    expect(getTransportRoute('bemoat:mission-control:dispatch')).toMatchObject({
-      role: 'HANDOFF',
-      exceptional: false,
-    })
+    expect(getTransportRoute('bemoat:mission-control:dispatch')).toBeNull()
     expect(getTransportRoute(123 as unknown as string)).toBeNull()
     expect(getTransportRoute('bemoat:mission-control:unknown')).toBeNull()
     expect(getTransportRoute(null as unknown as string)).toBeNull()
@@ -97,9 +93,9 @@ describe('Batch 8 characterization — transport registry authority leaf', () =>
     expect(() => assertTransportRoute('bemoat:mission-control:unknown')).toThrow(
       'STATE_CONFLICT: no canonical Mission Control transport is registered for bemoat:mission-control:unknown',
     )
-    expect(() =>
-      assertTransportRoute('bemoat:mission-control:dispatch', { role: 'RESULT' }),
-    ).toThrow('STATE_CONFLICT: bemoat:mission-control:dispatch does not own RESULT evidence')
+    expect(() => assertTransportRoute('bemoat:mission-control:dispatch')).toThrow(
+      'STATE_CONFLICT: no canonical Mission Control transport is registered for bemoat:mission-control:dispatch',
+    )
     expect(() =>
       assertTransportRoute('bemoat:mission-control:recover-review', {
         role: 'REVIEW_VERDICT',
@@ -118,9 +114,6 @@ describe('Batch 8 characterization — transport registry authority leaf', () =>
     expect(assertTransportRoute('bemoat:mission-control:merge', { role: 'MERGE' })).toMatchObject({
       role: 'MERGE',
       exceptional: false,
-    })
-    expect(assertTransportRoute('bemoat:mission-control:dispatch')).toMatchObject({
-      role: 'HANDOFF',
     })
   })
 })

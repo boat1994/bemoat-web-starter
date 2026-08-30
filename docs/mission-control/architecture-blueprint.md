@@ -190,9 +190,9 @@ flowchart LR
 
 | Field | Content |
 | --- | --- |
-| Canonical command | `pnpm run bemoat:mission-control:dispatch` |
-| State | Authorized path to `IN_PROGRESS` with HANDOFF |
-| Disposition | **MIGRATION-ONLY HISTORICAL / PHASE-7 DELETE CANDIDATE** |
+| Canonical command | Retired; no executable migration command remains |
+| State | Historical dispatch state is read-only and stops at the Founder gate |
+| Disposition | **RETIRED / READ-ONLY COMPATIBILITY** |
 
 ### J4 — Delivery → RESULT → `AWAITING_REVIEW_1`
 
@@ -214,7 +214,7 @@ flowchart LR
 
 | Field | Content |
 | --- | --- |
-| Commands | correction preflight → dispatch → delivery → delta review; optional `adopt-finding` |
+| Commands | correction preflight → delivery → delta review; optional `adopt-finding` |
 | Disposition | **MIGRATION-ONLY HISTORICAL / PHASE-7 DELETE CANDIDATE** |
 
 ### J7 — Founder merge → `DONE`
@@ -302,7 +302,6 @@ Evidence root for the census that informed Option B: `main@7cfd62b6197a2e95fc8db
 | --- | --- |
 | `bemoat:agent:issue` | Read-only reconstruction / preflight (J1) |
 | `bemoat:agent:delivery` | Delivery (J4) |
-| `bemoat:mission-control:dispatch` | Dispatch (J3) |
 | `bemoat:mission-control:review` | Review (J5/J6) |
 | `bemoat:mission-control:merge` | Merge (J7) |
 | `bemoat:mission-control:reconcile` | Reconcile (J8) |

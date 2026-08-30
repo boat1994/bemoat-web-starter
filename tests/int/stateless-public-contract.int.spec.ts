@@ -58,7 +58,6 @@ const MIGRATION_ONLY_COMMANDS = [
   'bemoat:issue:comment',
   'bemoat:mission-control:adopt-finding',
   'bemoat:mission-control:authorize-founder',
-  'bemoat:mission-control:dispatch',
   'bemoat:mission-control:merge',
   'bemoat:mission-control:merge-standard',
   'bemoat:mission-control:reconcile',
@@ -73,7 +72,6 @@ const MIGRATION_ONLY_COMMANDS = [
 const MIGRATION_ONLY_TRANSPORT_COMMANDS = [
   'bemoat:mission-control:adopt-finding',
   'bemoat:mission-control:authorize-founder',
-  'bemoat:mission-control:dispatch',
   'bemoat:mission-control:merge',
   'bemoat:mission-control:merge-standard',
   'bemoat:mission-control:reconcile',

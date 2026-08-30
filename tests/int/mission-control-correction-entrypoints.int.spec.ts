@@ -9,7 +9,6 @@ import * as stateModule from '../../scripts/mission-control/domain/task-state.ts
 
 const { renderMissionControlState, parseMissionControlState } = stateModule as unknown as Record<string, (...args: any[]) => any>
 const reconcileScript = resolve(process.cwd(), 'scripts/mission-control-reconcile.mjs')
-const dispatchScript = resolve(process.cwd(), 'scripts/mission-control-dispatch.mjs')
 const tempPaths: string[] = []
 
 function writeExecutable(path: string, body: string) {
@@ -166,54 +165,4 @@ describe('Founder-authorized correction executable entrypoints', () => {
     expect(parsed.state).not.toHaveProperty('founder_correction_authorization')
   }, 10000)
 
-  it('runs the real reserved dispatch entrypoint once and rejects replay', () => {
-    const canonical = legacyState()
-    canonical.state = 'FOUNDER_AUTHORIZED_CORRECTION'
-    delete canonical.founder_decision
-    ;(canonical as any).founder_correction_authorization = {
-      schema_version: 2, authorization_id: 'founder-r3-171', status: 'authorized', authority: 'Founder',
-      scope: 'correction', for_review_number: 3, reviewed_head: canonical.last_reviewed_head,
-      finding_ids: ['MC-R1-171-001'], action: 'Authorize one bounded correction', authorized_at: '2026-07-26T01:30:29+07:00',
-    }
-    const harness = createGhHarness(`Mission Control mode: required\n\n${renderMissionControlState(canonical)}`)
-    const handoff = join(harness.root, 'handoff.md')
-    writeFileSync(handoff, `## HANDOFF
-
-### Task log
-- Timestamp: 2026-07-26T02:00:00+07:00
-- Task / Issue: #171
-- Phase: Dev (correction)
-- Executing role: Mission Control
-
-**Target:** Dev / Integration Builder
-**Objective:** Execute the bounded correction.
-**Links:** Issue #171 · PR https://github.com/boat1994/bemoat-web-starter/pull/172
-**State (verify live):** branch \`fix/171\` · base \`main\` · head \`1f05427a8fbb893e726dd0e317ff30a90d7b3570\`
-**Delta scope:** MC-R1-171-001 only
-**Verify:** correction preflight and exact-head CI
-**Stop:** any authority drift
-**Founder gate:** Required for Review 4
-**Founder correction authorization:** \`founder-r3-171\`
-**Next:** Dev posts correction RESULT
-`)
-    const args = [dispatchScript, '171', '--repo', 'boat1994/bemoat-web-starter', '--founder-correction', '--body-file', handoff]
-    const first = spawnSync(process.execPath, args, { cwd: process.cwd(), env: harness.env, encoding: 'utf8' })
-    expect(first.status, `${first.stderr || first.stdout}\n${readFileSync(harness.issueBody, 'utf8')}`).toBe(0)
-    expect(readFileSync(harness.commentMarker, 'utf8')).toBe('1')
-    expect(() => readFileSync(harness.reservation, 'utf8')).toThrow()
-    const parsed = parseMissionControlState(readFileSync(harness.issueBody, 'utf8'))
-    expect(parsed.state.founder_correction_authorization).toMatchObject({
-      schema_version: 2, status: 'consumed', handoff_comment_id: '501',
-      handoff_binding: { content_sha256: expect.stringMatching(/^[0-9a-f]{64}$/), binding_sha256: expect.stringMatching(/^[0-9a-f]{64}$/) },
-    })
-    expect(parsed.state).toMatchObject({
-      updated_by: 'Mission Control',
-      updated_at: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
-    })
-
-    const replay = spawnSync(process.execPath, args, { cwd: process.cwd(), env: harness.env, encoding: 'utf8' })
-    expect(replay.status).toBe(1)
-    expect(replay.stderr).toMatch(/unconsumed Founder correction authorization/)
-    expect(readFileSync(harness.commentMarker, 'utf8')).toBe('1')
-  }, 10000)
 })
