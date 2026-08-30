@@ -11,10 +11,6 @@ const processEnvFixtureRoot = join(childShapeRoot, 'process-env')
 const STARTER_ONLY_DOGFOOD_PATH = 'docs/mission-control/dogfood'
 const STARTER_ONLY_CAPTURE_BASELINE_PATH = 'scripts/tooling/capture-baseline.mjs'
 
-function readSource(path: string): string {
-  return readFileSync(path, 'utf8')
-}
-
 function referencesStarterOnlyDogfood(source: string): boolean {
   return source.includes(STARTER_ONLY_DOGFOOD_PATH)
 }

@@ -12,7 +12,6 @@ import {
   getCommandContract,
   validateCommandContractRegistry,
 } from '../../scripts/cli/command-contract.mjs'
-import { managedPackageScripts, managedPaths } from '../../scripts/boilerplate/inventory.mjs'
 import { MISSION_CONTROL_STATES } from '../../scripts/mission-control/domain/task-state.ts'
 import { CANONICAL_TRANSPORTS } from '../../scripts/mission-control/transport-registry.mjs'
 
@@ -30,13 +29,6 @@ const MUTATING_COMMAND = 'bemoat:issue:comment'
 const PACKAGE_JSON = JSON.parse(
   readFileSync(resolve(REPOSITORY_ROOT, 'package.json'), 'utf8'),
 ) as PackageJson
-const SYNC_MANIFEST = JSON.parse(
-  readFileSync(resolve(REPOSITORY_ROOT, '.bemoat/boilerplate-sync-manifest.json'), 'utf8'),
-) as {
-  managedPaths: string[]
-  managedPackageScripts: string[]
-}
-
 const EXPECTED_PACKAGE_SCRIPTS: Record<string, string> = {
   'bemoat:agent:issue': 'node scripts/agent-issue.mjs',
   'bemoat:context': 'node scripts/agent-context.mjs',
