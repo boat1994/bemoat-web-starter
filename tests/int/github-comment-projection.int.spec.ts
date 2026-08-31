@@ -4,7 +4,7 @@ import {
   benchmarkProjection,
   selectAuthoritativeRoleComments,
 } from '../../scripts/mission-control/diagnostics/github-comment-projection.mjs'
-import { findLatestRoleComment } from '../../scripts/mission-control-reconcile.mjs'
+import { findLatestRoleComment } from '../../scripts/mission-control/role-comment-selection.mjs'
 
 type ProjectedComment = { id: string, body: string, path?: string, line?: number, inReplyTo?: string, startLine?: number, side?: string, startSide?: string, pullRequestReviewId?: string, updatedAt?: string, author?: string, createdAt?: string, url?: string }
 

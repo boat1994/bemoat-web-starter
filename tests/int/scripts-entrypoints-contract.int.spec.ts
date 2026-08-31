@@ -147,17 +147,4 @@ describe('scripts entrypoints contract', () => {
     expect(blocked.stdout).not.toContain('Syncing Bemoat boilerplate')
   })
 
-  it('freezes mission-control-reconcile usage failure on stderr with exit 1', () => {
-    const missingIssue = runNode('scripts/mission-control-reconcile.mjs')
-    expect(missingIssue.status).toBe(1)
-    expect(missingIssue.stderr.trim()).toBe(
-      'ERROR: Usage: pnpm run bemoat:mission-control:reconcile -- <issue-number> [--repo owner/repo]',
-    )
-    expect(missingIssue.stdout).toBe('')
-
-    const badRepo = runNode('scripts/mission-control-reconcile.mjs', ['215', '--repo'])
-    expect(badRepo.status).toBe(1)
-    expect(badRepo.stderr.trim()).toBe('ERROR: --repo requires a value')
-    expect(badRepo.stdout).toBe('')
-  })
 })

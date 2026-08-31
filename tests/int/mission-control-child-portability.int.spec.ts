@@ -6,16 +6,10 @@ import { describe, expect, it } from 'vitest'
 
 const repoRoot = process.cwd()
 const childShapeRoot = resolve(repoRoot, 'tests/fixtures/mission-control-child-shape')
-const characterizationPath = resolve(repoRoot, 'tests/int/mission-control-characterization.int.spec.ts')
-const reconcilePath = resolve(repoRoot, 'tests/int/mission-control-reconcile.int.spec.ts')
 const processEnvFixtureRoot = join(childShapeRoot, 'process-env')
 
 const STARTER_ONLY_DOGFOOD_PATH = 'docs/mission-control/dogfood'
 const STARTER_ONLY_CAPTURE_BASELINE_PATH = 'scripts/tooling/capture-baseline.mjs'
-
-function readSource(path: string): string {
-  return readFileSync(path, 'utf8')
-}
 
 function referencesStarterOnlyDogfood(source: string): boolean {
   return source.includes(STARTER_ONLY_DOGFOOD_PATH)
@@ -91,18 +85,6 @@ describe('Mission Control child portability regressions (Issue #216)', () => {
     it('child shape lacks dogfood corpus and capture-baseline.mjs while managed tests are present', () => {
       expect(existsSync(join(childShapeRoot, 'docs/mission-control/dogfood'))).toBe(false)
       expect(existsSync(join(childShapeRoot, STARTER_ONLY_CAPTURE_BASELINE_PATH))).toBe(false)
-      expect(existsSync(characterizationPath)).toBe(true)
-    })
-
-    it('managed characterization validation gates starter-only corpus for child shape', () => {
-      const source = readSource(characterizationPath)
-
-      expect(existsSync(join(childShapeRoot, 'docs/mission-control/dogfood'))).toBe(false)
-      expect(existsSync(join(childShapeRoot, STARTER_ONLY_CAPTURE_BASELINE_PATH))).toBe(false)
-      expect(referencesStarterOnlyDogfood(source)).toBe(true)
-      expect(referencesCaptureBaselineScript(source)).toBe(true)
-
-      expect(satisfiesChildPortableStarterCorpusContract(source)).toBe(true)
     })
 
     it('negative control: keyword comments alone do not satisfy starter-only gating contract', () => {
@@ -131,9 +113,6 @@ describe('Mission Control child portability regressions (Issue #216)', () => {
     })
 
     it('portable child-sync gate accepts child-owned package scripts', () => {
-      const reconcileSource = readSource(reconcilePath)
-      expect(reconcileSource).toContain("packageJson.scripts['boilerplate:sync']")
-
       const childPackage = JSON.parse(readFileSync(join(childShapeRoot, 'package.json'), 'utf8')) as {
         scripts: Record<string, string>
       }
@@ -143,7 +122,7 @@ describe('Mission Control child portability regressions (Issue #216)', () => {
   })
 
   describe('defect 3: augmented ProcessEnv compile boundary', () => {
-    it('managed reconcile partial env fixtures compile with child augmented ProcessEnv', () => {
+    it('managed partial env fixtures compile with child augmented ProcessEnv', () => {
       const { status, output } = runChildAugmentedProcessEnvTypecheck()
 
       expect(output).not.toMatch(/error TS2352/)

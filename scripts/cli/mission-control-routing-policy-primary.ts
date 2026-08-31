@@ -3,14 +3,10 @@ export const ALL_MUTATING_COMMANDS: string[] = [
   'bemoat:boilerplate:sync',
   'bemoat:hooks:install',
   'bemoat:issue:comment',
-  'bemoat:mission-control:adopt-finding',
   'bemoat:mission-control:authorize-founder',
-  'bemoat:mission-control:reconcile',
-  'bemoat:mission-control:recover-state',
-  'bemoat:mission-control:recover-review-eligibility',
-  'bemoat:mission-control:reopen',
   'bemoat:mission-control:task-bootstrap',
 ]
+
 
 type RouteParams = {
   route_key: string
@@ -131,11 +127,12 @@ export function missionControlPrimaryRoutes() {
     evidence_case: 'founder-authorized-finding-adoption',
     required_evidence_condition: 'An immutable Founder adopt-finding authorization and predecessor correction contract are complete for the live CORRECTION_REQUIRED_1 head.',
     forbidden_evidence_condition: 'Caller-supplied findings, superseded authorization, competing adoption comments, or head/base drift.',
-    permitted_operation: 'Append exactly one Founder-authorized finding to the active correction contract.',
-    canonical_command: 'bemoat:mission-control:adopt-finding',
+    permitted_operation: null,
+    canonical_command: null,
     required_review_type: null,
     expected_post_state_or_gate: 'CORRECTION_REQUIRED_1 with reconciled active correction-contract identity',
-    decision: 'COMMAND',
+    decision: 'FOUNDER_GATE',
+    stop_condition: 'Stop at the Founder gate; no finding-adoption transport is authorized.',
   }),
   route({
     route_key: 'AWAITING_REVIEW_2/retired-managed-review-writer',
@@ -157,11 +154,12 @@ export function missionControlPrimaryRoutes() {
     evidence_case: 'founder-authorized-finding-adoption',
     required_evidence_condition: 'An immutable Founder adopt-finding authorization and predecessor correction contract are complete for the live CORRECTION_REQUIRED_2 head.',
     forbidden_evidence_condition: 'Caller-supplied findings, superseded authorization, competing adoption comments, or head/base drift.',
-    permitted_operation: 'Append exactly one Founder-authorized finding to the active correction contract.',
-    canonical_command: 'bemoat:mission-control:adopt-finding',
+    permitted_operation: null,
+    canonical_command: null,
     required_review_type: null,
     expected_post_state_or_gate: 'CORRECTION_REQUIRED_2 with reconciled active correction-contract identity',
-    decision: 'COMMAND',
+    decision: 'FOUNDER_GATE',
+    stop_condition: 'Stop at the Founder gate; no finding-adoption transport is authorized.',
   }),
   route({
     route_key: 'AWAITING_REVIEW_3/retired-managed-review-writer',
@@ -245,5 +243,5 @@ export function missionControlPrimaryRoutes() {
     decision: 'FOUNDER_GATE',
     stop_condition: 'Stop at the Founder gate; Context must reconstruct any ordinary native GitHub merge authority and evidence.',
   }),
-]
+  ]
 }

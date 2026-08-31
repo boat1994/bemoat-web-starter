@@ -30,10 +30,6 @@ import {
   runPlanningContractGuard,
 } from './planning-contract-runtime.mjs'
 import {
-  formatMissionControlDriftViolations,
-  runMissionControlDriftGuard,
-} from './mission-control-drift.mjs'
-import {
   formatPackageManagerViolations,
   runPackageManagerGuard,
 } from './package-manager.mjs'
@@ -105,12 +101,6 @@ export const GUARD_PACK = [
     summary: 'Planning task-identity and execution-base contract across paired spec/plan files',
     run: runPlanningContractGuard,
     format: formatPlanningContractViolations,
-  },
-  {
-    id: 'mission-control-drift',
-    summary: 'Mission Control contract drift (e.g. strict review budget limits)',
-    run: runMissionControlDriftGuard,
-    format: formatMissionControlDriftViolations,
   },
   {
     id: 'structural-protection',

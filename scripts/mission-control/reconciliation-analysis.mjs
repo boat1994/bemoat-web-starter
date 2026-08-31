@@ -1,16 +1,24 @@
 import { parseCorrectionContract } from './domain/correction-contract.ts'
 import { normalizeAuthorityHead } from './review-verdict-binding.mjs'
-import { normalizeTransitionIdentity, serializeTransitionIdentity } from './transition-identity.mjs'
 import {
   classifyDeliveryLag,
-  classifyReviewLag,
   proposeDeliveryReconciliation,
-  proposeReviewReconciliation,
 } from './reconciliation-proposals.mjs'
-import {
-  classifyReconciliation,
-  proposedRepair,
-} from './reconciliation-classification.mjs'
+
+function classifyReconciliation({ authoritativeContradiction, requiredEvidenceUnavailable, managedState, terminal, bookkeepingProposal }) {
+  if (authoritativeContradiction) return { outcome: 'STATE_CONFLICT' }
+  if (requiredEvidenceUnavailable) return { outcome: 'BLOCKED_EXTERNAL' }
+  if (terminal?.prMerged && managedState?.state !== 'DONE') return { outcome: 'TERMINAL_REPAIR' }
+  if (bookkeepingProposal) return { outcome: 'BOOKKEEPING_REPAIR' }
+  return { outcome: 'NO_OP' }
+}
+
+function proposedRepair(context) {
+  return {
+    state: 'DONE',
+    current_head: context.terminal?.mergeCommit ?? context.managedState?.current_head ?? null,
+  }
+}
 
 function sameValue(left, right) {
   const canonicalize = (value) => {
@@ -37,7 +45,7 @@ export function isGenuineStateConflict(evidence = {}) {
 
 export function analyzeReconciliation(context) {
   const terminalEvidence = context.terminal ?? null
-  const reviewLag = classifyReviewLag(context.managedState, context.livePr, context.latestVerdict, context.exactHeadCi)
+  const reviewLag = { lag: false, kind: null, reason: 'review reconciliation retired' }
   const genuineConflict = isGenuineStateConflict({
     stateConflictBlockers: context.stateConflictBlockers,
     headMismatch: Boolean(
@@ -65,31 +73,6 @@ export function analyzeReconciliation(context) {
       activeTaskIssue: context.activeTaskIssue,
       approvedBase: context.managedState?.approved_base,
       latestResult: context.latestResult,
-    })
-  } else if (reviewLag.kind === 'DETERMINISTIC_RECONCILIATION' && context.latestVerdict?.parsed?.verdict) {
-    const isPostBudget = reviewLag.postBudget === true
-    const verdictBody = context.latestVerdict.comment?.body ?? ''
-    bookkeepingType = 'review'
-    bookkeepingProposal = proposeReviewReconciliation({
-      ...(isPostBudget
-        ? {
-            postBudget: true,
-            managedState: context.managedState,
-            prNumber: context.livePr?.number,
-            base: context.latestVerdict.parsed.base,
-            authorization: context.managedState?.founder_decision,
-            verdictCommentId: context.latestVerdict.comment?.id,
-            verdictUrl: context.latestVerdict.comment?.html_url ?? context.latestVerdict.comment?.url,
-            transitionIdentity: serializeTransitionIdentity(
-              normalizeTransitionIdentity(verdictBody, { role: 'REVIEW_VERDICT' }),
-            ),
-            findingDispositions: reviewLag.findingDispositions,
-          }
-        : {}),
-      verdict: context.latestVerdict.parsed.verdict,
-      reviewedHead: context.latestVerdict.parsed.headSha || context.livePr?.headRefOid,
-      reviewCycle: context.managedState?.review_cycle ?? 0,
-      fullReviewCount: context.managedState?.full_review_count ?? 0,
     })
   }
 

@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { findLatestRoleComment } from '../mission-control-reconcile.mjs'
+import { findLatestRoleComment } from '../mission-control/role-comment-selection.mjs'
 import { parseMissionControlState } from '../mission-control/domain/task-state.ts'
 import type {
   HandoffParseResult,

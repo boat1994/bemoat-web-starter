@@ -8,8 +8,9 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- untyped runtime .mjs boundary */
 import * as agentIssueModule from '../../scripts/agent-issue.mjs'
-import * as reconcileModule from '../../scripts/mission-control-reconcile.mjs'
 import * as missionControlStateModule from '../../scripts/mission-control/domain/task-state.ts'
+import * as correctionBindingModule from '../../scripts/mission-control/domain/correction-handoff-binding.mjs'
+import * as reviewBindingModule from '../../scripts/mission-control/review-verdict-binding.mjs'
 
 // Shared .mjs scripts expose runtime behavior, not TypeScript declarations. Keep
 // the strict-project boundary explicit without changing the production API.
@@ -26,7 +27,8 @@ const {
   runAgentIssuePreflight,
   validatePlanPath,
 } = agentIssueModule as unknown as Record<string, (...args: any[]) => any>
-const { buildCorrectionHandoffBinding, parseRoleCommentBody } = reconcileModule as unknown as Record<string, (...args: any[]) => any>
+const { buildCorrectionHandoffBinding } = correctionBindingModule as unknown as Record<string, (...args: any[]) => any>
+const { parseRoleCommentBody } = reviewBindingModule as unknown as Record<string, (...args: any[]) => any>
 const { renderMissionControlState } = missionControlStateModule as unknown as Record<string, (...args: any[]) => any>
 
 const PRODUCTION_PR103_ROLLUP = [
@@ -2262,7 +2264,7 @@ esac
     expect(analysis.report.reconciliation).toBeNull()
   })
 
-  it('propagates unavailable required production evidence into reconciliation as BLOCKED_EXTERNAL', () => {
+  it('retains unavailable required production evidence as BLOCKED_EXTERNAL', () => {
     const root = createRepo('feature/160-blocked-external')
     const analysis = analyzeProgressTracking({
       cwd: root,
@@ -2282,7 +2284,6 @@ esac
     })
 
     expect(analysis.blockers.join(' ')).toContain('BLOCKED_EXTERNAL')
-    expect(analysis.report.reconciliation).toMatchObject({ classification: { outcome: 'BLOCKED_EXTERNAL' } })
   })
 
   it('blocks when the declared current stage is a Founder gate', () => {

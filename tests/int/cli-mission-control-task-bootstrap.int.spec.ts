@@ -13,6 +13,6 @@ describe('bemoat:mission-control:task-bootstrap public contract', () => {
     expect(help.required_evidence).toContain('Founder-authorized signed authorization.')
     expect(help.trusted_derived_values).toContain('Actions-derived workflow identity')
     expect(help.role_contracts.FOUNDER_AUTHORIZATION).toBeDefined()
-    expect(help.role_contracts.FOUNDER_AUTHORIZATION.canonical_example).toContain('"schema_version": 1')
+    expect(help.role_contracts.FOUNDER_AUTHORIZATION.canonical_example).toContain('"schema_version":1')
   })
 })

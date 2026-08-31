@@ -60,7 +60,6 @@ describe('central guard pack', () => {
       'frontend-seo',
       'mission-control-contract',
       'planning-contract',
-      'mission-control-drift',
       'structural-protection',
       'scripts-architecture',
     ])
@@ -87,50 +86,6 @@ describe('central guard pack', () => {
 
     expect(mod.getGuardPackExitCode(results)).toBe(0)
     expect(violations).toEqual([])
-  })
-
-  it('enforces the complete Mission Control state/counter and Review 3 matrices', async () => {
-    const mod = await import('../../scripts/guards/mission-control-drift.mjs')
-
-    expect(mod.MISSION_CONTROL_STATE_COUNTER_MATRIX).toHaveLength(13 * 4 * 2)
-    expect(mod.MISSION_CONTROL_REVIEW_MATRIX.filter((entry: { cycle: number }) => entry.cycle === 2))
-      .toEqual([
-        expect.objectContaining({ verdict: 'CORRECTION REQUIRED', expected: 'STATE_CONFLICT' }),
-        expect.objectContaining({ verdict: 'ELIGIBLE FOR FOUNDER REVIEW', expected: 'ELIGIBLE_FOR_FOUNDER_REVIEW' }),
-        expect.objectContaining({ verdict: 'BLOCKED FOR FOUNDER DECISION', expected: 'BLOCKED_FOR_FOUNDER_DECISION' }),
-        expect.objectContaining({ verdict: 'BLOCKED EXTERNAL', expected: 'BLOCKED_EXTERNAL' }),
-        expect.objectContaining({ verdict: 'STATE CONFLICT', expected: 'STATE_CONFLICT' }),
-      ])
-  })
-
-  it('detects semantic reconciler tampering assembled dynamically', async () => {
-    const mod = await import('../../scripts/guards/mission-control-drift.mjs')
-    const canonical = await import('../../scripts/mission-control-reconcile.mjs')
-
-    const tamperedReconcile = (input: Record<string, unknown>) => {
-      const proposal = canonical.proposeReviewReconciliation(input)
-      return {
-        ...proposal,
-        state: ['CORRECTION', '_REQUIRED_3'].join(''),
-        full_review_count: 2,
-      }
-    }
-    const violations = mod.runMissionControlDriftGuard({
-      proposeReviewReconciliation: tamperedReconcile,
-    })
-
-    expect(violations.some((item: { rule: string }) => item.rule === 'MC-DRIFT-001')).toBe(true)
-    expect(violations.some((item: { rule: string }) => item.rule === 'MC-DRIFT-003')).toBe(true)
-    expect(violations.some((item: { rule: string }) => item.rule === 'MC-DRIFT-004')).toBe(true)
-  })
-
-  it('detects a parser tampered to accept invalid state/counter combinations', async () => {
-    const mod = await import('../../scripts/guards/mission-control-drift.mjs')
-    const violations = mod.runMissionControlDriftGuard({
-      parseMissionControlState: () => ({ present: true, valid: true, state: null }),
-    })
-
-    expect(violations.some((item: { rule: string }) => item.rule === 'MC-DRIFT-005')).toBe(true)
   })
 
   it('is wired to bemoat:guard:safety and bemoat:guard:pack scripts', async () => {

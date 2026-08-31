@@ -1,46 +1,5 @@
 import { violation } from './violation.mjs'
 
-const REQUIRED_RECONCILE_ARGS = [
-  'pnpm run bemoat:mission-control:reconcile',
-  '-- <issue-number>',
-  '[--repo <owner>/<repo>]'
-]
-
-const REQUIRED_ADOPT_FINDING_ARGS = [
-  'pnpm run bemoat:mission-control:adopt-finding',
-  '-- <issue-number>',
-  '--repo <owner>/<repo>',
-  '--expected-pr <number>',
-  '--expected-base <branch>',
-  '--expected-base-sha <full-sha>',
-  '--expected-state <CORRECTION_REQUIRED_1|CORRECTION_REQUIRED_2>',
-  '--expected-reviewed-head <full-sha>',
-  '--expected-adoption-head <full-sha>',
-  '--predecessor-comment <id>',
-  '--authorization-comment <id>',
-  '[--check]',
-]
-
-const REQUIRED_RECOVER_STATE_ARGS = [
-  'pnpm run bemoat:mission-control:recover-state',
-  '-- <issue-number>',
-  '--repo <owner>/<repo>',
-  '--expected-pr <number>',
-  '--expected-base <branch>',
-  '--expected-base-sha <full-sha>',
-  '--expected-head <full-sha>',
-  '--expected-branch <branch>',
-  '--predecessor-comment <id>',
-  '--adoption-authorization-comment <id>',
-  '--implementation-result-comment <id>',
-  '--implementation-review-comment <id>',
-  '--recovery-authorization-comment <id>',
-  '--lineage-correction-authorization-comment <id>',
-  '--correction-result-comment <id>',
-  '--correction-review-comment <id>',
-  '[--check]',
-]
-
 export function scanCommandReferenceContent(relativePath, content) {
   const violations = []
 
@@ -49,30 +8,9 @@ export function scanCommandReferenceContent(relativePath, content) {
     return violations
   }
 
-  for (const arg of REQUIRED_RECONCILE_ARGS) {
-    if (!content.includes(arg)) {
-      violations.push(violation('MC023', relativePath, `Command reference missing reconcile arg: ${arg}`))
-    }
-  }
-
-  for (const arg of REQUIRED_ADOPT_FINDING_ARGS) {
-    if (!content.includes(arg)) {
-      violations.push(violation('MC030', relativePath, `Command reference missing adopt-finding arg: ${arg}`))
-    }
-  }
-
-  for (const arg of REQUIRED_RECOVER_STATE_ARGS) {
-    if (!content.includes(arg)) {
-      violations.push(violation('MC031', relativePath, `Command reference missing missing-state recovery arg: ${arg}`))
-    }
-  }
-
   const expectedTableHeaders = [
     '| Command |',
     '| `review` |',
-    '| `reconcile` |',
-    '| `adopt-finding` |',
-    '| `recover-state` |',
   ]
 
   for (const phrase of expectedTableHeaders) {
@@ -90,10 +28,8 @@ export function scanCommandReferenceContent(relativePath, content) {
   }
 
   const semanticInvariants = [
-    'Rerun the same canonical review command. Do not post another verdict manually.',
     'Do not edit the immutable authorization comment.',
     '### Review checks',
-    '### Reconcile checks',
     'scripts/mission-control/transport-registry.mjs',
     'NONCANONICAL_ROLE_EVIDENCE',
     'resulting counters `2/1`',

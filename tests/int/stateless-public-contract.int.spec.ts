@@ -56,22 +56,12 @@ const SUPPORTED_PROTOCOL_COMMANDS = [
 const MIGRATION_ONLY_COMMANDS = [
   'bemoat:agent:issue',
   'bemoat:issue:comment',
-  'bemoat:mission-control:adopt-finding',
   'bemoat:mission-control:authorize-founder',
-  'bemoat:mission-control:reconcile',
-  'bemoat:mission-control:recover-review-eligibility',
-  'bemoat:mission-control:recover-state',
-  'bemoat:mission-control:reopen',
   'bemoat:mission-control:task-bootstrap',
 ] as const
 
 const MIGRATION_ONLY_TRANSPORT_COMMANDS = [
-  'bemoat:mission-control:adopt-finding',
   'bemoat:mission-control:authorize-founder',
-  'bemoat:mission-control:reconcile',
-  'bemoat:mission-control:recover-review-eligibility',
-  'bemoat:mission-control:recover-state',
-  'bemoat:mission-control:reopen',
 ] as const
 
 const isCrossAgentProtocolCandidate = (command: string) => (
@@ -137,13 +127,12 @@ describe('stateless public Mission Control contract', () => {
     }
   })
 
-  it('labels the architecture and command reference as current protocol plus historical compatibility', () => {
+  it('labels the architecture and command reference as current protocol plus retired compatibility', () => {
     expect(read('docs/mission-control/architecture-blueprint.md')).toMatch(
       /Current supported protocol[\s\S]*bemoat:context[\s\S]*bemoat:handoff[\s\S]*Phase 7/i,
     )
-    expect(read('docs/mission-control/command-reference.md')).toMatch(
-      /historical migration-only[\s\S]*bemoat:agent:delivery/i,
-    )
+    expect(read('docs/mission-control/command-reference.md')).toContain('Retired stateful command families')
+    expect(read('docs/mission-control/command-reference.md')).not.toContain('bemoat:agent:delivery')
   })
 
   it('rejects active managed-state workflow requirements outside an explicit historical boundary', () => {

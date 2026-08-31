@@ -258,8 +258,7 @@ describe('mission-control contract guard', () => {
     const loader = readFileSync(resolve(process.cwd(), mod.LOADER_PATH), 'utf8')
 
     const operationCommands = [
-      'bemoat:mission-control:reconcile',
-      'bemoat:mission-control:reopen',
+      'bemoat:context',
       'bemoat:issue:comment',
     ]
     for (const command of operationCommands) expect(guide).toContain(command)

@@ -11,8 +11,8 @@ export const AGENTS_PATH = 'AGENTS.md'
 export const MANIFEST_PATH = '.bemoat/boilerplate-sync-manifest.json'
 export const SYNC_SCRIPT_PATH = 'scripts/sync-boilerplate.mjs'
 export const BOILERPLATE_INVENTORY_PATH = 'scripts/boilerplate/inventory.mjs'
-export const RECONCILE_SCRIPT_PATH = 'scripts/mission-control-reconcile.mjs'
-export const RECONCILE_TEST_PATH = 'tests/int/mission-control-reconcile.int.spec.ts'
+export const RECONCILE_SCRIPT_PATH = null
+export const RECONCILE_TEST_PATH = null
 export const GUARD_SCRIPT_PATH = 'scripts/guard-mission-control-contract.mjs'
 export const INT_TEST_PATH = 'tests/int/mission-control-contract.int.spec.ts'
 export const FIXTURES_PATH = 'tests/fixtures/mission-control'
@@ -43,9 +43,7 @@ export const MC_MANAGED_PATHS = [
   OVERRIDE_EXAMPLE_PATH,
   LOADER_PATH,
   GUARD_SCRIPT_PATH,
-  RECONCILE_SCRIPT_PATH,
   INT_TEST_PATH,
-  RECONCILE_TEST_PATH,
   FIXTURES_PATH,
   MODULE_PROCEDURES_PATH,
   MODULE_CHECKLISTS_PATH,
@@ -258,11 +256,6 @@ export const REQUIRED_CLI_PROMPT_GUIDE_PHRASES = [
   'precise reason for every raw mutation exception',
   'CLI_DISCOVERY_DEFECT',
   'Purely conversational Founder decisions',
-  'bemoat:mission-control:reconcile',
-  'bemoat:mission-control:recover-state',
-  'bemoat:mission-control:recover-review-eligibility',
-  'bemoat:mission-control:reopen',
-  'bemoat:mission-control:adopt-finding',
   'bemoat:issue:comment',
 ]
 

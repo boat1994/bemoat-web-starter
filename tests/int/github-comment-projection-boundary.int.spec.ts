@@ -38,7 +38,7 @@ describe('GitHub comment projection boundary', () => {
     const imports = graph.get('scripts/mission-control/diagnostics/github-comment-projection.mjs') ?? new Set()
 
     expect(imports).not.toContain('scripts/github-comment-projection.mjs')
-    expect(imports).toContain('scripts/mission-control-reconcile.mjs')
+    expect(imports).toContain('scripts/mission-control/review-verdict-binding.mjs')
     expect(managedPaths).not.toContain('scripts/github-comment-projection.mjs')
     expect(managedPaths).toContain('scripts/mission-control')
   })

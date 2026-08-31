@@ -27,8 +27,6 @@ export function contextSyncRoutes(): ContextSyncRoute[] {
     expected_post_state_or_gate: 'New exact PR head with exact-head CI and semantic review rerun required.',
     prohibited_commands: [
       'bemoat:mission-control:authorize-founder',
-      'bemoat:mission-control:reopen',
-      'bemoat:mission-control:recover-state',
     ],
     decision: 'COMMAND',
     stop_condition: 'Stop with canonical evidence, drift, external, or ambiguous classifications on any failed gate.',

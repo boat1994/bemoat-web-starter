@@ -25,13 +25,10 @@ type JsonRecord = Record<string, unknown>
 const TIER_A_COMMAND = 'bemoat:issue:comment'
 const TIER_B_COMMAND = 'bemoat:agent:issue'
 const BRANCH_COMMAND = 'bemoat:branch:check'
-const REOPEN_COMMAND = 'bemoat:mission-control:reopen'
 const PACK_COMMAND = 'bemoat:guard:pack'
 const SAFETY_COMMAND = 'bemoat:guard:safety'
 const FULL_UPPERCASE_SHA = 'ABCDEF0123456789ABCDEF0123456789ABCDEF01'
-const SECOND_FULL_UPPERCASE_SHA = '1234567890ABCDEF1234567890ABCDEF12345678'
 const FULL_LOWERCASE_SHA = FULL_UPPERCASE_SHA.toLowerCase()
-const SECOND_FULL_LOWERCASE_SHA = SECOND_FULL_UPPERCASE_SHA.toLowerCase()
 
 const ISSUE_COMMENT_COMMAND = 'bemoat:issue:comment'
 
@@ -118,74 +115,6 @@ function commandContract(command: string) {
   const contract = getCommandContract(command)
   if (contract === null) throw new Error(`missing Task 1 contract: ${command}`)
   return contract
-}
-
-function reopenArguments({
-  issueNumber = '284',
-  repository = 'BOAT1994/BEMOAT-WEB-STARTER',
-  expectedPr = '285',
-  expectedBase = 'main',
-  expectedOldHead = FULL_UPPERCASE_SHA,
-  expectedNewHead = SECOND_FULL_UPPERCASE_SHA,
-  reviewCycle = '9007199254740991',
-  fullReviewCount = '1',
-  authorizationComment = '12345',
-}: {
-  issueNumber?: string
-  repository?: string
-  expectedPr?: string
-  expectedBase?: string
-  expectedOldHead?: string
-  expectedNewHead?: string
-  reviewCycle?: string
-  fullReviewCount?: string
-  authorizationComment?: string
-} = {}) {
-  return [
-    issueNumber,
-    '--repo',
-    repository,
-    '--expected-pr',
-    expectedPr,
-    '--expected-base',
-    expectedBase,
-    '--expected-state',
-    'ELIGIBLE_FOR_FOUNDER_REVIEW',
-    '--expected-old-head',
-    expectedOldHead,
-    '--expected-new-head',
-    expectedNewHead,
-    '--expected-review-cycle',
-    reviewCycle,
-    '--expected-full-review-count',
-    fullReviewCount,
-    '--authorization-comment',
-    authorizationComment,
-  ]
-}
-
-function expectInvalidInvocation(command: string, argv: string[]) {
-  let thrown: unknown
-
-  try {
-    parseCommandInvocation(command, argv)
-  } catch (error) {
-    thrown = error
-  }
-
-  expect(thrown).toBeInstanceOf(CliInvocationError)
-  const invocationError = thrown as {
-    classification: string
-    exit_code: number
-    details: { argument: string | null; reason: string }
-  }
-  expect(invocationError.classification).toBe('INVALID_INVOCATION')
-  expect(invocationError.exit_code).toBe(2)
-  expect(
-    invocationError.details.argument === null ||
-      typeof invocationError.details.argument === 'string',
-  ).toBe(true)
-  expect(typeof invocationError.details.reason).toBe('string')
 }
 
 function expectSectionsInOrder(help: string, sections: readonly string[]) {
@@ -301,74 +230,6 @@ describe('Task 2 CLI invocation and result contracts', () => {
     expect(tierAHelp).toContain(commandContract(TIER_A_COMMAND).entrypoint)
     expect(tierBHelp).toContain(TIER_B_COMMAND)
     expect(tierBHelp).toContain(commandContract(TIER_B_COMMAND).entrypoint)
-  })
-
-  it('normalizes positive integers repositories and full lowercase SHAs without lossy coercion', () => {
-    const invocation = parseCommandInvocation(
-      REOPEN_COMMAND,
-      reopenArguments(),
-    )
-
-    expect(invocation).toMatchObject({
-      mode: 'run',
-      format: 'text',
-      values: {
-        issue_number: '284',
-        repository: 'boat1994/bemoat-web-starter',
-        expected_pr: '285',
-        expected_state: 'ELIGIBLE_FOR_FOUNDER_REVIEW',
-        expected_old_head: FULL_LOWERCASE_SHA,
-        expected_new_head: SECOND_FULL_LOWERCASE_SHA,
-        expected_review_cycle: '9007199254740991',
-        expected_full_review_count: '1',
-        authorization_comment: '12345',
-      },
-    })
-
-    const values = (invocation as { values: Record<string, string | boolean> }).values
-    for (const [name, value] of Object.entries(values)) {
-      if (name !== 'some_boolean_flag') expect(typeof value).toBe('string')
-    }
-    expect(values.expected_old_head).toMatch(/^[0-9a-f]{40}$/)
-    expect(values.expected_new_head).toMatch(/^[0-9a-f]{40}$/)
-    expect(values.issue_number).not.toBe(284)
-    expect(values.expected_review_cycle).not.toBe(9007199254740991)
-
-    expectInvalidInvocation(REOPEN_COMMAND, reopenArguments({
-      issueNumber: '9007199254740992',
-    }))
-    expectInvalidInvocation(REOPEN_COMMAND, reopenArguments({
-      expectedPr: '0',
-    }))
-    expectInvalidInvocation(REOPEN_COMMAND, reopenArguments({
-      expectedOldHead: FULL_LOWERCASE_SHA.slice(0, 39),
-    }))
-    expectInvalidInvocation(REOPEN_COMMAND, reopenArguments({
-      expectedNewHead: `${SECOND_FULL_UPPERCASE_SHA}0`,
-    }))
-  })
-
-  it('rejects duplicate singleton unknown missing and conflicting inputs before execute', () => {
-    expectInvalidInvocation(REOPEN_COMMAND, [
-      ...reopenArguments(),
-      '--repo',
-      'other/repository',
-    ])
-    expectInvalidInvocation(REOPEN_COMMAND, [
-      ...reopenArguments(),
-      '--not-registered',
-      'value',
-    ])
-    expectInvalidInvocation(REOPEN_COMMAND, ['284', '--repo'])
-    expectInvalidInvocation(REOPEN_COMMAND, [
-      '284',
-      '285',
-      ...reopenArguments().slice(1),
-    ])
-    expectInvalidInvocation('bemoat:boilerplate:check', [
-      '--harness-only',
-      '--full',
-    ])
   })
 
   it('accepts npm_lifecycle_event only when its registry entrypoint matches', () => {
