@@ -298,6 +298,7 @@ const commands: Record<string, CommandContract> = {
       flag('harness_only', '--harness-only', 'boolean', 'Apply only harness-managed paths.', ['true']),
       flag('full', '--full', 'boolean', 'Apply the full boilerplate projection.', ['true']),
       flag('apply_build_contract', '--apply-build-contract', 'boolean', 'Opt into the separately gated build contract.', ['true']),
+      flag('bootstrap_legacy_child', '--bootstrap-legacy-child', 'boolean', 'Bootstrap a clean child whose existing sync script still points to the retired .mjs entrypoint.', ['true']),
       environment('BEMOAT_SYNC_MODE', 'enum', 'Trusted default sync mode.', ['harness-only', 'full']),
       environment('BEMOAT_APPLY_BUILD_CONTRACT', 'boolean', 'Trusted build-contract opt-in default.', ['0', '1', 'true', 'false']),
       environment('BEMOAT_BOILERPLATE_REPO', 'repository', 'Trusted upstream boilerplate repository default.'),
@@ -307,6 +308,7 @@ const commands: Record<string, CommandContract> = {
       'Selected source and target repositories.',
       'Build-contract evidence when requested.',
       'Clean or explicitly preserved target working-tree state.',
+      'Exact legacy sync-script mapping and a clean target when legacy-child bootstrap is requested.',
     ],
     reads: [
       'source and target files',
@@ -338,6 +340,10 @@ const commands: Record<string, CommandContract> = {
       {
         description: 'Synchronize harness rails only.',
         argv: ['--harness-only'],
+      },
+      {
+        description: 'Bootstrap a clean legacy child from the current source-owned CLI.',
+        argv: ['--bootstrap-legacy-child', '--harness-only'],
       },
     ],
     parser_owner: 'scripts/boilerplate/config.ts',

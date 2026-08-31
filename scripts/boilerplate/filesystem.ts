@@ -10,8 +10,10 @@ import type {
   CopySeedResult,
   MergeKeepResult,
   MutationOptions,
+  PackageSyncResult,
   SyncMetadata,
   SyncMetadataInput,
+  SyncMode,
   SyncPathsInput,
   SyncPathsResult,
 } from './types.ts'
@@ -21,6 +23,127 @@ const ref = process.env.BEMOAT_BOILERPLATE_REF || 'main'
 const targetRoot = process.cwd()
 
 export const syncMetadataPath = '.bemoat-boilerplate-sync.json'
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+export function readSyncMetadata(path: string): unknown {
+  if (!existsSync(path)) return null
+  return JSON.parse(readFileSync(path, 'utf8')) as unknown
+}
+
+export function preserveIdenticalSyncTimestamp(
+  previous: unknown,
+  next: SyncMetadata,
+): SyncMetadata {
+  if (!isRecord(previous) || typeof previous.syncedAt !== 'string') return next
+  const { syncedAt: _previousTimestamp, ...previousProjection } = previous
+  const { syncedAt: _nextTimestamp, ...nextProjection } = next
+  if (JSON.stringify(previousProjection) !== JSON.stringify(nextProjection)) return next
+  return { ...next, syncedAt: previous.syncedAt }
+}
+
+function printList(log: (message: string) => void, title: string, values: string[]): void {
+  log(`\n${title}:`)
+  for (const value of values.length > 0 ? values : ['(none)']) log(`- ${value}`)
+}
+
+export function printSyncReport({
+  syncMode,
+  seedOnlyPathsSkipped,
+  syncedManaged,
+  seededFiles,
+  skippedSeedFiles,
+  mergedFiles,
+  packageSync,
+  buildContractFiles,
+  log,
+}: {
+  syncMode: SyncMode
+  seedOnlyPathsSkipped: boolean
+  syncedManaged: string[]
+  seededFiles: string[]
+  skippedSeedFiles: string[]
+  mergedFiles: string[]
+  packageSync: Partial<PackageSyncResult>
+  buildContractFiles: Partial<BuildContractFileResult>
+  log: (message: string) => void
+}): void {
+  log(`\nSync mode: ${syncMode}`)
+  if (seedOnlyPathsSkipped) log('Seed-only starter modules skipped in harness-only mode')
+  printList(log, 'Synced managed paths', syncedManaged)
+  printList(log, 'Seeded missing starter files', seededFiles)
+  printList(log, 'Skipped existing seed files', skippedSeedFiles)
+  printList(log, 'Merged keep-child-content paths', mergedFiles)
+  log('\nPackage manifest (child-owned):')
+  const addedScripts = packageSync.addedScripts ?? []
+  if (addedScripts.length > 0) {
+    log(`- added missing bemoat:* scripts: ${addedScripts.join(', ')}`)
+  } else {
+    log('- no missing bemoat:* scripts added')
+  }
+  const appliedBuildContract = [...(packageSync.appliedBuildContractScripts ?? []), ...(packageSync.updatedBuildContractScripts ?? [])]
+  if (appliedBuildContract.length > 0) {
+    log(`- applied build contract scripts: ${appliedBuildContract.join(', ')}`)
+  }
+  const appliedBuildContractFiles = [...(buildContractFiles.applied ?? []), ...(buildContractFiles.updated ?? [])]
+  if (appliedBuildContractFiles.length > 0) {
+    log(`- applied build contract files: ${appliedBuildContractFiles.join(', ')}`)
+  }
+  if (packageSync.proposalPath) {
+    log(`- review suggested script/dependency changes in ${packageSync.proposalPath}`)
+  }
+}
+
+export function getSuggestedNextCommands(
+  syncMode: SyncMode,
+  { proposalPath = undefined, applyBuildContract = false }: {
+    proposalPath?: string | null
+    applyBuildContract?: boolean
+  } = {},
+): string[] {
+  const lines: string[] = []
+  if (proposalPath) {
+    if (applyBuildContract) {
+      lines.push(
+        `Review remaining drift in ${proposalPath} (build contract scripts and files were applied automatically)`,
+      )
+    } else {
+      lines.push(`Review ${proposalPath} and apply any package.json changes manually`)
+    }
+  }
+  if (applyBuildContract) {
+    lines.push(
+      'Review src/payload.config.ts for build context detection (child-owned; see docs/boilerplate-sync-command.md)',
+    )
+  }
+  lines.push('pnpm install')
+  if (syncMode === SYNC_MODES.FULL) {
+    lines.push('pnpm run generate:importmap')
+    lines.push('pnpm run generate:types')
+    lines.push('pnpm payload migrate:create')
+  } else {
+    lines.push('pnpm run check')
+    lines.push('(or pnpm run bemoat:check if check is not defined yet)')
+  }
+  return lines
+}
+
+export function printSuggestedNextCommands(
+  syncMode: SyncMode,
+  packageSync: Partial<PackageSyncResult>,
+  applyBuildContract: boolean,
+  log: (message: string) => void,
+): void {
+  log('\nDone. Suggested next commands:')
+  for (const line of getSuggestedNextCommands(syncMode, {
+    proposalPath: packageSync.proposalPath,
+    applyBuildContract,
+  })) {
+    log(line)
+  }
+}
 
 export function copyManagedPath(
   sourceRootPath: string,

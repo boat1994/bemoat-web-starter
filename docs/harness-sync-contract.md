@@ -81,6 +81,14 @@ The starter publishes **`.bemoat/boilerplate-sync-manifest.json`** — a static 
 
 This prevents the **first-sync paradox**: when the starter adds a new managed path, child projects with an older local sync script still copy the new path in **one** run because path discovery happens from the cloned manifest, not only from the already-loaded local constants. Maintain the manifest in `bemoat-web-starter` whenever you change `managedPaths` or related lists in `scripts/sync-boilerplate.ts` (keep them identical; `tests/int/boilerplate-sync.int.spec.ts` asserts parity).
 
+### Legacy local-CLI bootstrap
+
+A legacy child may map `bemoat:boilerplate:sync` to the retired `scripts/sync-boilerplate.mjs`, which can enter old Mission Control gating before `--help --json`. That child cannot discover the current contract through its local package mapping. Use the one-time procedure in [Boilerplate sync command](./boilerplate-sync-command.md#bootstrap-a-child-whose-local-sync-command-is-intercepted): discover the current registered command from an approved current starter checkout, then invoke that same current entrypoint from the clean child root with `--bootstrap-legacy-child --harness-only`.
+
+Bootstrap is a narrow pre-state of the normal Tier A sync command. Discovery is read-only and occurs before mutation. The bootstrap run still uses the current source-driven manifest and normal preflight, sync, validation, commit, and readback path. It may replace only exact recognized generated `.mjs` package-script values with their source-authoritative `.ts` values; arbitrary/custom mappings fail closed. It does not authorize legacy workflow state, `--skip-mc-transition-gate`, per-file copying, product code, dependencies, lockfiles, Cloudflare resources, secrets, child overrides, or deployment changes.
+
+After a successful bootstrap, the child package maps `bemoat:boilerplate:sync` to `node scripts/sync-boilerplate.ts`. From then on, use only the normal local `pnpm run bemoat:boilerplate:sync -- --help --json` discovery and `pnpm run bemoat:boilerplate:sync -- --harness-only` sync path.
+
 Starter modules (`src/app/(frontend)`, `src/collections`, `src/globals`, `src/components`, `src/hooks`, `src/access`, `src/lib`, `src/payload.config.ts`) are **not** harness.
 
 ## Starter-only paths (not synced)
@@ -143,7 +151,7 @@ Listed in `mergeKeepPaths` in `scripts/sync-boilerplate.ts`. Drift check fails w
 
 | Category | Sync behavior |
 |----------|---------------|
-| `bemoat:*` scripts | Managed — sync **adds missing** namespaced scripts only; **never overwrites** existing entries |
+| `bemoat:*` scripts | Managed — normal sync **adds missing** namespaced scripts only; explicit legacy bootstrap may replace only exact recognized generated `.mjs` values with their matching source-authoritative `.ts` values |
 | Non-namespaced scripts (`build`, `deploy`, `preview`, `check`, `lint`, `dev`, `start`, etc.) | **Never touched by default** — drift reported in `.bemoat/package-sync-proposal.md` (human review only) |
 | Build/deploy contract (`build`, `build:next`, `build:cloudflare`, `cf:build`, `deploy`, `deploy:app`, `deploy:database`, `deploy:dev`, `preview`) | **Opt-in only** — pass `--apply-build-contract` to overwrite these scripts from the starter and sync `scripts/build.mjs` |
 | Build contract files (`open-next.config.ts`) | **Opt-in only** — applied with `--apply-build-contract` via `buildContractFilePaths`; not in `managedPaths` |

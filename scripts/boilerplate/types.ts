@@ -85,6 +85,7 @@ export interface PackageSyncProposal {
 
 export interface PackageSyncResult {
   addedScripts: string[]
+  updatedManagedScripts?: string[]
   appliedBuildContractScripts: string[]
   updatedBuildContractScripts: string[]
   proposalPath: string | null
@@ -173,6 +174,7 @@ export interface SyncResult extends SyncPathsResult {
   repo: string
   ref: string
   applyBuildContract: boolean
+  bootstrapLegacyChild: boolean
   packageSync: PackageSyncResult
   buildContractFiles: BuildContractFileResult
   mutationPerformed: boolean

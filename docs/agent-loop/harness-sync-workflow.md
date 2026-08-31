@@ -78,6 +78,14 @@ git switch -c chore/sync-harness-from-starter-73
 
 ## Sync command
 
+Before invoking the local command, run its registered CLI Discovery:
+
+```bash
+pnpm run bemoat:boilerplate:sync -- --help --json
+```
+
+If that read-only invocation is intercepted by retired Mission Control logic and `package.json` maps the command to `node scripts/sync-boilerplate.mjs`, stop the normal path. Do not fabricate legacy state or use `--skip-mc-transition-gate`. Follow the one-time [legacy local-CLI bootstrap](../harness-sync-contract.md#legacy-local-cli-bootstrap) procedure from a current approved starter checkout, verify the child now maps the normal TypeScript command, and only then resume this workflow.
+
 Default mode for existing child projects is **harness-only**:
 
 ```bash

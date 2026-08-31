@@ -308,6 +308,7 @@ function createSyncMutationFixture({
   emitToolOutput = false,
   includeGitignore = false,
   failCommit = false,
+  legacyBootstrap = false,
 } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'bemoat-cli-tier-a-sync-'))
   const bin = mkdtempSync(join(tmpdir(), 'bemoat-cli-tier-a-bin-'))
@@ -315,6 +316,15 @@ function createSyncMutationFixture({
 
   writeToolchainFixture(root)
   writeFixtureFile(root, 'child-owned.txt', 'child-owned\n')
+  if (legacyBootstrap) {
+    const packagePath = join(root, 'package.json')
+    const packageJson = JSON.parse(readFileSync(packagePath, 'utf8'))
+    Object.assign(packageJson.scripts, {
+      'bemoat:boilerplate:sync': 'node scripts/sync-boilerplate.mjs',
+      'bemoat:typecheck': 'node scripts/bemoat-typecheck.mjs',
+    })
+    writeFileSync(packagePath, `${JSON.stringify(packageJson)}\n`)
+  }
 
   writeExecutable(
     join(bin, 'git'),
@@ -330,7 +340,7 @@ if (${emitToolOutput}) process.stdout.write('fake git output\\n')
 if (args[0] === 'clone') {
   const sourceRoot = args[args.length - 1]
   const manifest = {
-    managedPaths: ['AGENTS.md'],
+    managedPaths: ${legacyBootstrap ? "['AGENTS.md', 'scripts/sync-boilerplate.ts']" : "['AGENTS.md']"},
     seedOnlyPaths: [],
     mergeKeepPaths: ${includeGitignore ? "['.gitignore']" : '[]'},
     managedPackageScripts: [],
@@ -344,7 +354,13 @@ if (args[0] === 'clone') {
   mkdirSync(join(sourceRoot, '.bemoat'), { recursive: true })
   writeFileSync(
     join(sourceRoot, 'package.json'),
-    JSON.stringify({ name: 'bemoat-web-starter', scripts: {} }),
+    JSON.stringify({
+      name: 'bemoat-web-starter',
+      scripts: ${legacyBootstrap ? JSON.stringify({
+        'bemoat:boilerplate:sync': 'node scripts/sync-boilerplate.ts',
+        'bemoat:typecheck': 'node scripts/bemoat-typecheck.ts',
+      }) : '{}'},
+    }),
   )
   writeFileSync(
     join(sourceRoot, '.bemoat/boilerplate-sync-manifest.json'),
@@ -355,6 +371,13 @@ if (args[0] === 'clone') {
     JSON.stringify(toolchainContract),
   )
   writeFileSync(join(sourceRoot, 'AGENTS.md'), 'starter managed rail\\n')
+  if (${legacyBootstrap}) {
+    mkdirSync(join(sourceRoot, 'scripts'), { recursive: true })
+    writeFileSync(
+      join(sourceRoot, 'scripts/sync-boilerplate.ts'),
+      '// current source-owned sync CLI fixture\\n',
+    )
+  }
   if (${includeGitignore}) writeFileSync(join(sourceRoot, '.gitignore'), 'dist\\n')
   process.exit(0)
 }
@@ -582,6 +605,65 @@ describe('Task 4 Tier A CLI boundaries: boilerplate sync and hooks install', () 
         merged_files: ['.gitignore'],
       },
     })
+  })
+
+  it('bootstraps a known legacy child through the current Tier A facade', () => {
+    const fixture = createSyncMutationFixture({ legacyBootstrap: true })
+    const entry = TIER_A_CASES[0]
+    const productBefore = readFileSync(join(fixture.root, 'child-owned.txt'), 'utf8')
+    const run = spawnSync(
+      process.execPath,
+      [
+        resolve(process.cwd(), entry.entrypoint),
+        '--bootstrap-legacy-child',
+        '--harness-only',
+        '--json',
+      ],
+      {
+        cwd: fixture.root,
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          ...facadeEnvironment(entry, {
+            BEMOAT_BOILERPLATE_REPO: 'example/starter',
+            BEMOAT_BOILERPLATE_REF: 'slice-4',
+            PATH: [fixture.bin, process.env.PATH].filter(Boolean).join(delimiter),
+          }),
+        },
+        maxBuffer: 4 * 1024 * 1024,
+      },
+    )
+    const childPackage = JSON.parse(
+      readFileSync(join(fixture.root, 'package.json'), 'utf8'),
+    )
+    const result = parseSingleJson(run.stdout)
+
+    expect(run.error ?? null).toBeNull()
+    expect(run.status, `${run.stdout}\n${run.stderr}`).toBe(0)
+    expect(run.stderr).toBe('')
+    expect(result).toMatchObject({
+      command: 'bemoat:boilerplate:sync',
+      outcome: 'SUCCESS',
+      classification: 'SUCCESS',
+      mutation_performed: true,
+      details: {
+        bootstrap_legacy_child: true,
+        package_sync: {
+          updatedManagedScripts: [
+            'bemoat:boilerplate:sync',
+            'bemoat:typecheck',
+          ],
+        },
+      },
+    })
+    expect(childPackage.scripts['bemoat:boilerplate:sync']).toBe(
+      'node scripts/sync-boilerplate.ts',
+    )
+    expect(childPackage.scripts['bemoat:typecheck']).toBe(
+      'node scripts/bemoat-typecheck.ts',
+    )
+    expect(existsSync(join(fixture.root, 'scripts/sync-boilerplate.ts'))).toBe(true)
+    expect(readFileSync(join(fixture.root, 'child-owned.txt'), 'utf8')).toBe(productBefore)
   })
 
   it('boilerplate sync JSON reports ambiguous mutation and preserves diagnostics after commit failure', () => {

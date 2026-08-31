@@ -209,6 +209,83 @@ describe('boilerplate sync workflow child portability', () => {
     expect(logs).toContain('(or pnpm run bemoat:check if check is not defined yet)')
   })
 
+  it('gates legacy bootstrap cleanliness and exact script recognition before target mutation', async () => {
+    const workflowModule = await import('../../scripts/boilerplate/workflow.ts')
+    const calls: string[] = []
+    const dependencies = makeWorkflowDependencies(calls)
+    const workflow = workflowModule.createBoilerplateSyncWorkflow({
+      ...dependencies,
+      createGitClient() {
+        calls.push('git-client')
+        return {
+          hasWorkingTreeChanges() {
+            calls.push('clean-target')
+            return false
+          },
+        }
+      },
+      assertExactManagedPackageScripts() {
+        throw new Error('normal exact-script gate must not own legacy bootstrap')
+      },
+      assertLegacyChildBootstrapPreState() {
+        calls.push('legacy-script-preflight')
+      },
+    })
+
+    workflow.run({
+      repo: 'example/starter',
+      ref: 'slice-4',
+      targetRoot,
+      tempRoot,
+      sourceRoot,
+      bootstrapLegacyChild: true,
+    })
+
+    const cleanliness = calls.indexOf('clean-target')
+    const tempCreation = calls.indexOf(`mkdir:${tempRoot}`)
+    const legacyPreflight = calls.indexOf('legacy-script-preflight')
+    const finalPreflight = calls.indexOf('toolchain-preflight')
+    const managedMutation = calls.indexOf('sync:true')
+    expect(cleanliness).toBeGreaterThanOrEqual(0)
+    expect(cleanliness).toBeLessThan(tempCreation)
+    expect(legacyPreflight).toBeGreaterThan(tempCreation)
+    expect(legacyPreflight).toBeLessThan(finalPreflight)
+    expect(finalPreflight).toBeLessThan(managedMutation)
+  })
+
+  it('rejects a dirty legacy bootstrap target before clone or target mutation', async () => {
+    const workflowModule = await import('../../scripts/boilerplate/workflow.ts')
+    const calls: string[] = []
+    const dependencies = makeWorkflowDependencies(calls)
+    const workflow = workflowModule.createBoilerplateSyncWorkflow({
+      ...dependencies,
+      createGitClient() {
+        calls.push('git-client')
+        return {
+          hasWorkingTreeChanges() {
+            calls.push('dirty-target')
+            return true
+          },
+        }
+      },
+    })
+
+    expect(() => workflow.run({
+      repo: 'example/starter',
+      ref: 'slice-4',
+      targetRoot,
+      tempRoot,
+      sourceRoot,
+      bootstrapLegacyChild: true,
+    })).toThrow(
+      'UNSUPPORTED_PRE_STATE: legacy-child bootstrap requires a clean target working tree',
+    )
+    expect(calls).not.toContain(`mkdir:${tempRoot}`)
+    expect(calls).not.toContain(`rm:${tempRoot}`)
+    expect(calls).not.toContain('sync:true')
+    expect(calls).not.toContain('package-sync')
+  })
+
   it('cleans up and restores a stashed non-mutating simulation when projection fails', async () => {
     const workflowModule = await import('../../scripts/boilerplate/workflow.ts')
     const calls: string[] = []
