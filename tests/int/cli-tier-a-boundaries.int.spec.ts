@@ -20,11 +20,11 @@ import {
   type CliBoundaryResult,
   type FileSystemSnapshot,
 } from '../helpers/cli-boundary-harness'
-import { getCommandContract } from '../../scripts/cli/command-contract.mjs'
+import { getCommandContract } from '../../scripts/cli/command-contract.ts'
 import {
   assertResultEnvelopeV1,
   classifyDelegatedFailure,
-} from '../../scripts/cli/command-result.mjs'
+} from '../../scripts/cli/command-result.ts'
 
 type TierACase = {
   command: string
@@ -296,7 +296,7 @@ packages:
   writeFixtureFile(root, 'tsconfig.harness-strict.json', `${tsConfig}\n`)
   writeFixtureFile(root, 'node_modules/typescript/package.json', '{"version":"6.0.3"}\n')
   writeFixtureFile(root, 'scripts/guard-toolchain-contract.mjs', 'export {}\n')
-  writeFixtureFile(root, 'scripts/bemoat-typecheck.mjs', 'export {}\n')
+  writeFixtureFile(root, 'scripts/bemoat-typecheck.ts', 'export {}\n')
   writeFixtureFile(root, 'cloudflare-env.d.ts', 'declare const fixture: unique symbol\n')
   writeFixtureFile(root, 'tests/helpers/fixture.ts', 'export {}\n')
   writeFixtureFile(root, 'tests/int/fixture.int.spec.ts', 'export {}\n')
@@ -408,6 +408,20 @@ afterEach(() => {
 })
 
 describe('Task 4 Tier A CLI boundaries: boilerplate sync and hooks install', () => {
+  it('characterizes the future TypeScript handoff root with the Tier A stream and exit contract', () => {
+    const run = runCliBoundaryCase({
+      entrypoint: 'scripts/agent-handoff.ts',
+      argv: ['--definitely-invalid'],
+      env: { BEMOAT_FACADE_COMMAND: 'bemoat:handoff', BEMOAT_FACADE_ENTRYPOINT: 'scripts/agent-handoff.ts', npm_lifecycle_event: 'bemoat:handoff' },
+    })
+
+    expect(run.error).toBeNull()
+    expect(run.status).toBe(2)
+    expect(run.stdout).toBe('')
+    expect(run.stderr).toMatch(/^ERROR: INVALID_INVOCATION:/)
+    expect(run.filesystem_unchanged).toBe(true)
+  })
+
   it.each(TIER_A_ROWS)(
     'registers %s as Tier A with the approved direct entrypoint',
     (command, entry) => {

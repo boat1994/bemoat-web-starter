@@ -1,7 +1,9 @@
 const POSITIVE_INTEGER = /^[1-9]\d*$/
 
 export class ContextInvocationError extends Error {
-  constructor(reason) {
+  readonly classification = 'INVALID_INVOCATION' as const
+  readonly exit_code = 2 as const
+  constructor(reason: string) {
     super(reason)
     this.name = 'ContextInvocationError'
     this.classification = 'INVALID_INVOCATION'
@@ -9,7 +11,7 @@ export class ContextInvocationError extends Error {
   }
 }
 
-export function parseContextInvocation(argv) {
+export function parseContextInvocation(argv: string[]) {
   const tokens = Array.isArray(argv) ? argv.filter((value) => value !== '--') : []
   const help = tokens.filter((value) => value === '--help' || value === '-h')
   const json = tokens.filter((value) => value === '--json')

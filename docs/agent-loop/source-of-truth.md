@@ -12,7 +12,7 @@ This document separates what **`bemoat-web-starter`** owns from what **child pro
 | GitHub templates | `.github/pull_request_template.md`, `.github/ISSUE_TEMPLATE/*`, shared workflows |
 | Agent-loop docs | `docs/agent-loop/*`, `docs/workflow/*`, `docs/hardening.md`, `docs/releases.md`, `docs/deploy-smoke-test.md`, `docs/cloudflare-environments.md`, `docs/schema-evolution.md` |
 | Superpowers skill entry | Native `superpowers:using-superpowers` or portable fallback `.agents/skills/using-superpowers.md` — not `docs/superpowers/*` |
-| Harness workflow | `scripts/guards/repo-safety.mjs`, `scripts/guard-cloudflare-env.mjs`, `scripts/check-branch-safety.sh`, `scripts/install-git-hooks.mjs`, `.githooks`, `vitest.config.mts`, `vitest.setup.ts`, shared harness tests under `tests/int/` |
+| Harness workflow | `scripts/guards/repo-safety.ts`, `scripts/guard-cloudflare-env.ts`, `scripts/check-branch-safety.sh`, `scripts/install-git-hooks.mjs`, `.githooks`, `vitest.config.mts`, `vitest.setup.ts`, shared harness tests under `tests/int/` |
 | Payload schema (shared) | Shared collections and globals (seeded once) |
 | Starter UI | Shared starter pages (home, projects, blog, custom order, etc.; seeded once) |
 | Shared utilities | Helper modules under `src/lib` (seeded once) |
@@ -65,8 +65,8 @@ These paths are overwritten on every sync:
 | `scripts/check-boilerplate-drift.mjs` | Read-only drift check before sync |
 | `.bemoat/boilerplate-sync-manifest.json` | Source-of-truth sync config read from cloned starter (one-run managed path discovery) |
 | `scripts/deploy-smoke-test.mjs` | Optional deploy smoke test helper |
-| `scripts/guards/repo-safety.mjs` | Repository safety guard (secrets, resource IDs, destructive migrations) |
-| `scripts/guard-cloudflare-env.mjs` | Cloudflare deploy environment guard (blocks unsafe prod deploys) |
+| `scripts/guards/repo-safety.ts` | Repository safety guard (secrets, resource IDs, destructive migrations) |
+| `scripts/guard-cloudflare-env.ts` | Cloudflare deploy environment guard (blocks unsafe prod deploys) |
 | `scripts/check-branch-safety.sh` | Git Flow branch safety check for hooks and manual use |
 | `scripts/install-git-hooks.mjs` | Optional local hook installer |
 | `.githooks` | Optional pre-commit/pre-push hooks (branch safety, `bemoat:guard:safety`, `bemoat:test:int`) |

@@ -14,7 +14,7 @@ The harness is everything child projects need to run the same safety rails, work
 | Stateless protocol | Current Context/Handoff guidance and their stateless CLI/runtime tests |
 | Superpowers skill entry | Native `superpowers:using-superpowers` or portable fallback `.agents/skills/using-superpowers.md` (not `docs/superpowers/*`) |
 | GitHub workflow and templates | `.github/workflows/ci.yml` (child-safe `bemoat:*` only), PR template, issue templates |
-| Safety guards | `scripts/guard-pack.mjs` (orchestrator), `scripts/guards/repo-safety.mjs`, `scripts/guard-harness-contract.mjs`, `scripts/guards/package-manager.mjs`, `scripts/guards/toolchain-contract.mjs`, `scripts/guards/env-placeholder.mjs`, `scripts/guard-cloudflare-env.mjs`, `scripts/guards/frontend-seo.mjs`, `scripts/guards/structural-protection.mjs`, and `scripts/structural-protection-manifest.json` — see [guard-pack.md](./guard-pack.md) |
+| Safety guards | `scripts/guard-pack.ts` (orchestrator), `scripts/guards/repo-safety.ts`, `scripts/guard-harness-contract.ts`, `scripts/guards/package-manager.ts`, `scripts/guards/toolchain-contract.ts`, `scripts/guards/env-placeholder.ts`, `scripts/guard-cloudflare-env.ts`, `scripts/guards/frontend-seo.ts`, `scripts/guards/structural-protection.ts`, and `scripts/structural-protection-manifest.json` — see [guard-pack.md](./guard-pack.md) |
 | Cloudflare deploy guards | Recommended `deploy` / `preview` scripts that call `guard:cloudflare-env` |
 | Sync and drift | `scripts/sync-boilerplate.mjs`, `scripts/check-boilerplate-drift.mjs` |
 | Local git hooks | `.githooks`, `scripts/check-branch-safety.sh`, `scripts/install-git-hooks.mjs`, `hooks:install` |
@@ -203,7 +203,7 @@ Child projects may add stricter validation later (`check`, `lint`, `typecheck`, 
 
 ## Harness contract guard
 
-`scripts/guard-harness-contract.mjs` enforces that **child-facing automation** calls only `bemoat:*` scripts.
+`scripts/guard-harness-contract.ts` enforces that **child-facing automation** calls only `bemoat:*` scripts.
 
 | Child-facing path | Purpose |
 |-------------------|---------|
@@ -219,7 +219,7 @@ The guard runs:
 - standalone via `pnpm run bemoat:guard:harness-contract`
 - in integration tests (`tests/int/harness-contract-guard.int.spec.ts`)
 
-If a maintainer adds a new child-facing automation file, add its path to `CHILD_FACING_HARNESS_PATHS` in `scripts/guard-harness-contract.mjs` and extend the guard tests.
+If a maintainer adds a new child-facing automation file, add its path to `CHILD_FACING_HARNESS_PATHS` in `scripts/guard-harness-contract.ts` and extend the guard tests.
 
 ## Child harness script contract
 
@@ -262,7 +262,7 @@ Current shared tests (listed in `managedPaths` in `scripts/sync-boilerplate.mjs`
 
 2. **New safe namespaced script** — Add to `managedPackageScripts` if sync should add it when missing. Add starter `bemoat:*` values in this repo's `package.json`.
 
-3. **New child-facing automation file** — Add to `CHILD_FACING_HARNESS_PATHS` in `scripts/guard-harness-contract.mjs` and cover it in `tests/int/harness-contract-guard.int.spec.ts`.
+3. **New child-facing automation file** — Add to `CHILD_FACING_HARNESS_PATHS` in `scripts/guard-harness-contract.ts` and cover it in `tests/int/harness-contract-guard.int.spec.ts`.
 
 4. **New recommended non-namespaced script** — Add to `suggestedPackageScripts` so drift appears in the package sync proposal (human review only; never auto-applied).
 

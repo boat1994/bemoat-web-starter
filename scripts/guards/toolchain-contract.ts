@@ -1,30 +1,50 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import ts from 'typescript'
+import type { PackageJson, ReadTextFile } from './types.ts'
+
+interface ToolchainContract {
+  typescript: string
+  node: string
+  compiler: {
+    starterRootStrictNullChecks: boolean
+    childStrictNullChecks: boolean
+    harnessStrictConfig: string
+    ambientInput: string
+    harnessRoots: string[]
+    strict: boolean
+  }
+}
+
+export interface ToolchainViolation {
+  rule: string
+  message: string
+  file: string
+}
 
 export const TOOLCHAIN_CONTRACT_PATH = '.bemoat/toolchain-contract.json'
 
-const readTextFile = (path) => readFileSync(path, 'utf8')
+const readTextFile: ReadTextFile = (path) => readFileSync(path, 'utf8')
 
-function readJSON(path, readFile = readTextFile) {
+function readJSON(path: string, readFile: ReadTextFile = readTextFile): unknown {
   return JSON.parse(readFile(path, 'utf8'))
 }
 
-function violation(rule, message, file = TOOLCHAIN_CONTRACT_PATH) {
+function violation(rule: string, message: string, file = TOOLCHAIN_CONTRACT_PATH): ToolchainViolation {
   return { rule, message, file }
 }
 
-function parseEffectiveProject(configPath, readFile) {
+function parseEffectiveProject(configPath: string, readFile: ReadTextFile) {
   const host = {
     ...ts.sys,
-    readFile: (path) => readFile(path),
+    readFile: (path: string) => readFile(path),
   }
   const config = ts.readConfigFile(configPath, host.readFile)
   if (config.error) return { errors: [config.error], options: {}, fileNames: [] }
   return ts.parseJsonConfigFileContent(config.config, host, resolve(configPath), undefined, configPath)
 }
 
-function getImporterTypeScript(lockfile) {
+function getImporterTypeScript(lockfile: string): { specifier: string; version: string } | null {
   const importerSection = lockfile.slice(0, lockfile.indexOf('\npackages:') === -1 ? undefined : lockfile.indexOf('\npackages:'))
   const rootImporterStart = importerSection.search(/^  \.\:\n/m)
   if (rootImporterStart === -1) return null
@@ -38,18 +58,36 @@ function getImporterTypeScript(lockfile) {
   return typeScript ? { specifier: typeScript[1], version: typeScript[2] } : null
 }
 
-export function getExpectedRootStrictNullChecks({ root, contractRoot, contract, packageJSON }) {
+export function getExpectedRootStrictNullChecks({
+  root,
+  contractRoot,
+  contract,
+  packageJSON,
+}: {
+  root: string
+  contractRoot: string
+  contract: ToolchainContract
+  packageJSON: PackageJson
+}): boolean {
   return resolve(root) === resolve(contractRoot) && packageJSON?.name === 'bemoat-web-starter'
     ? contract.compiler.starterRootStrictNullChecks
     : contract.compiler.childStrictNullChecks
 }
 
-export function scanToolchainContract({ root = process.cwd(), contractRoot = root, readFile = readTextFile } = {}) {
+export function scanToolchainContract({
+  root = process.cwd(),
+  contractRoot = root,
+  readFile = readTextFile,
+}: {
+  root?: string
+  contractRoot?: string
+  readFile?: ReadTextFile
+} = {}): ToolchainViolation[] {
   const contractPath = resolve(contractRoot, TOOLCHAIN_CONTRACT_PATH)
   if (!existsSync(contractPath)) return [violation('missing-contract', 'Managed toolchain contract is missing')]
 
-  const contract = readJSON(contractPath, readFile)
-  const packageJSON = readJSON(resolve(root, 'package.json'), readFile)
+  const contract = readJSON(contractPath, readFile) as ToolchainContract
+  const packageJSON = readJSON(resolve(root, 'package.json'), readFile) as PackageJson
   const strictConfigPath = resolve(root, contract.compiler.harnessStrictConfig)
   const violations = []
 
@@ -66,7 +104,7 @@ export function scanToolchainContract({ root = process.cwd(), contractRoot = roo
   }
 
   try {
-    const installed = readJSON(resolve(root, 'node_modules/typescript/package.json'), readFile)
+    const installed = readJSON(resolve(root, 'node_modules/typescript/package.json'), readFile) as { version?: string }
     if (installed.version !== contract.typescript) {
       violations.push(violation('typescript-installed', `Installed TypeScript must be ${contract.typescript}`, 'node_modules/typescript/package.json'))
     }
@@ -126,11 +164,11 @@ export function scanToolchainContract({ root = process.cwd(), contractRoot = roo
   return violations
 }
 
-export function getToolchainContractExitCode(violations) {
+export function getToolchainContractExitCode(violations: ToolchainViolation[]): number {
   return violations.length === 0 ? 0 : 1
 }
 
-export function formatToolchainContractViolations(violations) {
+export function formatToolchainContractViolations(violations: ToolchainViolation[]): string[] {
   if (violations.length === 0) return ['Toolchain contract guard passed.']
   return ['Toolchain contract guard failed:', '', ...violations.map((item) => `- [${item.rule}] ${item.file}: ${item.message}`)]
 }

@@ -13,7 +13,7 @@ afterEach(() => {
 
 describe('env placeholder guard boundary', () => {
   it('exposes the cohesive destination guard contract', async () => {
-    const destination = await import('../../scripts/guards/env-placeholder.mjs')
+    const destination = await import('../../scripts/guards/env-placeholder.ts')
 
     expect(Object.keys(destination).sort()).toEqual([
       'ENV_EXAMPLE_PATH',
@@ -31,7 +31,7 @@ describe('env placeholder guard boundary', () => {
   it('preserves direct invocation output and exit codes at the destination', () => {
     const root = mkdtempSync(join(tmpdir(), 'env-placeholder-boundary-'))
     tempRoots.push(root)
-    const destinationPath = resolve(process.cwd(), 'scripts/guards/env-placeholder.mjs')
+    const destinationPath = resolve(process.cwd(), 'scripts/guards/env-placeholder.ts')
 
     const destinationResult = spawnSync(process.execPath, [destinationPath], { cwd: root, encoding: 'utf8' })
 

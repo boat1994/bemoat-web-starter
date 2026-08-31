@@ -10,7 +10,7 @@ Agents and contributors can accidentally commit secrets, destructive SQL migrati
 
 ## Decision
 
-Run reusable safety checks through a **central guard pack** orchestrated by `scripts/guard-pack.mjs`:
+Run reusable safety checks through a **central guard pack** orchestrated by `scripts/guard-pack.ts`:
 
 | Entrypoint | Audience |
 |------------|----------|

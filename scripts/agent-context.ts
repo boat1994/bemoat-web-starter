@@ -3,11 +3,12 @@
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { ContextInvocationError, parseContextInvocation, renderContextHelp } from './context/cli.mjs'
+import { ContextInvocationError, parseContextInvocation, renderContextHelp } from './context/cli.ts'
 import { collectContextEvidence } from './context/evidence.ts'
 import { routeContext } from './context/router.ts'
+import type { NormalizedContextEvidence, ContextDecision } from './context/model.ts'
 
-function handleInvocationError(error) {
+function handleInvocationError(error: unknown): boolean {
   if (!(error instanceof ContextInvocationError)) return false
 
   process.stderr.write(`INVALID_INVOCATION: ${error.message}\n`)
@@ -15,7 +16,7 @@ function handleInvocationError(error) {
   return true
 }
 
-function createContextOutput(evidence, decision, issueNumber) {
+function createContextOutput(evidence: NormalizedContextEvidence, decision: ContextDecision, issueNumber: string) {
   return {
     schema_version: 1,
     command: 'bemoat:context',
@@ -41,7 +42,7 @@ function createContextOutput(evidence, decision, issueNumber) {
   }
 }
 
-function renderText(output) {
+function renderText(output: ReturnType<typeof createContextOutput>) {
   const lines = [
     `bemoat:context — Issue #${output.issue_number}`,
     `Repository: ${output.repository.nameWithOwner}`,
@@ -86,7 +87,7 @@ function main() {
 if (
   process.argv[1] &&
   (resolve(process.argv[1]) === fileURLToPath(import.meta.url) ||
-    process.argv[1].endsWith('/agent-context.mjs'))
+    process.argv[1].endsWith('/agent-context.ts'))
 ) {
   main()
 }

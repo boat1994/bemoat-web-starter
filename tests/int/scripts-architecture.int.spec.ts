@@ -8,8 +8,8 @@ import {
   buildScriptImportGraph,
   listRootScripts,
   validateArchitectureContract,
-} from '../../scripts/guards/scripts-architecture.mjs'
-import * as architectureGuard from '../../scripts/guards/scripts-architecture.mjs'
+} from '../../scripts/guards/scripts-architecture.ts'
+import * as architectureGuard from '../../scripts/guards/scripts-architecture.ts'
 import architectureContract from '../../scripts/architecture-contract.json'
 
 const tempRoots: string[] = []
@@ -36,9 +36,17 @@ function writeScript(root: string, relativePath: string, source: string) {
 function writeContract(
   root: string,
   contract: {
-    cycleNodes?: string[]
-    cycleEdges?: string[]
+    cycleNodes?: unknown
+    cycleEdges?: unknown
     adapters?: Record<string, { importers?: string[] }>
+    rootScripts?: Array<{
+      path: string
+      facade_disposition: string
+      internal_destination: string
+      owning_slice: number
+      migration_status: string
+    }>
+    transitionalDirectories?: Array<{ path: string; migration_status: string }>
   },
 ) {
   mkdirSync(join(root, 'scripts'), { recursive: true })
@@ -92,6 +100,44 @@ describe('scripts architecture ratchet', () => {
     expect(harness?.migration_status).toBe('transitional')
   })
 
+  it('accepts native TypeScript root scripts in the architecture contract', () => {
+    const root = createTempRoot('bemoat-arch-typescript-root-')
+    writeContract(root, {
+      cycleNodes: [],
+      cycleEdges: [],
+      adapters: {},
+      rootScripts: [
+        {
+          path: 'scripts/example.ts',
+          facade_disposition: 'composition_root',
+          internal_destination: 'scripts/guards/',
+          owning_slice: 7,
+          migration_status: 'migrated',
+        },
+      ],
+      transitionalDirectories: [{ path: 'scripts/harness-contract/', migration_status: 'transitional' }],
+    })
+    writeScript(root, 'scripts/example.ts', 'export const example = true\n')
+
+    expect(validateArchitectureContract(root)).toEqual([])
+  })
+
+  it('rejects non-array cycleNodes and cycleEdges instead of treating them as empty', () => {
+    const root = createTempRoot('bemoat-arch-malformed-cycles-')
+    writeContract(root, {
+      cycleNodes: { allowed: 'scripts/example.ts' },
+      cycleEdges: 'scripts/example.ts -> scripts/other.ts',
+      adapters: {},
+    })
+
+    expect(validateArchitectureContract(root)).toEqual(
+      expect.arrayContaining([
+        'architecture-contract.json cycleNodes must be an array',
+        'architecture-contract.json cycleEdges must be an array',
+      ]),
+    )
+  })
+
   it('captures side-effect static imports in the production architecture graph (F-SLICE1-02)', () => {
     const root = createTempRoot('bemoat-arch-side-effect-')
     writeContract(root, { cycleNodes: [], cycleEdges: [], adapters: {} })
@@ -119,17 +165,17 @@ describe('scripts architecture ratchet', () => {
       cycleNodes: [],
       cycleEdges: [],
       adapters: {
-        'scripts/adapters/command-runner.mjs': {
+        'scripts/adapters/command-runner.ts': {
           importers: ['scripts/example-adapter.mjs'],
         },
       },
     })
-    writeScript(root, 'scripts/adapters/command-runner.mjs', 'export const run = () => {}\n')
-    writeScript(root, 'scripts/rogue.mjs', "import { run } from './adapters/command-runner.mjs'\n")
+    writeScript(root, 'scripts/adapters/command-runner.ts', 'export const run = () => {}\n')
+    writeScript(root, 'scripts/rogue.mjs', "import { run } from './adapters/command-runner.ts'\n")
 
     const violations = validateArchitectureContract(root)
     expect(violations).toContain(
-      'Unallowed importer for adapter scripts/adapters/command-runner.mjs: scripts/rogue.mjs',
+      'Unallowed importer for adapter scripts/adapters/command-runner.ts: scripts/rogue.mjs',
     )
   })
 
@@ -139,16 +185,16 @@ describe('scripts architecture ratchet', () => {
       cycleNodes: [],
       cycleEdges: [],
       adapters: {
-        'scripts/adapters/command-runner.mjs': {
+        'scripts/adapters/command-runner.ts': {
           importers: ['scripts/example-adapter.mjs'],
         },
       },
     })
-    writeScript(root, 'scripts/adapters/command-runner.mjs', 'export const run = () => {}\n')
+    writeScript(root, 'scripts/adapters/command-runner.ts', 'export const run = () => {}\n')
 
     const violations = validateArchitectureContract(root)
     expect(violations).toContain(
-      'Missing expected importer for adapter scripts/adapters/command-runner.mjs: scripts/example-adapter.mjs',
+      'Missing expected importer for adapter scripts/adapters/command-runner.ts: scripts/example-adapter.mjs',
     )
   })
 

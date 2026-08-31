@@ -26,19 +26,51 @@ const IDENTITY_FIELDS_FOR_PAIRING = TASK_IDENTITY_REQUIRED_KEYS.filter(
   (key) => key !== 'paired_spec' && key !== 'paired_plan',
 )
 
-function stripFencedCodeBlocks(content = '') {
+export interface PlanningContract {
+  schema_version?: number
+  main_issue?: unknown
+  task_key?: unknown
+  task_issue_strategy?: unknown
+  active_task_issue?: unknown
+  branch_template?: unknown
+  transition_target?: unknown
+  planning_base_sha?: unknown
+  execution_base_rule?: unknown
+  paired_spec?: unknown
+  paired_plan?: unknown
+  [key: string]: unknown
+}
+
+export interface PlanningViolation {
+  type: 'planning-contract'
+  rule: string
+  file: string
+  message: string
+  found: unknown
+  reason: string
+  correctiveAction: string
+}
+
+export interface ParsedTaskIdentity {
+  present: boolean
+  valid: boolean
+  contract: PlanningContract | null
+  violations: PlanningViolation[]
+}
+
+function stripFencedCodeBlocks(content = ''): string {
   return content.replace(/```[\s\S]*?```/g, '')
 }
 
-function stripInlineCode(content = '') {
+function stripInlineCode(content = ''): string {
   return content.replace(/`[^`]*`/g, '')
 }
 
-function contentForMarkerDetection(content = '') {
+function contentForMarkerDetection(content = ''): string {
   return stripInlineCode(stripFencedCodeBlocks(content))
 }
 
-function countLineMarkers(content, linePattern) {
+function countLineMarkers(content: string, linePattern: RegExp): number {
   let count = 0
   let inFence = false
 
@@ -55,7 +87,7 @@ function countLineMarkers(content, linePattern) {
   return count
 }
 
-function extractIdentityBlockLines(content) {
+function extractIdentityBlockLines(content: string): string | null {
   const lines = content.split('\n')
   let inFence = false
   let startLineIdx = -1
@@ -87,7 +119,7 @@ function extractIdentityBlockLines(content) {
   return lines.slice(startLineIdx + 1, endLineIdx).join('\n')
 }
 
-function parseScalar(value) {
+function parseScalar(value: string): string | number | null {
   const trimmed = value.trim()
   if (trimmed === 'null') return null
   if (/^\d+$/.test(trimmed)) return Number(trimmed)
@@ -95,7 +127,7 @@ function parseScalar(value) {
   return quoted ? quoted[2] : trimmed
 }
 
-export function parseIssueNumber(reference) {
+export function parseIssueNumber(reference: unknown): string | null {
   if (!reference || typeof reference !== 'string') return null
   const trimmed = reference.trim()
   const repoMatch = trimmed.match(/^[\w.-]+\/[\w.-]+#(\d+)$/)
@@ -106,7 +138,7 @@ export function parseIssueNumber(reference) {
   return bareMatch ? bareMatch[1] : null
 }
 
-function extractIssueNumbersFromBranch(branchTemplate) {
+function extractIssueNumbersFromBranch(branchTemplate: unknown): string[] {
   if (!branchTemplate || typeof branchTemplate !== 'string') return []
   const numbers = []
   for (const segment of branchTemplate.split('/')) {
@@ -116,12 +148,19 @@ function extractIssueNumbersFromBranch(branchTemplate) {
   return [...new Set(numbers)]
 }
 
-function basenameLabel(filePath) {
+function basenameLabel(filePath: string): string {
   const segments = filePath.split('/')
   return segments[segments.length - 1] || filePath
 }
 
-export function makeViolation({ rule, file, message, found, reason, correctiveAction }) {
+export function makeViolation({
+  rule,
+  file,
+  message,
+  found,
+  reason,
+  correctiveAction,
+}: Omit<PlanningViolation, 'type'>): PlanningViolation {
   return {
     type: 'planning-contract',
     rule,
@@ -133,13 +172,8 @@ export function makeViolation({ rule, file, message, found, reason, correctiveAc
   }
 }
 
-/**
- * @param {string} content
- * @param {string} filePath
- */
-export function parseTaskIdentityBlock(content = '', filePath = '<unknown>') {
-  /** @type {import('./planning-contract.mjs').PlanningViolation[]} */
-  const violations = []
+export function parseTaskIdentityBlock(content = '', filePath = '<unknown>'): ParsedTaskIdentity {
+  const violations: PlanningViolation[] = []
   const markerSource = contentForMarkerDetection(content)
   const startCount = countLineMarkers(markerSource, LINE_IDENTITY_START)
   const endCount = countLineMarkers(markerSource, LINE_IDENTITY_END)
@@ -174,8 +208,7 @@ export function parseTaskIdentityBlock(content = '', filePath = '<unknown>') {
   }
 
   const raw = blockBody.replace(/```yaml\s*|```/g, '')
-  /** @type {Record<string, unknown>} */
-  const contract = {}
+  const contract: PlanningContract = {}
   for (const line of raw.split('\n')) {
     if (!line.trim() || /^\s*#/.test(line)) continue
     const match = line.match(/^\s*([a-z_]+)\s*:\s*(.*?)\s*$/)
@@ -229,19 +262,20 @@ export function parseTaskIdentityBlock(content = '', filePath = '<unknown>') {
   return { present: true, valid: true, contract, violations }
 }
 
-function validateTaskIssueStrategy(contract, filePath) {
-  const violations = []
-  if (!VALID_TASK_ISSUE_STRATEGIES.has(contract.task_issue_strategy)) {
+function validateTaskIssueStrategy(contract: PlanningContract, filePath: string): PlanningViolation[] {
+  const violations: PlanningViolation[] = []
+  const strategy = contract.task_issue_strategy
+  if (typeof strategy !== 'string' || !VALID_TASK_ISSUE_STRATEGIES.has(strategy)) {
     violations.push(makeViolation({
       rule: 'PLAN006', file: filePath, message: 'Invalid task_issue_strategy',
-      found: String(contract.task_issue_strategy),
+      found: String(strategy),
       reason: 'task_issue_strategy must be existing_dedicated_issue or create_before_execution',
       correctiveAction: 'Set task_issue_strategy to a supported enum value',
     }))
     return violations
   }
   const activeIssueNumber = parseIssueNumber(contract.active_task_issue)
-  if (contract.task_issue_strategy === 'create_before_execution' && activeIssueNumber) {
+  if (strategy === 'create_before_execution' && activeIssueNumber) {
     violations.push(makeViolation({
       rule: 'PLAN005', file: filePath, message: 'Concrete active_task_issue declared under create_before_execution',
       found: String(contract.active_task_issue),
@@ -249,7 +283,7 @@ function validateTaskIssueStrategy(contract, filePath) {
       correctiveAction: 'Set active_task_issue: null until the dedicated GitHub issue exists',
     }))
   }
-  if (contract.task_issue_strategy === 'existing_dedicated_issue' && !activeIssueNumber) {
+  if (strategy === 'existing_dedicated_issue' && !activeIssueNumber) {
     violations.push(makeViolation({
       rule: 'PLAN006', file: filePath, message: 'Missing active_task_issue for existing_dedicated_issue strategy',
       found: String(contract.active_task_issue ?? 'null'),
@@ -260,7 +294,7 @@ function validateTaskIssueStrategy(contract, filePath) {
   return violations
 }
 
-function validateExecutionBaseRule(contract, filePath) {
+function validateExecutionBaseRule(contract: PlanningContract, filePath: string): PlanningViolation[] {
   if (contract.execution_base_rule !== 'use_planning_base_sha_unconditionally') return []
   return [makeViolation({
     rule: 'PLAN007', file: filePath, message: 'Unconditional planning-time SHA execution base rule',
@@ -270,7 +304,7 @@ function validateExecutionBaseRule(contract, filePath) {
   })]
 }
 
-function validateBranchTemplate(contract, filePath) {
+function validateBranchTemplate(contract: PlanningContract, filePath: string): PlanningViolation[] {
   const activeIssueNumber = parseIssueNumber(contract.active_task_issue)
   if (!activeIssueNumber) return []
   const mainIssueNumber = parseIssueNumber(contract.main_issue)
@@ -286,7 +320,7 @@ function validateBranchTemplate(contract, filePath) {
   })]
 }
 
-function validateTransitionTarget(contract, filePath) {
+function validateTransitionTarget(contract: PlanningContract, filePath: string): PlanningViolation[] {
   const activeIssueNumber = parseIssueNumber(contract.active_task_issue)
   const transitionIsTerminalStatus = TERMINAL_TRANSITION_TARGETS.has(String(contract.transition_target).trim())
   if (!transitionIsTerminalStatus || !activeIssueNumber) return []
@@ -298,7 +332,7 @@ function validateTransitionTarget(contract, filePath) {
   })]
 }
 
-export function validateStaticContract(contract, filePath) {
+export function validateStaticContract(contract: PlanningContract, filePath: string): PlanningViolation[] {
   return [
     ...validateTaskIssueStrategy(contract, filePath),
     ...validateExecutionBaseRule(contract, filePath),
@@ -307,8 +341,13 @@ export function validateStaticContract(contract, filePath) {
   ]
 }
 
-export function validatePairedContracts(specPath, specContract, planPath, planContract) {
-  const violations = []
+export function validatePairedContracts(
+  specPath: string,
+  specContract: PlanningContract,
+  planPath: string,
+  planContract: PlanningContract,
+): PlanningViolation[] {
+  const violations: PlanningViolation[] = []
   for (const field of IDENTITY_FIELDS_FOR_PAIRING) {
     const specValue = specContract[field]
     const planValue = planContract[field]

@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   formatHarnessContractViolations,
   getHarnessContractExitCode,
-} from '../../scripts/guard-harness-contract.mjs'
+} from '../../scripts/guard-harness-contract.ts'
 import {
   parseApplyBuildContract,
   parseSyncMode,
@@ -45,7 +45,7 @@ function runNode(
 
 describe('scripts entrypoints contract', () => {
   it('freezes guard-harness-contract success stdout structure and exit 0', () => {
-    const result = runNode('scripts/guard-harness-contract.mjs')
+    const result = runNode('scripts/guard-harness-contract.ts')
     expect(result.status).toBe(0)
     expect(result.stdout.trim().split('\n')).toEqual(['Harness contract guard passed.'])
     expect(result.stderr).toBe('')
@@ -62,7 +62,7 @@ describe('scripts entrypoints contract', () => {
     writeFileSync(join(root, '.githooks/pre-commit'), '#!/bin/sh\npnpm run check\n')
     writeFileSync(join(root, '.githooks/pre-push'), '#!/bin/sh\npnpm run typecheck\n')
 
-    const result = runNode('scripts/guard-harness-contract.mjs', [], { cwd: root })
+    const result = runNode('scripts/guard-harness-contract.ts', [], { cwd: root })
     expect(result.status).toBe(1)
     const lines = result.stdout.trim().split('\n')
     expect(lines[0]).toBe('Harness contract guard failed:')
@@ -76,7 +76,7 @@ describe('scripts entrypoints contract', () => {
   })
 
   it('freezes guard-package-manager success stdout structure and exit 0', () => {
-    const result = runNode('scripts/guards/package-manager.mjs')
+    const result = runNode('scripts/guards/package-manager.ts')
     expect(result.status).toBe(0)
     expect(result.stdout.trim().split('\n')).toEqual(['Package manager guard passed.'])
     expect(result.stderr).toBe('')

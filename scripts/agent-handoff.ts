@@ -1,45 +1,46 @@
 #!/usr/bin/env node
 import { readFileSync } from 'node:fs'
 
-import { createHelpEnvelopeV1, formatTextHelp } from './cli/command-help.mjs'
-import { CliInvocationError, parseCommandInvocation, resolveCommandIdentity } from './cli/command-invocation.mjs'
-import { classificationExitCode, createResultEnvelopeV1 } from './cli/command-result.mjs'
+import { createHelpEnvelopeV1, formatTextHelp } from './cli/command-help.ts'
+import { CliInvocationError, parseCommandInvocation, resolveCommandIdentity } from './cli/command-invocation.ts'
+import { classificationExitCode, createResultEnvelopeV1 } from './cli/command-result.ts'
 import { runHandoffWorkflow } from './handoff/workflow.ts'
+import type { ParsedInvocation } from './cli/command-invocation-schemas.ts'
 
 const COMMAND = 'bemoat:handoff'
-const ENTRYPOINT = 'scripts/agent-handoff.mjs'
+const ENTRYPOINT = 'scripts/agent-handoff.ts'
 
-function readBody(path) {
+function readBody(path: string): string {
   try {
     return readFileSync(path, 'utf8')
   } catch (error) {
     throw new CliInvocationError(path, error instanceof Error ? error.message : String(error))
   }
 }
-function renderHelp(invocation) {
+function renderHelp(invocation: Extract<ParsedInvocation, { mode: 'help' }>) {
   if (invocation.format === 'json') return process.stdout.write(`${JSON.stringify(createHelpEnvelopeV1(invocation.contract))}\n`)
   process.stdout.write(formatTextHelp(invocation.contract))
 }
 
-function classification(error) {
+function classification(error: unknown): string {
   if (error instanceof CliInvocationError) return error.classification
-  if (error && typeof error.classification === 'string') return error.classification
+  if (typeof error === 'object' && error !== null && 'classification' in error && typeof error.classification === 'string') return error.classification
   return 'INTERNAL_ERROR'
 }
-function renderError({ command, format, error, values }) {
+function renderError({ command, format, error, values }: { command: string; format: 'json' | 'text'; error: unknown; values?: Record<string, string | boolean> }) {
   const resultClassification = classification(error)
   const reason = error instanceof Error ? error.message : String(error)
   const details = {
     argument: error instanceof CliInvocationError ? error.details.argument : null,
     reason,
-    ...(Array.isArray(error?.errors) ? { errors: error.errors } : {}),
+    ...(typeof error === 'object' && error !== null && 'errors' in error && Array.isArray(error.errors) ? { errors: error.errors } : {}),
   }
   if (format === 'json') {
     process.stdout.write(`${JSON.stringify(createResultEnvelopeV1({
       command,
       outcome: 'ERROR',
       classification: resultClassification,
-      mutation_performed: error?.mutationPerformed === true,
+      mutation_performed: typeof error === 'object' && error !== null && 'mutationPerformed' in error && error.mutationPerformed === true,
       issue_number: values?.issue_number ?? null,
       next_action: { type: 'STOP', command: null, reason },
       details,
@@ -50,7 +51,7 @@ function renderError({ command, format, error, values }) {
   process.exitCode = classificationExitCode(resultClassification)
 }
 
-function renderSuccess({ command, format, result }) {
+function renderSuccess({ command, format, result }: { command: string; format: 'json' | 'text'; result: Awaited<ReturnType<typeof runHandoffWorkflow>> }) {
   const envelope = createResultEnvelopeV1({
     command,
     outcome: result.classification === 'NO_OP_IDENTICAL_RETRY' ? 'NO_OP' : 'SUCCESS',
@@ -81,9 +82,10 @@ function main() {
     command = resolveCommandIdentity({ fallback: COMMAND, env: process.env, entrypoint: ENTRYPOINT })
     invocation = parseCommandInvocation(command, process.argv.slice(2))
     if (invocation.mode === 'help') return renderHelp(invocation)
-    const body = readBody(invocation.values.body_file)
+    if (invocation.mode !== 'run') throw new Error('run invocation required')
+    const body = readBody(String(invocation.values.body_file))
     const result = runHandoffWorkflow({
-      issueNumber: invocation.values.issue_number,
+      issueNumber: String(invocation.values.issue_number),
       body,
     })
     renderSuccess({ command, format: invocation.format, result })
@@ -92,7 +94,7 @@ function main() {
       command,
       format: invocation?.format ?? (process.argv.includes('--json') ? 'json' : 'text'),
       error,
-      values: invocation?.values,
+      values: invocation?.mode === 'run' ? invocation.values : undefined,
     })
   }
 }

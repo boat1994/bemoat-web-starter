@@ -4,8 +4,8 @@ import { resolve } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { getCommandContract } from '../../scripts/cli/command-contract.mjs'
-import { COMMAND_CONTRACT_REGISTRY } from '../../scripts/cli/command-contract-registry.mjs'
+import { getCommandContract } from '../../scripts/cli/command-contract.ts'
+import { COMMAND_CONTRACT_REGISTRY } from '../../scripts/cli/command-contract-registry.ts'
 import { managedPaths } from '../../scripts/boilerplate/inventory.mjs'
 import { runCliBoundaryCase } from '../helpers/cli-boundary-harness'
 

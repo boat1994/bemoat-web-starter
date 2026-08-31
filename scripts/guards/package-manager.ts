@@ -4,8 +4,9 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import { CHILD_FACING_HARNESS_PATHS } from '../guard-harness-contract.mjs'
-import { listProjectFiles } from './repo-safety.mjs'
+import { CHILD_FACING_HARNESS_PATHS } from '../guard-harness-contract.ts'
+import { listProjectFiles } from './repo-safety.ts'
+import type { GuardViolation, PackageJson, ReadTextFile } from './types.ts'
 
 /** Alternate lockfiles that indicate package-manager drift from pnpm. */
 export const FORBIDDEN_LOCKFILES = [
@@ -27,11 +28,11 @@ export const PACKAGE_MANAGER_SCAN_PATHS = [
 const NON_PNPM_COMMAND_RE =
   /\b(?:npm\s+(?:install|ci|run|exec)|yarn\s+(?:install|run|add)|bun\s+(?:install|run|add))\b/g
 
-export function findNonPnpmCommands(content) {
+export function findNonPnpmCommands(content: string): string[] {
   return [...content.matchAll(NON_PNPM_COMMAND_RE)].map((match) => match[0])
 }
 
-export function scanPackageManagerFile(relativePath, content) {
+export function scanPackageManagerFile(relativePath: string, content: string): GuardViolation[] {
   const commands = findNonPnpmCommands(content)
 
   return commands.map((command) => ({
@@ -42,8 +43,8 @@ export function scanPackageManagerFile(relativePath, content) {
   }))
 }
 
-export function scanTrackedLockfiles(files = []) {
-  const violations = []
+export function scanTrackedLockfiles(files: string[] = []): GuardViolation[] {
+  const violations: GuardViolation[] = []
 
   for (const lockfile of FORBIDDEN_LOCKFILES) {
     if (files.includes(lockfile)) {
@@ -59,12 +60,12 @@ export function scanTrackedLockfiles(files = []) {
   return violations
 }
 
-export function scanPackageJsonEngines(content, file = 'package.json') {
-  const violations = []
+export function scanPackageJsonEngines(content: string, file = 'package.json'): GuardViolation[] {
+  const violations: GuardViolation[] = []
 
   let pkg
   try {
-    pkg = JSON.parse(content)
+    pkg = JSON.parse(content) as PackageJson
   } catch (error) {
     return [
       {
@@ -91,10 +92,15 @@ export function scanPackageJsonEngines(content, file = 'package.json') {
 
 export function runPackageManagerGuard({
   root = process.cwd(),
-  readFile = (filePath) => readFileSync(filePath, 'utf8'),
+  readFile = (filePath: string) => readFileSync(filePath, 'utf8'),
   execFile = execFileSync,
   files = null,
-} = {}) {
+}: {
+  root?: string
+  readFile?: ReadTextFile
+  execFile?: typeof execFileSync
+  files?: string[] | null
+} = {}): GuardViolation[] {
   const trackedFiles = files ?? listProjectFiles({ root, execFile })
   const violations = [...scanTrackedLockfiles(trackedFiles)]
 
@@ -119,11 +125,11 @@ export function runPackageManagerGuard({
   return violations
 }
 
-export function getPackageManagerGuardExitCode(violations) {
+export function getPackageManagerGuardExitCode(violations: GuardViolation[]): number {
   return violations.length > 0 ? 1 : 0
 }
 
-export function formatPackageManagerViolations(violations) {
+export function formatPackageManagerViolations(violations: GuardViolation[]): string[] {
   if (violations.length === 0) {
     return ['Package manager guard passed.']
   }
@@ -143,13 +149,13 @@ export function formatPackageManagerViolations(violations) {
   return lines
 }
 
-export function isDirectExecution() {
+export function isDirectExecution(): boolean {
   const entrypoint = process.argv[1]
   if (!entrypoint) return false
   return import.meta.url === pathToFileURL(resolve(entrypoint)).href
 }
 
-function main() {
+function main(): void {
   const violations = runPackageManagerGuard()
   const lines = formatPackageManagerViolations(violations)
 

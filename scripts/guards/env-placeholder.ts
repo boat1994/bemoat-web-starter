@@ -3,14 +3,15 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import { isPlaceholderSecret } from './repo-safety.mjs'
+import { isPlaceholderSecret } from './repo-safety.ts'
+import type { GuardViolation, ReadTextFile } from './types.ts'
 
 export const ENV_EXAMPLE_PATH = '.env.example'
 
 const ENV_ASSIGNMENT_RE = /^(?:export\s+)?([A-Z][A-Z0-9_]*)[ \t]*=[ \t]*([^\n#]*)/gm
 
-export function parseEnvAssignments(content) {
-  const assignments = []
+export function parseEnvAssignments(content: string): Array<{ key: string; value: string }> {
+  const assignments: Array<{ key: string; value: string }> = []
 
   for (const match of content.matchAll(ENV_ASSIGNMENT_RE)) {
     const key = match[1]
@@ -29,8 +30,8 @@ export function parseEnvAssignments(content) {
   return assignments
 }
 
-export function scanEnvExampleContent(content, file = ENV_EXAMPLE_PATH) {
-  const violations = []
+export function scanEnvExampleContent(content: string, file = ENV_EXAMPLE_PATH): GuardViolation[] {
+  const violations: GuardViolation[] = []
   const assignments = parseEnvAssignments(content)
 
   if (assignments.length === 0) {
@@ -59,10 +60,14 @@ export function scanEnvExampleContent(content, file = ENV_EXAMPLE_PATH) {
 
 export function runEnvPlaceholderGuard({
   root = process.cwd(),
-  readFile = (filePath) => readFileSync(filePath, 'utf8'),
+  readFile = (filePath: string) => readFileSync(filePath, 'utf8'),
   envExamplePath = ENV_EXAMPLE_PATH,
-} = {}) {
-  const violations = []
+}: {
+  root?: string
+  readFile?: ReadTextFile
+  envExamplePath?: string
+} = {}): GuardViolation[] {
+  const violations: GuardViolation[] = []
   const absolutePath = resolve(root, envExamplePath)
 
   let content
@@ -83,11 +88,11 @@ export function runEnvPlaceholderGuard({
   return violations
 }
 
-export function getEnvPlaceholderGuardExitCode(violations) {
+export function getEnvPlaceholderGuardExitCode(violations: readonly unknown[]): number {
   return violations.length > 0 ? 1 : 0
 }
 
-export function formatEnvPlaceholderViolations(violations) {
+export function formatEnvPlaceholderViolations(violations: GuardViolation[]): string[] {
   if (violations.length === 0) {
     return ['Env placeholder guard passed.']
   }
@@ -107,13 +112,13 @@ export function formatEnvPlaceholderViolations(violations) {
   return lines
 }
 
-export function isDirectExecution() {
+export function isDirectExecution(): boolean {
   const entrypoint = process.argv[1]
   if (!entrypoint) return false
   return import.meta.url === pathToFileURL(resolve(entrypoint)).href
 }
 
-export function main() {
+export function main(): void {
   const violations = runEnvPlaceholderGuard()
   const lines = formatEnvPlaceholderViolations(violations)
 

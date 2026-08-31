@@ -3,7 +3,7 @@
 ## Tracked template
 
 - **`.env.example`** — must exist; values must be empty or obvious placeholders.
-- Guard: `scripts/guards/env-placeholder.mjs` (part of guard pack).
+- Guard: `scripts/guards/env-placeholder.ts` (part of guard pack).
 
 Current starter example:
 

@@ -3,7 +3,7 @@ import { resolve } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import * as guard from '../../scripts/guards/toolchain-contract.mjs'
+import * as guard from '../../scripts/guards/toolchain-contract.ts'
 
 describe('toolchain contract', () => {
   it('keeps the owned destination authoritative after root facade removal', () => {
@@ -30,7 +30,7 @@ describe('toolchain contract', () => {
     expect(contract.compiler.harnessRoots).toContain('scripts/context/**/*.ts')
     expect(contract.compiler.harnessRoots).toContain('scripts/guards/legacy-managed-state.ts')
     expect(JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf8')).scripts.typecheck)
-      .toBe('node scripts/bemoat-typecheck.mjs')
+      .toBe('node scripts/bemoat-typecheck.ts')
     expect(mod.scanToolchainContract()).toEqual([])
   })
 
@@ -189,7 +189,7 @@ describe('toolchain contract', () => {
     writeFileSync(resolve(sourceRoot, '.bemoat/toolchain-contract.json'), readFileSync(resolve(process.cwd(), '.bemoat/toolchain-contract.json')))
     writeFileSync(resolve(targetRoot, 'package.json'), JSON.stringify({
       devDependencies: { typescript: '6.0.3' },
-      scripts: { 'bemoat:typecheck': 'node scripts/bemoat-typecheck.mjs' },
+      scripts: { 'bemoat:typecheck': 'node scripts/bemoat-typecheck.ts' },
     }))
     writeFileSync(resolve(targetRoot, 'tsconfig.json'), `{
   // child-shaped path alias fixture
@@ -219,7 +219,7 @@ describe('toolchain contract', () => {
     writeFileSync(resolve(sourceRoot, '.bemoat/toolchain-contract.json'), readFileSync(resolve(process.cwd(), '.bemoat/toolchain-contract.json')))
     writeFileSync(resolve(targetRoot, 'package.json'), JSON.stringify({
       devDependencies: { typescript: '5.8.0' },
-      scripts: { 'bemoat:typecheck': 'node scripts/bemoat-typecheck.mjs' },
+      scripts: { 'bemoat:typecheck': 'node scripts/bemoat-typecheck.ts' },
     }))
     writeFileSync(resolve(targetRoot, 'tsconfig.json'), `{
   "compilerOptions": {

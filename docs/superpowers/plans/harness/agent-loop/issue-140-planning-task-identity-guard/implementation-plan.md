@@ -20,7 +20,7 @@ paired_plan: "docs/superpowers/plans/harness/agent-loop/issue-140-planning-task-
 
 **Goal:** Add deterministic planning task-identity and execution-base validation across Bemoat specification (`design.md`) and implementation-plan (`implementation-plan.md`) packages, preventing closed-issue reuse (`#169`), issue/branch mismatches, and unconditional planning-SHA branch creation without relying on heuristic interpretation of arbitrary Markdown.
 
-**Architecture:** We introduce a canonical YAML marker block (`<!-- bemoat-task-identity:start --> ... <!-- bemoat-task-identity:end -->`) per planning document (`paired_spec` and `paired_plan`). A new core validator (`scripts/guard-planning-contract.mjs`) parses and statically validates these blocks across paired documents for consistency (`PLAN001`–`PLAN007`), integrating directly into `GUARD_PACK` (`scripts/guard-pack.mjs`) and `scripts/agent-issue.mjs` preflight. When `gh` CLI access is available, `verifyLiveTaskIdentity` verifies active issue existence, open status, `task_key` alignment, and managed state compatibility (`PLAN008`–`PLAN010`), gracefully degrading when offline while maintaining full compatibility with `FAST`, `STANDARD`, and `MANAGED` profiles.
+**Architecture:** We introduce a canonical YAML marker block (`<!-- bemoat-task-identity:start --> ... <!-- bemoat-task-identity:end -->`) per planning document (`paired_spec` and `paired_plan`). A new core validator (`scripts/guard-planning-contract.mjs`) parses and statically validates these blocks across paired documents for consistency (`PLAN001`–`PLAN007`), integrating directly into `GUARD_PACK` (`scripts/guard-pack.ts`) and `scripts/agent-issue.mjs` preflight. When `gh` CLI access is available, `verifyLiveTaskIdentity` verifies active issue existence, open status, `task_key` alignment, and managed state compatibility (`PLAN008`–`PLAN010`), gracefully degrading when offline while maintaining full compatibility with `FAST`, `STANDARD`, and `MANAGED` profiles.
 
 **Tech Stack:** Node.js (ES modules `.mjs`), TypeScript (`vitest` for integration/acceptance testing), GitHub CLI (`gh`).
 
@@ -45,7 +45,7 @@ paired_plan: "docs/superpowers/plans/harness/agent-loop/issue-140-planning-task-
 | File Path | Action | Responsibility |
 | --- | --- | --- |
 | `scripts/guard-planning-contract.mjs` | Create | Core parser (`parseTaskIdentityBlock`), static validator (`runPlanningContractGuard`), and live GitHub preflight verifier (`verifyLiveTaskIdentity`) emitting diagnostic codes `PLAN001`–`PLAN010`. |
-| `scripts/guard-pack.mjs` | Modify | Import and register `planning-contract` guard (`id: 'planning-contract'`) inside `GUARD_PACK` so `pnpm run guard:safety` scans modified/staged planning documents. |
+| `scripts/guard-pack.ts` | Modify | Import and register `planning-contract` guard (`id: 'planning-contract'`) inside `GUARD_PACK` so `pnpm run guard:safety` scans modified/staged planning documents. |
 | `scripts/agent-issue.mjs` | Modify | Import `parseTaskIdentityBlock`, `runPlanningContractGuard`, and `verifyLiveTaskIdentity` from `./guard-planning-contract.mjs`; invoke them in `analyzeProgressTracking` to block launch on contract violations or closed/invalid active task issues (`#169`). |
 | `.bemoat/boilerplate-sync-manifest.json` | Modify | Add `scripts/guard-planning-contract.mjs` to `managedPaths` so child projects receive the guard on `pnpm run bemoat:boilerplate:sync -- --harness-only`. |
 | `tests/fixtures/planning/valid-existing-issue.md` | Create | Valid planning fixture (`schema_version: 1`, `task_issue_strategy: existing_dedicated_issue`, `active_task_issue: "#140"`). |
@@ -239,15 +239,15 @@ git commit -m "feat(harness): add live GitHub task-identity verification and off
 
 ---
 
-### Task 3: Integration into Central Guard Pack (`scripts/guard-pack.mjs` & integration tests)
+### Task 3: Integration into Central Guard Pack (`scripts/guard-pack.ts` & integration tests)
 
 **Files:**
-- Modify: `scripts/guard-pack.mjs`
+- Modify: `scripts/guard-pack.ts`
 - Modify: `tests/int/guard-pack.int.spec.ts`
 
 **Interfaces:**
 - Consumes: `runPlanningContractGuard`, `formatPlanningContractViolations` (`Task 1`)
-- Produces: `planning-contract` entry inside `GUARD_PACK` (`scripts/guard-pack.mjs`).
+- Produces: `planning-contract` entry inside `GUARD_PACK` (`scripts/guard-pack.ts`).
 
 - [ ] **Step 1: Write failing test in `tests/int/guard-pack.int.spec.ts`**
 
@@ -258,7 +258,7 @@ In `tests/int/guard-pack.int.spec.ts`, assert `runGuardPack()` includes entry `{
 Run: `pnpm vitest run tests/int/guard-pack.int.spec.ts`
 Expected: FAIL (`expected GUARD_PACK to contain guard with id 'planning-contract'`).
 
-- [ ] **Step 3: Modify `scripts/guard-pack.mjs`**
+- [ ] **Step 3: Modify `scripts/guard-pack.ts`**
 
 Import `formatPlanningContractViolations`, `runPlanningContractGuard` from `./guard-planning-contract.mjs`. Add entry to `GUARD_PACK`:
 ```javascript
@@ -278,7 +278,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add scripts/guard-pack.mjs tests/int/guard-pack.int.spec.ts
+git add scripts/guard-pack.ts tests/int/guard-pack.int.spec.ts
 git commit -m "feat(harness): register planning-contract in central guard pack"
 ```
 

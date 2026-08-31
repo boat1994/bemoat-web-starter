@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 
 import { describe, expect, it } from 'vitest'
 
-import { buildScriptImportGraph } from '../../scripts/guards/scripts-architecture.mjs'
+import { buildScriptImportGraph } from '../../scripts/guards/scripts-architecture.ts'
 import {
   readGithubEvidence,
   readLocalGitEvidence,
@@ -288,8 +288,8 @@ describe('bounded context corrections', () => {
     expect(malformedPr.errors.join(' ')).toMatch(/PR|identity/i)
 
     const graph = buildScriptImportGraph(process.cwd())
-    const directImports = [...(graph.get('scripts/agent-context.mjs') ?? [])]
+    const directImports = [...(graph.get('scripts/agent-context.ts') ?? [])]
     expect(directImports.some((path) => path.startsWith('scripts/mission-control/') || path.startsWith('scripts/cli/'))).toBe(false)
-    expect(readFileSync('scripts/agent-context.mjs', 'utf8')).not.toMatch(/command-contract|mission-control-command|routing-policy|transport-registry/)
+    expect(readFileSync('scripts/agent-context.ts', 'utf8')).not.toMatch(/command-contract|mission-control-command|routing-policy|transport-registry/)
   })
 })

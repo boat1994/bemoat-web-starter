@@ -115,7 +115,7 @@ describe('legacy managed-state planning boundary', () => {
       .filter((edge) => edge.target === canonicalDomainPath)
       .map((edge) => relative(process.cwd(), edge.importer).split('\\').join('/'))
       .sort()
-    expect(parserConsumers).toEqual(['scripts/guards/planning-contract-runtime.mjs'])
+    expect(parserConsumers).toEqual(['scripts/guards/planning-contract-runtime.ts'])
 
     const parserEdges = collectProductionImportEdges().filter(
       (edge) => edge.target === canonicalDomainPath,
@@ -123,7 +123,7 @@ describe('legacy managed-state planning boundary', () => {
     expect(parserEdges).toHaveLength(1)
     expect(parserEdges[0]?.specifier).toBe('./legacy-managed-state.ts')
 
-    const planningRuntime = resolve(process.cwd(), 'scripts/guards/planning-contract-runtime.mjs')
+    const planningRuntime = resolve(process.cwd(), 'scripts/guards/planning-contract-runtime.ts')
     const planningSource = ts.createSourceFile(
       planningRuntime,
       readFileSync(planningRuntime, 'utf8'),

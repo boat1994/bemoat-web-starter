@@ -132,8 +132,8 @@ consumer remaining.
 ### Task 3: Port guards and typecheck dependency cluster
 
 **Files:**
-- Rename to `.ts`: `scripts/bemoat-typecheck.mjs`
-- Rename to `.ts`: `scripts/guard-cloudflare-env.mjs`, `scripts/guard-harness-contract.mjs`, `scripts/guard-pack.mjs`
+- Rename to `.ts`: `scripts/bemoat-typecheck.ts`
+- Rename to `.ts`: `scripts/guard-cloudflare-env.ts`, `scripts/guard-harness-contract.ts`, `scripts/guard-pack.ts`
 - Rename to `.ts`: all retained `scripts/guards/*.mjs`
 - Modify: `scripts/architecture-contract.json`
 - Modify: `scripts/structural-protection-manifest.json`

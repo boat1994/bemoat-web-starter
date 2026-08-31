@@ -176,7 +176,7 @@ describe('boilerplate sync managed paths', () => {
     const mod = await import('../../scripts/sync-boilerplate.mjs')
 
     const planningContractPaths = [
-      'scripts/guards/planning-contract-runtime.mjs',
+      'scripts/guards/planning-contract-runtime.ts',
       'tests/fixtures/planning',
       'tests/int/guard-planning-contract.int.spec.ts',
       'tests/int/guard-planning-contract-child-dev-base.int.spec.ts',
@@ -209,12 +209,12 @@ describe('boilerplate sync managed paths', () => {
       'prompts/mission-control/chatgpt-project-loader.md',
       'docs/cloudflare-environments.md',
       'docs/boilerplate-sync-command.md',
-      'scripts/guards/repo-safety.mjs',
-      'scripts/guards/build-script-contract.mjs',
+      'scripts/guards/repo-safety.ts',
+      'scripts/guards/build-script-contract.ts',
       'scripts/build.mjs',
-      'scripts/guard-cloudflare-env.mjs',
-      'scripts/guards/toolchain-contract.mjs',
-      'scripts/bemoat-typecheck.mjs',
+      'scripts/guard-cloudflare-env.ts',
+      'scripts/guards/toolchain-contract.ts',
+      'scripts/bemoat-typecheck.ts',
       'tsconfig.harness-strict.json',
       '.bemoat/toolchain-contract.json',
       'scripts/check-branch-safety.sh',
@@ -1204,7 +1204,7 @@ describe('boilerplate sync copy behavior', () => {
     const mod = await import('../../scripts/sync-boilerplate.mjs')
 
     expect(() => mod.assertExactManagedPackageScripts(
-      { scripts: { 'bemoat:typecheck': 'node scripts/bemoat-typecheck.mjs' } },
+      { scripts: { 'bemoat:typecheck': 'node scripts/bemoat-typecheck.ts' } },
       { scripts: { 'bemoat:typecheck': 'echo bypassed' } },
     )).toThrow('bemoat:typecheck')
   })
@@ -1217,7 +1217,7 @@ describe('boilerplate sync copy behavior', () => {
     rmSync(fixtureRoot, { recursive: true, force: true })
     mkdirSync(sourceRoot, { recursive: true })
     mkdirSync(targetRoot, { recursive: true })
-    writeFileSync(join(sourceRoot, 'package.json'), JSON.stringify({ scripts: { 'bemoat:typecheck': 'node scripts/bemoat-typecheck.mjs' } }))
+    writeFileSync(join(sourceRoot, 'package.json'), JSON.stringify({ scripts: { 'bemoat:typecheck': 'node scripts/bemoat-typecheck.ts' } }))
     writeFileSync(join(targetRoot, 'package.json'), JSON.stringify({ scripts: { 'bemoat:typecheck': 'echo bypassed' } }))
 
     expect(() => mod.syncPackageManifest({ sourceRootPath: sourceRoot, targetRootPath: targetRoot })).toThrow('bemoat:typecheck')
@@ -1661,7 +1661,7 @@ function seedManagedRuntimeClosureSource(sourceRoot: string) {
 const ISSUE_182_ALLOWLISTED_FILES = [
   'scripts/sync-boilerplate.mjs',
   '.bemoat/boilerplate-sync-manifest.json',
-  'scripts/guard-harness-contract.mjs',
+  'scripts/guard-harness-contract.ts',
   'tests/int/harness-contract-guard.int.spec.ts',
   'tests/int/boilerplate-sync.int.spec.ts',
 ] as const
@@ -1753,7 +1753,7 @@ describe('issue #328 CommandRunner root closeout', () => {
     const tempRoot = mkdtempSync(join(tmpdir(), 'bemoat-224-command-runner-'))
     const sourceRoot = join(tempRoot, 'source')
     const childRoot = join(tempRoot, 'child')
-    const adapterRelativePath = 'scripts/adapters/command-runner.mjs'
+    const adapterRelativePath = 'scripts/adapters/command-runner.ts'
     const childOwnedRelativePath = 'src/features/finance/child-owned-sentinel.ts'
 
     try {
@@ -1776,7 +1776,7 @@ describe('issue #328 CommandRunner root closeout', () => {
       )
       rmSync(join(childRoot, adapterRelativePath), { force: true })
       expect(existsSync(join(childRoot, adapterRelativePath))).toBe(false)
-      expect(existsSync(join(childRoot, 'scripts/command-runner.mjs'))).toBe(false)
+      expect(existsSync(join(childRoot, 'scripts/command-runner.ts'))).toBe(false)
 
       mkdirSync(join(childRoot, dirname(childOwnedRelativePath)), { recursive: true })
       writeFileSync(join(childRoot, childOwnedRelativePath), `CHILD_OWNED:${childOwnedRelativePath}\n`)
@@ -1794,7 +1794,7 @@ describe('issue #328 CommandRunner root closeout', () => {
       })
 
       expect(result.seededFiles).toEqual([])
-      expect(existsSync(join(childRoot, 'scripts/command-runner.mjs'))).toBe(false)
+      expect(existsSync(join(childRoot, 'scripts/command-runner.ts'))).toBe(false)
       expect(existsSync(join(childRoot, adapterRelativePath))).toBe(true)
 
       execFileSync(
@@ -1802,7 +1802,7 @@ describe('issue #328 CommandRunner root closeout', () => {
         [
           '--input-type=module',
           '-e',
-          "import('./scripts/adapters/command-runner.mjs').then((m) => { if (typeof m.runCommand !== 'function') throw new Error('missing adapter export') })",
+          "import('./scripts/adapters/command-runner.ts').then((m) => { if (typeof m.runCommand !== 'function') throw new Error('missing adapter export') })",
         ],
         { cwd: childRoot, stdio: 'pipe' },
       )
@@ -2041,7 +2041,7 @@ describe('issue #220 representative managed child-sync trailing whitespace regre
 describe('issue #240 slice 2 harness-contract facade child portability', () => {
   it('delivers harness-contract modules via temp-dir harness-only simulation without real child sync', async () => {
     const syncMod = await import('../../scripts/sync-boilerplate.mjs')
-    const guardMod = await import('../../scripts/guard-harness-contract.mjs')
+    const guardMod = await import('../../scripts/guard-harness-contract.ts')
     const repoRoot = process.cwd()
     const tempRoot = mkdtempSync(join(tmpdir(), 'bemoat-240-slice2-portability-'))
     const sourceRoot = join(tempRoot, 'source')
@@ -2075,25 +2075,25 @@ describe('issue #240 slice 2 harness-contract facade child portability', () => {
       })
 
       expect(result.seededFiles).toEqual([])
-      expect(existsSync(join(childRoot, 'scripts/guard-harness-contract.mjs'))).toBe(true)
+      expect(existsSync(join(childRoot, 'scripts/guard-harness-contract.ts'))).toBe(true)
       expect(
         JSON.parse(readFileSync(join(childRoot, 'package.json'), 'utf8')).dependencies.zod,
       ).toBe('4.4.3')
-      expect(existsSync(join(childRoot, 'scripts/harness-contract/child-script-policy.mjs'))).toBe(
+      expect(existsSync(join(childRoot, 'scripts/harness-contract/child-script-policy.ts'))).toBe(
         true,
       )
-      expect(existsSync(join(childRoot, 'scripts/harness-contract/runtime-import-parser.mjs'))).toBe(
+      expect(existsSync(join(childRoot, 'scripts/harness-contract/runtime-import-parser.ts'))).toBe(
         true,
       )
       expect(
-        existsSync(join(childRoot, 'scripts/harness-contract/managed-runtime-closure.mjs')),
+        existsSync(join(childRoot, 'scripts/harness-contract/managed-runtime-closure.ts')),
       ).toBe(true)
-      expect(existsSync(join(childRoot, 'scripts/harness-contract/manifest.mjs'))).toBe(true)
+      expect(existsSync(join(childRoot, 'scripts/harness-contract/manifest.ts'))).toBe(true)
       expect(
         existsSync(join(childRoot, 'tests/int/harness-contract/facade-exports.int.spec.ts')),
       ).toBe(true)
 
-      const guardResult = execFileSync(process.execPath, ['scripts/guard-harness-contract.mjs'], {
+      const guardResult = execFileSync(process.execPath, ['scripts/guard-harness-contract.ts'], {
         cwd: childRoot,
         encoding: 'utf8',
       })

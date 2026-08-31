@@ -4,12 +4,12 @@ import { join, resolve } from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
 
-import { createHelpEnvelopeV1, formatTextHelp } from './cli/command-help.mjs'
+import { createHelpEnvelopeV1, formatTextHelp } from './cli/command-help.ts'
 import {
   CliInvocationError,
   parseCommandInvocation,
   resolveCommandIdentity,
-} from './cli/command-invocation.mjs'
+} from './cli/command-invocation.ts'
 import { parseSyncMode, SYNC_MODES } from './sync-boilerplate.mjs'
 import {
   compareBoilerplateDrift,

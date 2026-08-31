@@ -4,23 +4,23 @@ import {
   compareFileSystemSnapshots,
   runCliBoundaryCase,
 } from '../helpers/cli-boundary-harness'
-import { getCommandContract } from '../../scripts/cli/command-contract.mjs'
+import { getCommandContract } from '../../scripts/cli/command-contract.ts'
 import {
   CliInvocationError,
   parseCommandInvocation,
   resolveCommandIdentity,
-} from '../../scripts/cli/command-invocation.mjs'
+} from '../../scripts/cli/command-invocation.ts'
 import {
   createHelpEnvelopeV1,
   formatTextHelp,
-} from '../../scripts/cli/command-help.mjs'
+} from '../../scripts/cli/command-help.ts'
 import {
   CLI_EXIT_CODES,
   assertResultEnvelopeV1,
   classificationExitCode,
   classifyDelegatedFailure,
   createResultEnvelopeV1,
-} from '../../scripts/cli/command-result.mjs'
+} from '../../scripts/cli/command-result.ts'
 
 type JsonRecord = Record<string, unknown>
 
@@ -86,7 +86,7 @@ function runHelpCli(
   env: Record<string, string | undefined> = {},
 ) {
   return runCliBoundaryCase({
-    entrypoint: 'scripts/cli/command-help.mjs',
+    entrypoint: 'scripts/cli/command-help.ts',
     argv,
     env,
   })
@@ -413,12 +413,12 @@ describe('CLI envelope runtime characterization', () => {
       expect(resolveCommandIdentity({
         fallback: PACK,
         env: { npm_lifecycle_event: '' },
-        entrypoint: 'scripts/guard-pack.mjs',
+        entrypoint: 'scripts/guard-pack.ts',
       })).toBe(PACK)
       expect(resolveCommandIdentity({
         fallback: PACK,
         env: {},
-        entrypoint: 'scripts/guard-pack.mjs',
+        entrypoint: 'scripts/guard-pack.ts',
       })).toBe(PACK)
     })
 
@@ -436,7 +436,7 @@ describe('CLI envelope runtime characterization', () => {
         expectThrown(() => resolveCommandIdentity({
           fallback: PACK,
           env: { npm_lifecycle_event: 1 as unknown as string },
-          entrypoint: 'scripts/guard-pack.mjs',
+          entrypoint: 'scripts/guard-pack.ts',
         })),
         null,
         'npm_lifecycle_event must be a registered command',

@@ -3,7 +3,7 @@ import { resolve } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { COMMAND_CONTRACT_REGISTRY } from '../../scripts/cli/command-contract-registry.mjs'
+import { COMMAND_CONTRACT_REGISTRY } from '../../scripts/cli/command-contract-registry.ts'
 
 const ROOT = process.cwd()
 const read = (path: string) => readFileSync(resolve(ROOT, path), 'utf8')

@@ -69,9 +69,23 @@ function strictHandoff(overrides: Partial<HandoffRecord> = {}) {
 }
 
 describe('bounded stale-base synchronization', () => {
+  it('characterizes the future TypeScript sync-base boundary as fail-closed without mutation', () => {
+    const result = runCliBoundaryCase({
+      entrypoint: 'scripts/agent-context-sync-base.ts',
+      argv: ['427', '--json'],
+      env: { BEMOAT_FACADE_COMMAND: 'bemoat:context:sync-base', BEMOAT_FACADE_ENTRYPOINT: 'scripts/agent-context-sync-base.ts', npm_lifecycle_event: 'bemoat:context:sync-base' },
+    })
+
+    expect(result.error).toBeNull()
+    expect(result.status).toBe(3)
+    expect(JSON.parse(result.stdout)).toMatchObject({ classification: 'EVIDENCE_CONFLICT', mutation_performed: false })
+    expect(result.stderr).toBe('')
+    expect(result.filesystem_unchanged).toBe(false)
+  })
+
   it('exposes registered mutation-free JSON help without invoking Git', () => {
     const result = runCliBoundaryCase({
-      entrypoint: 'scripts/agent-context-sync-base.mjs',
+      entrypoint: 'scripts/agent-context-sync-base.ts',
       argv: ['--help', '--json'],
     })
     expect(result.status).toBe(0)
@@ -90,7 +104,7 @@ describe('bounded stale-base synchronization', () => {
 
   it('fails closed through the public CLI without mutation when synchronization evidence is unavailable', () => {
     const result = runCliBoundaryCase({
-      entrypoint: 'scripts/agent-context-sync-base.mjs',
+      entrypoint: 'scripts/agent-context-sync-base.ts',
       argv: ['427', '--json'],
     })
     const output = JSON.parse(result.stdout)
@@ -114,7 +128,7 @@ describe('bounded stale-base synchronization', () => {
 
   it('rejects a relative explicit target through the public CLI before invoking Git', () => {
     const result = runCliBoundaryCase({
-      entrypoint: 'scripts/agent-context-sync-base.mjs',
+      entrypoint: 'scripts/agent-context-sync-base.ts',
       argv: ['427', '--target-worktree', 'relative-target', '--json'],
     })
     const output = JSON.parse(result.stdout)
@@ -130,7 +144,7 @@ describe('bounded stale-base synchronization', () => {
 
   it('rejects duplicate explicit targets through the public CLI before invoking Git', () => {
     const result = runCliBoundaryCase({
-      entrypoint: 'scripts/agent-context-sync-base.mjs',
+      entrypoint: 'scripts/agent-context-sync-base.ts',
       argv: ['427', '--target-worktree', '/first', '--target-worktree', '/second', '--json'],
     })
 

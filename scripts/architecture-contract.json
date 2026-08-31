@@ -4,32 +4,32 @@
   "adapters": {},
   "rootScripts": [
     {
-      "path": "scripts/agent-context-sync-base.mjs",
+      "path": "scripts/agent-context-sync-base.ts",
       "facade_disposition": "composition_root",
       "internal_destination": "scripts/context/",
       "owning_slice": 7,
       "migration_status": "migrated"
     },
     {
-      "path": "scripts/agent-context.mjs",
+      "path": "scripts/agent-context.ts",
       "facade_disposition": "composition_root",
       "internal_destination": "scripts/context/",
       "owning_slice": 7,
       "migration_status": "migrated"
     },
     {
-      "path": "scripts/agent-handoff.mjs",
+      "path": "scripts/agent-handoff.ts",
       "facade_disposition": "composition_root",
       "internal_destination": "scripts/handoff/",
       "owning_slice": 7,
       "migration_status": "migrated"
     },
     {
-      "path": "scripts/bemoat-typecheck.mjs",
+      "path": "scripts/bemoat-typecheck.ts",
       "facade_disposition": "tooling_entrypoint",
-      "internal_destination": "scripts/tooling/bemoat-typecheck.mjs",
+      "internal_destination": "scripts/tooling/bemoat-typecheck.ts",
       "owning_slice": 7,
-      "migration_status": "retained"
+      "migration_status": "migrated"
     },
     {
       "path": "scripts/build.mjs",
@@ -60,23 +60,23 @@
       "migration_status": "retained"
     },
     {
-      "path": "scripts/guard-cloudflare-env.mjs",
+      "path": "scripts/guard-cloudflare-env.ts",
       "facade_disposition": "stable_facade",
-      "internal_destination": "scripts/guards/cloudflare-env.mjs",
+      "internal_destination": "scripts/guards/cloudflare-env.ts",
       "owning_slice": 7,
       "migration_status": "migrated"
     },
     {
-      "path": "scripts/guard-harness-contract.mjs",
+      "path": "scripts/guard-harness-contract.ts",
       "facade_disposition": "stable_facade",
-      "internal_destination": "scripts/guards/harness-contract.mjs",
+      "internal_destination": "scripts/guards/harness-contract.ts",
       "owning_slice": 2,
       "migration_status": "transitional"
     },
     {
-      "path": "scripts/guard-pack.mjs",
+      "path": "scripts/guard-pack.ts",
       "facade_disposition": "composition_root",
-      "internal_destination": "scripts/guards/pack.mjs",
+      "internal_destination": "scripts/guards/pack.ts",
       "owning_slice": 7,
       "migration_status": "migrated"
     },

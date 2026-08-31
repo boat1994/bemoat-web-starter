@@ -2,25 +2,26 @@
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import { createHelpEnvelopeV1, formatTextHelp } from './cli/command-help.mjs'
+import { createHelpEnvelopeV1, formatTextHelp } from './cli/command-help.ts'
 import {
   CliInvocationError,
   parseCommandInvocation,
   resolveCommandIdentity,
-} from './cli/command-invocation.mjs'
+  type ParsedInvocation,
+} from './cli/command-invocation.ts'
 import {
   formatHarnessContractViolations,
   runHarnessContractGuard,
-} from './guard-harness-contract.mjs'
+} from './guard-harness-contract.ts'
 import {
   GUARD_PACK,
   flattenGuardPackViolations,
   formatGuardPackResults,
   getGuardPackExitCode,
   runGuardPack,
-} from './guards/pack.mjs'
+} from './guards/pack.ts'
 
-function assertHarnessContractGuardIdentity() {
+function assertHarnessContractGuardIdentity(): void {
   const harnessContractGuard = GUARD_PACK.find((guard) => guard.id === 'harness-contract')
 
   if (
@@ -42,13 +43,13 @@ export {
   runGuardPack,
 }
 
-export function isDirectExecution() {
+export function isDirectExecution(): boolean {
   const entrypoint = process.argv[1]
   if (!entrypoint) return false
   return import.meta.url === pathToFileURL(resolve(entrypoint)).href
 }
 
-function renderHelp(invocation) {
+function renderHelp(invocation: ParsedInvocation): void {
   if (invocation.format === 'json') {
     process.stdout.write(`${JSON.stringify(createHelpEnvelopeV1(invocation.contract))}\n`)
     return
@@ -57,7 +58,7 @@ function renderHelp(invocation) {
   process.stdout.write(formatTextHelp(invocation.contract))
 }
 
-function handleInvocationError(error) {
+function handleInvocationError(error: unknown): boolean {
   if (!(error instanceof CliInvocationError)) return false
 
   process.stderr.write(`INVALID_INVOCATION: ${error.details.reason}\n`)
@@ -65,30 +66,31 @@ function handleInvocationError(error) {
   return true
 }
 
-function resolveGuardPackCommand() {
-  const lifecycleAliases = {
+function resolveGuardPackCommand(): string {
+  const lifecycleAliases: Record<string, string> = {
     'guard:pack': 'bemoat:guard:pack',
     'guard:safety': 'bemoat:guard:safety',
   }
   const lifecycleEvent = process.env.npm_lifecycle_event
-  const fallback = lifecycleAliases[lifecycleEvent] ?? 'bemoat:guard:pack'
+  const lifecycleAlias = lifecycleEvent ? lifecycleAliases[lifecycleEvent] : undefined
+  const fallback = lifecycleAlias ?? 'bemoat:guard:pack'
   const isUnrelatedLifecycle =
     lifecycleEvent &&
     !lifecycleEvent.startsWith('bemoat:') &&
-    !lifecycleAliases[lifecycleEvent]
-  const env = lifecycleAliases[lifecycleEvent] || isUnrelatedLifecycle
+    !lifecycleAlias
+  const env = lifecycleAlias || isUnrelatedLifecycle
     ? { ...process.env, npm_lifecycle_event: undefined }
     : process.env
 
   return resolveCommandIdentity({
     fallback,
     env,
-    entrypoint: 'scripts/guard-pack.mjs',
+    entrypoint: 'scripts/guard-pack.ts',
   })
 }
 
-function main() {
-  let invocation
+function main(): void {
+  let invocation: ParsedInvocation
 
   try {
     const command = resolveGuardPackCommand()

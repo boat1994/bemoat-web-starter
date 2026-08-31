@@ -10,7 +10,7 @@ Reviewers: GPT-5.5 or human with migration/security context.
 
 **Protects against:** Secret leaks, destructive migrations, child CI calling raw scripts, package-manager drift, env placeholder mistakes, Cloudflare prod/dev binding mix-ups, missing frontend SEO metadata.
 
-**Regressions caught:** `tests/int/guard-pack.int.spec.ts`, harness-contract fixtures, existing repo-safety and cloudflare-env int specs. Child path: `bemoat:guard:safety` → `scripts/guard-pack.mjs`.
+**Regressions caught:** `tests/int/guard-pack.int.spec.ts`, harness-contract fixtures, existing repo-safety and cloudflare-env int specs. Child path: `bemoat:guard:safety` → `scripts/guard-pack.ts`.
 
 **Does not cover:**
 

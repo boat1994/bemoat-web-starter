@@ -16,7 +16,7 @@
   "protected_oracle": {
     "algorithm": "sha256",
     "files": [
-      { "path": "tests/int/stateless-public-contract.int.spec.ts", "sha256": "ddcf4b2b69cf3070a7cc2b4533f27f7ab1e48a9c4679f12fa20361aeb0fa51c3" }
+      { "path": "tests/int/stateless-public-contract.int.spec.ts", "sha256": "85464f7dc4b16c3d7684cf822bcfc454735949f0da78aea3b9734caf6e179340" }
     ]
   }
 }

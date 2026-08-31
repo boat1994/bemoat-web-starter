@@ -7,7 +7,7 @@ export function contextSyncCommands(dependencies: CommandMetadataDependencies) {
     'bemoat:context:sync-base': contract({
       command: 'bemoat:context:sync-base',
       tier: 'A',
-      entrypoint: 'scripts/agent-context-sync-base.mjs',
+      entrypoint: 'scripts/agent-context-sync-base.ts',
       purpose: 'Perform one bounded protected-main synchronization into the same stale active PR branch, optionally from an exact protected-main command checkout into one explicit target worktree.',
       operation: 'Resolve canonical source and target roots, validate protected-main command identity plus live target Issue/PR/base/head/scope, ancestry, and clean durable state, then fetch/merge/push/read back only in the target.',
       accepted_pre_states: ['Active PR with stale protected base and otherwise-valid continuation.'],
@@ -57,7 +57,7 @@ export function contextSyncCommands(dependencies: CommandMetadataDependencies) {
         { description: 'Synchronize an otherwise-valid stale active PR base.', argv: ['427', '--json'] },
         { description: 'Run the protected-main command against one explicit stale PR worktree.', argv: ['410', '--target-worktree', '/absolute/path/to/stale-pr', '--json'] },
       ],
-      parser_owner: 'scripts/agent-context-sync-base.mjs',
+      parser_owner: 'scripts/agent-context-sync-base.ts',
       safe_help_invocation: 'pnpm run bemoat:context:sync-base -- --help --json',
       last_validation_before_mutation: 'Re-read explicit source root/HEAD/status/origin, target clean status/branch/HEAD, protected-base ref, and PR branch ref immediately before target merge.',
       post_write_readback: 'Confirm clean branch and remote exact head; CI and semantic review must rerun.',

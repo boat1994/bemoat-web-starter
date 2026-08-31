@@ -2,7 +2,7 @@
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import { main } from './guards/cloudflare-env.mjs'
+import { main } from './guards/cloudflare-env.ts'
 
 export {
   PRODUCTION_ENV_ERROR,
@@ -16,9 +16,9 @@ export {
   runCloudflareDeployGuard,
   scanWranglerEnvironmentIsolation,
   stripJsoncComments,
-} from './guards/cloudflare-env.mjs'
+} from './guards/cloudflare-env.ts'
 
-export function isDirectExecution() {
+export function isDirectExecution(): boolean {
   const entrypoint = process.argv[1]
   if (!entrypoint) return false
   return import.meta.url === pathToFileURL(resolve(entrypoint)).href

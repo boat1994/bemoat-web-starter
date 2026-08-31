@@ -3,18 +3,20 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import { createHelpEnvelopeV1, formatTextHelp } from '../cli/command-help.mjs'
+import { createHelpEnvelopeV1, formatTextHelp } from '../cli/command-help.ts'
 import {
   CliInvocationError,
   parseCommandInvocation,
   resolveCommandIdentity,
-} from '../cli/command-invocation.mjs'
+  type ParsedInvocation,
+} from '../cli/command-invocation.ts'
+import type { GuardViolation, ReadTextFile, WranglerBinding, WranglerConfig } from './types.ts'
 
 export const PRODUCTION_ENV_ERROR =
   'Do not use CLOUDFLARE_ENV=production. Production deploy uses top-level wrangler.jsonc without --env. Run `pnpm run deploy` instead.'
 
 /** Placeholder D1 IDs in starter templates — not compared for prod/dev isolation. */
-export function isWranglerPlaceholderId(value) {
+export function isWranglerPlaceholderId(value: string | null | undefined): boolean {
   if (!value) return true
   const normalized = value.trim()
   if (/^(?:DEV_)?DATABASE_ID$/i.test(normalized)) return true
@@ -23,25 +25,25 @@ export function isWranglerPlaceholderId(value) {
   return false
 }
 
-export function stripJsoncComments(content) {
+export function stripJsoncComments(content: string): string {
   return content
     .replace(/\/\*[\s\S]*?\*\//g, '')
     .replace(/^\s*\/\/.*$/gm, '')
     .replace(/,\s*([}\]])/g, '$1')
 }
 
-export function parseWranglerJsonc(content) {
-  return JSON.parse(stripJsoncComments(content))
+export function parseWranglerJsonc(content: string): WranglerConfig {
+  return JSON.parse(stripJsoncComments(content)) as WranglerConfig
 }
 
-export function collectD1DatabaseIds(d1Databases = []) {
+export function collectD1DatabaseIds(d1Databases: WranglerBinding[] = []): string[] {
   return d1Databases
     .map((entry) => entry?.database_id)
-    .filter((id) => typeof id === 'string' && id.length > 0)
+    .filter((id): id is string => typeof id === 'string' && id.length > 0)
 }
 
-export function collectR2BucketNames(r2Buckets = []) {
-  const names = new Set()
+export function collectR2BucketNames(r2Buckets: WranglerBinding[] = []): Set<string> {
+  const names = new Set<string>()
 
   for (const entry of r2Buckets) {
     if (typeof entry?.bucket_name === 'string' && entry.bucket_name.length > 0) {
@@ -55,7 +57,7 @@ export function collectR2BucketNames(r2Buckets = []) {
   return names
 }
 
-export function assertCloudflareEnvNotProduction(cloudflareEnv = process.env.CLOUDFLARE_ENV) {
+export function assertCloudflareEnvNotProduction(cloudflareEnv = process.env.CLOUDFLARE_ENV): GuardViolation[] {
   if (cloudflareEnv === 'production') {
     return [
       {
@@ -70,10 +72,10 @@ export function assertCloudflareEnvNotProduction(cloudflareEnv = process.env.CLO
   return []
 }
 
-export function scanWranglerEnvironmentIsolation(content, file = 'wrangler.jsonc') {
-  const violations = []
+export function scanWranglerEnvironmentIsolation(content: string, file = 'wrangler.jsonc'): GuardViolation[] {
+  const violations: GuardViolation[] = []
 
-  let config
+  let config: WranglerConfig
   try {
     config = parseWranglerJsonc(content)
   } catch (error) {
@@ -136,8 +138,12 @@ export function scanWranglerEnvironmentIsolation(content, file = 'wrangler.jsonc
 export function runCloudflareDeployGuard({
   root = process.cwd(),
   cloudflareEnv = process.env.CLOUDFLARE_ENV,
-  readFile = (filePath) => readFileSync(filePath, 'utf8'),
-} = {}) {
+  readFile = (filePath: string) => readFileSync(filePath, 'utf8'),
+}: {
+  root?: string
+  cloudflareEnv?: string
+  readFile?: ReadTextFile
+} = {}): GuardViolation[] {
   const violations = [...assertCloudflareEnvNotProduction(cloudflareEnv)]
 
   const wranglerPath = resolve(root, 'wrangler.jsonc')
@@ -151,11 +157,11 @@ export function runCloudflareDeployGuard({
   return violations
 }
 
-export function getCloudflareDeployGuardExitCode(violations) {
+export function getCloudflareDeployGuardExitCode(violations: readonly unknown[]): number {
   return violations.length > 0 ? 1 : 0
 }
 
-export function formatCloudflareDeployGuardViolations(violations) {
+export function formatCloudflareDeployGuardViolations(violations: GuardViolation[]): string[] {
   if (violations.length === 0) {
     return ['Cloudflare deploy guard passed.']
   }
@@ -172,13 +178,13 @@ export function formatCloudflareDeployGuardViolations(violations) {
   return lines
 }
 
-export function isDirectExecution(callerModuleUrl = import.meta.url) {
+export function isDirectExecution(callerModuleUrl = import.meta.url): boolean {
   const entrypoint = process.argv[1]
   if (!entrypoint) return false
   return callerModuleUrl === pathToFileURL(resolve(entrypoint)).href
 }
 
-function renderHelp(invocation) {
+function renderHelp(invocation: ParsedInvocation): void {
   if (invocation.format === 'json') {
     process.stdout.write(`${JSON.stringify(createHelpEnvelopeV1(invocation.contract))}\n`)
     return
@@ -187,7 +193,7 @@ function renderHelp(invocation) {
   process.stdout.write(formatTextHelp(invocation.contract))
 }
 
-function handleInvocationError(error) {
+function handleInvocationError(error: unknown): boolean {
   if (!(error instanceof CliInvocationError)) return false
 
   process.stderr.write(`INVALID_INVOCATION: ${error.details.reason}\n`)
@@ -206,12 +212,12 @@ function resolveCloudflareGuardCommand() {
   return resolveCommandIdentity({
     fallback: 'bemoat:guard:cloudflare-env',
     env,
-    entrypoint: 'scripts/guard-cloudflare-env.mjs',
+    entrypoint: 'scripts/guard-cloudflare-env.ts',
   })
 }
 
-export function main() {
-  let invocation
+export function main(): void {
+  let invocation: ParsedInvocation
 
   try {
     const command = resolveCloudflareGuardCommand()

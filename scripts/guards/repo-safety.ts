@@ -3,7 +3,8 @@ import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { scanWranglerEnvironmentIsolation } from './cloudflare-env.mjs'
+import { scanWranglerEnvironmentIsolation } from './cloudflare-env.ts'
+import type { GuardViolation, ReadTextFile } from './types.ts'
 
 /** Human-approved destructive migrations must include this marker in the migration file. */
 export const APPROVAL_MARKER = 'bemoat:destructive-migration-approved'
@@ -23,7 +24,7 @@ export const SKIP_DIR_NAMES = new Set([
   '.tmp-repo-safety-test',
 ])
 
-export const SKIP_FILES = new Set(['pnpm-lock.yaml', 'scripts/guards/repo-safety.mjs'])
+export const SKIP_FILES = new Set(['pnpm-lock.yaml', 'scripts/guards/repo-safety.ts'])
 
 /** Project-specific Cloudflare bindings belong here, not in shared starter files. */
 export const RESOURCE_ID_SAFE_FILES = new Set(['wrangler.jsonc'])
@@ -83,28 +84,28 @@ export const DESTRUCTIVE_MIGRATION_PATTERNS = [
   { id: 'alter-column', re: /\bALTER\s+COLUMN\b/i },
 ]
 
-export function isForbiddenEnvFile(relativePath) {
+export function isForbiddenEnvFile(relativePath: string): boolean {
   const base = relativePath.split('/').pop() || relativePath
   if (!base.startsWith('.env')) return false
   return !ALLOWED_ENV_FILES.has(base)
 }
 
-export function shouldSkipPath(relativePath) {
+export function shouldSkipPath(relativePath: string): boolean {
   if (!relativePath || SKIP_FILES.has(relativePath)) return true
 
   const segments = relativePath.split('/')
   return segments.some((segment) => SKIP_DIR_NAMES.has(segment))
 }
 
-export function isMigrationPath(relativePath) {
+export function isMigrationPath(relativePath: string): boolean {
   return /(?:^|\/)migrations\//.test(relativePath)
 }
 
-export function isTestPath(relativePath) {
+export function isTestPath(relativePath: string): boolean {
   return relativePath.startsWith('tests/')
 }
 
-export function isSecretScanPath(relativePath) {
+export function isSecretScanPath(relativePath: string): boolean {
   if (shouldSkipPath(relativePath)) return false
   if (isTestPath(relativePath)) return false
   if (RESOURCE_ID_SAFE_FILES.has(relativePath)) return false
@@ -113,7 +114,7 @@ export function isSecretScanPath(relativePath) {
   return true
 }
 
-export function isResourceIdScanPath(relativePath) {
+export function isResourceIdScanPath(relativePath: string): boolean {
   if (shouldSkipPath(relativePath)) return false
   if (isTestPath(relativePath)) return false
   if (RESOURCE_ID_SAFE_FILES.has(relativePath)) return false
@@ -122,7 +123,7 @@ export function isResourceIdScanPath(relativePath) {
   return true
 }
 
-export function extractMigrationUpSection(content) {
+export function extractMigrationUpSection(content: string): string {
   const upStart = content.search(/export\s+async\s+function\s+up\b/)
   if (upStart === -1) return content
 
@@ -132,7 +133,7 @@ export function extractMigrationUpSection(content) {
   return content.slice(upStart, downStart)
 }
 
-export function isPlaceholderResourceId(value) {
+export function isPlaceholderResourceId(value: string | undefined): boolean {
   if (!value) return true
   const normalized = value.trim()
   if (/^(?:DATABASE_ID|<[^>]+>|YOUR_[A-Z0-9_]+)$/i.test(normalized)) return true
@@ -140,7 +141,7 @@ export function isPlaceholderResourceId(value) {
   return false
 }
 
-export function isPlaceholderSecret(value) {
+export function isPlaceholderSecret(value: string | undefined): boolean {
   if (!value) return true
   const normalized = value.trim()
   if (normalized.length < 12) return true
@@ -149,10 +150,10 @@ export function isPlaceholderSecret(value) {
   return false
 }
 
-export function scanSecrets(relativePath, content) {
+export function scanSecrets(relativePath: string, content: string): GuardViolation[] {
   if (!isSecretScanPath(relativePath)) return []
 
-  const violations = []
+  const violations: GuardViolation[] = []
 
   for (const pattern of SECRET_PATTERNS) {
     if (pattern.re.test(content)) {
@@ -180,10 +181,10 @@ export function scanSecrets(relativePath, content) {
   return violations
 }
 
-export function scanResourceIds(relativePath, content) {
+export function scanResourceIds(relativePath: string, content: string): GuardViolation[] {
   if (!isResourceIdScanPath(relativePath)) return []
 
-  const violations = []
+  const violations: GuardViolation[] = []
 
   for (const pattern of CLOUDFLARE_RESOURCE_PATTERNS) {
     for (const match of content.matchAll(pattern.re)) {
@@ -202,7 +203,7 @@ export function scanResourceIds(relativePath, content) {
   return violations
 }
 
-export function scanDestructiveMigration(relativePath, content) {
+export function scanDestructiveMigration(relativePath: string, content: string): GuardViolation[] {
   if (!isMigrationPath(relativePath)) return []
   if (content.includes(APPROVAL_MARKER)) return []
 
@@ -211,7 +212,7 @@ export function scanDestructiveMigration(relativePath, content) {
       ? extractMigrationUpSection(content)
       : content
 
-  const violations = []
+  const violations: GuardViolation[] = []
 
   for (const pattern of DESTRUCTIVE_MIGRATION_PATTERNS) {
     if (pattern.re.test(section)) {
@@ -227,8 +228,8 @@ export function scanDestructiveMigration(relativePath, content) {
   return violations
 }
 
-export function scanFile(relativePath, content) {
-  const violations = []
+export function scanFile(relativePath: string, content: string): GuardViolation[] {
+  const violations: GuardViolation[] = []
 
   if (relativePath === 'wrangler.jsonc') {
     violations.push(...scanWranglerEnvironmentIsolation(content, relativePath))
@@ -250,7 +251,13 @@ export function scanFile(relativePath, content) {
   return violations
 }
 
-export function listProjectFiles({ root = process.cwd(), execFile = execFileSync } = {}) {
+export function listProjectFiles({
+  root = process.cwd(),
+  execFile = execFileSync,
+}: {
+  root?: string
+  execFile?: typeof execFileSync
+} = {}): string[] {
   const tracked = execFile('git', ['ls-files', '-z'], {
     cwd: root,
     encoding: 'utf8',
@@ -258,7 +265,7 @@ export function listProjectFiles({ root = process.cwd(), execFile = execFileSync
     .split('\0')
     .filter(Boolean)
 
-  let staged = []
+  let staged: string[] = []
   try {
     staged = execFile('git', ['diff', '--cached', '--name-only', '-z'], {
       cwd: root,
@@ -275,12 +282,17 @@ export function listProjectFiles({ root = process.cwd(), execFile = execFileSync
 
 export function runRepoSafetyGuard({
   root = process.cwd(),
-  readFile = (filePath) => readFileSync(filePath, 'utf8'),
+  readFile = (filePath: string) => readFileSync(filePath, 'utf8'),
   execFile = execFileSync,
   files = null,
-} = {}) {
+}: {
+  root?: string
+  readFile?: ReadTextFile
+  execFile?: typeof execFileSync
+  files?: string[] | null
+} = {}): GuardViolation[] {
   const targetFiles = files ?? listProjectFiles({ root, execFile })
-  const violations = []
+  const violations: GuardViolation[] = []
 
   for (const relativePath of targetFiles) {
     if (shouldSkipPath(relativePath)) continue
@@ -298,11 +310,11 @@ export function runRepoSafetyGuard({
   return violations
 }
 
-export function getGuardExitCode(violations) {
+export function getGuardExitCode(violations: GuardViolation[]): number {
   return violations.length > 0 ? 1 : 0
 }
 
-export function formatViolations(violations) {
+export function formatViolations(violations: GuardViolation[]): string[] {
   if (violations.length === 0) {
     return ['Repository safety guard passed.']
   }
@@ -321,13 +333,13 @@ export function formatViolations(violations) {
   return lines
 }
 
-export function isDirectExecution() {
+export function isDirectExecution(): boolean {
   const entrypoint = process.argv[1]
   if (!entrypoint) return false
   return import.meta.url === pathToFileURL(resolve(entrypoint)).href
 }
 
-function main() {
+function main(): void {
   const violations = runRepoSafetyGuard()
   const lines = formatViolations(violations)
 

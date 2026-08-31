@@ -4,17 +4,17 @@ import { chmodSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import { createHelpEnvelopeV1, formatTextHelp } from './cli/command-help.mjs'
+import { createHelpEnvelopeV1, formatTextHelp } from './cli/command-help.ts'
 import {
   CliInvocationError,
   parseCommandInvocation,
   resolveCommandIdentity,
-} from './cli/command-invocation.mjs'
+} from './cli/command-invocation.ts'
 import {
   CLI_EXIT_CODES,
   classificationExitCode,
   createResultEnvelopeV1,
-} from './cli/command-result.mjs'
+} from './cli/command-result.ts'
 
 const HOOKS_DIR = '.githooks'
 const HOOKS = [`${HOOKS_DIR}/pre-commit`, `${HOOKS_DIR}/pre-push`]

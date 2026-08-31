@@ -8,7 +8,7 @@ if [ "$#" -gt 0 ]; then
   fi
 
   if [ "$#" -gt 0 ]; then
-    command_help="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)/cli/command-help.mjs"
+    command_help="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)/cli/command-help.ts"
     case "${npm_lifecycle_event:-}" in
       branch:check)
         export npm_lifecycle_event="bemoat:branch:check"

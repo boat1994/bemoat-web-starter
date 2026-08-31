@@ -1,21 +1,24 @@
 #!/usr/bin/env node
 
-import { createHelpEnvelopeV1, formatTextHelp } from './cli/command-help.mjs'
-import { CliInvocationError, parseCommandInvocation, resolveCommandIdentity } from './cli/command-invocation.mjs'
-import { classificationExitCode, createResultEnvelopeV1 } from './cli/command-result.mjs'
+import { createHelpEnvelopeV1, formatTextHelp } from './cli/command-help.ts'
+import { CliInvocationError, parseCommandInvocation, resolveCommandIdentity } from './cli/command-invocation.ts'
+import { classificationExitCode, createResultEnvelopeV1 } from './cli/command-result.ts'
 import { collectContextEvidence } from './context/evidence.ts'
 import { synchronizeContext } from './context/sync.ts'
 import { ContextSyncWorktreeError, resolveContextSyncRoots } from './context/sync-worktree.ts'
+import type { NormalizedContextEvidence } from './context/model.ts'
+import type { ContextSyncResult } from './context/sync.ts'
+import type { ParsedInvocation } from './cli/command-invocation-schemas.ts'
 
 const COMMAND = 'bemoat:context:sync-base'
-const ENTRYPOINT = 'scripts/agent-context-sync-base.mjs'
+const ENTRYPOINT = 'scripts/agent-context-sync-base.ts'
 
-function renderHelp(invocation) {
+function renderHelp(invocation: Extract<ParsedInvocation, { mode: 'help' }>) {
   if (invocation.format === 'json') process.stdout.write(`${JSON.stringify(createHelpEnvelopeV1(invocation.contract))}\n`)
   else process.stdout.write(formatTextHelp(invocation.contract))
 }
 
-function renderResult({ command, format, issueNumber, result, evidence }) {
+function renderResult({ command, format, issueNumber, result, evidence }: { command: string; format: 'json' | 'text'; issueNumber: string; result: ContextSyncResult; evidence: NormalizedContextEvidence }) {
   const success = result.classification === 'SUCCESS'
   const envelope = createResultEnvelopeV1({
     command,
@@ -43,7 +46,7 @@ function renderResult({ command, format, issueNumber, result, evidence }) {
   process.exitCode = success ? 0 : classificationExitCode(result.classification)
 }
 
-function renderError({ command, format, error, values }) {
+function renderError({ command, format, error, values }: { command: string; format: 'json' | 'text'; error: unknown; values?: Record<string, string | boolean> }) {
   const classification = error instanceof CliInvocationError ? error.classification : 'INTERNAL_ERROR'
   const reason = error instanceof Error ? error.message : String(error)
   if (format === 'json') {
@@ -71,7 +74,7 @@ function main() {
     try {
       roots = resolveContextSyncRoots({
         sourceCwd: process.cwd(),
-        targetWorktree: invocation.values.target_worktree ?? null,
+        targetWorktree: typeof invocation.values.target_worktree === 'string' ? invocation.values.target_worktree : null,
       })
     } catch (error) {
       if (error instanceof ContextSyncWorktreeError) {
@@ -79,15 +82,16 @@ function main() {
       }
       throw error
     }
-    const evidence = collectContextEvidence({ cwd: roots.targetCwd, issueNumber: invocation.values.issue_number })
+    if (invocation.mode !== 'run') throw new Error('run invocation required')
+    const evidence = collectContextEvidence({ cwd: roots.targetCwd, issueNumber: String(invocation.values.issue_number) })
     const result = synchronizeContext({
       evidence,
       cwd: roots.targetCwd,
       sourceCwd: roots.bootstrap ? roots.sourceCwd : null,
     })
-    return renderResult({ command, format: invocation.format, issueNumber: invocation.values.issue_number, result, evidence })
+    return renderResult({ command, format: invocation.format, issueNumber: String(invocation.values.issue_number), result, evidence })
   } catch (error) {
-    return renderError({ command, format: invocation?.format ?? (process.argv.includes('--json') ? 'json' : 'text'), error, values: invocation?.values })
+    return renderError({ command, format: invocation?.format ?? (process.argv.includes('--json') ? 'json' : 'text'), error, values: invocation?.mode === 'run' ? invocation.values : undefined })
   }
 }
 

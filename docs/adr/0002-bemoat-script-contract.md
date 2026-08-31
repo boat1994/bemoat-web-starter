@@ -19,7 +19,7 @@ Synced CI and pre-push call only:
 - `pnpm run bemoat:guard:safety`
 - `pnpm run bemoat:test:int`
 
-`scripts/guard-harness-contract.mjs` enforces this on child-facing paths. Human-facing templates (PR template, issue template) may mention raw scripts as local developer instructions — they are not scanned.
+`scripts/guard-harness-contract.ts` enforces this on child-facing paths. Human-facing templates (PR template, issue template) may mention raw scripts as local developer instructions — they are not scanned.
 
 Raw scripts (`lint`, `typecheck`, `build`, `deploy`, `check`, `guard:safety`, etc.) remain starter-internal or child-local. The starter itself runs stricter validation via `ci-starter.yml` and `pnpm run check`.
 

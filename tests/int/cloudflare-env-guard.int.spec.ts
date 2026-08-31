@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 
 describe('Cloudflare deploy guard', () => {
   it('keeps the root facade export surface and destination policy exports compatible', async () => {
-    const facade = await import('../../scripts/guard-cloudflare-env.mjs')
-    const destination = await import('../../scripts/guards/cloudflare-env.mjs')
+    const facade = await import('../../scripts/guard-cloudflare-env.ts')
+    const destination = await import('../../scripts/guards/cloudflare-env.ts')
 
     expect(Object.keys(facade).sort()).toEqual([
       'PRODUCTION_ENV_ERROR',
@@ -25,7 +25,7 @@ describe('Cloudflare deploy guard', () => {
   })
 
   it('blocks CLOUDFLARE_ENV=production', async () => {
-    const mod = await import('../../scripts/guard-cloudflare-env.mjs')
+    const mod = await import('../../scripts/guard-cloudflare-env.ts')
 
     const violations = mod.assertCloudflareEnvNotProduction('production')
 
@@ -34,14 +34,14 @@ describe('Cloudflare deploy guard', () => {
   })
 
   it('allows unset or dev CLOUDFLARE_ENV', async () => {
-    const mod = await import('../../scripts/guard-cloudflare-env.mjs')
+    const mod = await import('../../scripts/guard-cloudflare-env.ts')
 
     expect(mod.assertCloudflareEnvNotProduction(undefined)).toEqual([])
     expect(mod.assertCloudflareEnvNotProduction('dev')).toEqual([])
   })
 
   it('flags env.production in wrangler.jsonc', async () => {
-    const mod = await import('../../scripts/guard-cloudflare-env.mjs')
+    const mod = await import('../../scripts/guard-cloudflare-env.ts')
 
     const violations = mod.scanWranglerEnvironmentIsolation(`{
       "name": "my-app",
@@ -54,7 +54,7 @@ describe('Cloudflare deploy guard', () => {
   })
 
   it('flags dev D1 and R2 when they match production resources', async () => {
-    const mod = await import('../../scripts/guard-cloudflare-env.mjs')
+    const mod = await import('../../scripts/guard-cloudflare-env.ts')
 
     const violations = mod.scanWranglerEnvironmentIsolation(`{
       "name": "my-app",
@@ -82,7 +82,7 @@ describe('Cloudflare deploy guard', () => {
   })
 
   it('passes starter template with placeholder dev D1 and isolated dev R2', async () => {
-    const mod = await import('../../scripts/guard-cloudflare-env.mjs')
+    const mod = await import('../../scripts/guard-cloudflare-env.ts')
 
     const violations = mod.scanWranglerEnvironmentIsolation(`{
       "name": "bemoat-web-starter",
@@ -109,7 +109,7 @@ describe('Cloudflare deploy guard', () => {
   })
 
   it('passes on the current repository wrangler.jsonc via guard:safety', async () => {
-    const mod = await import('../../scripts/guards/repo-safety.mjs')
+    const mod = await import('../../scripts/guards/repo-safety.ts')
 
     const violations = mod.runRepoSafetyGuard()
     expect(mod.getGuardExitCode(violations)).toBe(0)

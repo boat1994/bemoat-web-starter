@@ -13,86 +13,138 @@ const INTERNAL_DESTINATION_PREFIXES = Object.freeze([
   'scripts/shared/',
 ])
 
-function validateRootScriptMappingRecord(recordInput) {
-  if (!recordInput || typeof recordInput !== 'object' || Array.isArray(recordInput)) {
+interface RootScriptMapping {
+  path: string
+  facade_disposition: string
+  internal_destination: string
+  owning_slice: number
+  migration_status: string
+}
+
+type RootScriptMappingResult =
+  | { valid: true; record: RootScriptMapping }
+  | { valid: false; reason: string }
+
+interface AdapterContract {
+  importers?: string[]
+}
+
+interface ArchitectureContract {
+  cycleNodes?: unknown
+  cycleEdges?: unknown
+  adapters?: Record<string, AdapterContract>
+  rootScripts?: unknown
+  transitionalDirectories?: unknown
+}
+
+type ScriptImportGraph = Map<string, Set<string>>
+
+type CycleListKey = 'cycleNodes' | 'cycleEdges'
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+function readCycleList(
+  contract: ArchitectureContract,
+  key: CycleListKey,
+  violations: string[],
+): string[] {
+  if (!Object.hasOwn(contract, key)) return []
+  const value = contract[key]
+  if (!Array.isArray(value) || !value.every((entry) => typeof entry === 'string')) {
+    const detail = Array.isArray(value) ? ' entries must be strings' : ' must be an array'
+    violations.push(`architecture-contract.json ${key}${detail}`)
+    return []
+  }
+  return value
+}
+
+function validateRootScriptMappingRecord(recordInput: unknown): RootScriptMappingResult {
+  if (!isRecord(recordInput)) {
     return { valid: false, reason: 'root script mapping must be a mapping' }
   }
-  const record = recordInput
-  if (typeof record.path !== 'string' || !/^scripts\/[^/]+\.(mjs|sh)$/.test(record.path)) {
-    return { valid: false, reason: 'root script path must be scripts/<file>.(mjs|sh)' }
+  const path = recordInput.path
+  if (typeof path !== 'string' || !/^scripts\/[^/]+\.(mjs|ts|sh)$/.test(path)) {
+    return { valid: false, reason: 'root script path must be scripts/<file>.(mjs|ts|sh)' }
   }
-  if (!FACADE_DISPOSITIONS.has(record.facade_disposition)) {
+  const facadeDisposition = recordInput.facade_disposition
+  if (typeof facadeDisposition !== 'string' || !FACADE_DISPOSITIONS.has(facadeDisposition)) {
     return { valid: false, reason: 'facade_disposition is invalid' }
   }
-  if (typeof record.internal_destination !== 'string' || record.internal_destination.length === 0) {
+  const internalDestination = recordInput.internal_destination
+  if (typeof internalDestination !== 'string' || internalDestination.length === 0) {
     return { valid: false, reason: 'internal_destination is required' }
   }
-  if (!INTERNAL_DESTINATION_PREFIXES.some((prefix) => record.internal_destination.startsWith(prefix))) {
+  if (!INTERNAL_DESTINATION_PREFIXES.some((prefix) => internalDestination.startsWith(prefix))) {
     return {
       valid: false,
       reason: `internal_destination must use destination vocabulary: ${INTERNAL_DESTINATION_PREFIXES.join(', ')}`,
     }
   }
-  if (!MIGRATION_STATUSES.has(record.migration_status)) {
+  const migrationStatus = recordInput.migration_status
+  if (typeof migrationStatus !== 'string' || !MIGRATION_STATUSES.has(migrationStatus)) {
     return { valid: false, reason: 'migration_status is invalid' }
   }
   if (
-    typeof record.owning_slice !== 'number' ||
-    !Number.isInteger(record.owning_slice) ||
-    record.owning_slice < 1 ||
-    record.owning_slice > 7
+    typeof recordInput.owning_slice !== 'number' ||
+    !Number.isInteger(recordInput.owning_slice) ||
+    recordInput.owning_slice < 1 ||
+    recordInput.owning_slice > 7
   ) {
     return { valid: false, reason: 'owning_slice must be an integer 1–7' }
   }
   return {
     valid: true,
     record: {
-      path: record.path,
-      facade_disposition: record.facade_disposition,
-      internal_destination: record.internal_destination,
-      owning_slice: record.owning_slice,
-      migration_status: record.migration_status,
+      path,
+      facade_disposition: facadeDisposition,
+      internal_destination: internalDestination,
+      owning_slice: recordInput.owning_slice,
+      migration_status: migrationStatus,
     },
   }
 }
 
 export class ArchitectureContractError extends Error {
-  constructor(violations) {
+  readonly violations: string[]
+
+  constructor(violations: string[]) {
     super('Scripts architecture contract validation failed')
     this.name = 'ArchitectureContractError'
     this.violations = violations
   }
 }
 
-const FROM_RE = /\bfrom\s+['"](\.\.?\/[^'"]+\.mjs)['"]/g
-const SIDE_EFFECT_IMPORT_RE = /\bimport\s+['"](\.\.?\/[^'"]+\.mjs)['"]/g
-const DYNAMIC_RE = /\bimport\s*\(\s*['"](\.\.?\/[^'"]+\.mjs)['"]\s*\)/g
+const FROM_RE = /\bfrom\s+['"](\.\.?\/[^'"]+\.(mjs|ts))['"]/g
+const SIDE_EFFECT_IMPORT_RE = /\bimport\s+['"](\.\.?\/[^'"]+\.(mjs|ts))['"]/g
+const DYNAMIC_RE = /\bimport\s*\(\s*['"](\.\.?\/[^'"]+\.(mjs|ts))['"]\s*\)/g
 
-function listMjsFiles(dir, out = []) {
+function listScriptFiles(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {
     const absolutePath = join(dir, entry)
     const stat = statSync(absolutePath)
     if (stat.isDirectory()) {
-      listMjsFiles(absolutePath, out)
+      listScriptFiles(absolutePath, out)
       continue
     }
-    if (entry.endsWith('.mjs')) out.push(absolutePath)
+    if (/\.(mjs|ts)$/.test(entry)) out.push(absolutePath)
   }
   return out
 }
 
-function stripComments(source) {
+function stripComments(source: string): string {
   return source
     .replace(/\/\*[\s\S]*?\*\//g, (block) => block.replace(/[^\n]/g, ' '))
     .replace(/(^|[^:])\/\/.*$/gm, '$1')
 }
 
-function toRepoPath(root, absolutePath) {
+function toRepoPath(root: string, absolutePath: string): string {
   return relative(root, absolutePath).split('\\').join('/')
 }
 
-function extractRelativeSpecs(source) {
-  const specs = []
+function extractRelativeSpecs(source: string): string[] {
+  const specs: string[] = []
   const cleaned = stripComments(source)
   for (const pattern of [FROM_RE, SIDE_EFFECT_IMPORT_RE, DYNAMIC_RE]) {
     pattern.lastIndex = 0
@@ -104,11 +156,11 @@ function extractRelativeSpecs(source) {
   return specs
 }
 
-export function buildScriptImportGraph(root) {
+export function buildScriptImportGraph(root: string): ScriptImportGraph {
   const scriptsRoot = join(root, 'scripts')
   const graph = new Map()
 
-  for (const absolutePath of listMjsFiles(scriptsRoot)) {
+  for (const absolutePath of listScriptFiles(scriptsRoot)) {
     const importer = toRepoPath(root, absolutePath)
     if (!graph.has(importer)) graph.set(importer, new Set())
 
@@ -117,7 +169,7 @@ export function buildScriptImportGraph(root) {
       const targetAbsolute = normalize(resolve(dirname(absolutePath), spec))
       if (!existsSync(targetAbsolute)) continue
       const target = toRepoPath(root, targetAbsolute)
-      graph.get(importer).add(target)
+      graph.get(importer)?.add(target)
       if (!graph.has(target)) graph.set(target, new Set())
     }
   }
@@ -125,15 +177,15 @@ export function buildScriptImportGraph(root) {
   return graph
 }
 
-export function findStronglyConnectedComponents(graph) {
+export function findStronglyConnectedComponents(graph: ScriptImportGraph): string[][] {
   let nextIndex = 0
-  const indices = new Map()
-  const lowlink = new Map()
-  const stack = []
-  const onStack = new Set()
-  const components = []
+  const indices = new Map<string, number>()
+  const lowlink = new Map<string, number>()
+  const stack: string[] = []
+  const onStack = new Set<string>()
+  const components: string[][] = []
 
-  function strongConnect(vertex) {
+  function strongConnect(vertex: string): void {
     indices.set(vertex, nextIndex)
     lowlink.set(vertex, nextIndex)
     nextIndex += 1
@@ -143,15 +195,15 @@ export function findStronglyConnectedComponents(graph) {
     for (const neighbor of graph.get(vertex) ?? []) {
       if (!indices.has(neighbor)) {
         strongConnect(neighbor)
-        lowlink.set(vertex, Math.min(lowlink.get(vertex), lowlink.get(neighbor)))
+        lowlink.set(vertex, Math.min(lowlink.get(vertex) ?? 0, lowlink.get(neighbor) ?? 0))
       } else if (onStack.has(neighbor)) {
-        lowlink.set(vertex, Math.min(lowlink.get(vertex), indices.get(neighbor)))
+        lowlink.set(vertex, Math.min(lowlink.get(vertex) ?? 0, indices.get(neighbor) ?? 0))
       }
     }
 
     if (lowlink.get(vertex) === indices.get(vertex)) {
-      const component = []
-      let member
+      const component: string[] = []
+      let member: string | undefined
       do {
         member = stack.pop()
         if (!member) break
@@ -169,8 +221,8 @@ export function findStronglyConnectedComponents(graph) {
   return components
 }
 
-export function collectInternalEdges(graph, component) {
-  const edges = new Set()
+export function collectInternalEdges(graph: ScriptImportGraph, component: Set<string>): Set<string> {
+  const edges = new Set<string>()
   for (const importer of component) {
     for (const target of graph.get(importer) ?? []) {
       if (component.has(target)) {
@@ -181,24 +233,24 @@ export function collectInternalEdges(graph, component) {
   return edges
 }
 
-function componentHasSelfEdge(graph, component) {
+function componentHasSelfEdge(graph: ScriptImportGraph, component: string[]): boolean {
   return component.some((node) => (graph.get(node) ?? new Set()).has(node))
 }
 
-export function listRootScripts(root) {
+export function listRootScripts(root: string): string[] {
   const scriptsRoot = join(root, 'scripts')
   if (!existsSync(scriptsRoot)) return []
   return readdirSync(scriptsRoot)
     .filter((entry) => {
       const absolutePath = join(scriptsRoot, entry)
-      return statSync(absolutePath).isFile() && /\.(mjs|sh)$/.test(entry)
+      return statSync(absolutePath).isFile() && /\.(mjs|ts|sh)$/.test(entry)
     })
     .map((entry) => `scripts/${entry}`)
     .sort()
 }
 
-export function validateRootScriptMap(contract, root) {
-  const violations = []
+export function validateRootScriptMap(contract: ArchitectureContract, root: string): string[] {
+  const violations: string[] = []
   const hasRootScripts = Object.hasOwn(contract, 'rootScripts')
   const hasTransitional = Object.hasOwn(contract, 'transitionalDirectories')
 
@@ -213,33 +265,25 @@ export function validateRootScriptMap(contract, root) {
   }
 
   const actual = listRootScripts(root)
-  const mappedPaths = rootScripts.map((entry) => entry?.path)
+  const mappedPaths = rootScripts.map((entry: unknown) => isRecord(entry) ? entry.path : undefined)
   const sortedMapped = [...mappedPaths].sort()
 
   if (JSON.stringify(mappedPaths) !== JSON.stringify(sortedMapped)) {
     violations.push('rootScripts must be ordered deterministically by path')
   }
 
-  const seen = new Set()
+  const seen = new Set<string>()
   for (const entry of rootScripts) {
     const validated = validateRootScriptMappingRecord(entry)
-    if (!validated.valid) {
-      violations.push(`Invalid rootScripts entry for ${entry?.path ?? '<missing>'}: ${validated.reason}`)
+    if (validated.valid === false) {
+      const path = isRecord(entry) && typeof entry.path === 'string' ? entry.path : '<missing>'
+      violations.push(`Invalid rootScripts entry for ${path}: ${validated.reason}`)
       continue
     }
     if (seen.has(validated.record.path)) {
       violations.push(`Duplicate rootScripts mapping: ${validated.record.path}`)
     }
     seen.add(validated.record.path)
-    if (!FACADE_DISPOSITIONS.has(validated.record.facade_disposition)) {
-      violations.push(`Invalid facade_disposition for ${validated.record.path}`)
-    }
-    if (!MIGRATION_STATUSES.has(validated.record.migration_status)) {
-      violations.push(`Invalid migration_status for ${validated.record.path}`)
-    }
-    if (!INTERNAL_DESTINATION_PREFIXES.some((prefix) => validated.record.internal_destination.startsWith(prefix))) {
-      violations.push(`Invalid internal_destination vocabulary for ${validated.record.path}`)
-    }
   }
 
   for (const path of actual) {
@@ -259,7 +303,7 @@ export function validateRootScriptMap(contract, root) {
     return violations
   }
 
-  const harness = transitional.find((entry) => entry?.path === 'scripts/harness-contract/')
+  const harness = transitional.find((entry: unknown) => isRecord(entry) && entry.path === 'scripts/harness-contract/')
   if (!harness) {
     violations.push('transitionalDirectories must record scripts/harness-contract/')
   } else if (harness.migration_status !== 'transitional') {
@@ -267,7 +311,7 @@ export function validateRootScriptMap(contract, root) {
   }
 
   for (const entry of transitional) {
-    if (typeof entry?.path !== 'string' || !entry.path.startsWith('scripts/')) {
+    if (!isRecord(entry) || typeof entry.path !== 'string' || !entry.path.startsWith('scripts/')) {
       violations.push('transitionalDirectories entries require a scripts/ path')
       continue
     }
@@ -283,14 +327,14 @@ export function validateRootScriptMap(contract, root) {
   return violations
 }
 
-export function validateArchitectureContract(root) {
+export function validateArchitectureContract(root: string): string[] {
   const contractPath = join(root, 'scripts/architecture-contract.json')
-  const contract = JSON.parse(readFileSync(contractPath, 'utf8'))
-  const cycleNodesAllowed = new Set(contract.cycleNodes)
-  const cycleEdgesAllowed = new Set(contract.cycleEdges)
+  const contract = JSON.parse(readFileSync(contractPath, 'utf8')) as ArchitectureContract
+  const violations: string[] = []
+  const cycleNodesAllowed = new Set(readCycleList(contract, 'cycleNodes', violations))
+  const cycleEdgesAllowed = new Set(readCycleList(contract, 'cycleEdges', violations))
 
   const graph = buildScriptImportGraph(root)
-  const violations = []
 
   for (const component of findStronglyConnectedComponents(graph)) {
     const isCyclic = component.length >= 2 || componentHasSelfEdge(graph, component)
@@ -346,7 +390,7 @@ export function validateArchitectureContract(root) {
   return violations
 }
 
-export function assertArchitectureContract(root = process.cwd()) {
+export function assertArchitectureContract(root = process.cwd()): void {
   const violations = validateArchitectureContract(root)
   if (violations.length > 0) {
     throw new ArchitectureContractError(violations)

@@ -8,6 +8,7 @@ import {
   BUILD_WRAPPER_PATH,
   OPENNEXT_NEXT_BUILD_CONTEXT,
 } from '../build.mjs'
+import type { FileExists, GuardViolation, PackageJson, PackageScripts, ReadTextFile } from './types.ts'
 
 export const PACKAGE_JSON_PATH = 'package.json'
 export const OPENNEXT_CONFIG_PATH = 'open-next.config.ts'
@@ -20,8 +21,8 @@ export const OPENNEXT_REENTRY_BUILD_COMMAND_PATTERN = /\bpnpm run build\b(?!:)/
 export const PAYLOAD_MIGRATE_PATTERN = 'payload migrate'
 export const PAYLOAD_REMOTE_MIGRATE_MARKER = 'PAYLOAD_MIGRATE_REMOTE=true'
 
-export function scanBuildScriptContract(scripts = {}, file = PACKAGE_JSON_PATH) {
-  const violations = []
+export function scanBuildScriptContract(scripts: PackageScripts = {}, file = PACKAGE_JSON_PATH): GuardViolation[] {
+  const violations: GuardViolation[] = []
   const build = scripts.build ?? ''
   const buildNext = scripts['build:next'] ?? ''
   const buildCloudflare = scripts['build:cloudflare'] ?? ''
@@ -96,10 +97,15 @@ export function scanBuildScriptContract(scripts = {}, file = PACKAGE_JSON_PATH) 
 export function scanBuildWrapperContract({
   root = process.cwd(),
   wrapperPath = BUILD_WRAPPER_PATH,
-  readFile = (filePath) => readFileSync(filePath, 'utf8'),
-  fileExists = (filePath) => existsSync(filePath),
-} = {}) {
-  const violations = []
+  readFile = (filePath: string) => readFileSync(filePath, 'utf8'),
+  fileExists = (filePath: string) => existsSync(filePath),
+}: {
+  root?: string
+  wrapperPath?: string
+  readFile?: ReadTextFile
+  fileExists?: FileExists
+} = {}): GuardViolation[] {
+  const violations: GuardViolation[] = []
   const absolutePath = resolve(root, wrapperPath)
 
   if (!fileExists(absolutePath)) {
@@ -129,10 +135,15 @@ export function scanBuildWrapperContract({
 export function scanOpenNextConfigContract({
   root = process.cwd(),
   configPath = OPENNEXT_CONFIG_PATH,
-  readFile = (filePath) => readFileSync(filePath, 'utf8'),
-  fileExists = (filePath) => existsSync(filePath),
-} = {}) {
-  const violations = []
+  readFile = (filePath: string) => readFileSync(filePath, 'utf8'),
+  fileExists = (filePath: string) => existsSync(filePath),
+}: {
+  root?: string
+  configPath?: string
+  readFile?: ReadTextFile
+  fileExists?: FileExists
+} = {}): GuardViolation[] {
+  const violations: GuardViolation[] = []
   const absolutePath = resolve(root, configPath)
 
   if (!fileExists(absolutePath)) {
@@ -180,9 +191,14 @@ export function scanOpenNextConfigContract({
 export function runBuildScriptContractGuard({
   root = process.cwd(),
   packageJsonPath = PACKAGE_JSON_PATH,
-  readFile = (filePath) => readFileSync(filePath, 'utf8'),
-  fileExists = (filePath) => existsSync(filePath),
-} = {}) {
+  readFile = (filePath: string) => readFileSync(filePath, 'utf8'),
+  fileExists = (filePath: string) => existsSync(filePath),
+}: {
+  root?: string
+  packageJsonPath?: string
+  readFile?: ReadTextFile
+  fileExists?: FileExists
+} = {}): GuardViolation[] {
   const absolutePath = resolve(root, packageJsonPath)
 
   let content
@@ -201,7 +217,7 @@ export function runBuildScriptContractGuard({
 
   let pkg
   try {
-    pkg = JSON.parse(content)
+    pkg = JSON.parse(content) as PackageJson
   } catch (error) {
     return [
       {
@@ -220,11 +236,11 @@ export function runBuildScriptContractGuard({
   ]
 }
 
-export function getBuildScriptContractExitCode(violations) {
+export function getBuildScriptContractExitCode(violations: GuardViolation[]): number {
   return violations.length > 0 ? 1 : 0
 }
 
-export function formatBuildScriptContractViolations(violations) {
+export function formatBuildScriptContractViolations(violations: GuardViolation[]): string[] {
   if (violations.length === 0) {
     return ['Build script contract guard passed.']
   }
@@ -247,7 +263,7 @@ export function formatBuildScriptContractViolations(violations) {
   return lines
 }
 
-export function isDirectExecution() {
+export function isDirectExecution(): boolean {
   const entrypoint = process.argv[1]
   if (!entrypoint) return false
   return import.meta.url === pathToFileURL(resolve(entrypoint)).href

@@ -2,14 +2,15 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import type { FileExists, GuardViolation, ReadTextFile } from './types.ts'
 
 export const FRONTEND_LAYOUT_PATH = 'src/app/(frontend)/layout.tsx'
 
 /** Known App Router SEO entry points when a project adds them. */
 export const OPTIONAL_SEO_PATHS = ['src/app/sitemap.ts', 'src/app/robots.ts']
 
-export function scanFrontendLayoutMetadata(content, file = FRONTEND_LAYOUT_PATH) {
-  const violations = []
+export function scanFrontendLayoutMetadata(content: string, file = FRONTEND_LAYOUT_PATH): GuardViolation[] {
+  const violations: GuardViolation[] = []
 
   const hasMetadataExport = /export\s+const\s+metadata\b/.test(content)
   const hasGenerateMetadata = /export\s+(?:async\s+)?function\s+generateMetadata\b/.test(content)
@@ -47,8 +48,8 @@ export function scanFrontendLayoutMetadata(content, file = FRONTEND_LAYOUT_PATH)
   return violations
 }
 
-export function scanOptionalSeoFile(relativePath, content) {
-  const violations = []
+export function scanOptionalSeoFile(relativePath: string, content: string): GuardViolation[] {
+  const violations: GuardViolation[] = []
 
   if (relativePath.endsWith('sitemap.ts')) {
     const hasSitemapExport =
@@ -85,12 +86,18 @@ export function scanOptionalSeoFile(relativePath, content) {
 
 export function runFrontendSeoGuard({
   root = process.cwd(),
-  readFile = (filePath) => readFileSync(filePath, 'utf8'),
-  exists = (filePath) => existsSync(filePath),
+  readFile = (filePath: string) => readFileSync(filePath, 'utf8'),
+  exists = (filePath: string) => existsSync(filePath),
   frontendLayoutPath = FRONTEND_LAYOUT_PATH,
   optionalSeoPaths = OPTIONAL_SEO_PATHS,
-} = {}) {
-  const violations = []
+}: {
+  root?: string
+  readFile?: ReadTextFile
+  exists?: FileExists
+  frontendLayoutPath?: string
+  optionalSeoPaths?: readonly string[]
+} = {}): GuardViolation[] {
+  const violations: GuardViolation[] = []
   const layoutAbsolutePath = resolve(root, frontendLayoutPath)
 
   if (!exists(layoutAbsolutePath)) {
@@ -130,11 +137,11 @@ export function runFrontendSeoGuard({
   return violations
 }
 
-export function getFrontendSeoGuardExitCode(violations) {
+export function getFrontendSeoGuardExitCode(violations: readonly unknown[]): number {
   return violations.length > 0 ? 1 : 0
 }
 
-export function formatFrontendSeoViolations(violations) {
+export function formatFrontendSeoViolations(violations: GuardViolation[]): string[] {
   if (violations.length === 0) {
     return ['Frontend SEO guard passed.']
   }
@@ -155,13 +162,13 @@ export function formatFrontendSeoViolations(violations) {
   return lines
 }
 
-export function isDirectExecution(callerModuleUrl = import.meta.url) {
+export function isDirectExecution(callerModuleUrl = import.meta.url): boolean {
   const entrypoint = process.argv[1]
   if (!entrypoint) return false
   return callerModuleUrl === pathToFileURL(resolve(entrypoint)).href
 }
 
-export function main() {
+export function main(): void {
   const violations = runFrontendSeoGuard()
   const lines = formatFrontendSeoViolations(violations)
 

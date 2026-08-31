@@ -4,21 +4,21 @@ import {
   compareFileSystemSnapshots,
   runCliBoundaryCase,
 } from '../helpers/cli-boundary-harness'
-import { getCommandContract } from '../../scripts/cli/command-contract.mjs'
+import { getCommandContract } from '../../scripts/cli/command-contract.ts'
 import {
   CliInvocationError,
   parseCommandInvocation,
   resolveCommandIdentity,
-} from '../../scripts/cli/command-invocation.mjs'
+} from '../../scripts/cli/command-invocation.ts'
 import {
   createHelpEnvelopeV1,
   formatTextHelp,
-} from '../../scripts/cli/command-help.mjs'
+} from '../../scripts/cli/command-help.ts'
 import {
   assertResultEnvelopeV1,
   classificationExitCode,
   createResultEnvelopeV1,
-} from '../../scripts/cli/command-result.mjs'
+} from '../../scripts/cli/command-result.ts'
 
 type JsonRecord = Record<string, unknown>
 
@@ -330,7 +330,7 @@ describe('Task 2 CLI invocation and result contracts', () => {
 
   it('renders the explicitly selected direct help command', () => {
     const run = runCliBoundaryCase({
-      entrypoint: 'scripts/cli/command-help.mjs',
+      entrypoint: 'scripts/cli/command-help.ts',
       argv: [BRANCH_COMMAND, '--help', '--json'],
       env: {},
     })
@@ -355,7 +355,7 @@ describe('Task 2 CLI invocation and result contracts', () => {
       ['--json', '-h'],
     ]
     const runs = permutations.map((flags) => runCliBoundaryCase({
-      entrypoint: 'scripts/cli/command-help.mjs',
+      entrypoint: 'scripts/cli/command-help.ts',
       argv: [BRANCH_COMMAND, ...flags],
       env: {},
     }))
@@ -377,7 +377,7 @@ describe('Task 2 CLI invocation and result contracts', () => {
 
   it('rejects a mismatched lifecycle entrypoint at the direct boundary', () => {
     const run = runCliBoundaryCase({
-      entrypoint: 'scripts/cli/command-help.mjs',
+      entrypoint: 'scripts/cli/command-help.ts',
       argv: [BRANCH_COMMAND, '--help', '--json'],
       env: {
         BEMOAT_FACADE_COMMAND: PACK_COMMAND,
@@ -398,12 +398,12 @@ describe('Task 2 CLI invocation and result contracts', () => {
 
   it('emits one JSON object with plain-text classification parity', () => {
     const jsonRun = runCliBoundaryCase({
-      entrypoint: 'scripts/cli/command-help.mjs',
+      entrypoint: 'scripts/cli/command-help.ts',
       argv: [TIER_A_COMMAND, '--help', '--json'],
       env: {},
     })
     const textRun = runCliBoundaryCase({
-      entrypoint: 'scripts/cli/command-help.mjs',
+      entrypoint: 'scripts/cli/command-help.ts',
       argv: [TIER_A_COMMAND, '--help'],
       env: {},
     })

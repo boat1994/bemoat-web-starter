@@ -1,6 +1,6 @@
 # Superpowers planning contract recommendation (external maintainers)
 
-This document is the canonical handoff for **external** Superpowers plugin and skill maintainers. The Bemoat harness in `bemoat-web-starter` validates planning artifacts with `scripts/guards/planning-contract-runtime.mjs` and `scripts/guards/planning-contract.mjs`; this repository does not patch upstream Superpowers plugin files directly.
+This document is the canonical handoff for **external** Superpowers plugin and skill maintainers. The Bemoat harness in `bemoat-web-starter` validates planning artifacts with `scripts/guards/planning-contract-runtime.ts` and `scripts/guards/planning-contract.ts`; this repository does not patch upstream Superpowers plugin files directly.
 
 ## Goal
 

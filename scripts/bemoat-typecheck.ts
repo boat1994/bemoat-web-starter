@@ -2,7 +2,7 @@
 import { execFileSync } from 'node:child_process'
 import { resolve } from 'node:path'
 
-import { getToolchainContractExitCode, scanToolchainContract } from './guards/toolchain-contract.mjs'
+import { getToolchainContractExitCode, scanToolchainContract } from './guards/toolchain-contract.ts'
 
 const root = process.cwd()
 const violations = scanToolchainContract({ root })

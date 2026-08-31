@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 const root = resolve(process.cwd())
 const tempRoots: string[] = []
 const oracle = [
-  ['tests/int/stateless-public-contract.int.spec.ts', 'ddcf4b2b69cf3070a7cc2b4533f27f7ab1e48a9c4679f12fa20361aeb0fa51c3'],
+  ['tests/int/stateless-public-contract.int.spec.ts', '85464f7dc4b16c3d7684cf822bcfc454735949f0da78aea3b9734caf6e179340'],
 ] as const
 const productionExtensions = ['.mjs', '.ts'] as const
 const grandfathered = [
@@ -56,7 +56,7 @@ function saveManifest(path: string, value: unknown) {
 }
 
 async function guard(path = root) {
-  const mod = await import('../../scripts/guards/structural-protection.mjs')
+  const mod = await import('../../scripts/guards/structural-protection.ts')
   return mod.runStructuralProtectionGuard(path)
 }
 
@@ -65,7 +65,21 @@ describe('structural protection guard', () => {
     expect((await guard()).map((entry: { rule: string }) => entry.rule)).toEqual([])
     expect(grandfathered).toHaveLength(5)
     expect(JSON.parse(readFileSync(join(root, 'scripts/structural-protection-manifest.json'), 'utf8'))).toEqual(manifest())
-    expect(scriptInventory(root)).toBe(78)
+    expect(scriptInventory(root)).toBe(70)
+  })
+
+  it('keeps the planning runtime within the default ceiling without a grandfathered exception', async () => {
+    const structuralManifest = JSON.parse(
+      readFileSync(join(root, 'scripts/structural-protection-manifest.json'), 'utf8'),
+    ) as { production_scripts: { grandfathered: Array<{ path: string }> } }
+    expect(structuralManifest.production_scripts.grandfathered).not.toContainEqual({
+      path: 'scripts/guards/planning-contract-runtime.ts',
+    })
+
+    const mod = await import('../../scripts/guards/structural-protection.ts')
+    expect(
+      mod.countPhysicalLines(readFileSync(join(root, 'scripts/guards/planning-contract-runtime.ts'))),
+    ).toBeLessThanOrEqual(400)
   })
 
   it('rejects malformed schema, types, unknown keys, ordering, duplicates, paths, and SHA values', async () => {
@@ -85,7 +99,7 @@ describe('structural protection guard', () => {
   })
 
   it('counts physical LF and CRLF lines including a final non-newline line', async () => {
-    const mod = await import('../../scripts/guards/structural-protection.mjs')
+    const mod = await import('../../scripts/guards/structural-protection.ts')
     expect(mod.countPhysicalLines(Buffer.from('a\nb\n'))).toBe(2)
     expect(mod.countPhysicalLines(Buffer.from('a\r\nb\r\n'))).toBe(2)
     expect(mod.countPhysicalLines(Buffer.from('a\nb'))).toBe(2)

@@ -32,17 +32,17 @@ const BASELINE_FACADE_EXPORTS = [
 
 const PRODUCTION_IMPORTERS = [
   {
-    path: 'scripts/guard-pack.mjs',
+    path: 'scripts/guard-pack.ts',
     symbols: ['formatHarnessContractViolations', 'runHarnessContractGuard'],
   },
   {
-    path: 'scripts/guards/package-manager.mjs',
-    facadeImport: '../guard-harness-contract.mjs',
+    path: 'scripts/guards/package-manager.ts',
+    facadeImport: '../guard-harness-contract.ts',
     symbols: ['CHILD_FACING_HARNESS_PATHS'],
   },
   {
     path: 'scripts/sync-boilerplate.mjs',
-    facadeImport: './guard-harness-contract.mjs',
+    facadeImport: './guard-harness-contract.ts',
     symbols: ['assertManagedRuntimeDeliveryClosure'],
   },
 ] as const
@@ -59,7 +59,7 @@ afterEach(() => {
 
 function listHarnessContractModules() {
   return readdirSync(join(process.cwd(), 'scripts/harness-contract'))
-    .filter((name) => name.endsWith('.mjs'))
+    .filter((name) => name.endsWith('.ts'))
     .map((name) => `scripts/harness-contract/${name}`)
     .sort()
 }
@@ -82,20 +82,20 @@ function collectRelativeImports(source: string) {
 
 describe('harness-contract facade exports', () => {
   it('exports exactly the baseline public symbol set', async () => {
-    const facade = await import('../../../scripts/guard-harness-contract.mjs')
+    const facade = await import('../../../scripts/guard-harness-contract.ts')
     const exportNames = Object.keys(facade).sort()
 
     expect(exportNames).toEqual([...BASELINE_FACADE_EXPORTS].sort())
   })
 
   it('keeps production importers resolving identical facade symbols', async () => {
-    const facade = await import('../../../scripts/guard-harness-contract.mjs')
+    const facade = await import('../../../scripts/guard-harness-contract.ts')
 
     for (const importer of PRODUCTION_IMPORTERS) {
       const source = readFileSync(join(process.cwd(), importer.path), 'utf8')
       const facadeImport = 'facadeImport' in importer
         ? importer.facadeImport
-        : './guard-harness-contract.mjs'
+        : './guard-harness-contract.ts'
       expect(source).toContain(`${facadeImport}'`)
 
       for (const symbol of importer.symbols) {
@@ -142,14 +142,14 @@ describe('harness-contract facade exports', () => {
     }
 
     expect(edges).toEqual([
-      'scripts/harness-contract/managed-runtime-closure.mjs -> scripts/harness-contract/runtime-import-parser.mjs',
+      'scripts/harness-contract/managed-runtime-closure.ts -> scripts/harness-contract/runtime-import-parser.ts',
     ])
   })
 })
 
 describe('harness-contract manifest', () => {
   async function loadManifest() {
-    return import('../../../scripts/harness-contract/manifest.mjs')
+    return import('../../../scripts/harness-contract/manifest.ts')
   }
 
   function writeManifest(root: string, body: string) {

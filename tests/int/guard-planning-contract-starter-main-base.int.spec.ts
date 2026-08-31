@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   formatPlanningContractViolations,
   runPlanningContractGuard,
-} from '../../scripts/guards/planning-contract-runtime.mjs'
+} from '../../scripts/guards/planning-contract-runtime.ts'
 
 const tempRoots: string[] = []
 

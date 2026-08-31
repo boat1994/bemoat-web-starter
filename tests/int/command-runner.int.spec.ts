@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   createCommandRunner,
   runCommand,
-} from '../../scripts/adapters/command-runner.mjs'
+} from '../../scripts/adapters/command-runner.ts'
 
-describe('scripts/adapters/command-runner.mjs', () => {
+describe('scripts/adapters/command-runner.ts', () => {
   it('returns trimmed stdout on success', () => {
     const run = createCommandRunner(() => ({
       status: 0,
@@ -61,8 +61,8 @@ describe('scripts/adapters/command-runner.mjs', () => {
 
   it('is listed in managedPaths for boilerplate sync', async () => {
     const sync = await import('../../scripts/sync-boilerplate.mjs')
-    expect(sync.managedPaths).not.toContain('scripts/command-runner.mjs')
-    expect(sync.managedPaths).toContain('scripts/adapters/command-runner.mjs')
+    expect(sync.managedPaths).not.toContain('scripts/command-runner.ts')
+    expect(sync.managedPaths).toContain('scripts/adapters/command-runner.ts')
     expect(sync.managedPaths).toContain('tests/int/command-runner.int.spec.ts')
   })
 })

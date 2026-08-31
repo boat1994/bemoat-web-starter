@@ -1,7 +1,7 @@
 import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { assertManagedRuntimeDeliveryClosure as assertManagedRuntimeDeliveryClosureDefault } from '../guard-harness-contract.mjs'
-import { scanToolchainContract } from '../guards/toolchain-contract.mjs'
+import { assertManagedRuntimeDeliveryClosure as assertManagedRuntimeDeliveryClosureDefault } from '../guard-harness-contract.ts'
+import { scanToolchainContract } from '../guards/toolchain-contract.ts'
 import { SYNC_MODES, getDefaultSyncConfig } from './config.mjs'
 import {
   buildContractFilePaths,
@@ -195,8 +195,8 @@ export function assertToolchainContract({ targetRootPath, contractRootPath = tar
 }
 
 const toolchainBootstrapPaths = [
-  'scripts/guards/toolchain-contract.mjs',
-  'scripts/bemoat-typecheck.mjs',
+  'scripts/guards/toolchain-contract.ts',
+  'scripts/bemoat-typecheck.ts',
   'tsconfig.harness-strict.json',
   '.bemoat/toolchain-contract.json',
 ]
