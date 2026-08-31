@@ -12,7 +12,7 @@ function validRecord(overrides: Record<string, unknown> = {}): Record<string, un
     repository: 'boat1994/bemoat-web-starter',
     issue_number: '410',
     objective: 'Implement the bounded handoff protocol primitive.',
-    permitted_scope: ['scripts/agent-handoff.mjs', 'scripts/handoff/', 'tests/int/'],
+    permitted_scope: ['scripts/agent-handoff.ts', 'scripts/handoff/', 'tests/int/'],
     prohibited_scope: ['legacy Mission Control deletion', 'production operations'],
     executing_agent: 'Codex',
     provider: 'OpenAI',

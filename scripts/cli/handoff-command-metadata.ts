@@ -7,7 +7,7 @@ export function handoffCommands(dependencies: CommandMetadataDependencies) {
     'bemoat:handoff': contract({
       command: 'bemoat:handoff',
       tier: 'A',
-      entrypoint: 'scripts/agent-handoff.mjs',
+      entrypoint: 'scripts/agent-handoff.ts',
       purpose: 'Append one validated, stateless HANDOFF record to an Issue.',
       operation: 'Validate the complete live repository binding, append exactly one top-level Issue comment, and verify its identity/content by fresh readback.',
       accepted_pre_states: ['NOT_STATEFUL'],
@@ -41,7 +41,7 @@ export function handoffCommands(dependencies: CommandMetadataDependencies) {
         { classification: 'NO_OP_IDENTICAL_RETRY', next_action: nextAction('COMPLETE', null, 'The exact canonical HANDOFF is already durable; no mutation was performed.') },
       ],
       examples: [{ description: 'Append one validated HANDOFF record from a JSON file.', argv: ['410', '--body-file', './handoff.json'] }],
-      parser_owner: 'scripts/agent-handoff.mjs',
+      parser_owner: 'scripts/agent-handoff.ts',
       safe_help_invocation: 'pnpm run bemoat:handoff -- --help --json',
       last_validation_before_mutation: 'Re-read the complete HANDOFF schema, repository, Issue, protected-base, branch/head/upstream, and applicable PR bindings immediately before posting.',
       post_write_readback: 'Fresh-read the target Issue comments and require exactly one matching canonical HANDOFF body with a durable comment ID/URL before success.',

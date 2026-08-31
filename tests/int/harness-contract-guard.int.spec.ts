@@ -53,7 +53,7 @@ const DYNAMIC_IMPORT_KEYWORD_GAP_CASES = [
 
 describe('harness contract guard', () => {
   it('exports child-facing paths and forbidden raw scripts', async () => {
-    const mod = await import('../../scripts/guard-harness-contract.mjs')
+    const mod = await import('../../scripts/guard-harness-contract.ts')
 
     expect(mod.CHILD_FACING_HARNESS_PATHS).toContain('.github/workflows/ci.yml')
     expect(mod.CHILD_FACING_HARNESS_PATHS).toContain('.githooks/pre-commit')
@@ -64,7 +64,7 @@ describe('harness contract guard', () => {
   })
 
   it('detects forbidden raw script calls in harness content', async () => {
-    const mod = await import('../../scripts/guard-harness-contract.mjs')
+    const mod = await import('../../scripts/guard-harness-contract.ts')
 
     const violations = mod.scanChildFacingHarnessFile(
       '.github/workflows/ci.yml',
@@ -76,7 +76,7 @@ describe('harness contract guard', () => {
   })
 
   it('passes when only bemoat:* scripts are called', async () => {
-    const mod = await import('../../scripts/guard-harness-contract.mjs')
+    const mod = await import('../../scripts/guard-harness-contract.ts')
 
     const violations = mod.runHarnessContractGuard({
       root: process.cwd(),
@@ -88,10 +88,10 @@ describe('harness contract guard', () => {
   })
 
   it('is listed in managedPaths for boilerplate sync', async () => {
-    const syncMod = await import('../../scripts/sync-boilerplate.mjs')
+    const syncMod = await import('../../scripts/sync-boilerplate.ts')
 
     expect(syncMod.managedPaths).toContain('scripts/check-branch-safety.sh')
-    expect(syncMod.managedPaths).toContain('scripts/guard-harness-contract.mjs')
+    expect(syncMod.managedPaths).toContain('scripts/guard-harness-contract.ts')
     expect(syncMod.managedPaths).toContain('scripts/harness-contract')
     expect(syncMod.managedPaths).toContain('tests/int/harness-contract/facade-exports.int.spec.ts')
     expect(syncMod.managedPaths).toContain('scripts/guards/legacy-managed-state.ts')
@@ -102,7 +102,7 @@ describe('harness contract guard', () => {
 
 describe('harness contract guard on disk', () => {
   it('validates synced CI workflow and hooks', async () => {
-    const mod = await import('../../scripts/guard-harness-contract.mjs')
+    const mod = await import('../../scripts/guard-harness-contract.ts')
 
     for (const relativePath of mod.CHILD_FACING_HARNESS_PATHS) {
       const content = readFileSync(resolve(process.cwd(), relativePath), 'utf8')
@@ -118,8 +118,8 @@ describe('harness contract guard on disk', () => {
 
 describe('managed runtime delivery closure', () => {
   it('passes the live starter managed runtime closure', async () => {
-    const guardMod = await import('../../scripts/guard-harness-contract.mjs')
-    const syncMod = await import('../../scripts/sync-boilerplate.mjs')
+    const guardMod = await import('../../scripts/guard-harness-contract.ts')
+    const syncMod = await import('../../scripts/sync-boilerplate.ts')
 
     const violations = guardMod.scanManagedRuntimeDeliveryClosure({
       root: process.cwd(),
@@ -133,7 +133,7 @@ describe('managed runtime delivery closure', () => {
   })
 
   it('ignores Node built-ins and package imports', async () => {
-    const guardMod = await import('../../scripts/guard-harness-contract.mjs')
+    const guardMod = await import('../../scripts/guard-harness-contract.ts')
 
     const specifiers = guardMod.parseRuntimeImportSpecifiers(`
       import { readFileSync } from 'node:fs'
@@ -149,7 +149,7 @@ describe('managed runtime delivery closure', () => {
   })
 
   it('parses combined static imports and literal dynamic imports', async () => {
-    const guardMod = await import('../../scripts/guard-harness-contract.mjs')
+    const guardMod = await import('../../scripts/guard-harness-contract.ts')
 
     const combined = guardMod.parseRuntimeImportSpecifiers(
       "import value, { helper } from './hidden.mjs'\n",
@@ -169,7 +169,7 @@ describe('managed runtime delivery closure', () => {
   })
 
   it('classifies computed template and concatenated dynamic imports as unverifiable', async () => {
-    const guardMod = await import('../../scripts/guard-harness-contract.mjs')
+    const guardMod = await import('../../scripts/guard-harness-contract.ts')
 
     const template = guardMod.parseRuntimeImportSpecifiers(
       'const bad = await import(`./hidden/${name}.mjs`)\n',
@@ -197,7 +197,7 @@ describe('managed runtime delivery closure', () => {
   it.each(VERIFIABLE_DYNAMIC_IMPORT_CASES)(
     'classifies %s dynamic imports as verifiable',
     async (_label, invocation, specifier) => {
-      const guardMod = await import('../../scripts/guard-harness-contract.mjs')
+      const guardMod = await import('../../scripts/guard-harness-contract.ts')
 
       const parsed = guardMod.parseRuntimeImportSpecifiers(`const module = await ${invocation}\n`)
 
@@ -209,7 +209,7 @@ describe('managed runtime delivery closure', () => {
   it.each(UNVERIFIABLE_DYNAMIC_IMPORT_CASES)(
     'fails closed once with deterministic diagnostics for %s dynamic imports',
     async (_label, invocation, sourceExpression) => {
-      const guardMod = await import('../../scripts/guard-harness-contract.mjs')
+      const guardMod = await import('../../scripts/guard-harness-contract.ts')
       const tempRoot = mkdtempSync(join(tmpdir(), 'bemoat-182-exhaustive-dynamic-import-'))
 
       try {
@@ -250,7 +250,7 @@ describe('managed runtime delivery closure', () => {
   it.each(DYNAMIC_IMPORT_KEYWORD_GAP_CASES)(
     'classifies literal and computed imports once across a %s keyword gap',
     async (_label, gap, normalizedGap) => {
-      const guardMod = await import('../../scripts/guard-harness-contract.mjs')
+      const guardMod = await import('../../scripts/guard-harness-contract.ts')
       const tempRoot = mkdtempSync(join(tmpdir(), 'bemoat-182-comment-gap-dynamic-import-'))
       const literalSourceExpression = `import${normalizedGap}('./leaf.mjs')`
       const computedSourceExpression = `import${normalizedGap}(prefix + './leaf.mjs')`
@@ -299,7 +299,7 @@ describe('managed runtime delivery closure', () => {
   )
 
   it('classifies multiple comment-separated dynamic imports exactly once', async () => {
-    const guardMod = await import('../../scripts/guard-harness-contract.mjs')
+    const guardMod = await import('../../scripts/guard-harness-contract.ts')
     const parsed = guardMod.parseRuntimeImportSpecifiers(
       "const a = import /* gap */ ('./a.mjs'); const b = import /* multiline\n gap */ (name); const c = import // gap\n (`./c.mjs`)\n",
     )
@@ -319,7 +319,7 @@ describe('managed runtime delivery closure', () => {
   })
 
   it('fails closed for combined static imports to unmanaged callees', async () => {
-    const guardMod = await import('../../scripts/guard-harness-contract.mjs')
+    const guardMod = await import('../../scripts/guard-harness-contract.ts')
     const tempRoot = mkdtempSync(join(tmpdir(), 'bemoat-182-combined-static-'))
 
     try {
@@ -349,7 +349,7 @@ describe('managed runtime delivery closure', () => {
   })
 
   it('fails closed for template-interpolated dynamic imports', async () => {
-    const guardMod = await import('../../scripts/guard-harness-contract.mjs')
+    const guardMod = await import('../../scripts/guard-harness-contract.ts')
     const tempRoot = mkdtempSync(join(tmpdir(), 'bemoat-182-template-dynamic-'))
 
     try {
@@ -378,7 +378,7 @@ describe('managed runtime delivery closure', () => {
   })
 
   it('fails closed for concatenated dynamic imports', async () => {
-    const guardMod = await import('../../scripts/guard-harness-contract.mjs')
+    const guardMod = await import('../../scripts/guard-harness-contract.ts')
     const tempRoot = mkdtempSync(join(tmpdir(), 'bemoat-182-concat-dynamic-'))
 
     try {
@@ -407,25 +407,31 @@ describe('managed runtime delivery closure', () => {
   })
 
   it('fails closed when the Context review parser is missing from managed delivery', async () => {
-    const guardMod = await import('../../scripts/guard-harness-contract.mjs')
+    const guardMod = await import('../../scripts/guard-harness-contract.ts')
     const tempRoot = mkdtempSync(join(tmpdir(), 'bemoat-182-missing-context-review-parser-'))
 
     try {
       mkdirSync(join(tempRoot, 'scripts/context'), { recursive: true })
       writeFileSync(
-        join(tempRoot, 'scripts/agent-context.mjs'),
+        join(tempRoot, 'scripts/agent-context.ts'),
         "import { parseProductionMergeReviewVerdict } from './context/merge-review-verdict.ts'\nexport {}\n",
       )
 
       const violations = guardMod.scanManagedRuntimeDeliveryClosure({
         root: tempRoot,
-        managedPaths: ['scripts/agent-context.mjs', 'scripts/context/merge-review-verdict.ts'],
+        managedPaths: ['scripts/agent-context.ts', 'scripts/context/merge-review-verdict.ts'],
       })
 
       expect(violations).toEqual([
         {
+          type: 'missing-managed-runtime-source',
+          importer: 'managedPaths',
+          callee: 'scripts/context/merge-review-verdict.ts',
+          specifier: 'scripts/context/merge-review-verdict.ts',
+        },
+        {
           type: 'missing-relative-runtime-dependency',
-          importer: 'scripts/agent-context.mjs',
+          importer: 'scripts/agent-context.ts',
           callee: 'scripts/context/merge-review-verdict.ts',
           specifier: './context/merge-review-verdict.ts',
         },
@@ -436,7 +442,7 @@ describe('managed runtime delivery closure', () => {
   })
 
   it('traverses literal dynamic imports and rejects computed dynamic imports', async () => {
-    const guardMod = await import('../../scripts/guard-harness-contract.mjs')
+    const guardMod = await import('../../scripts/guard-harness-contract.ts')
     const tempRoot = mkdtempSync(join(tmpdir(), 'bemoat-182-closure-'))
 
     try {
@@ -466,7 +472,7 @@ describe('managed runtime delivery closure', () => {
   })
 
   it('does not traverse tests or fixtures as runtime roots', async () => {
-    const guardMod = await import('../../scripts/guard-harness-contract.mjs')
+    const guardMod = await import('../../scripts/guard-harness-contract.ts')
 
     const roots = guardMod.collectManagedRuntimeScriptRoots(process.cwd(), [
       'tests/int/context-parser.int.spec.ts',
@@ -476,7 +482,7 @@ describe('managed runtime delivery closure', () => {
   })
 
   it('fails closed for a missing managed runtime source', async () => {
-    const guardMod = await import('../../scripts/guard-harness-contract.mjs')
+    const guardMod = await import('../../scripts/guard-harness-contract.ts')
     const tempRoot = mkdtempSync(join(tmpdir(), 'bemoat-182-missing-source-'))
 
     try {
@@ -499,7 +505,7 @@ describe('managed runtime delivery closure', () => {
   })
 
   it('fails closed for a missing relative runtime dependency', async () => {
-    const guardMod = await import('../../scripts/guard-harness-contract.mjs')
+    const guardMod = await import('../../scripts/guard-harness-contract.ts')
     const tempRoot = mkdtempSync(join(tmpdir(), 'bemoat-182-missing-relative-'))
 
     try {
@@ -528,7 +534,7 @@ describe('managed runtime delivery closure', () => {
   })
 
   it('fails closed for a renamed dependency still referenced by a managed importer', async () => {
-    const guardMod = await import('../../scripts/guard-harness-contract.mjs')
+    const guardMod = await import('../../scripts/guard-harness-contract.ts')
     const tempRoot = mkdtempSync(join(tmpdir(), 'bemoat-182-renamed-'))
 
     try {
@@ -564,7 +570,7 @@ describe('managed runtime delivery closure', () => {
   })
 
   it('fails closed for a deleted callee still referenced by a managed importer', async () => {
-    const guardMod = await import('../../scripts/guard-harness-contract.mjs')
+    const guardMod = await import('../../scripts/guard-harness-contract.ts')
     const tempRoot = mkdtempSync(join(tmpdir(), 'bemoat-182-deleted-'))
 
     try {
@@ -599,7 +605,7 @@ describe('managed runtime delivery closure', () => {
   })
 
   it('fails closed for a newly introduced unmanaged relative runtime dependency', async () => {
-    const guardMod = await import('../../scripts/guard-harness-contract.mjs')
+    const guardMod = await import('../../scripts/guard-harness-contract.ts')
     const tempRoot = mkdtempSync(join(tmpdir(), 'bemoat-182-unmanaged-'))
 
     try {
@@ -629,7 +635,7 @@ describe('managed runtime delivery closure', () => {
   })
 
   it('sorts violations deterministically by importer, type, callee, and specifier', async () => {
-    const guardMod = await import('../../scripts/guard-harness-contract.mjs')
+    const guardMod = await import('../../scripts/guard-harness-contract.ts')
     const tempRoot = mkdtempSync(join(tmpdir(), 'bemoat-182-sorted-'))
 
     try {

@@ -48,7 +48,7 @@ const DYNAMIC_IMPORT_KEYWORD_GAP_CASES = [
 ] as const
 
 async function loadParser() {
-  return import('../../../scripts/harness-contract/runtime-import-parser.mjs')
+  return import('../../../scripts/harness-contract/runtime-import-parser.ts')
 }
 
 describe('harness-contract runtime-import-parser', () => {

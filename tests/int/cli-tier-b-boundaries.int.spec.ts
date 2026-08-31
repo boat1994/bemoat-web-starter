@@ -19,7 +19,7 @@ import {
   snapshotDirectory,
   type CliBoundaryResult,
 } from '../helpers/cli-boundary-harness'
-import { getCommandContract } from '../../scripts/cli/command-contract.mjs'
+import { getCommandContract } from '../../scripts/cli/command-contract.ts'
 
 type TierBCase = {
   command: string
@@ -29,7 +29,7 @@ type TierBCase = {
 const TIER_B_CASES = [
   {
     command: 'bemoat:boilerplate:check',
-    entrypoint: 'scripts/check-boilerplate-drift.mjs',
+    entrypoint: 'scripts/check-boilerplate-drift.ts',
   },
   {
     command: 'bemoat:branch:check',
@@ -37,19 +37,19 @@ const TIER_B_CASES = [
   },
   {
     command: 'bemoat:guard:cloudflare-env',
-    entrypoint: 'scripts/guard-cloudflare-env.mjs',
+    entrypoint: 'scripts/guard-cloudflare-env.ts',
   },
   {
     command: 'bemoat:guard:harness-contract',
-    entrypoint: 'scripts/guard-harness-contract.mjs',
+    entrypoint: 'scripts/guard-harness-contract.ts',
   },
   {
     command: 'bemoat:guard:pack',
-    entrypoint: 'scripts/guard-pack.mjs',
+    entrypoint: 'scripts/guard-pack.ts',
   },
   {
     command: 'bemoat:guard:safety',
-    entrypoint: 'scripts/guard-pack.mjs',
+    entrypoint: 'scripts/guard-pack.ts',
   },
 ] as const satisfies readonly TierBCase[]
 
@@ -334,7 +334,7 @@ function runBoilerplateCheckWithFakeClone(mode: 'success' | 'failure') {
   const fakeGit = join(binDirectory, 'git')
   const logPath = join(tmpdir(), `bemoat-fake-git-${process.pid}-${Date.now()}-${mode}.log`)
   const sentinelPath = join(targetRoot, 'target-sentinel.txt')
-  const entrypoint = resolve(process.cwd(), 'scripts/check-boilerplate-drift.mjs')
+  const entrypoint = resolve(process.cwd(), 'scripts/check-boilerplate-drift.ts')
 
   mkdirSync(binDirectory, { recursive: true })
   writeFileSync(join(targetRoot, 'package.json'), '{"name":"child-fixture"}\n', 'utf8')
@@ -351,7 +351,7 @@ function runBoilerplateCheckWithFakeClone(mode: 'success' | 'failure') {
         ...process.env,
         ...facadeEnvironment({
           command: 'bemoat:boilerplate:check',
-          entrypoint: 'scripts/check-boilerplate-drift.mjs',
+          entrypoint: 'scripts/check-boilerplate-drift.ts',
         }),
         BEMOAT_FAKE_GIT_LOG: logPath,
         BEMOAT_SYNC_MODE: 'harness-only',
@@ -381,6 +381,25 @@ function runBoilerplateCheckWithFakeClone(mode: 'success' | 'failure') {
 }
 
 describe('Task 3 Tier B CLI boundaries', () => {
+  it('characterizes future TypeScript stateless roots with mutation-free JSON help', () => {
+    for (const [command, entrypoint] of [
+      ['bemoat:context', 'scripts/agent-context.ts'],
+      ['bemoat:context:sync-base', 'scripts/agent-context-sync-base.ts'],
+    ] as const) {
+      const run = runCliBoundaryCase({
+        entrypoint,
+        argv: ['--help', '--json'],
+        env: { BEMOAT_FACADE_COMMAND: command, BEMOAT_FACADE_ENTRYPOINT: entrypoint, npm_lifecycle_event: command },
+      })
+
+      expect(run.error).toBeNull()
+      expect(run.status).toBe(0)
+      expect(run.stderr).toBe('')
+      expect(JSON.parse(run.stdout)).toMatchObject({ command, mode: 'help', classification: 'HELP' })
+      expect(run.filesystem_unchanged).toBe(true)
+    }
+  })
+
   it.each(TIER_B_ROWS)(
     'Tier B %s --help and -h exit zero without I/O',
     (command, entry) => {

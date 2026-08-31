@@ -14,10 +14,27 @@ afterEach(() => {
 })
 
 async function loadClosure() {
-  return import('../../../scripts/harness-contract/managed-runtime-closure.mjs')
+  return import('../../../scripts/harness-contract/managed-runtime-closure.ts')
 }
 
 describe('harness-contract managed-runtime-closure', () => {
+  it('traverses managed TypeScript roots and transitive TypeScript imports', async () => {
+    const mod = await loadClosure()
+    const root = mkdtempSync(join(tmpdir(), 'bemoat-ts-closure-'))
+    tempRoots.push(root)
+    mkdirSync(join(root, 'scripts'), { recursive: true })
+    writeFileSync(join(root, 'scripts/root.ts'), "import './leaf.ts'\n")
+    writeFileSync(join(root, 'scripts/leaf.ts'), "import './missing.ts'\n")
+
+    expect(mod.collectManagedRuntimeScriptRoots(root, ['scripts/root.ts', 'scripts/leaf.ts'])).toEqual(['scripts/leaf.ts', 'scripts/root.ts'])
+    expect(mod.scanManagedRuntimeDeliveryClosure({ root, managedPaths: ['scripts/root.ts', 'scripts/leaf.ts'] })).toContainEqual({
+      type: 'missing-relative-runtime-dependency',
+      importer: 'scripts/leaf.ts',
+      callee: 'scripts/missing.ts',
+      specifier: './missing.ts',
+    })
+  })
+
   it('exports MANAGED_RUNTIME_ROOT_PREFIX', async () => {
     const mod = await loadClosure()
     expect(mod.MANAGED_RUNTIME_ROOT_PREFIX).toBe('scripts')

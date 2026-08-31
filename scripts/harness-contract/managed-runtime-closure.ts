@@ -92,7 +92,7 @@ export function collectManagedRuntimeScriptRoots(
 ): string[] {
   const files = listRegularFiles(root, MANAGED_RUNTIME_ROOT_PREFIX)
   return files
-    .filter((filePath) => filePath.endsWith('.mjs'))
+    .filter((filePath) => filePath.endsWith('.mjs') || filePath.endsWith('.ts'))
     .filter((filePath) => isManagedPath(filePath, managedPaths))
     .sort()
 }
@@ -100,7 +100,7 @@ export function collectManagedRuntimeScriptRoots(
 export function collectExplicitManagedRuntimeScriptPaths(managedPaths: readonly unknown[]): string[] {
   return (managedPaths as string[])
     .filter((managedPath) => managedPath.startsWith(MANAGED_RUNTIME_ROOT_PREFIX))
-    .filter((managedPath) => managedPath.endsWith('.mjs'))
+    .filter((managedPath) => managedPath.endsWith('.mjs') || managedPath.endsWith('.ts'))
     .sort()
 }
 
@@ -219,7 +219,7 @@ export function scanManagedRuntimeDeliveryClosure({
         continue
       }
 
-      if (callee.endsWith('.mjs') && isManagedPath(callee, managedPaths) && !visited.has(callee)) {
+      if ((callee.endsWith('.mjs') || callee.endsWith('.ts')) && isManagedPath(callee, managedPaths) && !visited.has(callee)) {
         queue.push(callee)
       }
     }

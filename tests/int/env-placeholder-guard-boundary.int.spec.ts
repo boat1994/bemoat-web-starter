@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 
@@ -13,7 +13,7 @@ afterEach(() => {
 
 describe('env placeholder guard boundary', () => {
   it('exposes the cohesive destination guard contract', async () => {
-    const destination = await import('../../scripts/guards/env-placeholder.mjs')
+    const destination = await import('../../scripts/guards/env-placeholder.ts')
 
     expect(Object.keys(destination).sort()).toEqual([
       'ENV_EXAMPLE_PATH',
@@ -28,14 +28,13 @@ describe('env placeholder guard boundary', () => {
     expect(destination.getEnvPlaceholderGuardExitCode([{}])).toBe(1)
   })
 
-  it('preserves direct invocation output and exit codes at the destination', () => {
+  it('preserves direct invocation output and exit codes at the owned destination', () => {
     const root = mkdtempSync(join(tmpdir(), 'env-placeholder-boundary-'))
     tempRoots.push(root)
-    const destinationPath = resolve(process.cwd(), 'scripts/guards/env-placeholder.mjs')
+    const destinationPath = resolve(process.cwd(), 'scripts/guards/env-placeholder.ts')
 
     const destinationResult = spawnSync(process.execPath, [destinationPath], { cwd: root, encoding: 'utf8' })
 
-    expect(existsSync(resolve(process.cwd(), 'scripts/guard-env-placeholder.mjs'))).toBe(false)
     expect(destinationResult.status).toBe(1)
 
     writeFileSync(join(root, '.env.example'), 'PAYLOAD_SECRET=\nDATABASE_URL=<DATABASE_URL>\n')

@@ -10,9 +10,9 @@ const processEnvFixtureRoot = join(childShapeRoot, 'process-env')
 
 function mirrorsUpstreamChildSyncPackageGate(packageJson: { scripts?: Record<string, string> }) {
   const scripts = packageJson.scripts ?? {}
-  expect(scripts['bemoat:boilerplate:sync']).toBe('node scripts/sync-boilerplate.mjs')
+  expect(scripts['bemoat:boilerplate:sync']).toBe('node scripts/sync-boilerplate.ts')
   if (scripts['boilerplate:sync'] !== undefined) {
-    expect(scripts['boilerplate:sync']).toBe('node scripts/sync-boilerplate.mjs')
+    expect(scripts['boilerplate:sync']).toBe('node scripts/sync-boilerplate.ts')
   }
 }
 
@@ -35,7 +35,7 @@ describe('child portability safety', () => {
       scripts: Record<string, string>
     }
 
-    expect(childPackage.scripts['bemoat:boilerplate:sync']).toBe('node scripts/sync-boilerplate.mjs')
+    expect(childPackage.scripts['bemoat:boilerplate:sync']).toBe('node scripts/sync-boilerplate.ts')
     expect(childPackage.scripts['boilerplate:sync']).toBeUndefined()
     expect(() => mirrorsUpstreamChildSyncPackageGate(childPackage)).not.toThrow()
   })

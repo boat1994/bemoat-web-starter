@@ -14,7 +14,7 @@ afterEach(() => {
 })
 
 async function loadPolicy() {
-  return import('../../../scripts/harness-contract/child-script-policy.mjs')
+  return import('../../../scripts/harness-contract/child-script-policy.ts')
 }
 
 describe('harness-contract child-script-policy', () => {

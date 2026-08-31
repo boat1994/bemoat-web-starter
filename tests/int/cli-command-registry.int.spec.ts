@@ -7,11 +7,11 @@ import { describe, expect, it } from 'vitest'
 import {
   COMMAND_CONTRACT_REGISTRY,
   COMMAND_CONTRACT_SCHEMA_VERSION,
-} from '../../scripts/cli/command-contract-registry.mjs'
+} from '../../scripts/cli/command-contract-registry.ts'
 import {
   getCommandContract,
   validateCommandContractRegistry,
-} from '../../scripts/cli/command-contract.mjs'
+} from '../../scripts/cli/command-contract.ts'
 
 type JsonRecord = Record<string, unknown>
 type PackageJson = { scripts: Record<string, string> }
@@ -28,20 +28,20 @@ const PACKAGE_JSON = JSON.parse(
   readFileSync(resolve(REPOSITORY_ROOT, 'package.json'), 'utf8'),
 ) as PackageJson
 const EXPECTED_PACKAGE_SCRIPTS: Record<string, string> = {
-  'bemoat:context': 'node scripts/agent-context.mjs',
-  'bemoat:context:sync-base': 'node scripts/agent-context-sync-base.mjs',
-  'bemoat:handoff': 'node scripts/agent-handoff.mjs',
-  'bemoat:boilerplate:check': 'node scripts/check-boilerplate-drift.mjs',
-  'bemoat:boilerplate:sync': 'node scripts/sync-boilerplate.mjs',
+  'bemoat:context': 'node scripts/agent-context.ts',
+  'bemoat:context:sync-base': 'node scripts/agent-context-sync-base.ts',
+  'bemoat:handoff': 'node scripts/agent-handoff.ts',
+  'bemoat:boilerplate:check': 'node scripts/check-boilerplate-drift.ts',
+  'bemoat:boilerplate:sync': 'node scripts/sync-boilerplate.ts',
   'bemoat:branch:check': 'bash scripts/check-branch-safety.sh',
   'bemoat:check': 'pnpm run bemoat:guard:safety && pnpm run lint && pnpm run typecheck && pnpm run bemoat:test:int',
-  'bemoat:guard:cloudflare-env': 'node scripts/guard-cloudflare-env.mjs',
-  'bemoat:guard:harness-contract': 'node scripts/guard-harness-contract.mjs',
-  'bemoat:guard:pack': 'node scripts/guard-pack.mjs',
-  'bemoat:guard:safety': 'node scripts/guard-pack.mjs',
-  'bemoat:hooks:install': 'node scripts/install-git-hooks.mjs',
+  'bemoat:guard:cloudflare-env': 'node scripts/guard-cloudflare-env.ts',
+  'bemoat:guard:harness-contract': 'node scripts/guard-harness-contract.ts',
+  'bemoat:guard:pack': 'node scripts/guard-pack.ts',
+  'bemoat:guard:safety': 'node scripts/guard-pack.ts',
+  'bemoat:hooks:install': 'node scripts/install-git-hooks.ts',
   'bemoat:test:int': 'cross-env NODE_OPTIONS=--no-deprecation vitest run --config ./vitest.config.mts',
-  'bemoat:typecheck': 'node scripts/bemoat-typecheck.mjs',
+  'bemoat:typecheck': 'node scripts/bemoat-typecheck.ts',
 }
 
 const EXPECTED_COMMAND_TIERS: Record<string, 'A' | 'B' | 'C'> = {
@@ -427,7 +427,7 @@ describe('Task 1 command contract registry', () => {
       commandRecord(registry, MUTATING_COMMAND).entrypoint = 'scripts/not-an-entrypoint.mjs'
     }],
     ['stale package binding', (registry) => {
-      commandRecord(registry, MUTATING_COMMAND).entrypoint = 'scripts/agent-context.mjs'
+      commandRecord(registry, MUTATING_COMMAND).entrypoint = 'scripts/agent-context.ts'
     }],
     ['unclassified package command', (registry) => {
       delete registry.commands[MUTATING_COMMAND]
@@ -461,7 +461,7 @@ describe('Task 1 command contract registry', () => {
     expectRegistryRejected(clone(COMMAND_CONTRACT_REGISTRY), unregisteredPackage)
 
     const stalePackage = clone(PACKAGE_JSON)
-    stalePackage.scripts['bemoat:mission-control:dispatch'] = 'node scripts/agent-context.mjs'
+    stalePackage.scripts['bemoat:mission-control:dispatch'] = 'node scripts/agent-context.ts'
     expectRegistryRejected(clone(COMMAND_CONTRACT_REGISTRY), stalePackage)
   })
 

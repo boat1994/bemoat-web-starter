@@ -3,6 +3,6 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "bemoat:boilerplate:sync": "node scripts/sync-boilerplate.mjs"
+    "bemoat:boilerplate:sync": "node scripts/sync-boilerplate.ts"
   }
 }

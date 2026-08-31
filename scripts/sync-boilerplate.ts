@@ -1,0 +1,327 @@
+#!/usr/bin/env node
+import { resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
+
+import { createHelpEnvelopeV1, formatTextHelp } from './cli/command-help.ts'
+import {
+  CliInvocationError,
+  parseCommandInvocation,
+  resolveCommandIdentity,
+} from './cli/command-invocation.ts'
+import {
+  CLI_EXIT_CODES,
+  classificationExitCode,
+  createResultEnvelopeV1,
+} from './cli/command-result.ts'
+import { assertManagedRuntimeDeliveryClosure } from './guard-harness-contract.ts'
+import { parseApplyBuildContract, parseSyncMode } from './boilerplate/config.ts'
+import {
+  createBoilerplateSyncWorkflow,
+  getSuggestedNextCommands,
+} from './boilerplate/workflow.ts'
+import type { ParsedInvocation } from './cli/command-invocation.ts'
+import type { CliClassification } from './cli/command-result.ts'
+import type { SyncResult } from './boilerplate/types.ts'
+
+export {
+  SYNC_MODES,
+  getDefaultSyncConfig,
+  getSourceSyncConfig,
+  parseApplyBuildContract,
+  parseSyncMode,
+  readSourceSyncManifest,
+} from './boilerplate/config.ts'
+export {
+  buildContractFilePaths,
+  buildContractPackageScripts,
+  exactManagedPackageScripts,
+  expandSeedOnlyFiles,
+  listPathFiles,
+  managedPackageScripts,
+  managedPaths,
+  mergeKeepPaths,
+  packageSyncProposalPath,
+  seedOnlyPaths,
+  suggestedPackageScripts,
+  suggestedPackageSections,
+  syncManifestPath,
+} from './boilerplate/inventory.ts'
+export {
+  applyBuildContractScripts,
+  applyManagedPackageScripts,
+  assertExactManagedPackageScripts,
+  buildPackageSyncProposal,
+  formatPackageSyncProposal,
+  syncPackageManifest,
+} from './boilerplate/package.ts'
+export {
+  applyBuildContractFiles,
+  assertToolchainContract,
+  buildSyncMetadata,
+  copyManagedPath,
+  copySeedOnlyPath,
+  isFirstToolchainBootstrap,
+  mergeGitignoreKeepTarget,
+  mergeKeepPath,
+  normalizeGitignoreLine,
+  runToolchainPreflight,
+  syncPathsFromSource,
+} from './boilerplate/filesystem.ts'
+export {
+  commitSyncedChanges,
+  commitValidatedSyncChanges,
+  getSyncCommitPaths,
+  restoreStashIfNeeded,
+  stashWorkingTreeIfNeeded,
+  syncCommitPaths,
+} from './boilerplate/git.ts'
+export { getSuggestedNextCommands }
+
+interface RuntimeDetails {
+  argument: string | null
+  reason: string
+  legacy_output?: string[]
+  cleanup_error?: string
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function isCliClassification(value: unknown): value is CliClassification {
+  return typeof value === 'string' && Object.hasOwn(CLI_EXIT_CODES, value)
+}
+
+const repo = process.env.BEMOAT_BOILERPLATE_REPO || 'boat1994/bemoat-web-starter'
+const ref = process.env.BEMOAT_BOILERPLATE_REF || 'main'
+const targetRoot = process.cwd()
+const tempRoot = resolve(targetRoot, '.bemoat-sync-tmp')
+const sourceRoot = resolve(tempRoot, 'source')
+
+export function isDirectExecution(): boolean {
+  const entrypoint = process.argv[1]
+
+  if (!entrypoint) return false
+
+  return import.meta.url === pathToFileURL(resolve(entrypoint)).href
+}
+
+function renderHelp(invocation: Extract<ParsedInvocation, { mode: 'help' }>): void {
+  if (invocation.format === 'json') {
+    process.stdout.write(`${JSON.stringify(createHelpEnvelopeV1(invocation.contract))}\n`)
+    return
+  }
+
+  process.stdout.write(formatTextHelp(invocation.contract))
+}
+
+function handleInvocationError(
+  error: unknown,
+  { command, format }: { command: string; format: 'text' | 'json' },
+): boolean {
+  if (!(error instanceof CliInvocationError)) return false
+
+  renderRuntimeError({ command, format, error })
+  return true
+}
+
+function resolveSyncCommand() {
+  const lifecycleEvent = process.env.npm_lifecycle_event
+  const isRawAlias = lifecycleEvent === 'boilerplate:sync'
+  const isUnrelatedLifecycle =
+    lifecycleEvent &&
+    !lifecycleEvent.startsWith('bemoat:') &&
+    !isRawAlias
+  const env = isRawAlias || isUnrelatedLifecycle
+    ? { ...process.env, npm_lifecycle_event: undefined }
+    : process.env
+
+  return resolveCommandIdentity({
+    fallback: 'bemoat:boilerplate:sync',
+    env,
+    entrypoint: 'scripts/sync-boilerplate.ts',
+  })
+}
+
+function runtimeClassification(error: unknown): CliClassification | 'INTERNAL_ERROR' {
+  if (
+    isRecord(error) &&
+    isCliClassification(error['classification'])
+  ) {
+    return error['classification']
+  }
+
+  const reason = error instanceof Error ? error.message : String(error)
+  const prefix = reason.match(/^([A-Z_]+):/)
+  if (prefix && isCliClassification(prefix[1])) return prefix[1]
+
+  return 'INTERNAL_ERROR'
+}
+
+function runtimeDetails(error: unknown): RuntimeDetails {
+  const details: RuntimeDetails = error instanceof CliInvocationError
+    ? {
+      argument: error.details.argument,
+      reason: error.details.reason,
+    }
+    : {
+      argument: null,
+      reason: error instanceof Error ? error.message : String(error),
+    }
+
+  if (isRecord(error)) {
+    if (Array.isArray(error['legacyOutput'])) {
+      details.legacy_output = error['legacyOutput'].filter((line): line is string => typeof line === 'string')
+    }
+    if (typeof error['cleanupError'] === 'string') {
+      details.cleanup_error = error['cleanupError']
+    }
+  }
+
+  return details
+}
+
+function renderRuntimeError({
+  command,
+  format,
+  error,
+}: {
+  command: string
+  format: 'text' | 'json'
+  error: unknown
+}): void {
+  const classification = runtimeClassification(error)
+  const details = runtimeDetails(error)
+  const mutationPerformed = Boolean(
+    isRecord(error) &&
+    error['mutationPerformed'] === true,
+  )
+
+  if (format === 'json' && command) {
+    process.stdout.write(`${JSON.stringify(createResultEnvelopeV1({
+      command,
+      outcome: 'ERROR',
+      classification,
+      mutation_performed: mutationPerformed,
+      next_action: {
+        type: 'STOP',
+        command: null,
+        reason: details.reason,
+      },
+      details,
+    }))}\n`)
+  } else {
+    process.stderr.write(`${classification}: ${details.reason}\n`)
+    for (const line of details.legacy_output ?? []) {
+      process.stderr.write(`${line}\n`)
+    }
+  }
+
+  process.exitCode = classificationExitCode(classification)
+}
+
+function renderSyncResult({
+  command,
+  format,
+  result,
+}: {
+  command: string
+  format: 'text' | 'json'
+  result: SyncResult
+}): void {
+  const classification = result.mutationPerformed
+    ? 'SUCCESS'
+    : 'NO_OP_IDENTICAL_RETRY'
+  const outcome = result.mutationPerformed ? 'SUCCESS' : 'NO_OP'
+  const nextAction: { type: 'COMPLETE'; command: null; reason: string } = result.mutationPerformed
+    ? {
+      type: 'COMPLETE',
+      command: null,
+      reason: 'The selected boilerplate projection was synchronized.',
+    }
+    : {
+      type: 'COMPLETE',
+      command: null,
+      reason: 'The selected boilerplate projection is already synchronized.',
+    }
+  const envelope = createResultEnvelopeV1({
+    command,
+    outcome,
+    classification,
+    mutation_performed: result.mutationPerformed,
+    resulting_state: 'SYNCED',
+    repository: result.repo,
+    next_action: nextAction,
+    details: {
+      ref: result.ref,
+      sync_mode: result.syncMode,
+      apply_build_contract: result.applyBuildContract,
+      seed_only_paths_skipped: result.seedOnlyPathsSkipped,
+      synced_managed: result.syncedManaged,
+      seeded_files: result.seededFiles,
+      skipped_seed_files: result.skippedSeedFiles,
+      merged_files: result.mergedFiles,
+      package_sync: result.packageSync,
+      build_contract_files: result.buildContractFiles,
+      legacy_classification: result.legacyClassification,
+      legacy_output: result.legacyOutput,
+    },
+  })
+
+  if (format === 'json') {
+    process.stdout.write(`${JSON.stringify(envelope)}\n`)
+    return
+  }
+
+  const [firstLine = 'Boilerplate sync completed.', ...remainingLines] = result.legacyOutput
+  process.stdout.write(`${classification}: ${firstLine}\n`)
+  for (const line of remainingLines) process.stdout.write(`${line}\n`)
+}
+
+function main() {
+  let command: string | undefined
+  let invocation: ParsedInvocation | undefined
+
+  try {
+    command = resolveSyncCommand()
+    invocation = parseCommandInvocation(command, process.argv.slice(2))
+
+    if (invocation.mode === 'help') {
+      renderHelp(invocation)
+      return
+    }
+
+    const syncMode = parseSyncMode(invocation.values, process.env)
+    const applyBuildContract = parseApplyBuildContract(invocation.values, process.env)
+    const workflow = createBoilerplateSyncWorkflow()
+    const result = workflow.run({
+      repo,
+      ref,
+      targetRoot,
+      tempRoot,
+      sourceRoot,
+      syncMode,
+      applyBuildContract,
+      invocationValues: invocation.values,
+      suppressToolOutput: invocation.format === 'json',
+      assertManagedRuntimeDeliveryClosure,
+    })
+
+    renderSyncResult({
+      command,
+      format: invocation.format,
+      result,
+    })
+  } catch (error) {
+    const format = invocation?.format ?? (process.argv.includes('--json') ? 'json' : 'text')
+    const outputCommand = command ?? 'bemoat:boilerplate:sync'
+    if (handleInvocationError(error, { command: outputCommand, format })) return
+    renderRuntimeError({
+      command: outputCommand,
+      format,
+      error,
+    })
+  }
+}
+
+if (isDirectExecution()) main()

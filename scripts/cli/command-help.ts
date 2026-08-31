@@ -1,5 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { z } from 'zod'
+import { resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import { getCommandContract } from './command-contract.ts'
 import {
@@ -391,4 +393,8 @@ export function runCommandHelpMain(argv: string[] = process.argv.slice(2)): numb
   }
 
   return classificationExitCode(classification)
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  process.exitCode = runCommandHelpMain()
 }

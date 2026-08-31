@@ -12,7 +12,7 @@ import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 
 type BuildSyncMetadataParams = Parameters<
-  (typeof import('../../scripts/sync-boilerplate.mjs'))['buildSyncMetadata']
+  (typeof import('../../scripts/sync-boilerplate.ts'))['buildSyncMetadata']
 >[0]
 
 const scratchRoots: string[] = []
@@ -34,7 +34,7 @@ afterEach(() => {
 })
 
 async function loadFilesystem() {
-  return import('../../scripts/boilerplate/filesystem.mjs')
+  return import('../../scripts/boilerplate/filesystem.ts')
 }
 
 function buildSyncMetadataInput(input: unknown): BuildSyncMetadataParams {

@@ -1,13 +1,13 @@
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import * as guard from '../../scripts/guards/toolchain-contract.mjs'
+import * as guard from '../../scripts/guards/toolchain-contract.ts'
 
 describe('toolchain contract', () => {
-  it('keeps the owned destination authoritative after root facade removal', () => {
-    expect(existsSync(resolve(process.cwd(), 'scripts/guard-toolchain-contract.mjs'))).toBe(false)
+  it('keeps the owned TypeScript destination authoritative', () => {
+    expect(readFileSync(resolve(process.cwd(), 'scripts/guards/toolchain-contract.ts'), 'utf8')).toContain('TOOLCHAIN_CONTRACT_PATH')
     expect(Object.keys(guard).sort()).toEqual([
       'TOOLCHAIN_CONTRACT_PATH',
       'formatToolchainContractViolations',
@@ -30,7 +30,7 @@ describe('toolchain contract', () => {
     expect(contract.compiler.harnessRoots).toContain('scripts/context/**/*.ts')
     expect(contract.compiler.harnessRoots).toContain('scripts/guards/legacy-managed-state.ts')
     expect(JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf8')).scripts.typecheck)
-      .toBe('node scripts/bemoat-typecheck.mjs')
+      .toBe('node scripts/bemoat-typecheck.ts')
     expect(mod.scanToolchainContract()).toEqual([])
   })
 
@@ -111,7 +111,7 @@ describe('toolchain contract', () => {
   })
 
   it('treats a child TypeScript mismatch as blocking sync drift', async () => {
-    const drift = await import('../../scripts/check-boilerplate-drift.mjs')
+    const drift = await import('../../scripts/check-boilerplate-drift.ts')
     const report = {
       managed: { missing: [] as string[], changed: [] as string[] },
       seed: { missingSeed: [] as string[] },
@@ -123,7 +123,7 @@ describe('toolchain contract', () => {
   })
 
   it('treats a divergent public bemoat:typecheck script as blocking sync drift', async () => {
-    const drift = await import('../../scripts/check-boilerplate-drift.mjs')
+    const drift = await import('../../scripts/check-boilerplate-drift.ts')
     const fixtureRoot = resolve(process.cwd(), '.tmp-toolchain-script-drift')
     const sourceRoot = resolve(fixtureRoot, 'source')
     const targetRoot = resolve(fixtureRoot, 'target')
@@ -145,7 +145,7 @@ describe('toolchain contract', () => {
   })
 
   it('preserves quoted comment-like sequences while stripping real JSONC comments', async () => {
-    const drift = await import('../../scripts/check-boilerplate-drift.mjs')
+    const drift = await import('../../scripts/check-boilerplate-drift.ts')
 
     const stripped = drift.stripJsoncComments(`{
   // line comment
@@ -178,7 +178,7 @@ describe('toolchain contract', () => {
   })
 
   it('parses child-shaped tsconfig path aliases during toolchain drift checks', async () => {
-    const drift = await import('../../scripts/check-boilerplate-drift.mjs')
+    const drift = await import('../../scripts/check-boilerplate-drift.ts')
     const fixtureRoot = resolve(process.cwd(), '.tmp-toolchain-jsonc-paths')
     const sourceRoot = resolve(fixtureRoot, 'source')
     const targetRoot = resolve(fixtureRoot, 'target')
@@ -189,7 +189,7 @@ describe('toolchain contract', () => {
     writeFileSync(resolve(sourceRoot, '.bemoat/toolchain-contract.json'), readFileSync(resolve(process.cwd(), '.bemoat/toolchain-contract.json')))
     writeFileSync(resolve(targetRoot, 'package.json'), JSON.stringify({
       devDependencies: { typescript: '6.0.3' },
-      scripts: { 'bemoat:typecheck': 'node scripts/bemoat-typecheck.mjs' },
+      scripts: { 'bemoat:typecheck': 'node scripts/bemoat-typecheck.ts' },
     }))
     writeFileSync(resolve(targetRoot, 'tsconfig.json'), `{
   // child-shaped path alias fixture
@@ -208,7 +208,7 @@ describe('toolchain contract', () => {
   })
 
   it('still reports genuine toolchain drift after JSONC-safe parsing', async () => {
-    const drift = await import('../../scripts/check-boilerplate-drift.mjs')
+    const drift = await import('../../scripts/check-boilerplate-drift.ts')
     const fixtureRoot = resolve(process.cwd(), '.tmp-toolchain-jsonc-drift')
     const sourceRoot = resolve(fixtureRoot, 'source')
     const targetRoot = resolve(fixtureRoot, 'target')
@@ -219,7 +219,7 @@ describe('toolchain contract', () => {
     writeFileSync(resolve(sourceRoot, '.bemoat/toolchain-contract.json'), readFileSync(resolve(process.cwd(), '.bemoat/toolchain-contract.json')))
     writeFileSync(resolve(targetRoot, 'package.json'), JSON.stringify({
       devDependencies: { typescript: '5.8.0' },
-      scripts: { 'bemoat:typecheck': 'node scripts/bemoat-typecheck.mjs' },
+      scripts: { 'bemoat:typecheck': 'node scripts/bemoat-typecheck.ts' },
     }))
     writeFileSync(resolve(targetRoot, 'tsconfig.json'), `{
   "compilerOptions": {
@@ -237,7 +237,7 @@ describe('toolchain contract', () => {
   })
 
   it('preserves quoted trailing-comma lookalikes and removes structural trailing commas', async () => {
-    const drift = await import('../../scripts/check-boilerplate-drift.mjs')
+    const drift = await import('../../scripts/check-boilerplate-drift.ts')
 
     expect(JSON.parse(drift.stripJsoncComments('{"value": ",}"}')).value).toBe(',}')
     expect(JSON.parse(drift.stripJsoncComments('{"value": ",]"}')).value).toBe(',]')
@@ -257,7 +257,7 @@ describe('toolchain contract', () => {
   })
 
   it('rejects unterminated block comments while preserving valid JSONC', async () => {
-    const drift = await import('../../scripts/check-boilerplate-drift.mjs')
+    const drift = await import('../../scripts/check-boilerplate-drift.ts')
 
     expect(() => drift.stripJsoncComments('{"compilerOptions":{"strict":true}}/* no closing')).toThrow(SyntaxError)
     expect(() => drift.stripJsoncComments('{"compilerOptions":{"strict":true}}/* no closing')).toThrow(/unterminated block comment/i)

@@ -3,8 +3,8 @@ import { resolve } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { getCommandContract } from '../../scripts/cli/command-contract.mjs'
-import { managedPaths } from '../../scripts/boilerplate/inventory.mjs'
+import { getCommandContract } from '../../scripts/cli/command-contract.ts'
+import { managedPaths } from '../../scripts/boilerplate/inventory.ts'
 
 const ROOT = process.cwd()
 const SKILL_PATH = '.agents/skills/handoff.md'

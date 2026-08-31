@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
@@ -16,8 +17,8 @@ afterEach(() => {
 
 describe('central guard pack', () => {
   it('keeps the public facade re-exporting the inward composition module', async () => {
-    const facade = await import('../../scripts/guard-pack.mjs')
-    const destination = await import('../../scripts/guards/pack.mjs')
+    const facade = await import('../../scripts/guard-pack.ts')
+    const destination = await import('../../scripts/guards/pack.ts')
 
     expect(Object.keys(destination).sort()).toEqual([
       'GUARD_PACK',
@@ -34,8 +35,8 @@ describe('central guard pack', () => {
   })
 
   it('keeps the harness-contract pack entry wired to stable facade exports', async () => {
-    const destination = await import('../../scripts/guards/pack.mjs')
-    const harnessFacade = await import('../../scripts/guard-harness-contract.mjs')
+    const destination = await import('../../scripts/guards/pack.ts')
+    const harnessFacade = await import('../../scripts/guard-harness-contract.ts')
     const harnessContractGuard = destination.GUARD_PACK.find(
       (guard: { id: string }) => guard.id === 'harness-contract',
     )
@@ -47,7 +48,7 @@ describe('central guard pack', () => {
   })
 
   it('exports all v1 guards in deterministic order', async () => {
-    const mod = await import('../../scripts/guard-pack.mjs')
+    const mod = await import('../../scripts/guard-pack.ts')
 
     expect(mod.GUARD_PACK.map((guard: { id: string }) => guard.id)).toEqual([
       'repo-safety',
@@ -65,7 +66,7 @@ describe('central guard pack', () => {
   })
 
   it('registers planning-contract with summary metadata', async () => {
-    const mod = await import('../../scripts/guard-pack.mjs')
+    const mod = await import('../../scripts/guard-pack.ts')
 
     const planningGuard = mod.GUARD_PACK.find((guard: { id: string }) => guard.id === 'planning-contract')
 
@@ -78,7 +79,7 @@ describe('central guard pack', () => {
   })
 
   it('passes on the current repository', async () => {
-    const mod = await import('../../scripts/guard-pack.mjs')
+    const mod = await import('../../scripts/guard-pack.ts')
 
     const results = mod.runGuardPack()
     const violations = mod.flattenGuardPackViolations(results)
@@ -90,31 +91,45 @@ describe('central guard pack', () => {
   it('is wired to bemoat:guard:safety and bemoat:guard:pack scripts', async () => {
     const packageJSON = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf8'))
 
-    expect(packageJSON.scripts['bemoat:guard:safety']).toBe('node scripts/guard-pack.mjs')
-    expect(packageJSON.scripts['bemoat:guard:pack']).toBe('node scripts/guard-pack.mjs')
-    expect(packageJSON.scripts['guard:safety']).toBe('node scripts/guard-pack.mjs')
+    expect(packageJSON.scripts['bemoat:guard:safety']).toBe('node scripts/guard-pack.ts')
+    expect(packageJSON.scripts['bemoat:guard:pack']).toBe('node scripts/guard-pack.ts')
+    expect(packageJSON.scripts['guard:safety']).toBe('node scripts/guard-pack.ts')
   })
 
   it('is listed in managedPaths for boilerplate sync', async () => {
-    const syncMod = await import('../../scripts/sync-boilerplate.mjs')
+    const syncMod = await import('../../scripts/sync-boilerplate.ts')
 
-    expect(syncMod.managedPaths).toContain('scripts/guard-pack.mjs')
-    expect(syncMod.managedPaths).toContain('scripts/guards/pack.mjs')
-    expect(syncMod.managedPaths).toContain('scripts/guards/repo-safety.mjs')
-    expect(syncMod.managedPaths).not.toContain('scripts/guard-repo-safety.mjs')
-    expect(syncMod.managedPaths).toContain('scripts/guards/structural-protection.mjs')
+    expect(syncMod.managedPaths).toContain('scripts/guard-pack.ts')
+    expect(syncMod.managedPaths).toContain('scripts/guards/pack.ts')
+    expect(syncMod.managedPaths).toContain('scripts/guards/repo-safety.ts')
+    expect(syncMod.managedPaths).toContain('scripts/guards/structural-protection.ts')
     expect(syncMod.managedPaths).toContain('scripts/structural-protection-manifest.json')
     expect(syncMod.managedPaths).toContain('tests/int/structural-protection.int.spec.ts')
-    expect(syncMod.managedPaths).toContain('scripts/guards/build-script-contract.mjs')
-    expect(syncMod.managedPaths).not.toContain('scripts/guard-build-script-contract.mjs')
-    expect(syncMod.managedPaths).toContain('scripts/guards/package-manager.mjs')
-    expect(syncMod.managedPaths).toContain('scripts/guards/toolchain-contract.mjs')
-    expect(syncMod.managedPaths).not.toContain('scripts/guard-toolchain-contract.mjs')
+    expect(syncMod.managedPaths).toContain('scripts/guards/build-script-contract.ts')
+    expect(syncMod.managedPaths).toContain('scripts/guards/package-manager.ts')
+    expect(syncMod.managedPaths).toContain('scripts/guards/toolchain-contract.ts')
     expect(syncMod.managedPaths).toContain('tsconfig.harness-strict.json')
     expect(syncMod.managedPackageScripts).toContain('bemoat:typecheck')
-    expect(syncMod.managedPaths).toContain('scripts/guards/env-placeholder.mjs')
-    expect(syncMod.managedPaths).toContain('scripts/guards/frontend-seo.mjs')
-    expect(syncMod.managedPaths).not.toContain('scripts/guard-frontend-seo.mjs')
+    expect(syncMod.managedPaths).toContain('scripts/guards/env-placeholder.ts')
+    expect(syncMod.managedPaths).toContain('scripts/guards/frontend-seo.ts')
+    const trackedMjsResult = spawnSync('git', ['ls-files', '--', '*.mjs'], {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+    })
+    expect(trackedMjsResult.status).toBe(0)
+    const trackedMjs = trackedMjsResult.stdout.trim().split('\n').filter(Boolean)
+    expect(trackedMjs).toEqual([
+      'eslint.config.mjs',
+      'scripts/build.mjs',
+      'scripts/deploy-smoke-test.mjs',
+    ])
+    expect(syncMod.managedPaths.filter((path: string) => path.endsWith('.mjs'))).toEqual([
+      'scripts/deploy-smoke-test.mjs',
+      'scripts/build.mjs',
+    ])
+    expect(trackedMjs.filter((path) => !syncMod.managedPaths.includes(path))).toEqual([
+      'eslint.config.mjs',
+    ])
     expect(syncMod.managedPaths).toContain('docs/guard-pack.md')
     expect(syncMod.managedPackageScripts).toContain('bemoat:guard:pack')
   })
@@ -122,7 +137,7 @@ describe('central guard pack', () => {
 
 describe('destructive SQL fixture', () => {
   it('flags unapproved destructive migration fixture', async () => {
-    const repoSafety = await import('../../scripts/guards/repo-safety.mjs')
+    const repoSafety = await import('../../scripts/guards/repo-safety.ts')
     const content = readFileSync(resolve(fixturesRoot, 'destructive-migration-unapproved.ts'), 'utf8')
 
     const violations = repoSafety.scanDestructiveMigration(
@@ -136,7 +151,7 @@ describe('destructive SQL fixture', () => {
   })
 
   it('allows approved destructive migration fixture', async () => {
-    const repoSafety = await import('../../scripts/guards/repo-safety.mjs')
+    const repoSafety = await import('../../scripts/guards/repo-safety.ts')
     const content = readFileSync(resolve(fixturesRoot, 'destructive-migration-approved.ts'), 'utf8')
 
     const violations = repoSafety.scanDestructiveMigration(
@@ -150,7 +165,7 @@ describe('destructive SQL fixture', () => {
 
 describe('direct script call fixtures', () => {
   it('flags forbidden raw script fixture', async () => {
-    const harness = await import('../../scripts/guard-harness-contract.mjs')
+    const harness = await import('../../scripts/guard-harness-contract.ts')
     const content = readFileSync(resolve(fixturesRoot, 'harness-with-forbidden-scripts.yml'), 'utf8')
 
     const violations = harness.scanChildFacingHarnessFile('.github/workflows/ci.yml', content)
@@ -161,7 +176,7 @@ describe('direct script call fixtures', () => {
   })
 
   it('passes bemoat-only harness fixture', async () => {
-    const harness = await import('../../scripts/guard-harness-contract.mjs')
+    const harness = await import('../../scripts/guard-harness-contract.ts')
     const content = readFileSync(resolve(fixturesRoot, 'harness-with-bemoat-scripts.yml'), 'utf8')
 
     const violations = harness.scanChildFacingHarnessFile('.github/workflows/ci.yml', content)
@@ -172,7 +187,7 @@ describe('direct script call fixtures', () => {
 
 describe('package manager guard', () => {
   it('flags alternate lockfiles and npm commands in harness content', async () => {
-    const mod = await import('../../scripts/guards/package-manager.mjs')
+    const mod = await import('../../scripts/guards/package-manager.ts')
 
     expect(mod.scanTrackedLockfiles(['package-lock.json', 'pnpm-lock.yaml'])).toHaveLength(1)
 
@@ -188,7 +203,7 @@ describe('package manager guard', () => {
 
 describe('env placeholder guard', () => {
   it('passes empty .env.example values', async () => {
-    const mod = await import('../../scripts/guards/env-placeholder.mjs')
+    const mod = await import('../../scripts/guards/env-placeholder.ts')
 
     const violations = mod.scanEnvExampleContent('PAYLOAD_SECRET=\nDATABASE_URL=')
 
@@ -196,7 +211,7 @@ describe('env placeholder guard', () => {
   })
 
   it('flags real-looking secrets in .env.example', async () => {
-    const mod = await import('../../scripts/guards/env-placeholder.mjs')
+    const mod = await import('../../scripts/guards/env-placeholder.ts')
 
     const violations = mod.scanEnvExampleContent(
       'PAYLOAD_SECRET=super-secret-production-value-should-not-be-here',
@@ -209,7 +224,7 @@ describe('env placeholder guard', () => {
 
 describe('build script contract fixtures', () => {
   it('flags recursive OpenNext build script fixture', async () => {
-    const mod = await import('../../scripts/guards/build-script-contract.mjs')
+    const mod = await import('../../scripts/guards/build-script-contract.ts')
     const pkg = JSON.parse(readFileSync(resolve(fixturesRoot, 'package-recursive-build.json'), 'utf8'))
 
     const violations = mod.scanBuildScriptContract(pkg.scripts, 'package.json')
@@ -222,7 +237,7 @@ describe('build script contract fixtures', () => {
   })
 
   it('passes correct build script fixture', async () => {
-    const mod = await import('../../scripts/guards/build-script-contract.mjs')
+    const mod = await import('../../scripts/guards/build-script-contract.ts')
     const pkg = JSON.parse(readFileSync(resolve(fixturesRoot, 'package-correct-build.json'), 'utf8'))
 
     const violations = mod.scanBuildScriptContract(pkg.scripts, 'package.json')
@@ -233,7 +248,7 @@ describe('build script contract fixtures', () => {
 
 describe('planning contract guard pack integration', () => {
   it('surfaces planning-contract violations through runGuardPack', async () => {
-    const mod = await import('../../scripts/guard-pack.mjs')
+    const mod = await import('../../scripts/guard-pack.ts')
     const tempRoot = mkdtempSync(join(tmpdir(), 'guard-pack-planning-'))
     tempRoots.push(tempRoot)
 
@@ -257,8 +272,11 @@ describe('planning contract guard pack integration', () => {
 
     expect(planningResult).toBeDefined()
     expect(planningViolations.length).toBeGreaterThan(0)
-    expect(planningViolations.some((item: { rule: string }) => item.rule.startsWith('PLAN'))).toBe(true)
-    expect(planningViolations.some((item: { rule: string }) => item.rule === 'PLAN004')).toBe(true)
+    const hasRule = (item: unknown, rule: string): boolean =>
+      item !== null && typeof item === 'object' && 'rule' in item && typeof item.rule === 'string' &&
+      (rule.endsWith('*') ? item.rule.startsWith(rule.slice(0, -1)) : item.rule === rule)
+    expect(planningViolations.some((item) => hasRule(item, 'PLAN*'))).toBe(true)
+    expect(planningViolations.some((item) => hasRule(item, 'PLAN004'))).toBe(true)
     expect(mod.getGuardPackExitCode(results)).toBe(1)
 
     const output = mod.formatGuardPackResults(results).join('\n')
@@ -270,7 +288,7 @@ describe('planning contract guard pack integration', () => {
 
 describe('frontend SEO guard', () => {
   it('requires metadata title and description in frontend layout', async () => {
-    const mod = await import('../../scripts/guards/frontend-seo.mjs')
+    const mod = await import('../../scripts/guards/frontend-seo.ts')
 
     const violations = mod.scanFrontendLayoutMetadata(`
 export const metadata = { title: 'Example' }
@@ -282,7 +300,7 @@ export const metadata = { title: 'Example' }
   })
 
   it('validates optional sitemap and robots exports when present', async () => {
-    const mod = await import('../../scripts/guards/frontend-seo.mjs')
+    const mod = await import('../../scripts/guards/frontend-seo.ts')
 
     expect(mod.scanOptionalSeoFile('src/app/sitemap.ts', 'export const dynamic = "force-static"')).toHaveLength(
       1,
@@ -295,7 +313,7 @@ export const metadata = { title: 'Example' }
 
 describe('package manager guard destination boundary', () => {
   it('preserves the destination export surface and direct-execution boundary', async () => {
-    const destination = await import('../../scripts/guards/package-manager.mjs')
+    const destination = await import('../../scripts/guards/package-manager.ts')
 
     expect(Object.keys(destination).sort()).toEqual([
       'FORBIDDEN_LOCKFILES',
@@ -313,7 +331,7 @@ describe('package manager guard destination boundary', () => {
   })
 
   it('keeps package-manager policy diagnostics and exit mapping stable', async () => {
-    const destination = await import('../../scripts/guards/package-manager.mjs')
+    const destination = await import('../../scripts/guards/package-manager.ts')
     const violations = destination.runPackageManagerGuard({
       files: ['package.json', 'package-lock.json'] as unknown as null,
       readFile: () => JSON.stringify({}),

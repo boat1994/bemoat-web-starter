@@ -3,7 +3,7 @@
 ## Tracked template
 
 - **`.env.example`** — must exist; values must be empty or obvious placeholders.
-- Guard: `scripts/guards/env-placeholder.mjs` (part of guard pack).
+- Guard: `scripts/guards/env-placeholder.ts` (part of guard pack).
 
 Current starter example:
 
@@ -19,7 +19,7 @@ Generate a real secret locally: `openssl rand -hex 32` (see `package.json` → `
 |------|------|
 | `.env` | Never commit — listed in `.gitignore` |
 | `.env.local`, `.env.production`, etc. | Never commit tracked copies with real values |
-| Secrets in source/docs | Caught by `guard-repo-safety.mjs` |
+| Secrets in source/docs | Caught by `scripts/guards/repo-safety.ts` |
 
 ## Cloudflare IDs and secrets
 

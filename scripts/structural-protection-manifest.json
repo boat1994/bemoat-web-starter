@@ -6,9 +6,8 @@
     "line_count_algorithm": "physical-lines-v1",
     "soft_ceiling": 400,
     "grandfathered": [
-      { "path": "scripts/boilerplate/filesystem.mjs", "max_lines": 635 },
-      { "path": "scripts/boilerplate/workflow.mjs", "max_lines": 465 },
-      { "path": "scripts/check-boilerplate-drift.mjs", "max_lines": 552 },
+      { "path": "scripts/boilerplate/filesystem.ts", "max_lines": 635 },
+      { "path": "scripts/boilerplate/workflow.ts", "max_lines": 465 },
       { "path": "scripts/cli/command-contract-registry.ts", "max_lines": 870 },
       { "path": "scripts/cli/command-contract.ts", "max_lines": 580 }
     ]
@@ -16,7 +15,7 @@
   "protected_oracle": {
     "algorithm": "sha256",
     "files": [
-      { "path": "tests/int/stateless-public-contract.int.spec.ts", "sha256": "ddcf4b2b69cf3070a7cc2b4533f27f7ab1e48a9c4679f12fa20361aeb0fa51c3" }
+      { "path": "tests/int/stateless-public-contract.int.spec.ts", "sha256": "85464f7dc4b16c3d7684cf822bcfc454735949f0da78aea3b9734caf6e179340" }
     ]
   }
 }

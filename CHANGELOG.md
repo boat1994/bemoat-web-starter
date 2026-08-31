@@ -25,7 +25,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 
 ### Added
 
-- `pnpm run boilerplate:sync` and `scripts/sync-boilerplate.mjs` managed path list
+- `pnpm run boilerplate:sync` and `scripts/sync-boilerplate.ts` managed path list
 - Automatic git commit for sync-managed files after each sync
 - Stash/restore behavior for local changes outside managed paths
 - `.bemoat-boilerplate-sync.json` tracking of last sync ref

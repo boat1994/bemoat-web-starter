@@ -1,4 +1,4 @@
-# Starter-only strict CI. Not synced to child projects — see managedPaths in scripts/sync-boilerplate.mjs.
+# Starter-only strict CI. Not synced to child projects — see managedPaths in scripts/sync-boilerplate.ts.
 name: CI (starter strict)
 
 on:

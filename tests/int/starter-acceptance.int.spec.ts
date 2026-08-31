@@ -24,10 +24,10 @@ const ESSENTIAL_MANAGED_HARNESS_PATHS = [
   '.github/workflows/ci.yml',
   '.githooks',
   'scripts/check-branch-safety.sh',
-  'scripts/guard-pack.mjs',
-  'scripts/guard-harness-contract.mjs',
-  'scripts/sync-boilerplate.mjs',
-  'scripts/check-boilerplate-drift.mjs',
+  'scripts/guard-pack.ts',
+  'scripts/guard-harness-contract.ts',
+  'scripts/sync-boilerplate.ts',
+  'scripts/check-boilerplate-drift.ts',
   'vitest.config.mts',
   'docs/workflow',
   'docs/harness-sync-contract.md',
@@ -62,13 +62,13 @@ describe('starter acceptance suite v1', () => {
         expect(packageJSON.scripts[scriptName], `missing optional ${scriptName}`).toBeTruthy()
       }
 
-      expect(packageJSON.scripts['bemoat:guard:safety']).toBe('node scripts/guard-pack.mjs')
+      expect(packageJSON.scripts['bemoat:guard:safety']).toBe('node scripts/guard-pack.ts')
       expect(packageJSON.scripts['bemoat:branch:check']).toBe('bash scripts/check-branch-safety.sh')
       expect(packageJSON.scripts['bemoat:test:int']).toContain('vitest run')
     })
 
     it('lists required scripts in managedPackageScripts for boilerplate sync', async () => {
-      const syncMod = await import('../../scripts/sync-boilerplate.mjs')
+      const syncMod = await import('../../scripts/sync-boilerplate.ts')
 
       for (const scriptName of REQUIRED_CHILD_BEMOAT_SCRIPTS) {
         expect(syncMod.managedPackageScripts).toContain(scriptName)
@@ -82,7 +82,7 @@ describe('starter acceptance suite v1', () => {
 
   describe('child-facing automation uses only bemoat:* commands', () => {
     it('passes harness contract guard on synced CI and pre-push', async () => {
-      const harness = await import('../../scripts/guard-harness-contract.mjs')
+      const harness = await import('../../scripts/guard-harness-contract.ts')
 
       const violations = harness.runHarnessContractGuard({
         root: repoRoot,
@@ -93,7 +93,7 @@ describe('starter acceptance suite v1', () => {
     })
 
     it('documents child-facing harness paths for CI and pre-push', async () => {
-      const harness = await import('../../scripts/guard-harness-contract.mjs')
+      const harness = await import('../../scripts/guard-harness-contract.ts')
 
       expect(harness.CHILD_FACING_HARNESS_PATHS).toEqual([
         '.github/workflows/ci.yml',
@@ -105,7 +105,7 @@ describe('starter acceptance suite v1', () => {
 
   describe('guard pack execution path', () => {
     it('passes on the current repository with understandable success output', async () => {
-      const guardPack = await import('../../scripts/guard-pack.mjs')
+      const guardPack = await import('../../scripts/guard-pack.ts')
 
       const results = guardPack.runGuardPack()
       const output = guardPack.formatGuardPackResults(results).join('\n')
@@ -119,7 +119,7 @@ describe('starter acceptance suite v1', () => {
 
   describe('harness contract failure output', () => {
     it('reports file path, forbidden script, and bemoat:* guidance', async () => {
-      const harness = await import('../../scripts/guard-harness-contract.mjs')
+      const harness = await import('../../scripts/guard-harness-contract.ts')
       const content = readFileSync(
         resolve(guardFixturesRoot, 'harness-with-forbidden-scripts.yml'),
         'utf8',
@@ -138,8 +138,8 @@ describe('starter acceptance suite v1', () => {
     })
 
     it('surfaces harness-contract failures through guard pack formatting', async () => {
-      const guardPack = await import('../../scripts/guard-pack.mjs')
-      const harness = await import('../../scripts/guard-harness-contract.mjs')
+      const guardPack = await import('../../scripts/guard-pack.ts')
+      const harness = await import('../../scripts/guard-harness-contract.ts')
       const content = readFileSync(
         resolve(guardFixturesRoot, 'harness-with-forbidden-scripts.yml'),
         'utf8',
@@ -169,8 +169,8 @@ describe('starter acceptance suite v1', () => {
 
   describe('simulated child project minimal harness path', () => {
     it('adds missing bemoat:* scripts and passes harness contract on fixture CI/hooks', async () => {
-      const syncMod = await import('../../scripts/sync-boilerplate.mjs')
-      const harness = await import('../../scripts/guard-harness-contract.mjs')
+      const syncMod = await import('../../scripts/sync-boilerplate.ts')
+      const harness = await import('../../scripts/guard-harness-contract.ts')
 
       rmSync(tempChildRoot, { recursive: true, force: true })
       copyDirectory(acceptanceFixtureRoot, tempChildRoot)
@@ -201,7 +201,7 @@ describe('starter acceptance suite v1', () => {
     })
 
     it('copies managed harness files in harness-only sync without seeding product code', async () => {
-      const syncMod = await import('../../scripts/sync-boilerplate.mjs')
+      const syncMod = await import('../../scripts/sync-boilerplate.ts')
 
       rmSync(tempChildRoot, { recursive: true, force: true })
       mkdirSync(join(tempChildRoot, 'src/collections'), { recursive: true })
@@ -216,7 +216,7 @@ describe('starter acceptance suite v1', () => {
 
       expect(result.seedOnlyPathsSkipped).toBe(true)
       expect(result.seededFiles).toEqual([])
-      expect(result.syncedManaged).toContain('scripts/guard-pack.mjs')
+      expect(result.syncedManaged).toContain('scripts/guard-pack.ts')
       expect(result.syncedManaged).toContain('scripts/check-branch-safety.sh')
       expect(result.syncedManaged).toContain('.github/workflows/ci.yml')
 
@@ -226,7 +226,7 @@ describe('starter acceptance suite v1', () => {
 
   describe('sync boundary contracts', () => {
     it('includes essential harness paths in managedPaths but not seed-only or child-owned paths', async () => {
-      const syncMod = await import('../../scripts/sync-boilerplate.mjs')
+      const syncMod = await import('../../scripts/sync-boilerplate.ts')
 
       for (const path of ESSENTIAL_MANAGED_HARNESS_PATHS) {
         expect(syncMod.managedPaths, `managedPaths missing ${path}`).toContain(path)
@@ -245,7 +245,7 @@ describe('starter acceptance suite v1', () => {
     })
 
     it('syncs acceptance suite files as shared harness coverage', async () => {
-      const syncMod = await import('../../scripts/sync-boilerplate.mjs')
+      const syncMod = await import('../../scripts/sync-boilerplate.ts')
 
       expect(syncMod.managedPaths).toContain('tests/int/starter-acceptance.int.spec.ts')
       expect(syncMod.managedPaths).toContain('tests/fixtures/acceptance')

@@ -18,7 +18,7 @@ function validRecord(overrides: Record<string, unknown> = {}): Record<string, un
     repository: REPOSITORY,
     issue_number: ISSUE,
     objective: 'Implement the bounded handoff protocol primitive.',
-    permitted_scope: ['scripts/agent-handoff.mjs', 'scripts/handoff/', 'tests/int/'],
+    permitted_scope: ['scripts/agent-handoff.ts', 'scripts/handoff/', 'tests/int/'],
     prohibited_scope: ['legacy Mission Control deletion', 'production operations'],
     executing_agent: 'Codex',
     provider: 'OpenAI',
@@ -53,6 +53,7 @@ type World = {
   calls: Array<{ command: string; args: string[]; input?: string }>
   failPost?: boolean
   acceptFailedPost?: boolean
+  duplicateFailedPost?: boolean
   hideReadback?: boolean
   repository?: string
   issueNumber?: string
@@ -117,7 +118,12 @@ function runnerFor(world: World): HandoffCommandRunner {
           html_url: `${ISSUE_URL}#issuecomment-${9000 + world.postCount}`,
           body,
         }
-        if (world.acceptFailedPost) world.comments.push(next)
+        if (world.acceptFailedPost) {
+          world.comments.push(next)
+          if (world.duplicateFailedPost) {
+            world.comments.push({ ...next, id: String(9000 + world.postCount + 1), html_url: `${ISSUE_URL}#issuecomment-${9000 + world.postCount + 1}` })
+          }
+        }
         if (world.failPost) return { status: 1, stdout: '', stderr: 'simulated POST timeout', error: null }
         world.comments.push(next)
         return ok(JSON.stringify(next))
@@ -268,6 +274,23 @@ describe('bemoat:handoff neutral transport', () => {
     expect(result.comment.id).toBe('9001')
     expect(world.postCount).toBe(1)
     expect(world.comments).toHaveLength(1)
+  })
+
+  it('classifies an exact identical retry as a no-op without posting again', async () => {
+    const firstWorld: World = { comments: [], postCount: 0, calls: [] }
+    await run(validRecord(), firstWorld)
+    const result = await run(validRecord(), firstWorld)
+
+    expect(result).toMatchObject({ classification: 'NO_OP_IDENTICAL_RETRY', mutationPerformed: false })
+    expect(firstWorld.postCount).toBe(1)
+    expect(firstWorld.comments).toHaveLength(1)
+  })
+
+  it('classifies duplicate matching readback after an ambiguous POST as ambiguous', async () => {
+    const world: World = { comments: [], postCount: 0, calls: [], failPost: true, acceptFailedPost: true, duplicateFailedPost: true }
+
+    await expect(run(validRecord(), world)).rejects.toMatchObject({ classification: 'AMBIGUOUS_RESULT' })
+    expect(world.postCount).toBe(1)
   })
 
   it('stops when an ambiguous POST has no uniquely provable outcome', async () => {

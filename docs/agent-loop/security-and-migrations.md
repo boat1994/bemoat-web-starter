@@ -178,7 +178,7 @@ Stop and report when:
 
 ## Planning task-identity invariants
 
-Superpowers planning packages under `docs/superpowers/specs/**` and `docs/superpowers/plans/**` can declare machine-readable task identity in a `<!-- bemoat-task-identity:start -->` YAML block. The central guard pack enforces these contracts through `scripts/guards/planning-contract-runtime.mjs` and `scripts/guards/planning-contract.mjs` (see [guard-pack.md](../guard-pack.md#planning-contract)).
+Superpowers planning packages under `docs/superpowers/specs/**` and `docs/superpowers/plans/**` can declare machine-readable task identity in a `<!-- bemoat-task-identity:start -->` YAML block. The central guard pack enforces these contracts through `scripts/guards/planning-contract-runtime.ts` and `scripts/guards/planning-contract.ts` (see [guard-pack.md](../guard-pack.md#planning-contract)).
 
 ### Planning-time provenance vs live branch base
 
@@ -192,7 +192,7 @@ Closed or terminal issues cited only in historical prose or `Durable Progress` c
 
 ### Child harness sync impact
 
-`scripts/guards/planning-contract-runtime.mjs` and `scripts/guards/planning-contract.mjs` are managed harness paths. Child projects receive them through:
+`scripts/guards/planning-contract-runtime.ts` and `scripts/guards/planning-contract.ts` are managed harness paths. Child projects receive them through:
 
 ```bash
 pnpm run bemoat:boilerplate:sync -- --harness-only

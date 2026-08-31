@@ -12,12 +12,12 @@ This document separates what **`bemoat-web-starter`** owns from what **child pro
 | GitHub templates | `.github/pull_request_template.md`, `.github/ISSUE_TEMPLATE/*`, shared workflows |
 | Agent-loop docs | `docs/agent-loop/*`, `docs/workflow/*`, `docs/hardening.md`, `docs/releases.md`, `docs/deploy-smoke-test.md`, `docs/cloudflare-environments.md`, `docs/schema-evolution.md` |
 | Superpowers skill entry | Native `superpowers:using-superpowers` or portable fallback `.agents/skills/using-superpowers.md` — not `docs/superpowers/*` |
-| Harness workflow | `scripts/guards/repo-safety.mjs`, `scripts/guard-cloudflare-env.mjs`, `scripts/check-branch-safety.sh`, `scripts/install-git-hooks.mjs`, `.githooks`, `vitest.config.mts`, `vitest.setup.ts`, shared harness tests under `tests/int/` |
+| Harness workflow | `scripts/guards/repo-safety.ts`, `scripts/guard-cloudflare-env.ts`, `scripts/check-branch-safety.sh`, `scripts/install-git-hooks.ts`, `.githooks`, `vitest.config.mts`, `vitest.setup.ts`, shared harness tests under `tests/int/` |
 | Payload schema (shared) | Shared collections and globals (seeded once) |
 | Starter UI | Shared starter pages (home, projects, blog, custom order, etc.; seeded once) |
 | Shared utilities | Helper modules under `src/lib` (seeded once) |
 | Package scripts | Child-owned `package.json`; sync adds missing `bemoat:*` scripts only and generates `.bemoat/package-sync-proposal.md` for recommended scripts and dependencies |
-| Sync behavior | `scripts/sync-boilerplate.mjs`, `scripts/check-boilerplate-drift.mjs`, `.bemoat/boilerplate-sync-manifest.json`, managed and seed-only path lists |
+| Sync behavior | `scripts/sync-boilerplate.ts`, `scripts/check-boilerplate-drift.ts`, `.bemoat/boilerplate-sync-manifest.json`, managed and seed-only path lists |
 
 Child projects receive these via **clone after Cloudflare deploy** (initial) and
 **`pnpm run bemoat:boilerplate:sync -- --harness-only`** (ongoing updates). Run
@@ -26,7 +26,7 @@ rails-managed drift without modifying files. Use raw `boilerplate:sync` /
 `boilerplate:check` aliases only when the child defines those non-namespaced
 scripts.
 
-After cloning the starter, sync reads **`.bemoat/boilerplate-sync-manifest.json`** from the cloned source so newly added managed paths apply in the same run (even when the child still has an older local `scripts/sync-boilerplate.mjs`). See [boilerplate-sync-command.md](../boilerplate-sync-command.md#source-driven-sync-manifest-one-run-managed-paths).
+After cloning the starter, sync reads **`.bemoat/boilerplate-sync-manifest.json`** from the cloned source so newly added managed paths apply in the same run (even when the child still has an older local `scripts/sync-boilerplate.ts`). See [boilerplate-sync-command.md](../boilerplate-sync-command.md#source-driven-sync-manifest-one-run-managed-paths).
 
 **Existing projects** with their own app and schema should use harness-only mode:
 
@@ -61,14 +61,14 @@ These paths are overwritten on every sync:
 | `docs/agent-loop` | Agent operating loop docs |
 | `docs/workflow` | Branching and workflow policy docs |
 | `docs/hardening.md`, `docs/releases.md`, `docs/deploy-smoke-test.md`, `docs/cloudflare-environments.md`, `docs/schema-evolution.md` | Production hardening, releases, smoke test, Cloudflare env guide, and schema evolution |
-| `scripts/sync-boilerplate.mjs` | Sync script and path lists |
-| `scripts/check-boilerplate-drift.mjs` | Read-only drift check before sync |
+| `scripts/sync-boilerplate.ts` | Sync script and path lists |
+| `scripts/check-boilerplate-drift.ts` | Read-only drift check before sync |
 | `.bemoat/boilerplate-sync-manifest.json` | Source-of-truth sync config read from cloned starter (one-run managed path discovery) |
 | `scripts/deploy-smoke-test.mjs` | Optional deploy smoke test helper |
-| `scripts/guards/repo-safety.mjs` | Repository safety guard (secrets, resource IDs, destructive migrations) |
-| `scripts/guard-cloudflare-env.mjs` | Cloudflare deploy environment guard (blocks unsafe prod deploys) |
+| `scripts/guards/repo-safety.ts` | Repository safety guard (secrets, resource IDs, destructive migrations) |
+| `scripts/guard-cloudflare-env.ts` | Cloudflare deploy environment guard (blocks unsafe prod deploys) |
 | `scripts/check-branch-safety.sh` | Git Flow branch safety check for hooks and manual use |
-| `scripts/install-git-hooks.mjs` | Optional local hook installer |
+| `scripts/install-git-hooks.ts` | Optional local hook installer |
 | `.githooks` | Optional pre-commit/pre-push hooks (branch safety, `bemoat:guard:safety`, `bemoat:test:int`) |
 | `vitest.config.mts`, `vitest.setup.ts` | Integration test harness for workflow rails |
 | `tests/int/*.int.spec.ts` (shared harness) | `api`, `boilerplate-sync`, `cloudflare-env-guard`, `open-next-config`, `repo-safety-guard` — all listed in `managedPaths`; see [harness-sync-contract.md](../harness-sync-contract.md) |

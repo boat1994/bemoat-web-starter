@@ -44,7 +44,7 @@ The schema (`schema_version: 1`) strictly defines:
 Spec and plan documents are explicitly paired via `paired_spec` and `paired_plan` inside the `<!-- bemoat-task-identity:start -->` block. When either document is evaluated by static guards or agent preflight, the validator loads both files, extracts both marker blocks, and verifies 100% field equality across all identity properties.
 
 ### 3. Static Deterministic Validation Behavior
-Implemented in `scripts/guard-planning-contract.mjs` and registered in `GUARD_PACK` (`scripts/guard-pack.mjs`). Static validation runs without network access and rejects:
+Implemented in `scripts/guard-planning-contract.mjs` and registered in `GUARD_PACK` (`scripts/guard-pack.ts`). Static validation runs without network access and rejects:
 - Missing required fields or `schema_version !== 1`.
 - Field mismatches across paired spec and plan documents (`PLAN002`).
 - Branch naming templates (`branch_template`) tied to another task key or completed/unrelated issue number (`PLAN003`).
