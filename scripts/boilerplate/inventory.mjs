@@ -18,7 +18,7 @@ export const managedPaths = [
   'docs/superpowers/README.md', 'docs/superpowers/specs/README.md', 'docs/superpowers/plans/README.md',
   'docs/superpowers/plans/_templates', 'docs/superpowers/specs/_templates',
   // GitHub workflow rails
-  '.github/workflows/ci.yml', '.github/workflows/mission-control-task-bootstrap.yml', '.github/pull_request_template.md', '.github/ISSUE_TEMPLATE/agent-task.yml',
+  '.github/workflows/ci.yml', '.github/pull_request_template.md', '.github/ISSUE_TEMPLATE/agent-task.yml',
   // Harness scripts (sync, drift, guard, hooks, smoke)
   'scripts/sync-boilerplate.mjs', 'scripts/boilerplate', 'scripts/boilerplate/workflows/check-boilerplate-drift.mjs', 'scripts/check-boilerplate-drift.mjs',
   'scripts/deploy-smoke-test.mjs', 'scripts/guards/repo-safety.mjs',
@@ -26,7 +26,7 @@ export const managedPaths = [
   'scripts/guard-mission-control-contract.mjs', 'scripts/guards/mission-control-contract',
   'scripts/guards/build-script-contract.mjs', 'scripts/build.mjs', 'scripts/agent-issue.mjs',
   'scripts/agent-issue', 'scripts/agent-context.mjs', 'scripts/agent-context-sync-base.mjs', 'scripts/context', 'scripts/agent-handoff.mjs', 'scripts/handoff',
-  'scripts/mission-control-task-create.mjs', 'scripts/mission-control-authorize-founder.mjs',
+  'scripts/mission-control-authorize-founder.mjs',
   'scripts/adapters/command-runner.mjs',
   'scripts/mission-control/workflows/issue-body-cas.mjs', 'scripts/post-role-comment.mjs',
   'scripts/cli',
@@ -84,7 +84,7 @@ export const managedPaths = [
   'tests/int/mission-control-contract-managed-paths.int.spec.ts',
   'tests/int/cli-mission-control-authorize-founder-regression.int.spec.ts',
   'tests/int/mission-control-authorize-founder-merge-comment-normalization.int.spec.ts',
-  'tests/int/cli-mission-control-task-bootstrap.int.spec.ts',
+  'tests/int/mission-control-task-bootstrap-deletion.int.spec.ts',
   'tests/int/cli-command-registry.int.spec.ts',
   'tests/int/cli-discovery-guidance.int.spec.ts',
   'tests/int/stateless-public-contract.int.spec.ts',
@@ -97,7 +97,7 @@ export const managedPaths = [
   'tests/int/scripts-entrypoints-contract.int.spec.ts',
   'tests/int/mission-control-merge-authorization-recording.int.spec.ts', 'tests/int/mission-control-merge-github-adapter.int.spec.ts', 'tests/int/mission-control-issue-body-cas.int.spec.ts',
   'tests/int/active-correction-contract.int.spec.ts',
-  'tests/int/mission-control-task-bootstrap-contract.int.spec.ts', 'tests/int/mission-control-task-bootstrap-allocation.int.spec.ts', 'tests/int/mission-control-task-bootstrap-state.int.spec.ts', 'tests/int/mission-control-task-bootstrap-registry-readback.int.spec.ts', 'tests/int/mission-control-task-bootstrap-lease.int.spec.ts', 'tests/int/mission-control-task-bootstrap-final-readback.int.spec.ts', 'tests/int/mission-control-task-initialization.int.spec.ts', 'tests/int/mission-control-task-state-boundary.int.spec.ts',
+  'tests/int/mission-control-task-bootstrap-lease.int.spec.ts', 'tests/int/mission-control-task-state-boundary.int.spec.ts',
   'tests/int/mission-control-child-portability.int.spec.ts',
   'tests/int/mission-control-brainstorming.int.spec.ts',
   'tests/int/mission-control-recovery-deletion.int.spec.ts', 'tests/int/toolchain-contract.int.spec.ts',
@@ -122,7 +122,7 @@ export const packageSyncProposalPath = '.bemoat/package-sync-proposal.md'
 
 /** Namespaced scripts safe to add when missing during sync. Never overwrite existing entries. */
 export const managedPackageScripts = [
-  'bemoat:agent:issue', 'bemoat:context', 'bemoat:context:sync-base', 'bemoat:handoff', 'bemoat:mission-control:task-bootstrap',
+  'bemoat:agent:issue', 'bemoat:context', 'bemoat:context:sync-base', 'bemoat:handoff',
   'bemoat:mission-control:authorize-founder',
   'bemoat:issue:comment',
   'bemoat:branch:check', 'bemoat:guard:safety', 'bemoat:guard:pack',

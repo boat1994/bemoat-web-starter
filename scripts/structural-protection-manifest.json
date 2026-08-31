@@ -18,7 +18,6 @@
       { "path": "scripts/mission-control/domain/correction-contract.mjs", "max_lines": 650 },
       { "path": "scripts/mission-control/domain/correction-contract.ts", "max_lines": 536 },
       { "path": "scripts/mission-control/workflows/issue-body-cas.mjs", "max_lines": 438 },
-      { "path": "scripts/mission-control/workflows/task-bootstrap.mjs", "max_lines": 658 },
       { "path": "scripts/post-role-comment.mjs", "max_lines": 554 }
     ]
   },

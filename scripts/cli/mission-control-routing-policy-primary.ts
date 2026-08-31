@@ -4,7 +4,6 @@ export const ALL_MUTATING_COMMANDS: string[] = [
   'bemoat:hooks:install',
   'bemoat:issue:comment',
   'bemoat:mission-control:authorize-founder',
-  'bemoat:mission-control:task-bootstrap',
 ]
 
 
@@ -65,18 +64,6 @@ export function missionControlPrimaryRoutes() {
     canonical_command: 'bemoat:mission-control:authorize-founder',
     required_review_type: null,
     expected_post_state_or_gate: 'Durable immutable Founder authorization evidence',
-    decision: 'COMMAND',
-  }),
-  route({
-    route_key: 'no-task/exact-task-bootstrap-founder-authorization-workflow-tuple',
-    observed_state: null,
-    evidence_case: 'exact-task-bootstrap-founder-authorization-workflow-tuple',
-    required_evidence_condition: 'Signed Founder authorization, trusted Actions workflow identity, public key, and campaign/PR tuple are complete.',
-    forbidden_evidence_condition: 'Any missing, stale, competing, or conflicting bootstrap identity/evidence.',
-    permitted_operation: 'Create and attest the Task Issue.',
-    canonical_command: 'bemoat:mission-control:task-bootstrap',
-    required_review_type: null,
-    expected_post_state_or_gate: 'READY',
     decision: 'COMMAND',
   }),
   route({

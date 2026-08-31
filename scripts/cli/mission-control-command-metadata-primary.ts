@@ -27,7 +27,7 @@ export function missionControlPrimaryCommands(dependencies: CommandMetadataDepen
     next_action_rules: [
       {
         classification: 'SUCCESS',
-        next_action: nextAction('FOUNDER_GATE', null, 'The custom merge wrappers are retired; stop for native GitHub authority reconstruction or the separately registered task-bootstrap route.'),
+        next_action: nextAction('FOUNDER_GATE', null, 'The custom merge wrappers are retired; stop for native GitHub authority reconstruction.'),
       },
       {
         classification: 'NO_OP_IDENTICAL_RETRY',

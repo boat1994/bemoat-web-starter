@@ -84,9 +84,8 @@ formats only; they are not alternate supported transports.
 Normal Mission Control runs must load the guide from the **merged approved
 protected base**, never from an unmerged task branch.
 
-The former managed-Task bootstrap and stateful runtime remain migration-only.
-Do not use them for new work or perform their Phase 7 deletion in this
-documentation reconciliation.
+The former managed-Task bootstrap and stateful runtime are retired historical
+evidence. Do not use them for new work.
 
 ## Historical reviewer verdict vocabulary (migration-only)
 

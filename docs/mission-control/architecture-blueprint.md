@@ -174,9 +174,9 @@ flowchart LR
 | Field | Content |
 | --- | --- |
 | Purpose | Founder-authorized managed-Task genesis (exceptional) |
-| Canonical entrypoint | Protected workflow `mission-control-task-bootstrap.yml` + Founder authorization comment |
-| Ordinary start | After a managed Task exists: **J3** (preceded by J1). `bemoat:agent:issue` does not create Tasks |
-| Disposition | **MIGRATION-ONLY HISTORICAL / PHASE-7 DELETE CANDIDATE** |
+| Canonical entrypoint | Retired; no executable Task Bootstrap transport remains |
+| Ordinary start | Existing managed Task evidence is read by retained Context and generic task-state parsing |
+| Disposition | **RETIRED / READ-ONLY COMPATIBILITY** |
 
 ### J3 — Dispatch → HANDOFF
 
@@ -285,7 +285,6 @@ Evidence root for the census that informed Option B: `main@7cfd62b6197a2e95fc8db
 | `bemoat:agent:issue` | Read-only reconstruction / preflight (J1) |
 | `bemoat:agent:delivery` | Delivery (J4) |
 | `bemoat:mission-control:merge` | Merge (J7) |
-| `bemoat:mission-control:task-bootstrap` | J2 implementation surface |
 | `bemoat:issue:comment` | J10 |
 | `bemoat:boilerplate:check|sync` | J11 PLATFORM |
 | `bemoat:guard:*` / validation scripts | Guards & validation |

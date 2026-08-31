@@ -257,9 +257,9 @@ export async function main(argv = process.argv.slice(2)) {
         releaseLease: (request) => github.releaseIssueLease({ ...request, scope: 'founder-authorization-recording' }),
       })
 
-      nextActionCommand = 'bemoat:mission-control:task-bootstrap'
-      nextActionType = 'COMMAND'
-      nextActionReason = 'Bootstrap must independently revalidate the immutable authorization.'
+      nextActionCommand = null
+      nextActionType = 'FOUNDER_GATE'
+      nextActionReason = 'The Task Bootstrap transport is retired; this Founder authorization is retained as historical evidence only.'
     }
     
     const envelope = createResultEnvelopeV1({

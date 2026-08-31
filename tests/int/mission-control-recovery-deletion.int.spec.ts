@@ -33,7 +33,6 @@ describe('retired recovery command boundary', () => {
       'bemoat:handoff',
       'bemoat:agent:issue',
       'bemoat:issue:comment',
-      'bemoat:mission-control:task-bootstrap',
       'bemoat:mission-control:authorize-founder',
     ]) {
       expect(packageJson.scripts[command]).toEqual(expect.any(String))

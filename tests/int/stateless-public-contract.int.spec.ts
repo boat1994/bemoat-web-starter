@@ -57,7 +57,6 @@ const MIGRATION_ONLY_COMMANDS = [
   'bemoat:agent:issue',
   'bemoat:issue:comment',
   'bemoat:mission-control:authorize-founder',
-  'bemoat:mission-control:task-bootstrap',
 ] as const
 
 const MIGRATION_ONLY_TRANSPORT_COMMANDS = [

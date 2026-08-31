@@ -37,7 +37,6 @@ registered contract and safe help invocation through CLI Discovery before use.
 | --- | --- |
 | `review` | Historical evidence is read-only; no managed review writer is available. |
 | `authorize-founder` | Record the retained immutable Founder authorization. |
-| `task-bootstrap` | Run only from its trusted Actions-owned contract. |
 | (none) | Stop and request human review when evidence disagrees. |
 
 ## Preflight checklist
@@ -51,13 +50,6 @@ state, and absence of competing evidence. Resolve the registered contract and
 - [ ] Exact repository, base, PR, head, CI, and review evidence is live.
 - [ ] The provided evidence has one unambiguous canonical binding.
 - [ ] `NONCANONICAL_ROLE_EVIDENCE` fails closed.
-
-## Retained command: task-bootstrap
-
-Task bootstrap remains a migration-only Actions-owned command. It verifies the
-signed Founder authorization, trusted workflow identity, public key, current
-protected-base/policy evidence, and target ownership before creating or
-attesting the managed Task Issue.
 
 ## Review and merge evidence
 

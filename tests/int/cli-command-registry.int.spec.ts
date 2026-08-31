@@ -46,7 +46,6 @@ const EXPECTED_PACKAGE_SCRIPTS: Record<string, string> = {
   'bemoat:hooks:install': 'node scripts/install-git-hooks.mjs',
   'bemoat:issue:comment': 'node scripts/post-role-comment.mjs',
   'bemoat:mission-control:authorize-founder': 'node scripts/mission-control-authorize-founder.mjs',
-  'bemoat:mission-control:task-bootstrap': 'node scripts/mission-control-task-create.mjs',
   'bemoat:test:int': 'cross-env NODE_OPTIONS=--no-deprecation vitest run --config ./vitest.config.mts',
   'bemoat:typecheck': 'node scripts/bemoat-typecheck.mjs',
 }
@@ -68,7 +67,6 @@ const EXPECTED_COMMAND_TIERS: Record<string, 'A' | 'B' | 'C'> = {
   'bemoat:hooks:install': 'A',
   'bemoat:issue:comment': 'A',
   'bemoat:mission-control:authorize-founder': 'A',
-  'bemoat:mission-control:task-bootstrap': 'A',
   'bemoat:test:int': 'C',
   'bemoat:typecheck': 'C',
 }
@@ -255,10 +253,10 @@ describe('Task 1 command contract registry', () => {
       .sort()
 
     expect(packageCommands).toEqual(Object.keys(EXPECTED_PACKAGE_SCRIPTS).sort())
-    expect(packageCommands).toHaveLength(19)
+    expect(packageCommands).toHaveLength(18)
     expect(registryCommands).toEqual(packageCommands)
     expect(classifiedCommands).toEqual(packageCommands)
-    expect(new Set(classifiedCommands).size).toBe(19)
+    expect(new Set(classifiedCommands).size).toBe(18)
 
     for (const command of packageCommands) {
       expect(getCommandContract(command)).toBe(COMMAND_CONTRACT_REGISTRY.commands[command])
@@ -275,9 +273,9 @@ describe('Task 1 command contract registry', () => {
       counts[expectedTier] += 1
     }
 
-    expect(counts).toEqual({ A: 7, B: 9, C: 3 })
-    expect(Object.keys(EXPECTED_COMMAND_TIERS)).toHaveLength(19)
-    expect(Object.keys(COMMAND_CONTRACT_REGISTRY.commands)).toHaveLength(19)
+    expect(counts).toEqual({ A: 6, B: 9, C: 3 })
+    expect(Object.keys(EXPECTED_COMMAND_TIERS)).toHaveLength(18)
+    expect(Object.keys(COMMAND_CONTRACT_REGISTRY.commands)).toHaveLength(18)
     expectRegistryValid()
   })
 
@@ -479,25 +477,6 @@ describe('Task 1 command contract registry', () => {
       expect(routedStates, state).toContain(state)
     }
     expectRegistryValid()
-  })
-
-  it('maps every emitted legacy outcome for task bootstrap', () => {
-    const emittedOutcomes = {
-      'bemoat:mission-control:task-bootstrap': {
-        CREATED: 'SUCCESS',
-        RECOVERED: 'SUCCESS',
-        IDEMPOTENT: 'NO_OP_IDENTICAL_RETRY',
-      },
-    } as const
-
-    for (const [command, expectedMap] of Object.entries(emittedOutcomes)) {
-      const contract = asRecord(getCommandContract(command), command)
-      const legacyMap = asRecord(contract.legacy_classification_map, `${command}.legacy_classification_map`)
-      expect(Object.keys(legacyMap).sort(), command).toEqual(Object.keys(expectedMap).sort())
-      for (const [outcome, classification] of Object.entries(expectedMap)) {
-        expect(legacyMap[outcome], `${command}.${outcome}`).toBe(classification)
-      }
-    }
   })
 
   const registryRejectionCases: Array<[string, (registry: RegistryFixture) => void]> = [
