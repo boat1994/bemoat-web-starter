@@ -33,7 +33,7 @@ Child-facing automation (`.github/workflows/ci.yml`, `.githooks/pre-commit`, `.g
 | **Cloudflare config** | `scripts/guard-cloudflare-env.mjs` | `CLOUDFLARE_ENV=production`; `env.production` in `wrangler.jsonc`; dev D1/R2 IDs matching production | Use top-level `wrangler.jsonc` for production; isolate `env.dev` bindings |
 | **Frontend SEO** | `scripts/guards/frontend-seo.mjs` | Missing `metadata`/`generateMetadata` in `src/app/(frontend)/layout.tsx`; invalid `sitemap.ts`/`robots.ts` when present | Export `metadata` with `title` and `description`; add App Router SEO files when ready |
 | **Mission Control contract** | `scripts/guard-mission-control-contract.mjs` | Missing/invalid guide frontmatter; review budget ≠ 3; missing required sections/templates; thin loader broken or oversized; `AGENTS.md` pointer missing; managed-path omissions; live `.bemoat/mission-control-overrides.md` accidentally managed; forbidden Review-4 / silent-reset / Minor-as-blocker markers | Restore canonical guide/loader/templates; keep loader thin; sync managed paths without managing the live override |
-| **Planning contract** | `scripts/guard-planning-contract.mjs` | Missing or malformed `<!-- bemoat-task-identity:start -->` blocks; paired spec/plan identity mismatch; branch template or transition conflicts; invalid `task_issue_strategy`; unconditional planning SHA execution rule; live GitHub issue or Mission Control state conflicts when `gh` is available | Add balanced task-identity YAML to new or modified planning files under `docs/superpowers/specs/**` and `docs/superpowers/plans/**`; align paired documents; use `resolve_live_protected_base_at_dispatch`; keep executable issue references open |
+| **Planning contract** | `scripts/guards/planning-contract-runtime.mjs` + `scripts/guards/planning-contract.mjs` | Missing or malformed `<!-- bemoat-task-identity:start -->` blocks; paired spec/plan identity mismatch; branch template or transition conflicts; invalid `task_issue_strategy`; unconditional planning SHA execution rule; live GitHub issue or Mission Control state conflicts when `gh` is available | Add balanced task-identity YAML to new or modified planning files under `docs/superpowers/specs/**` and `docs/superpowers/plans/**`; align paired documents; use `resolve_live_protected_base_at_dispatch`; keep executable issue references open |
 | **Structural protection** | `scripts/guards/structural-protection.mjs` | Production `scripts/**/*.mjs` physical-line ceilings, immutable grandfathered maxima, manifest shape, symlinks, and SHA-256 fingerprints for protected test oracles | Keep new or moved scripts at 400 physical lines or fewer; do not alter the protected tests; change `scripts/structural-protection-manifest.json` only with Founder authorization |
 | **Scripts architecture** | `scripts/guards/scripts-architecture.mjs` | Scripts architecture dependency graph contains unallowed cycles, unallowed edges, or violates adapter constraints | Ensure scripts dependency graph matches `scripts/architecture-contract.json` |
 
@@ -101,11 +101,11 @@ Violations use structured output:
 | `PLAN005` | `create_before_execution` strategy declares a concrete `active_task_issue` |
 | `PLAN006` | Missing, invalid, or inconsistent `task_issue_strategy` |
 | `PLAN007` | `execution_base_rule` is `use_planning_base_sha_unconditionally` instead of live protected-base resolution |
-| `PLAN008` | Live GitHub verification: issue missing, wrong repository, or not `OPEN` (`agent-issue` preflight and offline-aware guard paths) |
+| `PLAN008` | Live GitHub verification: issue missing, wrong repository, or not `OPEN` (offline-aware guard paths) |
 | `PLAN009` | Live issue title/body does not identify the declared `task_key` |
 | `PLAN010` | Live Mission Control managed state is `DONE` or `active_task_issue` conflicts with the contract |
 
-Static rules (`PLAN001`–`PLAN007`) run in `pnpm run guard:safety` / `pnpm run bemoat:guard:safety` without network access. Live rules (`PLAN008`–`PLAN010`) run during `pnpm run bemoat:agent:issue -- <issue-number>` when authenticated `gh` access is available.
+Static rules (`PLAN001`–`PLAN007`) run in `pnpm run guard:safety` / `pnpm run bemoat:guard:safety` without network access. Live rules (`PLAN008`–`PLAN010`) are available to callers that explicitly provide authenticated `gh` evidence.
 
 Branch-scoped discovery uses `resolveApprovedBase()` to diff planning files changed since the protected integration baseline: `origin/dev`, then `dev`, then `origin/main`, then `main`. Child repos with `dev` therefore validate only planning files changed since `dev`; starter repos without `dev` continue to use `main`.
 
@@ -113,7 +113,7 @@ Branch-scoped discovery uses `resolveApprovedBase()` to diff planning files chan
 
 Only **executable** references are validated: issue numbers inside `<!-- bemoat-task-identity:start -->`, active `<!-- bemoat-mission-control-state:start -->` blocks, and form declarations such as `Active Task Issue:`. Historical mentions in prose or `Durable Progress` checklists (for example `- [x] Task 10 (#169)`) are allowed even when `#169` is closed.
 
-Module: `scripts/guard-planning-contract.mjs`. Live Mission Control parsing reuses `scripts/mission-control-state.mjs`. External Superpowers emit guidance: [superpowers-planning-contract-recommendation.md](./agent-loop/superpowers-planning-contract-recommendation.md).
+Modules: `scripts/guards/planning-contract-runtime.mjs` (runtime/orchestrator) and `scripts/guards/planning-contract.mjs` (pure parser and static validator). External Superpowers emit guidance: [superpowers-planning-contract-recommendation.md](./agent-loop/superpowers-planning-contract-recommendation.md).
 
 ## Fixtures and tests
 

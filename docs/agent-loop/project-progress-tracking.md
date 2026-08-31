@@ -204,8 +204,8 @@ Before closing a Task Issue or marking a durable Main Issue milestone:
 `pnpm run bemoat:context <issue-number> --json` stays **read-only**. It must
 never mutate issue checklists, plan files, PR state, branch state, or CI state.
 
-The former `bemoat:agent:issue` preflight remains migration-only historical
-compatibility and must not be selected for new work.
+The former compatibility preflight is retired and must not be selected for new
+work.
 
 The current supported preflight does not require or initialize managed Mission
 Control state. New work is routed only from fresh GitHub/native Git evidence by

@@ -90,8 +90,8 @@ task → read AGENTS.md + agent-loop → git status & issue branch → intent ch
 | [starter-reading-order.md](./starter-reading-order.md) | Ordered docs for new tasks (operating manual → migration → ADRs → KB → guards → acceptance) |
 | [issue-driven-branch-workflow.md](./issue-driven-branch-workflow.md) | Issue branch gates, naming, PR open/update, harness sync closeout |
 | [project-progress-tracking.md](./project-progress-tracking.md) | Main Issue durable progress, Plan boundaries, exact-head CI, resume protocol |
-| [role-handoff-contract.md](./role-handoff-contract.md) | Compact-delta GitHub handoff comments (HANDOFF, RESULT, REVIEW_VERDICT) + pre-merge checklist reconciliation |
-| [Mission Control guide](../mission-control/mission-control-guide.md) | Canonical review-budget, durable state, completion, and MC verdict policy (thin loader: `prompts/mission-control/chatgpt-project-loader.md`) |
+| [role-handoff-contract.md](./role-handoff-contract.md) | Compact-delta GitHub Handoff transport (`HANDOFF`); historical `RESULT` / `REVIEW_VERDICT` records remain read-only migration evidence |
+| [Mission Control guide](../mission-control/mission-control-guide.md) | Current stateless Context/Handoff protocol plus historical read-only migration guidance (thin loader: `prompts/mission-control/chatgpt-project-loader.md`) |
 | [self-red-team-scope-gate.md](./self-red-team-scope-gate.md) | Optional scope gate for material planning, specification expansion, and High Reasoning passes |
 | [self-red-team-scope-gate-prompt.md](./self-red-team-scope-gate-prompt.md) | Copy/paste prompt for one constrained self red-team pass |
 | [harness-sync-workflow.md](./harness-sync-workflow.md) | Child project harness sync loop after starter merge |

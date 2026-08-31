@@ -1,24 +1,3 @@
-import { sameValue } from './transition-guards.mjs'
-
-/**
- * @param {Record<string, unknown>} expected
- * @param {Record<string, unknown>} actual
- * @param {string[] | null} [fields]
- */
-export function verifyStatePostcondition(expected, actual, fields = null) {
-  const keys = fields ?? [
-    'state', 'review_cycle', 'full_review_count', 'active_pr', 'current_head', 'last_reviewed_head',
-  ]
-  for (const key of keys) {
-    if (!sameValue(expected?.[key], actual?.[key])) {
-      throw new Error(
-        `postcondition mismatch on ${key}: expected ${JSON.stringify(expected?.[key])}, got ${JSON.stringify(actual?.[key])}`,
-      )
-    }
-  }
-  return true
-}
-
 export const CHILD_SYNC_GATE_ISSUES = Object.freeze([182, 184])
 
 export const CHILD_SYNC_GATE_REQUIREMENTS = Object.freeze({

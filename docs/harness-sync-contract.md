@@ -11,7 +11,7 @@ The harness is everything child projects need to run the same safety rails, work
 | Agent rules | `AGENTS.md`, `.agents/*`, `.cursor/rules/*` |
 | UI execution guardrails | `docs/ai/ui-skills.md`, `docs/ai/ui-execution-workflow.md`, `docs/ai/visual-qa-checklist.md`, `docs/ai/accessibility-baseline.md`, `prompts/ui/*` |
 | Agent-loop docs | `docs/agent-loop/*`, `docs/hardening.md`, `docs/schema-evolution.md`, etc. |
-| Mission Control policy | `docs/mission-control/*`, `prompts/mission-control/chatgpt-project-loader.md`, `scripts/guard-mission-control-contract.mjs` |
+| Mission Control policy | Current stateless Context/Handoff guidance plus historical read-only readers in `docs/mission-control/*`, the thin loader, and `scripts/guard-mission-control-contract.mjs` |
 | Superpowers skill entry | Native `superpowers:using-superpowers` or portable fallback `.agents/skills/using-superpowers.md` (not `docs/superpowers/*`) |
 | GitHub workflow and templates | `.github/workflows/ci.yml` (child-safe `bemoat:*` only), PR template, issue templates |
 | Safety guards | `scripts/guard-pack.mjs` (orchestrator), `scripts/guards/repo-safety.mjs`, `scripts/guard-harness-contract.mjs`, `scripts/guard-mission-control-contract.mjs`, `scripts/guards/package-manager.mjs`, `scripts/guards/toolchain-contract.mjs`, `scripts/guards/env-placeholder.mjs`, `scripts/guard-cloudflare-env.mjs`, `scripts/guards/frontend-seo.mjs`, `scripts/guards/structural-protection.mjs`, and `scripts/structural-protection-manifest.json` — see [guard-pack.md](./guard-pack.md) |
@@ -170,7 +170,6 @@ pnpm run bemoat:boilerplate:sync -- --harness-only --apply-build-contract
 Managed namespaced scripts (see `managedPackageScripts` in `scripts/sync-boilerplate.mjs`):
 
 - `bemoat:branch:check`
-- `bemoat:issue:comment` — validates and safely posts a Mission Control `HANDOFF`, `RESULT`, or `REVIEW_VERDICT` comment; sync adds the wrapper only when the child has no existing namespaced entry
 - `bemoat:guard:safety` (repo safety + harness contract)
 - `bemoat:guard:harness-contract` (standalone harness contract check)
 - `bemoat:guard:cloudflare-env`
@@ -249,10 +248,8 @@ Current shared tests (listed in `managedPaths` in `scripts/sync-boilerplate.mjs`
 - `tests/int/api.int.spec.ts`
 - `tests/int/boilerplate-sync.int.spec.ts`
 - `tests/int/cloudflare-env-guard.int.spec.ts`
-- `tests/int/post-role-comment.int.spec.ts`
 - `tests/int/guard-pack.int.spec.ts`
 - `tests/int/structural-protection.int.spec.ts`
-- `tests/int/command-contract-transport.int.spec.ts`
 - `tests/int/harness-contract-guard.int.spec.ts`
 - `tests/int/mission-control-contract.int.spec.ts`
 - `tests/int/open-next-config.int.spec.ts`

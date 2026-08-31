@@ -1,10 +1,9 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
 import { COMMAND_CONTRACT_REGISTRY } from '../../scripts/cli/command-contract-registry.mjs'
-import { CANONICAL_TRANSPORTS } from '../../scripts/mission-control/transport-registry.mjs'
 
 const ROOT = process.cwd()
 const read = (path: string) => readFileSync(resolve(ROOT, path), 'utf8')
@@ -24,11 +23,53 @@ const CURRENT_EXECUTABLE_HANDOFF_DOCS = [
   'docs/mission-control/mission-control-guide.md',
 ] as const
 
+const CURRENT_PROTOCOL_DOCS = [
+  'docs/mission-control/README.md',
+  'docs/mission-control/mission-control-guide.md',
+] as const
+
+const CURRENT_PLANNING_GUARD_DOCS = [
+  'docs/guard-pack.md',
+  'docs/agent-loop/security-and-migrations.md',
+  'docs/agent-loop/superpowers-planning-contract-recommendation.md',
+] as const
+
+const CURRENT_PLANNING_GUARD_PATHS = [
+  'scripts/guards/planning-contract-runtime.mjs',
+  'scripts/guards/planning-contract.mjs',
+] as const
+
+const RETIRED_PLANNING_GUARD_PATHS = [
+  'scripts/guard-planning-contract.mjs',
+  'scripts/mission-control-state.mjs',
+] as const
+
+const ACTIVE_STATEFUL_REQUIREMENTS = [
+  /reconstruct(?:ing)? completed review rounds/i,
+  /write the marker block/i,
+  /migrate active (?:child )?tasks?/i,
+  /post (?:a )?RESULT/i,
+  /update the managed state block/i,
+  /increment (?:the )?(?:review )?counters?/i,
+  /project (?:the )?(?:deterministic )?(?:Task )?state/i,
+] as const
+
 function withoutHistoricalMarkdownSections(content: string): string {
   const currentLines: string[] = []
   let historicalLevel: number | null = null
+  let historicalMarker = false
 
   for (const line of content.split('\n')) {
+    if (line.includes('<!-- bemoat-mc:historical-migration-only:start -->')) {
+      historicalMarker = true
+      continue
+    }
+    if (line.includes('<!-- bemoat-mc:historical-migration-only:end -->')) {
+      historicalMarker = false
+      continue
+    }
+    if (historicalMarker) continue
+
     const heading = line.match(/^(#{1,6})\s+(.+)$/)
     if (heading) {
       const level = heading[1].length
@@ -53,18 +94,12 @@ const SUPPORTED_PROTOCOL_COMMANDS = [
   'bemoat:handoff',
 ] as const
 
-const MIGRATION_ONLY_COMMANDS = [
-  'bemoat:agent:issue',
-  'bemoat:issue:comment',
-] as const
+const MIGRATION_ONLY_COMMANDS = [] as const
 
-const MIGRATION_ONLY_TRANSPORT_COMMANDS = [] as const
 
 const isCrossAgentProtocolCandidate = (command: string) => (
   command === 'bemoat:context' ||
   command === 'bemoat:handoff' ||
-  command.startsWith('bemoat:agent:') ||
-  command === 'bemoat:issue:comment' ||
   command.startsWith('bemoat:mission-control:')
 )
 
@@ -94,21 +129,6 @@ describe('stateless public Mission Control contract', () => {
     }
   })
 
-  it('marks every retained stateful transport as migration-only without removing its registry record', () => {
-    const transports = CANONICAL_TRANSPORTS as ReadonlyArray<{
-      command: string
-      purpose: string
-    }>
-    expect(transports.map((transport) => transport.command)).toEqual(
-      expect.arrayContaining([...MIGRATION_ONLY_TRANSPORT_COMMANDS]),
-    )
-    expect(transports).toHaveLength(MIGRATION_ONLY_TRANSPORT_COMMANDS.length)
-    for (const transport of transports) {
-      expect(MIGRATION_ONLY_TRANSPORT_COMMANDS).toContain(transport.command)
-      expect(transport.purpose, transport.command).toMatch(/^MIGRATION-ONLY HISTORICAL:/)
-    }
-  })
-
   it('keeps the canonical guide boundary explicit and excludes legacy commands from it', () => {
     const guide = read('docs/mission-control/mission-control-guide.md')
     const currentSection = guide.match(
@@ -131,6 +151,21 @@ describe('stateless public Mission Control contract', () => {
     expect(read('docs/mission-control/command-reference.md')).not.toContain('bemoat:agent:delivery')
   })
 
+  it('keeps canonical README and guide operations on the stateless protocol', () => {
+    const guide = read('docs/mission-control/mission-control-guide.md')
+    expect(guide).toContain('<!-- bemoat-mc:historical-migration-only:start -->')
+    expect(guide).toContain('<!-- bemoat-mc:historical-migration-only:end -->')
+
+    for (const path of CURRENT_PROTOCOL_DOCS) {
+      const currentContent = withoutHistoricalMarkdownSections(read(path))
+      expect(currentContent, path).toContain('bemoat:context')
+      expect(currentContent, path).toContain('bemoat:handoff')
+      for (const pattern of ACTIVE_STATEFUL_REQUIREMENTS) {
+        expect(currentContent, `${path} contains active stateful guidance: ${pattern}`).not.toMatch(pattern)
+      }
+    }
+  })
+
   it('rejects active managed-state workflow requirements outside an explicit historical boundary', () => {
     const activeManagedStateRequirement = [
       /Mission Control mode:\s*required/i,
@@ -143,6 +178,28 @@ describe('stateless public Mission Control contract', () => {
       const currentContent = withoutHistoricalMarkdownSections(read(path))
       for (const pattern of activeManagedStateRequirement) {
         expect(currentContent, `${path} contains active managed-state guidance: ${pattern}`).not.toMatch(pattern)
+      }
+    }
+  })
+
+  it('keeps live issue intake stateless', () => {
+    const template = read('.github/ISSUE_TEMPLATE/agent-task.yml')
+    expect(template).not.toContain('mission_control_mode')
+    expect(template).not.toContain('mission_control_state')
+    expect(template).not.toContain('Mission Control mode')
+    expect(template).not.toContain('bemoat-mission-control-state:start')
+    expect(template).toMatch(/bemoat:context[\s\S]*bemoat:handoff/)
+  })
+
+  it('keeps active planning guard docs aligned with retained entrypoints', () => {
+    for (const path of CURRENT_PLANNING_GUARD_DOCS) {
+      const content = withoutHistoricalMarkdownSections(read(path))
+      for (const entrypoint of CURRENT_PLANNING_GUARD_PATHS) {
+        expect(existsSync(resolve(ROOT, entrypoint)), entrypoint).toBe(true)
+        expect(content, `${path} is missing ${entrypoint}`).toContain(entrypoint)
+      }
+      for (const retired of RETIRED_PLANNING_GUARD_PATHS) {
+        expect(content, `${path} points at retired ${retired}`).not.toContain(retired)
       }
     }
   })

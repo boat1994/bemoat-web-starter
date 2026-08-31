@@ -12,8 +12,6 @@ import {
   getCommandContract,
   validateCommandContractRegistry,
 } from '../../scripts/cli/command-contract.mjs'
-import { MISSION_CONTROL_STATES } from '../../scripts/mission-control/domain/task-state.ts'
-import { CANONICAL_TRANSPORTS } from '../../scripts/mission-control/transport-registry.mjs'
 
 type JsonRecord = Record<string, unknown>
 type PackageJson = { scripts: Record<string, string> }
@@ -25,12 +23,11 @@ type RegistryFixture = {
 }
 
 const REPOSITORY_ROOT = process.cwd()
-const MUTATING_COMMAND = 'bemoat:issue:comment'
+const MUTATING_COMMAND = 'bemoat:handoff'
 const PACKAGE_JSON = JSON.parse(
   readFileSync(resolve(REPOSITORY_ROOT, 'package.json'), 'utf8'),
 ) as PackageJson
 const EXPECTED_PACKAGE_SCRIPTS: Record<string, string> = {
-  'bemoat:agent:issue': 'node scripts/agent-issue.mjs',
   'bemoat:context': 'node scripts/agent-context.mjs',
   'bemoat:context:sync-base': 'node scripts/agent-context-sync-base.mjs',
   'bemoat:handoff': 'node scripts/agent-handoff.mjs',
@@ -44,13 +41,11 @@ const EXPECTED_PACKAGE_SCRIPTS: Record<string, string> = {
   'bemoat:guard:pack': 'node scripts/guard-pack.mjs',
   'bemoat:guard:safety': 'node scripts/guard-pack.mjs',
   'bemoat:hooks:install': 'node scripts/install-git-hooks.mjs',
-  'bemoat:issue:comment': 'node scripts/post-role-comment.mjs',
   'bemoat:test:int': 'cross-env NODE_OPTIONS=--no-deprecation vitest run --config ./vitest.config.mts',
   'bemoat:typecheck': 'node scripts/bemoat-typecheck.mjs',
 }
 
 const EXPECTED_COMMAND_TIERS: Record<string, 'A' | 'B' | 'C'> = {
-  'bemoat:agent:issue': 'B',
   'bemoat:context': 'B',
   'bemoat:context:sync-base': 'A',
   'bemoat:handoff': 'A',
@@ -64,27 +59,9 @@ const EXPECTED_COMMAND_TIERS: Record<string, 'A' | 'B' | 'C'> = {
   'bemoat:guard:pack': 'B',
   'bemoat:guard:safety': 'B',
   'bemoat:hooks:install': 'A',
-  'bemoat:issue:comment': 'A',
   'bemoat:test:int': 'C',
   'bemoat:typecheck': 'C',
 }
-
-const EXPECTED_STATES = [
-  'READY',
-  'IN_PROGRESS',
-  'AWAITING_REVIEW_1',
-  'CORRECTION_REQUIRED_1',
-  'AWAITING_REVIEW_2',
-  'CORRECTION_REQUIRED_2',
-  'AWAITING_REVIEW_3',
-  'FOUNDER_AUTHORIZED_CORRECTION',
-  'BLOCKED_FOR_FOUNDER_DECISION',
-  'ELIGIBLE_FOR_FOUNDER_REVIEW',
-  'DONE',
-  'BLOCKED_EXTERNAL',
-  'STATE_CONFLICT',
-  'STATE_MIGRATION_REQUIRED',
-]
 
 const COMMAND_FIELDS = [
   'schema_version',
@@ -180,12 +157,6 @@ function commandRecord(registry: RegistryFixture, command: string): JsonRecord {
   return record
 }
 
-function stateValues(states: unknown): string[] {
-  if (states instanceof Set) return [...states].map(String)
-  if (Array.isArray(states)) return states.map(String)
-  return [...(states as Iterable<unknown>)].map(String)
-}
-
 function validationResultIsRejected(result: unknown): boolean {
   if (result === false) return true
   if (Array.isArray(result)) return result.length > 0
@@ -203,8 +174,7 @@ function validateRegistry(
   return validateCommandContractRegistry({
     registry,
     packageJson,
-    transports: CANONICAL_TRANSPORTS,
-    states: MISSION_CONTROL_STATES,
+    states: [],
   })
 }
 
@@ -251,10 +221,10 @@ describe('Task 1 command contract registry', () => {
       .sort()
 
     expect(packageCommands).toEqual(Object.keys(EXPECTED_PACKAGE_SCRIPTS).sort())
-    expect(packageCommands).toHaveLength(17)
+    expect(packageCommands).toHaveLength(15)
     expect(registryCommands).toEqual(packageCommands)
     expect(classifiedCommands).toEqual(packageCommands)
-    expect(new Set(classifiedCommands).size).toBe(17)
+    expect(new Set(classifiedCommands).size).toBe(15)
 
     for (const command of packageCommands) {
       expect(getCommandContract(command)).toBe(COMMAND_CONTRACT_REGISTRY.commands[command])
@@ -262,7 +232,7 @@ describe('Task 1 command contract registry', () => {
     expect(getCommandContract('bemoat:unregistered')).toBeNull()
   })
 
-  it('uses tier totals A=5 B=9 C=3', () => {
+  it('uses tier totals A=4 B=8 C=3', () => {
     const counts = { A: 0, B: 0, C: 0 }
 
     for (const [command, expectedTier] of Object.entries(EXPECTED_COMMAND_TIERS)) {
@@ -271,9 +241,9 @@ describe('Task 1 command contract registry', () => {
       counts[expectedTier] += 1
     }
 
-    expect(counts).toEqual({ A: 5, B: 9, C: 3 })
-    expect(Object.keys(EXPECTED_COMMAND_TIERS)).toHaveLength(17)
-    expect(Object.keys(COMMAND_CONTRACT_REGISTRY.commands)).toHaveLength(17)
+    expect(counts).toEqual({ A: 4, B: 8, C: 3 })
+    expect(Object.keys(EXPECTED_COMMAND_TIERS)).toHaveLength(15)
+    expect(Object.keys(COMMAND_CONTRACT_REGISTRY.commands)).toHaveLength(15)
     expectRegistryValid()
   })
 
@@ -416,25 +386,6 @@ describe('Task 1 command contract registry', () => {
     expectRegistryValid()
   })
 
-  it('matches every canonical transport role and exceptional bit', () => {
-    expect(CANONICAL_TRANSPORTS).toHaveLength(0)
-
-    for (const transport of CANONICAL_TRANSPORTS) {
-      const contract = asRecord(getCommandContract(transport.command), transport.command)
-      expect(contract.transport_role, transport.command).toBe(transport.role)
-      expect(contract.exceptional, transport.command).toBe(transport.exceptional)
-      expect((contract as any).command).toBe(transport.command)
-    }
-
-    const canonicalCommands = new Set<string>(CANONICAL_TRANSPORTS.map((transport) => transport.command))
-    for (const command of Object.keys(EXPECTED_COMMAND_TIERS)) {
-      if (!canonicalCommands.has(command)) {
-        expect(getCommandContract(command)?.transport_role, command).toBeNull()
-      }
-    }
-    expectRegistryValid()
-  })
-
   it('gives every Tier A command one route or explicit exceptional record', () => {
     const routes = COMMAND_CONTRACT_REGISTRY.routes
 
@@ -461,22 +412,6 @@ describe('Task 1 command contract registry', () => {
     expectRegistryValid()
   })
 
-  it('exports the unchanged 14-state schema', () => {
-    expect(Object.isFrozen(MISSION_CONTROL_STATES)).toBe(true)
-    expect(stateValues(MISSION_CONTROL_STATES)).toEqual(EXPECTED_STATES)
-    expect(stateValues(MISSION_CONTROL_STATES)).toHaveLength(14)
-
-    const routedStates = new Set(
-      COMMAND_CONTRACT_REGISTRY.routes
-        .map((route: any) => route.observed_state)
-        .filter((state: any): state is string => typeof state === 'string' && state !== 'NOT_STATEFUL'),
-    )
-    for (const state of EXPECTED_STATES as any[]) {
-      expect(routedStates, state).toContain(state)
-    }
-    expectRegistryValid()
-  })
-
   const registryRejectionCases: Array<[string, (registry: RegistryFixture) => void]> = [
     ['missing schema field', (registry) => {
       delete commandRecord(registry, MUTATING_COMMAND).purpose
@@ -485,7 +420,7 @@ describe('Task 1 command contract registry', () => {
       registry.commands['bemoat:fake'] = clone(commandRecord(registry, MUTATING_COMMAND))
     }],
     ['duplicate command identity', (registry) => {
-      commandRecord(registry, MUTATING_COMMAND).command = 'bemoat:agent:issue'
+      commandRecord(registry, MUTATING_COMMAND).command = 'bemoat:context'
     }],
     ['non-v1 schema', (registry) => {
       registry.schema_version = 2
@@ -494,7 +429,7 @@ describe('Task 1 command contract registry', () => {
       commandRecord(registry, MUTATING_COMMAND).entrypoint = 'scripts/not-an-entrypoint.mjs'
     }],
     ['stale package binding', (registry) => {
-      commandRecord(registry, MUTATING_COMMAND).entrypoint = 'scripts/agent-issue.mjs'
+      commandRecord(registry, MUTATING_COMMAND).entrypoint = 'scripts/agent-context.mjs'
     }],
     ['unclassified package command', (registry) => {
       delete registry.commands[MUTATING_COMMAND]
@@ -504,12 +439,6 @@ describe('Task 1 command contract registry', () => {
     }],
     ['missing Tier C delegation rationale', (registry) => {
       commandRecord(registry, 'bemoat:check').exclusion_reason = null
-    }],
-    ['inconsistent transport role', (registry) => {
-      commandRecord(registry, MUTATING_COMMAND).transport_role = 'RESULT'
-    }],
-    ['inconsistent transport exceptional bit', (registry) => {
-      commandRecord(registry, MUTATING_COMMAND).exceptional = true
     }],
     ['Tier A route removed', (registry) => {
       registry.routes = registry.routes.filter(
@@ -534,7 +463,7 @@ describe('Task 1 command contract registry', () => {
     expectRegistryRejected(clone(COMMAND_CONTRACT_REGISTRY), unregisteredPackage)
 
     const stalePackage = clone(PACKAGE_JSON)
-    stalePackage.scripts['bemoat:mission-control:dispatch'] = 'node scripts/agent-issue.mjs'
+    stalePackage.scripts['bemoat:mission-control:dispatch'] = 'node scripts/agent-context.mjs'
     expectRegistryRejected(clone(COMMAND_CONTRACT_REGISTRY), stalePackage)
   })
 

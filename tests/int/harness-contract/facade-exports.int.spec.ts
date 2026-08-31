@@ -47,7 +47,7 @@ const PRODUCTION_IMPORTERS = [
   },
 ] as const
 
-const SCC_NODES = new Set(architectureContract.cycleNodes)
+const SCC_NODES = new Set<string>(architectureContract.cycleNodes as string[])
 const tempRoots: string[] = []
 
 afterEach(() => {

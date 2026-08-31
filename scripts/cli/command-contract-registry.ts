@@ -1,6 +1,4 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { CANONICAL_TRANSPORTS } from '../mission-control/transport-registry.ts'
-import { CORRECTION_EVIDENCE_CONTRACT } from '../mission-control/domain/correction-contract.ts'
 import { handoffCommands } from './handoff-command-metadata.ts'
 import { handoffRoutes } from './handoff-routing-policy.ts'
 import { missionControlPrimaryCommands } from './mission-control-command-metadata-primary.ts'
@@ -8,14 +6,9 @@ import { missionControlRecoveryCommands } from './mission-control-command-metada
 import { missionControlReviewCommands } from './mission-control-command-metadata-review.ts'
 import { contextSyncCommands } from './context-sync-command-metadata.ts'
 import { contextSyncRoutes } from './context-sync-routing-policy.ts'
-import { missionControlPrimaryRoutes } from './mission-control-routing-policy-primary.ts'
 import { missionControlRecoveryRoutes } from './mission-control-routing-policy-recovery.ts'
 
 export const COMMAND_CONTRACT_SCHEMA_VERSION = 1 as const
-
-const canonicalTransportByCommand = new Map(
-  CANONICAL_TRANSPORTS.map((transport) => [transport.command, transport]),
-)
 
 const SAFE_STOP_CLASSIFICATIONS = [
   'INVALID_INVOCATION',
@@ -75,17 +68,6 @@ function flag(name: string, syntax: string, value_type: InputSpec['value_type'],
   })
 }
 
-function stdinInput(name: string, description: string): InputSpec {
-  return input({
-    name,
-    syntax: 'stdin',
-    kind: 'stdin',
-    value_type: 'string',
-    required: true,
-    description,
-  })
-}
-
 function environment(name: string, value_type: InputSpec['value_type'], description: string, values: string[] = []): InputSpec {
   return input({
     name,
@@ -101,14 +83,6 @@ function environment(name: string, value_type: InputSpec['value_type'], descript
 
 function nextAction(type: NextAction['type'], command: string | null, reason: string): NextAction {
   return { type, command, reason }
-}
-
-function transportFields(command: string): { exceptional: boolean; transport_role: string | null } {
-  const transport = canonicalTransportByCommand.get(command)
-  return {
-    exceptional: transport?.exceptional ?? false,
-    transport_role: transport?.role ?? null,
-  }
 }
 
 type ContractInput = any;
@@ -153,8 +127,7 @@ function contract({
   legacy_classification_map = {},
   exceptional,
 }: ContractInput): CommandContract {
-  const fields = transportFields(command)
-  const isExceptional = exceptional !== undefined ? exceptional : fields.exceptional
+  const isExceptional = exceptional ?? false
   const allInputs = [...required_inputs, ...optional_flags]
   const callerSuppliedValues = [...new Set(
     allInputs
@@ -191,7 +164,7 @@ function contract({
     next_action_rules,
     examples,
     exceptional: isExceptional,
-    transport_role: fields.transport_role,
+    transport_role: null,
     parser_owner,
     delegated_executable,
     help_meaningful,
@@ -293,34 +266,6 @@ const commands: Record<string, CommandContract> = {
     examples: [{ description: 'Reconstruct Issue context as JSON.', argv: ['410', '--json'] }],
     parser_owner: 'scripts/agent-context.mjs',
     safe_help_invocation: 'pnpm run bemoat:context -- --help --json',
-  }),
-
-  'bemoat:agent:issue': contract({
-    command: 'bemoat:agent:issue',
-    tier: 'B',
-    entrypoint: 'scripts/agent-issue.mjs',
-    purpose: 'MIGRATION-ONLY HISTORICAL: Inspect an Issue and produce the agent preflight without mutation.',
-    operation: 'MIGRATION-ONLY HISTORICAL: Run the read-only Issue preflight and correction-phase checks.',
-    required_inputs: [
-      positional('issue_number', '<issue-number>', 'positive_integer', 'Issue number to inspect.'),
-    ],
-    optional_flags: [
-      flag(
-        'phase',
-        '--phase <phase>',
-        'enum',
-        'Optional read-only preflight phase.',
-        ['correction'],
-      ),
-    ],
-    reads: [
-      'local git and repository files',
-      'GitHub Issue, comments, Pull Request, and checks',
-    ],
-    writes: [],
-    stop_conditions: ['Stop without mutation when Issue, PR, or correction evidence is incomplete or conflicting.'],
-    parser_owner: 'scripts/agent-issue/cli-args.mjs',
-    safe_help_invocation: 'pnpm run bemoat:agent:issue -- --help --json',
   }),
 
   'bemoat:boilerplate:check': contract({
@@ -552,171 +497,6 @@ const commands: Record<string, CommandContract> = {
     },
   }),
 
-  'bemoat:issue:comment': contract({
-    command: 'bemoat:issue:comment',
-    tier: 'A',
-    entrypoint: 'scripts/post-role-comment.mjs',
-    purpose: 'MIGRATION-ONLY HISTORICAL: Validate or publish a role comment outside canonical state transports.',
-    operation: 'MIGRATION-ONLY HISTORICAL: Validate a role comment and optionally post it without owning ordinary state transitions.',
-    accepted_pre_states: ['NOT_STATEFUL'],
-    required_inputs: [
-      positional('issue_number', '<issue-number>', 'positive_integer', 'Issue number receiving the role comment.'),
-      stdinInput('comment_body', 'Role comment body when --body-file is not used.'),
-    ],
-    optional_flags: [
-      flag('repository', '--repo <owner/repository>', 'repository', 'Repository containing the Issue.'),
-      flag('body_file', '--body-file <path>', 'path', 'Read the comment body from this file instead of stdin.'),
-      flag('check', '--check', 'boolean', 'Validate without posting.'),
-      flag('allow_warning', '--allow-warning', 'boolean', 'Acknowledge the documented long-comment warning.'),
-    ],
-    required_evidence: ['Canonical role/comment body validation.', 'Issue and correction evidence when the role requires it.'],
-    reads: ['body file or stdin', 'Issue comments and correction evidence'],
-    writes: ['Issue role comment unless --check is supplied or an identical authoritative retry is proven'],
-    success_classifications: ['SUCCESS', 'NO_OP_IDENTICAL_RETRY'],
-    retry_contract: {
-      identical_retry: 'conditional' as const,
-      classification: 'NO_OP_IDENTICAL_RETRY',
-      condition: 'A retry is identical only when the same validated role comment is already the live authoritative comment.',
-    },
-    role_contracts: {
-      HANDOFF: {
-        required_heading: '## HANDOFF',
-        required_bindings: [
-          'issue_number',
-          'bounded_objective',
-          'permitted_scope',
-          'prohibited_scope',
-          'approved_branch_or_target_when_applicable',
-          'authority_identity_when_required',
-          'exact_base_or_head_when_required',
-          'one_next_permitted_action',
-          'stop_conditions'
-        ],
-        compatibility_shapes: [
-          ['### Task log', 'Timestamp:', 'Task / Issue:', 'Phase:', 'Executing role:', '**Target:**', '**Objective:**', '**Links:**', '**Next:**']
-        ],
-        required_sections: [],
-        allowed_verdicts: []
-      },
-      RESULT: {
-        required_heading: '## RESULT',
-        required_bindings: [
-          'issue_number',
-          'executing_role',
-          'branch',
-          'exact_head_when_code',
-          'pr_binding_when_applicable',
-          'predecessor_evidence_when_correction'
-        ],
-        compatibility_shapes: [
-          ['### Task log', 'Timestamp:', 'Task / Issue:', 'Phase:', 'Executing role:', '**Completed:**', '**Summary:**', '**Next:**'],
-          ['### Task log', 'Timestamp:', 'Task / Issue:', 'Phase:', 'Executing role:', '**Role / phase completed:**', '### Summary', '### Files or artifacts changed', '### Commands run', '### Next handoff'],
-          ['**Profile:**', '**Task:**', '**PR:**', '**Completed:**', '**Evidence:**', '**AC audit:**', '**Risks / escalation:**', '**Next:**'],
-          ['### Task log', 'Task / Issue:', 'Executing role:', 'Branch:', 'Head:', 'PR:', '### Summary', '### Evidence', 'Commands:', 'Tests:', 'CI:', '### Acceptance criteria', '### Risks / blockers', '### Next permitted action']
-        ],
-        required_sections: [
-          'Task log',
-          'Summary',
-          'Evidence',
-          'Acceptance criteria',
-          'Risks / blockers',
-          'Next permitted action'
-        ],
-        allowed_verdicts: [],
-        correction_evidence_map: CORRECTION_EVIDENCE_CONTRACT,
-      },
-      REVIEW_VERDICT: {
-        required_heading: '## REVIEW_VERDICT',
-        required_bindings: [
-          'issue_number',
-          'pr_number',
-          'exact_reviewed_head',
-          'policy_sha_when_required',
-          'review_type',
-          'review_cycle',
-          'reviewer_identity',
-          'predecessor_evidence_when_correction'
-        ],
-        compatibility_shapes: [
-          ['### Task log', 'Timestamp:', 'Task / Issue:', 'Phase:', 'Executing role:', '**PR / base / head:**', '**Verdict:**', '**Findings:**', '**Gates:**', '**Next:**']
-        ],
-        required_sections: [
-          'Review identity',
-          'Immutable finding disposition',
-          'Critical findings',
-          'Important findings',
-          'Minor / Nit findings',
-          'Evidence',
-          'Exact next permitted action'
-        ],
-        allowed_verdicts: [
-          'CORRECTION REQUIRED',
-          'ELIGIBLE FOR FOUNDER REVIEW',
-          'BLOCKED FOR FOUNDER DECISION',
-          'BLOCKED EXTERNAL',
-          'STATE CONFLICT'
-        ],
-        correction_contract: {
-          condition: 'Verdict is CORRECTION REQUIRED or BLOCKED FOR FOUNDER DECISION with unresolved implementation findings',
-          placement: 'Must be provided as a markdown fenced JSON block anywhere in the comment body.',
-          representation: 'fenced_json_block',
-          schema_version: 1,
-          modes: ['implementation_pr', 'planning_no_pr'],
-          required_keys: ['schema_version', 'reviewed_head', 'findings'],
-          optional_keys: ['mode'],
-          finding_id_requirements: 'Must be a non-empty string and unique after whitespace normalization.',
-          reviewed_head_binding: 'Must be a non-empty string matching the exact PR head or base SHA being reviewed.',
-          evidence_requirements: 'Finding required_evidence must be a non-empty array of non-empty strings.',
-          multiplicity: 'Exactly one Correction Contract JSON block is permitted per role comment.',
-          invalid_combinations: ['Multiple JSON blocks', 'planning_no_pr mode without expected_areas', 'Duplicate finding IDs'],
-          finding_schema: {
-            required_keys: ['id', 'canonical_summary', 'source_thread', 'required_evidence'],
-            optional_keys: ['expected_areas', 'prohibited_areas']
-          },
-          canonical_example: "```json\n{\n  \"schema_version\": 1,\n  \"mode\": \"implementation_pr\",\n  \"reviewed_head\": \"1234567890abcdef1234567890abcdef12345678\",\n  \"findings\": [\n    {\n      \"id\": \"EXAMPLE-001\",\n      \"canonical_summary\": \"Fix the thing\",\n      \"source_thread\": \"https://github.com/...\",\n      \"required_evidence\": [\"Test output\"]\n    }\n  ]\n}\n```"
-        }
-      }
-    },
-    next_action_rules: [
-      {
-        classification: 'SUCCESS',
-        next_action: nextAction('COMPLETE', null, 'The role comment operation completed without owning a state transition.'),
-      },
-      {
-        classification: 'NO_OP_IDENTICAL_RETRY',
-        next_action: nextAction('COMPLETE', null, 'The identical validated role comment is already authoritative.'),
-      },
-    ],
-    examples: [
-      {
-        description: 'Validate a role comment before a transport posts it.',
-        argv: ['284', '--repo', 'boat1994/bemoat-web-starter', '--body-file', './comment.md', '--check'],
-      },
-      {
-        description: 'Publish a HANDOFF comment.',
-        argv: ['284', '--body-file', './handoff.md'],
-      },
-      {
-        description: 'Publish a RESULT comment.',
-        argv: ['284', '--body-file', './result.md'],
-      },
-      {
-        description: 'Publish a REVIEW_VERDICT comment.',
-        argv: ['284', '--body-file', './review.md'],
-      }
-    ],
-    parser_owner: 'scripts/post-role-comment.mjs',
-    safe_help_invocation: 'pnpm run bemoat:issue:comment -- --help --json',
-    last_validation_before_mutation: 'Validate the role body, Issue binding, and correction evidence immediately before posting.',
-    post_write_readback: 'Verify mutation via returned comment ID; if absent or unpropagated, retry readback with bounded delay before asserting AMBIGUOUS_RESULT: POSTED.',
-    legacy_classification_map: {
-      POSTED: 'SUCCESS',
-      NO_OP: 'NO_OP_IDENTICAL_RETRY',
-    },
-  }),
-
-
-
   'bemoat:test:int': contract({
     command: 'bemoat:test:int',
     tier: 'C',
@@ -749,7 +529,7 @@ const commands: Record<string, CommandContract> = {
 }
 
 
-const missionControlDependencies: any = { contract: contract as unknown as <T extends Record<string, unknown>>(value: T) => T, positional, stdinInput, flag, environment, nextAction }
+const missionControlDependencies: any = { contract: contract as unknown as <T extends Record<string, unknown>>(value: T) => T, positional, flag, environment, nextAction }
 const protocolCommands = handoffCommands(missionControlDependencies)
 const missionControlCommands = {
   ...missionControlPrimaryCommands(missionControlDependencies),
@@ -765,7 +545,6 @@ delete commands['bemoat:typecheck']
 const orderedCommands = { ...commands, ...contextSyncCommands(missionControlDependencies), ...protocolCommands, ...missionControlCommands, ...trailingCommands }
 
 const routes = [
-  ...missionControlPrimaryRoutes(),
   ...missionControlRecoveryRoutes(),
   ...contextSyncRoutes(),
   ...handoffRoutes(),

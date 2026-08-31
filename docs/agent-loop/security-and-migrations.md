@@ -178,7 +178,7 @@ Stop and report when:
 
 ## Planning task-identity invariants
 
-Superpowers planning packages under `docs/superpowers/specs/**` and `docs/superpowers/plans/**` can declare machine-readable task identity in a `<!-- bemoat-task-identity:start -->` YAML block. The central guard pack enforces these contracts through `scripts/guard-planning-contract.mjs` (see [guard-pack.md](../guard-pack.md#planning-contract)).
+Superpowers planning packages under `docs/superpowers/specs/**` and `docs/superpowers/plans/**` can declare machine-readable task identity in a `<!-- bemoat-task-identity:start -->` YAML block. The central guard pack enforces these contracts through `scripts/guards/planning-contract-runtime.mjs` and `scripts/guards/planning-contract.mjs` (see [guard-pack.md](../guard-pack.md#planning-contract)).
 
 ### Planning-time provenance vs live branch base
 
@@ -192,7 +192,7 @@ Closed or terminal issues cited only in historical prose or `Durable Progress` c
 
 ### Child harness sync impact
 
-`scripts/guard-planning-contract.mjs` and `scripts/mission-control-state.mjs` are managed harness paths. Child projects receive them through:
+`scripts/guards/planning-contract-runtime.mjs` and `scripts/guards/planning-contract.mjs` are managed harness paths. Child projects receive them through:
 
 ```bash
 pnpm run bemoat:boilerplate:sync -- --harness-only
@@ -200,6 +200,6 @@ pnpm run bemoat:boilerplate:sync -- --harness-only
 
 Planning contract fixtures under `tests/fixtures/planning/` and the dev/main approved-base regression int specs are also managed paths so harness-only sync delivers the canonical guard behavior validated in child dogfood (for example bogus-jewelry PR #182).
 
-The guard evaluates **only new or modified** planning files in the working tree or staged diff, scoped to the branch diff against the protected integration baseline. `resolveApprovedBase()` prefers `origin/dev`, then `dev`, then `origin/main`, then `main`, so child repos with a `dev` branch validate against `dev` while starter repos without `dev` continue to use `main`. Existing child plans, specs, and Mission Control profiles (`FAST`, `STANDARD`, `MANAGED`) remain compatible without mandatory retroactive marker migration.
+The guard evaluates **only new or modified** planning files in the working tree or staged diff, scoped to the branch diff against the protected integration baseline. `resolveApprovedBase()` prefers `origin/dev`, then `dev`, then `origin/main`, then `main`, so child repos with a `dev` branch validate against `dev` while starter repos without `dev` continue to use `main`. Existing child plans, specs, and historical managed-state records remain compatible without mandatory retroactive marker migration.
 
 External Superpowers plugin maintainers should follow [superpowers-planning-contract-recommendation.md](./superpowers-planning-contract-recommendation.md) to emit compatible marker blocks during `brainstorming` and `writing-plans`.

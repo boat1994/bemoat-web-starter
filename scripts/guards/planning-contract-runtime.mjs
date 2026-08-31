@@ -213,8 +213,18 @@ function issueIdentifiesTaskKey(issue, taskKey) {
   return haystack.includes(String(taskKey).toLowerCase())
 }
 function validateMissionControlCompatibility(stateAnalysis, contract, issueNumber, filePath) {
-  if (!stateAnalysis.present || !stateAnalysis.valid || !stateAnalysis.state) {
+  if (!stateAnalysis.present) {
     return []
+  }
+  if (!stateAnalysis.valid || !stateAnalysis.state) {
+    return [makeViolation({
+      rule: 'PLAN010',
+      file: filePath,
+      message: 'Malformed Mission Control state on active task issue',
+      found: 'malformed managed state',
+      reason: stateAnalysis.reason ?? 'managed state identity could not be validated',
+      correctiveAction: `Reconstruct Mission Control state on issue #${issueNumber}`,
+    })]
   }
   const managedState = stateAnalysis.state
   const expectedIssueNumber = parseIssueNumber(contract.active_task_issue)

@@ -61,9 +61,9 @@ AGENTS.md → bemoat:context → one bounded objective → bemoat:handoff → Gi
 synchronization utility. Generic branch/repository/secret/toolchain,
 exact-evidence, CLI Discovery, and child-sync safety remain retained
 infrastructure. The stateful delivery, review, reconciliation, recovery,
-merge, task, and role-comment machinery documented below is migration-only
-historical compatibility and is scheduled for dependency-safe Phase 7 pruning;
-this contract reconciliation does not delete or repair it.
+merge, task, and role-comment machinery is retired. Historical state and role
+records remain readable only for migration compatibility; this guide does not
+authorize a legacy publication command.
 
 ## Historical migration-only stateful contract
 
@@ -73,6 +73,8 @@ and migration readers remain interpretable. They are not a supported future
 entrypoint or routing recommendation. New work must follow the stateless
 protocol above and must not select a legacy command because a historical state
 name or role-comment record appears in GitHub.
+
+<!-- bemoat-mc:historical-migration-only:start -->
 
 ## Purpose
 
@@ -116,8 +118,8 @@ Issue and an Implementation Plan is also managed state. Small, Medium, and
 standalone Core tasks that do neither remain valid without a state block.
 
 `bemoat:context` is read-only. It reconstructs the current stateless route and
-never creates state. The historical `bemoat:agent:issue` preflight remains
-read-only for migration evidence only. It classifies a missing state block on a
+never creates state. The former compatibility preflight has been retired. It
+classifies a missing state block on a
 non-managed task as a warning; it must not initialize one. For a managed task,
 an absent or malformed block is `STATE_MIGRATION_REQUIRED`; disagreement with
 the live Issue/PR/base/head/terminal state is `STATE_CONFLICT`; and required
@@ -316,10 +318,9 @@ May: implement only the active bounded scope; run required checks; commit and
 push to the approved issue branch; update/open the PR; post a RESULT with exact
 head SHA and evidence.
 
-When acting as **Delivery Coordinator**, may also update only the managed state
-block between `bemoat-mission-control-state` markers to record `AWAITING_REVIEW_1`
-with `active_pr` and `current_head` in the same authorized run as the successful
-`## RESULT`.
+The stateless handoff command does not update managed state, review counters,
+or role-comment records. Historical managed-task records remain read-only
+migration evidence.
 
 Must not: silently fix unrelated findings; reset or increment review counters;
 reinterpret Acceptance Criteria; merge; perform review; edit the Issue acceptance
@@ -429,7 +430,7 @@ already selected by durable migration evidence:
 | delivery | `bemoat:agent:delivery` |
 | review | Retired; no executable managed-review command remains. Historical verdict evidence is read-only and stops at the Founder gate. |
 | merge | Retired; no executable custom merge command remains. Context reconstructs native GitHub merge authority and evidence. |
-| role-comment transport | `bemoat:issue:comment` |
+| role-comment transport | Retired; historical role comments are read-only migration evidence. |
 
 When live state still determines routing, name only the bounded candidate set:
 
@@ -451,9 +452,9 @@ Selection must use the returned accepted pre-state, required evidence, mutation
 behavior, retry contract, and next-action rules. Missing, unsafe,
 non-machine-readable, or contradictory help is `CLI_DISCOVERY_DEFECT`.
 
-Direct internal workflow imports are prohibited. Do not import `Coordinator`,
-Productive-Only policy helpers, workflow services, adapters, transition
-functions, parsers, or projection helpers. Raw GitHub reads remain permitted
+Direct internal workflow imports are prohibited. Do not import stateful
+coordination classes, Productive-Only policy helpers, workflow services,
+adapters, transition functions, parsers, or projection helpers. Raw GitHub reads remain permitted
 for independent verification. Raw GitHub mutation is prohibited when a
 registered Bemoat command owns the operation. It is permitted only when no
 registered command owns the operation, and the prompt must require the agent to
@@ -608,10 +609,9 @@ updated_by: null
 
 ### State update rules
 
-- Delivery Coordinator must write `AWAITING_REVIEW_1` with `active_pr` and
-  `current_head` in the same authorized run as a successful delivery `## RESULT`.
-- Reviewer must write `review_cycle`, `full_review_count`, `last_reviewed_head`,
-  and the resulting state in the same authorized run as `## REVIEW_VERDICT`.
+- No supported command writes `AWAITING_REVIEW_1`, review counters,
+  `last_reviewed_head`, or resulting managed state. Historical state updates are
+  read-only migration evidence.
 - `review_cycle` increments only when a reviewer posts a completed verdict for a new review cycle.
 - Dev must never increment `review_cycle` or `full_review_count`.
 - Reading state, rerunning CI, or refreshing GitHub metadata does not increment the cycle.
@@ -787,7 +787,7 @@ decision; it never authorizes automatic Review 4.
 
 ## Cost-aware review routing
 
-Mechanical verification uses deterministic scripts, or a low-reasoning coordinator when automation is unavailable; it is not a high-reasoning semantic review. Mechanical work includes proving PR/head equality, exact-head CI,
+Mechanical verification uses deterministic scripts, or low-reasoning coordination when automation is unavailable; it is not a high-reasoning semantic review. Mechanical work includes proving PR/head equality, exact-head CI,
 approved file scope, required evidence/state fields, review counters, and
 unresolved-finding consistency.
 
@@ -1032,3 +1032,5 @@ Extracted to module: [Templates / Examples](./modules/templates-examples.md)
 ## Worked examples
 
 Extracted to module: [Templates / Examples](./modules/templates-examples.md)
+
+<!-- bemoat-mc:historical-migration-only:end -->

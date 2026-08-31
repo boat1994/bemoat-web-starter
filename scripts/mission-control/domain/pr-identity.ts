@@ -10,6 +10,36 @@ type ParsedTargetResult =
   | { ok: true; none: false; identity: PrIdentity }
   | { ok: false; errors: string[] }
 
+function unwrapManagedReferenceQuotes(value: string): string {
+  let current = value.trim()
+  while (
+    current.length >= 2 &&
+    ((current.startsWith('"') && current.endsWith('"')) ||
+      (current.startsWith("'") && current.endsWith("'")))
+  ) {
+    current = current.slice(1, -1).trim()
+  }
+  return current
+}
+
+function isSafePositivePrNumber(digits: string): boolean {
+  if (!/^[1-9]\d*$/.test(digits)) return false
+  const number = Number(digits)
+  return Number.isSafeInteger(number) && number > 0
+}
+
+/** Resolve the number from a compact PR reference used by review verdict bindings. */
+export function resolvePrNumber(reference: unknown): number | null {
+  if (typeof reference === 'number') {
+    return Number.isSafeInteger(reference) && reference > 0 ? reference : null
+  }
+  if (typeof reference !== 'string' || reference === '') return null
+  const value = unwrapManagedReferenceQuotes(reference)
+  const match = value.match(/^(?:[\w.-]+\/[\w.-]+)?#([1-9]\d*)$|^([1-9]\d*)$/)
+  const digits = match?.[1] ?? match?.[2]
+  return digits && isSafePositivePrNumber(digits) ? Number(digits) : null
+}
+
 function isNoneIdentity(value: CanonicalIdentity): value is { none: true } {
   return 'none' in value
 }

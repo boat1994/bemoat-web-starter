@@ -120,10 +120,10 @@ remain permitted for independent verification. Raw GitHub mutation is permitted
 only when no registered Bemoat command owns the operation, and the reason must
 be recorded.
 
-Real-agent operation must not directly import `Coordinator`, Productive-Only
-policy helpers, workflow services, adapters, transition functions, parsers, or
-projection helpers. Internal imports remain valid for automated tests, but do
-not prove public CLI usability.
+Real-agent operation must not directly import stateful coordination classes,
+Productive-Only policy helpers, workflow services, adapters, transition
+functions, parsers, or projection helpers. Internal imports remain valid for
+automated tests, but do not prove public CLI usability.
 
 ## Story-First Semantic Testing
 

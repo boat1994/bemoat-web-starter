@@ -108,6 +108,22 @@ Fix the retained current-context Issue parser so the public bemoat:context:sync-
     expect(parsed.scope).toBe('- scripts/context/issue-parser.ts\n- directly owned parser/context-sync tests')
   })
 
+  it('treats legacy required Mission Control declarations as STANDARD metadata', () => {
+    const parsed = parseIssueBody(`
+## Goal
+
+Retire a legacy workflow surface.
+
+**Task size**: core
+Mission Control mode: required
+Main Issue: #410
+Implementation Plan: docs/superpowers/plans/example/implementation-plan.md
+`)
+
+    expect(parsed.missionControlMode).toBe('required')
+    expect(parsed.workflowProfile).toBe('STANDARD')
+  })
+
   it('treats role comments as evidence and never projects historical RESULT into current state', () => {
     const comments = [
       {

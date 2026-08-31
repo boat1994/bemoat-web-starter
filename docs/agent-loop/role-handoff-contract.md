@@ -73,7 +73,6 @@ Bemoat already has durable artifacts for scope, code state, and verification:
 | Active Task Issue | Bounded scope, acceptance criteria, task-specific gates |
 | Pull Request + exact-head CI | Actual code state and GitHub-verified evidence |
 | `.superpowers/sdd/progress.md` | Temporary local/session execution state |
-| `pnpm run bemoat:agent:issue -- <issue>` | Read-only preflight to reconstruct live GitHub state |
 
 The remaining gap is **transport between roles**. Mission Control, Dev, and Reviewer should be able to continue work with a short instruction such as:
 
@@ -81,19 +80,9 @@ The remaining gap is **transport between roles**. Mission Control, Dev, and Revi
 
 Use this contract instead of copying long prompts, plan excerpts, command logs, or review transcripts into every comment.
 
-Use the wrapper to validate and post a concise operational comment:
-
-```text
-pnpm run bemoat:issue:comment -- <issue-number> [--repo owner/repo] [--body-file <path>] [--check] [--allow-warning]
-```
-
-Provide the body through `--body-file` or stdin, never both. The wrapper
-validates the concise operational heading and its required fields: exactly one
-`## HANDOFF`, `## RESULT`, or `## REVIEW_VERDICT`. It does not accept the
-full reference templates below as post-ready bodies; reduce those examples to
-the operational shape first. Use `--check` to validate without posting, and
-use `--allow-warning` only to acknowledge a length warning. The wrapper does
-not replace live preflight or Founder gates.
+The historical role-comment writer is retired. Existing `HANDOFF`, `RESULT`,
+and `REVIEW_VERDICT` comments remain readable for migration compatibility; new
+cross-agent publication uses the strict append-only `bemoat:handoff` command.
 
 ## Compact-delta contract
 
@@ -152,7 +141,7 @@ A correction-eligible `## REVIEW_VERDICT` (`CORRECTION REQUIRED`) carries one co
 Reconstruct the active finding set with correction-mode preflight:
 
 ```bash
-pnpm run bemoat:agent:issue -- <issue-number> --phase correction
+pnpm run bemoat:context <issue-number>
 ```
 
 The capsule mechanically verifies exact finding playback (for example
@@ -220,7 +209,7 @@ Any branch, base, head SHA, or CI status recorded in a comment reflects the stat
 
 Before implementation, correction, or re-review:
 
-1. Run `pnpm run bemoat:agent:issue -- <issue-number>` (read-only preflight).
+1. Run `pnpm run bemoat:context <issue-number>` (read-only preflight).
 2. Inspect the live PR head, approved base, merge state, and exact-head CI with `gh` or the GitHub UI.
 3. Treat stale SHA or non-exact-head CI as a blocker until live state is confirmed.
 
@@ -872,7 +861,7 @@ Use before acting on a handoff, posting a dependent HANDOFF, treating a gate as 
 - [ ] **Task log present** — Timestamp with timezone, task/Issue/phase, executing role; model/reasoning when an AI agent ran the phase
 - [ ] **Compact delta** — Comment does not restate Issue body, full AC set, prior command logs, prior evidence transcripts, or unchanged scope/lifecycle rules without a material reason
 - [ ] **No duplicated canonical context** — Links replace pasted Issue/AC/logs/evidence; unchanged rules are pointed at, not recopied
-- [ ] **Live state verified** — Ran `bemoat:agent:issue` and confirmed branch, base, and PR head on GitHub
+- [ ] **Live state verified** — Ran `bemoat:context` and confirmed branch, base, and PR head on GitHub
 - [ ] **No stale SHA** — Comment head SHA matches current GitHub PR head (or correction HANDOFF explains expected drift)
 - [ ] **Exact-head CI** — Required CI is for the **current** PR head, not an older SHA
 - [ ] **Evidence types separated** — Local-only results are not labeled GitHub-verified

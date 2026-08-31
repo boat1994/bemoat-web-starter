@@ -6,24 +6,19 @@
     "line_count_algorithm": "physical-lines-v1",
     "soft_ceiling": 400,
     "grandfathered": [
-      { "path": "scripts/agent-issue/current-post-budget-authority.mjs", "max_lines": 646 },
-      { "path": "scripts/agent-issue/progress-tracking.mjs", "max_lines": 462 },
       { "path": "scripts/boilerplate/filesystem.mjs", "max_lines": 635 },
       { "path": "scripts/boilerplate/workflow.mjs", "max_lines": 465 },
       { "path": "scripts/check-boilerplate-drift.mjs", "max_lines": 552 },
       { "path": "scripts/cli/command-contract-registry.ts", "max_lines": 870 },
       { "path": "scripts/cli/command-contract.ts", "max_lines": 580 },
       { "path": "scripts/mission-control/domain/campaign-authority.ts", "max_lines": 630 },
-      { "path": "scripts/mission-control/domain/campaign-validator.mjs", "max_lines": 482 },
-      { "path": "scripts/mission-control/domain/correction-contract.mjs", "max_lines": 650 },
-      { "path": "scripts/mission-control/domain/correction-contract.ts", "max_lines": 536 },
-      { "path": "scripts/post-role-comment.mjs", "max_lines": 554 }
+      { "path": "scripts/mission-control/domain/campaign-validator.mjs", "max_lines": 482 }
     ]
   },
   "protected_oracle": {
     "algorithm": "sha256",
     "files": [
-      { "path": "tests/int/phase7-merge-wrappers-prune.int.spec.ts", "sha256": "bdf192a500a5d6a71e4b5f4241017e6f698bea23ed78412c56ca5f794e874d7d" }
+      { "path": "tests/int/phase7-merge-wrappers-prune.int.spec.ts", "sha256": "f5a00b32d109797a96bc84bbbadce4bde9562a352d7a80348ef31980fa2ee3cd" }
     ]
   }
 }

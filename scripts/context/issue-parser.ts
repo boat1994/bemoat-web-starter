@@ -1,5 +1,5 @@
 import type { RoleEvidence } from './model.ts'
-import { parseIssueDeclarations, deriveWorkflowProfile } from '../agent-issue/issue-declarations.ts'
+import { parseIssueDeclarations, deriveWorkflowProfile } from './issue-declarations.ts'
 
 interface ParsedIssueBody {
   objective: string | null

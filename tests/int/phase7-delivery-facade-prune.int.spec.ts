@@ -4,7 +4,6 @@ import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import { COMMAND_CONTRACT_REGISTRY } from '../../scripts/cli/command-contract-registry.mjs'
-import { CANONICAL_TRANSPORTS } from '../../scripts/mission-control/transport-registry.mjs'
 
 const ROOT = process.cwd()
 
@@ -13,12 +12,11 @@ function packageScripts(): Record<string, string> {
 }
 
 describe('Phase 7 delivery facade deletion boundary', () => {
-  it('removes the obsolete delivery coordinator from public command surfaces while retaining stateless protocol commands', () => {
+  it('removes the obsolete delivery facade from public command surfaces while retaining stateless protocol commands', () => {
     const scripts = packageScripts()
 
     expect(scripts['bemoat:agent:delivery']).toBeUndefined()
     expect(COMMAND_CONTRACT_REGISTRY.commands['bemoat:agent:delivery']).toBeUndefined()
-    expect(CANONICAL_TRANSPORTS.map((transport) => transport.command)).not.toContain('bemoat:agent:delivery')
     expect(existsSync(resolve(ROOT, 'scripts/agent-delivery.mjs'))).toBe(false)
     expect(existsSync(resolve(ROOT, 'scripts/mission-control/workflows/agent-delivery.mjs'))).toBe(false)
 

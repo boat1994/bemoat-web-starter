@@ -24,8 +24,7 @@ import {
 
 type JsonRecord = Record<string, unknown>
 
-const ISSUE = 'bemoat:agent:issue'
-const COMMENT = 'bemoat:issue:comment'
+const BOILERPLATE_SYNC = 'bemoat:boilerplate:sync'
 const HOOKS = 'bemoat:hooks:install'
 const PACK = 'bemoat:guard:pack'
 const CHECK = 'bemoat:boilerplate:check'
@@ -75,7 +74,7 @@ function expectThrown(run: () => unknown) {
 
 function minimalResult(overrides: Record<string, unknown> = {}) {
   return createResultEnvelopeV1({
-    command: COMMENT,
+    command: BOILERPLATE_SYNC,
     outcome: 'SUCCESS',
     classification: 'SUCCESS',
     ...overrides,
@@ -159,7 +158,7 @@ describe('CLI envelope runtime characterization', () => {
   describe('createResultEnvelopeV1 and assertResultEnvelopeV1', () => {
     it('applies schema-v1 defaults and strips unknown create-input keys', () => {
       const envelope = createResultEnvelopeV1({
-        command: COMMENT,
+        command: BOILERPLATE_SYNC,
         outcome: 'SUCCESS',
         classification: 'SUCCESS',
         extra: 'stripped',
@@ -168,7 +167,7 @@ describe('CLI envelope runtime characterization', () => {
       expect(Object.keys(envelope).sort()).toEqual([...RESULT_KEYS].sort())
       expect(envelope).toMatchObject({
         schema_version: 1,
-        command: COMMENT,
+        command: BOILERPLATE_SYNC,
         mode: 'result',
         outcome: 'SUCCESS',
         classification: 'SUCCESS',
@@ -270,7 +269,7 @@ describe('CLI envelope runtime characterization', () => {
       ],
       [
         'non-command next_action with command',
-        { next_action: { type: 'STOP', command: ISSUE, reason: 'x' } },
+        { next_action: { type: 'STOP', command: BOILERPLATE_SYNC, reason: 'x' } },
         'next_action.command must be null for a non-command action',
       ],
       [
@@ -325,37 +324,26 @@ describe('CLI envelope runtime characterization', () => {
     })
 
     it('short-circuits help before positional validation and skips stdin/environment parsing', () => {
-      expect(parseCommandInvocation(ISSUE, ['--help', '284'])).toMatchObject({
+      expect(parseCommandInvocation(CHECK, ['--help', '--harness-only'])).toMatchObject({
         mode: 'help',
         format: 'text',
       })
-      expect(parseCommandInvocation(COMMENT, ['284'])).toMatchObject({
+      expect(parseCommandInvocation(BOILERPLATE_SYNC, [])).toMatchObject({
         mode: 'run',
-        values: { issue_number: '284' },
+        values: {},
       })
       expect(parseCommandInvocation(CHECK, ['--harness-only'])).toMatchObject({
         mode: 'run',
         values: { harness_only: true },
       })
-      expect(parseCommandInvocation(ISSUE, ['284'])).toMatchObject({
-        values: { issue_number: '284' },
-      })
-      expect(parseCommandInvocation(ISSUE, ['284', '--phase', 'correction'])).toMatchObject({
-        values: { issue_number: '284', phase: 'correction' },
-      })
-      expect(parseCommandInvocation(ISSUE, ['284', '--json'])).toMatchObject({
-        mode: 'run',
-        format: 'json',
-        values: { issue_number: '284' },
-      })
     })
 
     it('sets boolean flags to true and rejects a following leftover positional', () => {
-      expect(parseCommandInvocation(COMMENT, ['284', '--check'])).toMatchObject({
-        values: { issue_number: '284', check: true },
+      expect(parseCommandInvocation(BOILERPLATE_SYNC, ['--harness-only'])).toMatchObject({
+        values: { harness_only: true },
       })
       expectCliInvocation(
-        expectThrown(() => parseCommandInvocation(COMMENT, ['284', '--check', 'oops'])),
+        expectThrown(() => parseCommandInvocation(BOILERPLATE_SYNC, ['--harness-only', 'oops'])),
         'oops',
         'multiple positional values are not allowed',
       )
@@ -388,52 +376,22 @@ describe('CLI envelope runtime characterization', () => {
         'argv must be an array of strings',
       )
       expectCliInvocation(
-        expectThrown(() => parseCommandInvocation(ISSUE, ['--help', '-h'])),
+        expectThrown(() => parseCommandInvocation(CHECK, ['--help', '-h'])),
         '-h',
         'help may be provided only once',
       )
       expectCliInvocation(
-        expectThrown(() => parseCommandInvocation(ISSUE, ['--json', '--json', '284'])),
+        expectThrown(() => parseCommandInvocation(CHECK, ['--json', '--json'])),
         '--json',
         '--json may be provided only once',
       )
       expectCliInvocation(
-        expectThrown(() => parseCommandInvocation(COMMENT, ['284', '--check', '--check'])),
-        '--check',
-        'input may be provided only once: --check',
+        expectThrown(() => parseCommandInvocation(BOILERPLATE_SYNC, ['--harness-only', '--harness-only'])),
+        '--harness-only',
+        'input may be provided only once: --harness-only',
       )
       expectCliInvocation(
-        expectThrown(() => parseCommandInvocation(ISSUE, ['284', '--phase', '--correction'])),
-        '--phase',
-        '--phase requires one value',
-      )
-      expectCliInvocation(
-        expectThrown(() => parseCommandInvocation(ISSUE, ['284', '--phase', 'wrong'])),
-        '--phase',
-        'value must be one of: correction',
-      )
-      expectCliInvocation(
-        expectThrown(() => parseCommandInvocation(ISSUE, [' 284'])),
-        ' 284',
-        'value must be a positive integer',
-      )
-      expectCliInvocation(
-        expectThrown(() => parseCommandInvocation(ISSUE, [''])),
-        '',
-        'value is required',
-      )
-      expectCliInvocation(
-        expectThrown(() => parseCommandInvocation(COMMENT, ['284', '--body-file', ''])),
-        '--body-file',
-        'value is required',
-      )
-      expectCliInvocation(
-        expectThrown(() => parseCommandInvocation(COMMENT, ['284', '--body-file', '  '])),
-        '--body-file',
-        'value is required',
-      )
-      expectCliInvocation(
-        expectThrown(() => parseCommandInvocation(ISSUE, ['284', '--nope'])),
+        expectThrown(() => parseCommandInvocation(CHECK, ['--nope'])),
         '--nope',
         'unknown flag: --nope',
       )
@@ -443,9 +401,9 @@ describe('CLI envelope runtime characterization', () => {
         'harness_only and full are mutually exclusive',
       )
       expectCliInvocation(
-        expectThrown(() => parseCommandInvocation(COMMENT, ['284', '--repo', 'not-a-repo'])),
-        '--repo',
-        'value must use owner/repository form',
+        expectThrown(() => parseCommandInvocation(BOILERPLATE_SYNC, ['--harness-only', '--full'])),
+        null,
+        'harness_only and full are mutually exclusive',
       )
     })
   })
@@ -502,23 +460,23 @@ describe('CLI envelope runtime characterization', () => {
       expect(() => createHelpEnvelopeV1({ command: 'bemoat:nope' }))
         .toThrowError(new TypeError('help requires a registered command contract'))
 
-      const contract = getCommandContract(COMMENT)
-      if (!contract) throw new Error('missing comment contract')
-      const envelope = createHelpEnvelopeV1(contract) as JsonRecord
+      const boilerplateContract = getCommandContract(BOILERPLATE_SYNC)
+      if (!boilerplateContract) throw new Error('missing boilerplate sync contract')
+      const envelope = createHelpEnvelopeV1(boilerplateContract) as JsonRecord
       const roleContracts = envelope.role_contracts as JsonRecord
       roleContracts.HANDOFF = 'hacked'
       ;(envelope.retry_contract as JsonRecord).identical_retry = 'hacked'
-      expect((contract.role_contracts as JsonRecord).HANDOFF).not.toBe('hacked')
-      expect((contract.retry_contract as JsonRecord).identical_retry).toBe('conditional')
+      expect((boilerplateContract.role_contracts as JsonRecord).HANDOFF).not.toBe('hacked')
+      expect((boilerplateContract.retry_contract as JsonRecord).identical_retry).toBe('conditional')
 
-      const tierA = formatTextHelp(getCommandContract(COMMENT) as Record<string, unknown>)
-      const tierB = formatTextHelp(getCommandContract(ISSUE) as Record<string, unknown>)
-      const commentHelp = formatTextHelp(contract as Record<string, unknown>)
+      const tierA = formatTextHelp(getCommandContract(BOILERPLATE_SYNC) as Record<string, unknown>)
+      const tierB = formatTextHelp(getCommandContract(CHECK) as Record<string, unknown>)
+      const boilerplateHelp = formatTextHelp(boilerplateContract as Record<string, unknown>)
       expect(tierA).toContain('AUTHORITY AND TRUST BOUNDARY')
       expect(tierB).not.toContain('AUTHORITY AND TRUST BOUNDARY')
       expect(tierB).toMatch(/WRITES: none/)
       expect(tierB).not.toContain('ROLE CONTRACTS')
-      expect(commentHelp).toContain('ROLE CONTRACTS')
+      expect(boilerplateHelp).not.toContain('ROLE CONTRACTS')
       for (const classification of Object.keys(CLI_EXIT_CODES)) {
         expect(tierA).toContain(`${classification}:`)
       }
@@ -557,7 +515,7 @@ describe('CLI envelope runtime characterization', () => {
     it('writes JSON result envelopes to stdout only after a registered command is captured', () => {
       const missingHelp = runHelpCli([HOOKS])
       const jsonMissingHelp = runHelpCli([HOOKS, '--json'])
-      const duplicateHelp = runHelpCli([ISSUE, '--help', '--help'])
+      const duplicateHelp = runHelpCli([HOOKS, '--help', '--help'])
       const emptyFacade = runHelpCli([BRANCH, '--help', '--json'], {
         BEMOAT_FACADE_COMMAND: '',
       })

@@ -30,7 +30,6 @@ export function scanCommandReferenceContent(relativePath, content) {
   const semanticInvariants = [
     'Do not edit the immutable authorization comment.',
     '### Review checks',
-    'scripts/mission-control/transport-registry.mjs',
     'NONCANONICAL_ROLE_EVIDENCE',
     'resulting counters `2/1`',
   ]

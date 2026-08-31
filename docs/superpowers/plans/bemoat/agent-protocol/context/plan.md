@@ -114,7 +114,7 @@ paired_plan: "docs/superpowers/plans/bemoat/agent-protocol/context/plan.md"
 - [x] **Step 2: Run the tests and confirm they fail until the entrypoint is wired and the harness recognizes the command.**
 - [x] **Step 3: Implement the smallest adapter/entrypoint changes needed to keep all operations read-only.**
 - [x] **Step 4: Add dirty, detached, unpushed, local-only, missing policy, wrong repository, exact-head mismatch, failed CI, pending CI, ambiguous PR, and contradictory Issue/PR tests.**
-- [x] **Step 5: Run focused context tests, then `pnpm run bemoat:agent:issue -- --help --json`, `pnpm run bemoat:context -- --help --json`, and `git diff --check`.**
+- [x] **Step 5: Run focused context tests, then `pnpm run bemoat:context -- --help --json` and `git diff --check`.**
 
 ### Task 5: Run repository validation and prepare delivery evidence
 

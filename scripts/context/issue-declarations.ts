@@ -1,10 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
-import {
-  assignDeclarationValue,
-  parseIssueFormSection,
-  stripFencedCodeBlocks,
-} from './pure-helpers.ts'
+import { assignDeclarationValue, parseIssueFormSection, stripFencedCodeBlocks } from './issue-declaration-helpers.ts'
 
 export interface WorkflowProfile {
   name: string
@@ -26,20 +20,6 @@ export interface IssueDeclarationsResult {
   declaresImplementationPlan: boolean
 }
 
-export interface DurableMilestone {
-  slice: string | null
-  complete: boolean
-  label: string
-  raw: string
-}
-
-export interface DurableProgressResult {
-  hasChecklist: boolean
-  milestones: DurableMilestone[]
-  firstIncomplete: DurableMilestone | null
-  malformed: boolean
-}
-
 export function deriveWorkflowProfile({
   taskSize,
   missionControlMode,
@@ -56,8 +36,9 @@ export function deriveWorkflowProfile({
     (taskSize === 'core' && declaresMainIssue && declaresImplementationPlan)
   ) {
     return {
-      name: 'MANAGED',
-      nextAction: 'Use the managed-state workflow and its required bounded role transition.',
+      name: 'STANDARD',
+      nextAction:
+        'Use STANDARD safeguards; legacy managed declarations are read-only historical metadata.',
     }
   }
 
@@ -74,9 +55,7 @@ export function deriveWorkflowProfile({
     }
   }
 
-  if (missionControlMode !== 'optional') {
-    return null
-  }
+  if (missionControlMode !== 'optional') return null
 
   if (taskSize === 'small') {
     return {
@@ -142,11 +121,7 @@ export function parseIssueDeclarations(body: string = ''): IssueDeclarationsResu
   const approvedBaseMatch = source.match(/(?:^|\n)\s*Approved\s+base(?:\s+branch)?\s*:\s*(.+)/im)
   assignDeclarationValue(declarations, 'approvedBase', approvedBaseMatch?.[1] ?? null)
 
-  assignDeclarationValue(
-    declarations,
-    'mainIssueRef',
-    parseIssueFormSection(source, 'Main Issue'),
-  )
+  assignDeclarationValue(declarations, 'mainIssueRef', parseIssueFormSection(source, 'Main Issue'))
   assignDeclarationValue(
     declarations,
     'implementationPlanPath',
@@ -190,9 +165,7 @@ export function parseIssueDeclarations(body: string = ''): IssueDeclarationsResu
   const taskSizeMatch = source.match(
     /(?:^|\n)\s*(?:[-*]\s*)?(?:Task\s+(?:size|tier)|Tier|This is a)\s*[:\s]*\**\s*(small|medium|core)\b/i,
   )
-  if (taskSizeMatch) {
-    declarations.taskSize = taskSizeMatch[1].toLowerCase()
-  }
+  if (taskSizeMatch) declarations.taskSize = taskSizeMatch[1].toLowerCase()
 
   const missionControlModeMatch = source.match(
     /(?:^|\n)\s*(?:[-*]\s*)?Mission\s+Control\s+mode\s*:\s*(required|optional|not required|unsure)\b/im,
@@ -223,121 +196,9 @@ export function parseIssueDeclarations(body: string = ''): IssueDeclarationsResu
       if (!match) continue
       const key = match[1].trim().toLowerCase().replace(/\s+/g, '_')
       const value = match[2].trim()
-      if (value) {
-        declarations.currentStage[key] = value
-      }
+      if (value) declarations.currentStage[key] = value
     }
   }
 
   return declarations
-}
-
-export function parseDurableProgress(body: string = ''): DurableProgressResult {
-  const source = stripFencedCodeBlocks(body)
-  const durableSection = source.match(
-    /##\s*Durable\s+Progress\s*\n+([\s\S]*?)(?=\n##\s|\n*$)/i,
-  )
-  if (!durableSection) {
-    return {
-      hasChecklist: false,
-      milestones: [],
-      firstIncomplete: null,
-      malformed: false,
-    }
-  }
-
-  const milestones: DurableMilestone[] = []
-  let currentHeading: string | null = null
-
-  for (const line of durableSection[1].split('\n')) {
-    const headingMatch = line.match(/^###\s+(.+)$/)
-    if (headingMatch) {
-      currentHeading = headingMatch[1].trim()
-      continue
-    }
-
-    const checkboxMatch = line.match(/^\s*-\s*\[( |x|X)\]\s+(.+)$/)
-    if (!checkboxMatch) continue
-
-    milestones.push({
-      slice: currentHeading,
-      complete: checkboxMatch[1].toLowerCase() === 'x',
-      label: checkboxMatch[2].trim(),
-      raw: line.trim(),
-    })
-  }
-
-  const firstIncomplete = milestones.find((item) => !item.complete) ?? null
-
-  return {
-    hasChecklist: milestones.length > 0,
-    milestones,
-    firstIncomplete,
-    malformed: durableSection[1].trim().length > 0 && milestones.length === 0,
-  }
-}
-
-export function isPreReviewPlanningNoPrState(state: Readonly<Record<string, unknown>> = {}): boolean {
-  return (
-    state?.workflow_mode === 'planning_no_pr' &&
-    state?.state === 'BLOCKED_FOR_FOUNDER_DECISION' &&
-    state?.review_cycle === 0 &&
-    state?.full_review_count === 0 &&
-    state?.active_pr === null &&
-    state?.current_head === null &&
-    state?.last_reviewed_head === null
-  )
-}
-
-export function stateRequiresPrEvidence(state: string | Readonly<Record<string, unknown>>): boolean {
-  if (isPreReviewPlanningNoPrState(typeof state === 'object' && state !== null ? state : {})) {
-    return false
-  }
-
-  const stateName = typeof state === 'string' ? state : state?.state
-  return (
-    /^(AWAITING_REVIEW_|CORRECTION_REQUIRED_)/.test(String(stateName)) ||
-    ['BLOCKED_FOR_FOUNDER_DECISION', 'ELIGIBLE_FOR_FOUNDER_REVIEW', 'DONE'].includes(
-      String(stateName),
-    )
-  )
-}
-
-export function validatePlanPath(
-  cwd: string,
-  planPath: string | null | undefined,
-  relevantSection: string | null = null,
-):
-  | { ok: true; planPath: string; absolutePath: string; relevantSection?: string }
-  | { ok: false; reason: string; planPath?: string; relevantSection?: string } {
-  if (!planPath) {
-    return { ok: false, reason: 'No Implementation Plan path declared.' }
-  }
-
-  const absolutePath = resolve(cwd, planPath)
-  if (!existsSync(absolutePath)) {
-    return {
-      ok: false,
-      reason: `Implementation Plan path does not exist: ${planPath}`,
-      planPath,
-    }
-  }
-
-  if (!relevantSection) {
-    return { ok: true, planPath, absolutePath }
-  }
-
-  const content = readFileSync(absolutePath, 'utf8')
-  const escaped = relevantSection.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const sectionRegex = new RegExp(`^#{1,6}\\s+.*${escaped}`, 'im')
-  if (!sectionRegex.test(content)) {
-    return {
-      ok: false,
-      reason: `Relevant plan section could not be resolved in ${planPath}: ${relevantSection}`,
-      planPath,
-      relevantSection,
-    }
-  }
-
-  return { ok: true, planPath, absolutePath, relevantSection }
 }

@@ -218,8 +218,9 @@ export function routeContext(evidence: NormalizedContextEvidence): ContextDecisi
     ], commandAction('Wait for or verify the exact-head checks bound to the active PR.'))
   }
 
-  const isStandard = evidence.issue.workflowProfile === 'STANDARD'
-  const semanticReviewRequired = isStandard
+  const semanticReviewRequired =
+    evidence.issue.workflowProfile === 'STANDARD' ||
+    evidence.issue.workflowProfile === 'MANAGED'
 
   let semanticReviewSatisfied = false
   let blockingSemanticReview = false

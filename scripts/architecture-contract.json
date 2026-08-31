@@ -1,29 +1,6 @@
 {
-  "cycleNodes": [
-    "scripts/agent-issue.mjs",
-    "scripts/agent-issue/correction-pr-reconciliation.mjs",
-    "scripts/agent-issue/correction-preflight.mjs",
-    "scripts/agent-issue/github-evidence.mjs",
-    "scripts/agent-issue/historical-review3-authority.mjs",
-    "scripts/agent-issue/issue-preflight.mjs",
-    "scripts/agent-issue/progress-tracking.mjs",
-    "scripts/mission-control/diagnostics/github-comment-projection.mjs",
-    "scripts/mission-control/coordinator.mjs"
-  ],
-  "cycleEdges": [
-    "scripts/agent-issue.mjs -> scripts/agent-issue/issue-preflight.mjs",
-    "scripts/agent-issue.mjs -> scripts/agent-issue/progress-tracking.mjs",
-    "scripts/agent-issue/correction-pr-reconciliation.mjs -> scripts/agent-issue/github-evidence.mjs",
-    "scripts/agent-issue/correction-preflight.mjs -> scripts/agent-issue/correction-pr-reconciliation.mjs",
-    "scripts/agent-issue/correction-preflight.mjs -> scripts/agent-issue/github-evidence.mjs",
-    "scripts/agent-issue/correction-preflight.mjs -> scripts/agent-issue/historical-review3-authority.mjs",
-    "scripts/agent-issue/github-evidence.mjs -> scripts/mission-control/diagnostics/github-comment-projection.mjs",
-    "scripts/agent-issue/issue-preflight.mjs -> scripts/agent-issue/correction-preflight.mjs",
-    "scripts/agent-issue/issue-preflight.mjs -> scripts/agent-issue/github-evidence.mjs",
-    "scripts/agent-issue/issue-preflight.mjs -> scripts/agent-issue/progress-tracking.mjs",
-    "scripts/agent-issue/progress-tracking.mjs -> scripts/agent-issue/github-evidence.mjs",
-    "scripts/mission-control/diagnostics/github-comment-projection.mjs -> scripts/mission-control/role-comment-selection.mjs"
-  ],
+  "cycleNodes": [],
+  "cycleEdges": [],
   "adapters": {},
   "rootScripts": [
     {
@@ -45,13 +22,6 @@
       "facade_disposition": "composition_root",
       "internal_destination": "scripts/handoff/",
       "owning_slice": 7,
-      "migration_status": "migrated"
-    },
-    {
-      "path": "scripts/agent-issue.mjs",
-      "facade_disposition": "composition_root",
-      "internal_destination": "scripts/agent-issue/issue-preflight.mjs",
-      "owning_slice": 6,
       "migration_status": "migrated"
     },
     {
@@ -124,13 +94,6 @@
       "internal_destination": "scripts/tooling/install-git-hooks.mjs",
       "owning_slice": 7,
       "migration_status": "retained"
-    },
-    {
-      "path": "scripts/post-role-comment.mjs",
-      "facade_disposition": "composition_root",
-      "internal_destination": "scripts/mission-control/workflows/post-role-comment.mjs",
-      "owning_slice": 5,
-      "migration_status": "migrated"
     },
     {
       "path": "scripts/sync-boilerplate.mjs",

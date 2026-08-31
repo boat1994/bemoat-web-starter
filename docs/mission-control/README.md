@@ -39,7 +39,7 @@ evidence. Historical managed-state records remain readable for migration only.
 
 ## How the workflow changes
 
-Before: chat session → stateful coordinator → open-ended re-review → repeat.
+Before: chat session → stateful runtime → open-ended re-review → repeat.
 
 After:
 
@@ -51,8 +51,8 @@ bemoat:context
 ```
 
 The older stateful dispatch/delivery/review/reconcile/recovery/merge/task and
-role-comment flow is documented below only as migration compatibility and is a
-Phase 7 deletion candidate. This reconciliation does not delete or repair it.
+role-comment flow is documented below only as migration compatibility. The
+legacy role-comment writer is retired; historical records remain readable.
 
 Rules that change day-to-day behavior:
 
@@ -145,47 +145,12 @@ pnpm run bemoat:boilerplate:sync -- --harness-only
 5. Run `pnpm run bemoat:guard:safety` (or
    `pnpm run bemoat:guard:mission-control-contract`) in the child.
 
-## How to migrate existing tasks
+## Historical migration-only records
 
-When an active task that requires managed Mission Control state already has review history but no valid state block:
-
-1. Reconstruct completed review rounds from Issue/PR comments when evidence is
-   clear.
-2. Write the marker block with reconstructed `review_cycle` and
-   `last_reviewed_head`.
-3. If reconstruction is ambiguous, ask the Founder once for the starting cycle.
-4. Return `STATE_MIGRATION_REQUIRED` until migration is complete.
-5. Do **not** silently grant a fresh three-cycle budget.
-
-Starter marker skeleton for Active Task Issues that explicitly require Mission Control state, or legacy Core tasks declaring both a Main Issue and Implementation Plan:
-
-````md
-<!-- bemoat-mission-control-state:start -->
-```yaml
-schema_version: 1
-state: READY
-review_cycle: 0
-full_review_count: 0
-approved_base: main
-active_task_issue: "#<this active task issue>"
-active_pr: null
-current_head: null
-last_reviewed_head: null
-guide_version: 1.1.0
-guide_source_ref: main
-guide_source_sha: null
-open_blockers: []
-follow_up_issues: []
-next_permitted_action: "Identify one next bounded action"
-material_change_status: none
-updated_at: null
-updated_by: null
-```
-<!-- bemoat-mission-control-state:end -->
-````
-
-Update only the content between the markers. Preserve human-authored Issue body
-outside them. Small standalone tasks may omit this ceremony.
+Older Issues may contain managed-state blocks and RESULT/REVIEW_VERDICT records.
+They are read-only evidence for `bemoat:context`; do not reconstruct counters,
+write state blocks, or invoke retired commands. If evidence is ambiguous,
+`bemoat:context` stops for human review.
 
 ## Standard daily flow (current stateless protocol)
 
@@ -205,114 +170,5 @@ The body file must contain exactly one strict JSON HANDOFF record matching the
 machine-readable public contract; it is not a Markdown template or fenced JSON
 block.
 
-The next agent must fresh-reconstruct from GitHub. Historical review-cycle
-records remain readable but do not authorize a new stateful command.
-
-## Historical review-cycle compatibility
-
-The following vocabulary is retained only for reading older managed Issues:
-
-| Cycle | Type | Scope |
-| --- | --- | --- |
-| Review 1 | Full | Task-bounded AC, changed behavior, connected risk, exact-head checks |
-| Review 2 | Delta | Enumerated findings + files since `last_reviewed_head` |
-| Review 3 | Blocker verification | Unresolved Blocker/Critical only |
-
-Important findings, Minor/Nit dispositions, and Founder gates remain historical
-review evidence. New work records its bounded outcome and next route through
-`bemoat:handoff`; it does not create a new RESULT or REVIEW_VERDICT.
-
-## Cost-aware review routing
-
-Mechanical head/CI/scope/state checks use scripts or low-reasoning coordination;
-they are not semantic-review runs. One Full Semantic Review is the expensive
-default, then corrections stay delta-bounded unless a proven material/high-risk
-trigger or Founder authorization requires another full review. A changed head by
-itself requires exact-head verification, not a full re-review.
-
-| Profile | Default semantic review |
-| --- | --- |
-| FAST | Focused verification; no independent high-reasoning review by default. |
-| STANDARD | One risk-adjusted review; Medium for bounded normal-risk work, High for material ambiguity or significant connected risk. |
-| MANAGED | One independent High Full Semantic Review, then bounded Delta Review. |
-
-Runtime model names are replaceable configuration: routing is based on required
-capability and proven risk. Review 3 remains bounded; unresolved non-convergence
-routes to #121 Double-Loop Review or Founder decision, never automatic Review 4.
-
-## Current and historical commands
-
-Current protocol commands:
-
-```bash
-pnpm run bemoat:context -- --help --json
-pnpm run bemoat:context <issue-number> --json
-pnpm run bemoat:handoff -- --help --json
-pnpm run bemoat:handoff <issue-number> --body-file <strict-handoff.json>
-pnpm run bemoat:context:sync-base -- --help --json
-```
-
-The commands below are retained historical migration-only examples. Deleted
-Phase 7 commands have no registration or help contract and are not listed.
-
-```bash
-# Mission Control contract only
-pnpm run guard:mission-control-contract
-
-# Full safety pack (includes Mission Control)
-pnpm run guard:safety
-
-# Focused tests
-pnpm exec vitest run tests/int/mission-control-contract.int.spec.ts
-pnpm exec vitest run tests/int/boilerplate-sync.int.spec.ts
-pnpm exec vitest run tests/int/guard-pack.int.spec.ts
-
-# Child harness pull (after starter merge)
-pnpm run bemoat:boilerplate:sync -- --harness-only
-```
-
-## Historical migration-only troubleshooting
-
-| Symptom | Response |
-| --- | --- |
-| Guide missing on approved base | `BLOCKED EXTERNAL` — do not fall back to task-branch policy |
-| Plan / Issue / PR / state disagree (contradictory evidence) | `STATE CONFLICT` — one reconciliation action, then stop |
-| Valid PR/head/CI/RESULT but stale state block | Deterministic reconciliation or incomplete delivery — not `STATE CONFLICT` |
-| PR merged but managed Issue still open | `STATE CONFLICT` — reconstruct native GitHub evidence and stop; no custom merge wrapper may repair it |
-| A retained command reports a classified failure | Use the non-empty diagnostic; the CLI falls back from `finalReason` to `reason` to a safe literal |
-| Active task mid-review without state block | `STATE MIGRATION REQUIRED` — migrate; do not reset budget |
-| PR head moved after a review | Prior verdict is historical only; cover the new exact head |
-| Want another full review after a tiny fix | Not allowed; assign Review 2 delta unless Founder authorizes material change |
-| Loader feels “too short” for policy details | Correct — read the guide; Project instruction stays the loader |
-
-## Rollout sequence
-
-1. Merge starter PR to protected base.
-2. Replace long ChatGPT Project text with the loader file.
-3. Dogfood a fresh session (repo/ref/SHA/version + one next action).
-4. Dogfood Review 1 → correction → Review 2 delta.
-5. Dogfood Review 3 nit → follow-up + `ELIGIBLE FOR FOUNDER REVIEW`.
-6. Sync one child with `--harness-only`; confirm override unchanged.
-7. Migrate active child tasks explicitly.
-8. Use on ≥3 bounded tasks before changing policy again.
-
-## Versioning the policy
-
-Guide frontmatter `version` is semver:
-
-- **Patch** — editorial only
-- **Minor** — backward-compatible addition
-- **Major** — incompatible state machine / budget / severity / completion change
-
-Do not hardcode the policy commit SHA inside the guide file. The loader must
-report the Git ref and SHA used for the run.
-
-## Manual dogfood checklist (Founder)
-
-1. Fresh Project bootstrap with loader only
-2. Small correction → Review 2 delta (not full re-review)
-3. Review 3 nit → follow-up + eligible for Founder Review
-4. Verified blocker after Review 3 → blocked for Founder, no Review 4
-5. Material change → stop for Founder decision
-6. New session mid-task continues recorded cycle
-7. Child sync preserves `.bemoat/mission-control-overrides.md` (sync int tests cover this)
+The current loop is the complete operational guidance. For policy details and
+guard contracts, follow `AGENTS.md` and the linked canonical files above.
