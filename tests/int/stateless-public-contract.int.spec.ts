@@ -57,7 +57,11 @@ describe('stateless public coordination contract', () => {
 
   it('does not assign current gate authority to the retired controller', () => {
     const contract = read('docs/agent-loop/role-handoff-contract.md')
-    expect(contract).not.toMatch(/Mission Control (?:compares|may reconcile)/)
+    expect(contract).not.toMatch(
+      /Mission Control[^.\n]*(?:audit|compare|reconcile|verify)/i,
+    )
+    expect(contract).toMatch(/independent reviewer verifies\s+the exact candidate head/)
+    expect(contract).toMatch(/agent preparing the gate compares every\s+source-Issue acceptance criterion/)
     expect(contract).toContain('The Founder makes the final decision.')
   })
 
