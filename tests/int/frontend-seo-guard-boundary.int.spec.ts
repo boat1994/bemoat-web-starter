@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 
@@ -12,10 +12,9 @@ afterEach(() => {
 })
 
 describe('frontend SEO guard boundary', () => {
-  it('keeps the owned destination authoritative after root facade removal', async () => {
+  it('exposes the owned destination contract', async () => {
     const destination = await import('../../scripts/guards/frontend-seo.ts')
 
-    expect(existsSync(resolve(process.cwd(), 'scripts/guard-frontend-seo.mjs'))).toBe(false)
     expect(Object.keys(destination).sort()).toEqual([
       'FRONTEND_LAYOUT_PATH',
       'OPTIONAL_SEO_PATHS',

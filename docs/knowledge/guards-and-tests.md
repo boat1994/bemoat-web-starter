@@ -7,7 +7,7 @@ Detail: [guard-pack.md](../guard-pack.md), [starter-acceptance-tests.md](../star
 Entry points:
 
 - `pnpm run bemoat:guard:safety` — child CI / pre-push
-- `pnpm run guard:safety` — starter-internal alias (same `guard-pack.mjs`)
+- `pnpm run guard:safety` — starter-internal alias (same `guard-pack.ts`)
 
 Orchestrator runs guards in order: repo safety → harness contract → package manager → env placeholder → Cloudflare config → frontend SEO.
 

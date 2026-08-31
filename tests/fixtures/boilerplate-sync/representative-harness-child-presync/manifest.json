@@ -6,7 +6,7 @@
     "docs/agent-loop/role-handoff-contract.md",
     "docs/boilerplate-sync-command.md",
     "docs/mission-control/mission-control-guide.md",
-    "scripts/guard-harness-contract.mjs",
+    "scripts/guard-harness-contract.ts",
     "scripts/sync-boilerplate.ts",
     "tests/int/boilerplate-sync.int.spec.ts",
     "tests/int/harness-contract-guard.int.spec.ts"

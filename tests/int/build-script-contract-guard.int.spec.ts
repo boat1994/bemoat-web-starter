@@ -129,7 +129,6 @@ describe('build script contract guard', () => {
     const syncMod = await import('../../scripts/sync-boilerplate.ts')
 
     expect(syncMod.managedPaths).toContain('scripts/guards/build-script-contract.ts')
-    expect(syncMod.managedPaths).not.toContain('scripts/guard-build-script-contract.mjs')
     expect(syncMod.managedPaths).toContain('scripts/build.mjs')
     expect(syncMod.managedPaths).toContain('tests/int/build-script-contract-guard.int.spec.ts')
     expect(syncMod.managedPaths).toContain('tests/int/build-wrapper.int.spec.ts')

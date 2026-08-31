@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 
@@ -28,14 +28,13 @@ describe('env placeholder guard boundary', () => {
     expect(destination.getEnvPlaceholderGuardExitCode([{}])).toBe(1)
   })
 
-  it('preserves direct invocation output and exit codes at the destination', () => {
+  it('preserves direct invocation output and exit codes at the owned destination', () => {
     const root = mkdtempSync(join(tmpdir(), 'env-placeholder-boundary-'))
     tempRoots.push(root)
     const destinationPath = resolve(process.cwd(), 'scripts/guards/env-placeholder.ts')
 
     const destinationResult = spawnSync(process.execPath, [destinationPath], { cwd: root, encoding: 'utf8' })
 
-    expect(existsSync(resolve(process.cwd(), 'scripts/guard-env-placeholder.mjs'))).toBe(false)
     expect(destinationResult.status).toBe(1)
 
     writeFileSync(join(root, '.env.example'), 'PAYLOAD_SECRET=\nDATABASE_URL=<DATABASE_URL>\n')

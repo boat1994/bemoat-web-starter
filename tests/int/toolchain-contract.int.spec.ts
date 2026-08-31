@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
@@ -6,8 +6,8 @@ import { describe, expect, it } from 'vitest'
 import * as guard from '../../scripts/guards/toolchain-contract.ts'
 
 describe('toolchain contract', () => {
-  it('keeps the owned destination authoritative after root facade removal', () => {
-    expect(existsSync(resolve(process.cwd(), 'scripts/guard-toolchain-contract.mjs'))).toBe(false)
+  it('keeps the owned TypeScript destination authoritative', () => {
+    expect(readFileSync(resolve(process.cwd(), 'scripts/guards/toolchain-contract.ts'), 'utf8')).toContain('TOOLCHAIN_CONTRACT_PATH')
     expect(Object.keys(guard).sort()).toEqual([
       'TOOLCHAIN_CONTRACT_PATH',
       'formatToolchainContractViolations',

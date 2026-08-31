@@ -295,7 +295,6 @@ packages:
   writeFixtureFile(root, 'tsconfig.json', `${tsConfig}\n`)
   writeFixtureFile(root, 'tsconfig.harness-strict.json', `${tsConfig}\n`)
   writeFixtureFile(root, 'node_modules/typescript/package.json', '{"version":"6.0.3"}\n')
-  writeFixtureFile(root, 'scripts/guard-toolchain-contract.mjs', 'export {}\n')
   writeFixtureFile(root, 'scripts/bemoat-typecheck.ts', 'export {}\n')
   writeFixtureFile(root, 'cloudflare-env.d.ts', 'declare const fixture: unique symbol\n')
   writeFixtureFile(root, 'tests/helpers/fixture.ts', 'export {}\n')

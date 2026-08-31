@@ -5,7 +5,7 @@ The scripts directory maintains a strict architecture contract defined in `scrip
 The contract enforces:
 - A maximum set of strongly connected components (dependency cycles) to prevent architecture decay.
 - Adapter isolation, ensuring adapters (like `scripts/adapters/command-runner.ts`) do not import from the repository and are only used by allowlisted callers.
-- A complete root-script migration map: every `scripts/*.mjs` and `scripts/*.sh` file has exactly one mapping with facade disposition, internal destination vocabulary, owning slice (1–7), and migration status.
+- A complete root-script migration map: every `scripts/*.ts`, `scripts/*.mjs`, and `scripts/*.sh` file has exactly one mapping with facade disposition, internal destination vocabulary, owning slice (1–7), and migration status.
 - Deterministic path ordering of `rootScripts`.
 - Explicit transitional recording for `scripts/harness-contract/` pending separate migration authority.
 
