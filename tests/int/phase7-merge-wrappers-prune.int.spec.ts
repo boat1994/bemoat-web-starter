@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process'
 import { describe, expect, it } from 'vitest'
 
 import { COMMAND_CONTRACT_REGISTRY } from '../../scripts/cli/command-contract-registry.mjs'
-import { missionControlRecoveryRoutes } from '../../scripts/cli/mission-control-routing-policy-recovery.mjs'
+import { utilityRoutes } from '../../scripts/cli/utility-routing-policy.mjs'
 import { classifyMergeReviewVerdict } from '../../scripts/context/merge-review-verdict.ts'
 
 const DELETED_MERGE_COMMANDS = [
@@ -23,7 +23,7 @@ describe('Phase 7 merge-wrapper deletion boundary', () => {
   })
 
   it('does not register or route either deleted merge wrapper', () => {
-    const routes = [...missionControlRecoveryRoutes()]
+    const routes = [...utilityRoutes()]
     const routedCommands = routes.flatMap((route) => [
       route.canonical_command,
       ...route.prohibited_commands,

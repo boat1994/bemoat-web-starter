@@ -1,5 +1,5 @@
 /** Bounded protected-base synchronization command metadata ownership. */
-import type { CommandMetadataDependencies } from './mission-control-command-metadata-deps.ts'
+import type { CommandMetadataDependencies } from './command-metadata-deps.ts'
 
 export function contextSyncCommands(dependencies: CommandMetadataDependencies) {
   const { contract, positional, flag, nextAction } = dependencies

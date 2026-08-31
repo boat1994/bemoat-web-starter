@@ -88,7 +88,6 @@ describe('retired Task Bootstrap and Founder authorization public boundaries', (
     const activeSources = [
       'scripts/architecture-contract.json',
       'scripts/boilerplate/inventory.mjs',
-      'scripts/cli/mission-control-command-metadata-review.ts',
       'scripts/structural-protection-manifest.json',
     ]
 

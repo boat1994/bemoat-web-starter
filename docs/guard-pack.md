@@ -15,7 +15,6 @@ Reusable, deterministic checks that catch common agent and sync mistakes before 
 | `pnpm run bemoat:guard:safety` | Alias to the full pack (synced child CI and pre-push) |
 | `pnpm run guard:safety` | Starter-internal alias to the full pack |
 | `pnpm run bemoat:guard:harness-contract` | Harness contract only |
-| `pnpm run bemoat:guard:mission-control-contract` | Mission Control contract only |
 | `pnpm run bemoat:guard:cloudflare-env` | Cloudflare deploy guard only (also used before deploy/preview) |
 
 Child-facing automation (`.github/workflows/ci.yml`, `.githooks/pre-commit`, `.githooks/pre-push`) uses branch safety plus **`bemoat:*`** scripts only. See [harness-sync-contract.md](./harness-sync-contract.md).
@@ -32,7 +31,6 @@ Child-facing automation (`.github/workflows/ci.yml`, `.githooks/pre-commit`, `.g
 | **Env placeholder** | `scripts/guards/env-placeholder.mjs` | Missing `.env.example`; non-placeholder values in `.env.example` | Track `.env.example` with empty or obvious placeholder values only |
 | **Cloudflare config** | `scripts/guard-cloudflare-env.mjs` | `CLOUDFLARE_ENV=production`; `env.production` in `wrangler.jsonc`; dev D1/R2 IDs matching production | Use top-level `wrangler.jsonc` for production; isolate `env.dev` bindings |
 | **Frontend SEO** | `scripts/guards/frontend-seo.mjs` | Missing `metadata`/`generateMetadata` in `src/app/(frontend)/layout.tsx`; invalid `sitemap.ts`/`robots.ts` when present | Export `metadata` with `title` and `description`; add App Router SEO files when ready |
-| **Mission Control contract** | `scripts/guard-mission-control-contract.mjs` | Missing/invalid guide frontmatter; review budget ≠ 3; missing required sections/templates; thin loader broken or oversized; `AGENTS.md` pointer missing; managed-path omissions; live `.bemoat/mission-control-overrides.md` accidentally managed; forbidden Review-4 / silent-reset / Minor-as-blocker markers | Restore canonical guide/loader/templates; keep loader thin; sync managed paths without managing the live override |
 | **Planning contract** | `scripts/guards/planning-contract-runtime.mjs` + `scripts/guards/planning-contract.mjs` | Missing or malformed `<!-- bemoat-task-identity:start -->` blocks; paired spec/plan identity mismatch; branch template or transition conflicts; invalid `task_issue_strategy`; unconditional planning SHA execution rule; live GitHub issue or Mission Control state conflicts when `gh` is available | Add balanced task-identity YAML to new or modified planning files under `docs/superpowers/specs/**` and `docs/superpowers/plans/**`; align paired documents; use `resolve_live_protected_base_at_dispatch`; keep executable issue references open |
 | **Structural protection** | `scripts/guards/structural-protection.mjs` | Production `scripts/**/*.mjs` physical-line ceilings, immutable grandfathered maxima, manifest shape, symlinks, and SHA-256 fingerprints for protected test oracles | Keep new or moved scripts at 400 physical lines or fewer; do not alter the protected tests; change `scripts/structural-protection-manifest.json` only with Founder authorization |
 | **Scripts architecture** | `scripts/guards/scripts-architecture.mjs` | Scripts architecture dependency graph contains unallowed cycles, unallowed edges, or violates adapter constraints | Ensure scripts dependency graph matches `scripts/architecture-contract.json` |
@@ -128,11 +126,9 @@ High-risk checks have fixtures under `tests/fixtures/guard/`:
 | `package-recursive-build.json` | Recursive OpenNext `build` script (should fail) |
 | `package-correct-build.json` | Universal build wrapper contract (should pass) |
 
-Integration tests: `tests/int/guard-pack.int.spec.ts`, `tests/int/guard-planning-contract.int.spec.ts`, `tests/int/guard-planning-contract-child-dev-base.int.spec.ts`, `tests/int/guard-planning-contract-starter-main-base.int.spec.ts`, `tests/int/mission-control-contract.int.spec.ts` (plus existing `repo-safety-guard`, `harness-contract-guard`, `cloudflare-env-guard` specs).
+Integration tests: `tests/int/guard-pack.int.spec.ts`, `tests/int/guard-planning-contract.int.spec.ts`, `tests/int/guard-planning-contract-child-dev-base.int.spec.ts`, `tests/int/guard-planning-contract-starter-main-base.int.spec.ts` (plus existing `repo-safety-guard`, `harness-contract-guard`, `cloudflare-env-guard` specs).
 
 Planning contract fixtures live under `tests/fixtures/planning/` and are managed harness paths so child sync receives the canonical invalid/valid planning documents.
-
-Mission Control rule IDs: `MC001`–`MC012` (see `scripts/guard-mission-control-contract.mjs` and [mission-control/README.md](./mission-control/README.md)).
 
 ## False positive risk
 

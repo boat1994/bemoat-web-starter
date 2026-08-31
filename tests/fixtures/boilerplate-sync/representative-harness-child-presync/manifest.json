@@ -10,7 +10,6 @@
     "docs/mission-control/modules/templates-examples.md",
     "docs/mission-control/modules/troubleshooting.md",
     "scripts/guard-harness-contract.mjs",
-    "scripts/guard-mission-control-contract.mjs",
     "scripts/mission-control-dispatch.mjs",
     "scripts/mission-control-reconcile.mjs",
     "scripts/sync-boilerplate.mjs",
@@ -19,7 +18,6 @@
     "tests/int/harness-contract-guard.int.spec.ts",
     "tests/int/mission-control-brainstorming.int.spec.ts",
     "tests/int/mission-control-characterization.int.spec.ts",
-    "tests/int/mission-control-contract.int.spec.ts",
     "tests/int/mission-control-reconcile.int.spec.ts"
   ],
   "absentPaths": [

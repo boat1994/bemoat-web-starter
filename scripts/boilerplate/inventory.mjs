@@ -23,7 +23,6 @@ export const managedPaths = [
   'scripts/sync-boilerplate.mjs', 'scripts/boilerplate', 'scripts/boilerplate/workflows/check-boilerplate-drift.mjs', 'scripts/check-boilerplate-drift.mjs',
   'scripts/deploy-smoke-test.mjs', 'scripts/guards/repo-safety.mjs',
   'scripts/guard-harness-contract.mjs', 'scripts/harness-contract',
-  'scripts/guard-mission-control-contract.mjs', 'scripts/guards/mission-control-contract',
   'scripts/guards/build-script-contract.mjs', 'scripts/build.mjs',
   'scripts/agent-context.mjs', 'scripts/agent-context-sync-base.mjs', 'scripts/context', 'scripts/agent-handoff.mjs', 'scripts/handoff',
   'scripts/adapters/command-runner.mjs',
@@ -62,11 +61,6 @@ export const managedPaths = [
   'tests/int/structural-protection.int.spec.ts',
   'tests/int/guard-planning-contract-child-dev-base.int.spec.ts',
   'tests/int/guard-planning-contract-starter-main-base.int.spec.ts',
-  'tests/int/mission-control-contract.int.spec.ts',
-  'tests/int/mission-control-contract-inventory.int.spec.ts',
-  'tests/int/mission-control-contract-scanners.int.spec.ts',
-  'tests/int/mission-control-command-reference.int.spec.ts',
-  'tests/int/mission-control-contract-managed-paths.int.spec.ts',
   'tests/int/mission-control-task-bootstrap-deletion.int.spec.ts',
   'tests/int/cli-command-registry.int.spec.ts',
   'tests/int/cli-discovery-guidance.int.spec.ts',
@@ -104,7 +98,7 @@ export const packageSyncProposalPath = '.bemoat/package-sync-proposal.md'
 export const managedPackageScripts = [
   'bemoat:context', 'bemoat:context:sync-base', 'bemoat:handoff',
   'bemoat:branch:check', 'bemoat:guard:safety', 'bemoat:guard:pack',
-  'bemoat:guard:harness-contract', 'bemoat:guard:mission-control-contract',
+  'bemoat:guard:harness-contract',
   'bemoat:guard:cloudflare-env', 'bemoat:test:int', 'bemoat:typecheck', 'bemoat:check',
   'bemoat:boilerplate:sync', 'bemoat:boilerplate:check', 'bemoat:hooks:install',
 ]

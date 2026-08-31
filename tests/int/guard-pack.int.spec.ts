@@ -58,7 +58,6 @@ describe('central guard pack', () => {
       'env-placeholder',
       'cloudflare-config',
       'frontend-seo',
-      'mission-control-contract',
       'planning-contract',
       'structural-protection',
       'scripts-architecture',
@@ -116,10 +115,8 @@ describe('central guard pack', () => {
     expect(syncMod.managedPaths).toContain('scripts/guards/env-placeholder.mjs')
     expect(syncMod.managedPaths).toContain('scripts/guards/frontend-seo.mjs')
     expect(syncMod.managedPaths).not.toContain('scripts/guard-frontend-seo.mjs')
-    expect(syncMod.managedPaths).toContain('scripts/guard-mission-control-contract.mjs')
     expect(syncMod.managedPaths).toContain('docs/guard-pack.md')
     expect(syncMod.managedPackageScripts).toContain('bemoat:guard:pack')
-    expect(syncMod.managedPackageScripts).toContain('bemoat:guard:mission-control-contract')
   })
 })
 

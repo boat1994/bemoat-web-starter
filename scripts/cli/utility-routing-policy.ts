@@ -37,7 +37,7 @@ function utilityRoute(
   }
 }
 
-export function missionControlRecoveryRoutes(): UtilityRoute[] {
+export function utilityRoutes(): UtilityRoute[] {
   return [
     utilityRoute(
       'NOT_STATEFUL/explicit-authorized-starter-child-sync',

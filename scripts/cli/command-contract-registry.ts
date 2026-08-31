@@ -1,12 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { handoffCommands } from './handoff-command-metadata.ts'
 import { handoffRoutes } from './handoff-routing-policy.ts'
-import { missionControlPrimaryCommands } from './mission-control-command-metadata-primary.ts'
-import { missionControlRecoveryCommands } from './mission-control-command-metadata-recovery.ts'
-import { missionControlReviewCommands } from './mission-control-command-metadata-review.ts'
 import { contextSyncCommands } from './context-sync-command-metadata.ts'
 import { contextSyncRoutes } from './context-sync-routing-policy.ts'
-import { missionControlRecoveryRoutes } from './mission-control-routing-policy-recovery.ts'
+import { utilityRoutes } from './utility-routing-policy.ts'
 
 export const COMMAND_CONTRACT_SCHEMA_VERSION = 1 as const
 
@@ -422,19 +419,6 @@ const commands: Record<string, CommandContract> = {
     safe_help_invocation: 'pnpm run bemoat:guard:harness-contract -- --help --json',
   }),
 
-  'bemoat:guard:mission-control-contract': contract({
-    command: 'bemoat:guard:mission-control-contract',
-    tier: 'B',
-    entrypoint: 'scripts/guard-mission-control-contract.mjs',
-    purpose: 'Inspect Mission Control policy, scripts, and managed rails.',
-    operation: 'Run the read-only Mission Control contract guard.',
-    reads: ['Mission Control policy/docs/scripts and sync manifest'],
-    writes: [],
-    stop_conditions: ['Stop when Mission Control ownership or managed-path contracts drift.'],
-    parser_owner: 'scripts/guard-mission-control-contract.mjs',
-    safe_help_invocation: 'pnpm run bemoat:guard:mission-control-contract -- --help --json',
-  }),
-
   'bemoat:guard:pack': contract({
     command: 'bemoat:guard:pack',
     tier: 'B',
@@ -529,23 +513,18 @@ const commands: Record<string, CommandContract> = {
 }
 
 
-const missionControlDependencies: any = { contract: contract as unknown as <T extends Record<string, unknown>>(value: T) => T, positional, flag, environment, nextAction }
-const protocolCommands = handoffCommands(missionControlDependencies)
-const missionControlCommands = {
-  ...missionControlPrimaryCommands(missionControlDependencies),
-  ...missionControlRecoveryCommands(missionControlDependencies),
-  ...missionControlReviewCommands(missionControlDependencies),
-}
+const commandMetadataDependencies: any = { contract: contract as unknown as <T extends Record<string, unknown>>(value: T) => T, positional, flag, environment, nextAction }
+const protocolCommands = handoffCommands(commandMetadataDependencies)
 
 const trailingCommands = Object.fromEntries(
   ['bemoat:test:int', 'bemoat:typecheck'].map((command) => [command, commands[command]]),
 )
 delete commands['bemoat:test:int']
 delete commands['bemoat:typecheck']
-const orderedCommands = { ...commands, ...contextSyncCommands(missionControlDependencies), ...protocolCommands, ...missionControlCommands, ...trailingCommands }
+const orderedCommands = { ...commands, ...contextSyncCommands(commandMetadataDependencies), ...protocolCommands, ...trailingCommands }
 
 const routes = [
-  ...missionControlRecoveryRoutes(),
+  ...utilityRoutes(),
   ...contextSyncRoutes(),
   ...handoffRoutes(),
 ]
