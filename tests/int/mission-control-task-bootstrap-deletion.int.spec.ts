@@ -69,6 +69,12 @@ const REMOVED_TASK_STATE_WRITERS = [
   'appendMissingMissionControlStateBlock',
 ] as const
 
+const RETIRED_MERGE_AUTHORIZATION_TEST = 'tests/int/mission-control-merge-authorization-recording.int.spec.ts'
+const OBSOLETE_ACTIVE_DOCUMENTATION = [
+  'Terminal state projection only',
+  'Exceptional missing-state recovery (validation or one leased/CAS projection)',
+] as const
+
 describe('retired Task Bootstrap and Founder authorization public boundaries', () => {
   it('removes the public command and exclusive implementation surfaces while retaining shared protocol commands', () => {
     const packageJson = JSON.parse(readFileSync('package.json', 'utf8')) as { scripts: Record<string, string> }
@@ -120,6 +126,17 @@ describe('retired Task Bootstrap and Founder authorization public boundaries', (
     for (const path of activeSources) {
       expect(readFileSync(path, 'utf8'), path).not.toContain(TASK_BOOTSTRAP_COMMAND)
       expect(readFileSync(path, 'utf8'), path).not.toContain(FOUNDER_AUTHORIZATION_COMMAND)
+    }
+  })
+
+  it('does not retain stale retired tests or obsolete active documentation', () => {
+    for (const path of ['scripts/boilerplate/inventory.mjs', '.bemoat/boilerplate-sync-manifest.json']) {
+      expect(readFileSync(path, 'utf8'), path).not.toContain(RETIRED_MERGE_AUTHORIZATION_TEST)
+    }
+
+    const readme = readFileSync('docs/mission-control/README.md', 'utf8')
+    for (const phrase of OBSOLETE_ACTIVE_DOCUMENTATION) {
+      expect(readme, phrase).not.toContain(phrase)
     }
   })
 })

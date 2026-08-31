@@ -267,10 +267,6 @@ pnpm exec vitest run tests/int/mission-control-contract.int.spec.ts
 pnpm exec vitest run tests/int/boilerplate-sync.int.spec.ts
 pnpm exec vitest run tests/int/guard-pack.int.spec.ts
 
-# Terminal state projection only (the reconciler never closes Issues)
-
-# Exceptional missing-state recovery (validation or one leased/CAS projection)
-
 # Child harness pull (after starter merge)
 pnpm run bemoat:boilerplate:sync -- --harness-only
 ```

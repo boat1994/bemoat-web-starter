@@ -163,7 +163,6 @@
     "tests/int/campaign-normalize.int.spec.ts",
     "tests/int/campaign-equality.int.spec.ts",
     "tests/int/scripts-entrypoints-contract.int.spec.ts",
-    "tests/int/mission-control-merge-authorization-recording.int.spec.ts",
     "tests/int/active-correction-contract.int.spec.ts",
     "tests/int/mission-control-task-state-boundary.int.spec.ts",
     "tests/int/mission-control-child-portability.int.spec.ts",
