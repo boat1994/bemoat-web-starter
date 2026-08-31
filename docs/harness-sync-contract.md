@@ -250,7 +250,6 @@ Current shared tests (listed in `managedPaths` in `scripts/sync-boilerplate.mjs`
 - `tests/int/cloudflare-env-guard.int.spec.ts`
 - `tests/int/guard-pack.int.spec.ts`
 - `tests/int/structural-protection.int.spec.ts`
-- `tests/int/command-contract-transport.int.spec.ts`
 - `tests/int/harness-contract-guard.int.spec.ts`
 - `tests/int/mission-control-contract.int.spec.ts`
 - `tests/int/open-next-config.int.spec.ts`

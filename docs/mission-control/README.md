@@ -39,7 +39,7 @@ evidence. Historical managed-state records remain readable for migration only.
 
 ## How the workflow changes
 
-Before: chat session → stateful coordinator → open-ended re-review → repeat.
+Before: chat session → stateful runtime → open-ended re-review → repeat.
 
 After:
 

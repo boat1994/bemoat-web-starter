@@ -115,8 +115,6 @@
     "tests/int/handoff-skill.int.spec.ts",
     "tests/int/pr-identity-extraction.int.spec.ts",
     "tests/int/phase7-delivery-facade-prune.int.spec.ts",
-    "tests/int/phase7-dispatch-facade-prune.int.spec.ts",
-    "tests/int/phase7-review-writer-prune.int.spec.ts",
     "tests/int/phase7-merge-wrappers-prune.int.spec.ts",
     "tests/int/guard-pack.int.spec.ts",
     "tests/int/guard-planning-contract.int.spec.ts",

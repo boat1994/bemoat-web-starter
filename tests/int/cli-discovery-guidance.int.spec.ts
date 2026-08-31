@@ -50,7 +50,6 @@ describe('Bemoat CLI discovery guidance', () => {
     expect(semanticGuidance).toMatch(/help invocation.*no mutation.*no comment.*no state.*no branch.*issue.*PR/i)
     expect(semanticGuidance).toMatch(/mismatch between runtime behavior and the command's actual registered contract.*CLI_DISCOVERY_DEFECT/i)
     for (const forbiddenImport of [
-      'Coordinator',
       'Productive-Only policy helpers',
       'workflow services',
       'adapters',

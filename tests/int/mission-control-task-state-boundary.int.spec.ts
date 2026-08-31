@@ -1,9 +1,8 @@
-import { existsSync, readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
+import { join, relative, resolve } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { buildScriptImportGraph } from '../../scripts/guards/scripts-architecture.mjs'
 const domainPath = resolve(process.cwd(), 'scripts/mission-control/domain/task-state.ts')
 const canonicalDomainPath = resolve(process.cwd(), 'scripts/mission-control/domain/task-state.ts')
 const retiredManagedStatePaths = [
@@ -36,6 +35,18 @@ const retiredManagedStatePaths = [
   'scripts/mission-control/domain/productive-policy.mjs',
 ]
 
+function listProductionScriptFiles(directory: string, files: string[] = []): string[] {
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const absolutePath = join(directory, entry.name)
+    if (entry.isDirectory()) {
+      listProductionScriptFiles(absolutePath, files)
+    } else if (/\.(?:mjs|ts)$/.test(entry.name)) {
+      files.push(absolutePath)
+    }
+  }
+  return files
+}
+
 describe('Mission Control task-state boundary', () => {
   it('retains only the read-only parser seam after managed-state compatibility cleanup', async () => {
     const domainTaskState = await import(/* @vite-ignore */ `file://${domainPath}`)
@@ -43,6 +54,7 @@ describe('Mission Control task-state boundary', () => {
 
     expect(domainPath).toContain('scripts/mission-control/domain/task-state.ts')
     expect(domainExports.parseMissionControlState).toBeTypeOf('function')
+    expect(Object.keys(domainExports)).toEqual(['parseMissionControlState'])
     expect(readFileSync(canonicalDomainPath, 'utf8')).not.toMatch(
       /(?:from|import|export)\s+[^\n]*(?:task-state-authorization|review-verdict-binding|transition-|comment-|coordinator|reconciliation|projection|authorization|counter|budget)/,
     )
@@ -54,8 +66,21 @@ describe('Mission Control task-state boundary', () => {
     expect(canonicalTaskState.parseMissionControlState)
       .toBe(domainExports.parseMissionControlState)
 
-    const graph = buildScriptImportGraph(process.cwd())
-    expect(graph.get('scripts/mission-control/domain/task-state.ts') ?? new Set()).toEqual(new Set())
+    const parserConsumers = listProductionScriptFiles(resolve(process.cwd(), 'scripts'))
+      .filter((path) => path !== canonicalDomainPath)
+      .filter((path) => readFileSync(path, 'utf8').includes('parseMissionControlState'))
+      .map((path) => relative(process.cwd(), path).split('\\').join('/'))
+      .sort()
+    expect(parserConsumers).toEqual(['scripts/guards/planning-contract-runtime.mjs'])
+
+    const planningRuntime = readFileSync(
+      resolve(process.cwd(), 'scripts/guards/planning-contract-runtime.mjs'),
+      'utf8',
+    )
+    expect(planningRuntime).toMatch(
+      /import\s+\{\s*parseMissionControlState\s*\}\s+from\s+['"]\.\.\/mission-control\/domain\/task-state\.ts['"]/
+    )
+    expect(planningRuntime).toContain('parseMissionControlState(issue.body ?? \'\')')
   })
 
   it('fails closed for malformed marker/YAML input used by planning safety', async () => {

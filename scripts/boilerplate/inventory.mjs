@@ -56,7 +56,7 @@ export const managedPaths = [
   'tests/int/context-parser.int.spec.ts', 'tests/int/context-router.int.spec.ts', 'tests/int/context-evidence.int.spec.ts', 'tests/int/context-cli.int.spec.ts', 'tests/int/context-skill.int.spec.ts', 'tests/int/context-sync.int.spec.ts', 'tests/int/context-corrections.int.spec.ts',
   'tests/int/handoff-schema.int.spec.ts', 'tests/int/handoff-transport.int.spec.ts', 'tests/int/handoff-cli.int.spec.ts', 'tests/int/handoff-skill.int.spec.ts',
   'tests/int/pr-identity-extraction.int.spec.ts',
-  'tests/int/phase7-delivery-facade-prune.int.spec.ts', 'tests/int/phase7-dispatch-facade-prune.int.spec.ts', 'tests/int/phase7-review-writer-prune.int.spec.ts', 'tests/int/phase7-merge-wrappers-prune.int.spec.ts',
+  'tests/int/phase7-delivery-facade-prune.int.spec.ts', 'tests/int/phase7-merge-wrappers-prune.int.spec.ts',
   'tests/int/guard-pack.int.spec.ts', 'tests/int/guard-planning-contract.int.spec.ts',
   'tests/int/env-placeholder-guard-boundary.int.spec.ts',
   'tests/int/guard-planning-contract-boundary.int.spec.ts',

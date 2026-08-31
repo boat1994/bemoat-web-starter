@@ -12,7 +12,7 @@ function packageScripts(): Record<string, string> {
 }
 
 describe('Phase 7 delivery facade deletion boundary', () => {
-  it('removes the obsolete delivery coordinator from public command surfaces while retaining stateless protocol commands', () => {
+  it('removes the obsolete delivery facade from public command surfaces while retaining stateless protocol commands', () => {
     const scripts = packageScripts()
 
     expect(scripts['bemoat:agent:delivery']).toBeUndefined()

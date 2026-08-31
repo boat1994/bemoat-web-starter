@@ -187,7 +187,7 @@ export const REQUIRED_DOUBLE_LOOP_TRANSPORT_FIELDS = [
 export const REQUIRED_COST_AWARE_GUIDE_PHRASES = [
   'A durable state transition does not itself require or authorize a separate model run.',
   'Keep a distinct durable state only when it changes execution authority or owner, next permitted action, required evidence, failure-handling path, or a Founder/human approval requirement.',
-  'Mechanical verification uses deterministic scripts, or a low-reasoning coordinator when automation is unavailable; it is not a high-reasoning semantic review.',
+  'Mechanical verification uses deterministic scripts, or low-reasoning coordination when automation is unavailable; it is not a high-reasoning semantic review.',
   'A changed commit or head alone is not a trigger for another Full Semantic Review.',
   'Review routing depends on capability and proven risk; runtime model names remain replaceable configuration.',
   'Delta Review uses the lowest reasoning level that can reliably verify the bounded change.',
