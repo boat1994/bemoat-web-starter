@@ -32,6 +32,8 @@ const retiredManagedStatePaths = [
   'scripts/cli/command-contract-transport.mjs',
   'scripts/cli/mission-control-routing-policy-primary.ts',
   'scripts/cli/mission-control-routing-policy-primary.mjs',
+  'scripts/mission-control/domain/productive-policy.ts',
+  'scripts/mission-control/domain/productive-policy.mjs',
 ]
 
 describe('Mission Control task-state boundary', () => {
@@ -68,6 +70,16 @@ describe('Mission Control task-state boundary', () => {
       'schema_version: 1',
       'state: IN_PROGRESS',
       'state: DONE',
+      '<!-- bemoat-mission-control-state:end -->',
+    ].join('\n'))).toMatchObject({
+      present: true,
+      valid: false,
+    })
+    expect(parseMissionControlState([
+      '<!-- bemoat-mission-control-state:start -->',
+      'schema_version: 1',
+      'state: IN_PROGRESS',
+      'active_task_issue: garbage',
       '<!-- bemoat-mission-control-state:end -->',
     ].join('\n'))).toMatchObject({
       present: true,

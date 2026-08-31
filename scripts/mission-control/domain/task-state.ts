@@ -18,6 +18,7 @@ const MISSION_CONTROL_STATES = new Set([
 ])
 
 const IDENTITY_KEYS = ['schema_version', 'state', 'active_task_issue']
+const ISSUE_REFERENCE_PATTERN = /^(?:[\w.-]+\/[\w.-]+#\d+|#\d+|\d+)$/
 
 type MissionControlIdentity = {
   schema_version: number
@@ -82,8 +83,16 @@ export function parseMissionControlState(body: string = ''): {
   if (typeof state.state !== 'string' || !MISSION_CONTROL_STATES.has(state.state)) {
     return { present: true, valid: false, state: null, reason: 'invalid state enum' }
   }
-  if (state.active_task_issue !== null && typeof state.active_task_issue !== 'string') {
-    return { present: true, valid: false, state: null, reason: 'active_task_issue must be a string or null' }
+  if (
+    state.active_task_issue !== null &&
+    (typeof state.active_task_issue !== 'string' || !ISSUE_REFERENCE_PATTERN.test(state.active_task_issue.trim()))
+  ) {
+    return {
+      present: true,
+      valid: false,
+      state: null,
+      reason: 'active_task_issue must be null or a parseable issue reference',
+    }
   }
 
   return { present: true, valid: true, state }
