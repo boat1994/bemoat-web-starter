@@ -212,7 +212,7 @@ function issueIdentifiesTaskKey(issue, taskKey) {
   const haystack = `${issue.title ?? ''}\n${issue.body ?? ''}`.toLowerCase()
   return haystack.includes(String(taskKey).toLowerCase())
 }
-function validateMissionControlCompatibility(stateAnalysis, contract, issueNumber, filePath) {
+function validateLegacyManagedStateCompatibility(stateAnalysis, contract, issueNumber, filePath) {
   if (!stateAnalysis.present) {
     return []
   }
@@ -360,17 +360,17 @@ export function verifyLiveTaskIdentity(options) {
       })],
     }
   }
-  const missionControlViolations = validateMissionControlCompatibility(
+  const legacyManagedStateViolations = validateLegacyManagedStateCompatibility(
     parseLegacyManagedStateIdentity(issue.body ?? ''),
     contract,
     issueNumber,
     filePath,
   )
-  if (missionControlViolations.length > 0) {
+  if (legacyManagedStateViolations.length > 0) {
     return {
       ok: false,
       degradedOffline: false,
-      violations: missionControlViolations,
+      violations: legacyManagedStateViolations,
     }
   }
   return {

@@ -58,13 +58,14 @@ head may route to `FOUNDER_GATE`.
 
 ## Pre-merge checklist reconciliation gate
 
-Immediately before the final Founder gate, Mission Control compares every
-source-Issue acceptance criterion with live exact-head evidence and records each
-as `Done`, `Not done`, `Not applicable`, or `Waiting for CI / human
-review`. Completed items include concise evidence. Mission Control may
+Immediately before the final Founder gate, the independent reviewer verifies
+the exact candidate head and the agent preparing the gate compares every
+source-Issue acceptance criterion with live evidence. The audit records each as
+`Done`, `Not done`, `Not applicable`, or `Waiting for CI / human review` and
+includes concise evidence for completed items. The gate-preparing agent may
 reconcile the Issue checklist only when live evidence uniquely supports the
 edit; otherwise it records the mapped audit without changing the Issue body.
-This gate does not authorize merge.
+The Founder makes the final decision. This gate does not authorize merge.
 
 ## Manual validation checklist
 

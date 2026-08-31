@@ -28,6 +28,7 @@ describe('toolchain contract', () => {
     expect(contract.compiler.strict).toBe(true)
     expect(contract.compiler.childStrictNullChecks).toBe(true)
     expect(contract.compiler.harnessRoots).toContain('scripts/context/**/*.ts')
+    expect(contract.compiler.harnessRoots).toContain('scripts/guards/legacy-managed-state.ts')
     expect(JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf8')).scripts.typecheck)
       .toBe('node scripts/bemoat-typecheck.mjs')
     expect(mod.scanToolchainContract()).toEqual([])

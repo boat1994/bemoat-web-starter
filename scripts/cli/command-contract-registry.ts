@@ -311,7 +311,7 @@ const commands: Record<string, CommandContract> = {
     reads: [
       'source and target files',
       'git refs and working-tree state',
-      'upstream clone and transition evidence',
+      'upstream clone and selected source-ref evidence',
     ],
     writes: [
       'managed and seed paths',
