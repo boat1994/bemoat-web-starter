@@ -11,9 +11,7 @@ export const managedPaths = [
   'docs/schema-evolution.md', 'docs/dev-boilerplate.md', 'docs/boilerplate-sync-command.md',
   'docs/harness-sync-contract.md', 'docs/guard-pack.md', 'docs/starter-acceptance-tests.md',
   'docs/mission-control/README.md', 'docs/mission-control/command-reference.md', 'docs/mission-control/mission-control-guide.md',
-  'docs/mission-control/handoff-template.md', 'docs/mission-control/result-template.md',
-  'docs/mission-control/command-reference.md',
-  'docs/mission-control/project-overrides.example.md', 'prompts/mission-control/chatgpt-project-loader.md',
+  'docs/mission-control/handoff-template.md', 'prompts/mission-control/chatgpt-project-loader.md',
   // Superpowers planning harness (starter-only except these subpaths)
   'docs/superpowers/README.md', 'docs/superpowers/specs/README.md', 'docs/superpowers/plans/README.md',
   'docs/superpowers/plans/_templates', 'docs/superpowers/specs/_templates',
@@ -73,16 +71,12 @@ export const managedPaths = [
   'tests/int/scripts-architecture.int.spec.ts',
   'tests/int/scripts-entrypoints-contract.int.spec.ts',
   'tests/int/mission-control-task-state-boundary.int.spec.ts',
-  'tests/int/mission-control-child-portability.int.spec.ts',
+  'tests/int/child-portability.int.spec.ts',
   'tests/int/mission-control-recovery-deletion.int.spec.ts', 'tests/int/toolchain-contract.int.spec.ts',
   'tests/int/vitest-process-lock.int.spec.ts', 'tests/int/starter-acceptance.int.spec.ts',
   'tests/int/open-next-config.int.spec.ts', 'tests/int/payload-build-context.int.spec.ts',
   'tests/fixtures/guard', 'tests/fixtures/planning', 'tests/fixtures/acceptance',
-  'tests/fixtures/boilerplate-sync', 'tests/fixtures/mission-control',
-  'tests/fixtures/mission-control-child-shape', 'docs/mission-control/modules/procedures.md',
-  'docs/mission-control/modules/checklists.md', 'docs/mission-control/modules/templates-examples.md',
-  'docs/mission-control/modules/troubleshooting.md', 'docs/mission-control/modules/migration-guidance.md',
-  'docs/mission-control/modules/child-sync-operations.md',
+  'tests/fixtures/boilerplate-sync', 'tests/fixtures/child-shape',
 ]
 
 export const seedOnlyPaths = [

@@ -44,7 +44,7 @@ the canonical source.
 | Payload schema and migration safety | `docs/schema-evolution.md`, `docs/agent-loop/security-and-migrations.md`, `docs/agent-loop/migration-draft-pr.md` | `AGENTS.md` stop-condition summary, `.agents/skills/payload-cms.md` | Managed |
 | Superpowers workflow | Native `superpowers:using-superpowers`; portable fallback `.agents/skills/using-superpowers.md` | `.cursor/rules/superpowers-using-superpowers.mdc`, `AGENTS.md` summary | Managed for fallback files; native skill is external |
 | UI animation workflow | `.agents/skills/ui-animation.md`, `docs/ai/ui-execution-workflow.md`, `docs/ai/ui-skills.md` | `AGENTS.md` summary | Managed |
-| Mission Control | `docs/mission-control/mission-control-guide.md` | `prompts/mission-control/chatgpt-project-loader.md`, `AGENTS.md` pointer, handoff/RESULT templates | Managed guide/loader/templates; live `.bemoat/mission-control-overrides.md` is child-owned and never managed |
+| Stateless coordination | `docs/mission-control/mission-control-guide.md` | `prompts/mission-control/chatgpt-project-loader.md`, `AGENTS.md` pointer, handoff template | Managed guide/loader/template; child-owned overrides are never managed |
 | Tool-specific Cursor rules | Matching `.cursor/rules/*` file | Frontmatter metadata in `.mdc` files | Managed; keep trigger metadata and globs intact |
 
 When reducing duplication, first confirm the rule exists in its canonical file
@@ -268,7 +268,7 @@ Current shared tests (listed in `managedPaths` in `scripts/sync-boilerplate.mjs`
 
 5. **New merge-keep path** — Add to `mergeKeepPaths` with merge logic in `scripts/sync-boilerplate.mjs` and drift coverage in `scripts/check-boilerplate-drift.mjs`.
 
-6. **Starter-only harness file** — Do not add to `managedPaths`. Document the path and reason in `STARTER_ONLY_INT_TESTS` in `tests/int/boilerplate-sync.int.spec.ts` so the contract test allows it.
+6. **Starter-only harness file** — Do not add it to `managedPaths`; keep it outside the shared harness inventory and cover any retained generic contract explicitly.
 
 7. **Starter-only documentation** — Do not add blanket parent paths to `managedPaths`. Document the path in `STARTER_ONLY_DOCS` in `tests/int/boilerplate-sync.int.spec.ts` (for example `docs/superpowers`). Add explicit subpaths to `managedPaths` when part of a starter-only tree must still sync (for example `docs/superpowers/README.md`, `docs/superpowers/plans/_templates`, and `docs/superpowers/specs/_templates`).
 

@@ -53,7 +53,7 @@ This overwrites `build`, `build:next`, `build:cloudflare`, `cf:build`, `deploy:a
 
 ## Maintainer checklist (new harness file)
 
-1. Add path to `managedPaths` (or document as starter-only in `STARTER_ONLY_INT_TESTS`).
+1. Add the path to managedPaths; keep starter-only files outside the shared harness inventory and cover any retained generic contract explicitly.
 2. Extend `tests/int/boilerplate-sync.int.spec.ts` if needed.
 3. If child-facing automation: add to `CHILD_FACING_HARNESS_PATHS` in `guard-harness-contract.mjs`.
 

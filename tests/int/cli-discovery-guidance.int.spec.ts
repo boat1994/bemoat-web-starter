@@ -89,18 +89,16 @@ describe('Bemoat CLI discovery guidance', () => {
     expect(agents).toMatch(/FAST.*without an applicable review or handoff gate.*omit HANDOFF/i)
   })
 
-  it('requires Mission Control discovery before selecting every public operation', () => {
+  it('requires discovery before selecting a retained coordination operation', () => {
     const guidance = read('docs/mission-control/mission-control-guide.md')
     const semanticGuidance = normalized(guidance)
     for (const operation of [
-      'dispatch',
-      'review',
-      'merge',
-      'delivery',
-      'role comment transport',
+      'bemoat:context',
+      'bemoat:handoff',
+      'bemoat:context:sync-base',
     ]) expect(semanticGuidance).toContain(operation)
-    expect(semanticGuidance).toMatch(/authoritative live state/i)
-    expect(semanticGuidance).toMatch(/must not choose a command.*state names.*remembered routing/i)
+    expect(semanticGuidance).toMatch(/authoritative/i)
+    expect(semanticGuidance).toMatch(/registry-declared contract.*safe help invocation/i)
   })
 
   it('retains every changed guidance and this guard in the managed child harness', () => {

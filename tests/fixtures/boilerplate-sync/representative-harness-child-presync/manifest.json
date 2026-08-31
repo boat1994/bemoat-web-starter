@@ -6,26 +6,17 @@
     "docs/agent-loop/role-handoff-contract.md",
     "docs/boilerplate-sync-command.md",
     "docs/mission-control/mission-control-guide.md",
-    "docs/mission-control/modules/procedures.md",
-    "docs/mission-control/modules/templates-examples.md",
-    "docs/mission-control/modules/troubleshooting.md",
     "scripts/guard-harness-contract.mjs",
-    "scripts/mission-control-dispatch.mjs",
-    "scripts/mission-control-reconcile.mjs",
     "scripts/sync-boilerplate.mjs",
     "tests/int/agent-delivery.int.spec.ts",
     "tests/int/boilerplate-sync.int.spec.ts",
-    "tests/int/harness-contract-guard.int.spec.ts",
-    "tests/int/mission-control-brainstorming.int.spec.ts",
-    "tests/int/mission-control-characterization.int.spec.ts",
-    "tests/int/mission-control-reconcile.int.spec.ts"
+    "tests/int/harness-contract-guard.int.spec.ts"
   ],
   "absentPaths": [
-    "tests/fixtures/mission-control-child-shape/package.json",
-    "tests/fixtures/mission-control-child-shape/process-env/cloudflare-env.d.ts",
-    "tests/fixtures/mission-control-child-shape/process-env/reconcile-partial-env.fixture.ts",
-    "tests/fixtures/mission-control-child-shape/process-env/tsconfig.json",
-    "tests/int/mission-control-child-portability.int.spec.ts",
-    "tests/int/mission-control-correction-entrypoints.int.spec.ts"
+    "tests/fixtures/child-shape/package.json",
+    "tests/fixtures/child-shape/process-env/cloudflare-env.d.ts",
+    "tests/fixtures/child-shape/process-env/partial-env.fixture.ts",
+    "tests/fixtures/child-shape/process-env/tsconfig.json",
+    "tests/int/child-portability.int.spec.ts"
   ]
 }

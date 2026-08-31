@@ -1,7 +1,0 @@
-{
-  "name": "acceptance-child-fixture",
-  "private": true,
-  "scripts": {
-    "deploy": "pnpm run custom-deploy"
-  }
-}
