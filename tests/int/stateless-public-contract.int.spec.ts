@@ -23,11 +23,37 @@ const CURRENT_EXECUTABLE_HANDOFF_DOCS = [
   'docs/mission-control/mission-control-guide.md',
 ] as const
 
+const CURRENT_PROTOCOL_DOCS = [
+  'docs/mission-control/README.md',
+  'docs/mission-control/mission-control-guide.md',
+] as const
+
+const ACTIVE_STATEFUL_REQUIREMENTS = [
+  /reconstruct(?:ing)? completed review rounds/i,
+  /write the marker block/i,
+  /migrate active (?:child )?tasks?/i,
+  /post (?:a )?RESULT/i,
+  /update the managed state block/i,
+  /increment (?:the )?(?:review )?counters?/i,
+  /project (?:the )?(?:deterministic )?(?:Task )?state/i,
+] as const
+
 function withoutHistoricalMarkdownSections(content: string): string {
   const currentLines: string[] = []
   let historicalLevel: number | null = null
+  let historicalMarker = false
 
   for (const line of content.split('\n')) {
+    if (line.includes('<!-- bemoat-mc:historical-migration-only:start -->')) {
+      historicalMarker = true
+      continue
+    }
+    if (line.includes('<!-- bemoat-mc:historical-migration-only:end -->')) {
+      historicalMarker = false
+      continue
+    }
+    if (historicalMarker) continue
+
     const heading = line.match(/^(#{1,6})\s+(.+)$/)
     if (heading) {
       const level = heading[1].length
@@ -107,6 +133,21 @@ describe('stateless public Mission Control contract', () => {
     )
     expect(read('docs/mission-control/command-reference.md')).toContain('Retired stateful command families')
     expect(read('docs/mission-control/command-reference.md')).not.toContain('bemoat:agent:delivery')
+  })
+
+  it('keeps canonical README and guide operations on the stateless protocol', () => {
+    const guide = read('docs/mission-control/mission-control-guide.md')
+    expect(guide).toContain('<!-- bemoat-mc:historical-migration-only:start -->')
+    expect(guide).toContain('<!-- bemoat-mc:historical-migration-only:end -->')
+
+    for (const path of CURRENT_PROTOCOL_DOCS) {
+      const currentContent = withoutHistoricalMarkdownSections(read(path))
+      expect(currentContent, path).toContain('bemoat:context')
+      expect(currentContent, path).toContain('bemoat:handoff')
+      for (const pattern of ACTIVE_STATEFUL_REQUIREMENTS) {
+        expect(currentContent, `${path} contains active stateful guidance: ${pattern}`).not.toMatch(pattern)
+      }
+    }
   })
 
   it('rejects active managed-state workflow requirements outside an explicit historical boundary', () => {

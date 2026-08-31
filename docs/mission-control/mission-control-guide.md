@@ -74,6 +74,8 @@ entrypoint or routing recommendation. New work must follow the stateless
 protocol above and must not select a legacy command because a historical state
 name or role-comment record appears in GitHub.
 
+<!-- bemoat-mc:historical-migration-only:start -->
+
 ## Purpose
 
 Historically, Mission Control coordinated bounded work across Dev, Reviewer, and
@@ -1030,3 +1032,5 @@ Extracted to module: [Templates / Examples](./modules/templates-examples.md)
 ## Worked examples
 
 Extracted to module: [Templates / Examples](./modules/templates-examples.md)
+
+<!-- bemoat-mc:historical-migration-only:end -->

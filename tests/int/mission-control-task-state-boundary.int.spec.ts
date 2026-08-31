@@ -1,7 +1,8 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
-import { join, relative, resolve } from 'node:path'
+import { dirname, join, relative, resolve } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
+import ts from 'typescript'
 
 const domainPath = resolve(process.cwd(), 'scripts/mission-control/domain/task-state.ts')
 const canonicalDomainPath = resolve(process.cwd(), 'scripts/mission-control/domain/task-state.ts')
@@ -47,6 +48,84 @@ function listProductionScriptFiles(directory: string, files: string[] = []): str
   return files
 }
 
+type ProductionImportEdge = {
+  importer: string
+  specifier: string
+  target: string | null
+}
+
+function resolveProductionImport(
+  importer: string,
+  specifier: string,
+  productionFiles: Set<string>,
+): string | null {
+  if (!specifier.startsWith('.')) return null
+
+  const base = resolve(dirname(importer), specifier)
+  const withoutSourceExtension = base.replace(/\.(?:js|mjs|ts)$/, '')
+  const candidates = [
+    base,
+    `${base}.ts`,
+    `${base}.mjs`,
+    `${withoutSourceExtension}.ts`,
+    `${withoutSourceExtension}.mjs`,
+    join(base, 'index.ts'),
+    join(base, 'index.mjs'),
+  ]
+  return candidates.find((candidate) => productionFiles.has(candidate)) ?? null
+}
+
+function collectProductionImportEdges(): ProductionImportEdge[] {
+  const productionFiles = new Set(
+    listProductionScriptFiles(resolve(process.cwd(), 'scripts')),
+  )
+  const edges: ProductionImportEdge[] = []
+
+  for (const importer of productionFiles) {
+    const source = readFileSync(importer, 'utf8')
+    const sourceFile = ts.createSourceFile(
+      importer,
+      source,
+      ts.ScriptTarget.Latest,
+      true,
+      importer.endsWith('.ts') ? ts.ScriptKind.TS : ts.ScriptKind.JS,
+    )
+
+    function record(specifierNode: ts.StringLiteralLike) {
+      const specifier = specifierNode.text
+      edges.push({
+        importer,
+        specifier,
+        target: resolveProductionImport(importer, specifier, productionFiles),
+      })
+    }
+
+    function visit(node: ts.Node) {
+      if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
+        record(node.moduleSpecifier)
+      } else if (ts.isExportDeclaration(node) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
+        record(node.moduleSpecifier)
+      } else if (ts.isImportEqualsDeclaration(node) && ts.isExternalModuleReference(node.moduleReference)) {
+        const expression = node.moduleReference.expression
+        if (expression && ts.isStringLiteral(expression)) record(expression)
+      } else if (ts.isCallExpression(node) && node.arguments.length === 1 && ts.isStringLiteral(node.arguments[0])) {
+        const expression = node.expression
+        if (
+          expression.kind === ts.SyntaxKind.ImportKeyword ||
+          (ts.isIdentifier(expression) && expression.text === 'require')
+        ) {
+          record(node.arguments[0])
+        }
+      }
+      ts.forEachChild(node, visit)
+    }
+
+    visit(sourceFile)
+  }
+
+  return edges
+}
+
 describe('Mission Control task-state boundary', () => {
   it('retains only the read-only parser seam after managed-state compatibility cleanup', async () => {
     const domainTaskState = await import(/* @vite-ignore */ `file://${domainPath}`)
@@ -66,21 +145,37 @@ describe('Mission Control task-state boundary', () => {
     expect(canonicalTaskState.parseMissionControlState)
       .toBe(domainExports.parseMissionControlState)
 
-    const parserConsumers = listProductionScriptFiles(resolve(process.cwd(), 'scripts'))
-      .filter((path) => path !== canonicalDomainPath)
-      .filter((path) => readFileSync(path, 'utf8').includes('parseMissionControlState'))
-      .map((path) => relative(process.cwd(), path).split('\\').join('/'))
+    const parserConsumers = collectProductionImportEdges()
+      .filter((edge) => edge.target === canonicalDomainPath)
+      .map((edge) => relative(process.cwd(), edge.importer).split('\\').join('/'))
       .sort()
     expect(parserConsumers).toEqual(['scripts/guards/planning-contract-runtime.mjs'])
 
-    const planningRuntime = readFileSync(
-      resolve(process.cwd(), 'scripts/guards/planning-contract-runtime.mjs'),
-      'utf8',
+    const parserEdges = collectProductionImportEdges().filter(
+      (edge) => edge.target === canonicalDomainPath,
     )
-    expect(planningRuntime).toMatch(
-      /import\s+\{\s*parseMissionControlState\s*\}\s+from\s+['"]\.\.\/mission-control\/domain\/task-state\.ts['"]/
+    expect(parserEdges).toHaveLength(1)
+    expect(parserEdges[0]?.specifier).toBe('../mission-control/domain/task-state.ts')
+
+    const planningRuntime = resolve(process.cwd(), 'scripts/guards/planning-contract-runtime.mjs')
+    const planningSource = ts.createSourceFile(
+      planningRuntime,
+      readFileSync(planningRuntime, 'utf8'),
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.JS,
     )
-    expect(planningRuntime).toContain('parseMissionControlState(issue.body ?? \'\')')
+    const parserBindings: string[] = []
+    function visitPlanning(node: ts.Node) {
+      if (ts.isImportDeclaration(node) && node.importClause?.namedBindings && ts.isNamedImports(node.importClause.namedBindings)) {
+        for (const element of node.importClause.namedBindings.elements) {
+          if (element.name.text === 'parseMissionControlState') parserBindings.push(element.name.text)
+        }
+      }
+      ts.forEachChild(node, visitPlanning)
+    }
+    visitPlanning(planningSource)
+    expect(parserBindings).toEqual(['parseMissionControlState'])
   })
 
   it('fails closed for malformed marker/YAML input used by planning safety', async () => {
