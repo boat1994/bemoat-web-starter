@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 const root = resolve(process.cwd())
 const tempRoots: string[] = []
 const oracle = [
-  ['tests/int/phase7-merge-wrappers-prune.int.spec.ts', '0b40c3383da4eb9106d5a81d1cdd50c60ff5a9ba9c4b80adf790a40cb7d6aa8f'],
+  ['tests/int/stateless-public-contract.int.spec.ts', '272e0300efae001e5df4069064bfcb1d5dd8d428725091d8071fa98e94ae97b7'],
 ] as const
 const productionExtensions = ['.mjs', '.ts'] as const
 const grandfathered = [
@@ -65,7 +65,7 @@ describe('structural protection guard', () => {
     expect((await guard()).map((entry: { rule: string }) => entry.rule)).toEqual([])
     expect(grandfathered).toHaveLength(5)
     expect(JSON.parse(readFileSync(join(root, 'scripts/structural-protection-manifest.json'), 'utf8'))).toEqual(manifest())
-    expect(scriptInventory(root)).toBe(79)
+    expect(scriptInventory(root)).toBe(78)
   })
 
   it('rejects malformed schema, types, unknown keys, ordering, duplicates, paths, and SHA values', async () => {

@@ -25,9 +25,9 @@ Prefer updating these docs over creating new templates or workflows.
 For Core or multi-stage initiatives, use the Main GitHub Issue checklist as the durable project-stage tracker and the Implementation Plan as the roadmap contract. See [project-progress-tracking.md](./project-progress-tracking.md). Use `.superpowers/sdd/progress.md` for temporary local/session progress only.
 
 The current supported workflow for every tier is `bemoat:context` → one bounded
-objective → `bemoat:handoff` → fresh GitHub reconstruction. It never creates or
-requires managed Mission Control state. Legacy managed-state records are
-historical/migration-only evidence and cannot select a workflow for new work.
+objective → `bemoat:handoff` → fresh GitHub reconstruction. It does not create
+or require local workflow state. Older managed-state records, when encountered,
+are read-only migration evidence and cannot select new work.
 
 When planning or specification expansion is material, use the
 [self red-team scope gate](./self-red-team-scope-gate.md) before adding another
@@ -52,7 +52,7 @@ ceremony:
   with its scope and result known.
 
 Keep checkpoint commits local and do not push them by default. Do not use their
-SHAs as PR, review, milestone, Mission Control, `current_head`, or CI evidence,
+SHAs as PR, review, milestone, coordination, `current_head`, or CI evidence,
 and do not report them in a new `## HANDOFF`. Before review or PR evidence:
 
 1. Run the required validation tier.
@@ -192,10 +192,13 @@ Run in **child repos** only. Full loop: [harness-sync-workflow.md](./harness-syn
 
 - [ ] The current route was freshly reconstructed with `bemoat:context`; no
       managed-state block or review-cycle workflow is required for new work
-- [ ] Applicable review evidence is verified on the exact PR head; any
-      historical `## REVIEW_VERDICT` is treated as migration evidence, and the
-      next current route is published through `bemoat:handoff`
-- [ ] **Pre-merge checklist reconciliation** — Mission Control audited Issue checkboxes against live verified evidence and applied a safe body update (re-fetch confirmed) or obtained explicit founder acceptance of a mapped reconciliation comment per [role-handoff-contract.md](./role-handoff-contract.md#pre-merge-checklist-reconciliation-gate)
+- [ ] Applicable review evidence is verified on the exact PR head; historical
+      review records are treated as migration evidence, and the next current
+      route is published through `bemoat:handoff`
+- [ ] **Pre-merge checklist reconciliation** — Audit Issue checkboxes against
+      live verified evidence, update the body only when the evidence uniquely
+      supports the edit, and otherwise record the mapped audit without changing
+      the Issue body
 - [ ] All required review threads resolved
 - [ ] CI green on the PR branch
 - [ ] Starter or child-local `pnpm run check:full` run when defined and practical before merge
@@ -203,7 +206,7 @@ Run in **child repos** only. Full loop: [harness-sync-workflow.md](./harness-syn
 - [ ] No sync-managed child edits that should have been upstreamed
 - [ ] Squash/merge only after checks and review—not on failing CI
 
-## Historical migration-only managed-state compatibility
+## Historical migration-only state compatibility
 
 Older Issues may contain durable state blocks and review-cycle records. They
 remain readable only to interpret or migrate historical evidence; they are not

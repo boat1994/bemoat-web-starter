@@ -220,10 +220,10 @@ function validateMissionControlCompatibility(stateAnalysis, contract, issueNumbe
     return [makeViolation({
       rule: 'PLAN010',
       file: filePath,
-      message: 'Malformed Mission Control state on active task issue',
+      message: 'Malformed legacy managed-state metadata on active task issue',
       found: 'malformed managed state',
       reason: stateAnalysis.reason ?? 'managed state identity could not be validated',
-      correctiveAction: `Reconstruct Mission Control state on issue #${issueNumber}`,
+      correctiveAction: `Repair or remove legacy managed-state metadata on issue #${issueNumber}`,
     })]
   }
   const managedState = stateAnalysis.state
@@ -239,10 +239,10 @@ function validateMissionControlCompatibility(stateAnalysis, contract, issueNumbe
   return [makeViolation({
     rule: 'PLAN010',
     file: filePath,
-    message: 'Incompatible Mission Control state on active task issue',
-    found: 'incompatible Mission Control state',
+    message: 'Incompatible legacy managed-state metadata on active task issue',
+    found: 'incompatible legacy managed-state metadata',
     reason: 'recorded state is DONE or conflicts with task issue',
-    correctiveAction: `Reconstruct Mission Control state on issue #${issueNumber}`,
+    correctiveAction: `Repair or remove legacy managed-state metadata on issue #${issueNumber}`,
   })]
 }
 export function verifyLiveTaskIdentity(options) {

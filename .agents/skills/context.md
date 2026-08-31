@@ -34,7 +34,7 @@ behavior below identical.
 5. Invoke only the discovered public `command`. Do not call its implementation
    entrypoint directly and do not import implementation internals.
 
-## Result handling
+## Context result handling
 
 Surface the complete authoritative result from `bemoat:context`, including the
 repository and protected-base identity, policy identity and source, Issue

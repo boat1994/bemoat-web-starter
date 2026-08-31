@@ -54,7 +54,7 @@ files or areas to inspect, expected validation, and notable risks or
 assumptions. They must wait for an explicit human trigger such as `proceed`,
 `continue`, `start dev`, `เริ่มได้`, or `dev ได้` before editing files.
 
-After that trigger, agents **must complete the applicable branch-to-PR workflow** by default — implement, check, commit, push, audit acceptance criteria, open PR, and, when required by the workflow profile or an applicable review gate, publish a HANDOFF on the source issue with `bemoat:handoff` — without stopping after implementation or asking permission to commit/push/open PR/comment. FAST work without an applicable review or handoff gate may omit HANDOFF and REVIEW_VERDICT. See [GitHub Workflow](../../AGENTS.md#github-workflow) and [Handoff Protocol](../../AGENTS.md#handoff-protocol) for stop conditions.
+After that trigger, agents **must complete the applicable branch-to-PR workflow** by default — implement, check, commit, push, audit acceptance criteria, open PR, and, when required by the workflow profile or an applicable review gate, publish a HANDOFF on the source issue with `bemoat:handoff` — without stopping after implementation or asking permission to commit/push/open PR/comment. FAST work without an applicable review or handoff gate may omit HANDOFF. See [GitHub Workflow](../../AGENTS.md#github-workflow) and [Handoff Protocol](../../AGENTS.md#handoff-protocol) for stop conditions.
 
 ## High-level loop
 
@@ -75,9 +75,9 @@ task → read AGENTS.md + agent-loop → git status & issue branch → intent ch
 | **Show diff** | `git status` and diff summary before commit. |
 | **Commit** | One focused commit only if checks pass and only allowed files changed. See commit safety in `AGENTS.md`. |
 | **Push** | Push the branch to origin. |
-| **AC audit** | Before PR creation/update and final reporting, copy or summarize the source issue acceptance criteria. Mark each item `Done`, `Not done`, `Not applicable`, or `Waiting for CI / human review`, and include brief evidence for completed items. Do not routinely edit the Issue checklist from Dev work; Mission Control pre-merge reconciliation follows [role-handoff-contract.md](./role-handoff-contract.md#pre-merge-checklist-reconciliation-gate). |
+| **AC audit** | Before PR creation/update and final reporting, copy or summarize the source issue acceptance criteria. Mark each item `Done`, `Not done`, `Not applicable`, or `Waiting for CI / human review`, and include brief evidence for completed items. Do not routinely edit the Issue checklist from Dev work; before merge, reconcile it only when live evidence uniquely supports the edit. |
 | **Open PR** | Open a new PR or **update the existing PR** if the branch already has one. Fill out the [pull request template](../../.github/pull_request_template.md). Include `Closes #<issue-number>`, summary, test plan, acceptance criteria audit, risks, and human-review notes. **Migration PRs:** draft only — see [migration-draft-pr.md](./migration-draft-pr.md). |
-| **Publish HANDOFF** | For profiles or review gates that require cross-agent coordination, publish the final protocol record using `bemoat:handoff` (with appropriate route). FAST work without an applicable review or handoff gate may omit HANDOFF and REVIEW_VERDICT. See [Handoff Protocol](../../AGENTS.md#handoff-protocol). |
+| **Publish HANDOFF** | For profiles or review gates that require cross-agent coordination, publish the final protocol record using `bemoat:handoff` (with appropriate route). FAST work without an applicable review or handoff gate may omit HANDOFF. See [Handoff Protocol](../../AGENTS.md#handoff-protocol). |
 | **Notify user** | Task summary, branch, files changed, commands run, test result, commit hash, PR URL, risks, and human-review items. |
 | **CI** | GitHub Actions must pass; inspect logs on failure—do not guess. |
 | **Review** | Human or reviewer agent; watch Payload, migration, Cloudflare, sync risks. |
@@ -90,8 +90,8 @@ task → read AGENTS.md + agent-loop → git status & issue branch → intent ch
 | [starter-reading-order.md](./starter-reading-order.md) | Ordered docs for new tasks (operating manual → migration → ADRs → KB → guards → acceptance) |
 | [issue-driven-branch-workflow.md](./issue-driven-branch-workflow.md) | Issue branch gates, naming, PR open/update, harness sync closeout |
 | [project-progress-tracking.md](./project-progress-tracking.md) | Main Issue durable progress, Plan boundaries, exact-head CI, resume protocol |
-| [role-handoff-contract.md](./role-handoff-contract.md) | Compact-delta GitHub Handoff transport (`HANDOFF`); historical `RESULT` / `REVIEW_VERDICT` records remain read-only migration evidence |
-| [Mission Control guide](../mission-control/mission-control-guide.md) | Current stateless Context/Handoff protocol plus historical read-only migration guidance (thin loader: `prompts/mission-control/chatgpt-project-loader.md`) |
+| [role-handoff-contract.md](./role-handoff-contract.md) | Compact-delta GitHub Handoff transport; older Issue comments remain read-only migration evidence |
+| [Coordination protocol guide](../mission-control/mission-control-guide.md) | Current stateless Context/Handoff protocol; the loader is `prompts/mission-control/chatgpt-project-loader.md` |
 | [self-red-team-scope-gate.md](./self-red-team-scope-gate.md) | Optional scope gate for material planning, specification expansion, and High Reasoning passes |
 | [self-red-team-scope-gate-prompt.md](./self-red-team-scope-gate-prompt.md) | Copy/paste prompt for one constrained self red-team pass |
 | [harness-sync-workflow.md](./harness-sync-workflow.md) | Child project harness sync loop after starter merge |

@@ -150,11 +150,11 @@ A Slice is not fully complete until its PR is merged into the approved base bran
 
 Use `.superpowers/sdd/progress.md` for temporary execution progress. Do **not** edit the Main Issue for every command, retry, RED/GREEN transition, minor corrective commit, or CI rerun.
 
-Mission Control may reconcile verified Issue/PR evidence and make localized
-in-scope corrections without a Founder decision. Founder decisions remain
-required for material scope, Acceptance Criteria, or architecture changes;
-exhausted review budget; reopening; merge; production, migration, destructive
-work, and required manual QA.
+The coordination workflow may reconcile verified Issue/PR evidence and make
+localized in-scope corrections without a Founder decision. Founder decisions
+remain required for material scope, Acceptance Criteria, or architecture
+changes; exhausted review budget; reopening; merge; production, migration,
+destructive work, and required manual QA.
 
 ### Before PR creation or update
 
@@ -239,13 +239,13 @@ current permitted action.
 
 Do not silently fall back to a previous agent summary when declared GitHub or plan state is missing.
 
-### Historical migration-only stateful preflight behavior
+### Historical migration-only state behavior
 
 Retained compatibility readers may report `STATE_MIGRATION_REQUIRED` for an
 absent legacy managed-state block, `STATE_CONFLICT` for contradictory legacy
 state, or a warning for a non-managed historical task. These classifications
-exist only to interpret or migrate old records. They must not activate a
-stateful workflow or become a current preflight requirement.
+exist only to interpret or migrate old records; they must not become a current
+preflight requirement.
 
 ## Child adoption contract
 

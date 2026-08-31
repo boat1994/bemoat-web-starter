@@ -235,7 +235,7 @@ describe('toolchain contract', () => {
     rmSync(fixtureRoot, { recursive: true, force: true })
   })
 
-  it('MC-R1-001 preserves quoted trailing-comma lookalikes and removes structural trailing commas', async () => {
+  it('preserves quoted trailing-comma lookalikes and removes structural trailing commas', async () => {
     const drift = await import('../../scripts/check-boilerplate-drift.mjs')
 
     expect(JSON.parse(drift.stripJsoncComments('{"value": ",}"}')).value).toBe(',}')
@@ -255,7 +255,7 @@ describe('toolchain contract', () => {
     expect(JSON.parse(drift.stripJsoncComments('[1, /* c */ ]'))).toEqual([1])
   })
 
-  it('MC-R1-002 rejects unterminated block comments while preserving valid JSONC', async () => {
+  it('rejects unterminated block comments while preserving valid JSONC', async () => {
     const drift = await import('../../scripts/check-boilerplate-drift.mjs')
 
     expect(() => drift.stripJsoncComments('{"compilerOptions":{"strict":true}}/* no closing')).toThrow(SyntaxError)

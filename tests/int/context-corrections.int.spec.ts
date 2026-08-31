@@ -93,7 +93,7 @@ function githubRunner({
   }
 }
 
-describe('MC-R1 bounded context corrections', () => {
+describe('bounded context corrections', () => {
   it('accepts effective native ruleset evidence when legacy branch protection returns 404', () => {
     const evidence = readGithubEvidence({
       repo: 'boat1994/bemoat-web-starter',

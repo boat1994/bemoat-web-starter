@@ -7,29 +7,11 @@ reconstruction followed by `bemoat:handoff` for one bounded outcome. Use
 
 ## Current stateless role boundary
 
-Mission Control coordinates one bounded objective and publishes one HANDOFF;
-it does not create managed state or route through RESULT, REVIEW_VERDICT, or
-role-comment commands. Exact PR/head/CI evidence remains authoritative where
-the applicable review gate requires it.
-
-## Historical Mission Control role map
-
-**Purpose:** Orchestrate phases, post bounded compact-delta `## HANDOFF` comments, and authorize the next role.
-
-**Produces:** `## HANDOFF` | **Consumes:** `## RESULT`, `## REVIEW_VERDICT`
-
-**Must:** Before merge, run the [pre-merge checklist reconciliation gate](./role-handoff-contract.md#pre-merge-checklist-reconciliation-gate). Follow [../mission-control/mission-control-guide.md](../mission-control/mission-control-guide.md) for review-cycle budget, durable state blocks, and Core MC-gated review verdicts.
-
-**Must not:** Infer founder approval; skip live GitHub state verification; paste self-contained restatements of Issue body, full ACs, or prior evidence (use compact deltas); autonomously start Review 4; reset review counters from chat history.
-
-## Historical role comment map
-
-| Role | Produces | Consumes |
-|------|----------|----------|
-| Mission Control | `## HANDOFF` | `## RESULT`, `## REVIEW_VERDICT` |
-| Builder / Dev | `## RESULT` | `## HANDOFF` |
-| Reviewer / Red Team | `## REVIEW_VERDICT` | `## HANDOFF`, `## RESULT` |
-| GitHub Triage | — (state summary) | `## HANDOFF` when orienting |
+The coordination layer reconstructs one bounded objective with
+`bemoat:context` and, when required, publishes one strict `HANDOFF` with
+`bemoat:handoff`. It does not create managed state or use alternate comment
+commands. Exact PR/head/CI evidence remains authoritative where the applicable
+review gate requires it.
 
 ## Builder Agent
 

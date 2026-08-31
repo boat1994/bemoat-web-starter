@@ -9,15 +9,3 @@ resolveProductionCommentTrust({
     PAYLOAD_SECRET: 'test',
   } as unknown as NodeJS.ProcessEnv,
 })
-
-declare function enforceChildSyncGate(input: { argv: string[], env: NodeJS.ProcessEnv }): unknown
-
-enforceChildSyncGate({
-  argv: [],
-  env: {} as unknown as NodeJS.ProcessEnv,
-})
-
-enforceChildSyncGate({
-  argv: ['--harness-only'],
-  env: {} as unknown as NodeJS.ProcessEnv,
-})

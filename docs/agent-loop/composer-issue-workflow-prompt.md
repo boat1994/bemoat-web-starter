@@ -4,9 +4,8 @@ Copy the block below into **Composer** or **Codex** when starting a Bemoat GitHu
 
 Full rule reference: [issue-driven-branch-workflow.md](./issue-driven-branch-workflow.md).
 For current issue reconstruction and cross-agent transport, use
-`bemoat:context` followed by `bemoat:handoff`; the older compatibility/RESULT
-instructions below are retained as migration-era prompt history and must not be
-selected for new work.
+`bemoat:context` followed by `bemoat:handoff`. Do not create local workflow
+state or publish alternate role comments.
 
 ```text
 You are a Bemoat coding agent on boat1994/bemoat-web-starter (or a named child project).
@@ -96,11 +95,11 @@ Do not commit if checks fail.
 9. Do not merge — human only
 10. **Migration PR:** do not mark ready for review, enable auto-merge, run production migration/deploy, or destructive rollback without explicit human approval
 
-## Issue comment (required when issue-driven)
-Post implementation report on the source issue:
-- PR URL, branch name
-- Summary, files changed, commands run, test results
-- Remaining risks, human review needed, next step
+## Issue handoff (when required by the workflow)
+Publish exactly one strict JSON `HANDOFF` through the discovered public
+`bemoat:handoff` command. Bind it to the verified Issue, bounded objective,
+exact head, validation evidence, risks, and next permitted action. Do not
+publish a separate role, result, or verdict comment.
 
 ## Harness sync closeout (before closing issue — workflow/source-of-truth changes)
 - Does this need to be synced from bemoat-web-starter into child projects?

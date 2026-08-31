@@ -333,7 +333,7 @@ describe('bemoat:context neutral evidence adapters', () => {
     expect(evidence.errors).toContain('EVIDENCE_CONFLICT: PR #422 state and merge commit evidence disagree')
   })
 
-  it('excludes closed-unmerged PRs from candidates (MC-R1-002)', () => {
+  it('excludes closed-unmerged PRs from candidates', () => {
     const head = 'b'.repeat(40)
     const run: ContextCommandRunner = (_command, args) => {
       const key = args.join(' ')

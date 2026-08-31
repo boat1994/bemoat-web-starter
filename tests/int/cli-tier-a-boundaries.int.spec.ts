@@ -143,17 +143,10 @@ function runBoundary(
   argv: readonly string[],
   extraEnvironment: Record<string, string> = {},
 ): CliBoundaryResult {
-  const syncGateBypass: Record<string, string> | undefined = entry.command === 'bemoat:boilerplate:sync'
-    ? { BEMOAT_SKIP_MC_TRANSITION_CHILD_SYNC_GATE: '1' }
-    : undefined
-
   return runCliBoundaryCase({
     entrypoint: entry.entrypoint,
     argv,
-    env: facadeEnvironment(entry, {
-      ...syncGateBypass,
-      ...extraEnvironment,
-    }),
+    env: facadeEnvironment(entry, extraEnvironment),
     files: entry.command === 'bemoat:hooks:install'
       ? HOOK_FIXTURE_FILES
       : undefined,
@@ -482,7 +475,6 @@ describe('Task 4 Tier A CLI boundaries: boilerplate sync and hooks install', () 
       [
         resolve(process.cwd(), entry.entrypoint),
         '--harness-only',
-        '--skip-mc-transition-gate',
         '--json',
       ],
       {
@@ -543,7 +535,6 @@ describe('Task 4 Tier A CLI boundaries: boilerplate sync and hooks install', () 
       [
         resolve(process.cwd(), entry.entrypoint),
         '--harness-only',
-        '--skip-mc-transition-gate',
         '--json',
       ],
       {
@@ -588,7 +579,6 @@ describe('Task 4 Tier A CLI boundaries: boilerplate sync and hooks install', () 
       [
         resolve(process.cwd(), entry.entrypoint),
         '--harness-only',
-        '--skip-mc-transition-gate',
         '--json',
       ],
       {
@@ -877,7 +867,6 @@ exit 0
       targetRoot,
       tempRoot,
       sourceRoot,
-      enforceChildSyncGate: () => calls.push('transition-gate'),
     })
 
     const finalPreflight = calls.indexOf('final-preflight')

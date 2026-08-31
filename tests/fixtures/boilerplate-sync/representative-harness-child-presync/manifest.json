@@ -8,7 +8,6 @@
     "docs/mission-control/mission-control-guide.md",
     "scripts/guard-harness-contract.mjs",
     "scripts/sync-boilerplate.mjs",
-    "tests/int/agent-delivery.int.spec.ts",
     "tests/int/boilerplate-sync.int.spec.ts",
     "tests/int/harness-contract-guard.int.spec.ts"
   ],

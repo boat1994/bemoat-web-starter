@@ -16,7 +16,7 @@
   "protected_oracle": {
     "algorithm": "sha256",
     "files": [
-      { "path": "tests/int/phase7-merge-wrappers-prune.int.spec.ts", "sha256": "0b40c3383da4eb9106d5a81d1cdd50c60ff5a9ba9c4b80adf790a40cb7d6aa8f" }
+      { "path": "tests/int/stateless-public-contract.int.spec.ts", "sha256": "272e0300efae001e5df4069064bfcb1d5dd8d428725091d8071fa98e94ae97b7" }
     ]
   }
 }

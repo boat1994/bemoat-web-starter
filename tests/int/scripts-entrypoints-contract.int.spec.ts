@@ -10,7 +10,6 @@ import {
   getHarnessContractExitCode,
 } from '../../scripts/guard-harness-contract.mjs'
 import {
-  enforceMcTransitionChildSyncGate,
   parseApplyBuildContract,
   parseSyncMode,
   SYNC_MODES,
@@ -83,37 +82,13 @@ describe('scripts entrypoints contract', () => {
     expect(result.stderr).toBe('')
   })
 
-  it('freezes sync-boilerplate CLI defaults, args, and gate failure without performing a real child sync', () => {
+  it('freezes sync-boilerplate CLI parsing defaults without performing a real child sync', () => {
     const emptyEnv = {} as NodeJS.ProcessEnv
     expect(parseSyncMode([], emptyEnv)).toBe(SYNC_MODES.HARNESS_ONLY)
     expect(parseSyncMode(['--harness-only'], emptyEnv)).toBe(SYNC_MODES.HARNESS_ONLY)
     expect(parseSyncMode(['--full'], emptyEnv)).toBe(SYNC_MODES.FULL)
     expect(parseApplyBuildContract([], emptyEnv)).toBe(false)
     expect(parseApplyBuildContract(['--apply-build-contract'], emptyEnv)).toBe(true)
-    expect(
-      enforceMcTransitionChildSyncGate({ argv: ['--skip-mc-transition-gate'], env: emptyEnv }),
-    ).toEqual({
-      enforced: false,
-      allowed: true,
-    })
-
-    const blocked = runNode('scripts/sync-boilerplate.mjs', [], {
-      env: {
-        ...process.env,
-        BEMOAT_SKIP_MC_TRANSITION_CHILD_SYNC_GATE: '0',
-        BEMOAT_CHILD_SYNC_182_MERGED: '',
-        BEMOAT_CHILD_SYNC_184_MERGED: '',
-        BEMOAT_CHILD_SYNC_LIVE_RECONSTRUCTED: '',
-        BEMOAT_CHILD_SYNC_FRESH_HANDOFF: '',
-      },
-    })
-    expect(blocked.status).not.toBe(0)
-    expect(blocked.stderr).toContain('child-sync gate blocked:')
-    expect(blocked.stderr).toContain('Issue #182 must be merged and green on protected main')
-    expect(blocked.stderr).toContain('Issue #184 must be merged and green on protected main')
-    expect(blocked.stderr).toContain('live child-state reconstruction required')
-    expect(blocked.stderr).toContain('fresh child-sync HANDOFF required')
-    expect(blocked.stdout).not.toContain('Syncing Bemoat boilerplate')
   })
 
 })

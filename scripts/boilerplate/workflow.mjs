@@ -195,7 +195,7 @@ const defaultDependencies = {
 
 /**
  * Runs the boilerplate sync lifecycle through explicit side-effect interfaces.
- * The root facade injects the public child gate and managed-runtime guard.
+ * The root facade injects the managed-runtime guard.
  */
 export function createBoilerplateSyncWorkflow(overrides = {}) {
   const dependencies = { ...defaultDependencies, ...overrides }
@@ -208,7 +208,6 @@ export function createBoilerplateSyncWorkflow(overrides = {}) {
      *   targetRoot: string,
      *   tempRoot: string,
      *   sourceRoot: string,
-     *   enforceChildSyncGate: () => unknown,
      *   assertManagedRuntimeDeliveryClosure?: unknown,
      *   syncMode?: string,
      *   applyBuildContract?: boolean,
@@ -222,14 +221,12 @@ export function createBoilerplateSyncWorkflow(overrides = {}) {
       targetRoot,
       tempRoot,
       sourceRoot,
-      enforceChildSyncGate,
       assertManagedRuntimeDeliveryClosure = dependencies.assertManagedRuntimeDeliveryClosure,
       syncMode: providedSyncMode = undefined,
       applyBuildContract: providedApplyBuildContract = undefined,
       invocationValues = undefined,
       suppressToolOutput = false,
     }) {
-      enforceChildSyncGate()
       const syncMode = providedSyncMode ?? dependencies.parseSyncMode(invocationValues)
       const applyBuildContract =
         providedApplyBuildContract ?? dependencies.parseApplyBuildContract(invocationValues)

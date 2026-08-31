@@ -15,7 +15,6 @@ const ROOT_FACADE_EXPORTS = [
   'commitValidatedSyncChanges',
   'copyManagedPath',
   'copySeedOnlyPath',
-  'enforceMcTransitionChildSyncGate',
   'exactManagedPackageScripts',
   'expandSeedOnlyFiles',
   'formatPackageSyncProposal',
@@ -175,11 +174,9 @@ describe('boilerplate sync workflow child portability', () => {
       targetRoot,
       tempRoot,
       sourceRoot,
-      enforceChildSyncGate: () => calls.push('child-gate'),
     })
 
     expect(calls).toEqual([
-      'child-gate',
       'mode',
       'build-mode',
       'git-client',
@@ -228,7 +225,6 @@ describe('boilerplate sync workflow child portability', () => {
       targetRoot,
       tempRoot,
       sourceRoot,
-      enforceChildSyncGate: () => calls.push('child-gate'),
     })).toThrow('projection failed')
 
     expect(calls.slice(-3)).toEqual(['sync-failure', `rm:${tempRoot}`, 'restore-stash'])
@@ -253,7 +249,6 @@ describe('boilerplate sync workflow child portability', () => {
         targetRoot,
         tempRoot,
         sourceRoot,
-        enforceChildSyncGate: () => calls.push('child-gate'),
       })
     } catch (error) {
       thrown = error
@@ -288,7 +283,6 @@ describe('boilerplate sync workflow child portability', () => {
         targetRoot,
         tempRoot,
         sourceRoot,
-        enforceChildSyncGate: () => calls.push('child-gate'),
       })
     } catch (error) {
       thrown = error
@@ -302,23 +296,4 @@ describe('boilerplate sync workflow child portability', () => {
     expect(calls).not.toContain('stash')
   })
 
-  it('fails at the child-sync gate before mode parsing or child lifecycle work', async () => {
-    const workflowModule = await import('../../scripts/boilerplate/workflow.mjs')
-    const calls: string[] = []
-    const workflow = workflowModule.createBoilerplateSyncWorkflow(makeWorkflowDependencies(calls))
-
-    expect(() => workflow.run({
-      repo: 'example/starter',
-      ref: 'slice-4',
-      targetRoot,
-      tempRoot,
-      sourceRoot,
-      enforceChildSyncGate: () => {
-        calls.push('child-gate')
-        throw new Error('gate blocked')
-      },
-    })).toThrow('gate blocked')
-
-    expect(calls).toEqual(['child-gate'])
-  })
 })
