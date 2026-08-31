@@ -96,7 +96,7 @@ describe('central guard pack', () => {
   })
 
   it('is listed in managedPaths for boilerplate sync', async () => {
-    const syncMod = await import('../../scripts/sync-boilerplate.mjs')
+    const syncMod = await import('../../scripts/sync-boilerplate.ts')
 
     expect(syncMod.managedPaths).toContain('scripts/guard-pack.ts')
     expect(syncMod.managedPaths).toContain('scripts/guards/pack.ts')

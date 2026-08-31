@@ -143,7 +143,7 @@ After **`pnpm run bemoat:boilerplate:sync -- --harness-only`**, the PR diff shou
 | Agent rules | `AGENTS.md`, `.agents/**`, `.cursor/rules/**` |
 | Agent-loop & harness docs | `docs/agent-loop/**`, `docs/hardening.md`, `docs/releases.md`, `docs/deploy-smoke-test.md`, `docs/cloudflare-environments.md`, `docs/schema-evolution.md`, `docs/dev-boilerplate.md`, `docs/boilerplate-sync-command.md`, `docs/harness-sync-contract.md`, `docs/guard-pack.md` |
 | GitHub rails | `.github/workflows/ci.yml`, `.github/pull_request_template.md`, `.github/ISSUE_TEMPLATE/agent-task.yml` |
-| Harness scripts | `scripts/sync-boilerplate.mjs`, `scripts/check-boilerplate-drift.mjs`, `scripts/deploy-smoke-test.mjs`, `scripts/guard-*.mjs`, `scripts/install-git-hooks.mjs` |
+| Harness scripts | `scripts/sync-boilerplate.ts`, `scripts/check-boilerplate-drift.ts`, `scripts/deploy-smoke-test.mjs`, `scripts/guard-*.mjs`, `scripts/install-git-hooks.ts` |
 | Hooks & tests | `.githooks/**`, `vitest.config.mts`, `vitest.setup.ts`, `tests/int/*.int.spec.ts`, `tests/fixtures/guard/**` |
 
 ### Merge-keep

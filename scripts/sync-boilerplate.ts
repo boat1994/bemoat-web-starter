@@ -14,11 +14,14 @@ import {
   createResultEnvelopeV1,
 } from './cli/command-result.ts'
 import { assertManagedRuntimeDeliveryClosure } from './guard-harness-contract.ts'
-import { parseApplyBuildContract, parseSyncMode } from './boilerplate/config.mjs'
+import { parseApplyBuildContract, parseSyncMode } from './boilerplate/config.ts'
 import {
   createBoilerplateSyncWorkflow,
   getSuggestedNextCommands,
-} from './boilerplate/workflow.mjs'
+} from './boilerplate/workflow.ts'
+import type { ParsedInvocation } from './cli/command-invocation.ts'
+import type { CliClassification } from './cli/command-result.ts'
+import type { SyncResult } from './boilerplate/types.ts'
 
 export {
   SYNC_MODES,
@@ -27,7 +30,7 @@ export {
   parseApplyBuildContract,
   parseSyncMode,
   readSourceSyncManifest,
-} from './boilerplate/config.mjs'
+} from './boilerplate/config.ts'
 export {
   buildContractFilePaths,
   buildContractPackageScripts,
@@ -42,26 +45,28 @@ export {
   suggestedPackageScripts,
   suggestedPackageSections,
   syncManifestPath,
-} from './boilerplate/inventory.mjs'
+} from './boilerplate/inventory.ts'
 export {
-  applyBuildContractFiles,
   applyBuildContractScripts,
   applyManagedPackageScripts,
   assertExactManagedPackageScripts,
-  assertToolchainContract,
   buildPackageSyncProposal,
+  formatPackageSyncProposal,
+  syncPackageManifest,
+} from './boilerplate/package.ts'
+export {
+  applyBuildContractFiles,
+  assertToolchainContract,
   buildSyncMetadata,
   copyManagedPath,
   copySeedOnlyPath,
-  formatPackageSyncProposal,
   isFirstToolchainBootstrap,
   mergeGitignoreKeepTarget,
   mergeKeepPath,
   normalizeGitignoreLine,
   runToolchainPreflight,
-  syncPackageManifest,
   syncPathsFromSource,
-} from './boilerplate/filesystem.mjs'
+} from './boilerplate/filesystem.ts'
 export {
   commitSyncedChanges,
   commitValidatedSyncChanges,
@@ -69,8 +74,23 @@ export {
   restoreStashIfNeeded,
   stashWorkingTreeIfNeeded,
   syncCommitPaths,
-} from './boilerplate/git.mjs'
+} from './boilerplate/git.ts'
 export { getSuggestedNextCommands }
+
+interface RuntimeDetails {
+  argument: string | null
+  reason: string
+  legacy_output?: string[]
+  cleanup_error?: string
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function isCliClassification(value: unknown): value is CliClassification {
+  return typeof value === 'string' && Object.hasOwn(CLI_EXIT_CODES, value)
+}
 
 const repo = process.env.BEMOAT_BOILERPLATE_REPO || 'boat1994/bemoat-web-starter'
 const ref = process.env.BEMOAT_BOILERPLATE_REF || 'main'
@@ -78,7 +98,7 @@ const targetRoot = process.cwd()
 const tempRoot = resolve(targetRoot, '.bemoat-sync-tmp')
 const sourceRoot = resolve(tempRoot, 'source')
 
-export function isDirectExecution() {
+export function isDirectExecution(): boolean {
   const entrypoint = process.argv[1]
 
   if (!entrypoint) return false
@@ -86,7 +106,7 @@ export function isDirectExecution() {
   return import.meta.url === pathToFileURL(resolve(entrypoint)).href
 }
 
-function renderHelp(invocation) {
+function renderHelp(invocation: Extract<ParsedInvocation, { mode: 'help' }>): void {
   if (invocation.format === 'json') {
     process.stdout.write(`${JSON.stringify(createHelpEnvelopeV1(invocation.contract))}\n`)
     return
@@ -95,7 +115,10 @@ function renderHelp(invocation) {
   process.stdout.write(formatTextHelp(invocation.contract))
 }
 
-function handleInvocationError(error, { command, format }) {
+function handleInvocationError(
+  error: unknown,
+  { command, format }: { command: string; format: 'text' | 'json' },
+): boolean {
   if (!(error instanceof CliInvocationError)) return false
 
   renderRuntimeError({ command, format, error })
@@ -116,29 +139,27 @@ function resolveSyncCommand() {
   return resolveCommandIdentity({
     fallback: 'bemoat:boilerplate:sync',
     env,
-    entrypoint: 'scripts/sync-boilerplate.mjs',
+    entrypoint: 'scripts/sync-boilerplate.ts',
   })
 }
 
-function runtimeClassification(error) {
+function runtimeClassification(error: unknown): CliClassification | 'INTERNAL_ERROR' {
   if (
-    error &&
-    typeof error === 'object' &&
-    typeof error.classification === 'string' &&
-    Object.hasOwn(CLI_EXIT_CODES, error.classification)
+    isRecord(error) &&
+    isCliClassification(error['classification'])
   ) {
-    return error.classification
+    return error['classification']
   }
 
   const reason = error instanceof Error ? error.message : String(error)
   const prefix = reason.match(/^([A-Z_]+):/)
-  if (prefix && Object.hasOwn(CLI_EXIT_CODES, prefix[1])) return prefix[1]
+  if (prefix && isCliClassification(prefix[1])) return prefix[1]
 
   return 'INTERNAL_ERROR'
 }
 
-function runtimeDetails(error) {
-  const details = error instanceof CliInvocationError
+function runtimeDetails(error: unknown): RuntimeDetails {
+  const details: RuntimeDetails = error instanceof CliInvocationError
     ? {
       argument: error.details.argument,
       reason: error.details.reason,
@@ -148,25 +169,32 @@ function runtimeDetails(error) {
       reason: error instanceof Error ? error.message : String(error),
     }
 
-  if (error && typeof error === 'object') {
-    if (Array.isArray(error.legacyOutput)) {
-      details.legacy_output = error.legacyOutput
+  if (isRecord(error)) {
+    if (Array.isArray(error['legacyOutput'])) {
+      details.legacy_output = error['legacyOutput'].filter((line): line is string => typeof line === 'string')
     }
-    if (typeof error.cleanupError === 'string') {
-      details.cleanup_error = error.cleanupError
+    if (typeof error['cleanupError'] === 'string') {
+      details.cleanup_error = error['cleanupError']
     }
   }
 
   return details
 }
 
-function renderRuntimeError({ command, format, error }) {
+function renderRuntimeError({
+  command,
+  format,
+  error,
+}: {
+  command: string
+  format: 'text' | 'json'
+  error: unknown
+}): void {
   const classification = runtimeClassification(error)
   const details = runtimeDetails(error)
   const mutationPerformed = Boolean(
-    error &&
-    typeof error === 'object' &&
-    error.mutationPerformed === true,
+    isRecord(error) &&
+    error['mutationPerformed'] === true,
   )
 
   if (format === 'json' && command) {
@@ -192,12 +220,20 @@ function renderRuntimeError({ command, format, error }) {
   process.exitCode = classificationExitCode(classification)
 }
 
-function renderSyncResult({ command, format, result }) {
+function renderSyncResult({
+  command,
+  format,
+  result,
+}: {
+  command: string
+  format: 'text' | 'json'
+  result: SyncResult
+}): void {
   const classification = result.mutationPerformed
     ? 'SUCCESS'
     : 'NO_OP_IDENTICAL_RETRY'
   const outcome = result.mutationPerformed ? 'SUCCESS' : 'NO_OP'
-  const nextAction = result.mutationPerformed
+  const nextAction: { type: 'COMPLETE'; command: null; reason: string } = result.mutationPerformed
     ? {
       type: 'COMPLETE',
       command: null,
@@ -243,8 +279,8 @@ function renderSyncResult({ command, format, result }) {
 }
 
 function main() {
-  let command
-  let invocation
+  let command: string | undefined
+  let invocation: ParsedInvocation | undefined
 
   try {
     command = resolveSyncCommand()

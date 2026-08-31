@@ -14,7 +14,7 @@ A vague "sync everything reusable" policy causes data loss and merge conflicts.
 
 Harness sync is **narrow and explicit**:
 
-1. **List-driven paths** — Only paths in `managedPaths`, `mergeKeepPaths`, and (in full mode) `seedOnlyPaths` in `scripts/sync-boilerplate.mjs` are touched. New harness files must be added to these lists and covered by drift/sync tests.
+1. **List-driven paths** — Only paths in `managedPaths`, `mergeKeepPaths`, and (in full mode) `seedOnlyPaths` in `scripts/sync-boilerplate.ts` are touched. New harness files must be added to these lists and covered by drift/sync tests.
 
 2. **Default `harness-only` mode** — Syncs rails (agent docs, guards, CI, harness tests) and **skips** starter app modules (`src/collections`, `src/app/(frontend)`, `payload.config.ts`, etc.). Use `--full` only when seeding missing starter files in new projects.
 

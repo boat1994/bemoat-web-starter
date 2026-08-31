@@ -22,7 +22,7 @@ pnpm run boilerplate:sync -- --harness-only    # apply rails
 
 CLI flags beat `BEMOAT_SYNC_MODE`. Pin starter ref with `BEMOAT_BOILERPLATE_REF` for production syncs — see [releases.md](../releases.md).
 
-## Path lists (in `scripts/sync-boilerplate.mjs`)
+## Path lists (in `scripts/sync-boilerplate.ts`)
 
 | List | Behavior |
 |------|----------|

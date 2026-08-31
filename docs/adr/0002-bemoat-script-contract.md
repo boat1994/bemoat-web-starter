@@ -33,7 +33,7 @@ Raw scripts (`lint`, `typecheck`, `build`, `deploy`, `check`, `guard:safety`, et
 
 ### Negative
 
-- Maintainers must add new child-facing scripts under `bemoat:*` and update `managedPackageScripts` in `scripts/sync-boilerplate.mjs`.
+- Maintainers must add new child-facing scripts under `bemoat:*` and update `managedPackageScripts` in `scripts/sync-boilerplate.ts`.
 - Child projects that want lint/typecheck in CI must wire it themselves — sync does not add non-namespaced scripts automatically.
 
 ## Open questions

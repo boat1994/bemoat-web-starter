@@ -26,8 +26,8 @@ const ESSENTIAL_MANAGED_HARNESS_PATHS = [
   'scripts/check-branch-safety.sh',
   'scripts/guard-pack.ts',
   'scripts/guard-harness-contract.ts',
-  'scripts/sync-boilerplate.mjs',
-  'scripts/check-boilerplate-drift.mjs',
+  'scripts/sync-boilerplate.ts',
+  'scripts/check-boilerplate-drift.ts',
   'vitest.config.mts',
   'docs/workflow',
   'docs/harness-sync-contract.md',
@@ -68,7 +68,7 @@ describe('starter acceptance suite v1', () => {
     })
 
     it('lists required scripts in managedPackageScripts for boilerplate sync', async () => {
-      const syncMod = await import('../../scripts/sync-boilerplate.mjs')
+      const syncMod = await import('../../scripts/sync-boilerplate.ts')
 
       for (const scriptName of REQUIRED_CHILD_BEMOAT_SCRIPTS) {
         expect(syncMod.managedPackageScripts).toContain(scriptName)
@@ -169,7 +169,7 @@ describe('starter acceptance suite v1', () => {
 
   describe('simulated child project minimal harness path', () => {
     it('adds missing bemoat:* scripts and passes harness contract on fixture CI/hooks', async () => {
-      const syncMod = await import('../../scripts/sync-boilerplate.mjs')
+      const syncMod = await import('../../scripts/sync-boilerplate.ts')
       const harness = await import('../../scripts/guard-harness-contract.ts')
 
       rmSync(tempChildRoot, { recursive: true, force: true })
@@ -201,7 +201,7 @@ describe('starter acceptance suite v1', () => {
     })
 
     it('copies managed harness files in harness-only sync without seeding product code', async () => {
-      const syncMod = await import('../../scripts/sync-boilerplate.mjs')
+      const syncMod = await import('../../scripts/sync-boilerplate.ts')
 
       rmSync(tempChildRoot, { recursive: true, force: true })
       mkdirSync(join(tempChildRoot, 'src/collections'), { recursive: true })
@@ -226,7 +226,7 @@ describe('starter acceptance suite v1', () => {
 
   describe('sync boundary contracts', () => {
     it('includes essential harness paths in managedPaths but not seed-only or child-owned paths', async () => {
-      const syncMod = await import('../../scripts/sync-boilerplate.mjs')
+      const syncMod = await import('../../scripts/sync-boilerplate.ts')
 
       for (const path of ESSENTIAL_MANAGED_HARNESS_PATHS) {
         expect(syncMod.managedPaths, `managedPaths missing ${path}`).toContain(path)
@@ -245,7 +245,7 @@ describe('starter acceptance suite v1', () => {
     })
 
     it('syncs acceptance suite files as shared harness coverage', async () => {
-      const syncMod = await import('../../scripts/sync-boilerplate.mjs')
+      const syncMod = await import('../../scripts/sync-boilerplate.ts')
 
       expect(syncMod.managedPaths).toContain('tests/int/starter-acceptance.int.spec.ts')
       expect(syncMod.managedPaths).toContain('tests/fixtures/acceptance')

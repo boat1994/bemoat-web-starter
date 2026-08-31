@@ -88,7 +88,7 @@ describe('harness contract guard', () => {
   })
 
   it('is listed in managedPaths for boilerplate sync', async () => {
-    const syncMod = await import('../../scripts/sync-boilerplate.mjs')
+    const syncMod = await import('../../scripts/sync-boilerplate.ts')
 
     expect(syncMod.managedPaths).toContain('scripts/check-branch-safety.sh')
     expect(syncMod.managedPaths).toContain('scripts/guard-harness-contract.ts')
@@ -119,7 +119,7 @@ describe('harness contract guard on disk', () => {
 describe('managed runtime delivery closure', () => {
   it('passes the live starter managed runtime closure', async () => {
     const guardMod = await import('../../scripts/guard-harness-contract.ts')
-    const syncMod = await import('../../scripts/sync-boilerplate.mjs')
+    const syncMod = await import('../../scripts/sync-boilerplate.ts')
 
     const violations = guardMod.scanManagedRuntimeDeliveryClosure({
       root: process.cwd(),

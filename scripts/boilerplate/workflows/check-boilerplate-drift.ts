@@ -3,22 +3,33 @@ import { existsSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 
 import {
-  buildPackageSyncProposal,
   expandSeedOnlyFiles,
-  formatPackageSyncProposal,
   listPathFiles,
   managedPaths,
-  mergeGitignoreKeepTarget,
   mergeKeepPaths,
   seedOnlyPaths,
-  SYNC_MODES,
-} from '../../sync-boilerplate.mjs'
+} from '../inventory.ts'
+import { SYNC_MODES } from '../config.ts'
+import { mergeGitignoreKeepTarget } from '../filesystem.ts'
+import { buildPackageSyncProposal, formatPackageSyncProposal } from '../package.ts'
+import type {
+  JsonObject,
+  PackageJson,
+  PackageSyncProposal,
+  SyncMode,
+} from '../types.ts'
 
 const repo = process.env.BEMOAT_BOILERPLATE_REPO || 'boat1994/bemoat-web-starter'
 const ref = process.env.BEMOAT_BOILERPLATE_REF || 'main'
-
-function readJSON(path) {
-  return JSON.parse(readFileSync(path, 'utf8'))
+function readJSON(path: string): PackageJson {
+  const parsed: unknown = JSON.parse(readFileSync(path, 'utf8'))
+  if (!isJsonObject(parsed)) {
+    throw new TypeError(`Expected a JSON object in ${path}`)
+  }
+  return parsed
+}
+function isJsonObject(value: unknown): value is PackageJson {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 /**
@@ -26,16 +37,15 @@ function readJSON(path) {
  * Comment markers are recognized only outside quoted strings.
  * Structural trailing commas are removed only outside quoted strings.
  */
-export function stripJsoncComments(content) {
+export function stripJsoncComments(content: string): string {
   let output = ''
   let index = 0
   let inString = false
   let escaped = false
 
-  const isJsonWhitespace = (char) =>
+  const isJsonWhitespace = (char: string): boolean =>
     char === ' ' || char === '\t' || char === '\n' || char === '\r'
-
-  const skipCommentAt = (startIndex) => {
+  const skipCommentAt = (startIndex: number): number | null => {
     if (content[startIndex] !== '/') return null
     const next = content[startIndex + 1]
     if (next === '/') {
@@ -57,8 +67,7 @@ export function stripJsoncComments(content) {
     }
     return null
   }
-
-  const nextStructuralIndex = (fromIndex) => {
+  const nextStructuralIndex = (fromIndex: number): number => {
     let cursor = fromIndex
     while (cursor < content.length) {
       const char = content[cursor]
@@ -75,7 +84,6 @@ export function stripJsoncComments(content) {
     }
     return cursor
   }
-
   while (index < content.length) {
     const char = content[index]
     const next = content[index + 1]
@@ -92,24 +100,24 @@ export function stripJsoncComments(content) {
       index += 1
       continue
     }
-
     if (char === '"') {
       inString = true
       output += char
       index += 1
       continue
     }
-
     if (char === '/' && next === '/') {
-      index = skipCommentAt(index)
+      const commentEnd = skipCommentAt(index)
+      if (commentEnd === null) throw new SyntaxError(`Invalid line comment at offset ${index}`)
+      index = commentEnd
       continue
     }
-
     if (char === '/' && next === '*') {
-      index = skipCommentAt(index)
+      const commentEnd = skipCommentAt(index)
+      if (commentEnd === null) throw new SyntaxError(`Invalid block comment at offset ${index}`)
+      index = commentEnd
       continue
     }
-
     if (char === ',') {
       const structuralIndex = nextStructuralIndex(index + 1)
       const structural = content[structuralIndex]
@@ -125,22 +133,23 @@ export function stripJsoncComments(content) {
     output += char
     index += 1
   }
-
   return output
 }
 
-function parseJsonc(content) {
-  return JSON.parse(stripJsoncComments(content))
+function parseJsonc(content: string): JsonObject {
+  const parsed: unknown = JSON.parse(stripJsoncComments(content))
+  if (!isJsonObject(parsed)) {
+    throw new TypeError('Expected a JSON object')
+  }
+  return parsed
 }
-
-function digestFile(path) {
+function digestFile(path: string): string {
   return createHash('sha256').update(readFileSync(path)).digest('hex')
 }
 
-function digestPath(root, relativePath) {
+function digestPath(root: string, relativePath: string): string | null {
   const fullPath = join(root, relativePath)
   if (!existsSync(fullPath)) return null
-
   const stat = statSync(fullPath)
   if (!stat.isDirectory()) return digestFile(fullPath)
 
@@ -149,10 +158,12 @@ function digestPath(root, relativePath) {
     .join('\n')
 }
 
-function getPackageProposalReport(source, target) {
+function getPackageProposalReport(source: string, target: string): {
+  proposal: PackageSyncProposal
+  markdown: string
+} | null {
   const sourcePackagePath = join(source, 'package.json')
   const targetPackagePath = join(target, 'package.json')
-
   if (!existsSync(sourcePackagePath) || !existsSync(targetPackagePath)) return null
 
   const sourcePackage = readJSON(sourcePackagePath)
@@ -175,10 +186,18 @@ export function compareBoilerplateDrift({
   sourceRoot: source,
   targetRoot: target,
   paths = managedPaths,
-}) {
-  const missing = []
-  const changed = []
-  const identical = []
+}: {
+  sourceRoot: string
+  targetRoot: string
+  paths?: string[]
+}): {
+  missing: string[]
+  changed: string[]
+  identical: string[]
+} {
+  const missing: string[] = []
+  const changed: string[] = []
+  const identical: string[] = []
 
   for (const relativePath of paths) {
     const sourcePath = join(source, relativePath)
@@ -192,7 +211,6 @@ export function compareBoilerplateDrift({
 
     const sourceDigest = digestPath(source, relativePath)
     const targetDigest = digestPath(target, relativePath)
-
     if (sourceDigest === targetDigest) {
       identical.push(relativePath)
     } else {
@@ -203,28 +221,40 @@ export function compareBoilerplateDrift({
   return { missing, changed, identical }
 }
 
-export function comparePackageProposalDrift({ sourceRoot: source, targetRoot: target }) {
+export function comparePackageProposalDrift({ sourceRoot: source, targetRoot: target }: {
+  sourceRoot: string
+  targetRoot: string
+}): { proposal: PackageSyncProposal; markdown: string } | null {
   return getPackageProposalReport(source, target)
 }
 
-export function compareToolchainContractDrift({ sourceRoot: source, targetRoot: target }) {
+export function compareToolchainContractDrift({ sourceRoot: source, targetRoot: target }: {
+  sourceRoot: string
+  targetRoot: string
+}): string[] {
   const contractPath = join(source, '.bemoat/toolchain-contract.json')
   const targetPackagePath = join(target, 'package.json')
   const targetConfigPath = join(target, 'tsconfig.json')
   if (!existsSync(contractPath) || !existsSync(targetPackagePath) || !existsSync(targetConfigPath)) return []
-
   const contract = readJSON(contractPath)
   const targetPackage = readJSON(targetPackagePath)
   const targetConfig = parseJsonc(readFileSync(targetConfigPath, 'utf8'))
-  const drift = []
+  const drift: string[] = []
 
-  if (targetPackage.devDependencies?.typescript !== contract.typescript) {
-    drift.push(`package.json TypeScript must pin ${contract.typescript}`)
+  const contractTypeScript = contract['typescript']
+  if (typeof contractTypeScript !== 'string') {
+    throw new TypeError('Toolchain contract must define a TypeScript version')
+  }
+  if (targetPackage.devDependencies?.typescript !== contractTypeScript) {
+    drift.push(`package.json TypeScript must pin ${contractTypeScript}`)
   }
   if (targetPackage.scripts?.['bemoat:typecheck'] !== 'node scripts/bemoat-typecheck.ts') {
     drift.push('package.json bemoat:typecheck must match the managed toolchain contract')
   }
-  if (targetConfig.compilerOptions?.strict !== true || targetConfig.compilerOptions?.strictNullChecks === false) {
+  const compilerOptions = isJsonObject(targetConfig['compilerOptions'])
+    ? targetConfig['compilerOptions']
+    : {}
+  if (compilerOptions['strict'] !== true || compilerOptions['strictNullChecks'] === false) {
     drift.push('tsconfig.json must preserve strict mode and effective strictNullChecks')
   }
   return drift
@@ -234,15 +264,22 @@ export function compareSeedOnlyDrift({
   sourceRoot: source,
   targetRoot: target,
   paths = seedOnlyPaths,
-}) {
-  const missingSeed = []
-  const customized = []
-  const identical = []
+}: {
+  sourceRoot: string
+  targetRoot: string
+  paths?: string[]
+}): {
+  missingSeed: string[]
+  customized: string[]
+  identical: string[]
+} {
+  const missingSeed: string[] = []
+  const customized: string[] = []
+  const identical: string[] = []
 
   for (const filePath of expandSeedOnlyFiles(source, paths)) {
     const sourceFile = join(source, filePath)
     const targetFile = join(target, filePath)
-
     if (!existsSync(sourceFile)) continue
 
     if (!existsSync(targetFile)) {
@@ -264,10 +301,18 @@ export function compareMergeKeepDrift({
   sourceRoot: source,
   targetRoot: target,
   paths = mergeKeepPaths,
-}) {
-  const missing = []
-  const changed = []
-  const identical = []
+}: {
+  sourceRoot: string
+  targetRoot: string
+  paths?: string[]
+}): {
+  missing: string[]
+  changed: string[]
+  identical: string[]
+} {
+  const missing: string[] = []
+  const changed: string[] = []
+  const identical: string[] = []
 
   for (const relativePath of paths) {
     const sourcePath = join(source, relativePath)
@@ -297,7 +342,11 @@ export function compareBoilerplateDriftByMode({
   sourceRoot: source,
   targetRoot: target,
   mode = SYNC_MODES.HARNESS_ONLY,
-}) {
+}: {
+  sourceRoot: string
+  targetRoot: string
+  mode?: SyncMode
+}): DriftReport {
   const managed = compareBoilerplateDrift({ sourceRoot: source, targetRoot: target, paths: managedPaths })
   const mergeKeep = compareMergeKeepDrift({ sourceRoot: source, targetRoot: target, paths: mergeKeepPaths })
   const packageProposal = comparePackageProposalDrift({ sourceRoot: source, targetRoot: target })
@@ -310,15 +359,40 @@ export function compareBoilerplateDriftByMode({
   return { managed, seed, mergeKeep, packageProposal, toolchain, syncMode: mode, seedOnlyPathsSkipped }
 }
 
-export function compareFullBoilerplateDrift({ sourceRoot: source, targetRoot: target, mode = SYNC_MODES.FULL }) {
+export function compareFullBoilerplateDrift({
+  sourceRoot: source,
+  targetRoot: target,
+  mode = SYNC_MODES.FULL,
+}: {
+  sourceRoot: string
+  targetRoot: string
+  mode?: SyncMode
+}): DriftReport {
   return compareBoilerplateDriftByMode({ sourceRoot: source, targetRoot: target, mode })
 }
 
-export function getDriftExitCode(report) {
+interface DriftReport {
+  managed: { missing: string[]; changed: string[]; identical: string[] }
+  seed: { missingSeed: string[]; customized: string[]; identical: string[]; skipped: boolean }
+  mergeKeep: { missing: string[]; changed: string[]; identical: string[] }
+  packageProposal: { proposal: PackageSyncProposal; markdown: string } | null
+  toolchain: string[]
+  syncMode: SyncMode
+  seedOnlyPathsSkipped: boolean
+}
+
+export function getDriftExitCode(report: {
+  managed: { missing: string[]; changed: string[]; identical?: string[] }
+  seed: { missingSeed: string[]; customized?: string[]; identical?: string[]; skipped?: boolean }
+  mergeKeep: { missing: string[]; changed: string[]; identical?: string[] }
+  packageProposal?: unknown
+  toolchain?: string[]
+  seedOnlyPathsSkipped?: boolean
+}): number {
   const hasManagedDrift = report.managed.missing.length > 0 || report.managed.changed.length > 0
   const hasMissingSeed = !report.seedOnlyPathsSkipped && report.seed.missingSeed.length > 0
   const hasMergeKeepDrift = report.mergeKeep.missing.length > 0 || report.mergeKeep.changed.length > 0
-  const hasToolchainDrift = report.toolchain?.length > 0
+  const hasToolchainDrift = (report.toolchain?.length ?? 0) > 0
 
   if (hasManagedDrift || hasMissingSeed || hasMergeKeepDrift || hasToolchainDrift) return 1
   return 0

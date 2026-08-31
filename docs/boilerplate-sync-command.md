@@ -97,8 +97,8 @@ Starter modules are **not** harness. Use `harness-only` when the child project a
 - `.cursor/rules/*` workflow instructions and Cursor rule files
 - `.github/workflows/ci.yml`, PR template, and agent issue template (child-safe CI: `bemoat:guard:safety`, `bemoat:test:int` only)
 - `docs/agent-loop/*`, `docs/hardening.md`, `docs/releases.md`, `docs/deploy-smoke-test.md`, `docs/cloudflare-environments.md`, `docs/schema-evolution.md`
-- `scripts/sync-boilerplate.mjs`, `scripts/check-boilerplate-drift.mjs`, `scripts/deploy-smoke-test.mjs`
-- `scripts/guards/repo-safety.ts`, `scripts/guard-cloudflare-env.ts`, `scripts/install-git-hooks.mjs`
+- `scripts/sync-boilerplate.ts`, `scripts/check-boilerplate-drift.ts`, `scripts/deploy-smoke-test.mjs`
+- `scripts/guards/repo-safety.ts`, `scripts/guard-cloudflare-env.ts`, `scripts/install-git-hooks.ts`
 - `.githooks/pre-commit` and `.githooks/pre-push` (optional local branch safety and pre-push harness)
 - `vitest.config.mts`, `vitest.setup.ts`, and shared harness tests under `tests/int/`:
   - `tests/int/api.int.spec.ts`
@@ -134,7 +134,7 @@ pnpm run bemoat:boilerplate:sync -- --harness-only --apply-build-contract
 
 Overwrites `build`, `build:next`, `build:cloudflare`, `cf:build`, `deploy:app`, and `preview` from the starter, syncs `scripts/build.mjs`, and applies `open-next.config.ts` from `buildContractFilePaths`. Use when fixing the recursive OpenNext build loop in child projects. All other non-namespaced scripts remain proposal-only.
 
-**Build contract files** (`buildContractFilePaths` in `scripts/sync-boilerplate.mjs`):
+**Build contract files** (`buildContractFilePaths` in `scripts/sync-boilerplate.ts`):
 
 | File | Why opt-in sync |
 |------|-----------------|
@@ -201,13 +201,13 @@ The sync command automatically creates a Git commit for:
 
 If local uncommitted changes already exist, the script stashes only files outside the sync-managed scope and restores them after the sync commit. Existing edits on sync-managed files are overwritten by the new sync output instead of being popped back afterward.
 
-If a child project is still using the older sync script, copy `scripts/sync-boilerplate.mjs` from the starter into that project once before rerunning sync. The older script version did not sync itself forward.
+If a child project is still using the older sync script, copy `scripts/sync-boilerplate.ts` from the starter into that project once before rerunning sync. The older script version did not sync itself forward.
 
 ### Source-driven sync manifest (one-run managed paths)
 
 After cloning the starter, sync reads **`.bemoat/boilerplate-sync-manifest.json`** from the cloned source. That static JSON file is the source-of-truth sync config for the run: `managedPaths`, `seedOnlyPaths`, `mergeKeepPaths`, and package sync lists.
 
-**Why it exists:** child projects execute their **local** `scripts/sync-boilerplate.mjs`. When the starter adds a new managed path (for example `.agents`), an older local script may not list that path yet. Without the manifest, the first sync would update the local script but would have already used the old in-memory path list, so the new path would only copy on a **second** run. Reading the manifest from the cloned starter after clone fixes that first-sync paradox: newly added managed paths apply in the same run.
+**Why it exists:** child projects execute their **local** `scripts/sync-boilerplate.ts`. When the starter adds a new managed path (for example `.agents`), an older local script may not list that path yet. Without the manifest, the first sync would update the local script but would have already used the old in-memory path list, so the new path would only copy on a **second** run. Reading the manifest from the cloned starter after clone fixes that first-sync paradox: newly added managed paths apply in the same run.
 
 If the cloned source has no manifest (very old starter ref), sync falls back to the local script constants and continues safely.
 

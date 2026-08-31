@@ -39,9 +39,9 @@
       "migration_status": "retained"
     },
     {
-      "path": "scripts/check-boilerplate-drift.mjs",
+      "path": "scripts/check-boilerplate-drift.ts",
       "facade_disposition": "composition_root",
-      "internal_destination": "scripts/boilerplate/workflows/check-boilerplate-drift.mjs",
+      "internal_destination": "scripts/boilerplate/workflows/check-boilerplate-drift.ts",
       "owning_slice": 4,
       "migration_status": "migrated"
     },
@@ -82,16 +82,16 @@
     },
 
     {
-      "path": "scripts/install-git-hooks.mjs",
+      "path": "scripts/install-git-hooks.ts",
       "facade_disposition": "tooling_entrypoint",
-      "internal_destination": "scripts/tooling/install-git-hooks.mjs",
+      "internal_destination": "scripts/tooling/install-git-hooks.ts",
       "owning_slice": 7,
       "migration_status": "retained"
     },
     {
-      "path": "scripts/sync-boilerplate.mjs",
+      "path": "scripts/sync-boilerplate.ts",
       "facade_disposition": "composition_root",
-      "internal_destination": "scripts/boilerplate/workflow.mjs",
+      "internal_destination": "scripts/boilerplate/workflow.ts",
       "owning_slice": 4,
       "migration_status": "migrated"
     }

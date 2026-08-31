@@ -42,5 +42,5 @@ New harness behavior should ship with **doc updates and int tests**, not code al
 
 ## Open questions
 
-- Add `docs/adr` to `managedPaths` in `scripts/sync-boilerplate.mjs` — **proposed** after this pack is reviewed.
+- Add `docs/adr` to `managedPaths` in `scripts/sync-boilerplate.ts` — **proposed** after this pack is reviewed.
 - Whether child-local docs (root `README.md`, product runbooks) should ever sync — **no**; root README stays child-owned per [source-of-truth.md](../agent-loop/source-of-truth.md).

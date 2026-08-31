@@ -29,7 +29,7 @@ type TierBCase = {
 const TIER_B_CASES = [
   {
     command: 'bemoat:boilerplate:check',
-    entrypoint: 'scripts/check-boilerplate-drift.mjs',
+    entrypoint: 'scripts/check-boilerplate-drift.ts',
   },
   {
     command: 'bemoat:branch:check',
@@ -334,7 +334,7 @@ function runBoilerplateCheckWithFakeClone(mode: 'success' | 'failure') {
   const fakeGit = join(binDirectory, 'git')
   const logPath = join(tmpdir(), `bemoat-fake-git-${process.pid}-${Date.now()}-${mode}.log`)
   const sentinelPath = join(targetRoot, 'target-sentinel.txt')
-  const entrypoint = resolve(process.cwd(), 'scripts/check-boilerplate-drift.mjs')
+  const entrypoint = resolve(process.cwd(), 'scripts/check-boilerplate-drift.ts')
 
   mkdirSync(binDirectory, { recursive: true })
   writeFileSync(join(targetRoot, 'package.json'), '{"name":"child-fixture"}\n', 'utf8')
@@ -351,7 +351,7 @@ function runBoilerplateCheckWithFakeClone(mode: 'success' | 'failure') {
         ...process.env,
         ...facadeEnvironment({
           command: 'bemoat:boilerplate:check',
-          entrypoint: 'scripts/check-boilerplate-drift.mjs',
+          entrypoint: 'scripts/check-boilerplate-drift.ts',
         }),
         BEMOAT_FAKE_GIT_LOG: logPath,
         BEMOAT_SYNC_MODE: 'harness-only',

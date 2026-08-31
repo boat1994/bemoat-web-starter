@@ -111,7 +111,7 @@ describe('toolchain contract', () => {
   })
 
   it('treats a child TypeScript mismatch as blocking sync drift', async () => {
-    const drift = await import('../../scripts/check-boilerplate-drift.mjs')
+    const drift = await import('../../scripts/check-boilerplate-drift.ts')
     const report = {
       managed: { missing: [] as string[], changed: [] as string[] },
       seed: { missingSeed: [] as string[] },
@@ -123,7 +123,7 @@ describe('toolchain contract', () => {
   })
 
   it('treats a divergent public bemoat:typecheck script as blocking sync drift', async () => {
-    const drift = await import('../../scripts/check-boilerplate-drift.mjs')
+    const drift = await import('../../scripts/check-boilerplate-drift.ts')
     const fixtureRoot = resolve(process.cwd(), '.tmp-toolchain-script-drift')
     const sourceRoot = resolve(fixtureRoot, 'source')
     const targetRoot = resolve(fixtureRoot, 'target')
@@ -145,7 +145,7 @@ describe('toolchain contract', () => {
   })
 
   it('preserves quoted comment-like sequences while stripping real JSONC comments', async () => {
-    const drift = await import('../../scripts/check-boilerplate-drift.mjs')
+    const drift = await import('../../scripts/check-boilerplate-drift.ts')
 
     const stripped = drift.stripJsoncComments(`{
   // line comment
@@ -178,7 +178,7 @@ describe('toolchain contract', () => {
   })
 
   it('parses child-shaped tsconfig path aliases during toolchain drift checks', async () => {
-    const drift = await import('../../scripts/check-boilerplate-drift.mjs')
+    const drift = await import('../../scripts/check-boilerplate-drift.ts')
     const fixtureRoot = resolve(process.cwd(), '.tmp-toolchain-jsonc-paths')
     const sourceRoot = resolve(fixtureRoot, 'source')
     const targetRoot = resolve(fixtureRoot, 'target')
@@ -208,7 +208,7 @@ describe('toolchain contract', () => {
   })
 
   it('still reports genuine toolchain drift after JSONC-safe parsing', async () => {
-    const drift = await import('../../scripts/check-boilerplate-drift.mjs')
+    const drift = await import('../../scripts/check-boilerplate-drift.ts')
     const fixtureRoot = resolve(process.cwd(), '.tmp-toolchain-jsonc-drift')
     const sourceRoot = resolve(fixtureRoot, 'source')
     const targetRoot = resolve(fixtureRoot, 'target')
@@ -237,7 +237,7 @@ describe('toolchain contract', () => {
   })
 
   it('preserves quoted trailing-comma lookalikes and removes structural trailing commas', async () => {
-    const drift = await import('../../scripts/check-boilerplate-drift.mjs')
+    const drift = await import('../../scripts/check-boilerplate-drift.ts')
 
     expect(JSON.parse(drift.stripJsoncComments('{"value": ",}"}')).value).toBe(',}')
     expect(JSON.parse(drift.stripJsoncComments('{"value": ",]"}')).value).toBe(',]')
@@ -257,7 +257,7 @@ describe('toolchain contract', () => {
   })
 
   it('rejects unterminated block comments while preserving valid JSONC', async () => {
-    const drift = await import('../../scripts/check-boilerplate-drift.mjs')
+    const drift = await import('../../scripts/check-boilerplate-drift.ts')
 
     expect(() => drift.stripJsoncComments('{"compilerOptions":{"strict":true}}/* no closing')).toThrow(SyntaxError)
     expect(() => drift.stripJsoncComments('{"compilerOptions":{"strict":true}}/* no closing')).toThrow(/unterminated block comment/i)

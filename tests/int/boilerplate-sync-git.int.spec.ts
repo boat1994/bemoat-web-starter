@@ -6,10 +6,10 @@ import { describe, expect, it } from 'vitest'
 
 describe('boilerplate sync Git lifecycle', () => {
   it('stashes scoped unrelated changes, validates before committing the ordered sync scope, then restores the stash', async () => {
-    const mod = await import('../../scripts/boilerplate/git.mjs')
+    const mod = await import('../../scripts/boilerplate/git.ts')
     const calls: string[] = []
     const targetRoot = '/tmp/bemoat-child'
-    const syncPaths = ['AGENTS.md', 'scripts/sync-boilerplate.mjs']
+    const syncPaths = ['AGENTS.md', 'scripts/sync-boilerplate.ts']
     const expectedCommitPaths = [
       ...syncPaths,
       '.bemoat-boilerplate-sync.json',
@@ -68,7 +68,7 @@ describe('boilerplate sync Git lifecycle', () => {
   })
 
   it('does not stash or commit a clean/no-op lifecycle and propagates stash restoration failures', async () => {
-    const mod = await import('../../scripts/boilerplate/git.mjs')
+    const mod = await import('../../scripts/boilerplate/git.ts')
     const calls: string[] = []
     const targetRoot = '/tmp/bemoat-child'
     const git = {
@@ -104,7 +104,7 @@ describe('boilerplate sync Git lifecycle', () => {
   })
 
   it('preserves staged-diff Git stderr for unexpected status', async () => {
-    const mod = await import('../../scripts/boilerplate/git.mjs')
+    const mod = await import('../../scripts/boilerplate/git.ts')
     const root = mkdtempSync(join(tmpdir(), 'bemoat-sync-git-diagnostic-'))
     const git = join(root, 'git')
     writeFileSync(

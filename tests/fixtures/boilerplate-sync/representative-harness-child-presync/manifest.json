@@ -7,7 +7,7 @@
     "docs/boilerplate-sync-command.md",
     "docs/mission-control/mission-control-guide.md",
     "scripts/guard-harness-contract.mjs",
-    "scripts/sync-boilerplate.mjs",
+    "scripts/sync-boilerplate.ts",
     "tests/int/boilerplate-sync.int.spec.ts",
     "tests/int/harness-contract-guard.int.spec.ts"
   ],

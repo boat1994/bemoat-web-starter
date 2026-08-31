@@ -10,21 +10,51 @@ import {
   suggestedPackageScripts,
   suggestedPackageSections,
   syncManifestPath,
-} from './inventory.mjs'
+} from './inventory.ts'
 
-export const SYNC_MODES = { HARNESS_ONLY: 'harness-only', FULL: 'full' }
+import type { SyncConfig, SyncConfigOverrides, SyncMode } from './types.ts'
 
-export function getDefaultSyncConfig() {
+export const SYNC_MODES = { HARNESS_ONLY: 'harness-only', FULL: 'full' } as const
+
+export function getDefaultSyncConfig(): SyncConfig {
   return { managedPaths, seedOnlyPaths, mergeKeepPaths, managedPackageScripts, suggestedPackageScripts, buildContractPackageScripts, buildContractFilePaths, suggestedPackageSections }
 }
 
-export function readSourceSyncManifest(sourceRootPath) {
-  const manifestFile = join(sourceRootPath, syncManifestPath)
-  if (!existsSync(manifestFile)) return null
-  return JSON.parse(readFileSync(manifestFile, 'utf8'))
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-export function getSourceSyncConfig(sourceRootPath) {
+function readStringArray(manifest: Record<string, unknown>, key: keyof SyncConfig): string[] | undefined {
+  const value = manifest[key]
+  if (!Array.isArray(value) || !value.every((item): item is string => typeof item === 'string')) return undefined
+  return value
+}
+
+export function readSourceSyncManifest(sourceRootPath: string): SyncConfigOverrides | null {
+  const manifestFile = join(sourceRootPath, syncManifestPath)
+  if (!existsSync(manifestFile)) return null
+  const parsed: unknown = JSON.parse(readFileSync(manifestFile, 'utf8'))
+  if (!isRecord(parsed)) return null
+
+  const manifest: SyncConfigOverrides = {}
+  const keys: Array<keyof SyncConfig> = [
+    'managedPaths',
+    'seedOnlyPaths',
+    'mergeKeepPaths',
+    'managedPackageScripts',
+    'suggestedPackageScripts',
+    'buildContractPackageScripts',
+    'buildContractFilePaths',
+    'suggestedPackageSections',
+  ]
+  for (const key of keys) {
+    const values = readStringArray(parsed, key)
+    if (values !== undefined) manifest[key] = values
+  }
+  return manifest
+}
+
+export function getSourceSyncConfig(sourceRootPath: string): SyncConfig {
   const manifest = readSourceSyncManifest(sourceRootPath)
   const defaults = getDefaultSyncConfig()
   return {
@@ -39,16 +69,30 @@ export function getSourceSyncConfig(sourceRootPath) {
   }
 }
 
-function hasSyncModeFlag(values, name, syntax) {
-  if (Array.isArray(values)) return values.includes(syntax)
-  return values !== null && typeof values === 'object' && values[name] === true
+function hasSyncModeFlag(
+  values: readonly string[] | Record<string, unknown>,
+  name: string,
+  syntax: string,
+): boolean {
+  if (isStringArray(values)) return values.includes(syntax)
+  if (isRecord(values)) {
+    return values[name] === true
+  }
+  return false
+}
+
+function isStringArray(value: readonly string[] | Record<string, unknown>): value is readonly string[] {
+  return Array.isArray(value)
 }
 
 /**
  * @param {string[] | Record<string, unknown>} [argv]
  * @param {NodeJS.ProcessEnv} [env]
  */
-export function parseSyncMode(argv = process.argv.slice(2), env = process.env) {
+export function parseSyncMode(
+  argv: readonly string[] | Record<string, unknown> = process.argv.slice(2),
+  env: Record<string, string | undefined> = process.env,
+): SyncMode {
   const fromEnv = env.BEMOAT_SYNC_MODE
   const harnessOnly = hasSyncModeFlag(argv, 'harness_only', '--harness-only')
   const full = hasSyncModeFlag(argv, 'full', '--full')
@@ -69,7 +113,10 @@ export function parseSyncMode(argv = process.argv.slice(2), env = process.env) {
   return mode
 }
 
-export function parseApplyBuildContract(argv = process.argv.slice(2), env = /** @type {NodeJS.ProcessEnv} */ (process.env)) {
+export function parseApplyBuildContract(
+  argv: readonly string[] | Record<string, unknown> = process.argv.slice(2),
+  env: Record<string, string | undefined> = process.env,
+): boolean {
   const fromEnv = env.BEMOAT_APPLY_BUILD_CONTRACT === '1' || env.BEMOAT_APPLY_BUILD_CONTRACT === 'true'
   const fromArgs = hasSyncModeFlag(argv, 'apply_build_contract', '--apply-build-contract')
   if (fromArgs && env.BEMOAT_APPLY_BUILD_CONTRACT === '0') console.warn('[sync] BEMOAT_APPLY_BUILD_CONTRACT=0 ignored because --apply-build-contract was passed')

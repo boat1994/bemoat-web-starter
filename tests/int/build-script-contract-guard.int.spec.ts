@@ -126,7 +126,7 @@ describe('build script contract guard', () => {
   })
 
   it('is listed in managedPaths for boilerplate sync', async () => {
-    const syncMod = await import('../../scripts/sync-boilerplate.mjs')
+    const syncMod = await import('../../scripts/sync-boilerplate.ts')
 
     expect(syncMod.managedPaths).toContain('scripts/guards/build-script-contract.ts')
     expect(syncMod.managedPaths).not.toContain('scripts/guard-build-script-contract.mjs')

@@ -14,9 +14,10 @@ import { tmpdir } from 'node:os'
 import { join, dirname, resolve, extname } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
+import type { SyncMode } from '../../scripts/boilerplate/types.ts'
 
 type BuildSyncMetadataInput = {
-  syncMode: string
+  syncMode: SyncMode
   seedOnlyPathsSkipped: boolean
   syncedManaged?: string[]
   seededFiles?: string[]
@@ -27,11 +28,11 @@ type BuildSyncMetadataInput = {
 }
 
 type BuildSyncMetadataParams = Parameters<
-  (typeof import('../../scripts/sync-boilerplate.mjs'))['buildSyncMetadata']
+  (typeof import('../../scripts/sync-boilerplate.ts'))['buildSyncMetadata']
 >[0]
 
 function buildSyncMetadataInput(input: BuildSyncMetadataInput): BuildSyncMetadataParams {
-  return input as unknown as BuildSyncMetadataParams
+  return input
 }
 
 /** Documentation paths that are starter-only and intentionally not synced. */
@@ -161,19 +162,19 @@ describe('synced harness CI and hooks', () => {
 
 describe('boilerplate sync managed paths', () => {
   it('includes repository agent instructions and editor agent rules', () => {
-    const script = readFileSync(resolve(process.cwd(), 'scripts/boilerplate/inventory.mjs'), 'utf8')
+    const script = readFileSync(resolve(process.cwd(), 'scripts/boilerplate/inventory.ts'), 'utf8')
 
     expect(script).toContain("'AGENTS.md'")
     expect(script).toContain("'ANTIGRAVITY.md'")
     expect(script).toContain("'.agents'")
     expect(script).toContain("'.cursor/rules'")
     expect(script).toContain("'.github/workflows/ci.yml'")
-    expect(script).toContain("'scripts/sync-boilerplate.mjs'")
-    expect(script).toContain("'scripts/check-boilerplate-drift.mjs'")
+    expect(script).toContain("'scripts/sync-boilerplate.ts'")
+    expect(script).toContain("'scripts/check-boilerplate-drift.ts'")
   })
 
   it('includes planning contract guard rails in managedPaths', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const mod = await import('../../scripts/sync-boilerplate.ts')
 
     const planningContractPaths = [
       'scripts/guards/planning-contract-runtime.ts',
@@ -192,7 +193,7 @@ describe('boilerplate sync managed paths', () => {
   })
 
   it('includes harness workflow rails in managedPaths and managedPackageScripts', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const mod = await import('../../scripts/sync-boilerplate.ts')
 
     const harnessPaths = [
       'ANTIGRAVITY.md',
@@ -218,7 +219,7 @@ describe('boilerplate sync managed paths', () => {
       'tsconfig.harness-strict.json',
       '.bemoat/toolchain-contract.json',
       'scripts/check-branch-safety.sh',
-      'scripts/install-git-hooks.mjs',
+      'scripts/install-git-hooks.ts',
       '.githooks',
       'vitest.config.mts',
       'vitest.setup.ts',
@@ -260,7 +261,7 @@ describe('boilerplate sync managed paths', () => {
   })
 
   it('documents starter-only docs paths outside managedPaths', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const mod = await import('../../scripts/sync-boilerplate.ts')
 
     for (const entry of STARTER_ONLY_DOCS) {
       expect(
@@ -272,7 +273,7 @@ describe('boilerplate sync managed paths', () => {
 
 
   it('syncs superpowers README and template paths while keeping docs/superpowers starter-only', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const mod = await import('../../scripts/sync-boilerplate.ts')
 
     expect(mod.managedPaths).not.toContain('docs/superpowers')
 
@@ -292,7 +293,7 @@ describe('boilerplate sync managed paths', () => {
   })
 
   it('lists every shared harness int test in managedPaths', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const mod = await import('../../scripts/sync-boilerplate.ts')
 
     const pkg = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf8'))
     if (pkg.name !== 'bemoat-web-starter') {
@@ -308,18 +309,18 @@ describe('boilerplate sync managed paths', () => {
     for (const testPath of allIntTests) {
       expect(
         mod.managedPaths,
-        `${testPath} must be listed in managedPaths (scripts/sync-boilerplate.mjs)`,
+        `${testPath} must be listed in managedPaths (scripts/sync-boilerplate.ts)`,
       ).toContain(testPath)
     }
   })
 
   it('adds a missing bemoat:* script without touching child-owned scripts', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const mod = await import('../../scripts/sync-boilerplate.ts')
 
     const sourcePackage = {
       scripts: {
         'bemoat:check': 'pnpm run bemoat:guard:safety',
-        'bemoat:boilerplate:sync': 'node scripts/sync-boilerplate.mjs',
+        'bemoat:boilerplate:sync': 'node scripts/sync-boilerplate.ts',
         build: 'pnpm run build:app',
         deploy: 'pnpm run deploy:app',
         check: 'pnpm run lint',
@@ -349,7 +350,7 @@ describe('boilerplate sync managed paths', () => {
   })
 
   it('does not overwrite an existing bemoat:* script', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const mod = await import('../../scripts/sync-boilerplate.ts')
 
     const sourcePackage = {
       scripts: {
@@ -370,7 +371,7 @@ describe('boilerplate sync managed paths', () => {
   })
 
   it('does not add missing deploy, build, or check scripts', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const mod = await import('../../scripts/sync-boilerplate.ts')
 
     const sourcePackage = {
       scripts: {
@@ -392,7 +393,7 @@ describe('boilerplate sync managed paths', () => {
   })
 
   it('does not overwrite existing deploy, build, or check scripts', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const mod = await import('../../scripts/sync-boilerplate.ts')
 
     const sourcePackage = {
       scripts: {
@@ -423,7 +424,7 @@ describe('boilerplate sync managed paths', () => {
   })
 
   it('parses --apply-build-contract from argv and BEMOAT_APPLY_BUILD_CONTRACT env', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const mod = await import('../../scripts/sync-boilerplate.ts')
 
     expect(mod.parseApplyBuildContract(['--harness-only', '--apply-build-contract'], process.env)).toBe(
       true,
@@ -443,7 +444,7 @@ describe('boilerplate sync managed paths', () => {
   })
 
   it('applies build contract scripts from starter onto a child with recursive OpenNext build', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const mod = await import('../../scripts/sync-boilerplate.ts')
     const starterPackage = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf8'))
     const childPackage = JSON.parse(
       readFileSync(
@@ -479,7 +480,7 @@ describe('boilerplate sync managed paths', () => {
   })
 
   it('does not apply build contract scripts by default during managed package sync', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const mod = await import('../../scripts/sync-boilerplate.ts')
     const childPackage = JSON.parse(
       readFileSync(
         resolve(process.cwd(), 'tests/fixtures/boilerplate-sync/child-recursive-build-package.json'),
@@ -500,7 +501,7 @@ describe('boilerplate sync managed paths', () => {
   })
 
   it('writes build contract scripts when syncPackageManifest opts in', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const mod = await import('../../scripts/sync-boilerplate.ts')
     const tempRoot = resolve(process.cwd(), '.tmp-boilerplate-sync-build-contract')
     const sourceRoot = join(tempRoot, 'source')
     const targetRoot = join(tempRoot, 'target')
@@ -547,7 +548,7 @@ describe('boilerplate sync managed paths', () => {
   })
 
   it('exports buildContractPackageScripts for the universal build wrapper contract', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const mod = await import('../../scripts/sync-boilerplate.ts')
 
     expect(mod.buildContractPackageScripts).toEqual([
       'build',
@@ -565,7 +566,7 @@ describe('boilerplate sync managed paths', () => {
   })
 
   it('does not copy open-next.config.ts during default harness path sync', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const mod = await import('../../scripts/sync-boilerplate.ts')
     const tempRoot = resolve(process.cwd(), '.tmp-boilerplate-sync-default-open-next')
     const sourceRoot = join(tempRoot, 'source')
     const targetRoot = join(tempRoot, 'target')
@@ -593,7 +594,7 @@ describe('boilerplate sync managed paths', () => {
   })
 
   it('applies open-next.config.ts when build contract sync opts in', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const mod = await import('../../scripts/sync-boilerplate.ts')
     const tempRoot = resolve(process.cwd(), '.tmp-boilerplate-sync-build-contract-files-apply')
     const sourceRoot = join(tempRoot, 'source')
     const targetRoot = join(tempRoot, 'target')
@@ -619,10 +620,9 @@ describe('boilerplate sync managed paths', () => {
   })
 
   it('records applied build contract files in sync metadata', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const mod = await import('../../scripts/sync-boilerplate.ts')
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped runtime .mjs boundary
-    const metadata = (mod.buildSyncMetadata as unknown as (input: unknown) => any)({
+    const metadata = mod.buildSyncMetadata({
       syncMode: mod.SYNC_MODES.HARNESS_ONLY,
       seedOnlyPathsSkipped: true,
       buildContractFiles: {
@@ -637,7 +637,7 @@ describe('boilerplate sync managed paths', () => {
   })
 
   it('does not mutate dependencies or devDependencies', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const mod = await import('../../scripts/sync-boilerplate.ts')
 
     const sourcePackage = {
       scripts: { 'bemoat:check': 'pnpm run bemoat:guard:safety' },
@@ -658,7 +658,7 @@ describe('boilerplate sync managed paths', () => {
   })
 
   it('reports non-namespaced script drift without mutating package.json', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const mod = await import('../../scripts/sync-boilerplate.ts')
 
     const sourcePackage = {
       scripts: {
@@ -694,7 +694,7 @@ describe('boilerplate sync managed paths', () => {
   })
 
   it('reports dependency drift without mutating package.json', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const mod = await import('../../scripts/sync-boilerplate.ts')
 
     const sourcePackage = {
       scripts: {},
@@ -730,7 +730,7 @@ describe('boilerplate sync managed paths', () => {
   })
 
   it('reports differing bemoat:* scripts in the proposal without overwriting them', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const mod = await import('../../scripts/sync-boilerplate.ts')
 
     const sourcePackage = {
       scripts: {
@@ -753,11 +753,11 @@ describe('boilerplate sync managed paths', () => {
   })
 
   it('exports managedPaths and seedOnlyPaths for drift check reuse', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const mod = await import('../../scripts/sync-boilerplate.ts')
 
     expect(mod.managedPaths).toContain('AGENTS.md')
     expect(mod.managedPaths).toContain(mod.syncManifestPath)
-    expect(mod.managedPaths).toContain('scripts/check-boilerplate-drift.mjs')
+    expect(mod.managedPaths).toContain('scripts/check-boilerplate-drift.ts')
     expect(mod.managedPaths).toContain('docs/ai/ui-skills.md')
     expect(mod.managedPaths).toContain('docs/ai/ui-execution-workflow.md')
     expect(mod.managedPaths).toContain('docs/ai/visual-qa-checklist.md')
@@ -780,9 +780,9 @@ describe('boilerplate sync managed paths', () => {
 
   it('keeps configuration and inventory seams aligned with the stable root exports', async () => {
     const [root, config, inventory] = await Promise.all([
-      import('../../scripts/sync-boilerplate.mjs'),
-      import('../../scripts/boilerplate/config.mjs'),
-      import('../../scripts/boilerplate/inventory.mjs'),
+      import('../../scripts/sync-boilerplate.ts'),
+      import('../../scripts/boilerplate/config.ts'),
+      import('../../scripts/boilerplate/inventory.ts'),
     ])
 
     expect(config.SYNC_MODES).toBe(root.SYNC_MODES)
@@ -809,7 +809,7 @@ describe('boilerplate sync managed paths', () => {
   })
 
   it('exports the sync commit scope without treating package.json as managed rails', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const mod = await import('../../scripts/sync-boilerplate.ts')
 
     expect(mod.syncCommitPaths).toContain('.bemoat-boilerplate-sync.json')
     expect(mod.syncCommitPaths).toContain(mod.packageSyncProposalPath)
@@ -821,7 +821,7 @@ describe('boilerplate sync managed paths', () => {
 
   it('stashes unrelated local changes, commits only sync-scoped files, then restores the stash', async () => {
     const calls: string[] = []
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const mod = await import('../../scripts/sync-boilerplate.ts')
 
     const git = {
       hasWorkingTreeChanges(cwd: string, excludedPaths: string[]) {
@@ -864,13 +864,13 @@ describe('boilerplate sync managed paths', () => {
     expect(statusCall).toContain('.bemoat-boilerplate-sync.json')
     expect(statusCall).toContain('.bemoat/package-sync-proposal.md')
     expect(statusCall).not.toContain('package.json')
-    expect(statusCall).toContain('scripts/sync-boilerplate.mjs')
+    expect(statusCall).toContain('scripts/sync-boilerplate.ts')
 
     const stashCall = calls.find((call) => call.startsWith(`stashPush:${targetRoot}:`))
     expect(stashCall).toContain('.bemoat-boilerplate-sync.json')
     expect(stashCall).toContain('.bemoat/package-sync-proposal.md')
     expect(stashCall).not.toContain('package.json')
-    expect(stashCall).toContain('scripts/sync-boilerplate.mjs')
+    expect(stashCall).toContain('scripts/sync-boilerplate.ts')
     expect(calls).toContain(`stashPop:${targetRoot}`)
     expect(calls).toContain(`commit:${targetRoot}:sync boilerplate from boat1994/bemoat-web-starter#main`)
 
@@ -887,7 +887,7 @@ describe('source-driven sync manifest', () => {
   const fixtureRoot = resolve(process.cwd(), '.tmp-boilerplate-sync-manifest-test')
 
   it('matches local sync constants in the starter repository', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const mod = await import('../../scripts/sync-boilerplate.ts')
     const manifest = JSON.parse(
       readFileSync(resolve(process.cwd(), mod.syncManifestPath), 'utf8'),
     )
@@ -903,7 +903,7 @@ describe('source-driven sync manifest', () => {
   })
 
   it('copies newly added managed paths from the source manifest in a single run', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const mod = await import('../../scripts/sync-boilerplate.ts')
 
     rmSync(fixtureRoot, { recursive: true, force: true })
     const sourceRoot = join(fixtureRoot, 'source')
@@ -956,8 +956,7 @@ describe('source-driven sync manifest', () => {
     expect(result.syncedManaged).toContain('.new-harness-rail')
     expect(readFileSync(join(targetRoot, '.new-harness-rail/README.md'), 'utf8')).toBe('new harness rail\n')
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped runtime .mjs boundary
-    const metadata = (mod.buildSyncMetadata as unknown as (input: unknown) => any)({
+    const metadata = mod.buildSyncMetadata({
       syncMode: mod.SYNC_MODES.HARNESS_ONLY,
       seedOnlyPathsSkipped: true,
       syncedManaged: result.syncedManaged,
@@ -971,7 +970,7 @@ describe('source-driven sync manifest', () => {
   })
 
   it('falls back to local constants when the source manifest is missing', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const mod = await import('../../scripts/sync-boilerplate.ts')
 
     rmSync(fixtureRoot, { recursive: true, force: true })
     const sourceRoot = join(fixtureRoot, 'source')
@@ -1008,7 +1007,7 @@ describe('boilerplate sync copy behavior', () => {
   const fixtureRoot = resolve(process.cwd(), '.tmp-boilerplate-sync-test')
 
   it('overwrites an existing managed file', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const mod = await import('../../scripts/sync-boilerplate.ts')
 
     rmSync(fixtureRoot, { recursive: true, force: true })
     mkdirSync(join(fixtureRoot, 'source'), { recursive: true })
@@ -1026,7 +1025,7 @@ describe('boilerplate sync copy behavior', () => {
   })
 
   it('overwrites superpowers template files during managed path sync', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const mod = await import('../../scripts/sync-boilerplate.ts')
 
     rmSync(fixtureRoot, { recursive: true, force: true })
     mkdirSync(join(fixtureRoot, 'source/docs/superpowers/specs/_templates'), { recursive: true })
@@ -1056,7 +1055,7 @@ describe('boilerplate sync copy behavior', () => {
   })
 
   it('copies a missing seed-only file', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const mod = await import('../../scripts/sync-boilerplate.ts')
 
     rmSync(fixtureRoot, { recursive: true, force: true })
     mkdirSync(join(fixtureRoot, 'source/src/collections'), { recursive: true })
@@ -1076,7 +1075,7 @@ describe('boilerplate sync copy behavior', () => {
   })
 
   it('does not overwrite an existing customized seed-only file', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const mod = await import('../../scripts/sync-boilerplate.ts')
 
     rmSync(fixtureRoot, { recursive: true, force: true })
     mkdirSync(join(fixtureRoot, 'source/src/components'), { recursive: true })
@@ -1097,7 +1096,7 @@ describe('boilerplate sync copy behavior', () => {
   })
 
   it('merges .gitignore while keeping existing child ignore rules', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const mod = await import('../../scripts/sync-boilerplate.ts')
 
     rmSync(fixtureRoot, { recursive: true, force: true })
     mkdirSync(join(fixtureRoot, 'source'), { recursive: true })
@@ -1125,7 +1124,7 @@ describe('boilerplate sync copy behavior', () => {
   })
 
   it('does not rewrite .gitignore when starter rules are already present', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const mod = await import('../../scripts/sync-boilerplate.ts')
 
     rmSync(fixtureRoot, { recursive: true, force: true })
     mkdirSync(join(fixtureRoot, 'source'), { recursive: true })
@@ -1144,7 +1143,7 @@ describe('boilerplate sync copy behavior', () => {
   })
 
   it('writes a package sync proposal and only adds missing bemoat:* scripts', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const mod = await import('../../scripts/sync-boilerplate.ts')
 
     rmSync(fixtureRoot, { recursive: true, force: true })
     mkdirSync(join(fixtureRoot, 'source'), { recursive: true })
@@ -1201,7 +1200,7 @@ describe('boilerplate sync copy behavior', () => {
   })
 
   it('fails closed when bemoat:typecheck differs from the managed public contract', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const mod = await import('../../scripts/sync-boilerplate.ts')
 
     expect(() => mod.assertExactManagedPackageScripts(
       { scripts: { 'bemoat:typecheck': 'node scripts/bemoat-typecheck.ts' } },
@@ -1210,7 +1209,7 @@ describe('boilerplate sync copy behavior', () => {
   })
 
   it('fails before package mutation when bemoat:typecheck diverges', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const mod = await import('../../scripts/sync-boilerplate.ts')
     const sourceRoot = join(fixtureRoot, 'exact-source')
     const targetRoot = join(fixtureRoot, 'exact-target')
 
@@ -1228,7 +1227,7 @@ describe('boilerplate sync copy behavior', () => {
   })
 
   it('allows first-sync bootstrap to reach copied-rail validation but rejects partial rails before mutation', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const mod = await import('../../scripts/sync-boilerplate.ts')
     const targetRoot = join(fixtureRoot, 'bootstrap-target')
 
     rmSync(fixtureRoot, { recursive: true, force: true })
@@ -1256,7 +1255,7 @@ describe('boilerplate sync copy behavior', () => {
   })
 
   it('does not commit synced rails when post-copy validation fails', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const mod = await import('../../scripts/sync-boilerplate.ts')
     const calls: string[] = []
     const git = {
       hasWorkingTreeChanges() { return false },
@@ -1279,31 +1278,31 @@ describe('boilerplate sync modes', () => {
   const fixtureRoot = resolve(process.cwd(), '.tmp-boilerplate-sync-mode-test')
 
   it('defaults parseSyncMode to harness-only', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const mod = await import('../../scripts/sync-boilerplate.ts')
 
     expect(mod.parseSyncMode([], {} as NodeJS.ProcessEnv)).toBe(mod.SYNC_MODES.HARNESS_ONLY)
   })
 
   it('parses --full and --harness-only CLI flags', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const mod = await import('../../scripts/sync-boilerplate.ts')
 
     expect(mod.parseSyncMode(['--full'], {} as NodeJS.ProcessEnv)).toBe(mod.SYNC_MODES.FULL)
     expect(mod.parseSyncMode(['--harness-only'], {} as NodeJS.ProcessEnv)).toBe(mod.SYNC_MODES.HARNESS_ONLY)
   })
 
   it('prefers CLI flags over BEMOAT_SYNC_MODE', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const mod = await import('../../scripts/sync-boilerplate.ts')
 
     expect(
       mod.parseSyncMode(
         ['--full'],
-        { BEMOAT_SYNC_MODE: 'harness-only' } as unknown as NodeJS.ProcessEnv,
+        { BEMOAT_SYNC_MODE: 'harness-only' },
       ),
     ).toBe(mod.SYNC_MODES.FULL)
   })
 
   it('rejects simultaneous normalized sync mode flags', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const mod = await import('../../scripts/sync-boilerplate.ts')
 
     expect(() =>
       mod.parseSyncMode(
@@ -1314,7 +1313,7 @@ describe('boilerplate sync modes', () => {
   })
 
   it('does not copy seed-only paths in harness-only mode', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const mod = await import('../../scripts/sync-boilerplate.ts')
 
     rmSync(fixtureRoot, { recursive: true, force: true })
     mkdirSync(join(fixtureRoot, 'source/src/collections'), { recursive: true })
@@ -1339,7 +1338,7 @@ describe('boilerplate sync modes', () => {
   })
 
   it('copies missing seed-only files in full mode', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const mod = await import('../../scripts/sync-boilerplate.ts')
 
     rmSync(fixtureRoot, { recursive: true, force: true })
     mkdirSync(join(fixtureRoot, 'source/src/collections'), { recursive: true })
@@ -1366,7 +1365,7 @@ describe('boilerplate sync modes', () => {
   })
 
   it('records harness-only syncMode and seedOnlyPathsSkipped in metadata', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const mod = await import('../../scripts/sync-boilerplate.ts')
 
     const metadata = mod.buildSyncMetadata(
       buildSyncMetadataInput({
@@ -1384,7 +1383,7 @@ describe('boilerplate sync modes', () => {
   })
 
   it('records full syncMode and seedOnlyPathsSkipped false in metadata', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const mod = await import('../../scripts/sync-boilerplate.ts')
 
     const metadata = mod.buildSyncMetadata(
       buildSyncMetadataInput({
@@ -1400,9 +1399,9 @@ describe('boilerplate sync modes', () => {
   })
 
   it('suggests harness-only next commands without Payload migration steps', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const mod = await import('../../scripts/sync-boilerplate.ts')
 
-    const commands = (mod.getSuggestedNextCommands as unknown as (mode: string, options: unknown) => string[])(mod.SYNC_MODES.HARNESS_ONLY, {
+    const commands = mod.getSuggestedNextCommands(mod.SYNC_MODES.HARNESS_ONLY, {
       proposalPath: '.bemoat/package-sync-proposal.md',
     })
 
@@ -1412,7 +1411,7 @@ describe('boilerplate sync modes', () => {
   })
 
   it('suggests full-mode next commands including Payload artifact steps', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const mod = await import('../../scripts/sync-boilerplate.ts')
 
     const commands = mod.getSuggestedNextCommands(mod.SYNC_MODES.FULL, {})
 
@@ -1426,7 +1425,7 @@ describe('boilerplate drift check', () => {
   const fixtureRoot = resolve(process.cwd(), '.tmp-boilerplate-drift-test')
 
   it('exposes deterministic drift comparison helpers from the owned workflow module', async () => {
-    const mod = await import('../../scripts/boilerplate/workflows/check-boilerplate-drift.mjs')
+    const mod = await import('../../scripts/boilerplate/workflows/check-boilerplate-drift.ts')
 
     expect(mod.compareBoilerplateDrift).toBeTypeOf('function')
     expect(mod.compareBoilerplateDriftByMode).toBeTypeOf('function')
@@ -1435,7 +1434,7 @@ describe('boilerplate drift check', () => {
   })
 
   it('detects boilerplate source repository at git root from package name and origin', async () => {
-    const mod = await import('../../scripts/check-boilerplate-drift.mjs')
+    const mod = await import('../../scripts/check-boilerplate-drift.ts')
 
     rmSync(fixtureRoot, { recursive: true, force: true })
     mkdirSync(join(fixtureRoot, 'starter'), { recursive: true })
@@ -1462,7 +1461,7 @@ describe('boilerplate drift check', () => {
   })
 
   it('treats nested starter fixture inside child repo as source despite inherited parent git origin', async () => {
-    const mod = await import('../../scripts/check-boilerplate-drift.mjs')
+    const mod = await import('../../scripts/check-boilerplate-drift.ts')
 
     rmSync(fixtureRoot, { recursive: true, force: true })
     mkdirSync(join(fixtureRoot, 'child-repo', 'starter-fixture'), { recursive: true })
@@ -1481,7 +1480,7 @@ describe('boilerplate drift check', () => {
   })
 
   it('reports missing, changed, and identical managed paths', async () => {
-    const mod = await import('../../scripts/check-boilerplate-drift.mjs')
+    const mod = await import('../../scripts/check-boilerplate-drift.ts')
 
     rmSync(fixtureRoot, { recursive: true, force: true })
     mkdirSync(join(fixtureRoot, 'source'), { recursive: true })
@@ -1505,7 +1504,7 @@ describe('boilerplate drift check', () => {
   })
 
   it('does not treat child-owned package.json script or dependency drift as managed drift', async () => {
-    const mod = await import('../../scripts/check-boilerplate-drift.mjs')
+    const mod = await import('../../scripts/check-boilerplate-drift.ts')
 
     rmSync(fixtureRoot, { recursive: true, force: true })
     mkdirSync(join(fixtureRoot, 'source'), { recursive: true })
@@ -1560,7 +1559,7 @@ describe('boilerplate drift check', () => {
   })
 
   it('reports merge-keep drift when starter .gitignore rules are missing in child', async () => {
-    const mod = await import('../../scripts/check-boilerplate-drift.mjs')
+    const mod = await import('../../scripts/check-boilerplate-drift.ts')
 
     rmSync(fixtureRoot, { recursive: true, force: true })
     mkdirSync(join(fixtureRoot, 'source'), { recursive: true })
@@ -1589,7 +1588,7 @@ describe('boilerplate drift check', () => {
   })
 
   it('does not fail when only customized seed files differ', async () => {
-    const mod = await import('../../scripts/check-boilerplate-drift.mjs')
+    const mod = await import('../../scripts/check-boilerplate-drift.ts')
 
     rmSync(fixtureRoot, { recursive: true, force: true })
     mkdirSync(join(fixtureRoot, 'source/src/app/(frontend)/blog/[slug]'), { recursive: true })
@@ -1612,7 +1611,7 @@ describe('boilerplate drift check', () => {
   })
 
   it('reports missing seed files clearly', async () => {
-    const mod = await import('../../scripts/check-boilerplate-drift.mjs')
+    const mod = await import('../../scripts/check-boilerplate-drift.ts')
 
     rmSync(fixtureRoot, { recursive: true, force: true })
     mkdirSync(join(fixtureRoot, 'source/src/app/(frontend)/custom-order'), { recursive: true })
@@ -1632,8 +1631,8 @@ describe('boilerplate drift check', () => {
   })
 
   it('does not fail on missing starter app files in harness-only drift check', async () => {
-    const syncMod = await import('../../scripts/sync-boilerplate.mjs')
-    const mod = await import('../../scripts/check-boilerplate-drift.mjs')
+    const syncMod = await import('../../scripts/sync-boilerplate.ts')
+    const mod = await import('../../scripts/check-boilerplate-drift.ts')
 
     rmSync(fixtureRoot, { recursive: true, force: true })
     mkdirSync(join(fixtureRoot, 'source/src/app/(frontend)/custom-order'), { recursive: true })
@@ -1659,7 +1658,7 @@ function seedManagedRuntimeClosureSource(sourceRoot: string) {
 }
 
 const ISSUE_182_ALLOWLISTED_FILES = [
-  'scripts/sync-boilerplate.mjs',
+  'scripts/sync-boilerplate.ts',
   '.bemoat/boilerplate-sync-manifest.json',
   'scripts/guard-harness-contract.ts',
   'tests/int/harness-contract-guard.int.spec.ts',
@@ -1749,7 +1748,7 @@ function writeIssue182ChildFixture(targetRoot: string) {
 
 describe('issue #328 CommandRunner root closeout', () => {
   it('delivers only the nested CommandRunner adapter in one harness-only sync without touching child-owned files', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
+    const mod = await import('../../scripts/sync-boilerplate.ts')
     const tempRoot = mkdtempSync(join(tmpdir(), 'bemoat-224-command-runner-'))
     const sourceRoot = join(tempRoot, 'source')
     const childRoot = join(tempRoot, 'child')
@@ -1941,9 +1940,13 @@ function applyRepresentativeChildPresyncOverlay(childRoot: string, repoRoot: str
     execFileSync('tar', ['xzf', join(fixtureDir, 'files.tgz'), '-C', extractRoot], { stdio: 'pipe' })
     for (const relativePath of manifest.presentPaths) {
       const sourceFile = join(extractRoot, relativePath)
+      const legacyFixturePath = relativePath.endsWith('.ts')
+        ? join(extractRoot, relativePath.replace(/\.ts$/, '.mjs'))
+        : sourceFile
+      const fixtureSourceFile = existsSync(sourceFile) ? sourceFile : legacyFixturePath
       const destinationFile = join(childRoot, relativePath)
       mkdirSync(dirname(destinationFile), { recursive: true })
-      cpSync(sourceFile, destinationFile)
+      cpSync(fixtureSourceFile, destinationFile)
     }
     for (const relativePath of manifest.absentPaths) {
       const destinationFile = join(childRoot, relativePath)
@@ -1977,7 +1980,7 @@ function provisionChildRuntimePackage(childRoot: string, repoRoot: string) {
 
 describe('issue #220 representative managed child-sync trailing whitespace regression', () => {
   it('fails when the representative harness-only managed sync delta contains trailing whitespace', async () => {
-    const syncMod = await import('../../scripts/sync-boilerplate.mjs')
+    const syncMod = await import('../../scripts/sync-boilerplate.ts')
     const repoRoot = process.cwd()
     const tempRoot = mkdtempSync(join(tmpdir(), 'bemoat-220-whitespace-'))
     const sourceRoot = join(tempRoot, 'source')
@@ -2040,7 +2043,7 @@ describe('issue #220 representative managed child-sync trailing whitespace regre
 
 describe('issue #240 slice 2 harness-contract facade child portability', () => {
   it('delivers harness-contract modules via temp-dir harness-only simulation without real child sync', async () => {
-    const syncMod = await import('../../scripts/sync-boilerplate.mjs')
+    const syncMod = await import('../../scripts/sync-boilerplate.ts')
     const guardMod = await import('../../scripts/guard-harness-contract.ts')
     const repoRoot = process.cwd()
     const tempRoot = mkdtempSync(join(tmpdir(), 'bemoat-240-slice2-portability-'))

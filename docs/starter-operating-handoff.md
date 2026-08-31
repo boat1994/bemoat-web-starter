@@ -10,7 +10,7 @@ Compact handoff for the **starter operating system**: harness contract, guard pa
 
 | Area | Paths |
 |------|-------|
-| Harness contract | `docs/harness-sync-contract.md`, `scripts/guard-harness-contract.ts`, `scripts/sync-boilerplate.mjs` |
+| Harness contract | `docs/harness-sync-contract.md`, `scripts/guard-harness-contract.ts`, `scripts/sync-boilerplate.ts` |
 | Guard pack v1 | `scripts/guard-pack.ts`, `scripts/guard-*.mjs`, `docs/guard-pack.md`, `tests/int/guard-pack.int.spec.ts`, `tests/fixtures/guard/**` |
 | Operating manual | `docs/agent-loop/operating-manual.md` |
 | ADR pack | `docs/adr/0001`–`0007`, `docs/adr/README.md` |

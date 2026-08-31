@@ -268,7 +268,7 @@ const commands: Record<string, CommandContract> = {
   'bemoat:boilerplate:check': contract({
     command: 'bemoat:boilerplate:check',
     tier: 'B',
-    entrypoint: 'scripts/check-boilerplate-drift.mjs',
+    entrypoint: 'scripts/check-boilerplate-drift.ts',
     purpose: 'Inspect boilerplate drift without changing the target repository.',
     operation: 'Compare the selected starter-managed harness projection with the target.',
     optional_flags: [
@@ -284,14 +284,14 @@ const commands: Record<string, CommandContract> = {
     ],
     writes: [],
     stop_conditions: ['Stop when the upstream clone, target tree, or selected sync mode cannot be inspected deterministically.'],
-    parser_owner: 'scripts/boilerplate/config.mjs',
+    parser_owner: 'scripts/boilerplate/config.ts',
     safe_help_invocation: 'pnpm run bemoat:boilerplate:check -- --help --json',
   }),
 
   'bemoat:boilerplate:sync': contract({
     command: 'bemoat:boilerplate:sync',
     tier: 'A',
-    entrypoint: 'scripts/sync-boilerplate.mjs',
+    entrypoint: 'scripts/sync-boilerplate.ts',
     purpose: 'Synchronize the approved starter-managed harness projection.',
     operation: 'Apply managed, seed, and merge-keep boilerplate changes after preflight.',
     optional_flags: [
@@ -340,7 +340,7 @@ const commands: Record<string, CommandContract> = {
         argv: ['--harness-only'],
       },
     ],
-    parser_owner: 'scripts/boilerplate/config.mjs',
+    parser_owner: 'scripts/boilerplate/config.ts',
     safe_help_invocation: 'pnpm run bemoat:boilerplate:sync -- --help --json',
     last_validation_before_mutation: 'Re-check selected mode, source/target paths, and working-tree preservation immediately before applying changes.',
     post_write_readback: 'Re-scan managed paths and sync metadata and confirm the documented target projection.',
@@ -440,7 +440,7 @@ const commands: Record<string, CommandContract> = {
   'bemoat:hooks:install': contract({
     command: 'bemoat:hooks:install',
     tier: 'A',
-    entrypoint: 'scripts/install-git-hooks.mjs',
+    entrypoint: 'scripts/install-git-hooks.ts',
     purpose: 'Install the repository-owned local git hook configuration.',
     operation: 'Apply hook modes and core.hooksPath after deterministic preflight.',
     accepted_pre_states: ['NOT_STATEFUL'],
@@ -463,7 +463,7 @@ const commands: Record<string, CommandContract> = {
       },
     ],
     examples: [{ description: 'Install local hooks.', argv: [] }],
-    parser_owner: 'scripts/install-git-hooks.mjs',
+    parser_owner: 'scripts/install-git-hooks.ts',
     safe_help_invocation: 'pnpm run bemoat:hooks:install -- --help --json',
     last_validation_before_mutation: 'Confirm the current repository, hook files, and expected git configuration immediately before chmod/config writes.',
     post_write_readback: 'Read hook modes and core.hooksPath and compare them with the approved configuration.',

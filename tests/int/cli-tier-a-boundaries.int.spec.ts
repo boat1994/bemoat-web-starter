@@ -34,11 +34,11 @@ type TierACase = {
 const TIER_A_CASES = [
   {
     command: 'bemoat:boilerplate:sync',
-    entrypoint: 'scripts/sync-boilerplate.mjs',
+    entrypoint: 'scripts/sync-boilerplate.ts',
   },
   {
     command: 'bemoat:hooks:install',
-    entrypoint: 'scripts/install-git-hooks.mjs',
+    entrypoint: 'scripts/install-git-hooks.ts',
   },
 ] as const satisfies readonly TierACase[]
 
@@ -769,7 +769,7 @@ exit 0
     const targetRoot = '/tmp/bemoat-tier-a-target'
     const tempRoot = `${targetRoot}/.bemoat-sync-tmp`
     const sourceRoot = `${tempRoot}/source`
-    const workflowModule = await import('../../scripts/boilerplate/workflow.mjs')
+    const workflowModule = await import('../../scripts/boilerplate/workflow.ts')
     const workflow = workflowModule.createBoilerplateSyncWorkflow({
       rmSync(path: string) {
         calls.push(path === tempRoot ? 'temp-cleanup' : `rm:${path}`)

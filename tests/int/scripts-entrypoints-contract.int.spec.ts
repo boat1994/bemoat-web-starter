@@ -13,7 +13,7 @@ import {
   parseApplyBuildContract,
   parseSyncMode,
   SYNC_MODES,
-} from '../../scripts/sync-boilerplate.mjs'
+} from '../../scripts/sync-boilerplate.ts'
 
 const repoRoot = process.cwd()
 const tempRoots: string[] = []

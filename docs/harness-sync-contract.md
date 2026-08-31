@@ -16,8 +16,8 @@ The harness is everything child projects need to run the same safety rails, work
 | GitHub workflow and templates | `.github/workflows/ci.yml` (child-safe `bemoat:*` only), PR template, issue templates |
 | Safety guards | `scripts/guard-pack.ts` (orchestrator), `scripts/guards/repo-safety.ts`, `scripts/guard-harness-contract.ts`, `scripts/guards/package-manager.ts`, `scripts/guards/toolchain-contract.ts`, `scripts/guards/env-placeholder.ts`, `scripts/guard-cloudflare-env.ts`, `scripts/guards/frontend-seo.ts`, `scripts/guards/structural-protection.ts`, and `scripts/structural-protection-manifest.json` — see [guard-pack.md](./guard-pack.md) |
 | Cloudflare deploy guards | Recommended `deploy` / `preview` scripts that call `guard:cloudflare-env` |
-| Sync and drift | `scripts/sync-boilerplate.mjs`, `scripts/check-boilerplate-drift.mjs` |
-| Local git hooks | `.githooks`, `scripts/check-branch-safety.sh`, `scripts/install-git-hooks.mjs`, `hooks:install` |
+| Sync and drift | `scripts/sync-boilerplate.ts`, `scripts/check-boilerplate-drift.ts` |
+| Local git hooks | `.githooks`, `scripts/check-branch-safety.sh`, `scripts/install-git-hooks.ts`, `hooks:install` |
 | Vitest harness | `vitest.config.mts`, `vitest.setup.ts`, checkout-scoped process-lock helper and global setup |
 | Shared integration tests | All `tests/int/**/*.int.spec.ts` files intended for child projects |
 
@@ -77,9 +77,9 @@ CLI flags take precedence over `BEMOAT_SYNC_MODE`. Sync metadata in `.bemoat-boi
 
 ### Source-driven sync manifest
 
-The starter publishes **`.bemoat/boilerplate-sync-manifest.json`** — a static JSON copy of the sync path lists and package sync config. After cloning the starter, `scripts/sync-boilerplate.mjs` reads that manifest from the cloned source and uses it for the current run (`managedPaths`, `seedOnlyPaths`, `mergeKeepPaths`, package script lists). If the manifest is missing (very old starter ref), sync falls back to the local script constants.
+The starter publishes **`.bemoat/boilerplate-sync-manifest.json`** — a static JSON copy of the sync path lists and package sync config. After cloning the starter, `scripts/sync-boilerplate.ts` reads that manifest from the cloned source and uses it for the current run (`managedPaths`, `seedOnlyPaths`, `mergeKeepPaths`, package script lists). If the manifest is missing (very old starter ref), sync falls back to the local script constants.
 
-This prevents the **first-sync paradox**: when the starter adds a new managed path, child projects with an older local sync script still copy the new path in **one** run because path discovery happens from the cloned manifest, not only from the already-loaded local constants. Maintain the manifest in `bemoat-web-starter` whenever you change `managedPaths` or related lists in `scripts/sync-boilerplate.mjs` (keep them identical; `tests/int/boilerplate-sync.int.spec.ts` asserts parity).
+This prevents the **first-sync paradox**: when the starter adds a new managed path, child projects with an older local sync script still copy the new path in **one** run because path discovery happens from the cloned manifest, not only from the already-loaded local constants. Maintain the manifest in `bemoat-web-starter` whenever you change `managedPaths` or related lists in `scripts/sync-boilerplate.ts` (keep them identical; `tests/int/boilerplate-sync.int.spec.ts` asserts parity).
 
 Starter modules (`src/app/(frontend)`, `src/collections`, `src/globals`, `src/components`, `src/hooks`, `src/access`, `src/lib`, `src/payload.config.ts`) are **not** harness.
 
@@ -135,7 +135,7 @@ Some child-owned files are merged during sync: existing content is preserved and
 |------|---------------|
 | `.gitignore` | Keep all child ignore rules; append missing starter rules under `# Added by bemoat boilerplate sync` |
 
-Listed in `mergeKeepPaths` in `scripts/sync-boilerplate.mjs`. Drift check fails when starter rules are missing from the child file.
+Listed in `mergeKeepPaths` in `scripts/sync-boilerplate.ts`. Drift check fails when starter rules are missing from the child file.
 
 ## Package manifest ownership
 
@@ -167,7 +167,7 @@ After sync, review **`.bemoat/package-sync-proposal.md`**. Do not apply script o
 pnpm run bemoat:boilerplate:sync -- --harness-only --apply-build-contract
 ```
 
-Managed namespaced scripts (see `managedPackageScripts` in `scripts/sync-boilerplate.mjs`):
+Managed namespaced scripts (see `managedPackageScripts` in `scripts/sync-boilerplate.ts`):
 
 - `bemoat:branch:check`
 - `bemoat:guard:safety` (repo safety + harness contract)
@@ -242,7 +242,7 @@ Raw implementation scripts (`lint`, `typecheck`, `build`, `deploy`, `preview`, `
 
 All files matching `tests/int/**/*.int.spec.ts` are shared harness tests unless explicitly marked starter-only.
 
-Current shared tests (listed in `managedPaths` in `scripts/sync-boilerplate.mjs`):
+Current shared tests (listed in `managedPaths` in `scripts/sync-boilerplate.ts`):
 
 - `tests/int/api.int.spec.ts`
 - `tests/int/boilerplate-sync.int.spec.ts`
@@ -258,7 +258,7 @@ Current shared tests (listed in `managedPaths` in `scripts/sync-boilerplate.mjs`
 
 ## Rules for maintainers
 
-1. **New shared harness file** — Add the path to `managedPaths` in `scripts/sync-boilerplate.mjs`, mirror the same entry in `.bemoat/boilerplate-sync-manifest.json`, document new agent wrappers in the ownership table when relevant, and ensure `tests/int/boilerplate-sync.int.spec.ts` covers it (directly or via the shared int-test contract test).
+1. **New shared harness file** — Add the path to `managedPaths` in `scripts/sync-boilerplate.ts`, mirror the same entry in `.bemoat/boilerplate-sync-manifest.json`, document new agent wrappers in the ownership table when relevant, and ensure `tests/int/boilerplate-sync.int.spec.ts` covers it (directly or via the shared int-test contract test).
 
 2. **New safe namespaced script** — Add to `managedPackageScripts` if sync should add it when missing. Add starter `bemoat:*` values in this repo's `package.json`.
 
@@ -266,7 +266,7 @@ Current shared tests (listed in `managedPaths` in `scripts/sync-boilerplate.mjs`
 
 4. **New recommended non-namespaced script** — Add to `suggestedPackageScripts` so drift appears in the package sync proposal (human review only; never auto-applied).
 
-5. **New merge-keep path** — Add to `mergeKeepPaths` with merge logic in `scripts/sync-boilerplate.mjs` and drift coverage in `scripts/check-boilerplate-drift.mjs`.
+5. **New merge-keep path** — Add to `mergeKeepPaths` with merge logic in `scripts/sync-boilerplate.ts` and drift coverage in `scripts/check-boilerplate-drift.ts`.
 
 6. **Starter-only harness file** — Do not add it to `managedPaths`; keep it outside the shared harness inventory and cover any retained generic contract explicitly.
 

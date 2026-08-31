@@ -1,5 +1,6 @@
 import { existsSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
+
 export const syncManifestPath = '.bemoat/boilerplate-sync-manifest.json'
 
 export const managedPaths = [
@@ -18,7 +19,7 @@ export const managedPaths = [
   // GitHub workflow rails
   '.github/workflows/ci.yml', '.github/pull_request_template.md', '.github/ISSUE_TEMPLATE/agent-task.yml',
   // Harness scripts (sync, drift, guard, hooks, smoke)
-  'scripts/sync-boilerplate.mjs', 'scripts/boilerplate', 'scripts/boilerplate/workflows/check-boilerplate-drift.mjs', 'scripts/check-boilerplate-drift.mjs',
+  'scripts/sync-boilerplate.ts', 'scripts/boilerplate', 'scripts/boilerplate/workflows/check-boilerplate-drift.ts', 'scripts/check-boilerplate-drift.ts',
   'scripts/deploy-smoke-test.mjs', 'scripts/guards/repo-safety.ts', 'scripts/guards/types.ts',
   'scripts/guard-harness-contract.ts', 'scripts/harness-contract',
   'scripts/guards/build-script-contract.ts', 'scripts/build.mjs',
@@ -34,7 +35,7 @@ export const managedPaths = [
   'scripts/guards/toolchain-contract.ts', 'scripts/bemoat-typecheck.ts',
   'tsconfig.harness-strict.json', '.bemoat/toolchain-contract.json',
   'scripts/guards/env-placeholder.ts', 'scripts/guards/frontend-seo.ts',
-  'scripts/check-branch-safety.sh', 'scripts/install-git-hooks.mjs',
+  'scripts/check-branch-safety.sh', 'scripts/install-git-hooks.ts',
   // Local harness hooks and integration tests
   '.githooks', 'vitest.config.mts', 'vitest.setup.ts', 'tests/helpers/vitestProcessLock.ts',
   'tests/setup/vitestGlobalSetup.ts', 'tests/int/api.int.spec.ts',
@@ -114,7 +115,7 @@ export const buildContractFilePaths = ['open-next.config.ts']
 /** Recommended package.json sections surfaced in the proposal only. */
 export const suggestedPackageSections = ['dependencies', 'devDependencies']
 
-export function listPathFiles(root, relativePath = '') {
+export function listPathFiles(root: string, relativePath = ''): string[] {
   const fullPath = join(root, relativePath)
   if (!existsSync(fullPath)) return []
   const stat = statSync(fullPath)
@@ -128,10 +129,10 @@ export function listPathFiles(root, relativePath = '') {
   return files.sort()
 }
 
-export function expandSeedOnlyFiles(root, paths = seedOnlyPaths) {
+export function expandSeedOnlyFiles(root: string, paths: string[] = seedOnlyPaths): string[] {
   const files = new Set()
   for (const relativePath of paths) {
     for (const filePath of listPathFiles(root, relativePath)) files.add(filePath)
   }
-  return [...files].sort()
+  return [...files].sort().filter((filePath): filePath is string => typeof filePath === 'string')
 }

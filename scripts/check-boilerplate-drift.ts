@@ -10,7 +10,7 @@ import {
   parseCommandInvocation,
   resolveCommandIdentity,
 } from './cli/command-invocation.ts'
-import { parseSyncMode, SYNC_MODES } from './sync-boilerplate.mjs'
+import { parseSyncMode, SYNC_MODES } from './sync-boilerplate.ts'
 import {
   compareBoilerplateDrift,
   compareBoilerplateDriftByMode,
@@ -21,7 +21,10 @@ import {
   compareToolchainContractDrift,
   getDriftExitCode,
   stripJsoncComments,
-} from './boilerplate/workflows/check-boilerplate-drift.mjs'
+} from './boilerplate/workflows/check-boilerplate-drift.ts'
+import type { ExecFileSyncOptions } from 'node:child_process'
+import type { ParsedInvocation } from './cli/command-invocation.ts'
+import type { PackageJson } from './boilerplate/types.ts'
 
 export {
   compareBoilerplateDrift,
@@ -42,11 +45,19 @@ const targetRoot = process.cwd()
 const tempRoot = resolve(targetRoot, '.bemoat-check-tmp')
 const sourceRoot = join(tempRoot, 'source')
 
-function readJSON(path) {
-  return JSON.parse(readFileSync(path, 'utf8'))
+function readJSON(path: string): PackageJson {
+  const parsed: unknown = JSON.parse(readFileSync(path, 'utf8'))
+  if (!isPackageJson(parsed)) {
+    throw new TypeError(`Expected a JSON object in ${path}`)
+  }
+  return parsed
 }
 
-function isGitRepositoryRoot(cwd) {
+function isPackageJson(value: unknown): value is PackageJson {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function isGitRepositoryRoot(cwd: string): boolean {
   try {
     const topLevel = execFileSync('git', ['rev-parse', '--show-toplevel'], {
       cwd,
@@ -60,7 +71,7 @@ function isGitRepositoryRoot(cwd) {
   }
 }
 
-function getGitOriginRepo(cwd) {
+function getGitOriginRepo(cwd: string): string {
   const remote = execFileSync('git', ['remote', 'get-url', 'origin'], {
     cwd,
     encoding: 'utf8',
@@ -74,7 +85,10 @@ function getGitOriginRepo(cwd) {
     .toLowerCase()
 }
 
-export function isBoilerplateSourceRepository(cwd = process.cwd(), boilerplateRepo = repo) {
+export function isBoilerplateSourceRepository(
+  cwd = process.cwd(),
+  boilerplateRepo = repo,
+): boolean {
   const packagePath = join(cwd, 'package.json')
   if (!existsSync(packagePath)) return false
 
@@ -95,14 +109,16 @@ export function isBoilerplateSourceRepository(cwd = process.cwd(), boilerplateRe
   }
 }
 
-function run(command, args, options = {}) {
+function run(command: string, args: string[], options: ExecFileSyncOptions = {}): void {
   execFileSync(command, args, {
     stdio: 'inherit',
     ...options,
   })
 }
 
-function printReport(report) {
+type DriftReport = ReturnType<typeof compareBoilerplateDriftByMode>
+
+function printReport(report: DriftReport): void {
   const hasManagedDrift = report.managed.missing.length > 0 || report.managed.changed.length > 0
   const hasMissingSeed = !report.seedOnlyPathsSkipped && report.seed.missingSeed.length > 0
   const hasCustomizedSeed = !report.seedOnlyPathsSkipped && report.seed.customized.length > 0
@@ -154,13 +170,13 @@ function printReport(report) {
   }
 }
 
-export function isDirectExecution() {
+export function isDirectExecution(): boolean {
   const entrypoint = process.argv[1]
   if (!entrypoint) return false
   return import.meta.url === pathToFileURL(resolve(entrypoint)).href
 }
 
-function renderHelp(invocation) {
+function renderHelp(invocation: Extract<ParsedInvocation, { mode: 'help' }>): void {
   if (invocation.format === 'json') {
     process.stdout.write(`${JSON.stringify(createHelpEnvelopeV1(invocation.contract))}\n`)
     return
@@ -168,7 +184,7 @@ function renderHelp(invocation) {
   process.stdout.write(formatTextHelp(invocation.contract))
 }
 
-function handleInvocationError(error) {
+function handleInvocationError(error: unknown): boolean {
   if (!(error instanceof CliInvocationError)) return false
   process.stderr.write(`INVALID_INVOCATION: ${error.details.reason}\n`)
   process.exitCode = error.exit_code
@@ -186,12 +202,12 @@ function resolveBoilerplateCheckCommand() {
   return resolveCommandIdentity({
     fallback: 'bemoat:boilerplate:check',
     env,
-    entrypoint: 'scripts/check-boilerplate-drift.mjs',
+    entrypoint: 'scripts/check-boilerplate-drift.ts',
   })
 }
 
 function main() {
-  let invocation
+  let invocation: ParsedInvocation | undefined
   try {
     const command = resolveBoilerplateCheckCommand()
     invocation = parseCommandInvocation(command, process.argv.slice(2))

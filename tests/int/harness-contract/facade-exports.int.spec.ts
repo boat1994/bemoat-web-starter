@@ -41,7 +41,7 @@ const PRODUCTION_IMPORTERS = [
     symbols: ['CHILD_FACING_HARNESS_PATHS'],
   },
   {
-    path: 'scripts/sync-boilerplate.mjs',
+    path: 'scripts/sync-boilerplate.ts',
     facadeImport: './guard-harness-contract.ts',
     symbols: ['assertManagedRuntimeDeliveryClosure'],
   },

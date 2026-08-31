@@ -155,13 +155,13 @@ function makeWorkflowDependencies(calls: string[], logs: string[] = []) {
 
 describe('boilerplate sync workflow child portability', () => {
   it('keeps the root facade at its 45-export public contract', async () => {
-    const facade = await import('../../scripts/sync-boilerplate.mjs')
+    const facade = await import('../../scripts/sync-boilerplate.ts')
 
     expect(Object.keys(facade).sort()).toEqual([...ROOT_FACADE_EXPORTS].sort())
   })
 
   it('orders a harness-only child simulation without cloning or mutating a child', async () => {
-    const workflowModule = await import('../../scripts/boilerplate/workflow.mjs')
+    const workflowModule = await import('../../scripts/boilerplate/workflow.ts')
     const calls: string[] = []
     const logs: string[] = []
     const workflow = workflowModule.createBoilerplateSyncWorkflow(
@@ -210,7 +210,7 @@ describe('boilerplate sync workflow child portability', () => {
   })
 
   it('cleans up and restores a stashed non-mutating simulation when projection fails', async () => {
-    const workflowModule = await import('../../scripts/boilerplate/workflow.mjs')
+    const workflowModule = await import('../../scripts/boilerplate/workflow.ts')
     const calls: string[] = []
     const dependencies = makeWorkflowDependencies(calls)
     dependencies.syncPathsFromSource = () => {
@@ -231,7 +231,7 @@ describe('boilerplate sync workflow child portability', () => {
   })
 
   it('classifies post-mutation failures as ambiguous and preserves legacy diagnostics', async () => {
-    const workflowModule = await import('../../scripts/boilerplate/workflow.mjs')
+    const workflowModule = await import('../../scripts/boilerplate/workflow.ts')
     const calls: string[] = []
     const logs: string[] = []
     const dependencies = makeWorkflowDependencies(calls, logs)
@@ -266,7 +266,7 @@ describe('boilerplate sync workflow child portability', () => {
   })
 
   it('keeps final preflight failures non-mutating', async () => {
-    const workflowModule = await import('../../scripts/boilerplate/workflow.mjs')
+    const workflowModule = await import('../../scripts/boilerplate/workflow.ts')
     const calls: string[] = []
     const dependencies = makeWorkflowDependencies(calls)
     dependencies.runToolchainPreflight = () => {

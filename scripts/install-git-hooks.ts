@@ -15,27 +15,57 @@ import {
   classificationExitCode,
   createResultEnvelopeV1,
 } from './cli/command-result.ts'
+import type { ParsedInvocation } from './cli/command-invocation.ts'
+import type { CliClassification } from './cli/command-result.ts'
 
 const HOOKS_DIR = '.githooks'
 const HOOKS = [`${HOOKS_DIR}/pre-commit`, `${HOOKS_DIR}/pre-push`]
 
-function createAmbiguousInstallError(error) {
+interface HookInstallResult {
+  hooks: string[]
+  hookModes: Array<{ path: string; mode: '755' }>
+  hooksPath: string
+  mutationPerformed: true
+  legacyClassification: 'INSTALLED'
+  legacyOutput: string[]
+}
+
+interface RuntimeDetails {
+  argument: string | null
+  reason: string
+  legacy_output?: string[]
+  cleanup_error?: string
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function isCliClassification(value: unknown): value is CliClassification {
+  return typeof value === 'string' && Object.hasOwn(CLI_EXIT_CODES, value)
+}
+
+function createAmbiguousInstallError(error: unknown): Error & {
+  classification: 'AMBIGUOUS_RESULT'
+  mutationPerformed: true
+} {
   const reason = error instanceof Error ? error.message : String(error)
   const partialError = new Error(
     `Hook modes changed, but core.hooksPath could not be configured: ${reason}`,
   )
-  partialError.classification = 'AMBIGUOUS_RESULT'
-  partialError.mutationPerformed = true
-  return partialError
+  return Object.assign(partialError, {
+    classification: 'AMBIGUOUS_RESULT' as const,
+    mutationPerformed: true as const,
+  })
 }
 
-function writeCapturedGitStdout(output) {
+function writeCapturedGitStdout(output: unknown): void {
   if (!output) return
   const text = Buffer.isBuffer(output) ? output.toString('utf8') : String(output)
   if (text) process.stderr.write(text)
 }
 
-export function isDirectExecution() {
+export function isDirectExecution(): boolean {
   const entrypoint = process.argv[1]
 
   if (!entrypoint) return false
@@ -46,7 +76,7 @@ export function isDirectExecution() {
 export function installGitHooks({
   root = process.cwd(),
   captureGitStdout = false,
-} = {}) {
+}: { root?: string; captureGitStdout?: boolean } = {}): HookInstallResult {
   const hookPaths = HOOKS.map((hook) => ({ hook, path: resolve(root, hook) }))
 
   for (const { hook, path } of hookPaths) {
@@ -82,8 +112,8 @@ export function installGitHooks({
     )
     if (captureGitStdout) writeCapturedGitStdout(gitStdout)
   } catch (error) {
-    if (captureGitStdout && error && typeof error === 'object') {
-      writeCapturedGitStdout(error.stdout)
+    if (captureGitStdout && isRecord(error)) {
+      writeCapturedGitStdout(error['stdout'])
     }
     if (hookModesChanged) throw createAmbiguousInstallError(error)
     throw error
@@ -105,7 +135,7 @@ export function installGitHooks({
   }
 }
 
-function renderHelp(invocation) {
+function renderHelp(invocation: Extract<ParsedInvocation, { mode: 'help' }>): void {
   if (invocation.format === 'json') {
     process.stdout.write(`${JSON.stringify(createHelpEnvelopeV1(invocation.contract))}\n`)
     return
@@ -114,7 +144,10 @@ function renderHelp(invocation) {
   process.stdout.write(formatTextHelp(invocation.contract))
 }
 
-function handleInvocationError(error, { command, format }) {
+function handleInvocationError(
+  error: unknown,
+  { command, format }: { command: string; format: 'text' | 'json' },
+): boolean {
   if (!(error instanceof CliInvocationError)) return false
 
   renderRuntimeError({ command, format, error })
@@ -135,29 +168,27 @@ function resolveHooksCommand() {
   return resolveCommandIdentity({
     fallback: 'bemoat:hooks:install',
     env,
-    entrypoint: 'scripts/install-git-hooks.mjs',
+    entrypoint: 'scripts/install-git-hooks.ts',
   })
 }
 
-function runtimeClassification(error) {
+function runtimeClassification(error: unknown): CliClassification | 'INTERNAL_ERROR' {
   if (
-    error &&
-    typeof error === 'object' &&
-    typeof error.classification === 'string' &&
-    Object.hasOwn(CLI_EXIT_CODES, error.classification)
+    isRecord(error) &&
+    isCliClassification(error.classification)
   ) {
     return error.classification
   }
 
   const reason = error instanceof Error ? error.message : String(error)
   const prefix = reason.match(/^([A-Z_]+):/)
-  if (prefix && Object.hasOwn(CLI_EXIT_CODES, prefix[1])) return prefix[1]
+  if (prefix && isCliClassification(prefix[1])) return prefix[1]
 
   return 'INTERNAL_ERROR'
 }
 
-function runtimeDetails(error) {
-  const details = error instanceof CliInvocationError
+function runtimeDetails(error: unknown): RuntimeDetails {
+  const details: RuntimeDetails = error instanceof CliInvocationError
     ? {
       argument: error.details.argument,
       reason: error.details.reason,
@@ -165,27 +196,34 @@ function runtimeDetails(error) {
     : {
       argument: null,
       reason: error instanceof Error ? error.message : String(error),
-    }
+  }
 
-  if (error && typeof error === 'object') {
-    if (Array.isArray(error.legacyOutput)) {
-      details.legacy_output = error.legacyOutput
+  if (isRecord(error)) {
+    if (Array.isArray(error['legacyOutput'])) {
+      details.legacy_output = error['legacyOutput'].filter((line): line is string => typeof line === 'string')
     }
-    if (typeof error.cleanupError === 'string') {
-      details.cleanup_error = error.cleanupError
+    if (typeof error['cleanupError'] === 'string') {
+      details.cleanup_error = error['cleanupError']
     }
   }
 
   return details
 }
 
-function renderRuntimeError({ command, format, error }) {
+function renderRuntimeError({
+  command,
+  format,
+  error,
+}: {
+  command: string
+  format: 'text' | 'json'
+  error: unknown
+}): void {
   const classification = runtimeClassification(error)
   const details = runtimeDetails(error)
   const mutationPerformed = Boolean(
-    error &&
-    typeof error === 'object' &&
-    error.mutationPerformed === true,
+    isRecord(error) &&
+    error['mutationPerformed'] === true,
   )
 
   if (format === 'json' && command) {
@@ -211,7 +249,15 @@ function renderRuntimeError({ command, format, error }) {
   process.exitCode = classificationExitCode(classification)
 }
 
-function renderHooksResult({ command, format, result }) {
+function renderHooksResult({
+  command,
+  format,
+  result,
+}: {
+  command: string
+  format: 'text' | 'json'
+  result: HookInstallResult
+}): void {
   const envelope = createResultEnvelopeV1({
     command,
     outcome: 'SUCCESS',
@@ -243,8 +289,8 @@ function renderHooksResult({ command, format, result }) {
 }
 
 function main() {
-  let command
-  let invocation
+  let command: string | undefined
+  let invocation: ParsedInvocation | undefined
 
   try {
     command = resolveHooksCommand()

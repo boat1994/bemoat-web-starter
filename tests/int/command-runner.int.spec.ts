@@ -60,7 +60,7 @@ describe('scripts/adapters/command-runner.ts', () => {
   })
 
   it('is listed in managedPaths for boilerplate sync', async () => {
-    const sync = await import('../../scripts/sync-boilerplate.mjs')
+    const sync = await import('../../scripts/sync-boilerplate.ts')
     expect(sync.managedPaths).not.toContain('scripts/command-runner.ts')
     expect(sync.managedPaths).toContain('scripts/adapters/command-runner.ts')
     expect(sync.managedPaths).toContain('tests/int/command-runner.int.spec.ts')
