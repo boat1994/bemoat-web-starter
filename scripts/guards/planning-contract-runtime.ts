@@ -196,14 +196,19 @@ function validatePlanningFile(
   allViolations.push(...parsed.violations)
   if (!parsed.valid || !parsed.contract) return
   allViolations.push(...validateStaticContract(parsed.contract, relativePath))
-  const pairedSpecPath = String(parsed.contract.paired_spec ?? '')
-  const pairedPlanPath = String(parsed.contract.paired_plan ?? '')
-  if (!pairedSpecPath || !pairedPlanPath) return
+  const pairedSpecPath = parsed.contract.paired_spec
+  const pairedPlanPath = parsed.contract.paired_plan
+  if (
+    typeof pairedSpecPath !== 'string' ||
+    typeof pairedPlanPath !== 'string' ||
+    pairedSpecPath.trim().length === 0 ||
+    pairedPlanPath.trim().length === 0
+  ) return
   const normalizedPath = relativePath.replace(/\\/g, '/')
-  const isSpec = normalizedPath === String(pairedSpecPath).replace(/\\/g, '/')
-  const isPlan = normalizedPath === String(pairedPlanPath).replace(/\\/g, '/')
+  const isSpec = normalizedPath === pairedSpecPath.replace(/\\/g, '/')
+  const isPlan = normalizedPath === pairedPlanPath.replace(/\\/g, '/')
   if (!isSpec && !isPlan) return
-  const pairKey = [String(pairedSpecPath), String(pairedPlanPath)].sort().join('::')
+  const pairKey = [pairedSpecPath, pairedPlanPath].sort().join('::')
   if (validatedPairs.has(pairKey)) return
   const specAbsolutePath = resolve(root, pairedSpecPath)
   const planAbsolutePath = resolve(root, pairedPlanPath)

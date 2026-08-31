@@ -304,6 +304,26 @@ function validateExecutionBaseRule(contract: PlanningContract, filePath: string)
   })]
 }
 
+function validatePairedPaths(contract: PlanningContract, filePath: string): PlanningViolation[] {
+  const pairedSpecPath = contract.paired_spec
+  const pairedPlanPath = contract.paired_plan
+  const bothUnset = pairedSpecPath === null && pairedPlanPath === null
+  const bothNonEmptyStrings =
+    typeof pairedSpecPath === 'string' && pairedSpecPath.trim().length > 0 &&
+    typeof pairedPlanPath === 'string' && pairedPlanPath.trim().length > 0
+
+  if (bothUnset || bothNonEmptyStrings) return []
+
+  return [makeViolation({
+    rule: 'PLAN001',
+    file: filePath,
+    message: 'Invalid paired spec/plan paths',
+    found: `paired_spec=${String(pairedSpecPath)}, paired_plan=${String(pairedPlanPath)}`,
+    reason: 'paired_spec and paired_plan must both be null or nonempty raw strings',
+    correctiveAction: 'Set paired_spec and paired_plan to repo-relative nonempty string paths, or set both to null',
+  })]
+}
+
 function validateBranchTemplate(contract: PlanningContract, filePath: string): PlanningViolation[] {
   const activeIssueNumber = parseIssueNumber(contract.active_task_issue)
   if (!activeIssueNumber) return []
@@ -336,6 +356,7 @@ export function validateStaticContract(contract: PlanningContract, filePath: str
   return [
     ...validateTaskIssueStrategy(contract, filePath),
     ...validateExecutionBaseRule(contract, filePath),
+    ...validatePairedPaths(contract, filePath),
     ...validateBranchTemplate(contract, filePath),
     ...validateTransitionTarget(contract, filePath),
   ]

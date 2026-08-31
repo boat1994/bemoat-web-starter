@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
@@ -111,9 +112,23 @@ describe('central guard pack', () => {
     expect(syncMod.managedPackageScripts).toContain('bemoat:typecheck')
     expect(syncMod.managedPaths).toContain('scripts/guards/env-placeholder.ts')
     expect(syncMod.managedPaths).toContain('scripts/guards/frontend-seo.ts')
+    const trackedMjsResult = spawnSync('git', ['ls-files', '--', '*.mjs'], {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+    })
+    expect(trackedMjsResult.status).toBe(0)
+    const trackedMjs = trackedMjsResult.stdout.trim().split('\n').filter(Boolean)
+    expect(trackedMjs).toEqual([
+      'eslint.config.mjs',
+      'scripts/build.mjs',
+      'scripts/deploy-smoke-test.mjs',
+    ])
     expect(syncMod.managedPaths.filter((path: string) => path.endsWith('.mjs'))).toEqual([
       'scripts/deploy-smoke-test.mjs',
       'scripts/build.mjs',
+    ])
+    expect(trackedMjs.filter((path) => !syncMod.managedPaths.includes(path))).toEqual([
+      'eslint.config.mjs',
     ])
     expect(syncMod.managedPaths).toContain('docs/guard-pack.md')
     expect(syncMod.managedPackageScripts).toContain('bemoat:guard:pack')

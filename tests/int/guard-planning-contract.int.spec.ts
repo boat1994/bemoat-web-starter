@@ -130,6 +130,38 @@ describe('guard-planning-contract static validation', () => {
     expect(violations).toEqual([])
   })
 
+  it.each([
+    ['paired_spec', '123', '"docs/superpowers/plans/test/implementation-plan.md"'],
+    ['paired_plan', '"docs/superpowers/specs/test/design.md"', '123'],
+  ])('fails closed when %s is numeric instead of a raw path string', async (field, pairedSpec, pairedPlan) => {
+    const mod = await import('../../scripts/guards/planning-contract-runtime.ts')
+    const tempRoot = mkdtempSync(join(tmpdir(), 'planning-contract-invalid-pair-'))
+    tempRoots.push(tempRoot)
+    const designPath = 'docs/superpowers/specs/test/design.md'
+    const absoluteDesignPath = join(tempRoot, designPath)
+
+    mkdirSync(dirname(absoluteDesignPath), { recursive: true })
+    writeFileSync(
+      absoluteDesignPath,
+      readFixture('valid-existing-issue.md')
+        .replace(/^paired_spec: .*$/m, `paired_spec: ${pairedSpec}`)
+        .replace(/^paired_plan: .*$/m, `paired_plan: ${pairedPlan}`),
+      'utf8',
+    )
+
+    const violations = mod.runPlanningContractGuard({
+      root: tempRoot,
+      files: [designPath],
+    })
+
+    expect(violations).toEqual([
+      expect.objectContaining({
+        rule: 'PLAN001',
+        file: designPath,
+      }),
+    ])
+  })
+
   it('flags closed issue #169 reuse with terminal transition conflicts', async () => {
     const mod = await import('../../scripts/guards/planning-contract-runtime.ts')
 
