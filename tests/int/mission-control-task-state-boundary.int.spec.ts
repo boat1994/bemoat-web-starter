@@ -166,16 +166,38 @@ describe('Mission Control task-state boundary', () => {
       ts.ScriptKind.JS,
     )
     const parserBindings: string[] = []
+    const parserCalls: ts.CallExpression[] = []
+    function isIssueBody(node: ts.Node): boolean {
+      return ts.isPropertyAccessExpression(node) &&
+        ts.isIdentifier(node.expression) &&
+        node.expression.text === 'issue' &&
+        node.name.text === 'body'
+    }
+
     function visitPlanning(node: ts.Node) {
       if (ts.isImportDeclaration(node) && node.importClause?.namedBindings && ts.isNamedImports(node.importClause.namedBindings)) {
         for (const element of node.importClause.namedBindings.elements) {
           if (element.name.text === 'parseMissionControlState') parserBindings.push(element.name.text)
         }
       }
+      if (
+        ts.isCallExpression(node) &&
+        ts.isIdentifier(node.expression) &&
+        node.expression.text === 'parseMissionControlState' &&
+        node.arguments.length === 1 &&
+        ts.isBinaryExpression(node.arguments[0]) &&
+        node.arguments[0].operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken &&
+        isIssueBody(node.arguments[0].left) &&
+        ts.isStringLiteral(node.arguments[0].right) &&
+        node.arguments[0].right.text === ''
+      ) {
+        parserCalls.push(node)
+      }
       ts.forEachChild(node, visitPlanning)
     }
     visitPlanning(planningSource)
     expect(parserBindings).toEqual(['parseMissionControlState'])
+    expect(parserCalls).toHaveLength(1)
   })
 
   it('fails closed for malformed marker/YAML input used by planning safety', async () => {
