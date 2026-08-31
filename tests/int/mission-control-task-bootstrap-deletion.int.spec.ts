@@ -7,6 +7,7 @@ import { COMMAND_CONTRACT_REGISTRY } from '../../scripts/cli/command-contract-re
 import { CANONICAL_TRANSPORTS } from '../../scripts/mission-control/transport-registry.mjs'
 
 const TASK_BOOTSTRAP_COMMAND = 'bemoat:mission-control:task-bootstrap'
+const FOUNDER_AUTHORIZATION_COMMAND = 'bemoat:mission-control:authorize-founder'
 
 const EXCLUSIVE_TASK_BOOTSTRAP_FILES = [
   '.github/workflows/mission-control-task-bootstrap.yml',
@@ -27,7 +28,19 @@ const EXCLUSIVE_TASK_BOOTSTRAP_FILES = [
   'scripts/mission-control/domain/task-ownership-registry.ts',
 ] as const
 
-describe('retired Task Bootstrap public boundary', () => {
+const EXCLUSIVE_FOUNDER_AUTHORIZATION_FILES = [
+  'scripts/mission-control-authorize-founder.mjs',
+  'scripts/mission-control/workflows/authorize-founder.mjs',
+  'scripts/mission-control/domain/founder-authorization-history.ts',
+  'scripts/mission-control/domain/founder-authorization-recording.ts',
+  'scripts/mission-control/domain/founder-authorization-receipt.ts',
+  'scripts/mission-control/domain/founder-merge-authorization-recording.ts',
+  'scripts/mission-control/domain/founder-merge-authorization-receipt.ts',
+  'scripts/mission-control/domain/merge-founder-authority.ts',
+  'scripts/mission-control/domain/task-bootstrap-authorization.ts',
+] as const
+
+describe('retired Task Bootstrap and Founder authorization public boundaries', () => {
   it('removes the public command and exclusive implementation surfaces while retaining shared protocol commands', () => {
     const packageJson = JSON.parse(readFileSync('package.json', 'utf8')) as { scripts: Record<string, string> }
 
@@ -38,10 +51,20 @@ describe('retired Task Bootstrap public boundary', () => {
 
     for (const path of EXCLUSIVE_TASK_BOOTSTRAP_FILES) expect(existsSync(path), path).toBe(false)
 
-    for (const command of ['bemoat:context', 'bemoat:handoff', 'bemoat:mission-control:authorize-founder']) {
+    expect(packageJson.scripts[FOUNDER_AUTHORIZATION_COMMAND]).toBeUndefined()
+    expect(COMMAND_CONTRACT_REGISTRY.commands[FOUNDER_AUTHORIZATION_COMMAND]).toBeUndefined()
+    expect(CANONICAL_TRANSPORTS.map((transport) => transport.command)).not.toContain(FOUNDER_AUTHORIZATION_COMMAND)
+    expect(managedPackageScripts).not.toContain(FOUNDER_AUTHORIZATION_COMMAND)
+
+    for (const path of EXCLUSIVE_FOUNDER_AUTHORIZATION_FILES) expect(existsSync(path), path).toBe(false)
+
+    for (const command of ['bemoat:context', 'bemoat:handoff']) {
       expect(packageJson.scripts[command], command).toEqual(expect.any(String))
       expect(COMMAND_CONTRACT_REGISTRY.commands[command], command).toBeDefined()
     }
+
+    expect(existsSync('scripts/mission-control/adapters/github-transport.mjs')).toBe(true)
+    expect(existsSync('scripts/mission-control/domain/task-state.ts')).toBe(true)
   })
 
   it('does not advertise the retired public command from active metadata or architecture inventory', () => {
@@ -55,6 +78,7 @@ describe('retired Task Bootstrap public boundary', () => {
 
     for (const path of activeSources) {
       expect(readFileSync(path, 'utf8'), path).not.toContain(TASK_BOOTSTRAP_COMMAND)
+      expect(readFileSync(path, 'utf8'), path).not.toContain(FOUNDER_AUTHORIZATION_COMMAND)
     }
   })
 })

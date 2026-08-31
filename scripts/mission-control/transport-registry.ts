@@ -38,13 +38,6 @@ export type AssertTransportRouteOptions = {
 }
 
 export const CANONICAL_TRANSPORTS: ReadonlyArray<Readonly<CanonicalTransportRoute>> = Object.freeze([
-  Object.freeze({
-    command: 'bemoat:mission-control:authorize-founder',
-    role: 'FOUNDER_AUTHORIZATION',
-    owner: 'Founder Authorization Recording Transport',
-    purpose: 'MIGRATION-ONLY HISTORICAL: record one immutable Founder authorization with live ID/readback binding',
-    exceptional: false,
-  }),
 ])
 
 const routeByCommand = new Map<string, Readonly<CanonicalTransportRoute>>(

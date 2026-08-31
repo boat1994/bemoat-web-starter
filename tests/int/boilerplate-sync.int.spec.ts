@@ -54,10 +54,6 @@ const STARTER_ONLY_INT_TESTS: { path: string; reason: string }[] = [
     reason: 'Direct correction-contract fingerprint boundary characterization is starter harness validation only',
   },
   {
-    path: 'tests/int/mission-control-authorize-founder-entrypoint.int.spec.ts',
-    reason: 'Direct authorize-founder entrypoint integration coverage is starter harness validation only',
-  },
-  {
     path: 'tests/int/mission-control-standard-non-managed-eligibility.int.spec.ts',
     reason: 'Direct STANDARD/non-managed eligibility integration coverage is starter harness validation only',
   },

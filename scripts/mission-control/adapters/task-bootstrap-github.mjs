@@ -1,5 +1,4 @@
 import { runCommand } from '../../adapters/command-runner.mjs'
-import { BOOTSTRAP_CONTRACT } from '../domain/task-bootstrap-authorization.ts'
 import {
   LEASE_MARKER,
   createTaskBootstrapLeaseProtocol,
@@ -144,7 +143,8 @@ export function createTaskBootstrapGithubAdapter({ repository, env = process.env
       const ref = api(`repos/${repository}/git/ref/heads/${encodeURIComponent(branch)}`, { label: `${branch} protected ref` })
       return { sha: ref.object?.sha }
     },
-    async getPolicy({ ref, path, sourceCommit = BOOTSTRAP_CONTRACT.protectedBaseSha }) {
+    /** @param {{ ref: string, path: string, sourceCommit?: string }} options */
+    async getPolicy({ ref, path, sourceCommit = null }) {
       const data = api(`repos/${repository}/contents/${path}?ref=${encodeURIComponent(ref)}`, { label: `policy ${path}` })
       const content = Buffer.from(String(data.content ?? '').replace(/\n/g, ''), 'base64').toString('utf8')
       const version = content.match(/(?:^|\n)version:\s*([0-9]+\.[0-9]+\.[0-9]+)/)?.[1] ?? null
@@ -179,10 +179,10 @@ export function createTaskBootstrapGithubAdapter({ repository, env = process.env
       return issueFromRest(issue, repository)
     },
     postIssueComment: postComment,
-    async acquireCreationLease({ issueNumber = BOOTSTRAP_CONTRACT.parentIssue, requestId }) {
+    async acquireCreationLease({ issueNumber, requestId }) {
       return leaseProtocol.acquireLease({ issueNumber, requestId, scope: 'repository-task-creation' })
     },
-    async releaseCreationLease({ issueNumber = BOOTSTRAP_CONTRACT.parentIssue, requestId, lease }) {
+    async releaseCreationLease({ issueNumber, requestId, lease }) {
       return leaseProtocol.releaseLease({ issueNumber, requestId, scope: 'repository-task-creation', lease })
     },
     async acquireIssueLease({ issueNumber, requestId, scope = 'task-bootstrap-projection', expectedBodySha256 }) {

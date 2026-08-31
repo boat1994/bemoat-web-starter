@@ -39,12 +39,18 @@ describe('command contract transport binding validator', () => {
     const transports = structuredClone(CANONICAL_TRANSPORTS).map(
       (transport) => ({ ...transport }) as Record<string, unknown>,
     )
-    const firstTransport = transports[0]
     const before = structuredClone({ commands, transports })
-    firstTransport.role = 'INVALID_ROLE'
+    const firstTransport = {
+      command: 'bemoat:synthetic-transport',
+      role: 'INVALID_ROLE',
+      owner: 'synthetic',
+      purpose: 'synthetic',
+      exceptional: false,
+    }
+    transports.push(firstTransport)
 
     expect(validateTransportBindings(commands, transports)).toEqual([
-      `${firstTransport.command} transport role differs from canonical authority`,
+      `transport command is not registered: ${firstTransport.command}`,
     ])
     expect(commands).toEqual(before.commands)
   })

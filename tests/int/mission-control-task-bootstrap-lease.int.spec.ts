@@ -197,13 +197,13 @@ describe('task bootstrap Issue-only lease domain', () => {
     expect(calls[0]).toEqual(['api', `repos/boat1994/bemoat-web-starter/contents/docs/mission-control/mission-control-guide.md?ref=${liveMainSha}`])
   })
 
-  it('keeps the genesis policy sourceCommit fallback explicit for legacy mode', async () => {
+  it('does not inject obsolete bootstrap policy sourceCommit defaults', async () => {
     const adapter = createLegacyGithubAdapter({
       repository: 'boat1994/bemoat-web-starter',
       runGh: () => JSON.stringify({ content: Buffer.from('version: 1.3.0\n').toString('base64'), sha: 'policy-blob' }),
     })
     await expect(adapter.getPolicy({ ref: 'main', path: 'docs/mission-control/mission-control-guide.md' }))
-      .resolves.toMatchObject({ sourceCommit: expect.any(String) })
+      .resolves.toMatchObject({ sourceCommit: null })
   })
 
   it('fails closed when a competing holder is already active for the same Issue and scope', async () => {
