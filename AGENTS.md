@@ -21,11 +21,11 @@ recreate long-form framework manuals here.
 | Superpowers workflow | Native `superpowers:using-superpowers`; fallback `.agents/skills/using-superpowers.md` |
 | UI animation workflow | `.agents/skills/ui-animation.md`, `docs/ai/ui-execution-workflow.md` |
 | Harness sync contract | `docs/harness-sync-contract.md` |
-| Mission Control | `docs/mission-control/mission-control-guide.md`, `prompts/mission-control/chatgpt-project-loader.md` |
+| Coordination protocol | `docs/mission-control/mission-control-guide.md`, `prompts/mission-control/chatgpt-project-loader.md` |
 
-## Mission Control
+## Coordination protocol
 
-For Mission Control coordination, read and follow:
+For the stateless coordination protocol, read and follow:
 
 `docs/mission-control/mission-control-guide.md`
 
@@ -120,7 +120,7 @@ remain permitted for independent verification. Raw GitHub mutation is permitted
 only when no registered Bemoat command owns the operation, and the reason must
 be recorded.
 
-Real-agent operation must not directly import stateful coordination classes,
+Real-agent operation must not directly import coordination classes,
 Productive-Only policy helpers, workflow services, adapters, transition
 functions, parsers, or projection helpers. Internal imports remain valid for
 automated tests, but do not prove public CLI usability.
@@ -172,11 +172,11 @@ The documentation makes clear that:
 - Chat/session/model memory is not authority.
 - `bemoat:context` is read-only.
 - `bemoat:handoff` is the single final cross-agent protocol record.
-- `RESULT` is migration-only historical compatibility, not the final protocol.
+- Historical Issue comments are read-only evidence and do not select new work.
 - Route vocabulary is only: `IMPLEMENT` / `VERIFY` / `FIX` / `REVIEW` / `FOUNDER_GATE` / `COMPLETE` / `STOP`.
 - Required CI/review/protection comes from active native policy/evidence.
 - Dirty/uncommitted/unpushed/non-durable required local state fails closed.
-- No provider-specific controller or hidden state is required.
+- No provider-specific controller or hidden workflow state is required.
 
 ## Required First Steps Before File Edits
 
@@ -278,7 +278,7 @@ commit" or "docs only, no PR."
     `Refs #<issue-number>`. Do not place a closing keyword for the source
     campaign issue in either the PR body or merge-bearing commit message for an
     intermediate slice.
-14. When required by the workflow profile or an applicable review gate, publish one `HANDOFF` with `pnpm run bemoat:handoff <issue-number> --body-file <strict-handoff.json>` using exactly one strict JSON HANDOFF record and the appropriate route. FAST work without an applicable review or handoff gate may omit HANDOFF and REVIEW_VERDICT.
+14. When required by the workflow profile or an applicable review gate, publish one `HANDOFF` with `pnpm run bemoat:handoff <issue-number> --body-file <strict-handoff.json>` using exactly one strict JSON HANDOFF record and the appropriate route. FAST work without an applicable review or handoff gate may omit HANDOFF.
 15. Notify the user with the final response checklist below.
 16. Do not merge.
 
@@ -430,11 +430,12 @@ motion risks.
 
 When work comes from a GitHub issue and its workflow profile or applicable
 review gate requires cross-agent coordination, opening the PR is not the final
-step. After opening or updating the PR, you must publish the single final
-cross-agent protocol record using `bemoat:handoff`. FAST work without an
-applicable review or handoff gate may omit HANDOFF and REVIEW_VERDICT.
+step. After opening or updating the PR, publish the single final cross-agent
+protocol record using `bemoat:handoff`. FAST work without an applicable review
+or handoff gate may omit HANDOFF.
 
-`bemoat:handoff` is the single final cross-agent protocol record. `RESULT` is migration-only historical compatibility, not the final protocol. The `HANDOFF` record must be appended using the `bemoat:handoff` CLI tool.
+`bemoat:handoff` is the single final cross-agent protocol record. The `HANDOFF`
+record must be appended using the `bemoat:handoff` CLI tool.
 
 The route vocabulary is strictly limited to:
 `IMPLEMENT` / `VERIFY` / `FIX` / `REVIEW` / `FOUNDER_GATE` / `COMPLETE` / `STOP`.
@@ -452,8 +453,10 @@ commands, command results, or an explicit rationale. Put the audit in the PR
 body.
 
 Do **not** routinely edit the source Issue checklist from Dev/Builder work.
-Pre-merge checklist ticks are Mission Control only, under the
-[pre-merge checklist reconciliation gate](docs/agent-loop/role-handoff-contract.md#pre-merge-checklist-reconciliation-gate).
+Before merge, audit every acceptance criterion against live exact-head evidence
+and record the result in the PR body or applicable HANDOFF. Update the Issue
+checklist only when the evidence uniquely supports the edit; otherwise retain
+the mapped audit without changing the Issue body.
 
 ## Final Response Format
 

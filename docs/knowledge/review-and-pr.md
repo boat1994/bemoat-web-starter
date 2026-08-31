@@ -47,11 +47,13 @@ When the diff touches `src/migrations/**` or requires a D1/Payload migration:
 
 Full policy: [migration-draft-pr.md](../agent-loop/migration-draft-pr.md).
 
-## Issue implementation report
+## Issue handoff
 
-After opening PR, comment on the source issue with: PR URL, branch, summary, files changed, commands, test results, risks, human review needed, next step.
-
-Template: [AGENTS.md § Issue report](../../AGENTS.md#issue-report-after-pr-creation).
+When the workflow requires cross-agent coordination, publish exactly one strict
+JSON `HANDOFF` through the discovered public `bemoat:handoff` command after
+opening or updating the PR. Bind it to the verified Issue, exact head,
+validation evidence, acceptance-criteria audit, risks, and next permitted
+action. FAST work without an applicable gate may omit HANDOFF.
 
 ## Validation reminder
 

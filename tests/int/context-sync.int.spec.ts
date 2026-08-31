@@ -41,7 +41,7 @@ function strictHandoff(overrides: Partial<HandoffRecord> = {}) {
     objective: 'Continue the bounded stale-base objective.',
     permitted_scope: ['Synchronize protected main into the same active PR branch.'],
     prohibited_scope: ['Do not merge the PR or broaden the Issue objective.'],
-    executing_agent: 'Execution / IDE Mission Control',
+    executing_agent: 'Execution / IDE Agent',
     provider: 'OpenAI Codex',
     branch: prHeadBranch,
     exact_head: head,

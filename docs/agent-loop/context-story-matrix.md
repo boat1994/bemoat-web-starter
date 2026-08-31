@@ -9,7 +9,7 @@ map, not a new state machine, routing configuration, or test DSL.
 
 | Invariant | Authority | Protected behavior |
 | --- | --- | --- |
-| Routing is a pure function of current native GitHub/Git evidence. | Issue #410 deterministic route contract | No prior Mission Control state, receipt, counter, or session memory selects a route. |
+| Routing is a pure function of current native GitHub/Git evidence. | Issue #410 deterministic route contract | No prior legacy workflow state, receipt, counter, or session memory selects a route. |
 | Required evidence is exact and fail-closed. | Issue #410 generic safety contract | Missing, malformed, stale, conflicting, unavailable, or ambiguous evidence routes `STOP` or keeps an unsatisfied review gate. |
 | Non-terminal continuation requires durable local work. | Issue #410 portability contract | Dirty, detached, unpushed, local-only, or wrong-repository work routes `STOP`. |
 | Terminal merge evidence is authoritative. | Issue #410 plus merged Issue #423 / PR #424 behavior | A valid `MERGED` PR with a valid merge commit can route `COMPLETE` despite a historical base or irrelevant local checkout. |

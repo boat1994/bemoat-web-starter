@@ -44,10 +44,6 @@ const TIER_B_CASES = [
     entrypoint: 'scripts/guard-harness-contract.mjs',
   },
   {
-    command: 'bemoat:guard:mission-control-contract',
-    entrypoint: 'scripts/guard-mission-control-contract.mjs',
-  },
-  {
     command: 'bemoat:guard:pack',
     entrypoint: 'scripts/guard-pack.mjs',
   },

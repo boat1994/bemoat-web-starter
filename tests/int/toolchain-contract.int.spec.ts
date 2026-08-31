@@ -1,4 +1,3 @@
-import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
@@ -28,26 +27,11 @@ describe('toolchain contract', () => {
     expect(contract.node).toBe('24.15.0')
     expect(contract.compiler.strict).toBe(true)
     expect(contract.compiler.childStrictNullChecks).toBe(true)
-    expect(contract.compiler.harnessRoots).toContain('scripts/mission-control/**/*.ts')
+    expect(contract.compiler.harnessRoots).toContain('scripts/context/**/*.ts')
+    expect(contract.compiler.harnessRoots).toContain('scripts/guards/legacy-managed-state.ts')
     expect(JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf8')).scripts.typecheck)
       .toBe('node scripts/bemoat-typecheck.mjs')
     expect(mod.scanToolchainContract()).toEqual([])
-  })
-
-  it('executes the TypeScript compatibility boundary with native Node ESM', () => {
-    const output = execFileSync(
-      process.execPath,
-      [resolve(process.cwd(), 'scripts/mission-control/types/runtime-probe.ts')],
-      { cwd: process.cwd(), encoding: 'utf8' },
-    )
-
-    expect(JSON.parse(output)).toEqual({
-      execution: 'node-native-type-stripping',
-      moduleSystem: 'esm',
-      relativeImportExtensions: 'required',
-      sourceMaps: 'not-generated-for-type-stripping',
-      syntax: 'erasable-typescript-only',
-    })
   })
 
   it('fails closed when a required harness root is omitted', async () => {
@@ -252,7 +236,7 @@ describe('toolchain contract', () => {
     rmSync(fixtureRoot, { recursive: true, force: true })
   })
 
-  it('MC-R1-001 preserves quoted trailing-comma lookalikes and removes structural trailing commas', async () => {
+  it('preserves quoted trailing-comma lookalikes and removes structural trailing commas', async () => {
     const drift = await import('../../scripts/check-boilerplate-drift.mjs')
 
     expect(JSON.parse(drift.stripJsoncComments('{"value": ",}"}')).value).toBe(',}')
@@ -272,7 +256,7 @@ describe('toolchain contract', () => {
     expect(JSON.parse(drift.stripJsoncComments('[1, /* c */ ]'))).toEqual([1])
   })
 
-  it('MC-R1-002 rejects unterminated block comments while preserving valid JSONC', async () => {
+  it('rejects unterminated block comments while preserving valid JSONC', async () => {
     const drift = await import('../../scripts/check-boilerplate-drift.mjs')
 
     expect(() => drift.stripJsoncComments('{"compilerOptions":{"strict":true}}/* no closing')).toThrow(SyntaxError)

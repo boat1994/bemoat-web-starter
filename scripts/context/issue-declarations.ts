@@ -51,7 +51,7 @@ export function deriveWorkflowProfile({
     return {
       name: 'STANDARD',
       nextAction:
-        'Use STANDARD safeguards and resolve the Mission Control mode before treating work as FAST.',
+        'Use STANDARD safeguards because the workflow profile is not explicitly eligible for FAST.',
     }
   }
 
@@ -61,7 +61,7 @@ export function deriveWorkflowProfile({
     return {
       name: 'FAST',
       nextAction:
-        'Follow the FAST lifecycle: focused implementation and verification, one commit, PR, compact RESULT, then Founder review.',
+        'Follow the FAST lifecycle: focused implementation and verification, one commit, PR, and HANDOFF when applicable, then Founder review.',
     }
   }
 

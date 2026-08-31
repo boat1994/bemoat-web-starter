@@ -28,15 +28,14 @@ Practical execution guide for Bemoat coding agents. Paste the [prompt seed](#pro
 | **Test** | Composer 2.5 | Commands per [validation tier](../../AGENTS.md#validation-before-pr-and-merge) |
 | **Red team** | GPT-5.5 | Security, schema, Cloudflare, scope, overbuild — stop or fix before commit |
 | **Commit** | Composer 2.5 | One focused commit if checks pass |
-| **PR** | Composer 2.5 | Open PR or update existing; template filled; `Closes #N`; issue implementation report |
+| **PR** | Composer 2.5 | Open PR or update existing; template filled; `Closes #N`; acceptance-criteria audit |
 | **Sync upstream** | Human + agent | Reusable harness/docs → starter PR; child follows [harness-sync-workflow.md](./harness-sync-workflow.md) |
 
 Full workflow rails: [README.md](./README.md), [checklist.md](./checklist.md), [AGENTS.md](../../AGENTS.md#default-agent-workflow).
 
-The former managed-task `RESULT` / `REVIEW_VERDICT` / state-block workflow is
-historical migration compatibility. New cross-agent transport is the
-append-only HANDOFF published by `bemoat:handoff`; exact PR/head/CI and review
-evidence remain authoritative where the applicable gate requires them.
+New cross-agent transport is the append-only HANDOFF published by
+`bemoat:handoff`; exact PR/head/CI and review evidence remain authoritative
+where the applicable gate requires them.
 
 ## Starter vs child — decision rule
 
@@ -107,7 +106,7 @@ Full validation contract: [AGENTS.md § Validation](../../AGENTS.md#validation-b
 - [ ] Source-of-truth answer: starter or child?
 - [ ] Payload / migration / Cloudflare risks called out in PR
 - [ ] **Migration PR:** draft only; did not mark ready for review or run production migration/deploy
-- [ ] **Comment implementation report on source issue** — see [AGENTS.md § Issue report](../../AGENTS.md#issue-report-after-pr-creation)
+- [ ] **Publish HANDOFF when required** — use the discovered public `bemoat:handoff` command and one strict JSON record
 - [ ] Notify user: branch, files, commands, test result, commit hash, PR URL, risks
 - [ ] **Do not merge** — human only
 

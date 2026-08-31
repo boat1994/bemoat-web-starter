@@ -3,7 +3,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { parseMissionControlState } from '../mission-control/domain/task-state.ts'
+import { parseLegacyManagedStateIdentity } from './legacy-managed-state.ts'
 import {
   parseIssueNumber,
   parseTaskIdentityBlock,
@@ -212,7 +212,7 @@ function issueIdentifiesTaskKey(issue, taskKey) {
   const haystack = `${issue.title ?? ''}\n${issue.body ?? ''}`.toLowerCase()
   return haystack.includes(String(taskKey).toLowerCase())
 }
-function validateMissionControlCompatibility(stateAnalysis, contract, issueNumber, filePath) {
+function validateLegacyManagedStateCompatibility(stateAnalysis, contract, issueNumber, filePath) {
   if (!stateAnalysis.present) {
     return []
   }
@@ -220,10 +220,10 @@ function validateMissionControlCompatibility(stateAnalysis, contract, issueNumbe
     return [makeViolation({
       rule: 'PLAN010',
       file: filePath,
-      message: 'Malformed Mission Control state on active task issue',
+      message: 'Malformed legacy managed-state metadata on active task issue',
       found: 'malformed managed state',
       reason: stateAnalysis.reason ?? 'managed state identity could not be validated',
-      correctiveAction: `Reconstruct Mission Control state on issue #${issueNumber}`,
+      correctiveAction: `Repair or remove legacy managed-state metadata on issue #${issueNumber}`,
     })]
   }
   const managedState = stateAnalysis.state
@@ -239,10 +239,10 @@ function validateMissionControlCompatibility(stateAnalysis, contract, issueNumbe
   return [makeViolation({
     rule: 'PLAN010',
     file: filePath,
-    message: 'Incompatible Mission Control state on active task issue',
-    found: 'incompatible Mission Control state',
+    message: 'Incompatible legacy managed-state metadata on active task issue',
+    found: 'incompatible legacy managed-state metadata',
     reason: 'recorded state is DONE or conflicts with task issue',
-    correctiveAction: `Reconstruct Mission Control state on issue #${issueNumber}`,
+    correctiveAction: `Repair or remove legacy managed-state metadata on issue #${issueNumber}`,
   })]
 }
 export function verifyLiveTaskIdentity(options) {
@@ -360,17 +360,17 @@ export function verifyLiveTaskIdentity(options) {
       })],
     }
   }
-  const missionControlViolations = validateMissionControlCompatibility(
-    parseMissionControlState(issue.body ?? ''),
+  const legacyManagedStateViolations = validateLegacyManagedStateCompatibility(
+    parseLegacyManagedStateIdentity(issue.body ?? ''),
     contract,
     issueNumber,
     filePath,
   )
-  if (missionControlViolations.length > 0) {
+  if (legacyManagedStateViolations.length > 0) {
     return {
       ok: false,
       degradedOffline: false,
-      violations: missionControlViolations,
+      violations: legacyManagedStateViolations,
     }
   }
   return {

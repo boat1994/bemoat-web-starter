@@ -14,7 +14,6 @@ import {
   createResultEnvelopeV1,
 } from './cli/command-result.mjs'
 import { assertManagedRuntimeDeliveryClosure } from './guard-harness-contract.mjs'
-import { resolveChildSyncCommandGate } from './boilerplate/child-sync-gate.mjs'
 import { parseApplyBuildContract, parseSyncMode } from './boilerplate/config.mjs'
 import {
   createBoilerplateSyncWorkflow,
@@ -132,8 +131,6 @@ function runtimeClassification(error) {
   }
 
   const reason = error instanceof Error ? error.message : String(error)
-  if (reason.startsWith('child-sync gate blocked:')) return 'BLOCKED_EXTERNAL'
-
   const prefix = reason.match(/^([A-Z_]+):/)
   if (prefix && Object.hasOwn(CLI_EXIT_CODES, prefix[1])) return prefix[1]
 
@@ -245,41 +242,6 @@ function renderSyncResult({ command, format, result }) {
   for (const line of remainingLines) process.stdout.write(`${line}\n`)
 }
 
-/**
- * Mission Control transition child-sync gate.
- *
- * Default: enforced for every `boilerplate:sync` / `bemoat:boilerplate:sync`
- * invocation (including bare `node scripts/sync-boilerplate.mjs`). Sync is
- * blocked until #182/#184 are merged/green, live child state is reconstructed,
- * and a fresh child-sync HANDOFF exists.
- *
- * Explicit bypass (escape hatch only):
- *   --skip-mc-transition-gate
- *   BEMOAT_SKIP_MC_TRANSITION_CHILD_SYNC_GATE=1
- *
- * Legacy `--require-mc-transition-gate` /
- * `BEMOAT_REQUIRE_MC_TRANSITION_CHILD_SYNC_GATE=1` remain accepted no-ops
- * because enforcement is now the default.
- */
-export function enforceMcTransitionChildSyncGate({
-  argv = process.argv.slice(2),
-  env = process.env,
-  values,
-} = {}) {
-  const skip =
-    values?.skip_mc_transition_gate === true ||
-    argv.includes('--skip-mc-transition-gate') ||
-    env.BEMOAT_SKIP_MC_TRANSITION_CHILD_SYNC_GATE === '1'
-  const enforce = !skip
-  return resolveChildSyncCommandGate({
-    enforce,
-    issues182Merged: env.BEMOAT_CHILD_SYNC_182_MERGED === '1',
-    issues184Merged: env.BEMOAT_CHILD_SYNC_184_MERGED === '1',
-    liveChildReconstructed: env.BEMOAT_CHILD_SYNC_LIVE_RECONSTRUCTED === '1',
-    freshHandoffIssued: env.BEMOAT_CHILD_SYNC_FRESH_HANDOFF === '1',
-  })
-}
-
 function main() {
   let command
   let invocation
@@ -306,10 +268,6 @@ function main() {
       applyBuildContract,
       invocationValues: invocation.values,
       suppressToolOutput: invocation.format === 'json',
-      enforceChildSyncGate: () => enforceMcTransitionChildSyncGate({
-        values: invocation.values,
-        env: process.env,
-      }),
       assertManagedRuntimeDeliveryClosure,
     })
 

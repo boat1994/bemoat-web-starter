@@ -15,7 +15,6 @@ Reusable, deterministic checks that catch common agent and sync mistakes before 
 | `pnpm run bemoat:guard:safety` | Alias to the full pack (synced child CI and pre-push) |
 | `pnpm run guard:safety` | Starter-internal alias to the full pack |
 | `pnpm run bemoat:guard:harness-contract` | Harness contract only |
-| `pnpm run bemoat:guard:mission-control-contract` | Mission Control contract only |
 | `pnpm run bemoat:guard:cloudflare-env` | Cloudflare deploy guard only (also used before deploy/preview) |
 
 Child-facing automation (`.github/workflows/ci.yml`, `.githooks/pre-commit`, `.githooks/pre-push`) uses branch safety plus **`bemoat:*`** scripts only. See [harness-sync-contract.md](./harness-sync-contract.md).
@@ -32,8 +31,7 @@ Child-facing automation (`.github/workflows/ci.yml`, `.githooks/pre-commit`, `.g
 | **Env placeholder** | `scripts/guards/env-placeholder.mjs` | Missing `.env.example`; non-placeholder values in `.env.example` | Track `.env.example` with empty or obvious placeholder values only |
 | **Cloudflare config** | `scripts/guard-cloudflare-env.mjs` | `CLOUDFLARE_ENV=production`; `env.production` in `wrangler.jsonc`; dev D1/R2 IDs matching production | Use top-level `wrangler.jsonc` for production; isolate `env.dev` bindings |
 | **Frontend SEO** | `scripts/guards/frontend-seo.mjs` | Missing `metadata`/`generateMetadata` in `src/app/(frontend)/layout.tsx`; invalid `sitemap.ts`/`robots.ts` when present | Export `metadata` with `title` and `description`; add App Router SEO files when ready |
-| **Mission Control contract** | `scripts/guard-mission-control-contract.mjs` | Missing/invalid guide frontmatter; review budget ≠ 3; missing required sections/templates; thin loader broken or oversized; `AGENTS.md` pointer missing; managed-path omissions; live `.bemoat/mission-control-overrides.md` accidentally managed; forbidden Review-4 / silent-reset / Minor-as-blocker markers | Restore canonical guide/loader/templates; keep loader thin; sync managed paths without managing the live override |
-| **Planning contract** | `scripts/guards/planning-contract-runtime.mjs` + `scripts/guards/planning-contract.mjs` | Missing or malformed `<!-- bemoat-task-identity:start -->` blocks; paired spec/plan identity mismatch; branch template or transition conflicts; invalid `task_issue_strategy`; unconditional planning SHA execution rule; live GitHub issue or Mission Control state conflicts when `gh` is available | Add balanced task-identity YAML to new or modified planning files under `docs/superpowers/specs/**` and `docs/superpowers/plans/**`; align paired documents; use `resolve_live_protected_base_at_dispatch`; keep executable issue references open |
+| **Planning contract** | `scripts/guards/planning-contract-runtime.mjs` + `scripts/guards/planning-contract.mjs` | Missing or malformed `<!-- bemoat-task-identity:start -->` blocks; paired spec/plan identity mismatch; branch template or transition conflicts; invalid `task_issue_strategy`; unconditional planning SHA execution rule; live GitHub issue or legacy managed-state conflicts when `gh` is available | Add balanced task-identity YAML to new or modified planning files under `docs/superpowers/specs/**` and `docs/superpowers/plans/**`; align paired documents; use `resolve_live_protected_base_at_dispatch`; keep executable issue references open |
 | **Structural protection** | `scripts/guards/structural-protection.mjs` | Production `scripts/**/*.mjs` physical-line ceilings, immutable grandfathered maxima, manifest shape, symlinks, and SHA-256 fingerprints for protected test oracles | Keep new or moved scripts at 400 physical lines or fewer; do not alter the protected tests; change `scripts/structural-protection-manifest.json` only with Founder authorization |
 | **Scripts architecture** | `scripts/guards/scripts-architecture.mjs` | Scripts architecture dependency graph contains unallowed cycles, unallowed edges, or violates adapter constraints | Ensure scripts dependency graph matches `scripts/architecture-contract.json` |
 
@@ -41,7 +39,7 @@ Orchestrator: `scripts/guard-pack.mjs` runs guards in the order above and aggreg
 
 ## structural-protection
 
-The manifest uses `physical-lines-v1`: count LF bytes, then add one line only when a non-empty file lacks a trailing LF. CRLF and LF therefore have equal line counts. Accepted reductions ratchet a grandfathered file's effective maximum down to the accepted baseline; when a reduction reaches 400 lines or fewer, remove its grandfathered entry so the normal 400-line ceiling applies. Increasing a protected maximum requires explicit, auditable Founder authorization rather than an ordinary manifest edit. Deleted entries remain tombstones, while renamed destinations are new files and must meet the 400-line ceiling. There are no bypass flags or automatic manifest updates. The guard also rejects symlinks and fingerprints the two protected Mission Control test files before any assertion-level bypass can take effect.
+The manifest uses `physical-lines-v1`: count LF bytes, then add one line only when a non-empty file lacks a trailing LF. CRLF and LF therefore have equal line counts. Accepted reductions ratchet a grandfathered file's effective maximum down to the accepted baseline; when a reduction reaches 400 lines or fewer, remove its grandfathered entry so the normal 400-line ceiling applies. Increasing a protected maximum requires explicit, auditable Founder authorization rather than an ordinary manifest edit. Deleted entries remain tombstones, while renamed destinations are new files and must meet the 400-line ceiling. There are no bypass flags or automatic manifest updates. The guard also rejects symlinks and fingerprints protected test oracles before any assertion-level bypass can take effect.
 
 ## planning-contract
 
@@ -103,7 +101,7 @@ Violations use structured output:
 | `PLAN007` | `execution_base_rule` is `use_planning_base_sha_unconditionally` instead of live protected-base resolution |
 | `PLAN008` | Live GitHub verification: issue missing, wrong repository, or not `OPEN` (offline-aware guard paths) |
 | `PLAN009` | Live issue title/body does not identify the declared `task_key` |
-| `PLAN010` | Live Mission Control managed state is `DONE` or `active_task_issue` conflicts with the contract |
+| `PLAN010` | Live legacy managed-state metadata is `DONE` or `active_task_issue` conflicts with the contract |
 
 Static rules (`PLAN001`–`PLAN007`) run in `pnpm run guard:safety` / `pnpm run bemoat:guard:safety` without network access. Live rules (`PLAN008`–`PLAN010`) are available to callers that explicitly provide authenticated `gh` evidence.
 
@@ -128,11 +126,9 @@ High-risk checks have fixtures under `tests/fixtures/guard/`:
 | `package-recursive-build.json` | Recursive OpenNext `build` script (should fail) |
 | `package-correct-build.json` | Universal build wrapper contract (should pass) |
 
-Integration tests: `tests/int/guard-pack.int.spec.ts`, `tests/int/guard-planning-contract.int.spec.ts`, `tests/int/guard-planning-contract-child-dev-base.int.spec.ts`, `tests/int/guard-planning-contract-starter-main-base.int.spec.ts`, `tests/int/mission-control-contract.int.spec.ts` (plus existing `repo-safety-guard`, `harness-contract-guard`, `cloudflare-env-guard` specs).
+Integration tests: `tests/int/guard-pack.int.spec.ts`, `tests/int/guard-planning-contract.int.spec.ts`, `tests/int/guard-planning-contract-child-dev-base.int.spec.ts`, `tests/int/guard-planning-contract-starter-main-base.int.spec.ts` (plus existing `repo-safety-guard`, `harness-contract-guard`, `cloudflare-env-guard` specs).
 
 Planning contract fixtures live under `tests/fixtures/planning/` and are managed harness paths so child sync receives the canonical invalid/valid planning documents.
-
-Mission Control rule IDs: `MC001`–`MC012` (see `scripts/guard-mission-control-contract.mjs` and [mission-control/README.md](./mission-control/README.md)).
 
 ## False positive risk
 
@@ -146,7 +142,6 @@ Mission Control rule IDs: `MC001`–`MC012` (see `scripts/guard-mission-control-
 | Env placeholder | Short custom values under 12 chars treated as placeholders | Use empty values or documented placeholders in `.env.example` |
 | Cloudflare config | Starter `wrangler.jsonc` contains real project IDs | IDs in `wrangler.jsonc` are expected; guard blocks duplicates in `env.dev` |
 | Frontend SEO | Custom frontend layouts without `(frontend)` route group | Guard skips when starter frontend layout path is absent |
-| Mission Control | Editorial wording changes trigger section checks | Prefer stable `##` headings and invariant HTML markers; keep loader under 80 lines and free of long-form section titles |
 | Planning contract | Closed issue numbers in historical prose or progress checklists | Guard scans only executable contract blocks and modified planning files; historical `- [x] Task N (#169)` references outside markers are ignored |
 | Scripts architecture | Minor changes to scripts architecture trigger failures | Update `scripts/architecture-contract.json` when intentionally modifying architecture |
 

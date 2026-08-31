@@ -17,7 +17,9 @@
       "tests/helpers/**/*.ts",
       "tests/int/**/*.int.spec.ts",
       "tests/setup/**/*.ts",
-      "scripts/mission-control/**/*.ts",
+      "scripts/context/**/*.ts",
+      "scripts/handoff/**/*.ts",
+      "scripts/guards/legacy-managed-state.ts",
       "vitest.config.mts",
       "vitest.setup.ts"
     ]

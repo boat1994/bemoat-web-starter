@@ -492,7 +492,7 @@ esac
     )
   })
 
-  it('emits PLAN010 when managed Mission Control state is DONE', async () => {
+  it('emits PLAN010 when legacy managed-state metadata is DONE', async () => {
     const mod = await import('../../scripts/guards/planning-contract-runtime.mjs')
     const cwd = createRepo()
     const body = `${managedState({
@@ -530,10 +530,10 @@ esac
     expect(result.ok).toBe(false)
     expect(result.violations[0].rule).toBe('PLAN010')
     expect(mod.formatPlanningContractViolations(result.violations)[0]).toContain(
-      'Found: incompatible Mission Control state',
+      'Found: incompatible legacy managed-state metadata',
     )
     expect(mod.formatPlanningContractViolations(result.violations)[0]).toContain(
-      'Reason: recorded state is DONE or conflicts with task issue. Corrective action: Reconstruct Mission Control state on issue #170',
+      'Reason: recorded state is DONE or conflicts with task issue. Corrective action: Repair or remove legacy managed-state metadata on issue #170',
     )
   })
 

@@ -79,9 +79,8 @@ objective is durable and the workspace classification is safe.
    `body_file` input, and never treat the file as durable workflow state or
    continuation authority.
 4. Invoke only the discovered public `bemoat:handoff` command. Do not invoke
-   its implementation entrypoint, import internal modules, call a legacy
-   Mission Control transport, or publish through a raw GitHub mutation path
-   owned by the public command.
+   its implementation entrypoint, import internal modules, or publish through
+   a raw GitHub mutation path owned by the public command.
 5. Require the command's result classification and fresh GitHub readback. A
    successful result must prove the one exact HANDOFF body and immutable
    comment identity required by the discovered contract. Preserve the exact

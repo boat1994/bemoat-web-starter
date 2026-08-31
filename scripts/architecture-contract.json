@@ -74,13 +74,6 @@
       "migration_status": "transitional"
     },
     {
-      "path": "scripts/guard-mission-control-contract.mjs",
-      "facade_disposition": "stable_facade",
-      "internal_destination": "scripts/guards/mission-control-contract/",
-      "owning_slice": 3,
-      "migration_status": "migrated"
-    },
-    {
       "path": "scripts/guard-pack.mjs",
       "facade_disposition": "composition_root",
       "internal_destination": "scripts/guards/pack.mjs",

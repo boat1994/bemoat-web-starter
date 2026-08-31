@@ -1,12 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { handoffCommands } from './handoff-command-metadata.ts'
 import { handoffRoutes } from './handoff-routing-policy.ts'
-import { missionControlPrimaryCommands } from './mission-control-command-metadata-primary.ts'
-import { missionControlRecoveryCommands } from './mission-control-command-metadata-recovery.ts'
-import { missionControlReviewCommands } from './mission-control-command-metadata-review.ts'
 import { contextSyncCommands } from './context-sync-command-metadata.ts'
 import { contextSyncRoutes } from './context-sync-routing-policy.ts'
-import { missionControlRecoveryRoutes } from './mission-control-routing-policy-recovery.ts'
+import { utilityRoutes } from './utility-routing-policy.ts'
 
 export const COMMAND_CONTRACT_SCHEMA_VERSION = 1 as const
 
@@ -301,28 +298,20 @@ const commands: Record<string, CommandContract> = {
       flag('harness_only', '--harness-only', 'boolean', 'Apply only harness-managed paths.', ['true']),
       flag('full', '--full', 'boolean', 'Apply the full boilerplate projection.', ['true']),
       flag('apply_build_contract', '--apply-build-contract', 'boolean', 'Opt into the separately gated build contract.', ['true']),
-      flag('skip_mc_transition_gate', '--skip-mc-transition-gate', 'boolean', 'Explicitly bypass the Mission Control child-sync transition gate.', ['true']),
-      flag('require_mc_transition_gate', '--require-mc-transition-gate', 'boolean', 'Accepted legacy no-op transition-gate compatibility flag.', ['true']),
       environment('BEMOAT_SYNC_MODE', 'enum', 'Trusted default sync mode.', ['harness-only', 'full']),
       environment('BEMOAT_APPLY_BUILD_CONTRACT', 'boolean', 'Trusted build-contract opt-in default.', ['0', '1', 'true', 'false']),
-      environment('BEMOAT_SKIP_MC_TRANSITION_CHILD_SYNC_GATE', 'boolean', 'Trusted explicit transition-gate bypass default.', ['1']),
-      environment('BEMOAT_REQUIRE_MC_TRANSITION_CHILD_SYNC_GATE', 'boolean', 'Accepted legacy no-op transition-gate compatibility default.', ['1']),
-      environment('BEMOAT_CHILD_SYNC_182_MERGED', 'boolean', 'Trusted child-sync Issue #182 merge evidence.', ['1']),
-      environment('BEMOAT_CHILD_SYNC_184_MERGED', 'boolean', 'Trusted child-sync Issue #184 merge evidence.', ['1']),
-      environment('BEMOAT_CHILD_SYNC_LIVE_RECONSTRUCTED', 'boolean', 'Trusted live child reconstruction evidence.', ['1']),
-      environment('BEMOAT_CHILD_SYNC_FRESH_HANDOFF', 'boolean', 'Trusted fresh child-sync HANDOFF evidence.', ['1']),
       environment('BEMOAT_BOILERPLATE_REPO', 'repository', 'Trusted upstream boilerplate repository default.'),
       environment('BEMOAT_BOILERPLATE_REF', 'string', 'Trusted upstream boilerplate ref default.'),
     ],
     required_evidence: [
       'Selected source and target repositories.',
-      'Transition-gate and build-contract evidence when requested.',
+      'Build-contract evidence when requested.',
       'Clean or explicitly preserved target working-tree state.',
     ],
     reads: [
       'source and target files',
       'git refs and working-tree state',
-      'upstream clone and transition evidence',
+      'upstream clone and selected source-ref evidence',
     ],
     writes: [
       'managed and seed paths',
@@ -353,7 +342,7 @@ const commands: Record<string, CommandContract> = {
     ],
     parser_owner: 'scripts/boilerplate/config.mjs',
     safe_help_invocation: 'pnpm run bemoat:boilerplate:sync -- --help --json',
-    last_validation_before_mutation: 'Re-check selected mode, source/target paths, transition gates, and working-tree preservation immediately before applying changes.',
+    last_validation_before_mutation: 'Re-check selected mode, source/target paths, and working-tree preservation immediately before applying changes.',
     post_write_readback: 'Re-scan managed paths and sync metadata and confirm the documented target projection.',
     legacy_classification_map: {
       SYNCED: 'SUCCESS',
@@ -420,19 +409,6 @@ const commands: Record<string, CommandContract> = {
     stop_conditions: ['Stop when managed harness paths or runtime closure violate the sync contract.'],
     parser_owner: 'scripts/guard-harness-contract.mjs',
     safe_help_invocation: 'pnpm run bemoat:guard:harness-contract -- --help --json',
-  }),
-
-  'bemoat:guard:mission-control-contract': contract({
-    command: 'bemoat:guard:mission-control-contract',
-    tier: 'B',
-    entrypoint: 'scripts/guard-mission-control-contract.mjs',
-    purpose: 'Inspect Mission Control policy, scripts, and managed rails.',
-    operation: 'Run the read-only Mission Control contract guard.',
-    reads: ['Mission Control policy/docs/scripts and sync manifest'],
-    writes: [],
-    stop_conditions: ['Stop when Mission Control ownership or managed-path contracts drift.'],
-    parser_owner: 'scripts/guard-mission-control-contract.mjs',
-    safe_help_invocation: 'pnpm run bemoat:guard:mission-control-contract -- --help --json',
   }),
 
   'bemoat:guard:pack': contract({
@@ -529,23 +505,18 @@ const commands: Record<string, CommandContract> = {
 }
 
 
-const missionControlDependencies: any = { contract: contract as unknown as <T extends Record<string, unknown>>(value: T) => T, positional, flag, environment, nextAction }
-const protocolCommands = handoffCommands(missionControlDependencies)
-const missionControlCommands = {
-  ...missionControlPrimaryCommands(missionControlDependencies),
-  ...missionControlRecoveryCommands(missionControlDependencies),
-  ...missionControlReviewCommands(missionControlDependencies),
-}
+const commandMetadataDependencies: any = { contract: contract as unknown as <T extends Record<string, unknown>>(value: T) => T, positional, flag, environment, nextAction }
+const protocolCommands = handoffCommands(commandMetadataDependencies)
 
 const trailingCommands = Object.fromEntries(
   ['bemoat:test:int', 'bemoat:typecheck'].map((command) => [command, commands[command]]),
 )
 delete commands['bemoat:test:int']
 delete commands['bemoat:typecheck']
-const orderedCommands = { ...commands, ...contextSyncCommands(missionControlDependencies), ...protocolCommands, ...missionControlCommands, ...trailingCommands }
+const orderedCommands = { ...commands, ...contextSyncCommands(commandMetadataDependencies), ...protocolCommands, ...trailingCommands }
 
 const routes = [
-  ...missionControlRecoveryRoutes(),
+  ...utilityRoutes(),
   ...contextSyncRoutes(),
   ...handoffRoutes(),
 ]

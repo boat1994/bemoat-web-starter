@@ -1,81 +1,68 @@
-# Mission Control handoff template
+# HANDOFF template
 
-Current cross-agent handoffs are published with `bemoat:handoff` after fresh
-`bemoat:context` reconstruction. This template describes the stateless
-HANDOFF contract. Historical managed-task fields are retained at the end for
-read/migration compatibility only.
+Publish exactly one strict JSON object after fresh Context reconstruction and
+one bounded objective:
 
-The handoff must contain one bounded job or one explicitly named safe execution
-bundle. Bundles may contain only mechanically dependent steps with one authority
-scope and one terminal durable outcome; they must not cross implementation,
-independent review, Founder approval, or production-operation gates.
-
-## HANDOFF
-
-- Task / Issue:
-- Phase:
-- Executing role:
-- Target:
-- Objective:
-- Repository / branch:
-- Approved base / current head:
-- PR and exact-head CI:
-- Policy source/ref/SHA:
-- Exact bounded scope:
-- Out of scope:
-- Acceptance Criteria audit:
-- Required checks:
-- Stop conditions:
-- Founder gate:
-- Next permitted action:
-
-Publish this record with:
-
-```text
+```bash
 pnpm run bemoat:handoff <issue-number> --body-file <strict-handoff.json>
 ```
 
-The body file (`<strict-handoff.json>`) must contain exactly one strict JSON
-HANDOFF record; Markdown, a fenced JSON block, and stdin are not accepted by the
-current public contract. Run `pnpm run bemoat:handoff -- --help --json` first
-and use its discovered required inputs exactly.
+The body must contain exactly one strict JSON HANDOFF object with the schema-v1
+fields below. Markdown, fenced
+JSON, stdin, unknown fields, and multiple records are rejected.
 
-The receiver must run `pnpm run bemoat:context <issue-number> --json` and
-verify all live bindings before acting. A HANDOFF does not create managed
-state, review counters, or a second protocol transport.
+```json
+{
+  "schema_version": 1,
+  "record_type": "HANDOFF",
+  "repository": "owner/repository",
+  "issue_number": "410",
+  "objective": "One bounded objective",
+  "permitted_scope": ["Authorized paths or behavior"],
+  "prohibited_scope": ["Explicit exclusions"],
+  "executing_agent": "agent identity",
+  "provider": "provider identity",
+  "branch": "chore/410-example",
+  "exact_head": "0123456789abcdef0123456789abcdef01234567",
+  "protected_base": {
+    "branch": "main",
+    "sha": "89abcdef0123456789abcdef0123456789abcdef"
+  },
+  "pr": {
+    "number": "455",
+    "url": "https://github.com/owner/repository/pull/455",
+    "base": "main",
+    "head": "chore/410-example",
+    "head_sha": "0123456789abcdef0123456789abcdef01234567"
+  },
+  "verified_evidence": [
+    {
+      "kind": "validation",
+      "value": "Focused and full checks passed at exact_head",
+      "url": null
+    }
+  ],
+  "route": "FOUNDER_GATE",
+  "next_action": {
+    "route": "FOUNDER_GATE",
+    "description": "Founder reviews the verified exact head; no autonomous merge"
+  },
+  "stop_conditions": ["Do not merge without Founder approval"],
+  "local_durability": {
+    "required": true,
+    "durable": true,
+    "reason": null
+  }
+}
+```
 
-### Historical migration-only managed-task fields
+Routes are closed to `IMPLEMENT`, `VERIFY`, `FIX`, `REVIEW`,
+`FOUNDER_GATE`, `COMPLETE`, and `STOP`. When there is no branch or PR, use
+`null` only where the schema permits it. If local durability is required but
+incomplete, set `durable` to `false`, explain why in `reason`, and use an
+appropriate STOP route.
 
-- Repository:
-- Approved base:
-- Active Task Issue:
-- Active PR:
-- Current head SHA:
-- Guide version/ref/SHA:
-- Assigned role: Dev | Reviewer | Founder
-- Execution role: Integration Builder | Delivery Coordinator | Reviewer | State Reconciler | Mission Control
-- Review type: none | full | delta | blocker-verification
-- Review cycle:
-- Model/reasoning guidance:
-- Exact scope:
-- Out of scope:
-- Acceptance Criteria:
-- Open findings:
-- Required checks:
-- Required manual QA:
-- Stop condition:
-- Expected RESULT format: historical migration-only compatibility; current work
-  uses `bemoat:handoff` instead.
-
-### Double-Loop Review fields (conditional)
-
-Use only when the gate is triggered; retain the existing `## HANDOFF` heading.
-
-- Loop gate: triggered / trigger evidence / no-code checkpoint
-- Failure class: IMPLEMENTATION | SPECIFICATION | VALIDATION | DECOMPOSITION | TOOL_OR_MODEL | ENVIRONMENT | UNKNOWN
-- Invalidated assumptions:
-- Decision: CONTINUE_IMPLEMENTATION | REVISE_SPECIFICATION | REVISE_VALIDATION | SPLIT_OR_REDECOMPOSE_TASK | CHANGE_TOOL_OR_MODEL | REPAIR_ENVIRONMENT | BLOCKED_EXTERNAL | BLOCKED_FOR_FOUNDER_DECISION | CREATE_FOLLOW_UP_ISSUE
-- Next experiment:
-- Material difference from prior attempts:
-- Allowed / prohibited files and actions:
-- Verify / stop condition:
+The receiver must run `bemoat:context <issue-number> --json` and rebind live
+evidence before acting. HANDOFF records authority and routing; it does not
+create managed state, review counters, merge permission, or another protocol
+transport.

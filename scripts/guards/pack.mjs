@@ -22,10 +22,6 @@ import {
   validateArchitectureContract,
 } from './scripts-architecture.mjs'
 import {
-  formatMissionControlContractViolations,
-  runMissionControlContractGuard,
-} from '../guard-mission-control-contract.mjs'
-import {
   formatPlanningContractViolations,
   runPlanningContractGuard,
 } from './planning-contract-runtime.mjs'
@@ -89,12 +85,6 @@ export const GUARD_PACK = [
     summary: 'Frontend metadata and optional sitemap/robots route files',
     run: runFrontendSeoGuard,
     format: formatFrontendSeoViolations,
-  },
-  {
-    id: 'mission-control-contract',
-    summary: 'Mission Control guide, loader, templates, sync ownership, and review invariants',
-    run: runMissionControlContractGuard,
-    format: formatMissionControlContractViolations,
   },
   {
     id: 'planning-contract',

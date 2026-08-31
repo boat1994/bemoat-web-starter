@@ -4,8 +4,8 @@ Copy this template for **local/session recovery** (interrupted work, PR
 descriptions, or private execution notes). For current GitHub transport between
 agents on an Active Task Issue, use `bemoat:context` followed by
 `bemoat:handoff`; see [role-handoff-contract.md](./role-handoff-contract.md).
-The historical RESULT and REVIEW_VERDICT shapes in that document are
-migration-only. This template is local/session recovery only.
+Older comment records are migration-only evidence. This template is
+local/session recovery only.
 
 ```markdown
 ## Task
