@@ -256,6 +256,7 @@ function renderSyncResult({
       ref: result.ref,
       sync_mode: result.syncMode,
       apply_build_contract: result.applyBuildContract,
+      bootstrap_legacy_child: result.bootstrapLegacyChild,
       seed_only_paths_skipped: result.seedOnlyPathsSkipped,
       synced_managed: result.syncedManaged,
       seeded_files: result.seededFiles,
@@ -293,6 +294,19 @@ function main() {
 
     const syncMode = parseSyncMode(invocation.values, process.env)
     const applyBuildContract = parseApplyBuildContract(invocation.values, process.env)
+    const bootstrapLegacyChild = invocation.values.bootstrap_legacy_child === true
+    if (bootstrapLegacyChild && syncMode !== 'harness-only') {
+      throw new CliInvocationError(
+        '--bootstrap-legacy-child',
+        'legacy-child bootstrap supports harness-only mode',
+      )
+    }
+    if (bootstrapLegacyChild && applyBuildContract) {
+      throw new CliInvocationError(
+        '--apply-build-contract',
+        'legacy-child bootstrap cannot apply the build contract',
+      )
+    }
     const workflow = createBoilerplateSyncWorkflow()
     const result = workflow.run({
       repo,
@@ -302,6 +316,7 @@ function main() {
       sourceRoot,
       syncMode,
       applyBuildContract,
+      bootstrapLegacyChild,
       invocationValues: invocation.values,
       suppressToolOutput: invocation.format === 'json',
       assertManagedRuntimeDeliveryClosure,

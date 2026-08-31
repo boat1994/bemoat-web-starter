@@ -1,0 +1,15 @@
+{
+  "name": "legacy-intercepted-child",
+  "private": true,
+  "scripts": {
+    "bemoat:boilerplate:sync": "node scripts/sync-boilerplate.mjs",
+    "bemoat:boilerplate:check": "node scripts/check-boilerplate-drift.mjs",
+    "bemoat:typecheck": "node scripts/bemoat-typecheck.mjs",
+    "bemoat:guard:cloudflare-env": "node scripts/guard-cloudflare-env.mjs",
+    "bemoat:guard:harness-contract": "node scripts/guard-harness-contract.mjs",
+    "bemoat:guard:pack": "node scripts/guard-pack.mjs",
+    "bemoat:guard:safety": "node scripts/guard-pack.mjs",
+    "bemoat:hooks:install": "node scripts/install-git-hooks.mjs",
+    "build": "child-owned-build"
+  }
+}

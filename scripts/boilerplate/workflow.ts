@@ -12,19 +12,19 @@ import {
   syncMetadataPath,
   syncPathsFromSource,
 } from './filesystem.ts'
-import { assertExactManagedPackageScripts, readJSON, syncPackageManifest } from './package.ts'
+import {
+  assertExactManagedPackageScripts,
+  assertLegacyChildBootstrapPreState,
+  readJSON,
+  syncPackageManifest,
+} from './package.ts'
 import {
   commitValidatedSyncChanges,
   createGitClient,
   restoreStashIfNeeded,
   stashWorkingTreeIfNeeded,
 } from './git.ts'
-import type {
-  BuildContractFileResult,
-  PackageSyncResult,
-  SyncMode,
-  SyncResult,
-} from './types.ts'
+import type { BuildContractFileResult, PackageSyncResult, SyncMode, SyncResult } from './types.ts'
 
 type WorkflowRunOptions = ExecFileSyncOptions & { suppressStdout?: boolean }
 
@@ -40,27 +40,14 @@ function printList(log: (message: string) => void, title: string, values: string
   for (const value of values.length > 0 ? values : ['(none)']) log(`- ${value}`)
 }
 
-function printSyncReport({
-  syncMode,
-  seedOnlyPathsSkipped,
-  syncedManaged,
-  seededFiles,
-  skippedSeedFiles,
-  mergedFiles,
-  packageSync,
-  buildContractFiles,
-  log,
-}: {
-  syncMode: SyncMode
-  seedOnlyPathsSkipped: boolean
-  syncedManaged: string[]
-  seededFiles: string[]
-  skippedSeedFiles: string[]
-  mergedFiles: string[]
-  packageSync: Partial<PackageSyncResult>
-  buildContractFiles: Partial<BuildContractFileResult>
-  log: (message: string) => void
-}): void {
+function printSyncReport(
+  { syncMode, seedOnlyPathsSkipped, syncedManaged, seededFiles, skippedSeedFiles, mergedFiles, packageSync, buildContractFiles, log }: {
+    syncMode: SyncMode; seedOnlyPathsSkipped: boolean
+    syncedManaged: string[]; seededFiles: string[]; skippedSeedFiles: string[]; mergedFiles: string[]
+    packageSync: Partial<PackageSyncResult>; buildContractFiles: Partial<BuildContractFileResult>
+    log: (message: string) => void
+  },
+): void {
   log(`\nSync mode: ${syncMode}`)
   if (seedOnlyPathsSkipped) log('Seed-only starter modules skipped in harness-only mode')
   printList(log, 'Synced managed paths', syncedManaged)
@@ -69,30 +56,19 @@ function printSyncReport({
   printList(log, 'Merged keep-child-content paths', mergedFiles)
   log('\nPackage manifest (child-owned):')
   const addedScripts = packageSync.addedScripts ?? []
-  if (addedScripts.length > 0) {
-    log(`- added missing bemoat:* scripts: ${addedScripts.join(', ')}`)
-  } else {
-    log('- no missing bemoat:* scripts added')
-  }
-  const appliedBuildContract = [...(packageSync?.appliedBuildContractScripts ?? []), ...(packageSync?.updatedBuildContractScripts ?? [])]
-  if (appliedBuildContract.length > 0) {
-    log(`- applied build contract scripts: ${appliedBuildContract.join(', ')}`)
-  }
-  const appliedBuildContractFiles = [...(buildContractFiles?.applied ?? []), ...(buildContractFiles?.updated ?? [])]
-  if (appliedBuildContractFiles.length > 0) {
-    log(`- applied build contract files: ${appliedBuildContractFiles.join(', ')}`)
-  }
-  if (packageSync?.proposalPath) {
-    log(`- review suggested script/dependency changes in ${packageSync.proposalPath}`)
-  }
+  log(addedScripts.length > 0
+    ? `- added missing bemoat:* scripts: ${addedScripts.join(', ')}`
+    : '- no missing bemoat:* scripts added')
+  const appliedBuildContract = [...(packageSync.appliedBuildContractScripts ?? []), ...(packageSync.updatedBuildContractScripts ?? [])]
+  if (appliedBuildContract.length > 0) log(`- applied build contract scripts: ${appliedBuildContract.join(', ')}`)
+  const appliedBuildContractFiles = [...(buildContractFiles.applied ?? []), ...(buildContractFiles.updated ?? [])]
+  if (appliedBuildContractFiles.length > 0) log(`- applied build contract files: ${appliedBuildContractFiles.join(', ')}`)
+  if (packageSync.proposalPath) log(`- review suggested script/dependency changes in ${packageSync.proposalPath}`)
 }
 
 export function getSuggestedNextCommands(
   syncMode: SyncMode,
-  { proposalPath = undefined, applyBuildContract = false }: {
-    proposalPath?: string | null
-    applyBuildContract?: boolean
-  } = {},
+  { proposalPath = undefined, applyBuildContract = false }: { proposalPath?: string | null; applyBuildContract?: boolean } = {},
 ): string[] {
   const lines: string[] = []
   if (proposalPath) {
@@ -104,11 +80,9 @@ export function getSuggestedNextCommands(
       lines.push(`Review ${proposalPath} and apply any package.json changes manually`)
     }
   }
-  if (applyBuildContract) {
-    lines.push(
-      'Review src/payload.config.ts for build context detection (child-owned; see docs/boilerplate-sync-command.md)',
-    )
-  }
+  if (applyBuildContract) lines.push(
+    'Review src/payload.config.ts for build context detection (child-owned; see docs/boilerplate-sync-command.md)',
+  )
   lines.push('pnpm install')
   if (syncMode === SYNC_MODES.FULL) {
     lines.push('pnpm run generate:importmap')
@@ -121,20 +95,16 @@ export function getSuggestedNextCommands(
   return lines
 }
 
-function printSuggestedNextCommands(
-  syncMode: SyncMode,
-  packageSync: Partial<PackageSyncResult>,
-  applyBuildContract: boolean,
-  log: (message: string) => void,
-): void {
+function printSuggestedNextCommands(syncMode: SyncMode, packageSync: Partial<PackageSyncResult>, applyBuildContract: boolean, log: (message: string) => void): void {
   log('\nDone. Suggested next commands:')
   for (const line of getSuggestedNextCommands(syncMode, {
-    proposalPath: packageSync?.proposalPath,
+    proposalPath: packageSync.proposalPath,
     applyBuildContract,
   })) {
     log(line)
   }
 }
+
 function annotateSyncFailure(
   error: unknown,
   {
@@ -188,6 +158,7 @@ const defaultDependencies = {
   getSourceSyncConfig,
   readJSON,
   assertExactManagedPackageScripts,
+  assertLegacyChildBootstrapPreState,
   runToolchainPreflight,
   stashWorkingTreeIfNeeded,
   syncPathsFromSource,
@@ -218,6 +189,7 @@ export function createBoilerplateSyncWorkflow(overrides: Record<string, unknown>
       assertManagedRuntimeDeliveryClosure = dependencies.assertManagedRuntimeDeliveryClosure,
       syncMode: providedSyncMode = undefined,
       applyBuildContract: providedApplyBuildContract = undefined,
+      bootstrapLegacyChild = false,
       invocationValues = undefined,
       suppressToolOutput = false,
     }: {
@@ -229,6 +201,7 @@ export function createBoilerplateSyncWorkflow(overrides: Record<string, unknown>
       assertManagedRuntimeDeliveryClosure?: (input: { root: string; managedPaths: string[] }) => void
       syncMode?: SyncMode
       applyBuildContract?: boolean
+      bootstrapLegacyChild?: boolean
       invocationValues?: readonly string[] | Record<string, unknown>
       suppressToolOutput?: boolean
     }): SyncResult {
@@ -243,6 +216,7 @@ export function createBoilerplateSyncWorkflow(overrides: Record<string, unknown>
       log(`Syncing Bemoat boilerplate from ${repo}#${ref} (${syncMode} mode)`)
       const git = dependencies.createGitClient({ suppressStdout: suppressToolOutput })
       let stashCreated = false
+      let tempPrepared = false
       let mutationPerformed = false
       let result: SyncResult | null = null
       let failure: unknown = null
@@ -250,6 +224,15 @@ export function createBoilerplateSyncWorkflow(overrides: Record<string, unknown>
         mutationPerformed = true
       }
       try {
+        if (
+          bootstrapLegacyChild &&
+          git.hasWorkingTreeChanges(targetRoot, [])
+        ) {
+          throw new Error(
+            'UNSUPPORTED_PRE_STATE: legacy-child bootstrap requires a clean target working tree',
+          )
+        }
+        tempPrepared = true
         dependencies.rmSync(tempRoot, { recursive: true, force: true })
         dependencies.mkdirSync(tempRoot, { recursive: true })
         dependencies.run(
@@ -260,7 +243,11 @@ export function createBoilerplateSyncWorkflow(overrides: Record<string, unknown>
         const syncConfig = dependencies.getSourceSyncConfig(sourceRoot)
         const sourcePackage = dependencies.readJSON(dependencies.join(sourceRoot, 'package.json'))
         const targetPackage = dependencies.readJSON(dependencies.join(targetRoot, 'package.json'))
-        dependencies.assertExactManagedPackageScripts(sourcePackage, targetPackage)
+        if (bootstrapLegacyChild) {
+          dependencies.assertLegacyChildBootstrapPreState(sourcePackage, targetPackage)
+        } else {
+          dependencies.assertExactManagedPackageScripts(sourcePackage, targetPackage)
+        }
         dependencies.runToolchainPreflight({
           targetRootPath: targetRoot,
           contractRootPath: sourceRoot,
@@ -308,6 +295,7 @@ export function createBoilerplateSyncWorkflow(overrides: Record<string, unknown>
           repo,
           ref,
           applyBuildContract,
+          bootstrapLegacyChild,
           syncConfig,
           onMutation: markMutation,
         })
@@ -336,8 +324,12 @@ export function createBoilerplateSyncWorkflow(overrides: Record<string, unknown>
         }
 
         if (packageSync.packageChanged) {
+          const updatedManagedScripts = packageSync.updatedManagedScripts ?? []
           if (packageSync.addedScripts.length > 0) {
             log(`[sync] added missing bemoat:* scripts: ${packageSync.addedScripts.join(', ')}`)
+          }
+          if (updatedManagedScripts.length > 0) {
+            log(`[sync] updated legacy bemoat:* scripts: ${updatedManagedScripts.join(', ')}`)
           }
           if (packageSync.appliedBuildContractScripts?.length > 0) {
             log(
@@ -422,6 +414,7 @@ export function createBoilerplateSyncWorkflow(overrides: Record<string, unknown>
           ref,
           syncMode,
           applyBuildContract,
+          bootstrapLegacyChild,
           seedOnlyPathsSkipped,
           syncedManaged,
           seededFiles,
@@ -437,7 +430,9 @@ export function createBoilerplateSyncWorkflow(overrides: Record<string, unknown>
         failure = error
       } finally {
         try {
-          dependencies.rmSync(tempRoot, { recursive: true, force: true })
+          if (tempPrepared) {
+            dependencies.rmSync(tempRoot, { recursive: true, force: true })
+          }
           dependencies.restoreStashIfNeeded(targetRoot, stashCreated, git)
         } catch (cleanupError) {
           if (failure) {

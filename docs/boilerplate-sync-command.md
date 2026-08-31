@@ -201,7 +201,46 @@ The sync command automatically creates a Git commit for:
 
 If local uncommitted changes already exist, the script stashes only files outside the sync-managed scope and restores them after the sync commit. Existing edits on sync-managed files are overwritten by the new sync output instead of being popped back afterward.
 
-If a child project is still using the older sync script, copy `scripts/sync-boilerplate.ts` from the starter into that project once before rerunning sync. The older script version did not sync itself forward.
+### Bootstrap a child whose local sync command is intercepted
+
+Use the bootstrap path only when all of these are true:
+
+- the child working tree is clean;
+- `package.json` maps `bemoat:boilerplate:sync` exactly to `node scripts/sync-boilerplate.mjs`;
+- local `pnpm run bemoat:boilerplate:sync -- --help --json` enters retired Mission Control logic before it can return the current JSON help envelope; and
+- a clean checkout of the current approved starter source is available with its locked dependencies installed.
+
+First perform CLI Discovery against the current source-owned registered command. This step is read-only and must succeed before any bootstrap mutation:
+
+```bash
+pnpm --dir /absolute/path/to/current/bemoat-web-starter \
+  run bemoat:boilerplate:sync -- --help --json
+```
+
+Then run the same current Tier A entrypoint from the legacy child root:
+
+```bash
+cd /absolute/path/to/clean/legacy-child
+env -u npm_lifecycle_event node \
+  /absolute/path/to/current/bemoat-web-starter/scripts/sync-boilerplate.ts \
+  --bootstrap-legacy-child --harness-only --json
+```
+
+This is an explicit mode of the authoritative `bemoat:boilerplate:sync` CLI, not an internal workflow API or a second sync implementation. It reuses the normal source clone, source-driven manifest, preflight, harness-only sync, validation, commit, and readback path. The only package-script replacements it permits are exact known generated `.mjs` mappings whose current starter values are the matching `.ts` entrypoints. Custom or unrecognized mappings, a dirty target, `--full`, and `--apply-build-contract` fail before harness mutation.
+
+Do not fabricate legacy Issues, HANDOFF records, managed YAML, review counters, Founder receipts, or Mission Control transitions. Do not use `--skip-mc-transition-gate`, manually copy managed files, or temporarily edit the child package manifest.
+
+After bootstrap, verify that `package.json` maps `bemoat:boilerplate:sync` to `node scripts/sync-boilerplate.ts`, review the committed paths, install any proposed dependencies if approved, and run:
+
+```bash
+pnpm run bemoat:boilerplate:sync -- --help --json
+pnpm run bemoat:boilerplate:sync -- --harness-only --json
+pnpm run bemoat:guard:safety
+pnpm run bemoat:test:int
+git diff --check
+```
+
+The normal child command is authoritative after bootstrap; an identical retry must report the normal no-op result rather than re-entering legacy workflow logic.
 
 ### Source-driven sync manifest (one-run managed paths)
 
