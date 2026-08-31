@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import yaml from 'yaml'
 
+import { Coordinator as CoordinatorClass } from '../../scripts/mission-control/coordinator.mjs'
 import { coordinatorOwnedRoutingProjection } from '../../scripts/mission-control/coordinator-projection.mjs'
 import {
   normalizePlanningAuthorizationBaseSha,
@@ -42,6 +43,20 @@ const handoff = {
   body: '## HANDOFF\n\n**Target:** Dev / Builder',
 }
 
+const planningHandoffBody = `## HANDOFF
+
+### Task log
+- Timestamp: 2026-07-31T00:00:00Z
+- Task / Issue: #92
+- Phase: Planning
+- Executing role: Mission Control
+
+**Target:** Dev / Builder
+**Objective:** Author planning artifacts from the authorized lineage base.
+**Links:** Issue #92
+**Next:** Dev posts planning ## RESULT
+`
+
 const identity = {
   taskId: '92',
   phase: 'Planning',
@@ -57,6 +72,26 @@ function renderState(state: Record<string, unknown>): string {
     '```',
     '<!-- bemoat-mission-control-state:end -->',
   ].join('\n')
+}
+
+type CoordinatorComment = { id: string; body: string }
+
+function createCoordinator(initialState: Record<string, unknown>, comments: CoordinatorComment[] = []) {
+  let state = structuredClone(initialState)
+  const coordinator = new CoordinatorClass({
+    readState: async () => state,
+    writeState: async (next: Record<string, unknown>) => {
+      state = structuredClone(next)
+      return state
+    },
+    listComments: async () => comments,
+    postComment: async (body: string) => {
+      const posted = { id: String(comments.length + 1), body }
+      comments.push(posted)
+      return posted
+    },
+  })
+  return { coordinator, getState: () => state, comments }
 }
 
 describe('retained planning lineage and HANDOFF projection', () => {
@@ -100,6 +135,53 @@ describe('retained planning lineage and HANDOFF projection', () => {
     expect(projected.planning_authorization_base_sha).toBe(LINEAGE)
     expect(projected.state).toBe('IN_PROGRESS')
     expect(projected.latest_handoff_comment_id).toBe('handoff-1')
+  })
+
+  it('integrates planning HANDOFF through Coordinator and reads back comment-bound lineage', async () => {
+    const policyTip = 'c'.repeat(40)
+    const { coordinator, getState, comments } = createCoordinator(
+      readyState({ guide_source_sha: policyTip }),
+    )
+
+    const result = await coordinator.integrateHandoff({
+      handoffBody: planningHandoffBody,
+      planningAuthorizationBaseSha: LINEAGE,
+      updatedAt: '2026-07-31T00:00:00.000Z',
+      updatedBy: 'Mission Control',
+    })
+
+    expect(result.outcome).toBe('DISPATCHED')
+    expect(result.comment).toMatchObject({ id: '1', body: planningHandoffBody })
+    expect(getState()).toMatchObject({
+      state: 'IN_PROGRESS',
+      planning_authorization_base_sha: LINEAGE,
+      guide_source_sha: policyTip,
+      latest_handoff_comment_id: '1',
+      next_permitted_action: 'Dev / Builder executes the authorized HANDOFF; do not re-post HANDOFF.',
+    })
+    expect(getState().latest_transition_identity).toBe(JSON.stringify({
+      taskId: '92',
+      phase: 'Planning',
+      role: 'HANDOFF',
+      contentHash: result.identity.contentHash,
+    }))
+    expect(comments).toHaveLength(1)
+  })
+
+  it('rejects a conflicting Coordinator HANDOFF lineage before state write', async () => {
+    const { coordinator, getState } = createCoordinator(
+      readyState({ planning_authorization_base_sha: LINEAGE }),
+    )
+
+    await expect(coordinator.integrateHandoff({
+      handoffBody: planningHandoffBody,
+      planningAuthorizationBaseSha: CONFLICTING_LINEAGE,
+    })).rejects.toThrow(/immutable once authorized|conflicts with the requested lineage/)
+
+    expect(getState()).toMatchObject({
+      state: 'READY',
+      planning_authorization_base_sha: LINEAGE,
+    })
   })
 
   it('does not populate lineage for non-planning HANDOFF and preserves it on parse/render', () => {
