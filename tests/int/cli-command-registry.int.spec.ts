@@ -30,7 +30,6 @@ const PACKAGE_JSON = JSON.parse(
   readFileSync(resolve(REPOSITORY_ROOT, 'package.json'), 'utf8'),
 ) as PackageJson
 const EXPECTED_PACKAGE_SCRIPTS: Record<string, string> = {
-  'bemoat:agent:issue': 'node scripts/agent-issue.mjs',
   'bemoat:context': 'node scripts/agent-context.mjs',
   'bemoat:context:sync-base': 'node scripts/agent-context-sync-base.mjs',
   'bemoat:handoff': 'node scripts/agent-handoff.mjs',
@@ -50,7 +49,6 @@ const EXPECTED_PACKAGE_SCRIPTS: Record<string, string> = {
 }
 
 const EXPECTED_COMMAND_TIERS: Record<string, 'A' | 'B' | 'C'> = {
-  'bemoat:agent:issue': 'B',
   'bemoat:context': 'B',
   'bemoat:context:sync-base': 'A',
   'bemoat:handoff': 'A',
@@ -251,10 +249,10 @@ describe('Task 1 command contract registry', () => {
       .sort()
 
     expect(packageCommands).toEqual(Object.keys(EXPECTED_PACKAGE_SCRIPTS).sort())
-    expect(packageCommands).toHaveLength(17)
+    expect(packageCommands).toHaveLength(16)
     expect(registryCommands).toEqual(packageCommands)
     expect(classifiedCommands).toEqual(packageCommands)
-    expect(new Set(classifiedCommands).size).toBe(17)
+    expect(new Set(classifiedCommands).size).toBe(16)
 
     for (const command of packageCommands) {
       expect(getCommandContract(command)).toBe(COMMAND_CONTRACT_REGISTRY.commands[command])
@@ -271,9 +269,9 @@ describe('Task 1 command contract registry', () => {
       counts[expectedTier] += 1
     }
 
-    expect(counts).toEqual({ A: 5, B: 9, C: 3 })
-    expect(Object.keys(EXPECTED_COMMAND_TIERS)).toHaveLength(17)
-    expect(Object.keys(COMMAND_CONTRACT_REGISTRY.commands)).toHaveLength(17)
+    expect(counts).toEqual({ A: 5, B: 8, C: 3 })
+    expect(Object.keys(EXPECTED_COMMAND_TIERS)).toHaveLength(16)
+    expect(Object.keys(COMMAND_CONTRACT_REGISTRY.commands)).toHaveLength(16)
     expectRegistryValid()
   })
 
@@ -485,7 +483,7 @@ describe('Task 1 command contract registry', () => {
       registry.commands['bemoat:fake'] = clone(commandRecord(registry, MUTATING_COMMAND))
     }],
     ['duplicate command identity', (registry) => {
-      commandRecord(registry, MUTATING_COMMAND).command = 'bemoat:agent:issue'
+      commandRecord(registry, MUTATING_COMMAND).command = 'bemoat:context'
     }],
     ['non-v1 schema', (registry) => {
       registry.schema_version = 2
@@ -494,7 +492,7 @@ describe('Task 1 command contract registry', () => {
       commandRecord(registry, MUTATING_COMMAND).entrypoint = 'scripts/not-an-entrypoint.mjs'
     }],
     ['stale package binding', (registry) => {
-      commandRecord(registry, MUTATING_COMMAND).entrypoint = 'scripts/agent-issue.mjs'
+      commandRecord(registry, MUTATING_COMMAND).entrypoint = 'scripts/agent-context.mjs'
     }],
     ['unclassified package command', (registry) => {
       delete registry.commands[MUTATING_COMMAND]
@@ -534,7 +532,7 @@ describe('Task 1 command contract registry', () => {
     expectRegistryRejected(clone(COMMAND_CONTRACT_REGISTRY), unregisteredPackage)
 
     const stalePackage = clone(PACKAGE_JSON)
-    stalePackage.scripts['bemoat:mission-control:dispatch'] = 'node scripts/agent-issue.mjs'
+    stalePackage.scripts['bemoat:mission-control:dispatch'] = 'node scripts/agent-context.mjs'
     expectRegistryRejected(clone(COMMAND_CONTRACT_REGISTRY), stalePackage)
   })
 

@@ -11,7 +11,6 @@ const tempChildRoot = mkdtempSync(join(tmpdir(), 'bemoat-starter-acceptance-chil
 
 /** Child-facing bemoat:* scripts sync must be able to add when missing. */
 const REQUIRED_CHILD_BEMOAT_SCRIPTS = [
-  'bemoat:agent:issue',
   'bemoat:branch:check',
   'bemoat:guard:safety',
   'bemoat:test:int',
@@ -24,7 +23,6 @@ const OPTIONAL_CHILD_BEMOAT_SCRIPTS = ['bemoat:guard:pack'] as const
 const ESSENTIAL_MANAGED_HARNESS_PATHS = [
   '.github/workflows/ci.yml',
   '.githooks',
-  'scripts/agent-issue.mjs',
   'scripts/check-branch-safety.sh',
   'scripts/guard-pack.mjs',
   'scripts/guard-harness-contract.mjs',
@@ -65,7 +63,6 @@ describe('starter acceptance suite v1', () => {
       }
 
       expect(packageJSON.scripts['bemoat:guard:safety']).toBe('node scripts/guard-pack.mjs')
-      expect(packageJSON.scripts['bemoat:agent:issue']).toBe('node scripts/agent-issue.mjs')
       expect(packageJSON.scripts['bemoat:branch:check']).toBe('bash scripts/check-branch-safety.sh')
       expect(packageJSON.scripts['bemoat:test:int']).toContain('vitest run')
     })
@@ -219,7 +216,6 @@ describe('starter acceptance suite v1', () => {
 
       expect(result.seedOnlyPathsSkipped).toBe(true)
       expect(result.seededFiles).toEqual([])
-      expect(result.syncedManaged).toContain('scripts/agent-issue.mjs')
       expect(result.syncedManaged).toContain('scripts/guard-pack.mjs')
       expect(result.syncedManaged).toContain('scripts/check-branch-safety.sh')
       expect(result.syncedManaged).toContain('.github/workflows/ci.yml')
@@ -251,7 +247,6 @@ describe('starter acceptance suite v1', () => {
     it('syncs acceptance suite files as shared harness coverage', async () => {
       const syncMod = await import('../../scripts/sync-boilerplate.mjs')
 
-      expect(syncMod.managedPaths).toContain('tests/int/agent-issue.int.spec.ts')
       expect(syncMod.managedPaths).toContain('tests/int/starter-acceptance.int.spec.ts')
       expect(syncMod.managedPaths).toContain('tests/fixtures/acceptance')
       expect(syncMod.managedPaths).toContain('docs/starter-acceptance-tests.md')

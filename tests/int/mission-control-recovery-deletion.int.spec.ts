@@ -31,7 +31,6 @@ describe('retired recovery command boundary', () => {
     for (const command of [
       'bemoat:context',
       'bemoat:handoff',
-      'bemoat:agent:issue',
       'bemoat:issue:comment',
     ]) {
       expect(packageJson.scripts[command]).toEqual(expect.any(String))

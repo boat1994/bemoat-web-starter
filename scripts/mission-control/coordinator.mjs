@@ -3,7 +3,7 @@ import { authorizeCoordinatorTransition } from './transition-authorization.mjs'
 import { coordinatorOwnedRoutingProjection } from './coordinator-projection.mjs'
 import { assertCompatibleSnapshot, integrateHandoff, integrateResult, resumeProjection } from './coordinator-transitions.mjs'
 
-/** Retained transition coordinator used by Context/Handoff and agent-issue. */
+/** Retained transition coordinator used by Context/Handoff. */
 export class Coordinator {
   constructor(transports) {
     this.readState = transports.readState

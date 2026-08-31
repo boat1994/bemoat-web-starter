@@ -23,7 +23,7 @@ import {
 type JsonRecord = Record<string, unknown>
 
 const TIER_A_COMMAND = 'bemoat:issue:comment'
-const TIER_B_COMMAND = 'bemoat:agent:issue'
+const TIER_B_COMMAND = 'bemoat:guard:pack'
 const BRANCH_COMMAND = 'bemoat:branch:check'
 const PACK_COMMAND = 'bemoat:guard:pack'
 const SAFETY_COMMAND = 'bemoat:guard:safety'

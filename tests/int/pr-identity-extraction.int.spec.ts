@@ -197,6 +197,7 @@ describe('PR identity extraction seam', () => {
       'extractVerdictPrBaseAndHead',
       'parseCompleteGitHubPullUrl',
       'resolveCanonicalVerdictPrIdentity',
+      'resolvePrNumber',
     ])
   })
 })

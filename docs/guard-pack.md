@@ -101,11 +101,11 @@ Violations use structured output:
 | `PLAN005` | `create_before_execution` strategy declares a concrete `active_task_issue` |
 | `PLAN006` | Missing, invalid, or inconsistent `task_issue_strategy` |
 | `PLAN007` | `execution_base_rule` is `use_planning_base_sha_unconditionally` instead of live protected-base resolution |
-| `PLAN008` | Live GitHub verification: issue missing, wrong repository, or not `OPEN` (`agent-issue` preflight and offline-aware guard paths) |
+| `PLAN008` | Live GitHub verification: issue missing, wrong repository, or not `OPEN` (offline-aware guard paths) |
 | `PLAN009` | Live issue title/body does not identify the declared `task_key` |
 | `PLAN010` | Live Mission Control managed state is `DONE` or `active_task_issue` conflicts with the contract |
 
-Static rules (`PLAN001`–`PLAN007`) run in `pnpm run guard:safety` / `pnpm run bemoat:guard:safety` without network access. Live rules (`PLAN008`–`PLAN010`) run during `pnpm run bemoat:agent:issue -- <issue-number>` when authenticated `gh` access is available.
+Static rules (`PLAN001`–`PLAN007`) run in `pnpm run guard:safety` / `pnpm run bemoat:guard:safety` without network access. Live rules (`PLAN008`–`PLAN010`) are available to callers that explicitly provide authenticated `gh` evidence.
 
 Branch-scoped discovery uses `resolveApprovedBase()` to diff planning files changed since the protected integration baseline: `origin/dev`, then `dev`, then `origin/main`, then `main`. Child repos with `dev` therefore validate only planning files changed since `dev`; starter repos without `dev` continue to use `main`.
 

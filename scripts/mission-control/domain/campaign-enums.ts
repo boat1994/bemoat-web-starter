@@ -50,7 +50,6 @@ export const INTERNAL_DESTINATION_PREFIXES = Object.freeze([
   'scripts/context/',
   'scripts/handoff/',
   'scripts/mission-control/',
-  'scripts/agent-issue/',
   'scripts/boilerplate/',
   'scripts/guards/',
   'scripts/adapters/',

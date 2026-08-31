@@ -17,7 +17,7 @@ For issue-based work, do not edit files first.
 Run:
 
 ```bash
-pnpm run bemoat:agent:issue -- <issue-number>
+pnpm run bemoat:context <issue-number>
 ```
 
 If it cannot continue, report the blocker and do not edit files.

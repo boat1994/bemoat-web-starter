@@ -70,9 +70,9 @@ describe('scripts architecture ratchet', () => {
     expect(violations).toEqual([])
   })
 
-  it('preserves the approved nine-node sixteen-edge baseline SCC in the contract', () => {
-    expect(architectureContract.cycleNodes).toHaveLength(9)
-    expect(architectureContract.cycleEdges).toHaveLength(12)
+  it('preserves the approved current cycle baseline in the contract', () => {
+    expect(architectureContract.cycleNodes).toHaveLength(2)
+    expect(architectureContract.cycleEdges).toHaveLength(1)
   })
 
   it('maps every root script exactly once with destination vocabulary and transitional harness-contract', () => {
@@ -89,7 +89,6 @@ describe('scripts architecture ratchet', () => {
       expect(
         [
           'scripts/mission-control/',
-          'scripts/agent-issue/',
           'scripts/context/',
           'scripts/handoff/',
           'scripts/boilerplate/',

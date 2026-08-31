@@ -222,11 +222,9 @@ describe('harness-contract managed-runtime-closure', () => {
     const mod = await loadClosure()
 
     const roots = mod.collectManagedRuntimeScriptRoots(process.cwd(), [
-      'scripts/agent-issue',
       'scripts/post-role-comment.mjs',
     ])
 
-    expect(roots).toContain('scripts/agent-issue/github-evidence.mjs')
     expect(roots).toContain('scripts/post-role-comment.mjs')
   })
 
@@ -267,7 +265,6 @@ describe('harness-contract managed-runtime-closure', () => {
       mod.collectExplicitManagedRuntimeScriptPaths([
         'scripts/b.mjs',
         'AGENTS.md',
-        'scripts/agent-issue',
         'docs/x.md',
         'scripts/a.mjs',
         'tests/foo.mjs',

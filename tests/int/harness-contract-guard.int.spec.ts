@@ -136,11 +136,9 @@ describe('managed runtime delivery closure', () => {
     const guardMod = await import('../../scripts/guard-harness-contract.mjs')
 
     const roots = guardMod.collectManagedRuntimeScriptRoots(process.cwd(), [
-      'scripts/agent-issue',
       'scripts/post-role-comment.mjs',
     ])
 
-    expect(roots).toContain('scripts/agent-issue/github-evidence.mjs')
     expect(roots).toContain('scripts/post-role-comment.mjs')
   })
 
@@ -425,19 +423,19 @@ describe('managed runtime delivery closure', () => {
     try {
       mkdirSync(join(tempRoot, 'scripts/mission-control/domain'), { recursive: true })
       writeFileSync(
-        join(tempRoot, 'scripts/agent-issue.mjs'),
+        join(tempRoot, 'scripts/agent-context.mjs'),
         "import { parseCompleteGitHubPullUrl } from './mission-control/domain/pr-identity.ts'\nexport {}\n",
       )
 
       const violations = guardMod.scanManagedRuntimeDeliveryClosure({
         root: tempRoot,
-        managedPaths: ['scripts/agent-issue.mjs', 'scripts/mission-control/domain/pr-identity.ts'],
+        managedPaths: ['scripts/agent-context.mjs', 'scripts/mission-control/domain/pr-identity.ts'],
       })
 
       expect(violations).toEqual([
         {
           type: 'missing-relative-runtime-dependency',
-          importer: 'scripts/agent-issue.mjs',
+          importer: 'scripts/agent-context.mjs',
           callee: 'scripts/mission-control/domain/pr-identity.ts',
           specifier: './mission-control/domain/pr-identity.ts',
         },
@@ -482,7 +480,6 @@ describe('managed runtime delivery closure', () => {
 
     const roots = guardMod.collectManagedRuntimeScriptRoots(process.cwd(), [
       'tests/int/github-comment-projection.int.spec.ts',
-      'tests/fixtures/agent-issue',
     ])
 
     expect(roots).toEqual([])

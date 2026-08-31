@@ -93,7 +93,6 @@ const SYNCED_SUPERPOWERS_TEMPLATE_PATHS = [
 /** README.md is project-owned and must not appear in managedPaths (see docs/harness-sync-contract.md). */
 
 const MANAGED_BEMOAT_PACKAGE_SCRIPTS = [
-  'bemoat:agent:issue',
   'bemoat:issue:comment',
   'bemoat:branch:check',
   'bemoat:guard:safety',
@@ -249,7 +248,6 @@ describe('boilerplate sync managed paths', () => {
       'prompts/mission-control/chatgpt-project-loader.md',
       'docs/cloudflare-environments.md',
       'docs/boilerplate-sync-command.md',
-      'scripts/agent-issue.mjs',
       'scripts/post-role-comment.mjs',
       'scripts/guards/repo-safety.mjs',
       'scripts/guard-mission-control-contract.mjs',
@@ -271,7 +269,6 @@ describe('boilerplate sync managed paths', () => {
       'tests/int/repo-safety-guard.int.spec.ts',
       'tests/int/cloudflare-env-guard.int.spec.ts',
       'tests/int/boilerplate-sync.int.spec.ts',
-      'tests/int/agent-issue.int.spec.ts',
       'tests/int/post-role-comment.int.spec.ts',
       'tests/int/branch-safety.int.spec.ts',
       'tests/int/harness-contract-guard.int.spec.ts',
@@ -1953,12 +1950,8 @@ describe('issue #182 projection managed delivery regression', () => {
 
       expect(result.seededFiles).toEqual([])
       expect(existsSync(join(childRoot, 'scripts/mission-control/diagnostics/github-comment-projection.mjs'))).toBe(true)
-      expect(existsSync(join(childRoot, 'scripts/agent-issue.mjs'))).toBe(true)
       expect(existsSync(join(childRoot, 'scripts/pr-identity.mjs'))).toBe(false)
       expect(existsSync(join(childRoot, 'scripts/mission-control/domain/pr-identity.ts'))).toBe(true)
-      expect(readFileSync(join(childRoot, 'scripts/agent-issue.mjs'), 'utf8')).toContain(
-        "./mission-control/domain/pr-identity.ts'",
-      )
 
       execFileSync(
         process.execPath,
@@ -2032,32 +2025,6 @@ describe('issue #182 projection managed delivery regression', () => {
         )
       },
       '- [missing-relative-runtime-dependency] importer="scripts/mission-control/diagnostics/github-comment-projection.mjs" -> callee="scripts/mission-control/diagnostics/unmanaged-helper.mjs" specifier="./unmanaged-helper.mjs"',
-    ],
-    [
-      'missing PR identity domain dependency',
-      (sourceRoot: string) => {
-        rmSync(join(sourceRoot, 'scripts/mission-control/domain/pr-identity.ts'), { force: true })
-      },
-      '- [missing-relative-runtime-dependency] importer="scripts/agent-issue.mjs" -> callee="scripts/mission-control/domain/pr-identity.ts" specifier="./mission-control/domain/pr-identity.ts"',
-    ],
-    [
-      'deleted PR identity domain dependency',
-      (sourceRoot: string) => {
-        rmSync(join(sourceRoot, 'scripts/mission-control/domain/pr-identity.ts'), { force: true })
-      },
-      '- [missing-relative-runtime-dependency] importer="scripts/agent-issue.mjs" -> callee="scripts/mission-control/domain/pr-identity.ts" specifier="./mission-control/domain/pr-identity.ts"',
-    ],
-    [
-      'renamed PR identity domain dependency',
-      (sourceRoot: string) => {
-        const prIdentityPath = join(sourceRoot, 'scripts/mission-control/domain/pr-identity.ts')
-        writeFileSync(
-          join(sourceRoot, 'scripts/mission-control/domain/pr-identity-renamed.mjs'),
-          readFileSync(prIdentityPath, 'utf8'),
-        )
-        rmSync(prIdentityPath, { force: true })
-      },
-      '- [missing-relative-runtime-dependency] importer="scripts/agent-issue.mjs" -> callee="scripts/mission-control/domain/pr-identity.ts" specifier="./mission-control/domain/pr-identity.ts"',
     ],
   ])(
     'fails closed before copy for %s and leaves the child byte-for-byte unchanged',

@@ -2,7 +2,6 @@
   "scripts/agent-context-sync-base.mjs",
   "scripts/agent-context.mjs",
   "scripts/agent-handoff.mjs",
-  "scripts/agent-issue.mjs",
   "scripts/bemoat-typecheck.mjs",
   "scripts/build.mjs",
   "scripts/check-boilerplate-drift.mjs",

@@ -33,7 +33,7 @@ Full ownership boundaries: [docs/agent-loop/source-of-truth.md](./docs/agent-loo
 For issue-based work, run preflight **before any file edit**:
 
 ```bash
-pnpm run bemoat:agent:issue -- <issue-number>
+pnpm run bemoat:context <issue-number>
 ```
 
 High-level loop:

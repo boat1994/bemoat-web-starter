@@ -93,7 +93,7 @@ Do not move historical references into the task-identity block to "fix" closed-i
 | Command | What is checked |
 |---------|-----------------|
 | `pnpm run guard:safety` / `pnpm run bemoat:guard:safety` | Static rules `PLAN001`–`PLAN007` on new or modified planning files |
-| `pnpm run bemoat:agent:issue -- <issue>` | Static rules plus live GitHub checks `PLAN008`–`PLAN010` when `gh` is authenticated |
+| `pnpm run bemoat:context <issue>` | Read-only Context reconstruction; static planning rules remain in the safety guard |
 
 Full diagnostic reference: [guard-pack.md](../guard-pack.md#planning-contract).
 

@@ -4,7 +4,7 @@ Copy the block below into **Composer** or **Codex** when starting a Bemoat GitHu
 
 Full rule reference: [issue-driven-branch-workflow.md](./issue-driven-branch-workflow.md).
 For current issue reconstruction and cross-agent transport, use
-`bemoat:context` followed by `bemoat:handoff`; the older agent-issue/RESULT
+`bemoat:context` followed by `bemoat:handoff`; the older compatibility/RESULT
 instructions below are retained as migration-era prompt history and must not be
 selected for new work.
 

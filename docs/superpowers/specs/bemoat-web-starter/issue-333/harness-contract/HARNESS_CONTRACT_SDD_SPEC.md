@@ -405,7 +405,7 @@ or `/`. Absolute `/x` is **false** here, but see resolve below.
 
 **`collectExplicitManagedRuntimeScriptPaths(managedPaths)`:** filter
 `startsWith('scripts') && endsWith('.mjs')`, then `.sort()`. Directory
-managed paths such as `scripts/agent-issue` are excluded here; they are
+ managed paths under `scripts/` are excluded here; they are
 roots via the walker.
 
 **`collectManagedRuntimeScriptRoots(root, managedPaths)`:** recursively list

@@ -245,7 +245,7 @@ flowchart LR
 | Field | Content |
 | --- | --- |
 | Canonical command | `pnpm run bemoat:issue:comment` |
-| Active dependency | `diagnostics/github-comment-projection` used by role-comment + agent-issue evidence paths |
+| Active dependency | `diagnostics/github-comment-projection` used by retained role-comment evidence paths |
 | Disposition | **MIGRATION-ONLY HISTORICAL / PHASE-7 DELETE CANDIDATE**; shared comment projection remains retained until current consumers are closed or consolidated |
 
 ### J11 — Child / harness sync (PLATFORM-adjacent)
@@ -282,7 +282,6 @@ Evidence root for the census that informed Option B: `main@7cfd62b6197a2e95fc8db
 
 | Command | Role |
 | --- | --- |
-| `bemoat:agent:issue` | Read-only reconstruction / preflight (J1) |
 | `bemoat:agent:delivery` | Delivery (J4) |
 | `bemoat:mission-control:merge` | Merge (J7) |
 | `bemoat:issue:comment` | J10 |

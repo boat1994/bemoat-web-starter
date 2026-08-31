@@ -116,8 +116,8 @@ Issue and an Implementation Plan is also managed state. Small, Medium, and
 standalone Core tasks that do neither remain valid without a state block.
 
 `bemoat:context` is read-only. It reconstructs the current stateless route and
-never creates state. The historical `bemoat:agent:issue` preflight remains
-read-only for migration evidence only. It classifies a missing state block on a
+never creates state. The former compatibility preflight has been retired. It
+classifies a missing state block on a
 non-managed task as a warning; it must not initialize one. For a managed task,
 an absent or malformed block is `STATE_MIGRATION_REQUIRED`; disagreement with
 the live Issue/PR/base/head/terminal state is `STATE_CONFLICT`; and required

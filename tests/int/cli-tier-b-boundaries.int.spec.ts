@@ -28,10 +28,6 @@ type TierBCase = {
 
 const TIER_B_CASES = [
   {
-    command: 'bemoat:agent:issue',
-    entrypoint: 'scripts/agent-issue.mjs',
-  },
-  {
     command: 'bemoat:boilerplate:check',
     entrypoint: 'scripts/check-boilerplate-drift.mjs',
   },

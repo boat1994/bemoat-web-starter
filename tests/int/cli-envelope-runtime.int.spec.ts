@@ -24,7 +24,6 @@ import {
 
 type JsonRecord = Record<string, unknown>
 
-const ISSUE = 'bemoat:agent:issue'
 const COMMENT = 'bemoat:issue:comment'
 const HOOKS = 'bemoat:hooks:install'
 const PACK = 'bemoat:guard:pack'
@@ -270,7 +269,7 @@ describe('CLI envelope runtime characterization', () => {
       ],
       [
         'non-command next_action with command',
-        { next_action: { type: 'STOP', command: ISSUE, reason: 'x' } },
+        { next_action: { type: 'STOP', command: COMMENT, reason: 'x' } },
         'next_action.command must be null for a non-command action',
       ],
       [
@@ -325,7 +324,7 @@ describe('CLI envelope runtime characterization', () => {
     })
 
     it('short-circuits help before positional validation and skips stdin/environment parsing', () => {
-      expect(parseCommandInvocation(ISSUE, ['--help', '284'])).toMatchObject({
+      expect(parseCommandInvocation(CHECK, ['--help', '--harness-only'])).toMatchObject({
         mode: 'help',
         format: 'text',
       })
@@ -336,17 +335,6 @@ describe('CLI envelope runtime characterization', () => {
       expect(parseCommandInvocation(CHECK, ['--harness-only'])).toMatchObject({
         mode: 'run',
         values: { harness_only: true },
-      })
-      expect(parseCommandInvocation(ISSUE, ['284'])).toMatchObject({
-        values: { issue_number: '284' },
-      })
-      expect(parseCommandInvocation(ISSUE, ['284', '--phase', 'correction'])).toMatchObject({
-        values: { issue_number: '284', phase: 'correction' },
-      })
-      expect(parseCommandInvocation(ISSUE, ['284', '--json'])).toMatchObject({
-        mode: 'run',
-        format: 'json',
-        values: { issue_number: '284' },
       })
     })
 
@@ -388,12 +376,12 @@ describe('CLI envelope runtime characterization', () => {
         'argv must be an array of strings',
       )
       expectCliInvocation(
-        expectThrown(() => parseCommandInvocation(ISSUE, ['--help', '-h'])),
+        expectThrown(() => parseCommandInvocation(CHECK, ['--help', '-h'])),
         '-h',
         'help may be provided only once',
       )
       expectCliInvocation(
-        expectThrown(() => parseCommandInvocation(ISSUE, ['--json', '--json', '284'])),
+        expectThrown(() => parseCommandInvocation(CHECK, ['--json', '--json'])),
         '--json',
         '--json may be provided only once',
       )
@@ -401,26 +389,6 @@ describe('CLI envelope runtime characterization', () => {
         expectThrown(() => parseCommandInvocation(COMMENT, ['284', '--check', '--check'])),
         '--check',
         'input may be provided only once: --check',
-      )
-      expectCliInvocation(
-        expectThrown(() => parseCommandInvocation(ISSUE, ['284', '--phase', '--correction'])),
-        '--phase',
-        '--phase requires one value',
-      )
-      expectCliInvocation(
-        expectThrown(() => parseCommandInvocation(ISSUE, ['284', '--phase', 'wrong'])),
-        '--phase',
-        'value must be one of: correction',
-      )
-      expectCliInvocation(
-        expectThrown(() => parseCommandInvocation(ISSUE, [' 284'])),
-        ' 284',
-        'value must be a positive integer',
-      )
-      expectCliInvocation(
-        expectThrown(() => parseCommandInvocation(ISSUE, [''])),
-        '',
-        'value is required',
       )
       expectCliInvocation(
         expectThrown(() => parseCommandInvocation(COMMENT, ['284', '--body-file', ''])),
@@ -433,7 +401,7 @@ describe('CLI envelope runtime characterization', () => {
         'value is required',
       )
       expectCliInvocation(
-        expectThrown(() => parseCommandInvocation(ISSUE, ['284', '--nope'])),
+        expectThrown(() => parseCommandInvocation(CHECK, ['--nope'])),
         '--nope',
         'unknown flag: --nope',
       )
@@ -512,7 +480,7 @@ describe('CLI envelope runtime characterization', () => {
       expect((contract.retry_contract as JsonRecord).identical_retry).toBe('conditional')
 
       const tierA = formatTextHelp(getCommandContract(COMMENT) as Record<string, unknown>)
-      const tierB = formatTextHelp(getCommandContract(ISSUE) as Record<string, unknown>)
+      const tierB = formatTextHelp(getCommandContract(CHECK) as Record<string, unknown>)
       const commentHelp = formatTextHelp(contract as Record<string, unknown>)
       expect(tierA).toContain('AUTHORITY AND TRUST BOUNDARY')
       expect(tierB).not.toContain('AUTHORITY AND TRUST BOUNDARY')
@@ -557,7 +525,7 @@ describe('CLI envelope runtime characterization', () => {
     it('writes JSON result envelopes to stdout only after a registered command is captured', () => {
       const missingHelp = runHelpCli([HOOKS])
       const jsonMissingHelp = runHelpCli([HOOKS, '--json'])
-      const duplicateHelp = runHelpCli([ISSUE, '--help', '--help'])
+      const duplicateHelp = runHelpCli([HOOKS, '--help', '--help'])
       const emptyFacade = runHelpCli([BRANCH, '--help', '--json'], {
         BEMOAT_FACADE_COMMAND: '',
       })

@@ -20,9 +20,7 @@ const pointerPaths = [
   'docs/mission-control/mission-control-guide.md',
 ] as const
 const managedGuidancePaths = [canonicalPath, ...pointerPaths]
-const representativeCommands = [
-  'bemoat:agent:issue',
-] as const
+const representativeCommands = ['bemoat:context'] as const
 
 describe('Bemoat CLI discovery guidance', () => {
   it('defines the canonical discovery-first and no-bypass contract at the root entrypoint', () => {

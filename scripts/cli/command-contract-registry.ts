@@ -295,34 +295,6 @@ const commands: Record<string, CommandContract> = {
     safe_help_invocation: 'pnpm run bemoat:context -- --help --json',
   }),
 
-  'bemoat:agent:issue': contract({
-    command: 'bemoat:agent:issue',
-    tier: 'B',
-    entrypoint: 'scripts/agent-issue.mjs',
-    purpose: 'MIGRATION-ONLY HISTORICAL: Inspect an Issue and produce the agent preflight without mutation.',
-    operation: 'MIGRATION-ONLY HISTORICAL: Run the read-only Issue preflight and correction-phase checks.',
-    required_inputs: [
-      positional('issue_number', '<issue-number>', 'positive_integer', 'Issue number to inspect.'),
-    ],
-    optional_flags: [
-      flag(
-        'phase',
-        '--phase <phase>',
-        'enum',
-        'Optional read-only preflight phase.',
-        ['correction'],
-      ),
-    ],
-    reads: [
-      'local git and repository files',
-      'GitHub Issue, comments, Pull Request, and checks',
-    ],
-    writes: [],
-    stop_conditions: ['Stop without mutation when Issue, PR, or correction evidence is incomplete or conflicting.'],
-    parser_owner: 'scripts/agent-issue/cli-args.mjs',
-    safe_help_invocation: 'pnpm run bemoat:agent:issue -- --help --json',
-  }),
-
   'bemoat:boilerplate:check': contract({
     command: 'bemoat:boilerplate:check',
     tier: 'B',

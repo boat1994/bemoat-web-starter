@@ -1,4 +1,4 @@
-import { parseIssueDeclarations, deriveWorkflowProfile } from '../../agent-issue/issue-declarations.ts'
+import { parseIssueDeclarations, deriveWorkflowProfile } from '../../context/issue-declarations.ts'
 import { parseMissionControlState } from './task-state.ts'
 
 export const STANDARD_POLICY_PATH = 'docs/mission-control/mission-control-guide.md'

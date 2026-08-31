@@ -229,7 +229,6 @@ export const REQUIRED_BRAINSTORMING_GUIDE_PHRASES = [
 export const REQUIRED_CORRECTION_HANDOFF_PHRASES = [
   '### Immutable correction finding contract',
   '### Correction RESULT evidence map',
-  'pnpm run bemoat:agent:issue -- <issue-number> --phase correction',
   'Playback verified:',
   '"status": "CLAIMED_RESOLVED"',
   '"status": "UNPROVEN"',

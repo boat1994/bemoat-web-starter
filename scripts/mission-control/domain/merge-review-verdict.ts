@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { resolvePrNumber } from '../../agent-issue/issue-references.mjs'
+import { resolvePrNumber } from './pr-identity.ts'
 
 const FULL_SHA_RE = /^[0-9a-f]{40}$/i
 
