@@ -49,7 +49,7 @@ describe('scripts architecture ratchet', () => {
   it('keeps mission-control GitHub adapters transport-only', () => {
     const adapterRoot = join(process.cwd(), 'scripts/mission-control/adapters')
     const adapters = [
-      'merge-github.mjs',
+      'github-transport.mjs',
     ]
 
     for (const adapter of adapters) {
@@ -140,7 +140,7 @@ describe('scripts architecture ratchet', () => {
       cycleEdges: [],
       adapters: {
         'scripts/adapters/command-runner.mjs': {
-          importers: ['scripts/mission-control/adapters/task-bootstrap-github.mjs'],
+          importers: ['scripts/example-adapter.mjs'],
         },
       },
     })
@@ -160,7 +160,7 @@ describe('scripts architecture ratchet', () => {
       cycleEdges: [],
       adapters: {
         'scripts/adapters/command-runner.mjs': {
-          importers: ['scripts/mission-control/adapters/task-bootstrap-github.mjs'],
+          importers: ['scripts/example-adapter.mjs'],
         },
       },
     })
@@ -168,7 +168,7 @@ describe('scripts architecture ratchet', () => {
 
     const violations = validateArchitectureContract(root)
     expect(violations).toContain(
-      'Missing expected importer for adapter scripts/adapters/command-runner.mjs: scripts/mission-control/adapters/task-bootstrap-github.mjs',
+      'Missing expected importer for adapter scripts/adapters/command-runner.mjs: scripts/example-adapter.mjs',
     )
   })
 

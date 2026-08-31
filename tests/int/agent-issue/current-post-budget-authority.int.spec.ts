@@ -1,7 +1,17 @@
 import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
-import { renderMissionControlState } from '../../../scripts/mission-control/domain/task-state.ts'
+import yaml from 'yaml'
 import type { ExactHeadCiAnalysis } from '../../../scripts/agent-issue/exact-head-ci.ts'
+
+function renderMissionControlState(state: Record<string, unknown>): string {
+  return [
+    '<!-- bemoat-mission-control-state:start -->',
+    '```yaml',
+    yaml.stringify(state, { lineWidth: 0 }).trim(),
+    '```',
+    '<!-- bemoat-mission-control-state:end -->',
+  ].join('\n')
+}
 
 async function loadModule() {
   return import('../../../scripts/agent-issue/current-post-budget-authority.mjs')

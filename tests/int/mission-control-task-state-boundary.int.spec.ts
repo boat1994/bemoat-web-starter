@@ -21,9 +21,6 @@ const publicExports = [
   'normalizePlanningAuthorizationBaseSha',
   'populateOrPreservePlanningAuthorizationBaseSha',
   'parseMissionControlState',
-  'renderMissionControlState',
-  'projectMissionControlStateBlock',
-  'appendMissingMissionControlStateBlock',
 ]
 
 describe('Mission Control task-state boundary', () => {

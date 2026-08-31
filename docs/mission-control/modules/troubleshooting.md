@@ -32,20 +32,3 @@ never blank.
 No retained command retries Issue closure, `DONE` projection, or campaign
 projection as part of merge completion. Delegated parents require their own
 direct reconciliation authority and are not mutated by child task evidence.
-
-### Issue-body write TOCTOU / lease CAS
-
-Retained protocol writers and migration readers must not call unconditional
-`gh issue edit` after a live reread. They win a GitHub Contents API file-`sha`
-lease (branch `bemoat/mission-control-leases`) bound to transition identity +
-observed body hash via `scripts/mission-control/workflows/issue-body-cas.mjs`, then
-project the Issue body. Losers fail closed as `STATE_CONFLICT`. Issue PATCH
-`If-Match` and GraphQL body version fields are unavailable (HTTP 400 / no
-input).
-
-**Residual risk:** non-protocol writers (manual GitHub UI edits or raw
-`gh issue edit` outside the lease helper) can still mutate the Issue body
-without taking the lease. Protocol writers detect many of those races with the
-final pre-update reread and post-write `verifyStatePostcondition`, but a
-manual edit in the final reread→edit gap remains a residual last-write-wins
-window outside MC-vs-MC protocol coverage.

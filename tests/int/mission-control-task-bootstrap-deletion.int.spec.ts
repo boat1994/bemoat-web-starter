@@ -40,6 +40,35 @@ const EXCLUSIVE_FOUNDER_AUTHORIZATION_FILES = [
   'scripts/mission-control/domain/task-bootstrap-authorization.ts',
 ] as const
 
+const ORPHANED_STATEFUL_FILES = [
+  'scripts/mission-control/adapters/task-bootstrap-github.mjs',
+  'scripts/mission-control/domain/task-bootstrap-lease.ts',
+  'scripts/mission-control/workflows/issue-body-cas.mjs',
+  'scripts/mission-control/workflows/campaign-projection.mjs',
+  'scripts/mission-control/domain/campaign-renderer.ts',
+  'scripts/mission-control/domain/adopt-finding-projection.mjs',
+  'scripts/mission-control/domain/adopt-finding-projection.ts',
+  'scripts/mission-control/adapters/merge-github.mjs',
+  'scripts/mission-control/domain/github-comment-identity.ts',
+  'scripts/mission-control/domain/merge-issue-references.ts',
+  'scripts/mission-control/domain/correction-handoff-binding.mjs',
+] as const
+
+const RETAINED_TASK_STATE_EXPORTS = [
+  'MISSION_CONTROL_STATES',
+  'MISSION_CONTROL_WORKFLOW_MODES',
+  'normalizeWorkflowMode',
+  'normalizePlanningAuthorizationBaseSha',
+  'populateOrPreservePlanningAuthorizationBaseSha',
+  'parseMissionControlState',
+] as const
+
+const REMOVED_TASK_STATE_WRITERS = [
+  'renderMissionControlState',
+  'projectMissionControlStateBlock',
+  'appendMissingMissionControlStateBlock',
+] as const
+
 describe('retired Task Bootstrap and Founder authorization public boundaries', () => {
   it('removes the public command and exclusive implementation surfaces while retaining shared protocol commands', () => {
     const packageJson = JSON.parse(readFileSync('package.json', 'utf8')) as { scripts: Record<string, string> }
@@ -57,6 +86,7 @@ describe('retired Task Bootstrap and Founder authorization public boundaries', (
     expect(managedPackageScripts).not.toContain(FOUNDER_AUTHORIZATION_COMMAND)
 
     for (const path of EXCLUSIVE_FOUNDER_AUTHORIZATION_FILES) expect(existsSync(path), path).toBe(false)
+    for (const path of ORPHANED_STATEFUL_FILES) expect(existsSync(path), path).toBe(false)
 
     for (const command of ['bemoat:context', 'bemoat:handoff']) {
       expect(packageJson.scripts[command], command).toEqual(expect.any(String))
@@ -65,6 +95,17 @@ describe('retired Task Bootstrap and Founder authorization public boundaries', (
 
     expect(existsSync('scripts/mission-control/adapters/github-transport.mjs')).toBe(true)
     expect(existsSync('scripts/mission-control/domain/task-state.ts')).toBe(true)
+  })
+
+  it('retains only the read-only task-state seam needed by live consumers', async () => {
+    const taskState = await import('../../scripts/mission-control/domain/task-state.ts') as Record<string, unknown>
+
+    for (const name of RETAINED_TASK_STATE_EXPORTS) {
+      expect(taskState[name], `${name} must remain available`).toBeDefined()
+    }
+    for (const name of REMOVED_TASK_STATE_WRITERS) {
+      expect(taskState[name], `${name} must be retired`).toBeUndefined()
+    }
   })
 
   it('does not advertise the retired public command from active metadata or architecture inventory', () => {
