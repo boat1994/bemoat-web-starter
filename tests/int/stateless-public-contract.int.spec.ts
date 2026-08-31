@@ -4,7 +4,6 @@ import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import { COMMAND_CONTRACT_REGISTRY } from '../../scripts/cli/command-contract-registry.mjs'
-import { CANONICAL_TRANSPORTS } from '../../scripts/mission-control/transport-registry.mjs'
 
 const ROOT = process.cwd()
 const read = (path: string) => readFileSync(resolve(ROOT, path), 'utf8')
@@ -55,7 +54,6 @@ const SUPPORTED_PROTOCOL_COMMANDS = [
 
 const MIGRATION_ONLY_COMMANDS = [] as const
 
-const MIGRATION_ONLY_TRANSPORT_COMMANDS = [] as const
 
 const isCrossAgentProtocolCandidate = (command: string) => (
   command === 'bemoat:context' ||
@@ -86,21 +84,6 @@ describe('stateless public Mission Control contract', () => {
       }
       expect(contract.purpose, contract.command).toMatch(/^MIGRATION-ONLY HISTORICAL:/)
       expect(contract.operation, contract.command).toMatch(/^MIGRATION-ONLY HISTORICAL:/)
-    }
-  })
-
-  it('marks every retained stateful transport as migration-only without removing its registry record', () => {
-    const transports = CANONICAL_TRANSPORTS as ReadonlyArray<{
-      command: string
-      purpose: string
-    }>
-    expect(transports.map((transport) => transport.command)).toEqual(
-      expect.arrayContaining([...MIGRATION_ONLY_TRANSPORT_COMMANDS]),
-    )
-    expect(transports).toHaveLength(MIGRATION_ONLY_TRANSPORT_COMMANDS.length)
-    for (const transport of transports) {
-      expect(MIGRATION_ONLY_TRANSPORT_COMMANDS).toContain(transport.command)
-      expect(transport.purpose, transport.command).toMatch(/^MIGRATION-ONLY HISTORICAL:/)
     }
   })
 

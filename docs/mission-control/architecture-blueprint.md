@@ -289,7 +289,7 @@ Evidence root for the census that informed Option B: `main@7cfd62b6197a2e95fc8db
 | Review verdict projection/transition | review-verdict modules + `workflows/review` |
 | Merge authority / terminal bundle | merge domain + `workflows/merge` + Founder allowlist |
 | Campaign parse/validate/normalize | `domain/campaign-*` (Zod boundary in validator) |
-| Correction contract | correction-contract modules |
+| Correction contract | Retired; historical evidence only (no runtime module) |
 | Reconciliation analysis | bounded-reconciliation / reconciliation modules + `workflows/reconcile` |
 | Recover-state | dedicated workflow + adapter + domain evidence modules |
 

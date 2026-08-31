@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest'
 
 import { managedPackageScripts } from '../../scripts/boilerplate/inventory.mjs'
 import { COMMAND_CONTRACT_REGISTRY } from '../../scripts/cli/command-contract-registry.mjs'
-import { CANONICAL_TRANSPORTS } from '../../scripts/mission-control/transport-registry.mjs'
 
 const TASK_BOOTSTRAP_COMMAND = 'bemoat:mission-control:task-bootstrap'
 const FOUNDER_AUTHORIZATION_COMMAND = 'bemoat:mission-control:authorize-founder'
@@ -55,11 +54,6 @@ const ORPHANED_STATEFUL_FILES = [
 ] as const
 
 const RETAINED_TASK_STATE_EXPORTS = [
-  'MISSION_CONTROL_STATES',
-  'MISSION_CONTROL_WORKFLOW_MODES',
-  'normalizeWorkflowMode',
-  'normalizePlanningAuthorizationBaseSha',
-  'populateOrPreservePlanningAuthorizationBaseSha',
   'parseMissionControlState',
 ] as const
 
@@ -81,14 +75,12 @@ describe('retired Task Bootstrap and Founder authorization public boundaries', (
 
     expect(packageJson.scripts[TASK_BOOTSTRAP_COMMAND]).toBeUndefined()
     expect(COMMAND_CONTRACT_REGISTRY.commands[TASK_BOOTSTRAP_COMMAND]).toBeUndefined()
-    expect(CANONICAL_TRANSPORTS.map((transport) => transport.command)).not.toContain(TASK_BOOTSTRAP_COMMAND)
     expect(managedPackageScripts).not.toContain(TASK_BOOTSTRAP_COMMAND)
 
     for (const path of EXCLUSIVE_TASK_BOOTSTRAP_FILES) expect(existsSync(path), path).toBe(false)
 
     expect(packageJson.scripts[FOUNDER_AUTHORIZATION_COMMAND]).toBeUndefined()
     expect(COMMAND_CONTRACT_REGISTRY.commands[FOUNDER_AUTHORIZATION_COMMAND]).toBeUndefined()
-    expect(CANONICAL_TRANSPORTS.map((transport) => transport.command)).not.toContain(FOUNDER_AUTHORIZATION_COMMAND)
     expect(managedPackageScripts).not.toContain(FOUNDER_AUTHORIZATION_COMMAND)
 
     for (const path of EXCLUSIVE_FOUNDER_AUTHORIZATION_FILES) expect(existsSync(path), path).toBe(false)
@@ -118,7 +110,6 @@ describe('retired Task Bootstrap and Founder authorization public boundaries', (
       'scripts/architecture-contract.json',
       'scripts/boilerplate/inventory.mjs',
       'scripts/cli/mission-control-command-metadata-review.ts',
-      'scripts/cli/mission-control-routing-policy-primary.ts',
       'scripts/structural-protection-manifest.json',
     ]
 

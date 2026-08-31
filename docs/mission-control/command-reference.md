@@ -35,8 +35,8 @@ other migration readers; no executable route is available for those families.
 ## Preflight checklist
 
 Before invoking a retained command, verify the repository, live Issue, expected
-state, and absence of competing evidence. Resolve the registered contract and
-`scripts/mission-control/transport-registry.mjs` before any durable write.
+state, and absence of competing evidence. Resolve the registered command
+contract before any durable write.
 
 ### Review checks
 

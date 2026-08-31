@@ -6,14 +6,14 @@ import { afterEach, describe, expect, it } from 'vitest'
 const root = resolve(process.cwd())
 const tempRoots: string[] = []
 const oracle = [
-  ['tests/int/phase7-merge-wrappers-prune.int.spec.ts', 'bdf192a500a5d6a71e4b5f4241017e6f698bea23ed78412c56ca5f794e874d7d'],
+  ['tests/int/phase7-merge-wrappers-prune.int.spec.ts', 'f5a00b32d109797a96bc84bbbadce4bde9562a352d7a80348ef31980fa2ee3cd'],
 ] as const
 const productionExtensions = ['.mjs', '.ts'] as const
 const grandfathered = [
   ['scripts/boilerplate/filesystem.mjs', 635],
   ['scripts/boilerplate/workflow.mjs', 465], ['scripts/check-boilerplate-drift.mjs', 552],
   ['scripts/cli/command-contract-registry.ts', 870], ['scripts/cli/command-contract.ts', 580],
-  ['scripts/mission-control/domain/campaign-authority.ts', 630], ['scripts/mission-control/domain/campaign-validator.mjs', 482], ['scripts/mission-control/domain/correction-contract.mjs', 650], ['scripts/mission-control/domain/correction-contract.ts', 536],
+  ['scripts/mission-control/domain/campaign-authority.ts', 630], ['scripts/mission-control/domain/campaign-validator.mjs', 482],
 ] as const
 
 afterEach(() => tempRoots.splice(0).forEach((path) => rmSync(path, { recursive: true, force: true })))
@@ -64,9 +64,9 @@ async function guard(path = root) {
 describe('structural protection guard', () => {
   it('accepts the current repository with the exact inventory, baseline, and protected oracle', async () => {
     expect((await guard()).map((entry: { rule: string }) => entry.rule)).toEqual([])
-    expect(grandfathered).toHaveLength(9)
+    expect(grandfathered).toHaveLength(7)
     expect(JSON.parse(readFileSync(join(root, 'scripts/structural-protection-manifest.json'), 'utf8'))).toEqual(manifest())
-    expect(scriptInventory(root)).toBe(137)
+    expect(scriptInventory(root)).toBe(113)
   })
 
   it('rejects malformed schema, types, unknown keys, ordering, duplicates, paths, and SHA values', async () => {

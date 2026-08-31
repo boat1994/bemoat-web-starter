@@ -574,6 +574,42 @@ esac
     expect(result.violations[0].rule).toBe('PLAN010')
   })
 
+  it('fails closed when the live issue contains malformed managed-state markers', async () => {
+    const mod = await import('../../scripts/guards/planning-contract-runtime.mjs')
+    const malformedBody = [
+      '<!-- bemoat-mission-control-state:start -->',
+      'schema_version: 1',
+      'state: IN_PROGRESS',
+      'state: DONE',
+      'active_task_issue: "#170"',
+      '<!-- bemoat-mission-control-state:end -->',
+    ].join('\n')
+    const result = mod.verifyLiveTaskIdentity({
+      cwd: process.cwd(),
+      filePath: 'tests/fixtures/planning/valid-existing-issue.md',
+      contract: baseContract({ active_task_issue: '#170', task_key: 'task-11' }),
+      runGh: (args: string[]) => {
+        if (args[0] === '--version') return { status: 0, stdout: 'gh version', stderr: '' }
+        if (args[0] === 'auth') return { status: 0, stdout: 'authenticated', stderr: '' }
+        return {
+          status: 0,
+          stdout: JSON.stringify({
+            title: '[task-11] Billing API',
+            state: 'OPEN',
+            body: malformedBody,
+            url: 'https://github.com/boat1994/bemoat-web-starter/issues/170',
+          }),
+          stderr: '',
+        }
+      },
+    })
+
+    expect(result.ok).toBe(false)
+    expect(result.violations).toEqual([
+      expect.objectContaining({ rule: 'PLAN010', found: 'malformed managed state' }),
+    ])
+  })
+
   it('passes live verification for a valid open managed issue #140', async () => {
     const mod = await import('../../scripts/guards/planning-contract-runtime.mjs')
     const cwd = createRepo()

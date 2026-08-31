@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { CANONICAL_TRANSPORTS } from '../mission-control/transport-registry.ts'
 import { handoffCommands } from './handoff-command-metadata.ts'
 import { handoffRoutes } from './handoff-routing-policy.ts'
 import { missionControlPrimaryCommands } from './mission-control-command-metadata-primary.ts'
@@ -7,14 +6,9 @@ import { missionControlRecoveryCommands } from './mission-control-command-metada
 import { missionControlReviewCommands } from './mission-control-command-metadata-review.ts'
 import { contextSyncCommands } from './context-sync-command-metadata.ts'
 import { contextSyncRoutes } from './context-sync-routing-policy.ts'
-import { missionControlPrimaryRoutes } from './mission-control-routing-policy-primary.ts'
 import { missionControlRecoveryRoutes } from './mission-control-routing-policy-recovery.ts'
 
 export const COMMAND_CONTRACT_SCHEMA_VERSION = 1 as const
-
-const canonicalTransportByCommand = new Map(
-  CANONICAL_TRANSPORTS.map((transport) => [transport.command, transport]),
-)
 
 const SAFE_STOP_CLASSIFICATIONS = [
   'INVALID_INVOCATION',
@@ -91,14 +85,6 @@ function nextAction(type: NextAction['type'], command: string | null, reason: st
   return { type, command, reason }
 }
 
-function transportFields(command: string): { exceptional: boolean; transport_role: string | null } {
-  const transport = canonicalTransportByCommand.get(command)
-  return {
-    exceptional: transport?.exceptional ?? false,
-    transport_role: transport?.role ?? null,
-  }
-}
-
 type ContractInput = any;
 function contract({
   command,
@@ -141,8 +127,7 @@ function contract({
   legacy_classification_map = {},
   exceptional,
 }: ContractInput): CommandContract {
-  const fields = transportFields(command)
-  const isExceptional = exceptional !== undefined ? exceptional : fields.exceptional
+  const isExceptional = exceptional ?? false
   const allInputs = [...required_inputs, ...optional_flags]
   const callerSuppliedValues = [...new Set(
     allInputs
@@ -179,7 +164,7 @@ function contract({
     next_action_rules,
     examples,
     exceptional: isExceptional,
-    transport_role: fields.transport_role,
+    transport_role: null,
     parser_owner,
     delegated_executable,
     help_meaningful,
@@ -560,7 +545,6 @@ delete commands['bemoat:typecheck']
 const orderedCommands = { ...commands, ...contextSyncCommands(missionControlDependencies), ...protocolCommands, ...missionControlCommands, ...trailingCommands }
 
 const routes = [
-  ...missionControlPrimaryRoutes(),
   ...missionControlRecoveryRoutes(),
   ...contextSyncRoutes(),
   ...handoffRoutes(),

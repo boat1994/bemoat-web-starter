@@ -12,8 +12,6 @@ import {
   getCommandContract,
   validateCommandContractRegistry,
 } from '../../scripts/cli/command-contract.mjs'
-import { MISSION_CONTROL_STATES } from '../../scripts/mission-control/domain/task-state.ts'
-import { CANONICAL_TRANSPORTS } from '../../scripts/mission-control/transport-registry.mjs'
 
 type JsonRecord = Record<string, unknown>
 type PackageJson = { scripts: Record<string, string> }
@@ -64,23 +62,6 @@ const EXPECTED_COMMAND_TIERS: Record<string, 'A' | 'B' | 'C'> = {
   'bemoat:test:int': 'C',
   'bemoat:typecheck': 'C',
 }
-
-const EXPECTED_STATES = [
-  'READY',
-  'IN_PROGRESS',
-  'AWAITING_REVIEW_1',
-  'CORRECTION_REQUIRED_1',
-  'AWAITING_REVIEW_2',
-  'CORRECTION_REQUIRED_2',
-  'AWAITING_REVIEW_3',
-  'FOUNDER_AUTHORIZED_CORRECTION',
-  'BLOCKED_FOR_FOUNDER_DECISION',
-  'ELIGIBLE_FOR_FOUNDER_REVIEW',
-  'DONE',
-  'BLOCKED_EXTERNAL',
-  'STATE_CONFLICT',
-  'STATE_MIGRATION_REQUIRED',
-]
 
 const COMMAND_FIELDS = [
   'schema_version',
@@ -176,12 +157,6 @@ function commandRecord(registry: RegistryFixture, command: string): JsonRecord {
   return record
 }
 
-function stateValues(states: unknown): string[] {
-  if (states instanceof Set) return [...states].map(String)
-  if (Array.isArray(states)) return states.map(String)
-  return [...(states as Iterable<unknown>)].map(String)
-}
-
 function validationResultIsRejected(result: unknown): boolean {
   if (result === false) return true
   if (Array.isArray(result)) return result.length > 0
@@ -199,8 +174,7 @@ function validateRegistry(
   return validateCommandContractRegistry({
     registry,
     packageJson,
-    transports: CANONICAL_TRANSPORTS,
-    states: MISSION_CONTROL_STATES,
+    states: [],
   })
 }
 
@@ -412,25 +386,6 @@ describe('Task 1 command contract registry', () => {
     expectRegistryValid()
   })
 
-  it('matches every canonical transport role and exceptional bit', () => {
-    expect(CANONICAL_TRANSPORTS).toHaveLength(0)
-
-    for (const transport of CANONICAL_TRANSPORTS) {
-      const contract = asRecord(getCommandContract(transport.command), transport.command)
-      expect(contract.transport_role, transport.command).toBe(transport.role)
-      expect(contract.exceptional, transport.command).toBe(transport.exceptional)
-      expect((contract as any).command).toBe(transport.command)
-    }
-
-    const canonicalCommands = new Set<string>(CANONICAL_TRANSPORTS.map((transport) => transport.command))
-    for (const command of Object.keys(EXPECTED_COMMAND_TIERS)) {
-      if (!canonicalCommands.has(command)) {
-        expect(getCommandContract(command)?.transport_role, command).toBeNull()
-      }
-    }
-    expectRegistryValid()
-  })
-
   it('gives every Tier A command one route or explicit exceptional record', () => {
     const routes = COMMAND_CONTRACT_REGISTRY.routes
 
@@ -453,22 +408,6 @@ describe('Task 1 command contract registry', () => {
       if (route.canonical_command !== null) {
         expect(Object.hasOwn(EXPECTED_COMMAND_TIERS, route.canonical_command)).toBe(true)
       }
-    }
-    expectRegistryValid()
-  })
-
-  it('exports the unchanged 14-state schema', () => {
-    expect(Object.isFrozen(MISSION_CONTROL_STATES)).toBe(true)
-    expect(stateValues(MISSION_CONTROL_STATES)).toEqual(EXPECTED_STATES)
-    expect(stateValues(MISSION_CONTROL_STATES)).toHaveLength(14)
-
-    const routedStates = new Set(
-      COMMAND_CONTRACT_REGISTRY.routes
-        .map((route: any) => route.observed_state)
-        .filter((state: any): state is string => typeof state === 'string' && state !== 'NOT_STATEFUL'),
-    )
-    for (const state of EXPECTED_STATES as any[]) {
-      expect(routedStates, state).toContain(state)
     }
     expectRegistryValid()
   })
@@ -500,12 +439,6 @@ describe('Task 1 command contract registry', () => {
     }],
     ['missing Tier C delegation rationale', (registry) => {
       commandRecord(registry, 'bemoat:check').exclusion_reason = null
-    }],
-    ['inconsistent transport role', (registry) => {
-      commandRecord(registry, MUTATING_COMMAND).transport_role = 'RESULT'
-    }],
-    ['inconsistent transport exceptional bit', (registry) => {
-      commandRecord(registry, MUTATING_COMMAND).exceptional = true
     }],
     ['Tier A route removed', (registry) => {
       registry.routes = registry.routes.filter(

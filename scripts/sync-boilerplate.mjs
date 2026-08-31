@@ -14,7 +14,7 @@ import {
   createResultEnvelopeV1,
 } from './cli/command-result.mjs'
 import { assertManagedRuntimeDeliveryClosure } from './guard-harness-contract.mjs'
-import { resolveChildSyncCommandGate } from './mission-control/state-verification.mjs'
+import { resolveChildSyncCommandGate } from './boilerplate/child-sync-gate.mjs'
 import { parseApplyBuildContract, parseSyncMode } from './boilerplate/config.mjs'
 import {
   createBoilerplateSyncWorkflow,

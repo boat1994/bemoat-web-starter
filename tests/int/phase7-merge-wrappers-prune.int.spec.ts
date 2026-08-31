@@ -3,13 +3,8 @@ import { spawnSync } from 'node:child_process'
 import { describe, expect, it } from 'vitest'
 
 import { COMMAND_CONTRACT_REGISTRY } from '../../scripts/cli/command-contract-registry.mjs'
-import {
-  ALL_MUTATING_COMMANDS,
-  missionControlPrimaryRoutes,
-} from '../../scripts/cli/mission-control-routing-policy-primary.mjs'
 import { missionControlRecoveryRoutes } from '../../scripts/cli/mission-control-routing-policy-recovery.mjs'
 import { classifyMergeReviewVerdict } from '../../scripts/mission-control/domain/merge-review-verdict.ts'
-import { CANONICAL_TRANSPORTS } from '../../scripts/mission-control/transport-registry.mjs'
 
 const DELETED_MERGE_COMMANDS = [
   'bemoat:mission-control:merge',
@@ -28,7 +23,7 @@ describe('Phase 7 merge-wrapper deletion boundary', () => {
   })
 
   it('does not register or route either deleted merge wrapper', () => {
-    const routes = [...missionControlPrimaryRoutes(), ...missionControlRecoveryRoutes()]
+    const routes = [...missionControlRecoveryRoutes()]
     const routedCommands = routes.flatMap((route) => [
       route.canonical_command,
       ...route.prohibited_commands,
@@ -36,8 +31,6 @@ describe('Phase 7 merge-wrapper deletion boundary', () => {
 
     for (const command of DELETED_MERGE_COMMANDS) {
       expect(COMMAND_CONTRACT_REGISTRY.commands[command]).toBeUndefined()
-      expect(ALL_MUTATING_COMMANDS).not.toContain(command)
-      expect(CANONICAL_TRANSPORTS.map((transport) => transport.command)).not.toContain(command)
       expect(routedCommands).not.toContain(command)
     }
   })

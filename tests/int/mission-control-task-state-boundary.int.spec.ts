@@ -6,40 +6,47 @@ import { describe, expect, it } from 'vitest'
 import { buildScriptImportGraph } from '../../scripts/guards/scripts-architecture.mjs'
 const domainPath = resolve(process.cwd(), 'scripts/mission-control/domain/task-state.ts')
 const canonicalDomainPath = resolve(process.cwd(), 'scripts/mission-control/domain/task-state.ts')
-const authorizationFacadePath = resolve(
-  process.cwd(),
-  'scripts/mission-control/domain/task-state-authorization.mjs',
-)
-const canonicalAuthorizationPath = resolve(
-  process.cwd(),
+const retiredManagedStatePaths = [
   'scripts/mission-control/domain/task-state-authorization.ts',
-)
-const publicExports = [
-  'MISSION_CONTROL_STATES',
-  'MISSION_CONTROL_WORKFLOW_MODES',
-  'normalizeWorkflowMode',
-  'normalizePlanningAuthorizationBaseSha',
-  'populateOrPreservePlanningAuthorizationBaseSha',
-  'parseMissionControlState',
+  'scripts/mission-control/domain/active-correction-contract.ts',
+  'scripts/mission-control/domain/correction-contract.ts',
+  'scripts/mission-control/domain/correction-contract-fingerprint.ts',
+  'scripts/mission-control/domain/correction-contract-fingerprint.mjs',
+  'scripts/mission-control/domain/standard-non-managed-eligibility.ts',
+  'scripts/mission-control/review-verdict-binding.mjs',
+  'scripts/mission-control/transition-identity.mjs',
+  'scripts/mission-control/transition-match-options.mjs',
+  'scripts/mission-control/transition-authorization.mjs',
+  'scripts/mission-control/transition-guards.mjs',
+  'scripts/mission-control/comment-resolution.mjs',
+  'scripts/mission-control/comment-evidence.ts',
+  'scripts/mission-control/coordinator.mjs',
+  'scripts/mission-control/coordinator-projection.mjs',
+  'scripts/mission-control/coordinator-transitions.mjs',
+  'scripts/mission-control/reconciliation-analysis.mjs',
+  'scripts/mission-control/reconciliation-proposals.mjs',
+  'scripts/mission-control/state-verification.mjs',
+  'scripts/mission-control/transport-registry.ts',
+  'scripts/mission-control/transport-registry.mjs',
+  'scripts/cli/command-contract-transport.ts',
+  'scripts/cli/command-contract-transport.mjs',
+  'scripts/cli/mission-control-routing-policy-primary.ts',
+  'scripts/cli/mission-control-routing-policy-primary.mjs',
 ]
 
 describe('Mission Control task-state boundary', () => {
-  it('keeps task-state behavior owned by the inward domain module', async () => {
+  it('retains only the read-only parser seam after managed-state compatibility cleanup', async () => {
     const domainTaskState = await import(/* @vite-ignore */ `file://${domainPath}`)
     const domainExports = domainTaskState as unknown as Record<string, unknown>
 
-    for (const name of publicExports) {
-      expect(domainExports[name], `${name} must remain domain-owned`).toBeDefined()
-    }
-
     expect(domainPath).toContain('scripts/mission-control/domain/task-state.ts')
-    expect(existsSync(authorizationFacadePath)).toBe(false)
-    expect(readFileSync(canonicalDomainPath, 'utf8')).toContain(
-      "from './task-state-authorization.ts'",
+    expect(domainExports.parseMissionControlState).toBeTypeOf('function')
+    expect(readFileSync(canonicalDomainPath, 'utf8')).not.toMatch(
+      /(?:from|import|export)\s+[^\n]*(?:task-state-authorization|review-verdict-binding|transition-|comment-|coordinator|reconciliation|projection|authorization|counter|budget)/,
     )
-    expect(readFileSync(canonicalAuthorizationPath, 'utf8')).toContain(
-      'export function validatePostBudgetReviews',
-    )
+    for (const relativePath of retiredManagedStatePaths) {
+      expect(existsSync(resolve(process.cwd(), relativePath)), `${relativePath} must be deleted`).toBe(false)
+    }
 
     const canonicalTaskState = await import(/* @vite-ignore */ `file://${canonicalDomainPath}`)
     expect(canonicalTaskState.parseMissionControlState)
@@ -47,5 +54,24 @@ describe('Mission Control task-state boundary', () => {
 
     const graph = buildScriptImportGraph(process.cwd())
     expect(graph.get('scripts/mission-control/domain/task-state.ts') ?? new Set()).toEqual(new Set())
+  })
+
+  it('fails closed for malformed marker/YAML input used by planning safety', async () => {
+    const { parseMissionControlState } = await import(/* @vite-ignore */ `file://${domainPath}`)
+
+    expect(parseMissionControlState('## MISSION_CONTROL_STATE\nstate: DONE')).toMatchObject({
+      present: true,
+      valid: false,
+    })
+    expect(parseMissionControlState([
+      '<!-- bemoat-mission-control-state:start -->',
+      'schema_version: 1',
+      'state: IN_PROGRESS',
+      'state: DONE',
+      '<!-- bemoat-mission-control-state:end -->',
+    ].join('\n'))).toMatchObject({
+      present: true,
+      valid: false,
+    })
   })
 })

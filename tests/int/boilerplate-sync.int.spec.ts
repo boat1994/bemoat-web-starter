@@ -44,18 +44,6 @@ const STARTER_ONLY_INT_TESTS: { path: string; reason: string }[] = [
     path: 'tests/int/mission-control-review-cli.int.spec.ts',
     reason: 'Review CLI characterization tests are starter harness validation only',
   },
-  {
-    path: 'tests/int/correction-contract-fingerprint.int.spec.ts',
-    reason: 'Direct correction-contract fingerprint boundary characterization is starter harness validation only',
-  },
-  {
-    path: 'tests/int/mission-control-standard-non-managed-eligibility.int.spec.ts',
-    reason: 'Direct STANDARD/non-managed eligibility integration coverage is starter harness validation only',
-  },
-  {
-    path: 'tests/int/mission-control-standard-review-selection.int.spec.ts',
-    reason: 'Direct STANDARD REVIEW_VERDICT selection integration coverage is starter harness validation only',
-  },
 ]
 
 /** Fixture trees that are starter-only and intentionally not synced. */

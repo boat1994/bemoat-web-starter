@@ -6,7 +6,6 @@ import {
   COMMAND_CONTRACT_REGISTRY,
   COMMAND_CONTRACT_SCHEMA_VERSION,
 } from './command-contract-registry.ts'
-import { validateTransportBindings } from './command-contract-transport.ts'
 
 const COMMAND_FIELDS = [
   'schema_version',
@@ -479,9 +478,8 @@ export function getCommandContract(command: unknown): CommandContract | null {
 export function validateCommandContractRegistry({
   registry,
   packageJson,
-  transports,
   states,
-}: { registry: unknown, packageJson: unknown, transports: unknown, states: unknown }) {
+}: { registry: unknown, packageJson: unknown, states: unknown }) {
   const errors = []
   const target = registry as any
   const packageScripts = (packageJson as { scripts?: Record<string, unknown> })?.scripts
@@ -517,7 +515,6 @@ export function validateCommandContractRegistry({
     validateCommandRecord(command, record, packageScripts?.[command], commandSet, errors)
   }
 
-  errors.push(...validateTransportBindings(target.commands as any, transports))
   if (stateValues) validateRoutes(target as any, target.commands, stateValues, errors)
 
   const tierCounts = { A: 0, B: 0, C: 0 }
@@ -530,7 +527,6 @@ export function validateCommandContractRegistry({
     errors,
     command_count: registryCommands.length,
     tier_counts: tierCounts,
-    transport_count: Array.isArray(transports) ? transports.length : 0,
     state_count: stateValues?.length ?? 0,
   }
 }

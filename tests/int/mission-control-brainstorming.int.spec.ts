@@ -3,7 +3,6 @@ import { resolve } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { parseRoleCommentBody } from '../../scripts/mission-control/review-verdict-binding.mjs'
 import {
   BRAINSTORMING_PROFILE_HEADINGS,
   classifyFounderAuthorizationReply,
@@ -88,13 +87,10 @@ describe('Mission Control brainstorming profile contract (#144)', () => {
 
   it('does not parse brainstorming headings as HANDOFF, RESULT, or REVIEW_VERDICT', () => {
     for (const body of [SAMPLE_BRAINSTORMING, SAMPLE_DESIGN_RESULT]) {
-      expect(parseRoleCommentBody(body).role).toBeNull()
       expect(isBrainstormingProfileResponse(body)).toBe(true)
     }
 
     for (const role of ['HANDOFF', 'RESULT', 'REVIEW_VERDICT'] as const) {
-      const parsed = parseRoleCommentBody(`## ${role}\n\nBody`)
-      expect(parsed.role).toBe(role)
       expect(isBrainstormingProfileResponse(`## ${role}\n\nBody`)).toBe(false)
     }
   })
