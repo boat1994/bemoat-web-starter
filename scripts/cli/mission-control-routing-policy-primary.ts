@@ -2,7 +2,6 @@
 export const ALL_MUTATING_COMMANDS: string[] = [
   'bemoat:boilerplate:sync',
   'bemoat:hooks:install',
-  'bemoat:issue:comment',
 ]
 
 

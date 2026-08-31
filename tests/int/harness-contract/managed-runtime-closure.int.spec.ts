@@ -218,16 +218,6 @@ describe('harness-contract managed-runtime-closure', () => {
     }
   })
 
-  it('treats directory-managed descendants as managed runtime roots', async () => {
-    const mod = await loadClosure()
-
-    const roots = mod.collectManagedRuntimeScriptRoots(process.cwd(), [
-      'scripts/post-role-comment.mjs',
-    ])
-
-    expect(roots).toContain('scripts/post-role-comment.mjs')
-  })
-
   it('ignores Node built-ins and package imports', async () => {
     const mod = await loadClosure()
     const root = mkdtempSync(join(tmpdir(), 'bemoat-240-builtins-'))

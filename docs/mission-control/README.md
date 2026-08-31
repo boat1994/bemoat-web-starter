@@ -51,8 +51,8 @@ bemoat:context
 ```
 
 The older stateful dispatch/delivery/review/reconcile/recovery/merge/task and
-role-comment flow is documented below only as migration compatibility and is a
-Phase 7 deletion candidate. This reconciliation does not delete or repair it.
+role-comment flow is documented below only as migration compatibility. The
+legacy role-comment writer is retired; historical records remain readable.
 
 Rules that change day-to-day behavior:
 

@@ -41,7 +41,6 @@
     "bemoat:context": "node scripts/agent-context.mjs",
     "bemoat:context:sync-base": "node scripts/agent-context-sync-base.mjs",
     "bemoat:handoff": "node scripts/agent-handoff.mjs",
-    "bemoat:issue:comment": "node scripts/post-role-comment.mjs",
     "bemoat:branch:check": "bash scripts/check-branch-safety.sh",
     "bemoat:boilerplate:sync": "node scripts/sync-boilerplate.mjs",
     "bemoat:boilerplate:check": "node scripts/check-boilerplate-drift.mjs",

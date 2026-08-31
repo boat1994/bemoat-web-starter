@@ -4,7 +4,6 @@ import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import { parseRoleCommentBody } from '../../scripts/mission-control/review-verdict-binding.mjs'
-import { projectComments, selectAuthoritativeRoleComments } from '../../scripts/mission-control/diagnostics/github-comment-projection.mjs'
 import {
   BRAINSTORMING_PROFILE_HEADINGS,
   classifyFounderAuthorizationReply,
@@ -104,37 +103,6 @@ describe('Mission Control brainstorming profile contract (#144)', () => {
     const illegal = `${SAMPLE_BRAINSTORMING}\n\n## RESULT\n\noops`
     expect(parseBrainstormingProfileBody(illegal).violatesContract).toBe(true)
     expect(parseBrainstormingProfileBody(SAMPLE_BRAINSTORMING).violatesContract).toBe(false)
-  })
-
-  it('does not treat brainstorming comments as authoritative role transport', () => {
-    const comments = [
-      {
-        id: 'brainstorm',
-        body: SAMPLE_BRAINSTORMING,
-        createdAt: '2026-07-24T00:00:00Z',
-        url: 'http://brainstorm',
-      },
-      {
-        id: 'delivery',
-        body: '## RESULT\n\n**PR:** #144 · head `abc1234`',
-        createdAt: '2026-07-23T00:00:00Z',
-        url: 'http://delivery',
-      },
-    ]
-
-    for (const role of ['HANDOFF', 'RESULT', 'REVIEW_VERDICT'] as const) {
-      const selected = [...selectAuthoritativeRoleComments(comments, role)]
-      if (role === 'RESULT') {
-        expect(selected.map((comment) => comment.id)).toEqual(['delivery'])
-      } else {
-        expect(selected).toEqual([])
-      }
-    }
-
-    const projected = projectComments(comments)
-    const brainstorm = projected.find((comment) => comment.id === 'brainstorm')
-    expect(brainstorm?.body).toContain('## BRAINSTORMING')
-    expect(brainstorm?.body).not.toContain('## RESULT')
   })
 
   it('cannot mutate managed state or review counters from a brainstorming response', () => {

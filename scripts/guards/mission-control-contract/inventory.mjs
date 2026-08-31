@@ -255,7 +255,6 @@ export const REQUIRED_CLI_PROMPT_GUIDE_PHRASES = [
   'precise reason for every raw mutation exception',
   'CLI_DISCOVERY_DEFECT',
   'Purely conversational Founder decisions',
-  'bemoat:issue:comment',
 ]
 
 export const REQUIRED_CLI_PROMPT_LOADER_PHRASES = [

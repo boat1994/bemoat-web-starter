@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -46,19 +46,6 @@ function writeContract(
 }
 
 describe('scripts architecture ratchet', () => {
-  it('keeps mission-control GitHub adapters transport-only', () => {
-    const adapterRoot = join(process.cwd(), 'scripts/mission-control/adapters')
-    const adapters = [
-      'github-transport.mjs',
-    ]
-
-    for (const adapter of adapters) {
-      const source = readFileSync(join(adapterRoot, adapter), 'utf8')
-      expect(source).not.toMatch(/from ['"]\.\.\/(?:domain|workflows)\//)
-      expect(source).not.toMatch(/from ['"]\.\.\/\.\.\/domain\//)
-    }
-  })
-
   it('keeps the stable root facade exports backed by the guard-owned module', () => {
     expect(buildScriptImportGraph).toBe(architectureGuard.buildScriptImportGraph)
     expect(listRootScripts).toBe(architectureGuard.listRootScripts)
@@ -71,8 +58,8 @@ describe('scripts architecture ratchet', () => {
   })
 
   it('preserves the approved current cycle baseline in the contract', () => {
-    expect(architectureContract.cycleNodes).toHaveLength(2)
-    expect(architectureContract.cycleEdges).toHaveLength(1)
+    expect(architectureContract.cycleNodes).toHaveLength(0)
+    expect(architectureContract.cycleEdges).toHaveLength(0)
   })
 
   it('maps every root script exactly once with destination vocabulary and transitional harness-contract', () => {

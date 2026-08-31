@@ -61,9 +61,9 @@ AGENTS.md → bemoat:context → one bounded objective → bemoat:handoff → Gi
 synchronization utility. Generic branch/repository/secret/toolchain,
 exact-evidence, CLI Discovery, and child-sync safety remain retained
 infrastructure. The stateful delivery, review, reconciliation, recovery,
-merge, task, and role-comment machinery documented below is migration-only
-historical compatibility and is scheduled for dependency-safe Phase 7 pruning;
-this contract reconciliation does not delete or repair it.
+merge, task, and role-comment machinery is retired. Historical state and role
+records remain readable only for migration compatibility; this guide does not
+authorize a legacy publication command.
 
 ## Historical migration-only stateful contract
 
@@ -429,7 +429,7 @@ already selected by durable migration evidence:
 | delivery | `bemoat:agent:delivery` |
 | review | Retired; no executable managed-review command remains. Historical verdict evidence is read-only and stops at the Founder gate. |
 | merge | Retired; no executable custom merge command remains. Context reconstructs native GitHub merge authority and evidence. |
-| role-comment transport | `bemoat:issue:comment` |
+| role-comment transport | Retired; historical role comments are read-only migration evidence. |
 
 When live state still determines routing, name only the bounded candidate set:
 

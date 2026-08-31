@@ -80,19 +80,9 @@ The remaining gap is **transport between roles**. Mission Control, Dev, and Revi
 
 Use this contract instead of copying long prompts, plan excerpts, command logs, or review transcripts into every comment.
 
-Use the wrapper to validate and post a concise operational comment:
-
-```text
-pnpm run bemoat:issue:comment -- <issue-number> [--repo owner/repo] [--body-file <path>] [--check] [--allow-warning]
-```
-
-Provide the body through `--body-file` or stdin, never both. The wrapper
-validates the concise operational heading and its required fields: exactly one
-`## HANDOFF`, `## RESULT`, or `## REVIEW_VERDICT`. It does not accept the
-full reference templates below as post-ready bodies; reduce those examples to
-the operational shape first. Use `--check` to validate without posting, and
-use `--allow-warning` only to acknowledge a length warning. The wrapper does
-not replace live preflight or Founder gates.
+The historical role-comment writer is retired. Existing `HANDOFF`, `RESULT`,
+and `REVIEW_VERDICT` comments remain readable for migration compatibility; new
+cross-agent publication uses the strict append-only `bemoat:handoff` command.
 
 ## Compact-delta contract
 

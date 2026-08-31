@@ -259,7 +259,6 @@ describe('mission-control contract guard', () => {
 
     const operationCommands = [
       'bemoat:context',
-      'bemoat:issue:comment',
     ]
     for (const command of operationCommands) expect(guide).toContain(command)
     expect(guide).toContain('pnpm run <command> -- --help --json')

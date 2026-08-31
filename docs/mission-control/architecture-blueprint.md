@@ -240,14 +240,6 @@ flowchart LR
 | Purpose | Project Founder-authorized PR head drift to `FOUNDER_AUTHORIZED_CORRECTION` |
 | Disposition | **MIGRATION-ONLY HISTORICAL / PHASE-7 DELETE CANDIDATE** |
 
-### J10 — Canonical role-comment publication / readback
-
-| Field | Content |
-| --- | --- |
-| Canonical command | `pnpm run bemoat:issue:comment` |
-| Active dependency | `diagnostics/github-comment-projection` used by retained role-comment evidence paths |
-| Disposition | **MIGRATION-ONLY HISTORICAL / PHASE-7 DELETE CANDIDATE**; shared comment projection remains retained until current consumers are closed or consolidated |
-
 ### J11 — Child / harness sync (PLATFORM-adjacent)
 
 | Field | Content |
@@ -284,7 +276,6 @@ Evidence root for the census that informed Option B: `main@7cfd62b6197a2e95fc8db
 | --- | --- |
 | `bemoat:agent:delivery` | Delivery (J4) |
 | `bemoat:mission-control:merge` | Merge (J7) |
-| `bemoat:issue:comment` | J10 |
 | `bemoat:boilerplate:check|sync` | J11 PLATFORM |
 | `bemoat:guard:*` / validation scripts | Guards & validation |
 
@@ -331,7 +322,6 @@ Principle: unknown external runtime values → Zod (or equivalent fail-closed pa
 | `domain/brainstorming.mjs` | Low-risk facade cleanup candidate (Class A) |
 | `domain/task-state-authorization.mjs` | Low-risk facade cleanup candidate (Class A) |
 | `domain/merge-head-bindings.mjs` | Low-risk facade cleanup candidate (Class A) |
-| `diagnostics/github-comment-projection.mjs` | **KEEP** (active imports) |
 
 Inventory counts on baseline (design evidence): **87** `scripts/mission-control/**/*.mjs`, **68** `*.ts`; of `.mjs`, ~**34** paired re-export facades and ~**53** mjs-only implementation files.
 

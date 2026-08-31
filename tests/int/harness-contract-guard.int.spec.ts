@@ -117,7 +117,7 @@ describe('harness contract guard on disk', () => {
 })
 
 describe('managed runtime delivery closure', () => {
-  it('passes the live starter closure including github-comment-projection', async () => {
+  it('passes the live starter managed runtime closure', async () => {
     const guardMod = await import('../../scripts/guard-harness-contract.mjs')
     const syncMod = await import('../../scripts/sync-boilerplate.mjs')
 
@@ -130,16 +130,6 @@ describe('managed runtime delivery closure', () => {
     expect(
       guardMod.formatManagedRuntimeDeliveryViolations(violations),
     ).toEqual(['Harness contract guard passed.'])
-  })
-
-  it('treats directory-managed script descendants as managed runtime roots', async () => {
-    const guardMod = await import('../../scripts/guard-harness-contract.mjs')
-
-    const roots = guardMod.collectManagedRuntimeScriptRoots(process.cwd(), [
-      'scripts/post-role-comment.mjs',
-    ])
-
-    expect(roots).toContain('scripts/post-role-comment.mjs')
   })
 
   it('ignores Node built-ins and package imports', async () => {
@@ -479,7 +469,7 @@ describe('managed runtime delivery closure', () => {
     const guardMod = await import('../../scripts/guard-harness-contract.mjs')
 
     const roots = guardMod.collectManagedRuntimeScriptRoots(process.cwd(), [
-      'tests/int/github-comment-projection.int.spec.ts',
+      'tests/int/context-parser.int.spec.ts',
     ])
 
     expect(roots).toEqual([])
@@ -580,13 +570,13 @@ describe('managed runtime delivery closure', () => {
     try {
       mkdirSync(join(tempRoot, 'scripts'), { recursive: true })
       writeFileSync(
-        join(tempRoot, 'scripts/post-role-comment.mjs'),
+        join(tempRoot, 'scripts/importer.mjs'),
         "import { projectComments } from './github-comment-projection.mjs'\n",
       )
 
       const violations = guardMod.scanManagedRuntimeDeliveryClosure({
         root: tempRoot,
-        managedPaths: ['scripts/post-role-comment.mjs', 'scripts/github-comment-projection.mjs'],
+        managedPaths: ['scripts/importer.mjs', 'scripts/github-comment-projection.mjs'],
       })
 
       expect(violations).toEqual([
@@ -598,7 +588,7 @@ describe('managed runtime delivery closure', () => {
         },
         {
           type: 'missing-relative-runtime-dependency',
-          importer: 'scripts/post-role-comment.mjs',
+          importer: 'scripts/importer.mjs',
           callee: 'scripts/github-comment-projection.mjs',
           specifier: './github-comment-projection.mjs',
         },

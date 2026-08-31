@@ -35,7 +35,6 @@ export function missionControlRecoveryRoutes() {
     route('STATE_CONFLICT', 'STATE_CONFLICT/explicit-stop', 'contradictory-evidence', 'STOP', 'STOP', null, 'Stop with STATE_CONFLICT; do not select a fallback command.'),
     route('STATE_MIGRATION_REQUIRED', 'STATE_MIGRATION_REQUIRED/explicit-stop', 'required-migration', 'STOP', 'STOP', null, 'Stop until the required state migration is separately reviewed.'),
     route(null, 'ANY_STATE/ambiguous-evidence-stop', 'malformed-stale-superseded-competing-evidence', 'STOP', 'STOP', null, 'Stop with STATE_CONFLICT; never select a fallback command.'),
-    route('NOT_STATEFUL', 'NOT_STATEFUL/explicit-fast-unmanaged-role-comment', 'explicit-fast-unmanaged-role-comment', 'COMMAND', 'COMPLETE', 'bemoat:issue:comment'),
     route('NOT_STATEFUL', 'NOT_STATEFUL/explicit-authorized-starter-child-sync', 'explicit-authorized-starter-child-sync', 'COMMAND', 'COMPLETE', 'bemoat:boilerplate:sync'),
     route('NOT_STATEFUL', 'NOT_STATEFUL/explicit-local-hook-install', 'explicit-local-hook-install', 'COMMAND', 'COMPLETE', 'bemoat:hooks:install'),
   ]

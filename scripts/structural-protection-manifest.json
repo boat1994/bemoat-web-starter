@@ -14,8 +14,7 @@
       { "path": "scripts/mission-control/domain/campaign-authority.ts", "max_lines": 630 },
       { "path": "scripts/mission-control/domain/campaign-validator.mjs", "max_lines": 482 },
       { "path": "scripts/mission-control/domain/correction-contract.mjs", "max_lines": 650 },
-      { "path": "scripts/mission-control/domain/correction-contract.ts", "max_lines": 536 },
-      { "path": "scripts/post-role-comment.mjs", "max_lines": 554 }
+      { "path": "scripts/mission-control/domain/correction-contract.ts", "max_lines": 536 }
     ]
   },
   "protected_oracle": {

@@ -98,8 +98,7 @@ not merge authority.
 
 The managed review writer is retired. Historical `REVIEW_VERDICT` evidence may
 still be read for migration compatibility, but no supported command publishes
-managed review state or mutates review counters. `bemoat:issue:comment` is not
-a replacement review transport and must not be used to project managed state.
+managed review state or mutates review counters.
 
 A **State Reconciler** may normalize facts that are already proven. It may not
 choose product behavior, expand scope, waive review, or infer missing

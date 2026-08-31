@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
 import {
   cpSync,
@@ -93,7 +92,6 @@ const SYNCED_SUPERPOWERS_TEMPLATE_PATHS = [
 /** README.md is project-owned and must not appear in managedPaths (see docs/harness-sync-contract.md). */
 
 const MANAGED_BEMOAT_PACKAGE_SCRIPTS = [
-  'bemoat:issue:comment',
   'bemoat:branch:check',
   'bemoat:guard:safety',
   'bemoat:guard:harness-contract',
@@ -248,7 +246,6 @@ describe('boilerplate sync managed paths', () => {
       'prompts/mission-control/chatgpt-project-loader.md',
       'docs/cloudflare-environments.md',
       'docs/boilerplate-sync-command.md',
-      'scripts/post-role-comment.mjs',
       'scripts/guards/repo-safety.mjs',
       'scripts/guard-mission-control-contract.mjs',
       'scripts/guards/build-script-contract.mjs',
@@ -269,7 +266,6 @@ describe('boilerplate sync managed paths', () => {
       'tests/int/repo-safety-guard.int.spec.ts',
       'tests/int/cloudflare-env-guard.int.spec.ts',
       'tests/int/boilerplate-sync.int.spec.ts',
-      'tests/int/post-role-comment.int.spec.ts',
       'tests/int/branch-safety.int.spec.ts',
       'tests/int/harness-contract-guard.int.spec.ts',
       'tests/int/harness-contract/child-script-policy.int.spec.ts',
@@ -1849,27 +1845,6 @@ function snapshotNonManagedFiles(root: string, managedPaths: string[]) {
   return snapshot
 }
 
-function hashDirectory(root: string, relativePath = ''): string {
-  const hash = createHash('sha256')
-  const absolutePath = join(root, relativePath)
-
-  if (!existsSync(absolutePath)) return hash.digest('hex')
-
-  const stat = statSync(absolutePath)
-  if (!stat.isDirectory()) {
-    hash.update(relativePath)
-    hash.update(readFileSync(absolutePath))
-    return hash.digest('hex')
-  }
-
-  for (const entry of readdirSync(absolutePath).sort()) {
-    const childPath = relativePath ? `${relativePath}/${entry}` : entry
-    hash.update(hashDirectory(root, childPath))
-  }
-
-  return hash.digest('hex')
-}
-
 function copyManagedSnapshot(
   repoRoot: string,
   destinationRoot: string,
@@ -1893,11 +1868,6 @@ function writeIssue182ChildFixture(targetRoot: string) {
     writeFileSync(absolutePath, `OLD_SENTINEL:${relativePath}\n`)
   }
 
-  const projectionPath = join(targetRoot, 'scripts/mission-control/diagnostics/github-comment-projection.mjs')
-  if (existsSync(projectionPath)) {
-    rmSync(projectionPath, { force: true })
-  }
-
   const prIdentityPath = join(targetRoot, 'scripts/mission-control/domain/pr-identity.ts')
   if (existsSync(prIdentityPath)) {
     rmSync(prIdentityPath, { force: true })
@@ -1909,179 +1879,6 @@ function writeIssue182ChildFixture(targetRoot: string) {
     writeFileSync(absolutePath, `CHILD_OWNED:${relativePath}\n`)
   }
 }
-
-describe('issue #182 projection managed delivery regression', () => {
-  it('delivers github-comment-projection and the PR identity domain module during harness-only sync without touching child-owned paths', async () => {
-    const mod = await import('../../scripts/sync-boilerplate.mjs')
-    const guardMod = await import('../../scripts/guard-harness-contract.mjs')
-    const tempRoot = mkdtempSync(join(tmpdir(), 'bemoat-182-'))
-    const sourceRoot = join(tempRoot, 'source')
-    const childRoot = join(tempRoot, 'child')
-
-    try {
-      mkdirSync(sourceRoot, { recursive: true })
-      mkdirSync(childRoot, { recursive: true })
-
-      copyManagedSnapshot(
-        process.cwd(),
-        sourceRoot,
-        mod.managedPaths,
-        mod.listPathFiles,
-      )
-      copyManagedSnapshot(
-        sourceRoot,
-        childRoot,
-        mod.getSourceSyncConfig(sourceRoot).managedPaths,
-        mod.listPathFiles,
-      )
-      writeIssue182ChildFixture(childRoot)
-
-      const syncConfig = mod.getSourceSyncConfig(sourceRoot)
-      const nonManagedBefore = snapshotNonManagedFiles(childRoot, syncConfig.managedPaths)
-
-      const result = mod.syncPathsFromSource({
-        sourceRootPath: sourceRoot,
-        targetRootPath: childRoot,
-        mode: mod.SYNC_MODES.HARNESS_ONLY,
-        syncConfig,
-        onWarn: () => {},
-        onLog: () => {},
-      })
-
-      expect(result.seededFiles).toEqual([])
-      expect(existsSync(join(childRoot, 'scripts/mission-control/diagnostics/github-comment-projection.mjs'))).toBe(true)
-      expect(existsSync(join(childRoot, 'scripts/pr-identity.mjs'))).toBe(false)
-      expect(existsSync(join(childRoot, 'scripts/mission-control/domain/pr-identity.ts'))).toBe(true)
-
-      execFileSync(
-        process.execPath,
-        [
-          '--input-type=module',
-          '-e',
-          "import('./scripts/mission-control/domain/pr-identity.ts').then((module) => { if (typeof module.parseCompleteGitHubPullUrl !== 'function') { throw new Error('missing parseCompleteGitHubPullUrl export') } })",
-        ],
-        { cwd: childRoot, stdio: 'pipe' },
-      )
-
-      const runtimeViolations = guardMod.scanManagedRuntimeDeliveryClosure({
-        root: childRoot,
-        managedPaths: syncConfig.managedPaths,
-      })
-      expect(runtimeViolations).toEqual([])
-
-      for (const relativePath of ISSUE_182_ALLOWLISTED_FILES) {
-        expect(readFileSync(join(childRoot, relativePath), 'utf8')).toBe(
-          readFileSync(join(sourceRoot, relativePath), 'utf8'),
-        )
-      }
-
-      for (const relativePath of ISSUE_182_NON_MANAGED_SENTINELS) {
-        expect(readFileSync(join(childRoot, relativePath), 'utf8')).toBe(
-          `CHILD_OWNED:${relativePath}\n`,
-        )
-      }
-
-      expect(snapshotNonManagedFiles(childRoot, syncConfig.managedPaths)).toEqual(nonManagedBefore)
-    } finally {
-      rmSync(tempRoot, { recursive: true, force: true })
-    }
-  })
-
-  it.each([
-    [
-      'missing dependency',
-      (sourceRoot: string) => {
-        rmSync(join(sourceRoot, 'scripts/mission-control/diagnostics/github-comment-projection.mjs'), { force: true })
-      },
-      '- [missing-managed-runtime-source] importer="managedPaths" -> callee="scripts/mission-control/diagnostics/github-comment-projection.mjs" specifier="scripts/mission-control/diagnostics/github-comment-projection.mjs"',
-    ],
-    [
-      'renamed dependency',
-      (sourceRoot: string) => {
-        const projectionPath = join(sourceRoot, 'scripts/mission-control/diagnostics/github-comment-projection.mjs')
-        writeFileSync(
-          join(sourceRoot, 'scripts/github-comment-projection-renamed.mjs'),
-          readFileSync(projectionPath, 'utf8'),
-        )
-        rmSync(projectionPath, { force: true })
-      },
-      '- [missing-managed-runtime-source] importer="managedPaths" -> callee="scripts/mission-control/diagnostics/github-comment-projection.mjs" specifier="scripts/mission-control/diagnostics/github-comment-projection.mjs"',
-    ],
-    [
-      'deleted dependency',
-      (sourceRoot: string) => {
-        rmSync(join(sourceRoot, 'scripts/mission-control/diagnostics/github-comment-projection.mjs'), { force: true })
-      },
-      '- [missing-managed-runtime-source] importer="managedPaths" -> callee="scripts/mission-control/diagnostics/github-comment-projection.mjs" specifier="scripts/mission-control/diagnostics/github-comment-projection.mjs"',
-    ],
-    [
-      'newly introduced unmanaged relative dependency',
-      (sourceRoot: string) => {
-        writeFileSync(join(sourceRoot, 'scripts/unmanaged-helper.mjs'), 'export const helper = 1\n')
-        const projectionPath = join(sourceRoot, 'scripts/mission-control/diagnostics/github-comment-projection.mjs')
-        writeFileSync(
-          projectionPath,
-          `${readFileSync(projectionPath, 'utf8')}import { helper } from './unmanaged-helper.mjs'\n`,
-        )
-      },
-      '- [missing-relative-runtime-dependency] importer="scripts/mission-control/diagnostics/github-comment-projection.mjs" -> callee="scripts/mission-control/diagnostics/unmanaged-helper.mjs" specifier="./unmanaged-helper.mjs"',
-    ],
-  ])(
-    'fails closed before copy for %s and leaves the child byte-for-byte unchanged',
-    async (_label, mutateSource, expectedLine) => {
-      const mod = await import('../../scripts/guard-harness-contract.mjs')
-      const syncMod = await import('../../scripts/sync-boilerplate.mjs')
-      const tempRoot = mkdtempSync(join(tmpdir(), 'bemoat-182-negative-'))
-      const sourceRoot = join(tempRoot, 'source')
-      const childRoot = join(tempRoot, 'child')
-
-      try {
-        mkdirSync(sourceRoot, { recursive: true })
-        mkdirSync(childRoot, { recursive: true })
-
-        copyManagedSnapshot(
-          process.cwd(),
-          sourceRoot,
-          syncMod.managedPaths,
-          syncMod.listPathFiles,
-        )
-        mutateSource(sourceRoot)
-
-        copyManagedSnapshot(
-          sourceRoot,
-          childRoot,
-          syncMod.getSourceSyncConfig(sourceRoot).managedPaths,
-          syncMod.listPathFiles,
-        )
-        writeIssue182ChildFixture(childRoot)
-
-        const beforeHash = hashDirectory(childRoot)
-        const syncConfig = syncMod.getSourceSyncConfig(sourceRoot)
-
-        let caught: unknown
-        try {
-          syncMod.syncPathsFromSource({
-            sourceRootPath: sourceRoot,
-            targetRootPath: childRoot,
-            mode: syncMod.SYNC_MODES.HARNESS_ONLY,
-            syncConfig,
-            onWarn: () => {},
-            onLog: () => {},
-          })
-        } catch (error) {
-          caught = error
-        }
-
-        expect(caught).toBeInstanceOf(mod.ManagedRuntimeDeliveryClosureError)
-        const formatted = (caught as { formatted?: string[] }).formatted ?? []
-        expect(formatted.join('\n')).toContain(expectedLine)
-        expect(hashDirectory(childRoot)).toBe(beforeHash)
-      } finally {
-        rmSync(tempRoot, { recursive: true, force: true })
-      }
-    },
-  )
-})
 
 describe('issue #328 CommandRunner root closeout', () => {
   it('delivers only the nested CommandRunner adapter in one harness-only sync without touching child-owned files', async () => {

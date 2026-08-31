@@ -24,7 +24,7 @@ import {
 
 type JsonRecord = Record<string, unknown>
 
-const COMMENT = 'bemoat:issue:comment'
+const COMMENT = 'bemoat:boilerplate:sync'
 const HOOKS = 'bemoat:hooks:install'
 const PACK = 'bemoat:guard:pack'
 const CHECK = 'bemoat:boilerplate:check'
@@ -328,9 +328,9 @@ describe('CLI envelope runtime characterization', () => {
         mode: 'help',
         format: 'text',
       })
-      expect(parseCommandInvocation(COMMENT, ['284'])).toMatchObject({
+      expect(parseCommandInvocation(COMMENT, [])).toMatchObject({
         mode: 'run',
-        values: { issue_number: '284' },
+        values: {},
       })
       expect(parseCommandInvocation(CHECK, ['--harness-only'])).toMatchObject({
         mode: 'run',
@@ -339,11 +339,11 @@ describe('CLI envelope runtime characterization', () => {
     })
 
     it('sets boolean flags to true and rejects a following leftover positional', () => {
-      expect(parseCommandInvocation(COMMENT, ['284', '--check'])).toMatchObject({
-        values: { issue_number: '284', check: true },
+      expect(parseCommandInvocation(COMMENT, ['--harness-only'])).toMatchObject({
+        values: { harness_only: true },
       })
       expectCliInvocation(
-        expectThrown(() => parseCommandInvocation(COMMENT, ['284', '--check', 'oops'])),
+        expectThrown(() => parseCommandInvocation(COMMENT, ['--harness-only', 'oops'])),
         'oops',
         'multiple positional values are not allowed',
       )
@@ -386,19 +386,9 @@ describe('CLI envelope runtime characterization', () => {
         '--json may be provided only once',
       )
       expectCliInvocation(
-        expectThrown(() => parseCommandInvocation(COMMENT, ['284', '--check', '--check'])),
-        '--check',
-        'input may be provided only once: --check',
-      )
-      expectCliInvocation(
-        expectThrown(() => parseCommandInvocation(COMMENT, ['284', '--body-file', ''])),
-        '--body-file',
-        'value is required',
-      )
-      expectCliInvocation(
-        expectThrown(() => parseCommandInvocation(COMMENT, ['284', '--body-file', '  '])),
-        '--body-file',
-        'value is required',
+        expectThrown(() => parseCommandInvocation(COMMENT, ['--harness-only', '--harness-only'])),
+        '--harness-only',
+        'input may be provided only once: --harness-only',
       )
       expectCliInvocation(
         expectThrown(() => parseCommandInvocation(CHECK, ['--nope'])),
@@ -411,9 +401,9 @@ describe('CLI envelope runtime characterization', () => {
         'harness_only and full are mutually exclusive',
       )
       expectCliInvocation(
-        expectThrown(() => parseCommandInvocation(COMMENT, ['284', '--repo', 'not-a-repo'])),
-        '--repo',
-        'value must use owner/repository form',
+        expectThrown(() => parseCommandInvocation(COMMENT, ['--harness-only', '--full'])),
+        null,
+        'harness_only and full are mutually exclusive',
       )
     })
   })
@@ -486,7 +476,7 @@ describe('CLI envelope runtime characterization', () => {
       expect(tierB).not.toContain('AUTHORITY AND TRUST BOUNDARY')
       expect(tierB).toMatch(/WRITES: none/)
       expect(tierB).not.toContain('ROLE CONTRACTS')
-      expect(commentHelp).toContain('ROLE CONTRACTS')
+      expect(commentHelp).not.toContain('ROLE CONTRACTS')
       for (const classification of Object.keys(CLI_EXIT_CODES)) {
         expect(tierA).toContain(`${classification}:`)
       }

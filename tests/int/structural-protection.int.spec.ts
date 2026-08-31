@@ -14,7 +14,6 @@ const grandfathered = [
   ['scripts/boilerplate/workflow.mjs', 465], ['scripts/check-boilerplate-drift.mjs', 552],
   ['scripts/cli/command-contract-registry.ts', 870], ['scripts/cli/command-contract.ts', 580],
   ['scripts/mission-control/domain/campaign-authority.ts', 630], ['scripts/mission-control/domain/campaign-validator.mjs', 482], ['scripts/mission-control/domain/correction-contract.mjs', 650], ['scripts/mission-control/domain/correction-contract.ts', 536],
-  ['scripts/post-role-comment.mjs', 554],
 ] as const
 
 afterEach(() => tempRoots.splice(0).forEach((path) => rmSync(path, { recursive: true, force: true })))
@@ -65,9 +64,9 @@ async function guard(path = root) {
 describe('structural protection guard', () => {
   it('accepts the current repository with the exact inventory, baseline, and protected oracle', async () => {
     expect((await guard()).map((entry: { rule: string }) => entry.rule)).toEqual([])
-    expect(grandfathered).toHaveLength(10)
+    expect(grandfathered).toHaveLength(9)
     expect(JSON.parse(readFileSync(join(root, 'scripts/structural-protection-manifest.json'), 'utf8'))).toEqual(manifest())
-    expect(scriptInventory(root)).toBe(144)
+    expect(scriptInventory(root)).toBe(137)
   })
 
   it('rejects malformed schema, types, unknown keys, ordering, duplicates, paths, and SHA values', async () => {

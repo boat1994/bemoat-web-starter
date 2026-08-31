@@ -99,7 +99,6 @@ describe('retired Task Bootstrap and Founder authorization public boundaries', (
       expect(COMMAND_CONTRACT_REGISTRY.commands[command], command).toBeDefined()
     }
 
-    expect(existsSync('scripts/mission-control/adapters/github-transport.mjs')).toBe(true)
     expect(existsSync('scripts/mission-control/domain/task-state.ts')).toBe(true)
   })
 

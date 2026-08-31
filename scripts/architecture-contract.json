@@ -1,11 +1,6 @@
 {
-  "cycleNodes": [
-    "scripts/mission-control/diagnostics/github-comment-projection.mjs",
-    "scripts/mission-control/coordinator.mjs"
-  ],
-  "cycleEdges": [
-    "scripts/mission-control/diagnostics/github-comment-projection.mjs -> scripts/mission-control/role-comment-selection.mjs"
-  ],
+  "cycleNodes": [],
+  "cycleEdges": [],
   "adapters": {},
   "rootScripts": [
     {
@@ -99,13 +94,6 @@
       "internal_destination": "scripts/tooling/install-git-hooks.mjs",
       "owning_slice": 7,
       "migration_status": "retained"
-    },
-    {
-      "path": "scripts/post-role-comment.mjs",
-      "facade_disposition": "composition_root",
-      "internal_destination": "scripts/mission-control/workflows/post-role-comment.mjs",
-      "owning_slice": 5,
-      "migration_status": "migrated"
     },
     {
       "path": "scripts/sync-boilerplate.mjs",

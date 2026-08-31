@@ -25,7 +25,7 @@ type RegistryFixture = {
 }
 
 const REPOSITORY_ROOT = process.cwd()
-const MUTATING_COMMAND = 'bemoat:issue:comment'
+const MUTATING_COMMAND = 'bemoat:handoff'
 const PACKAGE_JSON = JSON.parse(
   readFileSync(resolve(REPOSITORY_ROOT, 'package.json'), 'utf8'),
 ) as PackageJson
@@ -43,7 +43,6 @@ const EXPECTED_PACKAGE_SCRIPTS: Record<string, string> = {
   'bemoat:guard:pack': 'node scripts/guard-pack.mjs',
   'bemoat:guard:safety': 'node scripts/guard-pack.mjs',
   'bemoat:hooks:install': 'node scripts/install-git-hooks.mjs',
-  'bemoat:issue:comment': 'node scripts/post-role-comment.mjs',
   'bemoat:test:int': 'cross-env NODE_OPTIONS=--no-deprecation vitest run --config ./vitest.config.mts',
   'bemoat:typecheck': 'node scripts/bemoat-typecheck.mjs',
 }
@@ -62,7 +61,6 @@ const EXPECTED_COMMAND_TIERS: Record<string, 'A' | 'B' | 'C'> = {
   'bemoat:guard:pack': 'B',
   'bemoat:guard:safety': 'B',
   'bemoat:hooks:install': 'A',
-  'bemoat:issue:comment': 'A',
   'bemoat:test:int': 'C',
   'bemoat:typecheck': 'C',
 }
@@ -249,10 +247,10 @@ describe('Task 1 command contract registry', () => {
       .sort()
 
     expect(packageCommands).toEqual(Object.keys(EXPECTED_PACKAGE_SCRIPTS).sort())
-    expect(packageCommands).toHaveLength(16)
+    expect(packageCommands).toHaveLength(15)
     expect(registryCommands).toEqual(packageCommands)
     expect(classifiedCommands).toEqual(packageCommands)
-    expect(new Set(classifiedCommands).size).toBe(16)
+    expect(new Set(classifiedCommands).size).toBe(15)
 
     for (const command of packageCommands) {
       expect(getCommandContract(command)).toBe(COMMAND_CONTRACT_REGISTRY.commands[command])
@@ -260,7 +258,7 @@ describe('Task 1 command contract registry', () => {
     expect(getCommandContract('bemoat:unregistered')).toBeNull()
   })
 
-  it('uses tier totals A=5 B=9 C=3', () => {
+  it('uses tier totals A=4 B=9 C=3', () => {
     const counts = { A: 0, B: 0, C: 0 }
 
     for (const [command, expectedTier] of Object.entries(EXPECTED_COMMAND_TIERS)) {
@@ -269,9 +267,9 @@ describe('Task 1 command contract registry', () => {
       counts[expectedTier] += 1
     }
 
-    expect(counts).toEqual({ A: 5, B: 8, C: 3 })
-    expect(Object.keys(EXPECTED_COMMAND_TIERS)).toHaveLength(16)
-    expect(Object.keys(COMMAND_CONTRACT_REGISTRY.commands)).toHaveLength(16)
+    expect(counts).toEqual({ A: 4, B: 8, C: 3 })
+    expect(Object.keys(EXPECTED_COMMAND_TIERS)).toHaveLength(15)
+    expect(Object.keys(COMMAND_CONTRACT_REGISTRY.commands)).toHaveLength(15)
     expectRegistryValid()
   })
 

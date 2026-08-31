@@ -13,6 +13,5 @@
   "scripts/guard-pack.mjs",
 
   "scripts/install-git-hooks.mjs",
-  "scripts/post-role-comment.mjs",
   "scripts/sync-boilerplate.mjs"
 ]
