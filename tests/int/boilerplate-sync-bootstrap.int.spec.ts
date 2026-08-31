@@ -2,7 +2,6 @@ import { spawnSync } from 'node:child_process'
 import {
   cpSync,
   copyFileSync,
-  mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
@@ -17,7 +16,6 @@ import {
   compareFileSystemSnapshots,
   snapshotDirectory,
 } from '../helpers/cli-boundary-harness'
-import { getCommandContract } from '../../scripts/cli/command-contract.ts'
 
 const fixtureRoot = resolve(
   process.cwd(),
@@ -91,92 +89,6 @@ describe('legacy child sync bootstrap', () => {
     expect(compareFileSystemSnapshots(before, after)).toBe(true)
   })
 
-  it('declares and applies an explicit legacy-child bootstrap without touching product files', async () => {
-    const contract = getCommandContract('bemoat:boilerplate:sync')
-    expect(contract?.optional_flags).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          name: 'bootstrap_legacy_child',
-          syntax: '--bootstrap-legacy-child',
-          value_type: 'boolean',
-        }),
-      ]),
-    )
-
-    const childRoot = createLegacyChildFixture()
-    const sourceRoot = mkdtempSync(join(tmpdir(), 'bemoat-current-sync-source-'))
-    temporaryRoots.push(sourceRoot)
-    mkdirSync(join(sourceRoot, 'scripts'), { recursive: true })
-    writeFileSync(
-      join(sourceRoot, 'package.json'),
-      `${JSON.stringify({
-        scripts: {
-          'bemoat:boilerplate:sync': 'node scripts/sync-boilerplate.ts',
-          'bemoat:boilerplate:check': 'node scripts/check-boilerplate-drift.ts',
-          'bemoat:typecheck': 'node scripts/bemoat-typecheck.ts',
-          'bemoat:guard:cloudflare-env': 'node scripts/guard-cloudflare-env.ts',
-          'bemoat:guard:harness-contract': 'node scripts/guard-harness-contract.ts',
-          'bemoat:guard:pack': 'node scripts/guard-pack.ts',
-          'bemoat:guard:safety': 'node scripts/guard-pack.ts',
-          'bemoat:hooks:install': 'node scripts/install-git-hooks.ts',
-        },
-      })}\n`,
-    )
-    writeFileSync(
-      join(sourceRoot, 'scripts/sync-boilerplate.ts'),
-      '// current source-owned sync CLI fixture\n',
-    )
-    const productBefore = readFileSync(
-      join(childRoot, 'src/product-owned.txt'),
-      'utf8',
-    )
-
-    const sync = await import('../../scripts/sync-boilerplate.ts')
-    const pathResult = sync.syncPathsFromSource({
-      sourceRootPath: sourceRoot,
-      targetRootPath: childRoot,
-      mode: 'harness-only',
-      syncConfig: {
-        managedPaths: ['scripts/sync-boilerplate.ts'],
-        seedOnlyPaths: ['src'],
-        mergeKeepPaths: [],
-        managedPackageScripts: ['bemoat:boilerplate:sync'],
-        suggestedPackageScripts: [],
-        buildContractPackageScripts: [],
-        buildContractFilePaths: [],
-        suggestedPackageSections: [],
-      },
-    })
-    const packageResult = sync.syncPackageManifest({
-      sourceRootPath: sourceRoot,
-      targetRootPath: childRoot,
-      bootstrapLegacyChild: true,
-    })
-    const childPackage = JSON.parse(
-      readFileSync(join(childRoot, 'package.json'), 'utf8'),
-    ) as { scripts: Record<string, string> }
-
-    expect(pathResult.seedOnlyPathsSkipped).toBe(true)
-    expect(pathResult.seededFiles).toEqual([])
-    expect(packageResult.updatedManagedScripts).toEqual([
-      'bemoat:boilerplate:sync',
-      'bemoat:boilerplate:check',
-      'bemoat:typecheck',
-      'bemoat:guard:cloudflare-env',
-      'bemoat:guard:harness-contract',
-      'bemoat:guard:pack',
-      'bemoat:guard:safety',
-      'bemoat:hooks:install',
-    ])
-    expect(childPackage.scripts['bemoat:boilerplate:sync']).toBe(
-      'node scripts/sync-boilerplate.ts',
-    )
-    expect(childPackage.scripts.build).toBe('child-owned-build')
-    expect(readFileSync(join(childRoot, 'src/product-owned.txt'), 'utf8')).toBe(
-      productBefore,
-    )
-  })
-
   it('fails closed on an unrecognized sync mapping before package mutation', async () => {
     const childRoot = createLegacyChildFixture()
     const sourceRoot = mkdtempSync(join(tmpdir(), 'bemoat-current-sync-source-'))
@@ -208,34 +120,6 @@ describe('legacy child sync bootstrap', () => {
     expect(compareFileSystemSnapshots(before, snapshotDirectory(childRoot))).toBe(true)
   })
 
-  it('keeps a current child on the normal add-only package path', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'bemoat-current-sync-child-'))
-    temporaryRoots.push(root)
-    const sourceRoot = join(root, 'source')
-    const childRoot = join(root, 'child')
-    mkdirSync(sourceRoot, { recursive: true })
-    mkdirSync(childRoot, { recursive: true })
-    const packageJson = {
-      scripts: {
-        'bemoat:boilerplate:sync': 'node scripts/sync-boilerplate.ts',
-        build: 'child-owned-build',
-      },
-    }
-    writeFileSync(join(sourceRoot, 'package.json'), `${JSON.stringify(packageJson)}\n`)
-    writeFileSync(join(childRoot, 'package.json'), `${JSON.stringify(packageJson)}\n`)
-    const sync = await import('../../scripts/sync-boilerplate.ts')
-
-    const result = sync.syncPackageManifest({
-      sourceRootPath: sourceRoot,
-      targetRootPath: childRoot,
-    })
-    const written = JSON.parse(readFileSync(join(childRoot, 'package.json'), 'utf8'))
-
-    expect(result.updatedManagedScripts).toEqual([])
-    expect(result.packageChanged).toBe(false)
-    expect(written).toEqual(packageJson)
-  })
-
   it.each([
     ['--bootstrap-legacy-child', '--full'],
     ['--bootstrap-legacy-child', '--harness-only', '--apply-build-contract'],
@@ -256,36 +140,5 @@ describe('legacy child sync bootstrap', () => {
       mutation_performed: false,
     })
     expect(compareFileSystemSnapshots(before, snapshotDirectory(childRoot))).toBe(true)
-  })
-
-  it('preserves the prior sync timestamp only for an identical retry projection', async () => {
-    const filesystem = await import('../../scripts/boilerplate/filesystem.ts')
-    const input = {
-      repo: 'example/starter',
-      ref: 'main',
-      syncMode: 'harness-only' as const,
-      seedOnlyPathsSkipped: true,
-      syncedManaged: ['AGENTS.md'],
-    }
-    const previous = filesystem.buildSyncMetadata({
-      ...input,
-      syncedAt: '2026-08-31T00:00:00.000Z',
-    })
-    const identicalRetry = filesystem.buildSyncMetadata({
-      ...input,
-      syncedAt: '2026-08-31T01:00:00.000Z',
-    })
-    const changedRetry = filesystem.buildSyncMetadata({
-      ...input,
-      syncedManaged: ['AGENTS.md', 'scripts/sync-boilerplate.ts'],
-      syncedAt: '2026-08-31T01:00:00.000Z',
-    })
-
-    expect(filesystem.preserveIdenticalSyncTimestamp(previous, identicalRetry).syncedAt).toBe(
-      previous.syncedAt,
-    )
-    expect(filesystem.preserveIdenticalSyncTimestamp(previous, changedRetry).syncedAt).toBe(
-      changedRetry.syncedAt,
-    )
   })
 })

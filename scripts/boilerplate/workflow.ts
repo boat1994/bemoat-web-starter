@@ -3,16 +3,11 @@ import { execFileSync } from 'node:child_process'
 import type { ExecFileSyncOptions } from 'node:child_process'
 import { join } from 'node:path'
 
-import { getSourceSyncConfig, parseApplyBuildContract, parseSyncMode } from './config.ts'
+import { SYNC_MODES, getSourceSyncConfig, parseApplyBuildContract, parseSyncMode } from './config.ts'
 import {
   applyBuildContractFiles,
   assertToolchainContract,
   buildSyncMetadata,
-  getSuggestedNextCommands,
-  preserveIdenticalSyncTimestamp,
-  printSuggestedNextCommands,
-  printSyncReport,
-  readSyncMetadata,
   runToolchainPreflight,
   syncMetadataPath,
   syncPathsFromSource,
@@ -29,9 +24,7 @@ import {
   restoreStashIfNeeded,
   stashWorkingTreeIfNeeded,
 } from './git.ts'
-import type { SyncMode, SyncResult } from './types.ts'
-
-export { getSuggestedNextCommands }
+import type { BuildContractFileResult, PackageSyncResult, SyncMode, SyncResult } from './types.ts'
 
 type WorkflowRunOptions = ExecFileSyncOptions & { suppressStdout?: boolean }
 
@@ -40,6 +33,76 @@ function run(command: string, args: string[], { suppressStdout = false, ...optio
     stdio: suppressStdout ? ['ignore', 2, 'inherit'] : 'inherit',
     ...options,
   })
+}
+
+function printList(log: (message: string) => void, title: string, values: string[]): void {
+  log(`\n${title}:`)
+  for (const value of values.length > 0 ? values : ['(none)']) log(`- ${value}`)
+}
+
+function printSyncReport(
+  { syncMode, seedOnlyPathsSkipped, syncedManaged, seededFiles, skippedSeedFiles, mergedFiles, packageSync, buildContractFiles, log }: {
+    syncMode: SyncMode; seedOnlyPathsSkipped: boolean
+    syncedManaged: string[]; seededFiles: string[]; skippedSeedFiles: string[]; mergedFiles: string[]
+    packageSync: Partial<PackageSyncResult>; buildContractFiles: Partial<BuildContractFileResult>
+    log: (message: string) => void
+  },
+): void {
+  log(`\nSync mode: ${syncMode}`)
+  if (seedOnlyPathsSkipped) log('Seed-only starter modules skipped in harness-only mode')
+  printList(log, 'Synced managed paths', syncedManaged)
+  printList(log, 'Seeded missing starter files', seededFiles)
+  printList(log, 'Skipped existing seed files', skippedSeedFiles)
+  printList(log, 'Merged keep-child-content paths', mergedFiles)
+  log('\nPackage manifest (child-owned):')
+  const addedScripts = packageSync.addedScripts ?? []
+  log(addedScripts.length > 0
+    ? `- added missing bemoat:* scripts: ${addedScripts.join(', ')}`
+    : '- no missing bemoat:* scripts added')
+  const appliedBuildContract = [...(packageSync.appliedBuildContractScripts ?? []), ...(packageSync.updatedBuildContractScripts ?? [])]
+  if (appliedBuildContract.length > 0) log(`- applied build contract scripts: ${appliedBuildContract.join(', ')}`)
+  const appliedBuildContractFiles = [...(buildContractFiles.applied ?? []), ...(buildContractFiles.updated ?? [])]
+  if (appliedBuildContractFiles.length > 0) log(`- applied build contract files: ${appliedBuildContractFiles.join(', ')}`)
+  if (packageSync.proposalPath) log(`- review suggested script/dependency changes in ${packageSync.proposalPath}`)
+}
+
+export function getSuggestedNextCommands(
+  syncMode: SyncMode,
+  { proposalPath = undefined, applyBuildContract = false }: { proposalPath?: string | null; applyBuildContract?: boolean } = {},
+): string[] {
+  const lines: string[] = []
+  if (proposalPath) {
+    if (applyBuildContract) {
+      lines.push(
+        `Review remaining drift in ${proposalPath} (build contract scripts and files were applied automatically)`,
+      )
+    } else {
+      lines.push(`Review ${proposalPath} and apply any package.json changes manually`)
+    }
+  }
+  if (applyBuildContract) lines.push(
+    'Review src/payload.config.ts for build context detection (child-owned; see docs/boilerplate-sync-command.md)',
+  )
+  lines.push('pnpm install')
+  if (syncMode === SYNC_MODES.FULL) {
+    lines.push('pnpm run generate:importmap')
+    lines.push('pnpm run generate:types')
+    lines.push('pnpm payload migrate:create')
+  } else {
+    lines.push('pnpm run check')
+    lines.push('(or pnpm run bemoat:check if check is not defined yet)')
+  }
+  return lines
+}
+
+function printSuggestedNextCommands(syncMode: SyncMode, packageSync: Partial<PackageSyncResult>, applyBuildContract: boolean, log: (message: string) => void): void {
+  log('\nDone. Suggested next commands:')
+  for (const line of getSuggestedNextCommands(syncMode, {
+    proposalPath: packageSync.proposalPath,
+    applyBuildContract,
+  })) {
+    log(line)
+  }
 }
 
 function annotateSyncFailure(
@@ -102,8 +165,6 @@ const defaultDependencies = {
   syncPackageManifest,
   applyBuildContractFiles,
   buildSyncMetadata,
-  preserveIdenticalSyncTimestamp,
-  readSyncMetadata,
   commitValidatedSyncChanges,
   assertToolchainContract,
   restoreStashIfNeeded,
@@ -287,25 +348,20 @@ export function createBoilerplateSyncWorkflow(overrides: Record<string, unknown>
         }
 
         const metadataPath = dependencies.join(targetRoot, syncMetadataPath)
-        const nextMetadata = dependencies.buildSyncMetadata({
-          repo,
-          ref,
-          syncMode,
-          seedOnlyPathsSkipped,
-          syncedManaged,
-          seededFiles,
-          skippedSeedFiles,
-          mergedFiles,
-          packageSync,
-          buildContractFiles,
-          syncConfig,
-        })
-        const stableMetadata = dependencies.preserveIdenticalSyncTimestamp(
-          dependencies.readSyncMetadata(metadataPath),
-          nextMetadata,
-        )
         const metadata = `${JSON.stringify(
-          stableMetadata,
+          dependencies.buildSyncMetadata({
+            repo,
+            ref,
+            syncMode,
+            seedOnlyPathsSkipped,
+            syncedManaged,
+            seededFiles,
+            skippedSeedFiles,
+            mergedFiles,
+            packageSync,
+            buildContractFiles,
+            syncConfig,
+          }),
           null,
           2,
         )}\n`

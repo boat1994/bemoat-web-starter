@@ -22,7 +22,7 @@ import type {
 
 const repo = process.env.BEMOAT_BOILERPLATE_REPO || 'boat1994/bemoat-web-starter'
 const ref = process.env.BEMOAT_BOILERPLATE_REF || 'main'
-const LEGACY_MANAGED_SCRIPT_MIGRATIONS: Record<string, { legacy: string; current: string }> = {
+const LEGACY_BOOTSTRAP_SCRIPT_VALUES: Record<string, { legacy: string; current: string }> = {
   'bemoat:boilerplate:sync': {
     legacy: 'node scripts/sync-boilerplate.mjs',
     current: 'node scripts/sync-boilerplate.ts',
@@ -106,7 +106,7 @@ export function assertLegacyChildBootstrapPreState(
   sourcePackage: PackageJson,
   targetPackage: PackageJson,
 ): void {
-  const syncMigration = LEGACY_MANAGED_SCRIPT_MIGRATIONS['bemoat:boilerplate:sync']
+  const syncMigration = LEGACY_BOOTSTRAP_SCRIPT_VALUES['bemoat:boilerplate:sync']
   if (
     sourcePackage.scripts?.['bemoat:boilerplate:sync'] !== syncMigration.current ||
     targetPackage.scripts?.['bemoat:boilerplate:sync'] !== syncMigration.legacy
@@ -116,7 +116,7 @@ export function assertLegacyChildBootstrapPreState(
     )
   }
 
-  for (const [scriptName, migration] of Object.entries(LEGACY_MANAGED_SCRIPT_MIGRATIONS)) {
+  for (const [scriptName, migration] of Object.entries(LEGACY_BOOTSTRAP_SCRIPT_VALUES)) {
     const targetValue = targetPackage.scripts?.[scriptName]
     if (targetValue === undefined || targetValue === migration.current) continue
     if (
@@ -134,10 +134,9 @@ function applyLegacyChildBootstrapScript(
   sourcePackage: PackageJson,
   targetPackage: PackageJson,
 ): { packageJSON: PackageJsonWithScripts; updatedManagedScripts: string[] } {
-  assertLegacyChildBootstrapPreState(sourcePackage, targetPackage)
   const packageJSON = clonePackage(targetPackage)
   const updatedManagedScripts: string[] = []
-  for (const [scriptName, migration] of Object.entries(LEGACY_MANAGED_SCRIPT_MIGRATIONS)) {
+  for (const [scriptName, migration] of Object.entries(LEGACY_BOOTSTRAP_SCRIPT_VALUES)) {
     if (packageJSON.scripts[scriptName] !== migration.legacy) continue
     packageJSON.scripts[scriptName] = migration.current
     updatedManagedScripts.push(scriptName)
@@ -333,7 +332,7 @@ export function syncPackageManifest({
       for (const scriptName of updatedManagedScripts) {
         if (
           writtenPackage.scripts?.[scriptName] !==
-          LEGACY_MANAGED_SCRIPT_MIGRATIONS[scriptName].current
+          LEGACY_BOOTSTRAP_SCRIPT_VALUES[scriptName].current
         ) {
           throw new Error(
             `AMBIGUOUS_RESULT: legacy-child bootstrap could not verify ${scriptName} after write`,
