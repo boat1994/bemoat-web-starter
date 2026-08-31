@@ -46,20 +46,8 @@ const STARTER_ONLY_INT_TESTS: { path: string; reason: string }[] = [
     reason: 'Review CLI characterization tests are starter harness validation only',
   },
   {
-    path: 'tests/int/github-comment-identity.int.spec.ts',
-    reason: 'Shared primitive tests are starter-only until explicitly moved to harness sync',
-  },
-  {
-    path: 'tests/int/mission-control-task-attestation.int.spec.ts',
-    reason: 'Direct task-attestation typed-boundary characterization is starter harness validation only',
-  },
-  {
     path: 'tests/int/correction-contract-fingerprint.int.spec.ts',
     reason: 'Direct correction-contract fingerprint boundary characterization is starter harness validation only',
-  },
-  {
-    path: 'tests/int/mission-control-authorize-founder-entrypoint.int.spec.ts',
-    reason: 'Direct authorize-founder entrypoint integration coverage is starter harness validation only',
   },
   {
     path: 'tests/int/mission-control-standard-non-managed-eligibility.int.spec.ts',

@@ -25,19 +25,11 @@ custom merge transports were removed in Phase 7. Historical Issue/comment
 evidence remains readable through retained Context, Handoff, diagnostics, and
 other migration readers; no executable route is available for those families.
 
-## Retained command: authorize-founder
-
-Record one immutable Founder task-bootstrap authorization body exactly once,
-binding the live returned comment ID and body hash through readback. Resolve the
-registered contract and safe help invocation through CLI Discovery before use.
-
 ## Command selection
 
 | Command | Usage |
 | --- | --- |
 | `review` | Historical evidence is read-only; no managed review writer is available. |
-| `authorize-founder` | Record the retained immutable Founder authorization. |
-| `task-bootstrap` | Run only from its trusted Actions-owned contract. |
 | (none) | Stop and request human review when evidence disagrees. |
 
 ## Preflight checklist
@@ -51,13 +43,6 @@ state, and absence of competing evidence. Resolve the registered contract and
 - [ ] Exact repository, base, PR, head, CI, and review evidence is live.
 - [ ] The provided evidence has one unambiguous canonical binding.
 - [ ] `NONCANONICAL_ROLE_EVIDENCE` fails closed.
-
-## Retained command: task-bootstrap
-
-Task bootstrap remains a migration-only Actions-owned command. It verifies the
-signed Founder authorization, trusted workflow identity, public key, current
-protected-base/policy evidence, and target ownership before creating or
-attesting the managed Task Issue.
 
 ## Review and merge evidence
 
@@ -87,18 +72,3 @@ If live GitHub evidence disagrees with chat or a copied value, stop and classify
 the discrepancy fail closed. Never repair managed Issue YAML directly. Re-read
 live evidence and use the one canonical transport whose preconditions match;
 otherwise stop for `STATE_CONFLICT` or `BLOCKED_EXTERNAL`.
-
-## Managed-Task bootstrap
-
-For an existing Task Issue whose Founder authorization is not yet durably
-recorded, use the repository-owned transport after resolving its registered
-contract:
-
-```bash
-pnpm run bemoat:mission-control:authorize-founder -- <issue-number> \
-  --repo boat1994/bemoat-web-starter --json
-```
-
-The command derives the authenticated GitHub actor, Founder allowlist, target
-Issue, protected `main` SHA, and merged policy identity from live GitHub
-evidence. Help invocations perform no mutation.

@@ -14,8 +14,6 @@
   "scripts/guard-pack.mjs",
 
   "scripts/install-git-hooks.mjs",
-  "scripts/mission-control-authorize-founder.mjs",
-  "scripts/mission-control-task-create.mjs",
   "scripts/post-role-comment.mjs",
   "scripts/sync-boilerplate.mjs"
 ]

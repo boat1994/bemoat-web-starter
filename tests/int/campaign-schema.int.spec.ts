@@ -5,14 +5,12 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import yaml from 'yaml'
 
-import { parseMissionControlState, renderMissionControlState } from '../../scripts/mission-control/domain/task-state.ts'
-import { sameCampaignValue } from '../../scripts/mission-control/domain/campaign-equality.ts'
+import { parseMissionControlState } from '../../scripts/mission-control/domain/task-state.ts'
 import {
   selectNextCampaignAction,
   validateCampaignTransition,
 } from '../../scripts/mission-control/domain/campaign-authority.ts'
 import { parseCampaign } from '../../scripts/mission-control/domain/campaign-parser.ts'
-import { renderCampaign, replaceCampaignBlock } from '../../scripts/mission-control/domain/campaign-renderer.ts'
 import {
   validateCampaign,
   validateRootScriptMappingRecord,
@@ -26,7 +24,6 @@ import {
   sliceSchema,
   slicesSchema,
 } from '../../scripts/mission-control/domain/campaign-validator-schemas.ts'
-import { projectCampaign } from '../../scripts/mission-control/workflows/campaign-projection.mjs'
 
 const fixtureRoot = 'tests/fixtures/mission-control/campaign'
 
@@ -281,7 +278,7 @@ describe('campaign schema characterization (Issue #243)', () => {
     expect(body.toString('utf8')).not.toContain('bemoat-mission-control-campaign')
   })
 
-  it('proves existing task parsing, rendering, and replacement remain unchanged on Issue #215 bytes', () => {
+  it('proves existing task parsing remains unchanged on Issue #215 bytes', () => {
     const body = readFixtureText('issue-215-body.exact.txt')
     const taskBlock = readFixtureText('issue-215-task-schema-v1.exact.txt')
 
@@ -291,20 +288,8 @@ describe('campaign schema characterization (Issue #243)', () => {
     expect(parsed.state?.state).toBe('DONE')
     expect(parsed.state?.merged_commit_sha).toBe('5d04124cb135ffc66642dc4a168c58062af384ed')
 
-    const rendered = renderMissionControlState(parsed.state as Record<string, unknown>)
-    const reparsed = parseMissionControlState(rendered)
-    expect(reparsed.valid).toBe(true)
-    expect(reparsed.state).toEqual(parsed.state)
-
-    // Replacement of an identical semantic state must preserve surrounding Issue body bytes
-    // outside the task marker span; the live fixture block itself remains extractable.
-    const pattern =
-      /<!--\s*bemoat-mission-control-state:start\s*-->[\s\S]*?<!--\s*bemoat-mission-control-state:end\s*-->/
-    const replaced = body.replace(pattern, rendered)
-    const after = parseMissionControlState(replaced)
-    expect(after.valid).toBe(true)
-    expect(after.state).toEqual(parsed.state)
-    expect(replaced.includes('bemoat-mission-control-campaign')).toBe(false)
+    expect(parsed.state).toBeDefined()
+    expect(body.includes('bemoat-mission-control-campaign')).toBe(false)
 
     // Exact fixture task block still matches the live Issue capture bytes.
     expect(sha256(taskBlock)).toBe('ceb4969293d9b46995cdcec8ce67762da1452706e6c90708c28ce771c4f7cfa8')
@@ -315,7 +300,7 @@ describe('campaign schema characterization (Issue #243)', () => {
     const actual = listRootScripts()
     expect(actual).toEqual(inventory)
     expect(new Set(actual).size).toBe(actual.length)
-    expect(actual).toHaveLength(18)
+    expect(actual).toHaveLength(16)
   })
 
   it.each([
@@ -449,7 +434,7 @@ describe('campaign schema v1 domain', () => {
     if (classification) expect(result.classification).toBe(classification)
   })
 
-  it('parses, validates, and deterministically renders the exact Issue #215 campaign fixture', () => {
+  it('parses and validates the exact Issue #215 campaign fixture', () => {
     const campaign = loadExactCampaignFixture()
     const validated = validateCampaign(campaign, {
       evidence: {
@@ -464,8 +449,7 @@ describe('campaign schema v1 domain', () => {
     expect(slices['1']?.status).toBe('DONE')
     expect(slices['2']?.blocker_ids).toEqual(['pr-241-merge-transport-contradiction'])
 
-    const rendered = renderCampaign(validated.campaign as Record<string, unknown>)
-    const wrapped = `${rendered}\n`
+    const wrapped = `${wrapCampaignYaml(yaml.stringify(validated.campaign))}\n`
     const reparsed = parseCampaign(wrapped, {
       evidence: {
         approvedBaseMergedCommits: {
@@ -474,10 +458,7 @@ describe('campaign schema v1 domain', () => {
       },
     })
     expect(reparsed.valid).toBe(true)
-    expect(sameCampaignValue(reparsed.campaign, validated.campaign)).toBe(true)
-
-    const again = renderCampaign(reparsed.campaign as Record<string, unknown>)
-    expect(again).toBe(rendered)
+    expect(reparsed.campaign).toEqual(validated.campaign)
   })
 
   it('classifies unknown schema versions as STATE_MIGRATION_REQUIRED', () => {
@@ -523,77 +504,12 @@ describe('campaign schema v1 domain', () => {
   })
 })
 
-describe('campaign projection workflow boundary', () => {
-  it('supports render-only and dry-run evidence without writing live Issue #215', () => {
-    const body = readFixtureText('issue-215-body.exact.txt')
-    const taskBefore = readFixtureText('issue-215-task-schema-v1.exact.txt')
-    const campaign = loadExactCampaignFixture()
-    const evidence = {
-      approvedBaseMergedCommits: {
-        '5d04124cb135ffc66642dc4a168c58062af384ed': true,
-      },
-    }
-
-    const renderOnly = projectCampaign({ body, campaign, mode: 'render-only', evidence })
-    expect(renderOnly.ok).toBe(true)
-    expect(renderOnly.wrote).toBe(false)
-    expect(renderOnly.rendered).toContain('bemoat-mission-control-campaign:start')
-
-    const dryRun = projectCampaign({ body, campaign, mode: 'dry-run', evidence })
-    expect(dryRun.ok).toBe(true)
-    expect(dryRun.wrote).toBe(false)
-    expect(dryRun.appended).toBe(true)
-
-    const projectedBody = String(dryRun.body)
-    const taskAfter = projectedBody.match(
-      /<!--\s*bemoat-mission-control-state:start\s*-->[\s\S]*?<!--\s*bemoat-mission-control-state:end\s*-->/,
-    )?.[0]
-    expect(taskAfter).toBe(taskBefore)
-    expect(sha256(taskAfter ?? '')).toBe('ceb4969293d9b46995cdcec8ce67762da1452706e6c90708c28ce771c4f7cfa8')
-
-    // Unrelated Issue-body prefix bytes remain byte-for-byte unchanged.
-    const prefix = body.slice(0, body.indexOf('<!-- bemoat-mission-control-state:start -->'))
-    expect(projectedBody.startsWith(prefix)).toBe(true)
-
-    const noop = replaceCampaignBlock(projectedBody, dryRun.campaign as Record<string, unknown>)
-    expect(noop.unchanged).toBe(true)
-    expect(noop.body).toBe(projectedBody)
-  })
-
-  it('keeps task schema v1 bytes identical across campaign append and idempotent no-op', () => {
-    const body = readFixtureText('issue-215-body.exact.txt')
-    const campaign = loadExactCampaignFixture()
-    const evidence = {
-      approvedBaseMergedCommits: {
-        '5d04124cb135ffc66642dc4a168c58062af384ed': true,
-      },
-    }
-
-    const first = projectCampaign({ body, campaign, mode: 'dry-run', evidence })
-    expect(first.ok).toBe(true)
-    const second = projectCampaign({
-      body: String(first.body),
-      campaign: first.campaign as Record<string, unknown>,
-      mode: 'dry-run',
-      evidence,
-    })
-    expect(second.ok).toBe(true)
-    expect(second.unchanged).toBe(true)
-    expect(second.body).toBe(first.body)
-
-    const task = String(second.body).match(
-      /<!--\s*bemoat-mission-control-state:start\s*-->[\s\S]*?<!--\s*bemoat-mission-control-state:end\s*-->/,
-    )?.[0]
-    expect(sha256(task ?? '')).toBe('ceb4969293d9b46995cdcec8ce67762da1452706e6c90708c28ce771c4f7cfa8')
-  })
-})
-
 describe('authority-backed campaign schema expansion (Issue #254)', () => {
-  it('parses and renders the exact eleven-slice fixture only with verified authority evidence', () => {
+  it('parses the exact eleven-slice fixture only with verified authority evidence', () => {
     const campaign = loadExpandedCampaignFixture()
     const evidence = campaignAuthorityEvidence()
 
-    const unavailable = parseCampaign(`${renderCampaign(campaign)}\n`)
+    const unavailable = parseCampaign(`${wrapCampaignYaml(yaml.stringify(campaign))}\n`)
     expect(unavailable).toMatchObject({
       present: true,
       valid: false,
@@ -611,11 +527,9 @@ describe('authority-backed campaign schema expansion (Issue #254)', () => {
       validation_status: 'PENDING_EXPANDED_IMPLEMENTATION',
     })
 
-    const rendered = renderCampaign(validated.campaign as Record<string, unknown>)
-    const reparsed = parseCampaign(`${rendered}\n`, { evidence })
+    const reparsed = parseCampaign(`${wrapCampaignYaml(yaml.stringify(validated.campaign))}\n`, { evidence })
     expect(reparsed.valid).toBe(true)
-    expect(sameCampaignValue(reparsed.campaign, validated.campaign)).toBe(true)
-    expect(renderCampaign(reparsed.campaign as Record<string, unknown>)).toBe(rendered)
+    expect(reparsed.campaign).toEqual(validated.campaign)
   })
 
   it.each([
@@ -759,38 +673,6 @@ describe('authority-backed campaign schema expansion (Issue #254)', () => {
     expect(selectNextCampaignAction(campaign)).toMatchObject({ slice: '5', started: false })
   })
 
-  it('validates append and lifecycle transitions before campaign projection rendering', () => {
-    const expanded = loadExpandedCampaignFixture()
-    const prior = structuredClone(expanded) as Record<string, unknown>
-    delete prior.campaign_expansion_authority
-    for (const key of ['8', '9', '10', '11']) delete (prior.slices as Record<string, unknown>)[key]
-    const priorRootScriptMap = prior.root_script_map as Record<string, unknown>
-    priorRootScriptMap.validation_status = 'PENDING_IMPLEMENTATION'
-    const evidence = campaignAuthorityEvidence()
-
-    const appended = projectCampaign({
-      body: `${renderCampaign(prior)}\n`,
-      campaign: expanded,
-      mode: 'dry-run',
-      evidence,
-      transition: { mode: 'append' },
-    })
-    expect(appended).toMatchObject({ ok: true, replaced: true })
-
-    const shrunk = projectCampaign({
-      body: `${renderCampaign(expanded)}\n`,
-      campaign: prior,
-      mode: 'dry-run',
-      evidence,
-      transition: { mode: 'lifecycle', targetSlice: '7' },
-    })
-    expect(shrunk).toMatchObject({
-      ok: false,
-      code: 'CAMPAIGN_SLICE_RANGE_SHRINK',
-      classification: 'STATE_CONFLICT',
-    })
-  })
-
   it('removes exactly the bound blocker while appending only authorized NOT_STARTED rows', () => {
     const expanded = withIssue254Blocker(loadExpandedCampaignFixture())
     const prior = structuredClone(expanded) as Record<string, unknown>
@@ -849,27 +731,4 @@ describe('authority-backed campaign schema expansion (Issue #254)', () => {
     })
   })
 
-  it('keeps blocker-resolution campaign projection render-only and selects Slice 5 without starting it', () => {
-    const expanded = withIssue254Blocker(loadExpandedCampaignFixture())
-    const prior = structuredClone(expanded) as Record<string, unknown>
-    delete prior.campaign_expansion_authority
-    for (const key of ['8', '9', '10', '11']) delete (prior.slices as Record<string, unknown>)[key]
-    ;(prior.root_script_map as Record<string, unknown>).validation_status = 'PENDING_IMPLEMENTATION'
-    const projected = structuredClone(expanded) as Record<string, unknown>
-    projected.campaign_blockers = []
-    ;(projected.slices as Record<string, Record<string, unknown>>)['5'].blocker_ids = []
-    const body = `${renderCampaign(prior)}\n`
-
-    const result = projectCampaign({
-      body,
-      campaign: projected,
-      mode: 'dry-run',
-      evidence: campaignAuthorityEvidence(),
-      transition: { mode: 'blocker-resolution', blockerId: issue254BlockerId },
-    })
-
-    expect(result).toMatchObject({ ok: true, replaced: true, wrote: false })
-    expect(selectNextCampaignAction(result.campaign)).toMatchObject({ slice: '5', started: false })
-    expect(String(result.body)).toContain('"11"')
-  })
 })

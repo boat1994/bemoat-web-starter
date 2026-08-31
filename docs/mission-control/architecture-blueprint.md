@@ -174,9 +174,9 @@ flowchart LR
 | Field | Content |
 | --- | --- |
 | Purpose | Founder-authorized managed-Task genesis (exceptional) |
-| Canonical entrypoint | Protected workflow `mission-control-task-bootstrap.yml` + Founder authorization comment |
-| Ordinary start | After a managed Task exists: **J3** (preceded by J1). `bemoat:agent:issue` does not create Tasks |
-| Disposition | **MIGRATION-ONLY HISTORICAL / PHASE-7 DELETE CANDIDATE** |
+| Canonical entrypoint | Retired; no executable Task Bootstrap transport remains |
+| Ordinary start | Existing managed Task evidence is read by retained Context and generic task-state parsing |
+| Disposition | **RETIRED / READ-ONLY COMPATIBILITY** |
 
 ### J3 — Dispatch → HANDOFF
 
@@ -206,7 +206,7 @@ flowchart LR
 
 | Field | Content |
 | --- | --- |
-| Commands | correction preflight → delivery → delta review; optional `adopt-finding` |
+| Commands | correction preflight → delivery → delta review |
 | Disposition | **MIGRATION-ONLY HISTORICAL / PHASE-7 DELETE CANDIDATE** |
 
 ### J7 — Founder merge → `DONE`
@@ -285,7 +285,6 @@ Evidence root for the census that informed Option B: `main@7cfd62b6197a2e95fc8db
 | `bemoat:agent:issue` | Read-only reconstruction / preflight (J1) |
 | `bemoat:agent:delivery` | Delivery (J4) |
 | `bemoat:mission-control:merge` | Merge (J7) |
-| `bemoat:mission-control:task-bootstrap` | J2 implementation surface |
 | `bemoat:issue:comment` | J10 |
 | `bemoat:boilerplate:check|sync` | J11 PLATFORM |
 | `bemoat:guard:*` / validation scripts | Guards & validation |
@@ -296,7 +295,7 @@ Evidence root for the census that informed Option B: `main@7cfd62b6197a2e95fc8db
 
 | Concern | Owner (as-built) |
 | --- | --- |
-| Managed Task state parse/render | `domain/task-state.*` (+ authorization helper) |
+| Managed Task state parsing | `domain/task-state.ts` (+ authorization helper) |
 | Review verdict projection/transition | review-verdict modules + `workflows/review` |
 | Merge authority / terminal bundle | merge domain + `workflows/merge` + Founder allowlist |
 | Campaign parse/validate/normalize | `domain/campaign-*` (Zod boundary in validator) |
@@ -333,7 +332,6 @@ Principle: unknown external runtime values → Zod (or equivalent fail-closed pa
 | `domain/brainstorming.mjs` | Low-risk facade cleanup candidate (Class A) |
 | `domain/task-state-authorization.mjs` | Low-risk facade cleanup candidate (Class A) |
 | `domain/merge-head-bindings.mjs` | Low-risk facade cleanup candidate (Class A) |
-| `workflows/campaign-projection.mjs` | Investigate / possibly KEEP as workflow helper |
 | `diagnostics/github-comment-projection.mjs` | **KEEP** (active imports) |
 
 Inventory counts on baseline (design evidence): **87** `scripts/mission-control/**/*.mjs`, **68** `*.ts`; of `.mjs`, ~**34** paired re-export facades and ~**53** mjs-only implementation files.

@@ -56,13 +56,9 @@ const SUPPORTED_PROTOCOL_COMMANDS = [
 const MIGRATION_ONLY_COMMANDS = [
   'bemoat:agent:issue',
   'bemoat:issue:comment',
-  'bemoat:mission-control:authorize-founder',
-  'bemoat:mission-control:task-bootstrap',
 ] as const
 
-const MIGRATION_ONLY_TRANSPORT_COMMANDS = [
-  'bemoat:mission-control:authorize-founder',
-] as const
+const MIGRATION_ONLY_TRANSPORT_COMMANDS = [] as const
 
 const isCrossAgentProtocolCandidate = (command: string) => (
   command === 'bemoat:context' ||

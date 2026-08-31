@@ -3,13 +3,12 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
+import yaml from 'yaml'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- untyped runtime .mjs boundary */
 import * as agentIssueModule from '../../scripts/agent-issue.mjs'
-import * as missionControlStateModule from '../../scripts/mission-control/domain/task-state.ts'
-import * as correctionBindingModule from '../../scripts/mission-control/domain/correction-handoff-binding.mjs'
 import * as reviewBindingModule from '../../scripts/mission-control/review-verdict-binding.mjs'
 
 // Shared .mjs scripts expose runtime behavior, not TypeScript declarations. Keep
@@ -27,9 +26,38 @@ const {
   runAgentIssuePreflight,
   validatePlanPath,
 } = agentIssueModule as unknown as Record<string, (...args: any[]) => any>
-const { buildCorrectionHandoffBinding } = correctionBindingModule as unknown as Record<string, (...args: any[]) => any>
 const { parseRoleCommentBody } = reviewBindingModule as unknown as Record<string, (...args: any[]) => any>
-const { renderMissionControlState } = missionControlStateModule as unknown as Record<string, (...args: any[]) => any>
+function renderMissionControlState(state: Record<string, unknown>): string {
+  return [
+    '<!-- bemoat-mission-control-state:start -->',
+    '```yaml',
+    yaml.stringify(state, { lineWidth: 0 }).trim(),
+    '```',
+    '<!-- bemoat-mission-control-state:end -->',
+  ].join('\n')
+}
+
+function buildCorrectionHandoffBinding({ authorization, state, handoffBody, handoff }: any): Record<string, unknown> {
+  const target = handoffBody.match(/^\*\*Target:\*\*\s*(.+?)\s*$/m)?.[1]?.trim()
+  if (!target) throw new Error('correction HANDOFF requires an explicit Target binding')
+  const payload = {
+    schema_version: 1,
+    authorization_snapshot: {
+      authorization_id: authorization.authorization_id, authority: authorization.authority,
+      status: authorization.status, action: authorization.action, authorized_at: authorization.authorized_at,
+      scope: authorization.scope, for_review_number: authorization.for_review_number,
+      reviewed_head: authorization.reviewed_head, finding_ids: [...authorization.finding_ids],
+    },
+    authorization_id: authorization.authorization_id, target, active_pr: state.active_pr,
+    exact_head: state.current_head, correction_base: authorization.reviewed_head,
+    review_number: authorization.for_review_number, scope: authorization.scope,
+    finding_ids: [...authorization.finding_ids], handoff_comment_id: String(handoff.id),
+    handoff_created_at: handoff.created_at ?? handoff.createdAt ?? null,
+    handoff_updated_at: handoff.updated_at ?? handoff.updatedAt ?? null,
+    content_sha256: createHash('sha256').update(handoffBody).digest('hex'),
+  }
+  return { ...payload, binding_sha256: createHash('sha256').update(JSON.stringify(payload)).digest('hex') }
+}
 
 const PRODUCTION_PR103_ROLLUP = [
   {

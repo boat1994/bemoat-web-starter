@@ -46,7 +46,6 @@
     "scripts/agent-issue/process-runner.mjs",
     "scripts/agent-issue/progress-tracking.mjs",
     "scripts/agent-issue/pure-helpers.mjs",
-    "scripts/mission-control/workflows/issue-body-cas.mjs",
     "tests/fixtures/agent-issue/issue-171-finding-thread.md",
     "tests/fixtures/agent-issue/issue-171-historical-handoff.md",
     "tests/fixtures/agent-issue/issue-171-replacement-dispatch.md",
@@ -60,7 +59,6 @@
     "tests/fixtures/mission-control-child-shape/process-env/reconcile-partial-env.fixture.ts",
     "tests/fixtures/mission-control-child-shape/process-env/tsconfig.json",
     "tests/int/mission-control-child-portability.int.spec.ts",
-    "tests/int/mission-control-correction-entrypoints.int.spec.ts",
-    "tests/int/mission-control-issue-body-cas.int.spec.ts"
+    "tests/int/mission-control-correction-entrypoints.int.spec.ts"
   ]
 }

@@ -96,7 +96,6 @@ describe('Bemoat CLI discovery guidance', () => {
     const guidance = read('docs/mission-control/mission-control-guide.md')
     const semanticGuidance = normalized(guidance)
     for (const operation of [
-      'task bootstrap',
       'dispatch',
       'review',
       'merge',

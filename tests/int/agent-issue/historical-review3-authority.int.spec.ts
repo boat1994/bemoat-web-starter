@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { renderMissionControlState } from '../../../scripts/mission-control/domain/task-state.ts'
+import yaml from 'yaml'
+
+function renderMissionControlState(state: Record<string, unknown>): string {
+  return [
+    '<!-- bemoat-mission-control-state:start -->',
+    '```yaml',
+    yaml.stringify(state, { lineWidth: 0 }).trim(),
+    '```',
+    '<!-- bemoat-mission-control-state:end -->',
+  ].join('\n')
+}
 
 async function loadModule() {
   return import('../../../scripts/agent-issue/historical-review3-authority.mjs')

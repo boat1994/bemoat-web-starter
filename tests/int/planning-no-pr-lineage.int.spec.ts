@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 
 import { afterEach, describe, expect, it } from 'vitest'
+import yaml from 'yaml'
 
 import {
   resolvePlanningAuthorizationBaseSha,
@@ -16,8 +17,17 @@ import {
   normalizeWorkflowMode,
   populateOrPreservePlanningAuthorizationBaseSha,
   parseMissionControlState,
-  renderMissionControlState,
 } from '../../scripts/mission-control/domain/task-state.ts'
+
+function renderMissionControlState(state: Record<string, unknown>): string {
+  return [
+    '<!-- bemoat-mission-control-state:start -->',
+    '```yaml',
+    yaml.stringify(state, { lineWidth: 0 }).trim(),
+    '```',
+    '<!-- bemoat-mission-control-state:end -->',
+  ].join('\n')
+}
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- untyped runtime .mjs boundary */
 const compareProtectedBaseTrees = planningNoPrLineageModule.compareProtectedBaseTrees as unknown as (input: Record<string, unknown>) => Record<string, unknown>

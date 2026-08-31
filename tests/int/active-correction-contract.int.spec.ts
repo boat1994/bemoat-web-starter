@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 
 import * as facade from '../../scripts/mission-control/domain/active-correction-contract.ts'
 import * as domain from '../../scripts/mission-control/domain/active-correction-contract.ts'
-import { isIdenticalCompletedProjection } from '../../scripts/mission-control/domain/adopt-finding-projection.mjs'
 import { fingerprintCorrectionContract } from '../../scripts/mission-control/domain/correction-contract-fingerprint.mjs'
 
 type Finding = {
@@ -176,34 +175,4 @@ describe('active correction-contract authority boundary', () => {
     })
   })
 
-  it('keeps the adoption projection consumer readback pure and idempotent', () => {
-    const active = contract('1'.repeat(40), ['MC-R1-001'])
-    const identity = identityFor(active)
-    const state = { active_correction_contract_identity: structuredClone(identity) }
-    identity.adoption_head = 'f'.repeat(40)
-
-    expect(isIdenticalCompletedProjection({
-      state,
-      identity,
-      options: {
-        authorizationComment: '1002',
-        predecessorComment: '1001',
-        expectedAdoptionHead: 'F'.repeat(40),
-      },
-      authorization: { body_sha256: 'd'.repeat(64) },
-    })).toBe(false)
-
-    identity.adoption_head = 'e'.repeat(40)
-    expect(isIdenticalCompletedProjection({
-      state,
-      identity,
-      options: {
-        authorizationComment: '1002',
-        predecessorComment: '1001',
-        expectedAdoptionHead: 'E'.repeat(40),
-      },
-      authorization: { body_sha256: 'd'.repeat(64) },
-    })).toBe(true)
-    expect(state).toEqual({ active_correction_contract_identity: expect.any(Object) })
-  })
 })

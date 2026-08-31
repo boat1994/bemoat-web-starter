@@ -84,9 +84,8 @@ formats only; they are not alternate supported transports.
 Normal Mission Control runs must load the guide from the **merged approved
 protected base**, never from an unmerged task branch.
 
-The former managed-Task bootstrap and stateful runtime remain migration-only.
-Do not use them for new work or perform their Phase 7 deletion in this
-documentation reconciliation.
+The former managed-Task bootstrap and stateful runtime are retired historical
+evidence. Do not use them for new work.
 
 ## Historical reviewer verdict vocabulary (migration-only)
 
@@ -267,10 +266,6 @@ pnpm run guard:safety
 pnpm exec vitest run tests/int/mission-control-contract.int.spec.ts
 pnpm exec vitest run tests/int/boilerplate-sync.int.spec.ts
 pnpm exec vitest run tests/int/guard-pack.int.spec.ts
-
-# Terminal state projection only (the reconciler never closes Issues)
-
-# Exceptional missing-state recovery (validation or one leased/CAS projection)
 
 # Child harness pull (after starter merge)
 pnpm run bemoat:boilerplate:sync -- --harness-only
