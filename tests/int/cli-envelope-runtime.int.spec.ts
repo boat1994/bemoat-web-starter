@@ -460,23 +460,23 @@ describe('CLI envelope runtime characterization', () => {
       expect(() => createHelpEnvelopeV1({ command: 'bemoat:nope' }))
         .toThrowError(new TypeError('help requires a registered command contract'))
 
-      const contract = getCommandContract(BOILERPLATE_SYNC)
-      if (!contract) throw new Error('missing comment contract')
-      const envelope = createHelpEnvelopeV1(contract) as JsonRecord
+      const boilerplateContract = getCommandContract(BOILERPLATE_SYNC)
+      if (!boilerplateContract) throw new Error('missing boilerplate sync contract')
+      const envelope = createHelpEnvelopeV1(boilerplateContract) as JsonRecord
       const roleContracts = envelope.role_contracts as JsonRecord
       roleContracts.HANDOFF = 'hacked'
       ;(envelope.retry_contract as JsonRecord).identical_retry = 'hacked'
-      expect((contract.role_contracts as JsonRecord).HANDOFF).not.toBe('hacked')
-      expect((contract.retry_contract as JsonRecord).identical_retry).toBe('conditional')
+      expect((boilerplateContract.role_contracts as JsonRecord).HANDOFF).not.toBe('hacked')
+      expect((boilerplateContract.retry_contract as JsonRecord).identical_retry).toBe('conditional')
 
       const tierA = formatTextHelp(getCommandContract(BOILERPLATE_SYNC) as Record<string, unknown>)
       const tierB = formatTextHelp(getCommandContract(CHECK) as Record<string, unknown>)
-      const commentHelp = formatTextHelp(contract as Record<string, unknown>)
+      const boilerplateHelp = formatTextHelp(boilerplateContract as Record<string, unknown>)
       expect(tierA).toContain('AUTHORITY AND TRUST BOUNDARY')
       expect(tierB).not.toContain('AUTHORITY AND TRUST BOUNDARY')
       expect(tierB).toMatch(/WRITES: none/)
       expect(tierB).not.toContain('ROLE CONTRACTS')
-      expect(commentHelp).not.toContain('ROLE CONTRACTS')
+      expect(boilerplateHelp).not.toContain('ROLE CONTRACTS')
       for (const classification of Object.keys(CLI_EXIT_CODES)) {
         expect(tierA).toContain(`${classification}:`)
       }

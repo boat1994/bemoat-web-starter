@@ -36,8 +36,9 @@ export function deriveWorkflowProfile({
     (taskSize === 'core' && declaresMainIssue && declaresImplementationPlan)
   ) {
     return {
-      name: 'MANAGED',
-      nextAction: 'Use the managed-state workflow and its required bounded role transition.',
+      name: 'STANDARD',
+      nextAction:
+        'Use STANDARD safeguards; legacy managed declarations are read-only historical metadata.',
     }
   }
 

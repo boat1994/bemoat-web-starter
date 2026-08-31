@@ -876,7 +876,7 @@ describe('bemoat:context pure routing', () => {
       expect(decision.route).toBe('FOUNDER_GATE')
     })
 
-    it('preserves MANAGED regression behavior (requires review if standard dictates, or follows native)', () => {
+    it('does not let a legacy MANAGED profile bypass the STANDARD semantic-review gate', () => {
       const decision = routeContext(baseEvidence({
         issue: { ...baseEvidence().issue, workflowProfile: 'MANAGED' },
         activePr: prEvidence(),
@@ -884,9 +884,7 @@ describe('bemoat:context pure routing', () => {
           reviews: { required: false, approved: true, exactHead: true, approvedCount: 0, exactHeadApprovedCount: 0 },
         }),
       }))
-      // In current logic, MANAGED falls through to FOUNDER_GATE if no native review is required,
-      // as only 'STANDARD' is checked for semanticReviewRequired.
-      expect(decision.route).toBe('FOUNDER_GATE')
+      expect(decision.route).toBe('REVIEW')
     })
   })
 

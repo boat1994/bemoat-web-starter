@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
@@ -26,6 +26,22 @@ const CURRENT_EXECUTABLE_HANDOFF_DOCS = [
 const CURRENT_PROTOCOL_DOCS = [
   'docs/mission-control/README.md',
   'docs/mission-control/mission-control-guide.md',
+] as const
+
+const CURRENT_PLANNING_GUARD_DOCS = [
+  'docs/guard-pack.md',
+  'docs/agent-loop/security-and-migrations.md',
+  'docs/agent-loop/superpowers-planning-contract-recommendation.md',
+] as const
+
+const CURRENT_PLANNING_GUARD_PATHS = [
+  'scripts/guards/planning-contract-runtime.mjs',
+  'scripts/guards/planning-contract.mjs',
+] as const
+
+const RETIRED_PLANNING_GUARD_PATHS = [
+  'scripts/guard-planning-contract.mjs',
+  'scripts/mission-control-state.mjs',
 ] as const
 
 const ACTIVE_STATEFUL_REQUIREMENTS = [
@@ -162,6 +178,28 @@ describe('stateless public Mission Control contract', () => {
       const currentContent = withoutHistoricalMarkdownSections(read(path))
       for (const pattern of activeManagedStateRequirement) {
         expect(currentContent, `${path} contains active managed-state guidance: ${pattern}`).not.toMatch(pattern)
+      }
+    }
+  })
+
+  it('keeps live issue intake stateless', () => {
+    const template = read('.github/ISSUE_TEMPLATE/agent-task.yml')
+    expect(template).not.toContain('mission_control_mode')
+    expect(template).not.toContain('mission_control_state')
+    expect(template).not.toContain('Mission Control mode')
+    expect(template).not.toContain('bemoat-mission-control-state:start')
+    expect(template).toMatch(/bemoat:context[\s\S]*bemoat:handoff/)
+  })
+
+  it('keeps active planning guard docs aligned with retained entrypoints', () => {
+    for (const path of CURRENT_PLANNING_GUARD_DOCS) {
+      const content = withoutHistoricalMarkdownSections(read(path))
+      for (const entrypoint of CURRENT_PLANNING_GUARD_PATHS) {
+        expect(existsSync(resolve(ROOT, entrypoint)), entrypoint).toBe(true)
+        expect(content, `${path} is missing ${entrypoint}`).toContain(entrypoint)
+      }
+      for (const retired of RETIRED_PLANNING_GUARD_PATHS) {
+        expect(content, `${path} points at retired ${retired}`).not.toContain(retired)
       }
     }
   })

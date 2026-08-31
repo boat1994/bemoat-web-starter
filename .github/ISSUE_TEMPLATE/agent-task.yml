@@ -86,18 +86,10 @@ body:
         **Core / multi-stage planning fields** — omit the fields below for valid Small or standalone tasks.
         See docs/agent-loop/project-progress-tracking.md for durable progress boundaries.
 
-  - type: dropdown
-    id: mission_control_mode
+  - type: markdown
     attributes:
-      label: Mission Control mode
-      description: Select `required` only when this task needs managed review-cycle state. Core tier alone does not require it; legacy Core tasks declaring both Main Issue and Implementation Plan remain managed.
-      options:
-        - not required
-        - required
-        - unsure — preflight classifies
-      default: 0
-    validations:
-      required: true
+      value: |
+        **Current stateless workflow** — `bemoat:context` reconstructs evidence and route; `bemoat:handoff` appends the next bounded objective. Historical state and role records are read-only migration evidence.
 
   - type: input
     id: main_issue
@@ -178,44 +170,6 @@ body:
       label: Active PR
       description: Current implementation PR pointer. Example `#120`.
       placeholder: "#120"
-    validations:
-      required: false
-
-  - type: markdown
-    attributes:
-      value: |
-        **Mission Control state (managed tasks only)** — paste only when Mission Control mode is `required`, or when the legacy Core Main-Issue + Implementation-Plan trigger applies. Omit for all other valid tasks.
-        Paste and maintain the marker block on the Active Task Issue. Update only content between the markers.
-        See `docs/mission-control/mission-control-guide.md`.
-
-  - type: textarea
-    id: mission_control_state
-    attributes:
-      label: Mission Control state (managed task)
-      description: Durable review-cycle state for the Active Task Issue. Leave blank unless managed state is required; preflight never silently initializes it.
-      placeholder: |
-        <!-- bemoat-mission-control-state:start -->
-        ```yaml
-        schema_version: 1
-        state: READY
-        review_cycle: 0
-        full_review_count: 0
-        approved_base: main
-        active_task_issue: "#<this active task issue>"
-        active_pr: null
-        current_head: null
-        last_reviewed_head: null
-        guide_version: 1.0.0
-        guide_source_ref: main
-        guide_source_sha: null
-        open_blockers: []
-        follow_up_issues: []
-        next_permitted_action: "Run issue preflight and prepare implementation brief"
-        material_change_status: none
-        updated_at: null
-        updated_by: null
-        ```
-        <!-- bemoat-mission-control-state:end -->
     validations:
       required: false
 
