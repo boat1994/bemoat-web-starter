@@ -6,7 +6,7 @@ import {
   classifyMergeReviewVerdict,
   parseProductionMergeReviewVerdict,
   resolveMergeReviewVerdictBinding,
-} from '../../scripts/mission-control/domain/merge-review-verdict.ts'
+} from '../../scripts/context/merge-review-verdict.ts'
 
 const sha = 'a'.repeat(40)
 const headSha = 'b'.repeat(40)

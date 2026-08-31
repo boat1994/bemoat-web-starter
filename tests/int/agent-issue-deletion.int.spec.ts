@@ -22,9 +22,9 @@ describe('Agent-Issue retirement structural contract', () => {
     expect(existsSync(resolve(repoRoot, 'tests/fixtures/agent-issue'))).toBe(false)
   })
 
-  it('keeps shared parsing and PR identity helpers outside legacy ownership', async () => {
+  it('keeps shared parsing and review evidence helpers outside legacy ownership', async () => {
     const contextDeclarationsPath = resolve(repoRoot, 'scripts/context/issue-declarations.ts')
-    const prIdentityPath = resolve(repoRoot, 'scripts/mission-control/domain/pr-identity.ts')
+    const reviewVerdictPath = resolve(repoRoot, 'scripts/context/merge-review-verdict.ts')
 
     expect(existsSync(contextDeclarationsPath)).toBe(true)
     expect(readFileSync(contextDeclarationsPath, 'utf8')).toContain(
@@ -33,6 +33,7 @@ describe('Agent-Issue retirement structural contract', () => {
     expect(readFileSync(contextDeclarationsPath, 'utf8')).toContain(
       'export function deriveWorkflowProfile',
     )
-    expect(readFileSync(prIdentityPath, 'utf8')).toContain('export function resolvePrNumber')
+    expect(existsSync(reviewVerdictPath)).toBe(true)
+    expect(readFileSync(reviewVerdictPath, 'utf8')).toContain('function resolvePrNumber')
   })
 })

@@ -94,7 +94,7 @@ describe('harness contract guard', () => {
     expect(syncMod.managedPaths).toContain('scripts/guard-harness-contract.mjs')
     expect(syncMod.managedPaths).toContain('scripts/harness-contract')
     expect(syncMod.managedPaths).toContain('tests/int/harness-contract/facade-exports.int.spec.ts')
-    expect(syncMod.managedPaths).toContain('scripts/mission-control')
+    expect(syncMod.managedPaths).toContain('scripts/guards/legacy-managed-state.ts')
     expect(syncMod.managedPackageScripts).toContain('bemoat:branch:check')
     expect(syncMod.managedPackageScripts).toContain('bemoat:guard:harness-contract')
   })
@@ -406,28 +406,28 @@ describe('managed runtime delivery closure', () => {
     }
   })
 
-  it('fails closed when the PR identity domain module is missing from managed delivery', async () => {
+  it('fails closed when the Context review parser is missing from managed delivery', async () => {
     const guardMod = await import('../../scripts/guard-harness-contract.mjs')
-    const tempRoot = mkdtempSync(join(tmpdir(), 'bemoat-182-missing-pr-identity-'))
+    const tempRoot = mkdtempSync(join(tmpdir(), 'bemoat-182-missing-context-review-parser-'))
 
     try {
-      mkdirSync(join(tempRoot, 'scripts/mission-control/domain'), { recursive: true })
+      mkdirSync(join(tempRoot, 'scripts/context'), { recursive: true })
       writeFileSync(
         join(tempRoot, 'scripts/agent-context.mjs'),
-        "import { parseCompleteGitHubPullUrl } from './mission-control/domain/pr-identity.ts'\nexport {}\n",
+        "import { parseProductionMergeReviewVerdict } from './context/merge-review-verdict.ts'\nexport {}\n",
       )
 
       const violations = guardMod.scanManagedRuntimeDeliveryClosure({
         root: tempRoot,
-        managedPaths: ['scripts/agent-context.mjs', 'scripts/mission-control/domain/pr-identity.ts'],
+        managedPaths: ['scripts/agent-context.mjs', 'scripts/context/merge-review-verdict.ts'],
       })
 
       expect(violations).toEqual([
         {
           type: 'missing-relative-runtime-dependency',
           importer: 'scripts/agent-context.mjs',
-          callee: 'scripts/mission-control/domain/pr-identity.ts',
-          specifier: './mission-control/domain/pr-identity.ts',
+          callee: 'scripts/context/merge-review-verdict.ts',
+          specifier: './context/merge-review-verdict.ts',
         },
       ])
     } finally {

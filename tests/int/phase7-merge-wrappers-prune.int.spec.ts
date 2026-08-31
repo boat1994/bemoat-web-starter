@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 
 import { COMMAND_CONTRACT_REGISTRY } from '../../scripts/cli/command-contract-registry.mjs'
 import { missionControlRecoveryRoutes } from '../../scripts/cli/mission-control-routing-policy-recovery.mjs'
-import { classifyMergeReviewVerdict } from '../../scripts/mission-control/domain/merge-review-verdict.ts'
+import { classifyMergeReviewVerdict } from '../../scripts/context/merge-review-verdict.ts'
 
 const DELETED_MERGE_COMMANDS = [
   'bemoat:mission-control:merge',

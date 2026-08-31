@@ -9,7 +9,7 @@ The contract enforces:
 - Deterministic path ordering of `rootScripts`.
 - Explicit transitional recording for `scripts/harness-contract/` pending separate migration authority.
 
-Allowed internal destination prefixes: `scripts/mission-control/`, `scripts/context/`, `scripts/boilerplate/`, `scripts/guards/`, `scripts/adapters/`, `scripts/tooling/`, and `scripts/shared/`.
+Allowed internal destination prefixes: `scripts/context/`, `scripts/handoff/`, `scripts/boilerplate/`, `scripts/guards/`, `scripts/adapters/`, `scripts/tooling/`, and `scripts/shared/`.
 
 ## Harness-contract facade boundaries
 

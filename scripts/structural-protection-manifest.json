@@ -10,15 +10,13 @@
       { "path": "scripts/boilerplate/workflow.mjs", "max_lines": 465 },
       { "path": "scripts/check-boilerplate-drift.mjs", "max_lines": 552 },
       { "path": "scripts/cli/command-contract-registry.ts", "max_lines": 870 },
-      { "path": "scripts/cli/command-contract.ts", "max_lines": 580 },
-      { "path": "scripts/mission-control/domain/campaign-authority.ts", "max_lines": 630 },
-      { "path": "scripts/mission-control/domain/campaign-validator.mjs", "max_lines": 482 }
+      { "path": "scripts/cli/command-contract.ts", "max_lines": 580 }
     ]
   },
   "protected_oracle": {
     "algorithm": "sha256",
     "files": [
-      { "path": "tests/int/phase7-merge-wrappers-prune.int.spec.ts", "sha256": "f5a00b32d109797a96bc84bbbadce4bde9562a352d7a80348ef31980fa2ee3cd" }
+      { "path": "tests/int/phase7-merge-wrappers-prune.int.spec.ts", "sha256": "a108a6e7fceb6dd0e5ef3cd9f9ea135ed3764e6c2ade632d1f308728a4305b0c" }
     ]
   }
 }

@@ -4,7 +4,7 @@ import type {
   NormalizedContextEvidence,
 } from './model.ts'
 import { isFullSha, isPositiveInteger, isRepositoryObjectUrl } from './runtime.ts'
-import { parseProductionMergeReviewVerdict, classifyMergeReviewVerdict } from '../mission-control/domain/merge-review-verdict.ts'
+import { parseProductionMergeReviewVerdict, classifyMergeReviewVerdict } from './merge-review-verdict.ts'
 
 function evidenceUrls(evidence: NormalizedContextEvidence): string[] {
   const urls = [

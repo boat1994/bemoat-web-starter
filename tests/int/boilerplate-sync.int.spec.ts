@@ -199,7 +199,6 @@ describe('boilerplate sync managed paths', () => {
 
     const planningContractPaths = [
       'scripts/guards/planning-contract-runtime.mjs',
-      'scripts/mission-control/domain/task-state.ts',
       'tests/fixtures/planning',
       'tests/int/guard-planning-contract.int.spec.ts',
       'tests/int/guard-planning-contract-child-dev-base.int.spec.ts',
@@ -1854,11 +1853,6 @@ function writeIssue182ChildFixture(targetRoot: string) {
     const absolutePath = join(targetRoot, relativePath)
     mkdirSync(join(absolutePath, '..'), { recursive: true })
     writeFileSync(absolutePath, `OLD_SENTINEL:${relativePath}\n`)
-  }
-
-  const prIdentityPath = join(targetRoot, 'scripts/mission-control/domain/pr-identity.ts')
-  if (existsSync(prIdentityPath)) {
-    rmSync(prIdentityPath, { force: true })
   }
 
   for (const relativePath of ISSUE_182_NON_MANAGED_SENTINELS) {

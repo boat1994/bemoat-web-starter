@@ -75,7 +75,6 @@ describe('scripts architecture ratchet', () => {
       expect(entry.owning_slice).toBeLessThanOrEqual(7)
       expect(
         [
-          'scripts/mission-control/',
           'scripts/context/',
           'scripts/handoff/',
           'scripts/boilerplate/',

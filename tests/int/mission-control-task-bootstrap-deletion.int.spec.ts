@@ -53,16 +53,6 @@ const ORPHANED_STATEFUL_FILES = [
   'scripts/mission-control/domain/correction-handoff-binding.mjs',
 ] as const
 
-const RETAINED_TASK_STATE_EXPORTS = [
-  'parseMissionControlState',
-] as const
-
-const REMOVED_TASK_STATE_WRITERS = [
-  'renderMissionControlState',
-  'projectMissionControlStateBlock',
-  'appendMissingMissionControlStateBlock',
-] as const
-
 const RETIRED_MERGE_AUTHORIZATION_TEST = 'tests/int/mission-control-merge-authorization-recording.int.spec.ts'
 const OBSOLETE_ACTIVE_DOCUMENTATION = [
   'Terminal state projection only',
@@ -91,18 +81,7 @@ describe('retired Task Bootstrap and Founder authorization public boundaries', (
       expect(COMMAND_CONTRACT_REGISTRY.commands[command], command).toBeDefined()
     }
 
-    expect(existsSync('scripts/mission-control/domain/task-state.ts')).toBe(true)
-  })
-
-  it('retains only the read-only task-state seam needed by live consumers', async () => {
-    const taskState = await import('../../scripts/mission-control/domain/task-state.ts') as Record<string, unknown>
-
-    for (const name of RETAINED_TASK_STATE_EXPORTS) {
-      expect(taskState[name], `${name} must remain available`).toBeDefined()
-    }
-    for (const name of REMOVED_TASK_STATE_WRITERS) {
-      expect(taskState[name], `${name} must be retired`).toBeUndefined()
-    }
+    expect(existsSync('scripts/mission-control')).toBe(false)
   })
 
   it('does not advertise the retired public command from active metadata or architecture inventory', () => {

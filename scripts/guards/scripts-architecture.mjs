@@ -1,12 +1,60 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join, normalize, relative, resolve } from 'node:path'
 
-import {
-  FACADE_DISPOSITIONS,
-  INTERNAL_DESTINATION_PREFIXES,
-  MIGRATION_STATUSES,
-} from '../mission-control/domain/campaign-enums.ts'
-import { validateRootScriptMappingRecord } from '../mission-control/domain/campaign-validator.ts'
+const FACADE_DISPOSITIONS = new Set(['stable_facade', 'composition_root', 'tooling_entrypoint'])
+const MIGRATION_STATUSES = new Set(['unmapped', 'planned', 'transitional', 'migrated', 'retained'])
+const INTERNAL_DESTINATION_PREFIXES = Object.freeze([
+  'scripts/context/',
+  'scripts/handoff/',
+  'scripts/boilerplate/',
+  'scripts/guards/',
+  'scripts/adapters/',
+  'scripts/tooling/',
+  'scripts/shared/',
+])
+
+function validateRootScriptMappingRecord(recordInput) {
+  if (!recordInput || typeof recordInput !== 'object' || Array.isArray(recordInput)) {
+    return { valid: false, reason: 'root script mapping must be a mapping' }
+  }
+  const record = recordInput
+  if (typeof record.path !== 'string' || !/^scripts\/[^/]+\.(mjs|sh)$/.test(record.path)) {
+    return { valid: false, reason: 'root script path must be scripts/<file>.(mjs|sh)' }
+  }
+  if (!FACADE_DISPOSITIONS.has(record.facade_disposition)) {
+    return { valid: false, reason: 'facade_disposition is invalid' }
+  }
+  if (typeof record.internal_destination !== 'string' || record.internal_destination.length === 0) {
+    return { valid: false, reason: 'internal_destination is required' }
+  }
+  if (!INTERNAL_DESTINATION_PREFIXES.some((prefix) => record.internal_destination.startsWith(prefix))) {
+    return {
+      valid: false,
+      reason: `internal_destination must use destination vocabulary: ${INTERNAL_DESTINATION_PREFIXES.join(', ')}`,
+    }
+  }
+  if (!MIGRATION_STATUSES.has(record.migration_status)) {
+    return { valid: false, reason: 'migration_status is invalid' }
+  }
+  if (
+    typeof record.owning_slice !== 'number' ||
+    !Number.isInteger(record.owning_slice) ||
+    record.owning_slice < 1 ||
+    record.owning_slice > 7
+  ) {
+    return { valid: false, reason: 'owning_slice must be an integer 1–7' }
+  }
+  return {
+    valid: true,
+    record: {
+      path: record.path,
+      facade_disposition: record.facade_disposition,
+      internal_destination: record.internal_destination,
+      owning_slice: record.owning_slice,
+      migration_status: record.migration_status,
+    },
+  }
+}
 
 export class ArchitectureContractError extends Error {
   constructor(violations) {
@@ -154,7 +202,7 @@ export function validateRootScriptMap(contract, root) {
   const hasRootScripts = Object.hasOwn(contract, 'rootScripts')
   const hasTransitional = Object.hasOwn(contract, 'transitionalDirectories')
 
-  // Temp architecture fixtures may omit the campaign-era root-script map.
+  // Temp architecture fixtures may omit the root-script map.
   // Production contracts include both keys and are enforced completely.
   if (!hasRootScripts && !hasTransitional) return violations
 

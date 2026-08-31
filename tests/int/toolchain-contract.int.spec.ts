@@ -1,4 +1,3 @@
-import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
@@ -28,26 +27,10 @@ describe('toolchain contract', () => {
     expect(contract.node).toBe('24.15.0')
     expect(contract.compiler.strict).toBe(true)
     expect(contract.compiler.childStrictNullChecks).toBe(true)
-    expect(contract.compiler.harnessRoots).toContain('scripts/mission-control/**/*.ts')
+    expect(contract.compiler.harnessRoots).toContain('scripts/context/**/*.ts')
     expect(JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf8')).scripts.typecheck)
       .toBe('node scripts/bemoat-typecheck.mjs')
     expect(mod.scanToolchainContract()).toEqual([])
-  })
-
-  it('executes the TypeScript compatibility boundary with native Node ESM', () => {
-    const output = execFileSync(
-      process.execPath,
-      [resolve(process.cwd(), 'scripts/mission-control/types/runtime-probe.ts')],
-      { cwd: process.cwd(), encoding: 'utf8' },
-    )
-
-    expect(JSON.parse(output)).toEqual({
-      execution: 'node-native-type-stripping',
-      moduleSystem: 'esm',
-      relativeImportExtensions: 'required',
-      sourceMaps: 'not-generated-for-type-stripping',
-      syntax: 'erasable-typescript-only',
-    })
   })
 
   it('fails closed when a required harness root is omitted', async () => {

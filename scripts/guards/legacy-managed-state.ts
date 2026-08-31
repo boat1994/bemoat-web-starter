@@ -34,7 +34,7 @@ type MissionControlIdentity = {
  * review counters. A marked block is only useful to the guard when its
  * identity is unambiguous; malformed evidence therefore fails closed.
  */
-export function parseMissionControlState(body: string = ''): {
+export function parseLegacyManagedStateIdentity(body: string = ''): {
   present: boolean
   valid: boolean
   reason?: string
