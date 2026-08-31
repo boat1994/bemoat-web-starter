@@ -1,0 +1,7 @@
+{
+  "name": "legacy-intercepted-child",
+  "private": true,
+  "scripts": {
+    "bemoat:boilerplate:sync": "node scripts/sync-boilerplate.mjs"
+  }
+}

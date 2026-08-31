@@ -42,6 +42,7 @@ export const managedPaths = [
   'tests/int/repo-safety-guard.int.spec.ts', 'tests/int/cloudflare-env-guard.int.spec.ts',
   'tests/int/boilerplate-sync.int.spec.ts', 'tests/int/boilerplate-sync-filesystem.int.spec.ts',
   'tests/int/boilerplate-sync-git.int.spec.ts', 'tests/int/boilerplate-sync-workflow.int.spec.ts',
+  'tests/int/boilerplate-sync-bootstrap.int.spec.ts',
   'tests/int/harness-contract-guard.int.spec.ts',
   'tests/int/harness-contract/child-script-policy.int.spec.ts',
   'tests/int/harness-contract/runtime-import-parser.int.spec.ts',
