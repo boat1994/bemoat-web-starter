@@ -106,6 +106,7 @@
     "tests/int/context-skill.int.spec.ts",
     "tests/int/context-sync.int.spec.ts",
     "tests/int/context-corrections.int.spec.ts",
+    "tests/int/issue-branch-bootstrap.int.spec.ts",
     "tests/int/handoff-schema.int.spec.ts",
     "tests/int/handoff-transport.int.spec.ts",
     "tests/int/handoff-cli.int.spec.ts",

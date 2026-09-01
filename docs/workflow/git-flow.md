@@ -11,6 +11,12 @@ This repository uses a lightweight Git Flow model so AI-assisted work happens on
 
 Routine feature, fix, refactor, docs, chore, and test work must happen on a topic branch.
 
+For first-time issue work, generic topic-branch creation is not the complete
+preflight. Before file edits, publish and read back the zero-delta branch using
+the [durable issue-branch bootstrap](../agent-loop/issue-driven-branch-workflow.md#durable-zero-delta-branch-bootstrap),
+then rerun the discovered public Context contract. Local-only branch state
+remains fail-closed.
+
 ## Topic branches
 
 Create normal work branches from current `dev`:

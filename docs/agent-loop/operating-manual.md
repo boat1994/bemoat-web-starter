@@ -142,11 +142,7 @@ Required first steps:
 3. Stop if working tree is dirty with unrelated changes
 4. Never modify main directly
 5. Do not routine-code directly on dev
-6. If the only blocker is clean main or dev, create an issue branch, rerun `pnpm run bemoat:context <issue-number> --json`, and continue only after it passes. Use dev as the normal baseline:
-   git fetch origin
-   git switch dev
-   git pull origin dev
-   git switch -c docs/dev-branch-policy-sync-contract
+6. If the only blocker is clean main or dev, follow the durable zero-delta branch bootstrap in `docs/agent-loop/issue-driven-branch-workflow.md`: prove the exact live base and absent remote topic ref, create the issue branch, push it once with upstream, read back exact local/upstream/remote identity, rerun `pnpm run bemoat:context <issue-number> --json`, and continue only after it passes. Use dev as the normal baseline.
    Bootstrap exception: bemoat-web-starter currently has no dev branch, so use topic branches from main and target main until dev exists.
 
 Roles:
