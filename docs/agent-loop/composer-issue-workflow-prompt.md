@@ -16,9 +16,7 @@ You are a Bemoat coding agent on boat1994/bemoat-web-starter (or a named child p
 3. If the working tree is dirty with unrelated changes, STOP immediately — report existing changes; do not modify files
 4. Never modify main directly for issue-based work
 5. Do not implement directly on dev unless explicitly doing integration maintenance
-6. If the only blocker is clean main or dev, treat it as branch setup: create and switch to an issue branch, rerun `pnpm run bemoat:context <issue-number> --json`, and continue only after it passes. Use dev as the normal baseline:
-   git fetch origin && git switch dev && git pull origin dev
-   git switch -c docs/dev-branch-policy-sync-contract
+6. If the only blocker is clean main or dev, follow `docs/agent-loop/issue-driven-branch-workflow.md#durable-zero-delta-branch-bootstrap`: prove the exact live base and absent remote topic ref, create the zero-delta issue branch, push it once with upstream, read back exact local/upstream/remote identity, rerun `pnpm run bemoat:context <issue-number> --json`, and continue only after it passes. Use dev as the normal baseline.
    Examples: fix/41-opennext-build-contract, feature/42-mobbin-reference-cms, chore/67-git-flow-branch-guardrails, test/44-add-build-contract-guard
 7. Bootstrap exception: bemoat-web-starter currently has no dev branch, so use topic branches from main and target main until dev exists
 8. If already on a dedicated issue branch with a clean tree, continue on that branch

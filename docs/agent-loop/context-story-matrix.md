@@ -12,6 +12,7 @@ map, not a new state machine, routing configuration, or test DSL.
 | Routing is a pure function of current native GitHub/Git evidence. | Issue #410 deterministic route contract | No prior legacy workflow state, receipt, counter, or session memory selects a route. |
 | Required evidence is exact and fail-closed. | Issue #410 generic safety contract | Missing, malformed, stale, conflicting, unavailable, or ambiguous evidence routes `STOP` or keeps an unsatisfied review gate. |
 | Non-terminal continuation requires durable local work. | Issue #410 portability contract | Dirty, detached, unpushed, local-only, or wrong-repository work routes `STOP`. |
+| First-time issue-branch identity is durable before non-terminal Context continuation. | Merged policy v1.3.0 durability rule plus Issue #410 portability contract | Branch setup publishes and reads back an exact zero-delta topic ref before Context can route `IMPLEMENT`; Context does not perform the mutation. |
 | Terminal merge evidence is authoritative. | Issue #410 plus merged Issue #423 / PR #424 behavior | A valid `MERGED` PR with a valid merge commit can route `COMPLETE` despite a historical base or irrelevant local checkout. |
 | Active PR evidence uses the live protected base and exact head. | Issue #410 exact-identity contract | An open PR with a stale/wrong base or stale head evidence cannot continue silently. |
 | A stale active PR may receive one bounded deterministic continuation without a per-incident Founder gate. | Founder decision on Issue #427 comment 5414458566 | `bemoat:context:sync-base` may synchronize protected `main` into the same PR branch only when live identity, ancestry, scope, and local durability remain exact; every ambiguity remains `STOP`. |
@@ -23,6 +24,7 @@ map, not a new state machine, routing configuration, or test DSL.
 | Story | Risk interaction | Expected route | Baseline class | Coverage |
 | --- | --- | --- | --- | --- |
 | Open Issue, no PR, durable topic branch | PR absence × local durability | `IMPLEMENT` | B | `context-router.int.spec.ts`: clean durable work without a PR |
+| Clean starter `main` or child integration `dev` → absent topic ref → zero-delta publish/readback → Context | base identity × branch absence × remote durability | `IMPLEMENT` only after exact durable readback; otherwise `STOP` | B (`MISSING_COVERAGE`) | `issue-branch-bootstrap.int.spec.ts`: starter/child lifecycle, non-durable siblings, mutation-free readback |
 | Open active PR, pending exact-head CI | current base/head × CI pending | `VERIFY` | B | `context-router.int.spec.ts`: incomplete exact-head checks |
 | Open active PR, failed exact-head CI | current base/head × CI failure | `FIX` | B | `context-router.int.spec.ts`: failed exact-head checks |
 | Open active PR, green CI, missing semantic review | STANDARD profile × review absence | `REVIEW` | B | semantic review policy cases |
@@ -46,7 +48,10 @@ production change.
 
 ## Lifecycle transitions
 
-1. No PR → durable topic work → `IMPLEMENT`.
+1. No PR → durable topic work → `IMPLEMENT`. For a first-time branch,
+   “durable topic work” begins only after the zero-delta branch ref is
+   published and exact local/upstream/remote/base identity is read back.
+   Creating a local-only branch remains `STOP`.
 2. Active current-base PR → pending CI `VERIFY` → failed CI `FIX`, or green CI
    with missing review `REVIEW` → clean exact-head review `FOUNDER_GATE`.
 3. Exact-head blocking review → bounded `FIX`.

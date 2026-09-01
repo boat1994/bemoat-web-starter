@@ -194,9 +194,11 @@ pnpm run bemoat:context <issue-number>
 If the blocker is a dirty working tree, unrelated repo state, a failed git
 command, or anything that risks overwriting human work, report the blocker and
 do not edit files. If the only blocker is a clean protected or integration
-branch, treat it as branch setup: create an issue-related topic branch, rerun
-`pnpm run bemoat:context <issue-number>`, and continue only after the
-preflight passes.
+branch, treat it as branch setup: follow the
+[durable zero-delta branch bootstrap](docs/agent-loop/issue-driven-branch-workflow.md#durable-zero-delta-branch-bootstrap)
+to create, publish, and read back the issue-related topic branch, then rerun
+`pnpm run bemoat:context <issue-number>`. A local-only branch is not durable
+and must remain fail-closed.
 
 1. Read the issue or task, `AGENTS.md`, and `docs/agent-loop/README.md`.
 2. Run `git status` and confirm the current branch.
@@ -204,8 +206,8 @@ preflight passes.
    changes.
 4. Never modify `main` directly.
 5. Do not implement routine work directly on `dev`.
-6. If on a clean `main` or `dev`, create a dedicated issue branch before
-   editing, then rerun the issue preflight.
+6. If on a clean `main` or `dev`, complete the durable zero-delta branch
+   bootstrap before editing, then rerun the issue preflight.
 
 Branch naming:
 

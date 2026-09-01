@@ -76,6 +76,10 @@ exact-head CI remain the durable evidence for review.
 - [ ] **`git status` run**; current branch confirmed
 - [ ] **Working tree clean** (or stop and report unrelated dirty changes — no file edits)
 - [ ] **Not on `main` or routine-coding on `dev`** for issue-based work — dedicated issue branch created first ([issue-driven-branch-workflow.md](./issue-driven-branch-workflow.md))
+- [ ] **First-time issue branch is durable before Context rerun** — exact
+      zero-delta local/upstream/remote/base identity was published and read
+      back through the canonical bootstrap; local-only or conflicting state
+      remains `STOP`
 - [ ] Issue branch follows `<type>/<issue-number>-<short-slug>` (e.g. `fix/41-opennext-build-contract`)
 - [ ] Branch created from current `dev` when starting fresh, or from the
       documented bootstrap baseline if the repo has no `dev` branch yet

@@ -48,11 +48,13 @@ Discovery of `--help --json` precedes command execution.
 
 Users do not need to repeat branch, check, commit, push, or PR steps in every message. Provide the task (or a GitHub issue); agents read `AGENTS.md` and this folder, then run the [Default Agent Workflow](../../AGENTS.md#default-agent-workflow) automatically unless you override it.
 
-For issue-based work, agents pause once after branch setup and a passing issue
-preflight: they summarize the issue goal, intended scope, out-of-scope work,
-files or areas to inspect, expected validation, and notable risks or
-assumptions. They must wait for an explicit human trigger such as `proceed`,
-`continue`, `start dev`, `เริ่มได้`, or `dev ได้` before editing files.
+For issue-based work, first-time branch setup must publish and read back the
+zero-delta topic ref using the canonical durable bootstrap before the passing
+issue preflight. Agents then pause once: they summarize the issue goal,
+intended scope, out-of-scope work, files or areas to inspect, expected
+validation, and notable risks or assumptions. They must wait for an explicit
+human trigger such as `proceed`, `continue`, `start dev`, `เริ่มได้`, or
+`dev ได้` before editing files.
 
 After that trigger, agents **must complete the applicable branch-to-PR workflow** by default — implement, check, commit, push, audit acceptance criteria, open PR, and, when required by the workflow profile or an applicable review gate, publish a HANDOFF on the source issue with `bemoat:handoff` — without stopping after implementation or asking permission to commit/push/open PR/comment. FAST work without an applicable review or handoff gate may omit HANDOFF. See [GitHub Workflow](../../AGENTS.md#github-workflow) and [Handoff Protocol](../../AGENTS.md#handoff-protocol) for stop conditions.
 
@@ -67,8 +69,8 @@ task → read AGENTS.md + agent-loop → git status & issue branch → intent ch
 | Step | What happens |
 |------|----------------|
 | **Task** | User gives a short prompt or GitHub issue. Scope, allowed files, and risks may also live in the [agent-task](../../.github/ISSUE_TEMPLATE/agent-task.yml) template. |
-| **Branch gates** | `git status`; stop if dirty; never work on `main` or routine-code on `dev`; if the only blocker is a clean protected or integration branch, create `<type>/<issue-number>-<short-slug>` and rerun issue preflight. See [issue-driven-branch-workflow.md](./issue-driven-branch-workflow.md) and [Git Flow guardrails](../workflow/git-flow.md). |
-| **Branch** | Short-lived dedicated issue branch from `dev`; use the safest protected baseline only while the repo has no `dev` branch. Naming convention documented in [issue-driven-branch-workflow.md](./issue-driven-branch-workflow.md). |
+| **Branch gates** | `git status`; stop if dirty; never work on `main` or routine-code on `dev`; if the only blocker is a clean protected or integration branch, complete the [durable zero-delta branch bootstrap](./issue-driven-branch-workflow.md#durable-zero-delta-branch-bootstrap) and rerun issue preflight. |
+| **Branch** | Short-lived dedicated issue branch from `dev`; use the safest protected baseline only while the repo has no `dev` branch. First-time setup publishes and reads back the zero-delta topic ref before Context continuation. |
 | **Intent checkpoint** | After branch setup and a passing issue preflight, summarize issue goal, intended scope, out-of-scope work, files or areas to inspect, expected validation, and risks or assumptions. Wait for an explicit human trigger before editing. |
 | **Edit** | Follow `AGENTS.md`, allowed paths, and [checklist.md](./checklist.md). Smallest complete change. |
 | **Test** | Run the validation tier from `AGENTS.md`. In the starter, use the raw starter scripts such as `guard:safety` / `check`; in child projects, default to `bemoat:*` harness scripts and child-owned code checks. |

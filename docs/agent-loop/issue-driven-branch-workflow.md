@@ -22,9 +22,10 @@ pnpm run bemoat:context <issue-number>
 If the blocker is a dirty working tree, unrelated repo state, a failed git
 command, or anything that risks overwriting human work, report the blocker and
 do not edit files. If the only blocker is a clean protected or integration
-branch, treat it as branch setup: create an issue-related topic branch, rerun
-`pnpm run bemoat:context <issue-number>`, and continue only after the
-preflight passes.
+branch, treat it as branch setup: complete the
+[durable zero-delta branch bootstrap](#durable-zero-delta-branch-bootstrap),
+rerun `pnpm run bemoat:context <issue-number>`, and continue only after the
+preflight passes. Creating a local-only branch is not sufficient.
 
 Run these in order. **Stop and report** if a hard blocker fails; do not modify
 files until branch setup is complete and preflight passes.
@@ -34,7 +35,10 @@ files until branch setup is complete and preflight passes.
 3. **Dirty working tree** — if there are uncommitted changes (staged or unstaged) or untracked files that are not part of the task, **stop immediately**. Report what is already changed. Do not stash, reset, or edit over unrelated work.
 4. **Never modify `main` directly** — no commits, file edits, or pushes on `main` for issue-based work.
 5. **Do not implement directly on `dev`** — stop before routine coding unless the task is explicitly integration maintenance.
-6. **Create an issue branch when on a clean `main` or `dev`** — after a clean tree, create and switch to a dedicated branch from `dev` before the first file change, then rerun the issue preflight.
+6. **Bootstrap an issue branch when on a clean `main` or `dev`** — after a
+   clean tree, create, publish, and read back a zero-delta dedicated branch
+   from the exact live base before the first file change, then rerun the issue
+   preflight.
 
 If you are already on a dedicated issue branch with a clean tree (or only task-intentional changes), continue on that branch.
 
@@ -57,16 +61,85 @@ If you are already on a dedicated issue branch with a clean tree (or only task-i
 - `chore/67-git-flow-branch-guardrails`
 - `test/44-add-build-contract-guard`
 
-Create the branch from latest `dev`:
+Use current live `dev` as the base where it exists. If a repository has not
+created `dev` yet, follow the bootstrap note in [Git Flow
+guardrails](../workflow/git-flow.md) and call out the temporary exception in
+the PR. This starter currently has no `dev` branch, so use current live `main`
+and target `main` as the bootstrap exception. In either case, do not use a
+local-only branch-creation sequence; use the durable bootstrap below.
+
+## Durable zero-delta branch bootstrap
+
+This is the only branch-setup exception permitted before a passing Context
+preflight. It publishes branch identity; it does not publish implementation
+work. Context remains strictly read-only. No registered `bemoat:*` command
+owns first-time branch creation or publication, so this procedure is the
+explicitly bounded native Git mutation boundary.
+
+The bootstrap is eligible only when all of the following are proven before
+mutation:
+
+- the checkout is attached, clean, and contains no staged, unstaged, or
+  untracked work;
+- `origin` is the canonical repository;
+- local `HEAD` equals the exact live protected or integration base SHA chosen
+  by repository policy (`dev` normally, or `main` for this starter while its
+  documented exception applies);
+- the local topic branch must be absent;
+- the topic name follows `<type>/<issue-number>-<short-slug>`; and
+- the remote topic branch must be absent. If it already exists, do not guess
+  ownership or overwrite it; stop and reconstruct the existing branch state.
+
+Resolve and record the exact identities with read-only native Git evidence:
 
 ```bash
-git fetch origin
-git switch dev
-git pull origin dev
-git switch -c docs/dev-branch-policy-sync-contract
+git status --short
+git branch --show-current
+git remote get-url origin
+git rev-parse HEAD
+git branch --list <topic-branch>
+git ls-remote --heads origin refs/heads/<base-branch> refs/heads/<topic-branch>
 ```
 
-If a repository has not created `dev` yet, follow the bootstrap note in [Git Flow guardrails](../workflow/git-flow.md) and call out the temporary exception in the PR. This starter currently has no `dev` branch, so use topic branches from `main` and target `main` as the bootstrap exception.
+The live base line must contain exactly one base ref whose 40-hex SHA matches
+local `HEAD`; the topic line must be absent. A missing, malformed, or
+ambiguous result is a `STOP` before branch creation.
+
+Only after every eligibility check passes, the mutation boundary is exactly:
+
+```bash
+git switch -c <topic-branch> <exact-base-sha>
+git push -u origin HEAD:refs/heads/<topic-branch>
+```
+
+Do not create an empty commit. Do not force-push, delete, reset, stash, edit a
+file, or reuse a conflicting remote branch as part of bootstrap.
+
+Immediately read back the result:
+
+```bash
+git status --short
+git branch --show-current
+git rev-parse HEAD
+git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}'
+git rev-parse '@{upstream}'
+git ls-remote --heads origin refs/heads/<base-branch> refs/heads/<topic-branch>
+```
+
+The readback must contain exactly one live base ref still matching the chosen
+base SHA and exactly one topic ref matching local `HEAD` and
+`@{upstream}`. The upstream name must be `origin/<topic-branch>`; any missing,
+malformed, conflicting, or ambiguous result is a `STOP`.
+
+Continuation is allowed only when the worktree is still clean, the branch and
+upstream names are exact, and local HEAD, upstream HEAD, the live remote topic
+branch HEAD, and the exact protected or integration base SHA read back from
+the live base ref are identical. Any command failure, concurrent branch
+creation, identity mismatch, conflicting remote head, or readback ambiguity is
+a `STOP`: perform no file edit and do not rerun Context as if bootstrap
+succeeded. On exact success, rerun the discovered public `bemoat:context`
+contract. Follow its returned route without starting work under any other
+route.
 
 ## Post-preflight implementation trigger
 
