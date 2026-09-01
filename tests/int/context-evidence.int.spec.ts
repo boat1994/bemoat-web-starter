@@ -387,7 +387,7 @@ describe('bemoat:context neutral evidence adapters', () => {
     expect(evidence.activePrs[0].number).toBe('413')
   })
 
-  it('does not expose historical merged PRs as active candidates for an OPEN Issue', () => {
+  it('exposes multiple historical merged PRs as active candidates for an OPEN Issue to allow fail-closed routing', () => {
     const run: ContextCommandRunner = (_command, args) => {
       const key = args.join(' ')
       if (key.startsWith('issue view 434')) {
@@ -403,10 +403,10 @@ describe('bemoat:context neutral evidence adapters', () => {
       return response('')
     }
 
-    expect(readGithubEvidence({ cwd: '/repo', repo: 'boat1994/bemoat-web-starter', issueNumber: '434', branch: 'fix/434-ignore-historical-merged-prs', run })).toMatchObject({ activePrs: [], errors: [] })
+    expect(readGithubEvidence({ cwd: '/repo', repo: 'boat1994/bemoat-web-starter', issueNumber: '434', branch: 'fix/434-ignore-historical-merged-prs', run }).activePrs.length).toBe(3)
   })
 
-  it('does not expose one historical merged PR as active for an OPEN Issue', () => {
+  it('exposes one unique historical merged PR as active for an OPEN Issue (Issue #465 reproduction)', () => {
     const run: ContextCommandRunner = (_command, args) => {
       const key = args.join(' ')
       if (key.startsWith('issue view 434')) return response(JSON.stringify({ number: 434, title: 'ignore historical merged PRs', state: 'OPEN', url: 'https://github.com/boat1994/bemoat-web-starter/issues/434', body: '# body', comments: [] }))
@@ -416,7 +416,7 @@ describe('bemoat:context neutral evidence adapters', () => {
       return response('')
     }
 
-    expect(readGithubEvidence({ cwd: '/repo', repo: 'boat1994/bemoat-web-starter', issueNumber: '434', branch: 'fix/434-ignore-historical-merged-prs', run }).activePrs).toEqual([])
+    expect(readGithubEvidence({ cwd: '/repo', repo: 'boat1994/bemoat-web-starter', issueNumber: '434', branch: 'fix/434-ignore-historical-merged-prs', run }).activePrs).toMatchObject([{ number: '431' }])
   })
 
   it('selects the sole unmerged PR when historical merged PRs are also present', () => {
