@@ -910,6 +910,27 @@ describe('bemoat:context pure routing', () => {
     expect(decision.route).toBe('COMPLETE')
   })
 
+  it('routes terminal merged PR as COMPLETE despite local protected branch checkout (Issue #465 reproduction)', () => {
+    const decision = routeContext(baseEvidence({
+      issue: { ...baseEvidence().issue, state: 'OPEN' },
+      localGit: {
+        ...baseEvidence().localGit,
+        branch: 'main',
+      },
+      activePr: prEvidence({
+        state: 'MERGED',
+        merged: true,
+        baseSha: sha,
+        mergeCommitSha: 'd'.repeat(40),
+      }),
+      currentHeadVerification: verification({
+        reviews: { required: true, approved: true, exactHead: true },
+      }),
+    }))
+
+    expect(decision.route).toBe('COMPLETE')
+  })
+
   it('fails closed when OPEN state contradicts merge-commit evidence instead of routing COMPLETE', () => {
     const decision = routeContext(baseEvidence({
       issue: { ...baseEvidence().issue, state: 'OPEN' },
