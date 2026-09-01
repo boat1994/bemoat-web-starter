@@ -29,9 +29,20 @@ describe('toolchain contract', () => {
     expect(contract.compiler.childStrictNullChecks).toBe(true)
     expect(contract.compiler.harnessRoots).toContain('scripts/context/**/*.ts')
     expect(contract.compiler.harnessRoots).toContain('scripts/guards/legacy-managed-state.ts')
-    expect(JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf8')).scripts.typecheck)
+    expect(JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf8')).scripts['bemoat:typecheck'])
       .toBe('node scripts/bemoat-typecheck.ts')
     expect(mod.scanToolchainContract()).toEqual([])
+  })
+
+  it('permits a legitimate child-owned root typecheck command', async () => {
+    const mod = guard
+    const packageJSON = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf8'))
+    packageJSON.scripts.typecheck = 'svelte-check && pnpm run bemoat:typecheck'
+
+    expect(mod.scanToolchainContract({
+      root: process.cwd(),
+      readFile: (path: string) => path === resolve(process.cwd(), 'package.json') ? JSON.stringify(packageJSON) : readFileSync(path, 'utf8'),
+    })).toEqual([])
   })
 
   it('fails closed when a required harness root is omitted', async () => {

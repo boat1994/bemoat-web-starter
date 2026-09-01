@@ -89,8 +89,8 @@ superseded path only after consumers move.
 These three files are `OUTSIDE-HARNESS` for Issue #429:
 
 - `eslint.config.mjs` is tool configuration owned by ESLint.
-- `scripts/build.mjs` is application/build-contract tooling.
-- `scripts/deploy-smoke-test.mjs` is deployment verification tooling.
+- `scripts/build.ts` is application/build-contract tooling.
+- `scripts/deploy-smoke-test.ts` is deployment verification tooling.
 
 Their sync availability does not make them part of the stateless protocol or
 generic harness-safety executable surface. They remain explicit follow-up

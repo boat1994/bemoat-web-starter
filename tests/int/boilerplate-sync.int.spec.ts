@@ -212,7 +212,7 @@ describe('boilerplate sync managed paths', () => {
       'docs/boilerplate-sync-command.md',
       'scripts/guards/repo-safety.ts',
       'scripts/guards/build-script-contract.ts',
-      'scripts/build.mjs',
+      'scripts/build.ts',
       'scripts/guard-cloudflare-env.ts',
       'scripts/guards/toolchain-contract.ts',
       'scripts/bemoat-typecheck.ts',
@@ -474,7 +474,7 @@ describe('boilerplate sync managed paths', () => {
     expect(result.packageJSON.scripts['deploy:dev']).toBe(starterPackage.scripts['deploy:dev'])
     expect(result.packageJSON.scripts['deploy:database']).toContain('PAYLOAD_MIGRATE_REMOTE=true')
     expect(result.packageJSON.scripts.preview).toBe(starterPackage.scripts.preview)
-    expect(result.packageJSON.scripts.build).toContain('scripts/build.mjs')
+    expect(result.packageJSON.scripts.build).toContain('scripts/build.ts')
     expect(result.packageJSON.scripts.build).not.toContain('opennextjs-cloudflare build')
     expect(result.packageJSON.scripts.check).toBe('pnpm run custom-check')
   })

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 describe('build wrapper', () => {
   it('routes top-level builds to build:cloudflare', async () => {
-    const mod = await import('../../scripts/build.mjs')
+    const mod = await import('../../scripts/build.ts')
 
     expect(mod.resolveBuildScript({ ...process.env, BEMOAT_BUILD_CONTEXT: undefined })).toBe(
       'build:cloudflare',
@@ -13,7 +13,7 @@ describe('build wrapper', () => {
   })
 
   it('routes OpenNext re-entry to build:next', async () => {
-    const mod = await import('../../scripts/build.mjs')
+    const mod = await import('../../scripts/build.ts')
 
     expect(
       mod.resolveBuildScript({ ...process.env, BEMOAT_BUILD_CONTEXT: 'opennext-next-build' }),

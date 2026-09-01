@@ -118,18 +118,32 @@ describe('central guard pack', () => {
     })
     expect(trackedMjsResult.status).toBe(0)
     const trackedMjs = trackedMjsResult.stdout.trim().split('\n').filter(Boolean)
-    expect(trackedMjs).toEqual([
-      'eslint.config.mjs',
-      'scripts/build.mjs',
-      'scripts/deploy-smoke-test.mjs',
-    ])
-    expect(syncMod.managedPaths.filter((path: string) => path.endsWith('.mjs'))).toEqual([
-      'scripts/deploy-smoke-test.mjs',
-      'scripts/build.mjs',
-    ])
-    expect(trackedMjs.filter((path) => !syncMod.managedPaths.includes(path))).toEqual([
-      'eslint.config.mjs',
-    ])
+
+    // 1. Simulate a child project's tracked .mjs files, including real starter inventory
+    const childShapedMjs = [
+      ...trackedMjs,
+      'src/child-owned.mjs',
+      'tests/child-test.mjs',
+    ]
+
+    const expectedManaged: string[] = []
+    expect(syncMod.managedPaths.filter((path: string) => path.endsWith('.mjs'))).toEqual(expectedManaged)
+
+    // 2. Identify active managed harness roots
+    const harnessRoots = ['scripts/', 'tests/int/', '.github/', '.bemoat/']
+
+    // 3. Invariant: no retired/forbidden managed harness .mjs residue in harness roots
+    const actualHarnessMjs = childShapedMjs.filter((path) =>
+      harnessRoots.some((root) => path.startsWith(root))
+    )
+    expect(actualHarnessMjs.sort()).toEqual(expectedManaged.sort())
+
+    // 4. Negative case: ensure retired residue is still rejected
+    const brokenChildMjs = [...childShapedMjs, 'scripts/context.mjs']
+    const brokenHarnessMjs = brokenChildMjs.filter((path) =>
+      harnessRoots.some((root) => path.startsWith(root))
+    )
+    expect(brokenHarnessMjs.sort()).not.toEqual(expectedManaged.sort())
     expect(syncMod.managedPaths).toContain('docs/guard-pack.md')
     expect(syncMod.managedPackageScripts).toContain('bemoat:guard:pack')
   })

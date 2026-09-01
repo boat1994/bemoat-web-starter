@@ -32,9 +32,9 @@
       "migration_status": "migrated"
     },
     {
-      "path": "scripts/build.mjs",
+      "path": "scripts/build.ts",
       "facade_disposition": "tooling_entrypoint",
-      "internal_destination": "scripts/tooling/build.mjs",
+      "internal_destination": "scripts/tooling/build.ts",
       "owning_slice": 7,
       "migration_status": "retained"
     },
@@ -53,9 +53,9 @@
       "migration_status": "retained"
     },
     {
-      "path": "scripts/deploy-smoke-test.mjs",
+      "path": "scripts/deploy-smoke-test.ts",
       "facade_disposition": "tooling_entrypoint",
-      "internal_destination": "scripts/tooling/deploy-smoke-test.mjs",
+      "internal_destination": "scripts/tooling/deploy-smoke-test.ts",
       "owning_slice": 7,
       "migration_status": "retained"
     },

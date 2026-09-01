@@ -59,7 +59,7 @@ describe('build script contract guard', () => {
 
     const violations = mod.scanBuildScriptContract(
       {
-        build: 'node scripts/build.mjs',
+        build: 'node scripts/build.ts',
         'build:next': 'pnpm exec next build',
         'build:cloudflare': 'pnpm exec opennextjs-cloudflare build',
         'cf:build': 'pnpm run build',
@@ -129,7 +129,7 @@ describe('build script contract guard', () => {
     const syncMod = await import('../../scripts/sync-boilerplate.ts')
 
     expect(syncMod.managedPaths).toContain('scripts/guards/build-script-contract.ts')
-    expect(syncMod.managedPaths).toContain('scripts/build.mjs')
+    expect(syncMod.managedPaths).toContain('scripts/build.ts')
     expect(syncMod.managedPaths).toContain('tests/int/build-script-contract-guard.int.spec.ts')
     expect(syncMod.managedPaths).toContain('tests/int/build-wrapper.int.spec.ts')
   })

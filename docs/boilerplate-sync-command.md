@@ -50,9 +50,9 @@ Child projects stuck on the recursive OpenNext `build` script can apply the star
 pnpm run bemoat:boilerplate:sync -- --harness-only --apply-build-contract
 ```
 
-This **overwrites** these child-owned scripts from the starter `package.json`, syncs `scripts/build.mjs`, and applies build-contract files:
+This **overwrites** these child-owned scripts from the starter `package.json`, syncs `scripts/build.ts`, and applies build-contract files:
 
-- `build` — context-aware wrapper (`node scripts/build.mjs`) that runs OpenNext at the top level
+- `build` — context-aware wrapper (`node scripts/build.ts`) that runs OpenNext at the top level
 - `build:next` — plain Next.js `next build` for OpenNext re-entry
 - `build:cloudflare` — OpenNext Cloudflare build
 - `cf:build` — compatibility alias to `pnpm run build`
@@ -97,7 +97,7 @@ Starter modules are **not** harness. Use `harness-only` when the child project a
 - `.cursor/rules/*` workflow instructions and Cursor rule files
 - `.github/workflows/ci.yml`, PR template, and agent issue template (child-safe CI: `bemoat:guard:safety`, `bemoat:test:int` only)
 - `docs/agent-loop/*`, `docs/hardening.md`, `docs/releases.md`, `docs/deploy-smoke-test.md`, `docs/cloudflare-environments.md`, `docs/schema-evolution.md`
-- `scripts/sync-boilerplate.ts`, `scripts/check-boilerplate-drift.ts`, `scripts/deploy-smoke-test.mjs`
+- `scripts/sync-boilerplate.ts`, `scripts/check-boilerplate-drift.ts`, `scripts/deploy-smoke-test.ts`
 - `scripts/guards/repo-safety.ts`, `scripts/guard-cloudflare-env.ts`, `scripts/install-git-hooks.ts`
 - `.githooks/pre-commit` and `.githooks/pre-push` (optional local branch safety and pre-push harness)
 - `vitest.config.mts`, `vitest.setup.ts`, and shared harness tests under `tests/int/`:
@@ -132,7 +132,7 @@ running `pnpm run bemoat:typecheck`.
 pnpm run bemoat:boilerplate:sync -- --harness-only --apply-build-contract
 ```
 
-Overwrites `build`, `build:next`, `build:cloudflare`, `cf:build`, `deploy:app`, and `preview` from the starter, syncs `scripts/build.mjs`, and applies `open-next.config.ts` from `buildContractFilePaths`. Use when fixing the recursive OpenNext build loop in child projects. All other non-namespaced scripts remain proposal-only.
+Overwrites `build`, `build:next`, `build:cloudflare`, `cf:build`, `deploy:app`, and `preview` from the starter, syncs `scripts/build.ts`, and applies `open-next.config.ts` from `buildContractFilePaths`. Use when fixing the recursive OpenNext build loop in child projects. All other non-namespaced scripts remain proposal-only.
 
 **Build contract files** (`buildContractFilePaths` in `scripts/sync-boilerplate.ts`):
 

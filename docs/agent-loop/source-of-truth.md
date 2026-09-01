@@ -64,7 +64,7 @@ These paths are overwritten on every sync:
 | `scripts/sync-boilerplate.ts` | Sync script and path lists |
 | `scripts/check-boilerplate-drift.ts` | Read-only drift check before sync |
 | `.bemoat/boilerplate-sync-manifest.json` | Source-of-truth sync config read from cloned starter (one-run managed path discovery) |
-| `scripts/deploy-smoke-test.mjs` | Optional deploy smoke test helper |
+| `scripts/deploy-smoke-test.ts` | Optional deploy smoke test helper |
 | `scripts/guards/repo-safety.ts` | Repository safety guard (secrets, resource IDs, destructive migrations) |
 | `scripts/guard-cloudflare-env.ts` | Cloudflare deploy environment guard (blocks unsafe prod deploys) |
 | `scripts/check-branch-safety.sh` | Git Flow branch safety check for hooks and manual use |
