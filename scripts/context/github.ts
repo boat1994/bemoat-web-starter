@@ -184,12 +184,14 @@ function checkEvidence(statusChecks: unknown, requiredChecks: string[]): HeadVer
     required: requiredChecks.length > 0,
   }
 }
+const extractDatabaseId = (url: string | null | undefined) => url ? (url.match(/#(?:issuecomment|pullrequestreview)-(\d+)$/i)?.[1] ?? null) : null
+
 function reviewEvidence(value: unknown): NativeReviewEvidence {
-  const record = isRecord(value) ? value : {}, rawId = record.id ?? record.databaseId ?? record.database_id ?? record.node_id
+  const record = isRecord(value) ? value : {}, url = typeof record.url === 'string' ? record.url : null
+  const rawId = extractDatabaseId(url) ?? record.id ?? record.databaseId ?? record.database_id ?? record.node_id
   const id = typeof rawId === 'string' || (typeof rawId === 'number' && Number.isSafeInteger(rawId)) ? rawId : null
   const state = typeof record.state === 'string' ? record.state : '', body = typeof record.body === 'string' ? record.body : '', rawCommitId = record.commitId ?? record.commit_id ?? (isRecord(record.commit) ? record.commit.oid : null)
-  const commitId = typeof rawCommitId === 'string' && rawCommitId.trim() ? rawCommitId : null
-  return { id, state, body, commitId }
+  return { id, state, body, commitId: typeof rawCommitId === 'string' && rawCommitId.trim() ? rawCommitId : null }
 }
 function reviewCounts(reviews: unknown[], headSha: string): { approvedCount: number; exactHeadApprovedCount: number; nativeReviews: NativeReviewEvidence[] } {
   const latest = new Map<string, { approved: boolean; exactHead: boolean }>()
@@ -245,12 +247,10 @@ export function readGithubEvidence({
   const errors: string[] = []
   const issueResult = readJson<Record<string, unknown>>(run, 'gh', ['issue', 'view', issueNumber, '--repo', repo, '--json', 'number,title,state,url,body,comments'], { cwd, env })
   const issuePayload = issueResult.value
-  const comments: RoleEvidence[] = Array.isArray(issuePayload?.comments) ? issuePayload.comments.filter(isRecord).map((comment) => ({
-    id: (comment.id as string | number | undefined) ?? '',
-    body: String(comment.body ?? ''),
-    createdAt: String(comment.createdAt ?? ''),
-    url: String(comment.url ?? ''),
-  })) : []
+  const comments: RoleEvidence[] = Array.isArray(issuePayload?.comments) ? issuePayload.comments.filter(isRecord).map((comment) => {
+    const url = String(comment.url ?? '')
+    return { id: extractDatabaseId(url) ?? (comment.id as string | number | undefined) ?? '', body: String(comment.body ?? ''), createdAt: String(comment.createdAt ?? ''), url }
+  }) : []
 
   let issue: IssueEvidence | null = null
   if (!issuePayload) {
