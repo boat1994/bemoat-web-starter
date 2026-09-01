@@ -289,7 +289,7 @@ export function routeContext(evidence: NormalizedContextEvidence): ContextDecisi
     let malformedEvidence = false
     let conflictingLiveHeadEvidence = false
 
-    console.log('CV:', currentHeadVerdicts); const validVerdicts = currentHeadVerdicts.filter(v => v.valid)
+    const validVerdicts = currentHeadVerdicts.filter(v => v.valid)
     const malformedVerdicts = currentHeadVerdicts.filter(v => !v.valid)
     const supersededIds = new Set<string>()
 
