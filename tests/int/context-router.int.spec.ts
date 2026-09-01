@@ -1096,6 +1096,8 @@ describe('bemoat:context pure routing', () => {
     expect(decision.route).toBe('COMPLETE')
   })
 
+
+
   it('fails closed when OPEN state contradicts merge-commit evidence instead of routing COMPLETE', () => {
     const decision = routeContext(baseEvidence({
       issue: { ...baseEvidence().issue, state: 'OPEN' },

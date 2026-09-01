@@ -160,7 +160,7 @@ export function routeContext(evidence: NormalizedContextEvidence): ContextDecisi
     })
   }
 
-  if (isProtectedOrIntegrationBranch(evidence.localGit.branch)) {
+  if (!mergedPr && isProtectedOrIntegrationBranch(evidence.localGit.branch)) {
     return decision(evidence, 'STOP', [
       'EVIDENCE_CONFLICT: protected or integration branch cannot route IMPLEMENT',
     ], {
