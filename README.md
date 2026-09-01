@@ -2,11 +2,11 @@
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/boat1994/bemoat-web-starter)
 
-Bemoat Web Starter is a reusable, production-ready web foundation and AI-agent development harness. It provides a complete, modern technology stack deployed to the edge, paired with rigorous agent-coordination rails (Mission Control) to build, review, and evolve real products safely.
+Bemoat Web Starter is a reusable, production-ready web foundation and AI-agent development harness. It provides a modern technology stack deployed to the edge, paired with rigorous agent-coordination rails (Mission Control) to build, review, and evolve real products safely.
 
 ## The Problem It Solves
 
-Building and maintaining real-world applications with AI agents often degrades into fragile, unreviewed code, state conflicts, or prompt drift. Bemoat solves this by separating the immutable **starter harness** (which provides workflow rails, schema, CI, and safety guards) from the **child project** (which owns the business logic and cloud resources). 
+Building and maintaining real-world applications with AI agents often degrades into fragile, unreviewed code, state conflicts, or prompt drift. Bemoat solves this by cleanly separating the immutable **starter harness** (which provides workflow rails, schema, CI, and safety guards) from the **child project** (which owns the business logic and cloud resources). 
 
 With Bemoat, you can:
 - **Build faster:** Start with a fully-configured CMS, database, and frontend.
@@ -18,14 +18,24 @@ With Bemoat, you can:
 Bemoat is built on a scalable, edge-native stack:
 - **Payload 3 CMS:** A headless TypeScript CMS backed by Cloudflare D1 (SQLite at the edge) and Cloudflare R2 (object storage).
 - **Next.js App Router:** A React frontend deployed through OpenNext on Cloudflare Workers.
-- **Core Modules Included:** Pre-built project and blog CMS modules, site globals, and Thai/English localization out of the box.
 
-## The Bemoat Agent & Mission Control Harness
+### What's Included
 
-Bemoat is designed for AI-driven development. It embeds a complete workflow harness directly in the repository:
-- **Mission Control Coordination:** Bounded tasks, deterministic role handoffs (Dev, Reviewer, Founder), and strict review cycles to prevent infinite agent loops.
+Out of the box, the starter provides:
+- **Core CMS:** Users, Media, BlogMedia, Projects, Categories, Tags, Posts, BlogCategories.
+- **Globals:** SiteSettings, CustomOrderPage.
+- **Localization:** Configured for Thai and English.
+- **Agent Workflow Rails:** Bemoat CLI tools, safety guards, GitHub templates, and CI patterns built in.
+- **Cloudflare Edge Infrastructure:** Pre-configured for deployment with robust `.env` secrets generation and D1 migrations.
+
+## AI Agent & Mission Control Workflow
+
+Bemoat is designed for AI-driven development. It embeds a complete workflow harness directly in the repository to prevent infinite agent loops and ensure safe execution:
+
+- **Mission Control Coordination:** Uses bounded tasks, strict review cycles, and deterministic role handoffs (Dev, Reviewer, Founder).
 - **Durable GitHub State:** The single source of truth is GitHub (issues, PRs, comments), not chat memory.
-- **Safety Rails & CI:** Built-in repository safety guards, Cloudflare environment guards, and Git Flow protections to prevent destructive operations.
+- **The Core Loop:** 
+  `Read Issue → Preflight → Summarize Intent → Await Trigger → Implement → Validate → AC Audit → PR → Handoff`
 
 ## How to Start a New Project
 
@@ -54,11 +64,43 @@ Real product repositories should start from the Cloudflare deployment, not by cl
 | `wrangler.jsonc`, D1 IDs, R2 bucket names | **Child project** | Child-owned; never overwritten |
 | `.env` files, secrets, customer logic | **Child project** | Child-owned; never overwritten |
 
-Child projects pull upstream harness updates using:
+Child projects pull upstream harness updates explicitly:
 ```bash
 pnpm run bemoat:boilerplate:sync -- --harness-only
 ```
 See [Source of Truth](docs/agent-loop/source-of-truth.md) for detailed boundaries.
+
+## Key Commands
+
+**Development & Types:**
+```bash
+pnpm dev                       # Start local dev server
+pnpm run generate:importmap    # Regenerate Payload admin components map
+pnpm run generate:types        # Regenerate Payload TypeScript definitions
+```
+
+**Build & Deploy:**
+```bash
+pnpm run build                 # Build the Next.js and Payload bundle
+pnpm run preview               # Preview the OpenNext local build
+pnpm payload migrate:create    # Generate D1 schema migrations before deploying
+pnpm run deploy                # Production deploy to Cloudflare
+pnpm run deploy:dev            # Dev-stack deploy (isolated D1/R2/Worker)
+```
+
+**Mission Control (When Applicable):**
+```bash
+pnpm run bemoat:context <issue-number>   # Reconstruct task context
+pnpm run bemoat:handoff <issue-number>   # Complete a role's work and transition state
+pnpm run bemoat:agent:issue <issue-number> # Preflight checks for an issue
+```
+
+## Validation & Safety
+
+Bemoat forces verifiable safety over implicit trust:
+- **CI / GitHub Actions:** Every PR automatically runs child-safe validation.
+- **Safety Guards:** Script-level guards (`pnpm run guard:safety`, `pnpm run guard:cloudflare-env`) block dangerous operations, like accidentally deploying to production from an unclean environment or using unapproved Cloudflare configurations.
+- **Deterministic Checklists:** Pre-push and pre-commit checks enforce Git Flow compliance.
 
 ## Detailed Operational Documentation
 
