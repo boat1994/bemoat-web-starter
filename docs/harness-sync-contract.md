@@ -153,7 +153,7 @@ Listed in `mergeKeepPaths` in `scripts/sync-boilerplate.ts`. Drift check fails w
 |----------|---------------|
 | `bemoat:*` scripts | Managed — normal sync **adds missing** namespaced scripts only; explicit legacy bootstrap may replace only exact recognized generated `.mjs` values with their matching source-authoritative `.ts` values |
 | Non-namespaced scripts (`build`, `deploy`, `preview`, `check`, `lint`, `dev`, `start`, etc.) | **Never touched by default** — drift reported in `.bemoat/package-sync-proposal.md` (human review only) |
-| Build/deploy contract (`build`, `build:next`, `build:cloudflare`, `cf:build`, `deploy`, `deploy:app`, `deploy:database`, `deploy:dev`, `preview`) | **Opt-in only** — pass `--apply-build-contract` to overwrite these scripts from the starter and sync `scripts/build.mjs` |
+| Build/deploy contract (`build`, `build:next`, `build:cloudflare`, `cf:build`, `deploy`, `deploy:app`, `deploy:database`, `deploy:dev`, `preview`) | **Opt-in only** — pass `--apply-build-contract` to overwrite these scripts from the starter and sync `scripts/build.ts` |
 | Build contract files (`open-next.config.ts`) | **Opt-in only** — applied with `--apply-build-contract` via `buildContractFilePaths`; not in `managedPaths` |
 | `src/payload.config.ts` build context | **Child-owned** — not overwritten; review manually after build contract rollout (see `src/lib/payloadBuildContext.ts`) |
 | `dependencies` / `devDependencies` | **Never touched** — drift reported in `.bemoat/package-sync-proposal.md` (human review only) |
@@ -171,7 +171,7 @@ them.
 After sync, review **`.bemoat/package-sync-proposal.md`**. Do not apply script or dependency changes automatically unless you used **`--apply-build-contract`** for the build/deploy scripts. Update `package.json` manually for other drift when desired, then run **`pnpm install`**.
 
 ```bash
-# Fix recursive OpenNext build or stale deploy scripts in child projects (overwrites build/deploy contract scripts + syncs scripts/build.mjs + open-next.config.ts)
+# Fix recursive OpenNext build or stale deploy scripts in child projects (overwrites build/deploy contract scripts + syncs scripts/build.ts + open-next.config.ts)
 pnpm run bemoat:boilerplate:sync -- --harness-only --apply-build-contract
 ```
 

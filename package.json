@@ -5,7 +5,7 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
-    "build": "cross-env NODE_OPTIONS=\"--no-deprecation --max-old-space-size=8000\" node scripts/build.mjs",
+    "build": "cross-env NODE_OPTIONS=\"--no-deprecation --max-old-space-size=8000\" node scripts/build.ts",
     "build:next": "cross-env NODE_OPTIONS=\"--no-deprecation --max-old-space-size=8000\" pnpm exec next build",
     "build:cloudflare": "cross-env NODE_OPTIONS=\"--no-deprecation --max-old-space-size=8000\" pnpm exec opennextjs-cloudflare build ${CLOUDFLARE_ENV:+--env=$CLOUDFLARE_ENV}",
     "branch:check": "bash scripts/check-branch-safety.sh",
@@ -51,7 +51,7 @@
     "bemoat:hooks:install": "node scripts/install-git-hooks.ts",
     "bemoat:test:int": "cross-env NODE_OPTIONS=--no-deprecation vitest run --config ./vitest.config.mts",
     "bemoat:typecheck": "node scripts/bemoat-typecheck.ts",
-    "smoke:deploy": "node scripts/deploy-smoke-test.mjs"
+    "smoke:deploy": "node scripts/deploy-smoke-test.ts"
   },
   "dependencies": {
     "@opennextjs/cloudflare": "^1.11.0",

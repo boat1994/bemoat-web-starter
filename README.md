@@ -207,7 +207,7 @@ Set `BEMOAT_SMOKE_BASE_URL` when running the optional smoke script.
 
 ## Troubleshooting
 
-**`Unknown command: build`** — use the universal wrapper in `scripts/build.mjs`; do not use `payload build`.
+**`Unknown command: build`** — use the universal wrapper in `scripts/build.ts`; do not use `payload build`.
 
 **Admin field component not found** — run `pnpm run generate:importmap`.
 

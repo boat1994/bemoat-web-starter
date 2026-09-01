@@ -47,7 +47,7 @@ After the build-contract fix is merged into `bemoat-web-starter`:
 pnpm run boilerplate:sync -- --harness-only --apply-build-contract
 ```
 
-This overwrites `build`, `build:next`, `build:cloudflare`, `cf:build`, `deploy:app`, and `preview` from the starter, syncs `scripts/build.mjs`, and applies `open-next.config.ts`. No manual `package.json` script edits are required for those scripts. Set the Cloudflare dashboard build command to `pnpm run build`.
+This overwrites `build`, `build:next`, `build:cloudflare`, `cf:build`, `deploy:app`, and `preview` from the starter, syncs `scripts/build.ts`, and applies `open-next.config.ts`. No manual `package.json` script edits are required for those scripts. Set the Cloudflare dashboard build command to `pnpm run build`.
 
 **Manual review after sync:** `src/payload.config.ts` is child-owned — confirm build context detection (see `src/lib/payloadBuildContext.ts`) if Cloudflare builds fail after rollout.
 

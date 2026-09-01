@@ -7,7 +7,7 @@ import {
   BUILD_CONTEXT_ENV,
   BUILD_WRAPPER_PATH,
   OPENNEXT_NEXT_BUILD_CONTEXT,
-} from '../build.mjs'
+} from '../build.ts'
 import type { FileExists, GuardViolation, PackageJson, PackageScripts, ReadTextFile } from './types.ts'
 
 export const PACKAGE_JSON_PATH = 'package.json'
@@ -248,7 +248,7 @@ export function formatBuildScriptContractViolations(violations: GuardViolation[]
   const lines = [
     'Build script contract guard failed:',
     '',
-    'scripts.build must invoke scripts/build.mjs.',
+    'scripts.build must invoke scripts/build.ts.',
     'scripts["build:next"] must run next build.',
     'scripts["build:cloudflare"] must run opennextjs-cloudflare build.',
     'scripts["cf:build"] must alias scripts.build.',

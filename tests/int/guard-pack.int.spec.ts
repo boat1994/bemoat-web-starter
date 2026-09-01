@@ -126,10 +126,7 @@ describe('central guard pack', () => {
       'tests/child-test.mjs',
     ]
 
-    const expectedManaged = [
-      'scripts/deploy-smoke-test.mjs',
-      'scripts/build.mjs',
-    ]
+    const expectedManaged: string[] = []
     expect(syncMod.managedPaths.filter((path: string) => path.endsWith('.mjs'))).toEqual(expectedManaged)
 
     // 2. Identify active managed harness roots

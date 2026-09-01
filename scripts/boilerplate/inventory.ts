@@ -20,9 +20,9 @@ export const managedPaths = [
   '.github/workflows/ci.yml', '.github/pull_request_template.md', '.github/ISSUE_TEMPLATE/agent-task.yml',
   // Harness scripts (sync, drift, guard, hooks, smoke)
   'scripts/sync-boilerplate.ts', 'scripts/boilerplate', 'scripts/boilerplate/workflows/check-boilerplate-drift.ts', 'scripts/check-boilerplate-drift.ts',
-  'scripts/deploy-smoke-test.mjs', 'scripts/guards/repo-safety.ts', 'scripts/guards/types.ts',
+  'scripts/deploy-smoke-test.ts', 'scripts/guards/repo-safety.ts', 'scripts/guards/types.ts',
   'scripts/guard-harness-contract.ts', 'scripts/harness-contract',
-  'scripts/guards/build-script-contract.ts', 'scripts/build.mjs',
+  'scripts/guards/build-script-contract.ts', 'scripts/build.ts',
   'scripts/agent-context.ts', 'scripts/agent-context-sync-base.ts', 'scripts/context', 'scripts/agent-handoff.ts', 'scripts/handoff',
   'scripts/adapters/command-runner.ts',
   'scripts/cli',

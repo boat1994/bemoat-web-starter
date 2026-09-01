@@ -32,7 +32,7 @@ paired_plan: "docs/superpowers/plans/bemoat/agent-protocol/typescript-cli-closeo
 - Use native Node TypeScript execution; add no loader, bundler, transpilation stage, or build framework.
 - Do not add stateful Mission Control machinery, protocol concepts, persistence, controllers, classes, factories, or ceremonial interfaces.
 - Delete each superseded harness `.mjs`; never retain duplicate JS/TS authority.
-- Keep `eslint.config.mjs`, `scripts/build.mjs`, and `scripts/deploy-smoke-test.mjs` unchanged and classify them as OUTSIDE-HARNESS.
+- Keep `eslint.config.mjs`, `scripts/build.ts`, and `scripts/deploy-smoke-test.ts` unchanged and classify them as OUTSIDE-HARNESS.
 - Preserve child-owned infrastructure and update the harness sync projection for every renamed managed runtime file.
 - Use test-first reproduction for missing behavior or semantic corrections; mechanical extension changes may rely on existing passing characterization.
 - Do not merge.
@@ -228,8 +228,8 @@ Expected tracked `.mjs` output:
 
 ```text
 eslint.config.mjs
-scripts/build.mjs
-scripts/deploy-smoke-test.mjs
+scripts/build.ts
+scripts/deploy-smoke-test.ts
 ```
 
 No search result may reference a removed harness `.mjs` path.
