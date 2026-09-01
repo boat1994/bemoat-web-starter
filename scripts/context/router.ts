@@ -5,6 +5,7 @@ import type {
 } from './model.ts'
 import { isFullSha, isPositiveInteger, isRepositoryObjectUrl } from './runtime.ts'
 import { parseProductionMergeReviewVerdict, classifyMergeReviewVerdict } from './merge-review-verdict.ts'
+import type { ProductionMergeReviewVerdict } from './merge-review-verdict.ts'
 
 function evidenceUrls(evidence: NormalizedContextEvidence): string[] {
   const urls = [
@@ -228,9 +229,7 @@ export function routeContext(evidence: NormalizedContextEvidence): ContextDecisi
     const verdicts = evidence.durableContext.historicalResults.filter((r) =>
       /^##\s+REVIEW_VERDICT\b/i.test(r.body),
     )
-    const applicableVerdicts: Array<{ verdict: string; body: string }> = []
-    let malformedEvidence = false
-    let conflictingLiveHeadEvidence = false
+    const currentHeadVerdicts: Array<{ id: string | number; body: string; parsed: ProductionMergeReviewVerdict | null; valid: boolean; acceptedVerdict: string | null }> = []
 
     const inspectVerdict = (id: string | number, body: string): void => {
       try {
@@ -255,12 +254,16 @@ export function routeContext(evidence: NormalizedContextEvidence): ContextDecisi
         const validCorrection = acceptedVerdict === 'CORRECTION REQUIRED' &&
           hasBlockingFinding(body, activePr.headSha)
         if (classification.valid && (acceptedVerdict === 'ELIGIBLE FOR FOUNDER REVIEW' || validCorrection)) {
-          applicableVerdicts.push({ verdict: acceptedVerdict, body })
+          currentHeadVerdicts.push({ id, body, parsed, valid: true, acceptedVerdict })
         }
-        else if (parsed.reviewed_head?.toLowerCase() === activePr.headSha.toLowerCase()) conflictingLiveHeadEvidence = true
+        else if (parsed.reviewed_head?.toLowerCase() === activePr.headSha.toLowerCase()) {
+          currentHeadVerdicts.push({ id, body, parsed, valid: false, acceptedVerdict })
+        }
       } catch {
         const reviewedHead = reviewedHeadForApplicability(body)
-        if (!reviewedHead || reviewedHead === activePr.headSha.toLowerCase()) malformedEvidence = true
+        if (!reviewedHead || reviewedHead === activePr.headSha.toLowerCase()) {
+          currentHeadVerdicts.push({ id, body, parsed: null, valid: false, acceptedVerdict: null })
+        }
       }
     }
 
@@ -272,24 +275,48 @@ export function routeContext(evidence: NormalizedContextEvidence): ContextDecisi
     for (const review of verification.reviews.nativeReviews ?? []) {
       if (!/^##\s+REVIEW_VERDICT\b/i.test(review.body)) continue
       if (!review.commitId || !isFullSha(review.commitId)) {
-        malformedEvidence = true
+        currentHeadVerdicts.push({ id: review.id ?? '<unknown>', body: review.body, parsed: null, valid: false, acceptedVerdict: null })
         continue
       }
       if (review.commitId.toLowerCase() !== activePr.headSha.toLowerCase()) continue
       if (review.id === null || !review.state.trim()) {
-        malformedEvidence = true
+        currentHeadVerdicts.push({ id: review.id ?? '<unknown>', body: review.body, parsed: null, valid: false, acceptedVerdict: null })
         continue
       }
       inspectVerdict(review.id, review.body)
     }
 
-    const uniqueVerdicts = [...new Set(applicableVerdicts.map((v) => v.verdict))]
-    if (uniqueVerdicts.length > 1) {
+    let malformedEvidence = false
+    let conflictingLiveHeadEvidence = false
+
+    const validVerdicts = currentHeadVerdicts.filter(v => v.valid)
+    const malformedVerdicts = currentHeadVerdicts.filter(v => !v.valid)
+    const supersededIds = new Set<string>()
+
+    for (const validVerdict of validVerdicts) {
+      const supersedes = validVerdict.parsed?.supersedes_predecessor
+      if (supersedes) {
+        const matchingMalformed = malformedVerdicts.filter(m => String(m.id) === supersedes)
+        if (matchingMalformed.length === 1) {
+          supersededIds.add(String(matchingMalformed[0]!.id))
+        } else {
+          conflictingLiveHeadEvidence = true
+        }
+      }
+    }
+
+    const activeMalformedVerdicts = malformedVerdicts.filter(m => !supersededIds.has(String(m.id)))
+    if (activeMalformedVerdicts.length > 0) {
+      malformedEvidence = true
+    }
+
+    const uniqueValidVerdicts = [...new Set(validVerdicts.map((v) => v.acceptedVerdict))]
+    if (uniqueValidVerdicts.length > 1) {
       conflictingLiveHeadEvidence = true
     }
 
-    semanticReviewSatisfied = !malformedEvidence && !conflictingLiveHeadEvidence && applicableVerdicts.length >= 1
-    blockingSemanticReview = semanticReviewSatisfied && uniqueVerdicts[0] === 'CORRECTION REQUIRED'
+    semanticReviewSatisfied = !malformedEvidence && !conflictingLiveHeadEvidence && validVerdicts.length >= 1
+    blockingSemanticReview = semanticReviewSatisfied && uniqueValidVerdicts[0] === 'CORRECTION REQUIRED'
   }
 
   if (blockingSemanticReview) {
