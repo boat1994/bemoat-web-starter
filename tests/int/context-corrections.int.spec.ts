@@ -211,6 +211,33 @@ describe('bounded context corrections', () => {
     expect(evidence.errors).not.toContain(expect.stringContaining('PR #411 base does not match'))
   })
 
+  it('ignores PRs with negative or out of scope issue bindings', () => {
+    const currentHead = 'c'.repeat(40)
+    const prList: Record<string, unknown>[] = [
+      { number: 411, body: 'no Issue #410 work is included', url: 'https://github.com/boat1994/bemoat-web-starter/pull/411', headRefName: 'feature/410-context-no', closingIssuesReferences: [] },
+      { number: 412, body: 'does not include issue #410', url: 'https://github.com/boat1994/bemoat-web-starter/pull/412', headRefName: 'feature/410-context-no2', closingIssuesReferences: [] },
+      { number: 417, body: 'out of scope: issue #410', url: 'https://github.com/boat1994/bemoat-web-starter/pull/417', headRefName: 'feature/410-context-no3', closingIssuesReferences: [] },
+      { number: 420, body: 'excluding issue #410', url: 'https://github.com/boat1994/bemoat-web-starter/pull/420', headRefName: 'feature/410-context-no4', closingIssuesReferences: [] },
+    ]
+    const runner = githubRunner({
+      prList,
+      prByNumber: {
+        '411': prPayload({ state: 'OPEN', headRefOid: currentHead }),
+        '412': prPayload({ state: 'OPEN', headRefOid: currentHead }),
+        '417': prPayload({ state: 'OPEN', headRefOid: currentHead }),
+        '420': prPayload({ state: 'OPEN', headRefOid: currentHead }),
+      },
+    })
+    const evidence = readGithubEvidence({
+      repo: 'boat1994/bemoat-web-starter',
+      issueNumber: '410',
+      branch: 'feature/unrelated-branch',
+      run: runner,
+    })
+
+    expect(evidence.activePrs).toHaveLength(0)
+  })
+
   it('rejects a PR whose base differs from the live protected base and enforces all native approvals', () => {
     const mismatch = readGithubEvidence({
       repo: 'boat1994/bemoat-web-starter',
