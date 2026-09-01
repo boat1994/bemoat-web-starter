@@ -84,7 +84,7 @@ function githubRunner({
 } = {}): ContextCommandRunner {
   return (_command, args) => {
     const key = args.join(' ')
-    if (key.startsWith('issue view 410')) return response(issue)
+    if (key.startsWith('issue view ')) return response(issue)
     if (key.startsWith('pr list')) return response(JSON.stringify(prList))
     if (key.startsWith('pr view ')) return response(prByNumber[args[2] ?? ''] ?? pr)
     if (key.includes('branches/main/protection')) return legacyProtection
@@ -269,6 +269,70 @@ describe('bounded context corrections', () => {
       activePr: null, currentHeadVerification: null, durableContext: { latestHandoff: null, historicalResults: [] }, evidenceErrors: [],
     }
     expect(routeContext(base).route).toBe('STOP')
+  })
+  it('recovers deterministic numeric database ID supersession from malformed GraphQL node ID predecessor evidence', () => {
+    const predecessorGraphqlId = 'IC_kwDOXYZ'
+    const predecessorDbId = '5493541942'
+    const predecessorUrl = `https://github.com/boat1994/bemoat-web-starter/issues/469#issuecomment-${predecessorDbId}`
+    const headSha = '3dab2dbbd981f9d72d123ad1c2cf8398103f9348'
+    const baseSha = '832782c585eb4c122ea05404fc1a615b865d68bb'
+
+    const malformedPredecessorBody = `## REVIEW_VERDICT\n**Task:** Issue #469\n**Repository:** \`boat1994/bemoat-web-starter\`\n**PR / base / head:** PR #470 · \`main\` · \`${headSha}\`\n**Verdict:** CORRECTION REQUIRED\n\n\`\`\`json\n{ "schema_version": 1, "mode": "implementation_pr", "reviewed_head": "${headSha}", "findings": [] }\n\`\`\``
+
+    const correctiveReviewBody = `## REVIEW_VERDICT\n**Supersedes:** ${predecessorDbId}\n**Task:** Issue #469\n**Repository:** \`boat1994/bemoat-web-starter\`\n**PR / base / head:** PR #470 · \`main\` · \`${headSha}\`\n**Verdict:** CORRECTION REQUIRED\n\n### Immutable finding disposition\n\`\`\`json\n{ "schema_version": 1, "mode": "implementation_pr", "reviewed_head": "${headSha}", "findings": [{ "id": "CTX-469-001", "canonical_summary": "Test", "source_thread": "link", "required_evidence": ["Ev"] }] }\n\`\`\``
+
+    const run = githubRunner({
+      issue: JSON.stringify({
+        number: 469,
+        title: 'Issue 469',
+        state: 'OPEN',
+        url: 'https://github.com/boat1994/bemoat-web-starter/issues/469',
+        comments: [
+          {
+            id: predecessorGraphqlId,
+            body: malformedPredecessorBody,
+            createdAt: '2026-09-01T00:00:00Z',
+            url: predecessorUrl,
+          },
+          {
+            id: 'IC_kwDOABC',
+            body: correctiveReviewBody,
+            createdAt: '2026-09-01T01:00:00Z',
+            url: 'https://github.com/boat1994/bemoat-web-starter/issues/469#issuecomment-5493689634',
+          }
+        ]
+      }),
+      prList: [JSON.parse(prPayload({ number: 470, url: 'https://github.com/boat1994/bemoat-web-starter/pull/470', headRefName: 'fix/469-recovery', baseRefName: 'main', baseRefOid: baseSha, headRefOid: headSha, body: 'Part of #469' }))],
+      pr: prPayload({ number: 470, url: 'https://github.com/boat1994/bemoat-web-starter/pull/470', headRefName: 'fix/469-recovery', baseRefName: 'main', baseRefOid: baseSha, headRefOid: headSha, latestReviews: [], body: 'Part of #469' }),
+      legacyProtection: response(JSON.stringify({})), rulesets: nativeRuleset(),
+    })
+
+    const evidence = readGithubEvidence({
+      repo: 'boat1994/bemoat-web-starter', issueNumber: '469', branch: 'fix/469-recovery',
+      run
+    })
+
+    expect(evidence.comments.length).toBe(2)
+    const [predecessor, corrective] = evidence.comments
+
+    expect(String(predecessor?.id)).toBe(predecessorDbId)
+    expect(String(corrective?.id)).toBe('5493689634')
+
+    const baseEvidenceOverrides: NormalizedContextEvidence = {
+      repository: { owner: 'boat1994', name: 'bemoat-web-starter', nameWithOwner: 'boat1994/bemoat-web-starter', url: 'https://github.com/boat1994/bemoat-web-starter' },
+      protectedBase: { branch: 'main', sha: baseSha, source: 'live', url: '' },
+      policy: { path: '', policyId: 'bemoat-mission-control', version: '1.3.0', sourceSha: baseSha, url: '' },
+      issue: { ...evidence.issue!, workflowProfile: 'STANDARD' },
+      localGit: { branch: 'fix/469-recovery', head: headSha, upstream: 'origin/fix/469-recovery', originRepository: 'boat1994/bemoat-web-starter', clean: true, detached: false, pushed: true, durable: true, reasons: [] },
+      activePr: evidence.activePrs[0] ?? null,
+      currentHeadVerification: { exactHead: headSha, checks: { status: 'SUCCESS', complete: true, failed: false, pending: false, required: false }, reviews: { required: false, approved: true, exactHead: true, approvedCount: 0, exactHeadApprovedCount: 0, nativeReviews: [] }, protection: { available: true, requiredChecks: [], requiredApprovals: 0 } },
+      durableContext: { latestHandoff: null, historicalResults: evidence.comments },
+      evidenceErrors: evidence.errors,
+    }
+
+    const decision = routeContext(baseEvidenceOverrides)
+    console.log('decision:', decision)
+    expect(decision.route).toBe('FIX')
   })
 
   it('fails closed for absent or malformed Issue and PR identity and keeps the public command independent', () => {

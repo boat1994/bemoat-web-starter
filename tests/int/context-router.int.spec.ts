@@ -210,7 +210,7 @@ describe('bemoat:context pure routing', () => {
 **Task / Issue:** #421
 **Repository:** \`boat1994/bemoat-web-starter\`
 **PR / base / head:** https://github.com/boat1994/bemoat-web-starter/pull/422 · \`main\` · \`${reviewedHead}\`
-**Verdict:** ELIGIBLE FOR FOUNDER REVIEW`
+**Verdict:** CORRECTION REQUIRED`
   }
 
   it('routes clean durable work without a PR to IMPLEMENT', () => {
@@ -639,6 +639,66 @@ describe('bemoat:context pure routing', () => {
           reviews: { required: false, approved: true, exactHead: true, approvedCount: 0, exactHeadApprovedCount: 0 },
         },
         durableContext: { latestHandoff: null, historicalResults: [malformedVerdict, correctiveVerdict, competingValidVerdict] },
+      }))
+
+      expect(decision.route).toBe('REVIEW')
+    })
+
+    it('keeps malformed current-head review fail-closed if predecessor binding does not match exactly', () => {
+      const liveBaseSha = '832782c585eb4c122ea05404fc1a615b865d68bb'
+      const liveHeadSha = 'bbc264e9fa437c57a733f2a7f8a947001655405b'
+      const malformedVerdict = {
+        id: 5407357001,
+        body: `## REVIEW_VERDICT\n**Task:** Issue #421\n**Repository:** \`other/repository\`\n**PR / base / head:** PR #422 · \`main\` · \`${liveHeadSha}\`\n**Verdict:** CORRECTION REQUIRED`,
+        createdAt: '2026-08-25T08:05:39Z',
+        url: 'https://github.com/boat1994/bemoat-web-starter/issues/421#issuecomment-5407357001',
+      }
+      const correctiveVerdict = {
+        id: 5407357002,
+        body: `## REVIEW_VERDICT\n**Supersedes:** 5407357001\n**Task:** Issue #421\n**Repository:** \`boat1994/bemoat-web-starter\`\n**PR / base / head:** PR #422 · \`main\` · \`${liveHeadSha}\`\n**Verdict:** ELIGIBLE FOR FOUNDER REVIEW`,
+        createdAt: '2026-08-25T08:15:39Z',
+        url: 'https://github.com/boat1994/bemoat-web-starter/issues/421#issuecomment-5407357002',
+      }
+      const decision = routeContext(baseEvidence({
+        protectedBase: { ...baseEvidence().protectedBase, sha: liveBaseSha },
+        issue: { ...baseEvidence().issue, number: '421', url: 'https://github.com/boat1994/bemoat-web-starter/issues/421', workflowProfile: 'STANDARD' },
+        localGit: { ...baseEvidence().localGit, head: liveHeadSha },
+        activePr: prEvidence({ number: '422', url: 'https://github.com/boat1994/bemoat-web-starter/pull/422', headSha: liveHeadSha, baseSha: liveBaseSha }),
+        currentHeadVerification: {
+          ...verification({ exactHead: liveHeadSha }),
+          reviews: { required: false, approved: true, exactHead: true, approvedCount: 0, exactHeadApprovedCount: 0 },
+        },
+        durableContext: { latestHandoff: null, historicalResults: [malformedVerdict, correctiveVerdict] },
+      }))
+
+      expect(decision.route).toBe('REVIEW')
+    })
+
+    it('keeps malformed current-head review fail-closed if predecessor cannot be independently parsed', () => {
+      const liveBaseSha = '832782c585eb4c122ea05404fc1a615b865d68bb'
+      const liveHeadSha = 'bbc264e9fa437c57a733f2a7f8a947001655405b'
+      const malformedVerdict = {
+        id: 5407357001,
+        body: `## REVIEW_VERDICT\n**Task:** Issue #421\n**Verdict:** CORRECTION REQUIRED\n\n**Exact head reviewed:** \`${liveHeadSha}\``,
+        createdAt: '2026-08-25T08:05:39Z',
+        url: 'https://github.com/boat1994/bemoat-web-starter/issues/421#issuecomment-5407357001',
+      }
+      const correctiveVerdict = {
+        id: 5407357002,
+        body: `## REVIEW_VERDICT\n**Supersedes:** 5407357001\n**Task:** Issue #421\n**Repository:** \`boat1994/bemoat-web-starter\`\n**PR / base / head:** PR #422 · \`main\` · \`${liveHeadSha}\`\n**Verdict:** ELIGIBLE FOR FOUNDER REVIEW`,
+        createdAt: '2026-08-25T08:15:39Z',
+        url: 'https://github.com/boat1994/bemoat-web-starter/issues/421#issuecomment-5407357002',
+      }
+      const decision = routeContext(baseEvidence({
+        protectedBase: { ...baseEvidence().protectedBase, sha: liveBaseSha },
+        issue: { ...baseEvidence().issue, number: '421', url: 'https://github.com/boat1994/bemoat-web-starter/issues/421', workflowProfile: 'STANDARD' },
+        localGit: { ...baseEvidence().localGit, head: liveHeadSha },
+        activePr: prEvidence({ number: '422', url: 'https://github.com/boat1994/bemoat-web-starter/pull/422', headSha: liveHeadSha, baseSha: liveBaseSha }),
+        currentHeadVerification: {
+          ...verification({ exactHead: liveHeadSha }),
+          reviews: { required: false, approved: true, exactHead: true, approvedCount: 0, exactHeadApprovedCount: 0 },
+        },
+        durableContext: { latestHandoff: null, historicalResults: [malformedVerdict, correctiveVerdict] },
       }))
 
       expect(decision.route).toBe('REVIEW')

@@ -334,11 +334,8 @@ function resolveMergeReviewVerdictRepository(body: string): string | null {
   const recognized: string[] = []
   
   const repositoryFieldMatches = [...body.matchAll(/^[ \t]*(?:-[ \t]*)?(?:\*\*|__)?Repository:(?:\*\*|__)?[ \t]*(?:`([^`\s]+)`|([^`\s]+))[ \t]*$/gim)]
-  if (repositoryFieldMatches.length > 1) {
-    throw stateConflict('REVIEW_VERDICT Repository field is duplicated or ambiguous')
-  }
-  if (repositoryFieldMatches.length === 1) {
-    const repo = repositoryFieldMatches[0]?.[1] ?? repositoryFieldMatches[0]?.[2]
+  for (const match of repositoryFieldMatches) {
+    const repo = match[1] ?? match[2]
     if (repo) recognized.push(repo.toLowerCase())
   }
 

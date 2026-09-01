@@ -4,7 +4,7 @@ import type {
   NormalizedContextEvidence,
 } from './model.ts'
 import { isFullSha, isPositiveInteger, isRepositoryObjectUrl } from './runtime.ts'
-import { parseProductionMergeReviewVerdict, classifyMergeReviewVerdict } from './merge-review-verdict.ts'
+import { parseProductionMergeReviewVerdict, classifyMergeReviewVerdict, resolveMergeReviewVerdictBinding } from './merge-review-verdict.ts'
 import type { ProductionMergeReviewVerdict } from './merge-review-verdict.ts'
 
 function evidenceUrls(evidence: NormalizedContextEvidence): string[] {
@@ -289,14 +289,31 @@ export function routeContext(evidence: NormalizedContextEvidence): ContextDecisi
     let malformedEvidence = false
     let conflictingLiveHeadEvidence = false
 
-    const validVerdicts = currentHeadVerdicts.filter(v => v.valid)
+    console.log('CV:', currentHeadVerdicts); const validVerdicts = currentHeadVerdicts.filter(v => v.valid)
     const malformedVerdicts = currentHeadVerdicts.filter(v => !v.valid)
     const supersededIds = new Set<string>()
 
     for (const validVerdict of validVerdicts) {
       const supersedes = validVerdict.parsed?.supersedes_predecessor
       if (supersedes) {
-        const matchingMalformed = malformedVerdicts.filter(m => String(m.id) === supersedes)
+        const matchingMalformed = malformedVerdicts.filter(m => {
+          if (String(m.id) !== supersedes) return false
+
+          let predecessorBinding: { pr: string | null; base: string | null; reviewed_head: string | null; repository: string | null; issue: string | null } | null = m.parsed
+          if (!predecessorBinding) {
+            try {
+              predecessorBinding = resolveMergeReviewVerdictBinding(m.body)
+            } catch {
+              return false
+            }
+          }
+
+          return predecessorBinding.repository === validVerdict.parsed?.repository &&
+                 String(predecessorBinding.issue) === String(validVerdict.parsed?.issue) &&
+                 String(predecessorBinding.pr) === String(validVerdict.parsed?.pr) &&
+                 predecessorBinding.base === validVerdict.parsed?.base &&
+                 predecessorBinding.reviewed_head === validVerdict.parsed?.reviewed_head
+        })
         if (matchingMalformed.length === 1) {
           supersededIds.add(String(matchingMalformed[0]!.id))
         } else {
