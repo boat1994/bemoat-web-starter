@@ -37,7 +37,7 @@ export const managedPaths = [
   'scripts/guards/env-placeholder.ts', 'scripts/guards/frontend-seo.ts',
   'scripts/check-branch-safety.sh', 'scripts/install-git-hooks.ts',
   // Local harness hooks and integration tests
-  '.githooks', 'vitest.config.mts', 'vitest.setup.ts', 'tests/helpers/vitestProcessLock.ts',
+  '.githooks', 'vitest.config.mts', 'vitest.setup.ts', 'tests/helpers/vitestProcessLock.ts', 'tests/helpers/cli-boundary-harness.ts',
   'tests/setup/vitestGlobalSetup.ts', 'tests/int/api.int.spec.ts',
   'tests/int/repo-safety-guard.int.spec.ts', 'tests/int/cloudflare-env-guard.int.spec.ts',
   'tests/int/boilerplate-sync.int.spec.ts', 'tests/int/boilerplate-sync-filesystem.int.spec.ts',

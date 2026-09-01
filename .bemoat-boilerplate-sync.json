@@ -64,6 +64,7 @@
     "vitest.config.mts",
     "vitest.setup.ts",
     "tests/helpers/vitestProcessLock.ts",
+    "tests/helpers/cli-boundary-harness.ts",
     "tests/setup/vitestGlobalSetup.ts",
     "tests/int/api.int.spec.ts",
     "tests/int/repo-safety-guard.int.spec.ts",

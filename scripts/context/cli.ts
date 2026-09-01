@@ -11,7 +11,11 @@ export class ContextInvocationError extends Error {
   }
 }
 
-export function parseContextInvocation(argv: string[]) {
+export type ContextInvocation =
+  | { mode: 'help'; format: 'json' | 'text' }
+  | { mode: 'run'; format: 'json' | 'text'; issueNumber: string }
+
+export function parseContextInvocation(argv: string[]): ContextInvocation {
   const tokens = Array.isArray(argv) ? argv.filter((value) => value !== '--') : []
   const help = tokens.filter((value) => value === '--help' || value === '-h')
   const json = tokens.filter((value) => value === '--json')
