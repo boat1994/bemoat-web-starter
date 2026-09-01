@@ -1,3 +1,4 @@
+import { prOwnsIssue } from '../context/pr-issue-ownership.ts'
 import type { HandoffRecord } from './schema.ts'
 import {
   commandFailure,
@@ -142,20 +143,7 @@ export function readHandoffBinding({
     assertEqual(pr.headRefName, record.pr.head, 'PR head branch binding')
     assertEqual(String(pr.headRefOid).toLowerCase(), record.pr.head_sha, 'PR exact head binding')
 
-    const refs = pr.closingIssuesReferences
-    let isBound = false
-    if (Array.isArray(refs) && refs.some((r) => {
-      const ref = r as { number?: string | number, repository?: { nameWithOwner?: string } }
-      return String(ref?.number ?? '') === issueNumber && (!ref?.repository?.nameWithOwner || ref.repository.nameWithOwner === repository)
-    })) {
-      isBound = true
-    } else {
-      const prBody = `${String(pr.title ?? '')}\n${String(pr.body ?? '')}`
-      const escapedRepo = repository.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-      const relation = new RegExp(`(?:part of|refs?|references|related to|closes|fix(?:es)?|resolves|task\\s*[/:-]?\\s*issue|issue)\\s*(?:${escapedRepo})?\\s*#${issueNumber}\\b`, 'i')
-      isBound = relation.test(prBody)
-    }
-    assertEqual(isBound, true, 'PR Issue linkage binding')
+    assertEqual(prOwnsIssue(pr, repository, issueNumber), true, 'PR Issue linkage binding')
   } else {
     const prs = json<unknown[]>(run, 'gh', ['pr', 'list', '--repo', repository, '--state', 'open', '--search', `repo:${repository} #${issueNumber}`, '--json', 'number,state,title,body,closingIssuesReferences'], cwd, env, 'Active PR lookup')
     if (Array.isArray(prs)) {
@@ -163,15 +151,7 @@ export function readHandoffBinding({
         const pr = p as { state?: string, title?: string, body?: string, closingIssuesReferences?: { number?: string | number, repository?: { nameWithOwner?: string } }[] } | null | undefined
         if (!pr || typeof pr !== 'object') return false
         if (String(pr.state).toUpperCase() !== 'OPEN') return false
-        const refs = pr.closingIssuesReferences
-        if (Array.isArray(refs) && refs.some((r) => {
-          const ref = r as { number?: string | number, repository?: { nameWithOwner?: string } }
-          return String(ref?.number ?? '') === issueNumber && (!ref?.repository?.nameWithOwner || ref.repository.nameWithOwner === repository)
-        })) return true
-        const prBody = `${String(pr.title ?? '')}\n${String(pr.body ?? '')}`
-        const escapedRepo = repository.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-        const relation = new RegExp(`(?:part of|refs?|references|related to|closes|fix(?:es)?|resolves|task\\s*[/:-]?\\s*issue|issue)\\s*(?:${escapedRepo})?\\s*#${issueNumber}\\b`, 'i')
-        return relation.test(prBody)
+        return prOwnsIssue(pr, repository, issueNumber)
       })
       if (hasApplicable) {
         throw new HandoffRuntimeError('EVIDENCE_CONFLICT', 'applicable active PR exists but was omitted from the HANDOFF record')

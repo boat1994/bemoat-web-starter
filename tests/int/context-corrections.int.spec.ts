@@ -4,11 +4,16 @@ import { describe, expect, it } from 'vitest'
 
 import { buildScriptImportGraph } from '../../scripts/guards/scripts-architecture.ts'
 import {
+  collectContextEvidence,
   readGithubEvidence,
   readLocalGitEvidence,
   type ContextCommandResult,
   type ContextCommandRunner,
 } from '../../scripts/context/evidence.ts'
+import {
+  AUTHORIZED_TEXTUAL_PR_ISSUE_RELATIONS,
+  prOwnsIssue,
+} from '../../scripts/context/pr-issue-ownership.ts'
 import { routeContext } from '../../scripts/context/router.ts'
 import type { NormalizedContextEvidence } from '../../scripts/context/model.ts'
 
@@ -383,4 +388,250 @@ describe('bounded context corrections', () => {
     expect(directImports.some((path) => path.startsWith('scripts/mission-control/') || path.startsWith('scripts/cli/'))).toBe(false)
     expect(readFileSync('scripts/agent-context.ts', 'utf8')).not.toMatch(/command-contract|mission-control-command|routing-policy|transport-registry/)
   })
+
+  it('characterizes protected-main PR #472 false-binding of Issue #464 and keeps the corrected GitHub-shaped path off COMPLETE', () => {
+    const repo = 'boat1994/bemoat-web-starter'
+    const pr472Title = 'fix(context): reject false PR bindings from negative issue mentions'
+    const pr472Body = `Fixes #471
+
+## Acceptance Criteria Audit
+- **Done** - exact #464 reproduction: PR #466 with negative/out-of-scope Issue #464 text is not selected for Issue #464. (Regex logic now rejects negative lookbehind contexts).
+- **Done** - PR #466 remains correctly bound to Issue #465. (Unchanged logic for true positives).
+- **Done** - explicit native closingIssuesReferences binds the correct Issue. (Unchanged, bypasses regex).
+- **Done** - unambiguous positive textual relation syntax still binds when canonical behavior requires it. (Regex \`relation\` remains intact).
+- **Done** - negative forms such as no Issue #N work, does not include Issue #N, and out-of-scope lists do not bind. (Added regex negative test and regression test).
+- **Done** - ambiguous/malformed/cross-repository evidence fails closed. (Canonical behavior intact).
+- **Done** - focused production-shaped Context evidence-selection test proves the public path no longer routes #464 COMPLETE from PR #466. (Added tests to \`context-corrections.int.spec.ts\`).
+- **Done** - existing terminal-precedence and review-lineage regression suites remain green. (Verified via \`pnpm run check\`).
+- **Waiting for CI** - strict TypeScript, canonical repository checks, guards, and git diff --check pass. (Passed locally, waiting for CI).
+`
+    const pr472ClosingRefs = [{
+      id: 'I_kwDOS4T8888AAAABPLtM7w',
+      number: 471,
+      repository: {
+        id: 'R_kgDOS4T88w',
+        name: 'bemoat-web-starter',
+        owner: { id: 'MDQ6VXNlcjM2NTI4OTg4', login: 'boat1994' },
+      },
+      url: 'https://github.com/boat1994/bemoat-web-starter/issues/471',
+    }]
+    const pr472Record = {
+      number: 472,
+      title: pr472Title,
+      body: pr472Body,
+      closingIssuesReferences: pr472ClosingRefs,
+    }
+
+    expect(protectedMainOwnsIssue(pr472Record, repo, '464')).toBe(true)
+    expect(prOwnsIssue(pr472Record, repo, '464')).toBe(false)
+    expect(prOwnsIssue(pr472Record, repo, '471')).toBe(true)
+
+    const topicHead = 'e'.repeat(40)
+    const protectedSha = 'f'.repeat(40)
+    const mergeSha = '3413c3cf239854a468b18514fd5b8c2b8a874a23'
+    const run: ContextCommandRunner = (command, args) => {
+      const key = args.join(' ')
+      if (command === 'git') {
+        const local: Record<string, string> = {
+          'branch --show-current': 'feature/464-portability\n',
+          'rev-parse HEAD': `${topicHead}\n`,
+          'status --short': '',
+          'rev-parse --abbrev-ref --symbolic-full-name @{upstream}': 'origin/feature/464-portability\n',
+          'remote get-url origin': 'git@github.com:boat1994/bemoat-web-starter.git\n',
+          'rev-parse refs/remotes/origin/feature/464-portability': `${topicHead}\n`,
+          'ls-remote --heads origin feature/464-portability': `${topicHead}\trefs/heads/feature/464-portability\n`,
+        }
+        return response(local[key] ?? '')
+      }
+      if (key.includes('git/ref/heads/main')) return response(JSON.stringify({ object: { sha: protectedSha } }))
+      if (key.includes('contents/docs/mission-control/mission-control-guide.md')) {
+        return response(JSON.stringify({
+          sha: 'c'.repeat(40),
+          content: Buffer.from('---\npolicy_id: bemoat-mission-control\nversion: 1.3.0\n---\n').toString('base64'),
+          encoding: 'base64',
+        }))
+      }
+      if (key.startsWith('issue view 464')) {
+        return response(JSON.stringify({
+          number: 464,
+          title: 'fix(context): preserve approved-base portability',
+          state: 'OPEN',
+          url: 'https://github.com/boat1994/bemoat-web-starter/issues/464',
+          body: 'Task size: core\nMission Control mode: not required\n\n## Goal\n\nPreserve approved-base portability.\n',
+          comments: [],
+        }))
+      }
+      if (key.startsWith('pr list')) {
+        return response(JSON.stringify([{
+          number: 472,
+          title: pr472Title,
+          body: pr472Body,
+          url: 'https://github.com/boat1994/bemoat-web-starter/pull/472',
+          headRefName: 'fix/471-context-negative-binding',
+          closingIssuesReferences: pr472ClosingRefs,
+        }]))
+      }
+      if (key.startsWith('pr view 472')) {
+        return response(prPayload({
+          number: 472,
+          state: 'MERGED',
+          url: 'https://github.com/boat1994/bemoat-web-starter/pull/472',
+          baseRefName: 'main',
+          baseRefOid: '0c6fe388ccc91bb17060e5c15eee75dedca63539',
+          headRefName: 'fix/471-context-negative-binding',
+          headRefOid: 'a60e2b7ebd3788e3bcc063d7a0cb3daa37a41832',
+          mergeCommit: { oid: mergeSha },
+          title: pr472Title,
+          body: pr472Body,
+        }))
+      }
+      if (key.includes('branches/main/protection')) return response('', 1, 'HTTP 404 Not Found')
+      if (key.includes('/rulesets?')) return response(nativeRuleset())
+      return response('')
+    }
+
+    const evidence = collectContextEvidence({ cwd: '/repo', issueNumber: '464', run })
+    expect(evidence.localGit.durable).toBe(true)
+    expect(evidence.localGit.clean).toBe(true)
+    expect(evidence.activePr).toBeNull()
+    const decision = routeContext(evidence)
+    expect(decision.route).not.toBe('COMPLETE')
+    expect(decision.route).toBe('IMPLEMENT')
+  })
+
+  it('keeps genuine #472/#471 and #466/#465 bindings while rejecting incidental #464 mentions and unauthorized relation tokens', () => {
+    const repo = 'boat1994/bemoat-web-starter'
+    expect([...AUTHORIZED_TEXTUAL_PR_ISSUE_RELATIONS]).toEqual([
+      'part of',
+      'refs',
+      'close',
+      'closes',
+      'closed',
+      'fix',
+      'fixes',
+      'fixed',
+      'resolve',
+      'resolves',
+      'resolved',
+    ])
+    expect(AUTHORIZED_TEXTUAL_PR_ISSUE_RELATIONS).not.toEqual(expect.arrayContaining([
+      'related to',
+      'references',
+      'ref',
+      'issue',
+      'task issue',
+    ]))
+
+    expect(prOwnsIssue({
+      title: 'fix(context): reject false PR bindings from negative issue mentions',
+      body: 'Fixes #471\n\nAcceptance: Issue #464 must not bind.',
+      closingIssuesReferences: [{ number: 471, repository: { nameWithOwner: repo } }],
+    }, repo, '471')).toBe(true)
+
+    expect(prOwnsIssue({
+      title: 'fix(context): make clean issue-branch bootstrap durable',
+      body: 'Part of #465\n\nNo Issue #464, bogus-jewelry PR #212, Finance acceptance, deploy, migration,\n  production, or stateful Mission Control work is included.',
+      closingIssuesReferences: [],
+    }, repo, '465')).toBe(true)
+    expect(prOwnsIssue({
+      title: 'fix(context): make clean issue-branch bootstrap durable',
+      body: 'Part of #465\n\nNo Issue #464, bogus-jewelry PR #212, Finance acceptance, deploy, migration,\n  production, or stateful Mission Control work is included.',
+      closingIssuesReferences: [],
+    }, repo, '464')).toBe(false)
+
+    const incidental = {
+      title: 'docs: history',
+      body: [
+        'Regression notes: Issue #410 leaked into selection.',
+        'Acceptance audit: querying Issue #410 must not COMPLETE.',
+        'History / dependencies / scope: related to #410 and references #410.',
+      ].join('\n'),
+      closingIssuesReferences: [] as unknown[],
+    }
+    expect(prOwnsIssue(incidental, repo, '410')).toBe(false)
+    expect(protectedMainOwnsIssue(incidental, repo, '410')).toBe(true)
+
+    expect(prOwnsIssue({ body: 'related to #410', closingIssuesReferences: [] }, repo, '410')).toBe(false)
+    expect(prOwnsIssue({ body: 'references #410', closingIssuesReferences: [] }, repo, '410')).toBe(false)
+    expect(prOwnsIssue({ body: 'Ref #410', closingIssuesReferences: [] }, repo, '410')).toBe(false)
+    expect(prOwnsIssue({ body: 'Issue #410', closingIssuesReferences: [] }, repo, '410')).toBe(false)
+    expect(prOwnsIssue({ body: 'Part of #410', closingIssuesReferences: [] }, repo, '410')).toBe(true)
+    expect(prOwnsIssue({ body: 'Refs #410', closingIssuesReferences: [] }, repo, '410')).toBe(true)
+    expect(prOwnsIssue({ body: 'Closes #410', closingIssuesReferences: [] }, repo, '410')).toBe(true)
+    expect(prOwnsIssue({ body: 'closed #410', closingIssuesReferences: [] }, repo, '410')).toBe(true)
+    expect(prOwnsIssue({ body: 'fixed #410', closingIssuesReferences: [] }, repo, '410')).toBe(true)
+    expect(prOwnsIssue({ body: 'resolved #410', closingIssuesReferences: [] }, repo, '410')).toBe(true)
+    expect(prOwnsIssue({
+      closingIssuesReferences: [{ number: 410, repository: { nameWithOwner: 'other/repo' } }],
+    }, repo, '410')).toBe(false)
+
+    const genuineMerged = readGithubEvidence({
+      repo,
+      issueNumber: '471',
+      branch: 'unrelated-checkout',
+      run: githubRunner({
+        issue: JSON.stringify({
+          number: 471,
+          title: 'negative binding',
+          state: 'CLOSED',
+          url: 'https://github.com/boat1994/bemoat-web-starter/issues/471',
+          body: 'Task size: core\nMission Control mode: not required\n\n## Goal\n\nReject negatives.\n',
+          comments: [],
+        }),
+        prList: [{
+          number: 472,
+          title: 'fix(context): reject false PR bindings from negative issue mentions',
+          body: 'Fixes #471\nIssue #464 is regression context only.',
+          url: 'https://github.com/boat1994/bemoat-web-starter/pull/472',
+          headRefName: 'fix/471-context-negative-binding',
+          closingIssuesReferences: [{ number: 471, repository: { nameWithOwner: repo } }],
+        }],
+        pr: prPayload({
+          number: 472,
+          state: 'MERGED',
+          url: 'https://github.com/boat1994/bemoat-web-starter/pull/472',
+          headRefName: 'fix/471-context-negative-binding',
+          headRefOid: 'a60e2b7ebd3788e3bcc063d7a0cb3daa37a41832',
+          mergeCommit: { oid: '3413c3cf239854a468b18514fd5b8c2b8a874a23' },
+        }),
+      }),
+    })
+    expect(genuineMerged.activePrs).toEqual([expect.objectContaining({ number: '472', state: 'MERGED' })])
+    const genuineRoute: NormalizedContextEvidence = {
+      repository: { owner: 'boat1994', name: 'bemoat-web-starter', nameWithOwner: repo, url: `https://github.com/${repo}` },
+      protectedBase: { branch: 'main', sha: baseSha, source: 'live GitHub ref', url: `https://github.com/${repo}/tree/main` },
+      policy: { path: 'docs/mission-control/mission-control-guide.md', policyId: 'bemoat-mission-control', version: '1.3.0', sourceSha: baseSha, url: `https://github.com/${repo}/blob/main/docs/mission-control/mission-control-guide.md` },
+      issue: { number: '471', title: 'negative binding', state: 'CLOSED', url: `https://github.com/${repo}/issues/471`, objective: null, scope: null, acceptanceCriteria: [], dependencies: [], taskSize: 'core', missionControlMode: 'optional', workflowProfile: 'STANDARD' },
+      localGit: { branch: 'unrelated-checkout', head: headSha, upstream: 'origin/unrelated-checkout', originRepository: repo, clean: false, detached: false, pushed: true, durable: false, reasons: ['LOCAL_STATE_NOT_DURABLE: dirty'] },
+      activePr: genuineMerged.activePrs[0],
+      currentHeadVerification: genuineMerged.exactHead,
+      durableContext: { latestHandoff: null, historicalResults: [] },
+      evidenceErrors: genuineMerged.errors,
+    }
+    expect(routeContext(genuineRoute).route).toBe('COMPLETE')
+  })
 })
+
+function protectedMainOwnsIssue(
+  record: { title?: unknown; body?: unknown; closingIssuesReferences?: unknown },
+  repo: string,
+  issueNumber: string,
+): boolean {
+  const refs = record.closingIssuesReferences
+  if (Array.isArray(refs) && refs.some((value) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+    const entry = value as { number?: unknown; repository?: { nameWithOwner?: unknown } }
+    return String(entry.number ?? '') === issueNumber
+      && (!entry.repository?.nameWithOwner || entry.repository.nameWithOwner === repo)
+  })) return true
+  const body = `${String(record.title ?? '')}\n${String(record.body ?? '')}`
+  const escapedRepo = repo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const relation = new RegExp(`(?:part of|refs?|references|related to|closes|fix(?:es)?|resolves|task\\s*[/:-]?\\s*issue|issue)\\s*(?:${escapedRepo})?\\s*#${issueNumber}\\b`, 'gi')
+  let match
+  while ((match = relation.exec(body)) !== null) {
+    if (!/(?:no|not|without|except|excluding|does not include|out of scope)[\s:,-]*$/i.test(body.substring(Math.max(0, match.index - 30), match.index))) {
+      return true
+    }
+  }
+  return false
+}
