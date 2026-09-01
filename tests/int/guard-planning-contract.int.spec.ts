@@ -13,6 +13,15 @@ function readFixture(name: string) {
   return readFileSync(join(fixturesRoot, name), 'utf8')
 }
 
+function getTestRepoUrl() {
+  const result = spawnSync('git', ['remote', 'get-url', 'origin'], { cwd: process.cwd(), encoding: 'utf8' })
+  let url = result.stdout.trim()
+  if (url.startsWith('git@github.com:')) {
+    url = url.replace('git@github.com:', 'https://github.com/')
+  }
+  return url.replace(/\.git$/, '')
+}
+
 function createRepo() {
   const root = mkdtempSync(join(tmpdir(), 'planning-contract-live-'))
   tempRoots.push(root)
@@ -21,7 +30,7 @@ function createRepo() {
   expect(
     spawnSync(
       'git',
-      ['remote', 'add', 'origin', 'https://github.com/boat1994/bemoat-web-starter.git'],
+      ['remote', 'add', 'origin', 'https://github.com/fixture-org/fixture-repo.git'],
       { cwd: root, encoding: 'utf8' },
     ).status,
   ).toBe(0)
@@ -409,7 +418,7 @@ case "$*" in
   *"auth status"*) exit 0 ;;
   *"--version"*) exit 0 ;;
   *"issue view 169"*)
-    printf '%s' '{"title":"[Task 10] Homepage Foundation","state":"CLOSED","body":"historical task","url":"https://github.com/boat1994/bemoat-web-starter/issues/169"}'
+    printf '%s' '{"title":"[Task 10] Homepage Foundation","state":"CLOSED","body":"historical task","url":"https://github.com/fixture-org/fixture-repo/issues/169"}'
     ;;
   *)
     echo "unexpected gh call: $*" >&2
@@ -512,7 +521,7 @@ case "$*" in
   *"auth status"*) exit 0 ;;
   *"--version"*) exit 0 ;;
   *"issue view 170"*)
-    printf '%s' '{"title":"[Task 12] Billing API","state":"OPEN","body":"Task 12 billing work","url":"https://github.com/boat1994/bemoat-web-starter/issues/170"}'
+    printf '%s' '{"title":"[Task 12] Billing API","state":"OPEN","body":"Task 12 billing work","url":"https://github.com/fixture-org/fixture-repo/issues/170"}'
     ;;
   *)
     echo "unexpected gh call: $*" >&2
@@ -555,7 +564,7 @@ case "$*" in
   *"auth status"*) exit 0 ;;
   *"--version"*) exit 0 ;;
   *"issue view 170"*)
-    printf '%s' '{"title":"[task-11] Billing API","state":"OPEN","body":${JSON.stringify(body)},"url":"https://github.com/boat1994/bemoat-web-starter/issues/170"}'
+    printf '%s' '{"title":"[task-11] Billing API","state":"OPEN","body":${JSON.stringify(body)},"url":"https://github.com/fixture-org/fixture-repo/issues/170"}'
     ;;
   *)
     echo "unexpected gh call: $*" >&2
@@ -597,7 +606,7 @@ case "$*" in
       title: '[task-11] Billing API',
       state: 'OPEN',
       body,
-      url: 'https://github.com/boat1994/bemoat-web-starter/issues/170',
+      url: 'https://github.com/fixture-org/fixture-repo/issues/170',
     })}'
     ;;
   *)
@@ -642,7 +651,7 @@ esac
             title: '[task-11] Billing API',
             state: 'OPEN',
             body: malformedBody,
-            url: 'https://github.com/boat1994/bemoat-web-starter/issues/170',
+            url: `${getTestRepoUrl()}/issues/170`,
           }),
           stderr: '',
         }
@@ -671,7 +680,7 @@ esac
             title: '[task-11] Billing API',
             state: 'OPEN',
             body: malformedBody,
-            url: 'https://github.com/boat1994/bemoat-web-starter/issues/170',
+            url: `${getTestRepoUrl()}/issues/170`,
           }),
           stderr: '',
         }
@@ -699,7 +708,7 @@ case "$*" in
       title: '[issue-140] Planning Task Identity Guard',
       state: 'OPEN',
       body,
-      url: 'https://github.com/boat1994/bemoat-web-starter/issues/140',
+      url: 'https://github.com/fixture-org/fixture-repo/issues/140',
     })}'
     ;;
   *)
