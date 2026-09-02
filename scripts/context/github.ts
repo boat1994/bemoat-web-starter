@@ -219,7 +219,7 @@ export function readGithubEvidence({
   repo,
   issueNumber,
   branch: _branch,
-  protectedBaseBranch = 'main',
+  protectedBaseBranch,
   protectedBaseSha = null,
   run,
 }: {
@@ -228,7 +228,7 @@ export function readGithubEvidence({
   repo: string
   issueNumber: string
   branch: string | null
-  protectedBaseBranch?: string
+  protectedBaseBranch: string
   protectedBaseSha?: string | null
   run: ContextCommandRunner
 }): GithubEvidenceResult {
