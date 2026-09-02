@@ -104,6 +104,7 @@ describe('bounded context corrections', () => {
       repo: 'boat1994/bemoat-web-starter',
       issueNumber: '410',
       branch: 'feature/410-context',
+      protectedBaseBranch: 'main',
       run: githubRunner({ prList: [] }),
     })
 
@@ -117,6 +118,7 @@ describe('bounded context corrections', () => {
       repo: 'boat1994/bemoat-web-starter',
       issueNumber: '410',
       branch: 'feature/410-context',
+      protectedBaseBranch: 'main',
       run: githubRunner({ prList: [], rulesets: '' }),
     })
 
@@ -131,6 +133,7 @@ describe('bounded context corrections', () => {
       repo: 'boat1994/bemoat-web-starter',
       issueNumber: '410',
       branch: 'feature/410-other-agent',
+      protectedBaseBranch: 'main',
       run: githubRunner(),
     })
     expect(crossAgent.activePrs).toHaveLength(1)
@@ -140,6 +143,7 @@ describe('bounded context corrections', () => {
       repo: 'boat1994/bemoat-web-starter',
       issueNumber: '410',
       branch: 'feature/410-context',
+      protectedBaseBranch: 'main',
       run: githubRunner({
         prList: [{
           number: 999,
@@ -158,6 +162,7 @@ describe('bounded context corrections', () => {
       repo: 'boat1994/bemoat-web-starter',
       issueNumber: '410',
       branch: 'feature/410-other-agent',
+      protectedBaseBranch: 'main',
       run: githubRunner({
         issue: issuePayload('CLOSED'),
         pr: prPayload({ state: 'MERGED', mergeCommit: { oid: 'c'.repeat(40) } }),
@@ -207,6 +212,7 @@ describe('bounded context corrections', () => {
       repo: 'boat1994/bemoat-web-starter',
       issueNumber: '410',
       branch: 'feature/410-handoff-protocol',
+      protectedBaseBranch: 'main',
       run: runner,
     })
 
@@ -237,6 +243,7 @@ describe('bounded context corrections', () => {
       repo: 'boat1994/bemoat-web-starter',
       issueNumber: '410',
       branch: 'feature/unrelated-branch',
+      protectedBaseBranch: 'main',
       run: runner,
     })
 
@@ -248,20 +255,21 @@ describe('bounded context corrections', () => {
       repo: 'boat1994/bemoat-web-starter',
       issueNumber: '410',
       branch: 'feature/410-context',
+      protectedBaseBranch: 'main',
       protectedBaseSha: baseSha,
       run: githubRunner({ pr: prPayload({ baseRefOid: 'd'.repeat(40) }) }),
     })
     expect(mismatch.errors.join(' ')).toMatch(/base/i)
 
     const oneApproval = readGithubEvidence({
-      repo: 'boat1994/bemoat-web-starter', issueNumber: '410', branch: 'feature/410-context',
+      repo: 'boat1994/bemoat-web-starter', issueNumber: '410', branch: 'feature/410-context', protectedBaseBranch: 'main',
       run: githubRunner({ pr: prPayload({ reviews: [{ state: 'APPROVED', user: { login: 'reviewer-1' }, commitId: headSha }] }) }),
     })
     expect(oneApproval.exactHead?.reviews.approved).toBe(false)
     expect(oneApproval.exactHead?.reviews.approvedCount).toBe(1)
 
     const twoApprovals = readGithubEvidence({
-      repo: 'boat1994/bemoat-web-starter', issueNumber: '410', branch: 'feature/410-context',
+      repo: 'boat1994/bemoat-web-starter', issueNumber: '410', branch: 'feature/410-context', protectedBaseBranch: 'main',
       run: githubRunner({ pr: prPayload({ reviews: [
         { state: 'APPROVED', user: { login: 'reviewer-1' }, commitId: headSha },
         { state: 'APPROVED', user: { login: 'reviewer-2' }, commitId: headSha },
@@ -340,7 +348,7 @@ describe('bounded context corrections', () => {
     })
 
     const evidence = readGithubEvidence({
-      repo: 'boat1994/bemoat-web-starter', issueNumber: '469', branch: 'fix/469-recovery',
+      repo: 'boat1994/bemoat-web-starter', issueNumber: '469', branch: 'fix/469-recovery', protectedBaseBranch: 'main',
       run
     })
 
@@ -369,7 +377,7 @@ describe('bounded context corrections', () => {
 
   it('fails closed for absent or malformed Issue and PR identity and keeps the public command independent', () => {
     const malformedIssue = readGithubEvidence({
-      repo: 'boat1994/bemoat-web-starter', issueNumber: '410', branch: null,
+      repo: 'boat1994/bemoat-web-starter', issueNumber: '410', branch: null, protectedBaseBranch: 'main',
       run: githubRunner({
         issue: JSON.stringify({ number: 410, title: '', state: '', url: '' }),
         prList: [], legacyProtection: response(JSON.stringify({})), rulesets: nativeRuleset(),
@@ -378,7 +386,7 @@ describe('bounded context corrections', () => {
     expect(malformedIssue.errors.join(' ')).toMatch(/Issue/i)
 
     const malformedPr = readGithubEvidence({
-      repo: 'boat1994/bemoat-web-starter', issueNumber: '410', branch: 'feature/410-context',
+      repo: 'boat1994/bemoat-web-starter', issueNumber: '410', branch: 'feature/410-context', protectedBaseBranch: 'main',
       run: githubRunner({ pr: prPayload({ url: '', headRefOid: '' }) }),
     })
     expect(malformedPr.errors.join(' ')).toMatch(/PR|identity/i)
@@ -443,6 +451,7 @@ describe('bounded context corrections', () => {
         }
         return response(local[key] ?? '')
       }
+      if (key.includes('git/ref/heads/dev')) return response('', 1, 'Not Found')
       if (key.includes('git/ref/heads/main')) return response(JSON.stringify({ object: { sha: protectedSha } }))
       if (key.includes('contents/docs/mission-control/mission-control-guide.md')) {
         return response(JSON.stringify({
@@ -569,6 +578,7 @@ describe('bounded context corrections', () => {
       repo,
       issueNumber: '471',
       branch: 'unrelated-checkout',
+      protectedBaseBranch: 'main',
       run: githubRunner({
         issue: JSON.stringify({
           number: 471,

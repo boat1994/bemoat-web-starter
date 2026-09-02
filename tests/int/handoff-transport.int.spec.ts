@@ -81,7 +81,7 @@ function runnerFor(world: World): HandoffCommandRunner {
     if (command !== 'gh') return fail(`unexpected command: ${command}`)
 
     if (args[0] === 'repo' && args[1] === 'view') {
-      return ok(JSON.stringify({ nameWithOwner: world.repository ?? REPOSITORY, defaultBranchRef: { name: 'main' } }))
+      return ok(JSON.stringify({ nameWithOwner: world.repository ?? REPOSITORY }))
     }
     if (args[0] === 'issue' && args[1] === 'view') {
       const issueNumber = world.issueNumber ?? ISSUE
@@ -99,7 +99,10 @@ function runnerFor(world: World): HandoffCommandRunner {
         closingIssuesReferences: [{ number: Number(world.issueNumber ?? ISSUE), repository: { nameWithOwner: world.repository ?? REPOSITORY } }],
       }))
     }
-    if (args[0] === 'api' && args.includes('repos/boat1994/bemoat-web-starter/git/ref/heads/main')) {
+    if (args[0] === 'api' && args.includes(`repos/${REPOSITORY}/git/ref/heads/dev`)) {
+      return { status: 1, stdout: '', stderr: 'Not Found', error: null }
+    }
+    if (args[0] === 'api' && args.includes(`repos/${REPOSITORY}/git/ref/heads/main`)) {
       return ok(JSON.stringify({ object: { sha: world.baseSha ?? BASE_SHA } }))
     }
     if (args[0] === 'api' && args.includes(`repos/${REPOSITORY}/issues/${ISSUE}/comments`)) {

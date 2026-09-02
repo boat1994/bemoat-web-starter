@@ -52,6 +52,7 @@ describe('bemoat:context neutral evidence adapters', () => {
         'ls-remote --heads origin feature/410-context': `${'b'.repeat(40)}\trefs/heads/feature/410-context\n`,
       }
       if (_command === 'git') return response(local[key] ?? '')
+      if (key.includes('git/ref/heads/dev')) return { status: 1, stdout: '', stderr: 'Not Found', error: null }
       if (key.includes('git/ref/heads/main')) return response(JSON.stringify({ object: { sha: 'a'.repeat(40) } }))
       if (key.includes('contents/docs/mission-control/mission-control-guide.md')) {
         return response(JSON.stringify({
@@ -197,6 +198,7 @@ describe('bemoat:context neutral evidence adapters', () => {
       repo: 'boat1994/bemoat-web-starter',
       issueNumber: '410',
       branch: 'feature/410-context',
+      protectedBaseBranch: 'main',
       run,
     })).toMatchObject({
       issue: { number: '410', state: 'OPEN' },
@@ -266,6 +268,7 @@ describe('bemoat:context neutral evidence adapters', () => {
       repo: 'boat1994/bemoat-web-starter',
       issueNumber: '421',
       branch: 'fix/421-standard-semantic-review',
+      protectedBaseBranch: 'main',
       protectedBaseSha: 'c'.repeat(40),
       run,
     })).toMatchObject({
@@ -326,6 +329,7 @@ describe('bemoat:context neutral evidence adapters', () => {
       repo: 'boat1994/bemoat-web-starter',
       issueNumber: '421',
       branch: 'fix/421-standard-semantic-review',
+      protectedBaseBranch: 'main',
       run,
     })
 
@@ -377,7 +381,7 @@ describe('bemoat:context neutral evidence adapters', () => {
     }
 
     const evidence = readGithubEvidence({
-      cwd: '/repo', repo: 'boat1994/bemoat-web-starter', issueNumber: '410', branch: 'feature/410-context', run,
+      cwd: '/repo', repo: 'boat1994/bemoat-web-starter', issueNumber: '410', branch: 'feature/410-context', protectedBaseBranch: 'main', run,
     })
     
     // It should exclude the closed PR 412, but include merged PR 411 and open PR 413 in activePrs list from API
@@ -403,7 +407,7 @@ describe('bemoat:context neutral evidence adapters', () => {
       return response('')
     }
 
-    expect(readGithubEvidence({ cwd: '/repo', repo: 'boat1994/bemoat-web-starter', issueNumber: '434', branch: 'fix/434-ignore-historical-merged-prs', run }).activePrs.length).toBe(3)
+    expect(readGithubEvidence({ cwd: '/repo', repo: 'boat1994/bemoat-web-starter', issueNumber: '434', branch: 'fix/434-ignore-historical-merged-prs', protectedBaseBranch: 'main', run }).activePrs.length).toBe(3)
   })
 
   it('exposes one unique historical merged PR as active for an OPEN Issue (Issue #465 reproduction)', () => {
@@ -416,7 +420,7 @@ describe('bemoat:context neutral evidence adapters', () => {
       return response('')
     }
 
-    expect(readGithubEvidence({ cwd: '/repo', repo: 'boat1994/bemoat-web-starter', issueNumber: '434', branch: 'fix/434-ignore-historical-merged-prs', run }).activePrs).toMatchObject([{ number: '431' }])
+    expect(readGithubEvidence({ cwd: '/repo', repo: 'boat1994/bemoat-web-starter', issueNumber: '434', branch: 'fix/434-ignore-historical-merged-prs', protectedBaseBranch: 'main', run }).activePrs).toMatchObject([{ number: '431' }])
   })
 
   it('selects the sole unmerged PR when historical merged PRs are also present', () => {
@@ -438,6 +442,6 @@ describe('bemoat:context neutral evidence adapters', () => {
       return response('')
     }
 
-    expect(readGithubEvidence({ cwd: '/repo', repo: 'boat1994/bemoat-web-starter', issueNumber: '434', branch: 'fix/434-ignore-historical-merged-prs', run })).toMatchObject({ activePrs: [{ number: '435', headSha: head }], errors: [] })
+    expect(readGithubEvidence({ cwd: '/repo', repo: 'boat1994/bemoat-web-starter', issueNumber: '434', branch: 'fix/434-ignore-historical-merged-prs', protectedBaseBranch: 'main', run })).toMatchObject({ activePrs: [{ number: '435', headSha: head }], errors: [] })
   })
 })

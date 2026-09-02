@@ -1,4 +1,5 @@
 import { prOwnsIssue } from '../context/pr-issue-ownership.ts'
+import { resolveApprovedBase } from '../context/approved-base.ts'
 import type { HandoffRecord } from './schema.ts'
 import {
   commandFailure,
@@ -62,20 +63,29 @@ export function readHandoffBinding({
   record: HandoffRecord
   run?: HandoffCommandRunner
 }): HandoffBinding {
-  const repositoryPayload = json<{ nameWithOwner?: unknown; defaultBranchRef?: { name?: unknown } }>(
+  const repositoryPayload = json<{ nameWithOwner?: unknown }>(
     run,
     'gh',
-    ['repo', 'view', '--json', 'nameWithOwner,defaultBranchRef'],
+    ['repo', 'view', '--json', 'nameWithOwner'],
     cwd,
     env,
     'repository identity',
   )
   const repository = typeof repositoryPayload.nameWithOwner === 'string' ? repositoryPayload.nameWithOwner : ''
-  const baseBranch = typeof repositoryPayload.defaultBranchRef?.name === 'string'
-    ? repositoryPayload.defaultBranchRef.name
-    : ''
-  if (!repository || !baseBranch) throw new HandoffRuntimeError('EVIDENCE_CONFLICT', 'repository identity is incomplete')
+  if (!repository) throw new HandoffRuntimeError('EVIDENCE_CONFLICT', 'repository identity is incomplete')
   assertEqual(repository, record.repository, 'repository binding')
+
+  const approvedBase = resolveApprovedBase({ repo: repository, run, cwd, env })
+  if (!approvedBase.branch || !approvedBase.sha) {
+    const message = approvedBase.errors.find((error) => error.includes('approved-base-unresolved'))
+      ?? approvedBase.errors[0]
+      ?? 'EVIDENCE_CONFLICT: approved-base-unresolved'
+    throw new HandoffRuntimeError(
+      message.startsWith('BLOCKED_EXTERNAL:') ? 'BLOCKED_EXTERNAL' : 'EVIDENCE_CONFLICT',
+      message,
+    )
+  }
+  const baseBranch = approvedBase.branch
   assertEqual(baseBranch, record.protected_base.branch, 'protected base branch binding')
 
   const origin = output(run('git', ['remote', 'get-url', 'origin'], { cwd, env }), 'origin repository')
@@ -97,15 +107,7 @@ export function readHandoffBinding({
     if (!record.local_durability.durable) throw new HandoffRuntimeError('EVIDENCE_CONFLICT', record.local_durability.reason ?? 'LOCAL_STATE_NOT_DURABLE: local work is not durable')
   }
 
-  const baseRef = json<{ object?: { sha?: unknown } }>(
-    run,
-    'gh',
-    ['api', `repos/${repository}/git/ref/heads/${baseBranch}`],
-    cwd,
-    env,
-    'protected base SHA',
-  )
-  const protectedBaseSha = typeof baseRef.object?.sha === 'string' ? baseRef.object.sha.toLowerCase() : ''
+  const protectedBaseSha = approvedBase.sha.toLowerCase()
   assertEqual(protectedBaseSha, record.protected_base.sha, 'protected base SHA binding')
 
   const issue = json<{ number?: unknown; url?: unknown; state?: unknown }>(

@@ -2,6 +2,7 @@ import { parseRoleEvidence } from './issue-parser.ts'
 import { readGithubEvidence } from './github.ts'
 import { readLocalGitEvidence } from './local-git.ts'
 import { readProtectedPolicy } from './policy.ts'
+import { resolveApprovedBase } from './approved-base.ts'
 import { repositoryEvidence, runContextCommand } from './runtime.ts'
 import type { ContextCommandResult, ContextCommandRunner } from './runtime.ts'
 import { normalizeContextEvidence, type NormalizedContextEvidence } from './model.ts'
@@ -31,17 +32,21 @@ export function collectContextEvidence({
   }
 
   const repository = repositoryEvidence(repo ?? 'unknown/unknown')
-  const policyResult = repo
-    ? readProtectedPolicy({ repo, baseBranch: 'main', run, cwd, env })
-    : { branch: 'main', sha: null, policy: null, errors: ['EVIDENCE_CONFLICT: policy cannot be bound without repository identity'] }
-  const github = repo
+  const approvedBase = repo
+    ? resolveApprovedBase({ repo, run, cwd, env })
+    : { branch: null, sha: null, source: 'live GitHub ref' as const, url: '', errors: ['EVIDENCE_CONFLICT: approved-base-unresolved'] }
+  const policyResult = repo && approvedBase.branch
+    ? readProtectedPolicy({ repo, baseBranch: approvedBase.branch, run, cwd, env })
+    : { branch: approvedBase.branch ?? '', sha: null, policy: null, errors: approvedBase.branch ? [] : [...approvedBase.errors] }
+  const github = repo && approvedBase.branch
     ? readGithubEvidence({
       cwd,
       env,
       repo,
       issueNumber,
       branch: localGit.branch === '<detached>' ? null : localGit.branch,
-      protectedBaseSha: policyResult.sha,
+      protectedBaseBranch: approvedBase.branch,
+      protectedBaseSha: policyResult.sha ?? approvedBase.sha,
       run,
     })
     : {
@@ -73,12 +78,22 @@ export function collectContextEvidence({
     policyId: '',
     version: '',
     sourceSha: '',
-    url: `https://github.com/${repo ?? 'unknown/unknown'}/blob/main/docs/mission-control/mission-control-guide.md`,
+    url: approvedBase.branch
+      ? `https://github.com/${repo ?? 'unknown/unknown'}/blob/${approvedBase.branch}/docs/mission-control/mission-control-guide.md`
+      : `https://github.com/${repo ?? 'unknown/unknown'}/blob/main/docs/mission-control/mission-control-guide.md`,
   }
+
+  const resolvedSha = policyResult.sha ?? approvedBase.sha ?? ''
+  const resolvedBranch = approvedBase.branch ?? ''
 
   return normalizeContextEvidence({
     repository,
-    protectedBase: { branch: 'main', sha: policyResult.sha ?? '', source: 'live GitHub ref', url: `https://github.com/${repo ?? 'unknown/unknown'}/tree/main` },
+    protectedBase: {
+      branch: resolvedBranch,
+      sha: resolvedSha,
+      source: approvedBase.source,
+      url: approvedBase.url || (resolvedBranch ? `https://github.com/${repo ?? 'unknown/unknown'}/tree/${resolvedBranch}` : ''),
+    },
     policy,
     issue,
     localGit,
@@ -87,6 +102,7 @@ export function collectContextEvidence({
     durableContext: { latestHandoff: roleEvidence.latestHandoff, historicalResults: roleEvidence.historicalResults },
     evidenceErrors: [...new Set([
       ...errors,
+      ...approvedBase.errors,
       ...policyResult.errors,
       ...github.errors,
       ...roleEvidence.invalid.map((comment) => `EVIDENCE_CONFLICT: malformed role comment ${comment.id}`),

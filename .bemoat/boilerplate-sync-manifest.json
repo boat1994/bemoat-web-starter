@@ -102,6 +102,7 @@
     "tests/int/context-parser.int.spec.ts",
     "tests/int/context-router.int.spec.ts",
     "tests/int/context-evidence.int.spec.ts",
+    "tests/int/approved-base.int.spec.ts",
     "tests/int/context-cli.int.spec.ts",
     "tests/int/context-skill.int.spec.ts",
     "tests/int/context-sync.int.spec.ts",
