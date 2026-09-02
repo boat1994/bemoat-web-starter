@@ -1,4 +1,5 @@
 import { parseIssueBody } from './issue-parser.ts'
+import { prOwnsIssue } from './pr-issue-ownership.ts'
 import type {
   ActivePullRequestEvidence,
   HeadVerificationEvidence,
@@ -207,15 +208,6 @@ function reviewCounts(reviews: unknown[], headSha: string): { approvedCount: num
   const current = [...latest.values()].filter((review) => review.approved)
   return { approvedCount: current.length, exactHeadApprovedCount: current.filter((review) => review.exactHead).length, nativeReviews: reviews.map((value) => reviewEvidence(value)) }
 }
-function issueBound(record: Record<string, unknown>, repo: string, issueNumber: string): boolean {
-  if (Array.isArray(record.closingIssuesReferences) && record.closingIssuesReferences.some((r) => isRecord(r) && String(r.number ?? '') === issueNumber && (!isRecord(r.repository) || asString(r.repository.nameWithOwner) === repo || !asString(r.repository.nameWithOwner)))) return true
-  const body = `${String(record.title ?? '')}\n${String(record.body ?? '')}`, escapedRepo = repo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const relation = new RegExp(`(?:part of|refs?|references|related to|closes|fix(?:es)?|resolves|task\\s*[/:-]?\\s*issue|issue)\\s*(?:${escapedRepo})?\\s*#${issueNumber}\\b`, 'gi')
-  let match
-  while ((match = relation.exec(body)) !== null) if (!/(?:no|not|without|except|excluding|does not include|out of scope)[\s:,-]*$/i.test(body.substring(Math.max(0, match.index - 30), match.index))) return true
-  return false
-}
-
 function candidateNumber(value: unknown): string | null {
   if (!isPositiveInteger(value)) return null
   return String(value)
@@ -285,7 +277,7 @@ export function readGithubEvidence({
     if (!Array.isArray(result.value)) continue
     successfulList = true
     for (const value of result.value) {
-      if (!isRecord(value) || !issueBound(value, repo, issueNumber)) continue
+      if (!isRecord(value) || !prOwnsIssue(value, repo, issueNumber)) continue
       const number = candidateNumber(value.number)
       if (!number) {
         errors.push('EVIDENCE_CONFLICT: Issue-bound PR identity is missing or malformed')

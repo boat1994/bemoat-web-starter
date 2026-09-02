@@ -235,6 +235,87 @@ describe('bemoat:handoff neutral transport', () => {
     await runCustom({}, { state: 'OPEN', closingIssuesReferences: [{ number: Number(ISSUE), repository: { nameWithOwner: REPOSITORY } }] }, { pr: null }) // Omitted applicable PR
   })
 
+  it('uses the same authorized PR-Issue ownership contract as Context', async () => {
+    const incidentalBody = 'Acceptance audit: Issue #410 is regression context only. related to #410 references #410'
+    const world: World = { comments: [], postCount: 0, calls: [] }
+    const incidentalClaim: HandoffCommandRunner = (command, args, options = {}) => {
+      if (command === 'gh' && args[0] === 'pr' && args[1] === 'view') {
+        return ok(JSON.stringify({
+          number: 412,
+          url: PR_URL,
+          baseRefName: 'main',
+          baseRefOid: BASE_SHA,
+          headRefName: BRANCH,
+          headRefOid: HEAD_SHA,
+          state: 'OPEN',
+          title: 'incidental mention',
+          body: incidentalBody,
+          closingIssuesReferences: [],
+        }))
+      }
+      return runnerFor(world)(command, args, options)
+    }
+    await expect(async () => runHandoffWorkflow({
+      issueNumber: ISSUE,
+      body: JSON.stringify(validRecord()),
+      cwd: '/repo',
+      env: process.env,
+      run: incidentalClaim,
+    })).rejects.toMatchObject({ classification: 'EVIDENCE_CONFLICT' })
+    expect(world.postCount).toBe(0)
+
+    const textualWorld: World = { comments: [], postCount: 0, calls: [] }
+    const textualOwner: HandoffCommandRunner = (command, args, options = {}) => {
+      if (command === 'gh' && args[0] === 'pr' && args[1] === 'view') {
+        return ok(JSON.stringify({
+          number: 412,
+          url: PR_URL,
+          baseRefName: 'main',
+          baseRefOid: BASE_SHA,
+          headRefName: BRANCH,
+          headRefOid: HEAD_SHA,
+          state: 'OPEN',
+          title: 'bounded work',
+          body: 'Part of #410',
+          closingIssuesReferences: [],
+        }))
+      }
+      return runnerFor(textualWorld)(command, args, options)
+    }
+    const textual = await runHandoffWorkflow({
+      issueNumber: ISSUE,
+      body: JSON.stringify(validRecord()),
+      cwd: '/repo',
+      env: process.env,
+      run: textualOwner,
+    })
+    expect(textual).toMatchObject({ classification: 'SUCCESS', mutationPerformed: true })
+    expect(textualWorld.postCount).toBe(1)
+
+    const omittedWorld: World = { comments: [], postCount: 0, calls: [] }
+    const omittedIncidental: HandoffCommandRunner = (command, args, options = {}) => {
+      if (command === 'gh' && args[0] === 'pr' && args[1] === 'list') {
+        return ok(JSON.stringify([{
+          number: 999,
+          state: 'OPEN',
+          title: 'unrelated',
+          body: incidentalBody,
+          closingIssuesReferences: [],
+        }]))
+      }
+      return runnerFor(omittedWorld)(command, args, options)
+    }
+    const omitted = await runHandoffWorkflow({
+      issueNumber: ISSUE,
+      body: JSON.stringify(validRecord({ pr: null })),
+      cwd: '/repo',
+      env: process.env,
+      run: omittedIncidental,
+    })
+    expect(omitted).toMatchObject({ classification: 'SUCCESS', mutationPerformed: true })
+    expect(omittedWorld.postCount).toBe(1)
+  })
+
   it('does not alter Issue fields, labels, assignees, branches, PRs, state, receipts, or counters', async () => {
     const world: World & { issueFields: Record<string, unknown> } = {
       comments: [],
