@@ -36,6 +36,40 @@ registry-declared contract, and use its safe help invocation.
 Help is read-only and must not mutate GitHub, branches, or local workflow
 state.
 
+## Approved protected base
+
+The canonical generic approved-base rule is:
+
+1. If live remote `refs/heads/dev` exists:
+      approved base = `dev`
+
+2. Otherwise, if live remote `refs/heads/main` exists:
+      approved base = `main`
+
+3. Otherwise:
+      STOP with precise approved-base-unresolved classification.
+
+`main` and `dev` both existing is NOT contradictory.
+`dev` deterministically wins.
+
+These are NOT approved-base authority:
+
+- GitHub default branch
+- GitHub protection status
+- hidden/local git config
+- environment variables or undocumented caller overrides
+- Issue metadata
+- provider identity
+- chat/session state
+
+A repository requiring a different integration/protected base is unsupported
+by this generic resolver until merged repository authority explicitly extends
+the supported branch-role contract.
+
+Do not guess another branch.
+
+Context and Handoff must consume the same resolved approved base.
+
 ## Review and correction boundaries
 
 STANDARD work receives one independent, risk-adjusted semantic review when a
