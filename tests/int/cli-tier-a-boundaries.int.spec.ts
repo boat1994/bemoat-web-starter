@@ -469,8 +469,9 @@ describe('Task 4 Tier A CLI boundaries: boilerplate sync and hooks install', () 
     ])
   })
 
-  it('boilerplate sync and hooks normalize all JSON-help permutations', () => {
-    for (const entry of TIER_A_CASES) {
+  it.each(TIER_A_CASES)(
+    '$command normalizes all JSON-help permutations',
+    (entry) => {
       const runs = JSON_HELP_PERMUTATIONS.map((flags) => runBoundary(entry, flags))
 
       for (const run of runs) expectHelpJson(run, entry)
@@ -480,8 +481,8 @@ describe('Task 4 Tier A CLI boundaries: boilerplate sync and hooks install', () 
         runs[0].stdout,
         runs[0].stdout,
       ])
-    }
-  })
+    },
+  )
 
   it('boilerplate sync and hooks help and invalid syntax perform zero I/O', () => {
     for (const entry of TIER_A_CASES) {
