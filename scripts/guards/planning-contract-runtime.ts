@@ -123,31 +123,27 @@ function runGit(args: string[], cwd: string): GitResult {
     stderr: result.stderr ?? '',
   }
 }
-function resolveApprovedBase(root: string, options: PlanningGuardOptions = {}): string | null {
+function resolveApprovedBaseCandidates(root: string, options: PlanningGuardOptions = {}): string[] {
   if (options.approvedBase) {
-    return options.approvedBase
+    return [options.approvedBase]
   }
-  const originDev = runGit(['merge-base', 'HEAD', 'origin/dev'], root)
-  if (originDev.status === 0) {
-    const sha = originDev.stdout.trim()
-    if (sha) return sha
-  }
-  const localDev = runGit(['merge-base', 'HEAD', 'dev'], root)
-  if (localDev.status === 0) {
-    const sha = localDev.stdout.trim()
-    if (sha) return sha
-  }
-  const originMain = runGit(['merge-base', 'HEAD', 'origin/main'], root)
-  if (originMain.status === 0) {
-    const sha = originMain.stdout.trim()
-    if (sha) return sha
-  }
-  const main = runGit(['merge-base', 'HEAD', 'main'], root)
-  if (main.status === 0) {
-    const sha = main.stdout.trim()
-    if (sha) return sha
-  }
-  return null
+  return ['origin/dev', 'dev', 'origin/main', 'main'].filter((ref) => {
+    const relationship = runGit(['merge-base', 'HEAD', ref], root)
+    return relationship.status === 0 && relationship.stdout.trim().length > 0
+  })
+}
+function resolveApprovedBaseDiff(root: string, approvedBase: string): GitResult | null {
+  const approvedTree = runGit(['rev-parse', '--verify', `${approvedBase}^{tree}`], root)
+  const headTree = runGit(['rev-parse', '--verify', 'HEAD^{tree}'], root)
+  if (approvedTree.status !== 0 || headTree.status !== 0) return null
+  const diffRange =
+    approvedTree.stdout.trim() === headTree.stdout.trim()
+      ? [approvedBase, 'HEAD']
+      : [approvedBase + '...HEAD']
+  return runGit(
+    ['diff', '--name-only', '--diff-filter=ACMRTUXB', ...diffRange],
+    root,
+  )
 }
 function discoverPlanningFiles(root: string, options: PlanningGuardOptions = {}): string[] {
   if (Array.isArray(options.files) && options.files.length > 0) {
@@ -163,21 +159,30 @@ function discoverPlanningFiles(root: string, options: PlanningGuardOptions = {})
   const diff = runGit(['diff', '--name-only', '--diff-filter=ACMRTUXB', 'HEAD'], root)
   const cached = runGit(['diff', '--cached', '--name-only', '--diff-filter=ACMRTUXB'], root)
   const untracked = runGit(['ls-files', '--others', '--exclude-standard'], root)
+  const workingTreeDiffFailed = diff.status !== 0 || cached.status !== 0 || untracked.status !== 0
   const candidates = new Set(
     `${diff.stdout}\n${cached.stdout}\n${untracked.stdout}`
       .split('\n')
       .map((line) => line.trim())
       .filter(Boolean),
   )
-  const approvedBase = resolveApprovedBase(root, options)
-  if (approvedBase) {
-    const branchDiff = runGit(
-      ['diff', '--name-only', '--diff-filter=ACMRTUXB', `${approvedBase}...HEAD`],
-      root,
-    )
+  let branchDiff: GitResult | null = null
+  for (const approvedBase of resolveApprovedBaseCandidates(root, options)) {
+    const candidateDiff = resolveApprovedBaseDiff(root, approvedBase)
+    if (!candidateDiff || candidateDiff.status !== 0) continue
+    branchDiff = candidateDiff
+    break
+  }
+  if (branchDiff && !workingTreeDiffFailed) {
     for (const line of branchDiff.stdout.split('\n')) {
       const trimmed = line.trim()
       if (trimmed) candidates.add(trimmed)
+    }
+  } else {
+    for (const planningRoot of PLANNING_ROOTS) {
+      const fallbackFiles: string[] = []
+      walkPlanningFiles(root, planningRoot, fallbackFiles)
+      for (const file of fallbackFiles) candidates.add(file)
     }
   }
   return [...candidates].filter(isPlanningPath)
