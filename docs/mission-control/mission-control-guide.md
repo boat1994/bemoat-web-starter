@@ -60,12 +60,14 @@ not perform its review.
 
 Global MC authorizes one bounded objective at a time. If semantics and
 authority are clear, choose the lowest-cost sufficient model and keep one
-capable worker through deterministic internal steps: inspect/characterize,
-implement, then run focused checks during iteration. Run the required full
-validation tier on the final candidate; do not repeat it after each small edit
-unless a failure or specific risk warrants it. After it passes, carry out the
-policy-authorized durable delivery steps. Completing a substep alone does not
-require another worker, a return to Global MC, or fresh Context.
+accountable controller for the objective. Delegate suitable internal subtasks
+to non-overlapping workers as needed; the controller need not perform every
+deterministic step personally. When useful, the controller may keep the same
+capable worker through a coherent inspect/implement/focused-check/correction
+chain and any authorized delivery steps. Run the required full validation tier
+on the final candidate; do not repeat it after each small edit unless a failure
+or specific risk warrants it. Completing a substep alone does not require
+replacing the controller, a return to Global MC, or fresh Context.
 
 Split only at a real boundary: unresolved authority or protocol decision;
 destructive, production, migration, or secret gate; independent review required

@@ -17,6 +17,8 @@ describe('Mission Control delegation and execution model policy', () => {
     expect(guide).toMatch(/mutation ownership.*unambiguous.*overlapping.*prohibited/i)
     expect(guide).toMatch(/independent review.*remains? independent/i)
     expect(guide).toMatch(/agnostic to provider and model identity/i)
+    expect(guide).not.toMatch(/keep one capable worker through deterministic internal steps/i)
+    expect(guide).toMatch(/when useful.*same capable worker through a coherent inspect\/implement\/focused-check\/correction chain.*authorized delivery steps/i)
   })
 
   it('keeps model names in the loader as role-based execution preferences only', () => {
