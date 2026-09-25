@@ -20,12 +20,19 @@ bemoat:context → one bounded objective → bemoat:handoff → fresh reconstruc
    help invocation before use.
 5. Run `pnpm run bemoat:context <issue-number> --json`; use its fresh route and
    evidence rather than chat, copied SHAs, or local reports.
-6. Execute one authorized bounded objective. Continue deterministic work through
-   validation and durable GitHub checkpoints unless a real stop condition applies.
+6. Execute exactly one authorized bounded objective. Follow the canonical
+   guide's **Bounded objective execution** rule: choose the lowest-cost
+   sufficient worker and keep it on the objective through deterministic
+   internal steps and policy-allowed delivery actions to the next real gate.
+   Do not return to Global MC after each internal substep or bundle independent
+   or dependent future objectives into the same work.
 7. Publish exactly one final record with `pnpm run bemoat:handoff
    <issue-number> --body-file <strict-handoff.json>` when the workflow requires
    cross-agent transport.
-8. Never merge autonomously.
+8. After each durable objective result and required Handoff, run fresh Context
+   before selecting or starting another objective. Internal substeps alone do
+   not require Global MC reconstruction.
+9. Never merge autonomously.
 
 ## Evidence and safety
 

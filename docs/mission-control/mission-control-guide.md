@@ -28,6 +28,31 @@ returns one route. bemoat:handoff appends one validated, read-back-verified
 HANDOFF record. Its body file must contain exactly one strict JSON HANDOFF
 object.
 
+## Bounded objective execution
+
+Global MC authorizes one bounded objective at a time. If semantics and
+authority are clear, choose the lowest-cost sufficient model and keep one
+capable worker through deterministic internal steps: inspect/characterize,
+implement, then run focused checks during iteration. Run the required full
+validation tier on the final candidate; do not repeat it after each small edit
+unless a failure or specific risk warrants it. After it passes, carry out the
+policy-authorized durable delivery steps. Completing a substep alone does not
+require another worker, a return to Global MC, or fresh Context.
+
+Split only at a real boundary: unresolved authority or protocol decision;
+destructive, production, migration, or secret gate; independent review required
+by policy; required validation that needs a separately scoped correction;
+scope expansion; conflicting or stale durable evidence; unsupported command
+or policy. A correction that remains in scope can stay with the same worker.
+
+That worker may carry out only that objective. Do not combine independent
+objectives or start dependent future work before fresh Context and authorization.
+Once the objective has a durable result, publish required Handoff and reconstruct
+Context before choosing or starting the next objective. Independent review
+remains separate.
+
+Example: `Global MC → one worker (one objective) → durable result/Handoff → fresh Context → next route`
+
 bemoat:context:sync-base remains a separately bounded protected-main
 synchronization utility. Run CLI Discovery before invoking any retained
 bemoat command. Follow the repository's
