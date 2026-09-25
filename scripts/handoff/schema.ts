@@ -26,8 +26,8 @@ export type HandoffRecord = {
   prohibited_scope: string[]
   executing_agent: string
   provider: string
-  branch: string | null
-  exact_head: string | null
+  branch: string
+  exact_head: string
   protected_base: { branch: string; sha: string }
   pr: {
     number: string
@@ -195,8 +195,8 @@ export function validateHandoffRecord(value: unknown): HandoffRecord {
   stringArray(value.prohibited_scope, 'prohibited_scope', errors)
   nonEmptyString(value.executing_agent, 'executing_agent', errors)
   nonEmptyString(value.provider, 'provider', errors)
-  nullableString(value.branch, 'branch', errors)
-  if (value.exact_head !== null) fullSha(value.exact_head, 'exact_head', errors)
+  nonEmptyString(value.branch, 'branch', errors)
+  fullSha(value.exact_head, 'exact_head', errors)
 
   if (!isRecord(value.protected_base) || !exactKeys(value.protected_base, ['branch', 'sha'])) {
     errors.push('protected_base must contain exactly branch and sha')
@@ -255,8 +255,8 @@ export function validateHandoffRecord(value: unknown): HandoffRecord {
     prohibited_scope: [...value.prohibited_scope as string[]],
     executing_agent: value.executing_agent as string,
     provider: value.provider as string,
-    branch: value.branch as string | null,
-    exact_head: value.exact_head as string | null,
+    branch: value.branch as string,
+    exact_head: value.exact_head as string,
     protected_base: {
       branch: (value.protected_base as Record<string, unknown>).branch as string,
       sha: (value.protected_base as Record<string, unknown>).sha as string,

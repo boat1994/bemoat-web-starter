@@ -110,6 +110,7 @@
     "tests/int/issue-branch-bootstrap.int.spec.ts",
     "tests/int/handoff-schema.int.spec.ts",
     "tests/int/handoff-transport.int.spec.ts",
+    "tests/int/handoff-validation-proof.int.spec.ts",
     "tests/int/handoff-cli.int.spec.ts",
     "tests/int/handoff-skill.int.spec.ts",
     "tests/int/guard-pack.int.spec.ts",

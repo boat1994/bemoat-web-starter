@@ -44,9 +44,12 @@ describe('bemoat:handoff public CLI contract', () => {
       tier: 'A',
       entrypoint: 'scripts/agent-handoff.ts',
       writes: ['exactly one top-level Issue HANDOFF comment; no other protocol mutation'],
-      last_validation_before_mutation: expect.stringMatching(/repository|Issue|head|PR/i),
+      last_validation_before_mutation: expect.stringMatching(/runtime-generated PASS proof.*exact HEAD/i),
       post_write_readback: expect.stringMatching(/read back|exact/i),
     })
+    expect(contract?.required_evidence).toContain(
+      'Runtime-generated PASS proof bound to the validation tier, canonical command, and exact HEAD.',
+    )
 
     const help = createHelpEnvelopeV1(contract)
     expect(help.command).toBe('bemoat:handoff')

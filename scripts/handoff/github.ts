@@ -23,6 +23,7 @@ export type HandoffBinding = {
   branch: string | null
   exactHead: string | null
   prNumber: string | null
+  changedFiles: string[]
 }
 
 function output(result: HandoffCommandResult, label: string): string {
@@ -48,6 +49,89 @@ function assertIssueUrl(url: unknown, repository: string, issueNumber: string): 
 
 function json<T>(run: HandoffCommandRunner, command: string, args: readonly string[], cwd: string, env: NodeJS.ProcessEnv, label: string): T {
   return parseJson<T>(run(command, args, { cwd, env }), label)
+}
+
+function readPullRequestFiles({ repository, prNumber, run, cwd, env }: {
+  repository: string
+  prNumber: string
+  run: HandoffCommandRunner
+  cwd: string
+  env: NodeJS.ProcessEnv
+}): string[] {
+  const pages = json<unknown>(
+    run,
+    'gh',
+    ['api', '--paginate', '--slurp', `repos/${repository}/pulls/${prNumber}/files`],
+    cwd,
+    env,
+    'Pull Request changed files',
+  )
+  if (!Array.isArray(pages) || pages.length === 0 || pages.some((page) => !Array.isArray(page))) {
+    throw new HandoffRuntimeError('EVIDENCE_CONFLICT', 'Pull Request changed-file evidence is empty or ambiguous')
+  }
+  const files: string[] = []
+  for (const page of pages) {
+    for (const entry of page) {
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry) || typeof (entry as { filename?: unknown }).filename !== 'string') {
+        throw new HandoffRuntimeError('EVIDENCE_CONFLICT', 'Pull Request changed-file evidence is malformed')
+      }
+      const fileEntry = entry as { filename: string; previous_filename?: unknown; status?: unknown }
+      const filename = fileEntry.filename
+      const validPath = (path: string) => Boolean(path) && !path.startsWith('/') && !path.split('/').includes('..')
+      if (!validPath(filename)) {
+        throw new HandoffRuntimeError('EVIDENCE_CONFLICT', 'Pull Request changed-file evidence contains an invalid path')
+      }
+      if (fileEntry.status !== undefined && !['added', 'removed', 'modified', 'renamed', 'copied', 'changed', 'unchanged'].includes(String(fileEntry.status))) {
+        throw new HandoffRuntimeError('EVIDENCE_CONFLICT', 'Pull Request changed-file evidence has an unknown change status')
+      }
+      if (fileEntry.status === 'renamed' && typeof fileEntry.previous_filename !== 'string') {
+        throw new HandoffRuntimeError('EVIDENCE_CONFLICT', 'renamed Pull Request file is missing its previous path')
+      }
+      if (fileEntry.previous_filename !== undefined) {
+        if (typeof fileEntry.previous_filename !== 'string' || !validPath(fileEntry.previous_filename)) {
+          throw new HandoffRuntimeError('EVIDENCE_CONFLICT', 'Pull Request changed-file evidence has an invalid previous path')
+        }
+        files.push(fileEntry.previous_filename)
+      }
+      files.push(filename)
+    }
+  }
+  if (files.length === 0) throw new HandoffRuntimeError('EVIDENCE_CONFLICT', 'Pull Request changed-file evidence is empty')
+  return [...new Set(files)].sort()
+}
+
+function readBranchFiles({ protectedBaseSha, exactHead, run, cwd, env }: {
+  protectedBaseSha: string
+  exactHead: string
+  run: HandoffCommandRunner
+  cwd: string
+  env: NodeJS.ProcessEnv
+}): string[] {
+  const result = run(
+    'git',
+    ['diff', '--name-only', '--no-renames', '-z', protectedBaseSha + '...' + exactHead],
+    { cwd, env },
+  )
+  if (result.error || result.status !== 0) {
+    throw new HandoffRuntimeError(
+      'BLOCKED_EXTERNAL',
+      'protected-base-to-HEAD changed files: ' + commandFailure(result, 'command failed'),
+    )
+  }
+  if (result.stdout === '') {
+    throw new HandoffRuntimeError('EVIDENCE_CONFLICT', 'protected-base-to-HEAD changed-file evidence is empty')
+  }
+  if (!result.stdout.endsWith('\0')) {
+    throw new HandoffRuntimeError('EVIDENCE_CONFLICT', 'protected-base-to-HEAD changed-file evidence is malformed')
+  }
+  const files = result.stdout.slice(0, -1).split('\0')
+  if (files.some((filename) => filename === '')) {
+    throw new HandoffRuntimeError('EVIDENCE_CONFLICT', 'protected-base-to-HEAD changed-file evidence is malformed')
+  }
+  if (files.some((filename) => filename.startsWith('/') || filename.split('/').includes('..'))) {
+    throw new HandoffRuntimeError('EVIDENCE_CONFLICT', 'protected-base-to-HEAD changed-file evidence contains an invalid path')
+  }
+  return [...new Set(files)].sort()
 }
 
 export function readHandoffBinding({
@@ -161,6 +245,10 @@ export function readHandoffBinding({
     }
   }
 
+  const changedFiles = record.pr
+    ? readPullRequestFiles({ repository, prNumber: record.pr.number, run, cwd, env })
+    : readBranchFiles({ protectedBaseSha, exactHead: head ?? '', run, cwd, env })
+
   return {
     repository,
     issueNumber,
@@ -168,6 +256,7 @@ export function readHandoffBinding({
     branch,
     exactHead: head,
     prNumber: record.pr?.number ?? null,
+    changedFiles,
   }
 }
 
