@@ -21,11 +21,15 @@ bemoat:context → one bounded objective → bemoat:handoff → fresh reconstruc
 5. Run `pnpm run bemoat:context <issue-number> --json`; use its fresh route and
    evidence rather than chat, copied SHAs, or local reports.
 6. Execute exactly one authorized bounded objective. Follow the canonical
-   guide's **Bounded objective execution** rule: choose the lowest-cost
-   sufficient worker and keep it on the objective through deterministic
-   internal steps and policy-allowed delivery actions to the next real gate.
-   Do not return to Global MC after each internal substep or bundle independent
-   or dependent future objectives into the same work.
+   guide's **Bounded objective execution** rule: one accountable controller
+   owns the bounded objective and may delegate suitable bounded,
+   non-overlapping internal subwork under that policy. The controller remains
+   responsible for policy-allowed delivery actions; workers may carry them out
+   only within their bounded delegation. Keeping the same capable mutation
+   worker through a coherent deterministic inspect/implement/check/correction
+   chain is an optional efficiency preference when useful, not objective-wide
+   authority. Do not return to Global MC after each internal substep or bundle
+   independent or dependent future objectives into the same work.
 7. Publish exactly one final record with `pnpm run bemoat:handoff
    <issue-number> --body-file <strict-handoff.json>` when the workflow requires
    cross-agent transport.

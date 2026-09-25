@@ -29,5 +29,8 @@ describe('Mission Control delegation and execution model policy', () => {
     expect(loader).toMatch(/small deterministic objectives?.*Luna directly/i)
     expect(loader).toMatch(/named-model fallback.*equivalent role.*lowest-cost model sufficient/i)
     expect(loader).toMatch(/model.*does not.*workflow authority/i)
+    expect(loader).not.toMatch(/choose the lowest-cost sufficient worker and keep it on the objective through deterministic internal steps and policy-allowed delivery actions/i)
+    expect(loader).toMatch(/one accountable controller owns the bounded objective.*may delegate suitable bounded, non-overlapping internal subwork/i)
+    expect(loader).toMatch(/same capable mutation worker.*optional efficiency preference when useful.*not.*objective-wide authority/i)
   })
 })
