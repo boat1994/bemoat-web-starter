@@ -67,11 +67,14 @@ function runnerFor(world: World): HandoffCommandRunner {
   return (command, args, options = {}) => {
     world.calls.push({ command, args: [...args], input: options.input })
 
+    if (command === 'pnpm') return ok('validation passed')
+
     if (command === 'git') {
       const key = args.join(' ')
       if (key === 'branch --show-current') return ok(`${world.branch ?? BRANCH}\n`)
       if (key === 'rev-parse HEAD') return ok(`${world.head ?? HEAD_SHA}\n`)
       if (key === 'status --short') return ok(world.dirty ?? '')
+      if (args[0] === 'diff' && args[1] === '--name-only') return ok('scripts/agent-handoff.ts\n')
       if (key === 'remote get-url origin') return ok(`https://github.com/${world.repository ?? REPOSITORY}.git\n`)
       if (key === 'rev-parse --abbrev-ref --symbolic-full-name @{upstream}') return ok(`origin/${world.branch ?? BRANCH}\n`)
       if (key === `ls-remote --heads origin ${world.branch ?? BRANCH}`) return ok(`${world.head ?? HEAD_SHA}\trefs/heads/${world.branch ?? BRANCH}\n`)
@@ -104,6 +107,9 @@ function runnerFor(world: World): HandoffCommandRunner {
     }
     if (args[0] === 'api' && args.includes(`repos/${REPOSITORY}/git/ref/heads/main`)) {
       return ok(JSON.stringify({ object: { sha: world.baseSha ?? BASE_SHA } }))
+    }
+    if (args[0] === 'api' && args.includes(`repos/${REPOSITORY}/pulls/412/files`)) {
+      return ok(JSON.stringify([[{ filename: 'scripts/agent-handoff.ts' }, { filename: 'scripts/handoff/workflow.ts' }]]))
     }
     if (args[0] === 'api' && args.includes(`repos/${REPOSITORY}/issues/${ISSUE}/comments`)) {
       if (args.includes('--method') && args.includes('POST')) {

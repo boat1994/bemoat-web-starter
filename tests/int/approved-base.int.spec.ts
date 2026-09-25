@@ -122,6 +122,9 @@ function handoffRunner(repo: string, refs: LiveRefs, branch = 'fix/464-approved-
       return handoffOk(JSON.stringify({ number: 464, url: `https://github.com/${repo}/issues/464`, state: 'OPEN' }))
     }
     if (args[0] === 'pr' && args[1] === 'list') return handoffOk('[]')
+    if (args[0] === 'api' && args.includes(`repos/${repo}/pulls/500/files`)) {
+      return handoffOk(JSON.stringify([[{ filename: 'scripts/context/evidence.ts' }]]))
+    }
     if (args[0] === 'pr' && args[1] === 'view') {
       return handoffOk(JSON.stringify({
         number: 500,

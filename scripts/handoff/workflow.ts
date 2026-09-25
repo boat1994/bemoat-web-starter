@@ -1,6 +1,6 @@
-import { commentMatches, listHandoffComments, postHandoffComment, readHandoffBinding, type HandoffComment } from './github.ts'
-import { parseHandoffBody, renderHandoffComment, type HandoffRecord } from './schema.ts'
-import { commandFailure, HandoffRuntimeError, type HandoffCommandRunner } from './runtime.ts'
+import { commentMatches, listHandoffComments, postHandoffComment, readHandoffBinding, type HandoffBinding, type HandoffComment } from './github.ts'
+import { parseHandoffBody, renderHandoffComment, type HandoffEvidence, type HandoffRecord } from './schema.ts'
+import { commandFailure, HandoffRuntimeError, runHandoffCommand, type HandoffCommandRunner } from './runtime.ts'
 
 export type HandoffWorkflowResult = {
   classification: 'SUCCESS' | 'NO_OP_IDENTICAL_RETRY'
@@ -15,6 +15,70 @@ export type HandoffWorkflowResult = {
 
 function ambiguous(message: string, mutationPerformed = true): never {
   throw new HandoffRuntimeError('AMBIGUOUS_RESULT', message, { mutationPerformed })
+}
+
+type ValidationTier = 'docs-only' | 'code'
+
+type ValidationProof = {
+  status: 'PASS'
+  tier: ValidationTier
+  command: 'pnpm run bemoat:guard:safety' | 'pnpm run bemoat:check'
+  exact_head: string
+}
+
+function validationTier(files: string[]): ValidationTier {
+  if (files.length === 0) throw new HandoffRuntimeError('EVIDENCE_CONFLICT', 'changed-file evidence is empty')
+  let hasCode = false
+  for (const file of files) {
+    const lower = file.toLowerCase()
+    if (/\.(md|mdx)$/.test(lower)) continue
+    if (/^\.github\/workflows\/.+\.(ya?ml)$/.test(lower) || lower === '.github/dependabot.yml') continue
+    if (
+      /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs|css|scss|html|vue|svelte|py|sh|sql|json|jsonc|ya?ml|toml|lock|prisma|graphql|gql)$/.test(lower)
+      || /^(src|scripts|tests|components|\.agents|\.codex)\//.test(file)
+      || /^(package\.json|pnpm-lock\.yaml|tsconfig[^/]*\.json|vitest\.config\.[^/]+|next\.config\.[^/]+|wrangler\.jsonc)$/.test(file)
+    ) {
+      hasCode = true
+      continue
+    }
+    if (file.startsWith('docs/') && /\.(rst|adoc|txt|pdf|png|jpe?g|webp|gif|svg)$/.test(lower)) continue
+    throw new HandoffRuntimeError('EVIDENCE_CONFLICT', `cannot determine required validation tier for changed file: ${file}`)
+  }
+  return hasCode ? 'code' : 'docs-only'
+}
+
+function validationProof(tier: ValidationTier, exactHead: string): ValidationProof {
+  return {
+    status: 'PASS',
+    tier,
+    command: tier === 'docs-only' ? 'pnpm run bemoat:guard:safety' : 'pnpm run bemoat:check',
+    exact_head: exactHead,
+  }
+}
+
+function runRequiredValidation({ tier, cwd, env, run }: {
+  tier: ValidationTier
+  cwd: string
+  env: NodeJS.ProcessEnv
+  run: HandoffCommandRunner
+}): void {
+  const command = tier === 'docs-only' ? ['run', 'bemoat:guard:safety'] : ['run', 'bemoat:check']
+  const result = run('pnpm', command, { cwd, env })
+  if (result.error || result.status !== 0) {
+    throw new HandoffRuntimeError('BLOCKED_EXTERNAL', `required validation failed: ${commandFailure(result, 'command failed')}`)
+  }
+}
+
+function withValidationProof(record: HandoffRecord, proof: ValidationProof): HandoffRecord {
+  const evidence: HandoffEvidence[] = record.verified_evidence.filter((entry) => entry.kind !== 'validation-proof')
+  evidence.push({ kind: 'validation-proof', value: JSON.stringify(proof), url: null })
+  return { ...record, verified_evidence: evidence }
+}
+
+function assertStableValidationScope(initial: HandoffBinding, current: HandoffBinding): void {
+  if (JSON.stringify(initial.changedFiles) !== JSON.stringify(current.changedFiles)) {
+    throw new HandoffRuntimeError('EVIDENCE_CONFLICT', 'changed-file evidence drifted during required validation')
+  }
 }
 
 function readPostedId(stdout: string): string | null {
@@ -81,12 +145,21 @@ export function runHandoffWorkflow({
   env?: NodeJS.ProcessEnv
   run?: HandoffCommandRunner
 }): HandoffWorkflowResult {
-  const record = parseHandoffBody(inputBody)
+  let record = parseHandoffBody(inputBody)
   if (record.issue_number !== issueNumber) {
     throw new HandoffRuntimeError('EVIDENCE_CONFLICT', `HANDOFF Issue binding does not match Issue #${issueNumber}`)
   }
+  let binding = readHandoffBinding({ cwd, env, issueNumber, record, run })
+  const tier = validationTier(binding.changedFiles)
+  runRequiredValidation({ tier, cwd, env, run: run ?? runHandoffCommand })
+  const exactHead = binding.exactHead
+  if (!exactHead) throw new HandoffRuntimeError('EVIDENCE_CONFLICT', 'exact HEAD is required for validation proof')
+  record = withValidationProof(record, validationProof(tier, exactHead))
+  // Validation may run tools that touch the worktree or advance the branch; rebind immediately afterwards.
+  const postValidationBinding = readHandoffBinding({ cwd, env, issueNumber, record, run })
+  assertStableValidationScope(binding, postValidationBinding)
+  binding = postValidationBinding
   const commentBody = renderHandoffComment(record)
-  const binding = readHandoffBinding({ cwd, env, issueNumber, record, run })
   const list = ( ) => listHandoffComments({
     repository: binding.repository,
     issueNumber,
@@ -110,7 +183,8 @@ export function runHandoffWorkflow({
   }
 
   // Immediate pre-POST revalidation to prevent drift.
-  readHandoffBinding({ cwd, env, issueNumber, record, run })
+  const prePostBinding = readHandoffBinding({ cwd, env, issueNumber, record, run })
+  assertStableValidationScope(binding, prePostBinding)
   const post = postHandoffComment({ repository: binding.repository, issueNumber, body: commentBody, cwd, env, run })
   const postedId = post.status === 0 && !post.error ? readPostedId(post.stdout) : null
   const after = list()
@@ -131,7 +205,8 @@ export function runHandoffWorkflow({
     if (matches.length > 1) ambiguous('ambiguous HANDOFF POST produced competing exact comments')
     if (post.mutationPerformed === false) {
       // Immediate pre-POST revalidation before retry.
-      readHandoffBinding({ cwd, env, issueNumber, record, run })
+      const retryBinding = readHandoffBinding({ cwd, env, issueNumber, record, run })
+      assertStableValidationScope(binding, retryBinding)
       const retry = postHandoffComment({ repository: binding.repository, issueNumber, body: commentBody, cwd, env, run })
       if (retry.error || retry.status !== 0) {
         ambiguous(`HANDOFF POST failed with no durable comment: ${commandFailure(retry, 'retry failed')}`, false)

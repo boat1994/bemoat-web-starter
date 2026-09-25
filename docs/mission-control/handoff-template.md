@@ -37,8 +37,8 @@ JSON, stdin, unknown fields, and multiple records are rejected.
   },
   "verified_evidence": [
     {
-      "kind": "validation",
-      "value": "Focused and full checks passed at exact_head",
+      "kind": "focused-tests",
+      "value": "Focused tests passed",
       "url": null
     }
   ],
@@ -55,6 +55,8 @@ JSON, stdin, unknown fields, and multiple records are rejected.
   }
 }
 ```
+
+The runtime derives the required validation tier from authoritative changed-file evidence and runs the matching repository command before publishing. It removes any caller-supplied `validation-proof` entry and adds one runtime-generated proof containing `status`, `tier`, `command`, and `exact_head`. Do not write or claim this proof in the input record.
 
 Routes are closed to `IMPLEMENT`, `VERIFY`, `FIX`, `REVIEW`,
 `FOUNDER_GATE`, `COMPLETE`, and `STOP`. When there is no branch or PR, use
