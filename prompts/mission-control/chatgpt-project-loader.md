@@ -34,6 +34,21 @@ bemoat:context → one bounded objective → bemoat:handoff → fresh reconstruc
    not require Global MC reconstruction.
 9. Never merge autonomously.
 
+## Execution model preferences
+
+Treat these as execution preferences only; the canonical policy and current
+evidence determine authority, routes, and gates.
+
+- GPT-5.6 Sol Medium is the preferred controller for core, multi-stage,
+  release work, cross-domain work with ambiguity, or evidence synthesis.
+- Luna Medium is the default worker for read-only evidence gathering, inventory, deterministic and
+  mechanical verification, and focused validation when that role is sufficient.
+- Luna High is the worker for implementation or stronger repository analysis.
+- Small deterministic objectives may use Luna directly as controller.
+- For named-model fallback, use an equivalent role with the lowest-cost model
+  sufficient for the work. Model or provider identity does not confer
+  workflow authority.
+
 ## Evidence and safety
 
 - Bind decisions to the exact repository, protected base, Issue, PR, head, CI,
