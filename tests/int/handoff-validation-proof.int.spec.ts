@@ -20,7 +20,9 @@ type World = {
   postCount: number
   files: string[]
   malformedFiles?: boolean
+  malformedBranchDiff?: boolean
   renamedFile?: boolean
+  noPullRequest?: boolean
   dirty: string
   failValidation: boolean
   driftAfterValidation: 'head' | 'remote' | 'dirty' | null
@@ -106,6 +108,18 @@ function runnerFor(state: World): HandoffCommandRunner {
       return ok('validation passed')
     }
 
+    if (command === 'git' && args[0] === 'diff') {
+      if (state.malformedBranchDiff) return ok(['scripts/validation.ts', 'docs/guide.md'].join(String.fromCharCode(0)))
+      const files = state.renamedFile
+        ? args.includes('--no-renames')
+          ? ['scripts/validation.ts', 'docs/guide.md']
+          : ['docs/guide.md']
+        : state.files
+      return ok(args.includes('-z')
+        ? files.map((file) => file + String.fromCharCode(0)).join('')
+        : files.join(String.fromCharCode(10)))
+    }
+
     if (command === 'git') {
       const key = args.join(' ')
       if (key === 'remote get-url origin') return ok(`https://github.com/${REPOSITORY}.git\n`)
@@ -163,6 +177,7 @@ function runnerFor(state: World): HandoffCommandRunner {
         }),
       )
     }
+    if (args[0] === 'pr' && args[1] === 'list' && state.noPullRequest) return ok('[]')
     if (args[0] === 'pr' && args[1] === 'diff') return ok(state.files.join('\n'))
     if (args[0] === 'api' && args.includes(`repos/${REPOSITORY}/issues/${ISSUE}/comments`)) {
       if (args.includes('--method') && args.includes('POST')) {
@@ -305,6 +320,24 @@ describe('bemoat:handoff exact-head validation proof', () => {
     expect(generatedProof(state).tier).toBe('code')
   })
 
+  it('uses code validation for a code-to-Markdown rename when no PR is attached', async () => {
+    const state = world({ renamedFile: true, noPullRequest: true })
+    await publish(state, { pr: null })
+
+    expect(state.calls).toContain('pnpm run bemoat:check')
+    expect(state.calls.some((call) => call.startsWith('git diff --name-only --no-renames -z '))).toBe(true)
+    expect(state.calls).not.toContain('pnpm run bemoat:guard:safety')
+    expect(generatedProof(state).tier).toBe('code')
+  })
+
+  it('fails closed when no-PR NUL-delimited changed-file evidence is malformed', async () => {
+    const state = world({ malformedBranchDiff: true, noPullRequest: true })
+    await expect(publish(state, { pr: null })).rejects.toMatchObject({ classification: 'EVIDENCE_CONFLICT' })
+
+    expect(state.calls.filter((call) => call.startsWith('pnpm '))).toHaveLength(0)
+    expect(state.postCount).toBe(0)
+  })
+
   it('runs docs-only safety validation and records proof for the exact head', async () => {
     const state = world({ files: ['docs/agent-loop/example.md', '.github/workflows/ci.yml'] })
     await publish(state)
@@ -345,6 +378,23 @@ describe('bemoat:handoff exact-head validation proof', () => {
     const state = world({ dirty: ' M scripts/handoff/workflow.ts\n' })
 
     await expect(publish(state)).rejects.toThrow(/dirty|durable/i)
+
+    expect(state.calls.filter((call) => call.startsWith('pnpm '))).toHaveLength(0)
+    expect(state.postCount).toBe(0)
+  })
+
+  it.each([
+    ['clean', ''],
+    ['dirty', ' M scripts/handoff/workflow.ts' + String.fromCharCode(10)],
+  ])('rejects a HANDOFF without branch and exact HEAD bindings before validation on a %s worktree', async (_label, dirty) => {
+    const state = world({ dirty, noPullRequest: true })
+
+    await expect(publish(state, {
+      branch: null,
+      exact_head: null,
+      pr: null,
+      local_durability: { required: false, durable: false, reason: null },
+    })).rejects.toMatchObject({ classification: 'EVIDENCE_CONFLICT' })
 
     expect(state.calls.filter((call) => call.startsWith('pnpm '))).toHaveLength(0)
     expect(state.postCount).toBe(0)

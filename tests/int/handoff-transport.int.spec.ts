@@ -74,7 +74,10 @@ function runnerFor(world: World): HandoffCommandRunner {
       if (key === 'branch --show-current') return ok(`${world.branch ?? BRANCH}\n`)
       if (key === 'rev-parse HEAD') return ok(`${world.head ?? HEAD_SHA}\n`)
       if (key === 'status --short') return ok(world.dirty ?? '')
-      if (args[0] === 'diff' && args[1] === '--name-only') return ok('scripts/agent-handoff.ts\n')
+      if (args[0] === 'diff' && args[1] === '--name-only') {
+        if (!args.includes('--no-renames') || !args.includes('-z')) return fail('expected no-renames NUL-delimited diff')
+        return ok('scripts/agent-handoff.ts' + String.fromCharCode(0))
+      }
       if (key === 'remote get-url origin') return ok(`https://github.com/${world.repository ?? REPOSITORY}.git\n`)
       if (key === 'rev-parse --abbrev-ref --symbolic-full-name @{upstream}') return ok(`origin/${world.branch ?? BRANCH}\n`)
       if (key === `ls-remote --heads origin ${world.branch ?? BRANCH}`) return ok(`${world.head ?? HEAD_SHA}\trefs/heads/${world.branch ?? BRANCH}\n`)

@@ -107,12 +107,27 @@ function readBranchFiles({ protectedBaseSha, exactHead, run, cwd, env }: {
   cwd: string
   env: NodeJS.ProcessEnv
 }): string[] {
-  const outputFiles = output(
-    run('git', ['diff', '--name-only', `${protectedBaseSha}...${exactHead}`], { cwd, env }),
-    'protected-base-to-HEAD changed files',
+  const result = run(
+    'git',
+    ['diff', '--name-only', '--no-renames', '-z', protectedBaseSha + '...' + exactHead],
+    { cwd, env },
   )
-  const files = outputFiles.split('\n').map((filename) => filename.trim()).filter(Boolean)
-  if (files.length === 0) throw new HandoffRuntimeError('EVIDENCE_CONFLICT', 'protected-base-to-HEAD changed-file evidence is empty')
+  if (result.error || result.status !== 0) {
+    throw new HandoffRuntimeError(
+      'BLOCKED_EXTERNAL',
+      'protected-base-to-HEAD changed files: ' + commandFailure(result, 'command failed'),
+    )
+  }
+  if (result.stdout === '') {
+    throw new HandoffRuntimeError('EVIDENCE_CONFLICT', 'protected-base-to-HEAD changed-file evidence is empty')
+  }
+  if (!result.stdout.endsWith('\0')) {
+    throw new HandoffRuntimeError('EVIDENCE_CONFLICT', 'protected-base-to-HEAD changed-file evidence is malformed')
+  }
+  const files = result.stdout.slice(0, -1).split('\0')
+  if (files.some((filename) => filename === '')) {
+    throw new HandoffRuntimeError('EVIDENCE_CONFLICT', 'protected-base-to-HEAD changed-file evidence is malformed')
+  }
   if (files.some((filename) => filename.startsWith('/') || filename.split('/').includes('..'))) {
     throw new HandoffRuntimeError('EVIDENCE_CONFLICT', 'protected-base-to-HEAD changed-file evidence contains an invalid path')
   }

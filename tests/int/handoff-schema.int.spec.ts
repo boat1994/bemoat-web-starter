@@ -69,4 +69,16 @@ describe('bemoat:handoff schema', () => {
       local_durability: { required: true, durable: false, reason: null },
     })))).toThrow(/durability|reason/i)
   })
+
+  it.each([
+    ['branch', { branch: null, exact_head: HEAD_SHA }],
+    ['exact HEAD', { branch: 'feature/410-handoff-protocol', exact_head: null }],
+    ['branch and exact HEAD', { branch: null, exact_head: null }],
+  ])('rejects missing %s bindings when local durability is optional', (_label, bindings) => {
+    expect(() => parseHandoffBody(JSON.stringify(validRecord({
+      ...bindings,
+      pr: null,
+      local_durability: { required: false, durable: false, reason: null },
+    })))).toThrow(/branch|exact_head/i)
+  })
 })
