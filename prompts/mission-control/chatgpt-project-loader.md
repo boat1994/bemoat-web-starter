@@ -21,11 +21,15 @@ bemoat:context → one bounded objective → bemoat:handoff → fresh reconstruc
 5. Run `pnpm run bemoat:context <issue-number> --json`; use its fresh route and
    evidence rather than chat, copied SHAs, or local reports.
 6. Execute exactly one authorized bounded objective. Follow the canonical
-   guide's **Bounded objective execution** rule: choose the lowest-cost
-   sufficient worker and keep it on the objective through deterministic
-   internal steps and policy-allowed delivery actions to the next real gate.
-   Do not return to Global MC after each internal substep or bundle independent
-   or dependent future objectives into the same work.
+   guide's **Bounded objective execution** rule: one accountable controller
+   owns the bounded objective and may delegate suitable bounded,
+   non-overlapping internal subwork under that policy. The controller remains
+   responsible for policy-allowed delivery actions; workers may carry them out
+   only within their bounded delegation. Keeping the same capable mutation
+   worker through a coherent deterministic inspect/implement/check/correction
+   chain is an optional efficiency preference when useful, not objective-wide
+   authority. Do not return to Global MC after each internal substep or bundle
+   independent or dependent future objectives into the same work.
 7. Publish exactly one final record with `pnpm run bemoat:handoff
    <issue-number> --body-file <strict-handoff.json>` when the workflow requires
    cross-agent transport.
@@ -33,6 +37,21 @@ bemoat:context → one bounded objective → bemoat:handoff → fresh reconstruc
    before selecting or starting another objective. Internal substeps alone do
    not require Global MC reconstruction.
 9. Never merge autonomously.
+
+## Execution model preferences
+
+Treat these as execution preferences only; the canonical policy and current
+evidence determine authority, routes, and gates.
+
+- GPT-5.6 Sol Medium is the preferred controller for core, multi-stage,
+  release work, cross-domain work with ambiguity, or evidence synthesis.
+- Luna Medium is the default worker for read-only evidence gathering, inventory, deterministic and
+  mechanical verification, and focused validation when that role is sufficient.
+- Luna High is the worker for implementation or stronger repository analysis.
+- Small deterministic objectives may use Luna directly as controller.
+- For named-model fallback, use an equivalent role with the lowest-cost model
+  sufficient for the work. Model or provider identity does not confer
+  workflow authority.
 
 ## Evidence and safety
 

@@ -30,14 +30,44 @@ object.
 
 ## Bounded objective execution
 
+Assign one accountable controller per bounded objective. The controller may
+delegate bounded internal subwork, including read-only evidence gathering,
+Git/GitHub and repository inventory, mechanical implementation, focused
+testing and validation, and other deterministic substeps. These tasks stay
+inside the authorized objective. The controller retains responsibility for the
+objective contract, authority and routing, evidence synthesis against live
+durable state, resolving contradictions, acceptance criteria audit, durable
+delivery/Handoff, and fresh Context after durable completion before continuing.
+Continuation follows only independently reconstructed Context command routes.
+
+Workers receive no new authority. They must stay within assigned scope and cannot
+broaden it, start dependent or future objectives, merge, cross production,
+destructive, migration, or secret gates, bypass Context/Handoff/public-command
+contracts, treat worker-local state as durable workflow authority, or make gate
+decisions.
+
+Multiple read-only, non-overlapping workers may contribute evidence or
+deterministic findings to the same objective; they do not create a bundle of
+independent objectives. Make mutation ownership unambiguous before workers
+write. Overlapping worker mutation is prohibited. Assign one worker to each
+bounded mutation scope. The controller remains accountable for combining
+the results and completing the objective's authorized delivery steps.
+
+Policy semantics remain agnostic to provider and model identity. Provider or
+model identity never grants authority or changes routing. Independent review
+remains independent; a worker implementing or controlling the objective does
+not perform its review.
+
 Global MC authorizes one bounded objective at a time. If semantics and
 authority are clear, choose the lowest-cost sufficient model and keep one
-capable worker through deterministic internal steps: inspect/characterize,
-implement, then run focused checks during iteration. Run the required full
-validation tier on the final candidate; do not repeat it after each small edit
-unless a failure or specific risk warrants it. After it passes, carry out the
-policy-authorized durable delivery steps. Completing a substep alone does not
-require another worker, a return to Global MC, or fresh Context.
+accountable controller for the objective. Delegate suitable internal subtasks
+to non-overlapping workers as needed; the controller need not perform every
+deterministic step personally. When useful, the controller may keep the same
+capable worker through a coherent inspect/implement/focused-check/correction
+chain and any authorized delivery steps. Run the required full validation tier
+on the final candidate; do not repeat it after each small edit unless a failure
+or specific risk warrants it. Completing a substep alone does not require
+replacing the controller, a return to Global MC, or fresh Context.
 
 Split only at a real boundary: unresolved authority or protocol decision;
 destructive, production, migration, or secret gate; independent review required

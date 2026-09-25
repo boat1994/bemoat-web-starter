@@ -62,6 +62,7 @@ export const managedPaths = [
   'tests/int/cli-command-registry.int.spec.ts',
   'tests/int/cli-discovery-guidance.int.spec.ts',
   'tests/int/stateless-public-contract.int.spec.ts',
+  'tests/int/mission-control-delegation-policy.int.spec.ts',
   'tests/int/cli-invocation-contract.int.spec.ts',
   'tests/int/cli-envelope-runtime.int.spec.ts',
   'tests/int/cli-tier-b-boundaries.int.spec.ts',
