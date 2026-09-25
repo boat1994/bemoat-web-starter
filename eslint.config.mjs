@@ -24,7 +24,14 @@ const eslintConfig = [
     },
   },
   {
-    ignores: ['.next/', '.open-next/', 'src/payload-types.ts', 'src/payload-generated-schema.ts'],
+    ignores: [
+      '.next/',
+      '.open-next/',
+      '.worktrees/**',
+      '.bemoat-check-tmp/**',
+      'src/payload-types.ts',
+      'src/payload-generated-schema.ts',
+    ],
   },
 ]
 
