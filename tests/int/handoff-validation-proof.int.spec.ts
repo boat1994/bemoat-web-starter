@@ -21,6 +21,7 @@ type World = {
   files: string[]
   malformedFiles?: boolean
   malformedBranchDiff?: boolean
+  unavailableBranchDiff?: boolean
   renamedFile?: boolean
   noPullRequest?: boolean
   dirty: string
@@ -40,8 +41,9 @@ type ValidationProof = {
 
 function validRecord(overrides: Record<string, unknown> = {}) {
   return {
-    schema_version: 1,
+    schema_version: 2,
     record_type: 'HANDOFF',
+    objective_mode: 'implementation',
     repository: REPOSITORY,
     issue_number: ISSUE,
     objective: 'Prove required validation before publishing HANDOFF.',
@@ -109,6 +111,7 @@ function runnerFor(state: World): HandoffCommandRunner {
     }
 
     if (command === 'git' && args[0] === 'diff') {
+      if (state.unavailableBranchDiff) return failure('git diff unavailable')
       if (state.malformedBranchDiff) return ok(['scripts/validation.ts', 'docs/guide.md'].join(String.fromCharCode(0)))
       const files = state.renamedFile
         ? args.includes('--no-renames')
@@ -177,7 +180,13 @@ function runnerFor(state: World): HandoffCommandRunner {
         }),
       )
     }
-    if (args[0] === 'pr' && args[1] === 'list' && state.noPullRequest) return ok('[]')
+    if (args[0] === 'pr' && args[1] === 'list') return ok(state.noPullRequest ? '[]' : JSON.stringify([{
+      number: Number(PR_NUMBER),
+      state: 'OPEN',
+      title: 'Issue #485 work',
+      body: 'Closes #485',
+      closingIssuesReferences: [{ number: Number(ISSUE), repository: { nameWithOwner: REPOSITORY } }],
+    }]))
     if (args[0] === 'pr' && args[1] === 'diff') return ok(state.files.join('\n'))
     if (args[0] === 'api' && args.includes(`repos/${REPOSITORY}/issues/${ISSUE}/comments`)) {
       if (args.includes('--method') && args.includes('POST')) {
@@ -219,6 +228,49 @@ function generatedProof(state: World): ValidationProof {
 }
 
 describe('bemoat:handoff exact-head validation proof', () => {
+  it('publishes a no-PR read-only handoff for an empty protected-base diff with a read-only proof', async () => {
+    const state = world({ files: [], noPullRequest: true })
+    const result = await publish(state, {
+      schema_version: 2,
+      objective_mode: 'read_only',
+      pr: null,
+      verified_evidence: [{ kind: 'review', value: 'Inspected current state.', url: null }],
+    })
+
+    expect(state.calls).toContain('pnpm run bemoat:guard:safety')
+    expect(state.calls).not.toContain('pnpm run bemoat:check')
+    expect(generatedProof(state)).toEqual({
+      status: 'PASS',
+      tier: 'read-only',
+      command: 'pnpm run bemoat:guard:safety',
+      exact_head: HEAD_SHA,
+    })
+    expect(state.postCount).toBe(1)
+    expect(result.comment.body).toBe(result.body)
+  })
+
+  it('rejects a read-only record when an applicable PR exists', async () => {
+    const state = world({ files: [], noPullRequest: false })
+    await expect(publish(state, { schema_version: 2, objective_mode: 'read_only', pr: null }))
+      .rejects.toMatchObject({ classification: 'EVIDENCE_CONFLICT' })
+    expect(state.postCount).toBe(0)
+  })
+
+  it('rejects non-empty protected-base changes in read-only mode', async () => {
+    const state = world({ files: ['src/example.ts'], noPullRequest: true })
+    await expect(publish(state, { schema_version: 2, objective_mode: 'read_only', pr: null }))
+      .rejects.toMatchObject({ classification: 'EVIDENCE_CONFLICT' })
+    expect(state.calls.filter((call) => call.startsWith('pnpm '))).toHaveLength(0)
+    expect(state.postCount).toBe(0)
+  })
+
+  it('keeps implementation mode fail-closed for an empty no-PR diff', async () => {
+    const state = world({ files: [], noPullRequest: true })
+    await expect(publish(state, { pr: null }))
+      .rejects.toMatchObject({ classification: 'EVIDENCE_CONFLICT' })
+    expect(state.postCount).toBe(0)
+  })
+
   it('generates exact-head proof when caller evidence has no validation proof', async () => {
     const state = world()
     await publish(state, {
@@ -330,9 +382,12 @@ describe('bemoat:handoff exact-head validation proof', () => {
     expect(generatedProof(state).tier).toBe('code')
   })
 
-  it('fails closed when no-PR NUL-delimited changed-file evidence is malformed', async () => {
-    const state = world({ malformedBranchDiff: true, noPullRequest: true })
-    await expect(publish(state, { pr: null })).rejects.toMatchObject({ classification: 'EVIDENCE_CONFLICT' })
+  it.each([
+    ['malformed', { malformedBranchDiff: true }, 'EVIDENCE_CONFLICT'],
+    ['unavailable', { unavailableBranchDiff: true }, 'BLOCKED_EXTERNAL'],
+  ] as const)('fails closed when no-PR NUL-delimited changed-file evidence is %s', async (_label, evidence, classification) => {
+    const state = world({ ...evidence, noPullRequest: true })
+    await expect(publish(state, { pr: null })).rejects.toMatchObject({ classification })
 
     expect(state.calls.filter((call) => call.startsWith('pnpm '))).toHaveLength(0)
     expect(state.postCount).toBe(0)

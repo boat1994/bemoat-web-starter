@@ -7,8 +7,9 @@ const HEAD_SHA = 'b'.repeat(40)
 
 function validRecord(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
-    schema_version: 1,
+    schema_version: 2,
     record_type: 'HANDOFF',
+    objective_mode: 'implementation',
     repository: 'boat1994/bemoat-web-starter',
     issue_number: '410',
     objective: 'Implement the bounded handoff protocol primitive.',
@@ -55,6 +56,20 @@ describe('bemoat:handoff schema', () => {
     expect(() => parseHandoffBody(JSON.stringify(validRecord({ state: 'IN_PROGRESS' })))).toThrow(/unknown field/i)
     expect(() => parseHandoffBody(JSON.stringify(validRecord({ review_cycle: 1 })))).toThrow(/unknown field/i)
     expect(() => parseHandoffBody(JSON.stringify(validRecord({ receipt: { id: 'x' } })))).toThrow(/unknown field/i)
+  })
+
+  it('requires a closed objective mode and keeps read-only records PR-free', () => {
+    expect(() => parseHandoffBody(JSON.stringify(validRecord({ objective_mode: 'inspect' })))).toThrow(/objective_mode/i)
+    expect(() => parseHandoffBody(JSON.stringify(validRecord({ objective_mode: 'read_only' })))).toThrow(/pr.*null|read.only/i)
+    expect(parseHandoffBody(JSON.stringify(validRecord({ objective_mode: 'read_only', pr: null })))).toMatchObject({
+      schema_version: 2,
+      objective_mode: 'read_only',
+      pr: null,
+    })
+  })
+
+  it('rejects schema-v1 input after the schema-v2 upgrade', () => {
+    expect(() => parseHandoffBody(JSON.stringify(validRecord({ schema_version: 1 })))).toThrow(/schema_version.*2/i)
   })
 
   it('rejects a route whose next action is not compatible with the route', () => {

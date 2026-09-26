@@ -13,8 +13,9 @@ const ISSUE_URL = `https://github.com/${REPOSITORY}/issues/${ISSUE}`
 
 function validRecord(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
-    schema_version: 1,
+    schema_version: 2,
     record_type: 'HANDOFF',
+    objective_mode: 'implementation',
     repository: REPOSITORY,
     issue_number: ISSUE,
     objective: 'Implement the bounded handoff protocol primitive.',
