@@ -383,11 +383,11 @@ describe('bemoat:handoff exact-head validation proof', () => {
   })
 
   it.each([
-    ['malformed', { malformedBranchDiff: true }],
-    ['unavailable', { unavailableBranchDiff: true }],
-  ] as const)('fails closed when no-PR NUL-delimited changed-file evidence is %s', async (_label, evidence) => {
+    ['malformed', { malformedBranchDiff: true }, 'EVIDENCE_CONFLICT'],
+    ['unavailable', { unavailableBranchDiff: true }, 'BLOCKED_EXTERNAL'],
+  ] as const)('fails closed when no-PR NUL-delimited changed-file evidence is %s', async (_label, evidence, classification) => {
     const state = world({ ...evidence, noPullRequest: true })
-    await expect(publish(state, { pr: null })).rejects.toMatchObject({ classification: expect.any(String) })
+    await expect(publish(state, { pr: null })).rejects.toMatchObject({ classification })
 
     expect(state.calls.filter((call) => call.startsWith('pnpm '))).toHaveLength(0)
     expect(state.postCount).toBe(0)
