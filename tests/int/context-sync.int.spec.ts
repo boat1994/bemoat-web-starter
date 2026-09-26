@@ -34,8 +34,9 @@ function response(stdout = '', status = 0): ContextCommandResult {
 
 function strictHandoff(overrides: Partial<HandoffRecord> = {}) {
   const record: HandoffRecord = {
-    schema_version: 1,
+    schema_version: 2,
     record_type: 'HANDOFF',
+    objective_mode: 'implementation',
     repository: 'boat1994/bemoat-web-starter',
     issue_number: '427',
     objective: 'Continue the bounded stale-base objective.',

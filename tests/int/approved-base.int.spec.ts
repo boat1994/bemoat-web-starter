@@ -143,8 +143,9 @@ function handoffRunner(repo: string, refs: LiveRefs, branch = 'fix/464-approved-
 
 function handoffRecord(protectedBranch: string, protectedSha: string, topicBranch = 'fix/464-approved-base-resolution', repository = REPO): HandoffRecord {
   return {
-    schema_version: 1,
+    schema_version: 2,
     record_type: 'HANDOFF',
+    objective_mode: 'implementation',
     repository,
     issue_number: '464',
     objective: 'Resolve approved base.',

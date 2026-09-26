@@ -17,8 +17,9 @@ export type HandoffEvidence = {
 }
 
 export type HandoffRecord = {
-  schema_version: 1
+  schema_version: 2
   record_type: 'HANDOFF'
+  objective_mode: 'implementation' | 'read_only'
   repository: string
   issue_number: string
   objective: string
@@ -57,6 +58,7 @@ export class HandoffValidationError extends Error {
 const TOP_LEVEL_KEYS = [
   'schema_version',
   'record_type',
+  'objective_mode',
   'repository',
   'issue_number',
   'objective',
@@ -183,9 +185,12 @@ export function validateHandoffRecord(value: unknown): HandoffRecord {
   const errors: string[] = []
   if (!isRecord(value)) throw new HandoffValidationError(['HANDOFF body must be a JSON object'])
   errors.push(...unknownFields(value, TOP_LEVEL_KEYS))
-  if (!exactKeys(value, TOP_LEVEL_KEYS)) errors.push('HANDOFF body must contain exactly the schema-v1 fields')
-  if (value.schema_version !== 1) errors.push('schema_version must be 1')
+  if (!exactKeys(value, TOP_LEVEL_KEYS)) errors.push('HANDOFF body must contain exactly the schema-v2 fields')
+  if (value.schema_version !== 2) errors.push('schema_version must be 2')
   if (value.record_type !== 'HANDOFF') errors.push('record_type must be HANDOFF')
+  if (value.objective_mode !== 'implementation' && value.objective_mode !== 'read_only') {
+    errors.push('objective_mode must be implementation or read_only')
+  }
   if (typeof value.repository !== 'string' || !REPOSITORY_RE.test(value.repository) || value.repository !== value.repository.toLowerCase()) {
     errors.push('repository must be a lowercase owner/repository string')
   }
@@ -206,6 +211,9 @@ export function validateHandoffRecord(value: unknown): HandoffRecord {
   }
 
   const repository = typeof value.repository === 'string' ? value.repository : ''
+  if (value.objective_mode === 'read_only' && value.pr !== null) {
+    errors.push('read_only objective_mode requires pr to be null')
+  }
   if (value.pr !== null) validatePullRequest(value.pr, repository, errors)
   validateEvidence(value.verified_evidence, errors)
   const routeValue = route(value.route, 'route', errors) ? value.route : null
@@ -246,8 +254,9 @@ export function validateHandoffRecord(value: unknown): HandoffRecord {
   if (errors.length > 0) throw new HandoffValidationError(errors)
 
   return {
-    schema_version: 1,
+    schema_version: 2,
     record_type: 'HANDOFF',
+    objective_mode: value.objective_mode as HandoffRecord['objective_mode'],
     repository: value.repository as string,
     issue_number: value.issue_number as string,
     objective: value.objective as string,

@@ -11,8 +11,12 @@ bemoat:context <issue-number> --json
 → fresh GitHub reconstruction
 ```
 
-Context is read-only. Handoff validates one exact schema-v1 JSON object,
-appends one Issue comment, and verifies exact readback. Neither command creates
+Context is read-only. Handoff validates one exact schema-v2 JSON object,
+appends one Issue comment, and verifies exact readback.
+
+The required `objective_mode` is `implementation` or `read_only`. Read-only
+HANDOFFs require `pr: null`, prove an empty protected-base-to-HEAD diff, and
+run `pnpm run bemoat:guard:safety` before publication. Neither command creates
 managed state, review counters, merge permission, or hidden workflow state.
 
 ## Required binding

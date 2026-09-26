@@ -7,13 +7,14 @@ one bounded objective:
 pnpm run bemoat:handoff <issue-number> --body-file <strict-handoff.json>
 ```
 
-The body must contain exactly one strict JSON HANDOFF object with the schema-v1
+The body must contain exactly one strict JSON HANDOFF object with the schema-v2
 fields below. Markdown, fenced
 JSON, stdin, unknown fields, and multiple records are rejected.
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
+  "objective_mode": "implementation",
   "record_type": "HANDOFF",
   "repository": "owner/repository",
   "issue_number": "410",
@@ -55,6 +56,8 @@ JSON, stdin, unknown fields, and multiple records are rejected.
   }
 }
 ```
+
+`objective_mode` is `implementation` or `read_only`. Read-only records must set `pr` to `null`; the runtime verifies that no applicable active PR exists and that the protected-base-to-HEAD diff is empty before running `pnpm run bemoat:guard:safety`.
 
 The runtime derives the required validation tier from authoritative changed-file evidence and runs the matching repository command before publishing. It removes any caller-supplied `validation-proof` entry and adds one runtime-generated proof containing `status`, `tier`, `command`, and `exact_head`. Do not write or claim this proof in the input record.
 

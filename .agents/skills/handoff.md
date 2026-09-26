@@ -26,7 +26,7 @@ preserve the behavior and public-contract boundary below.
 5. Keep the objective bounded to the already-authorized work. Use only the
    repository, Issue, branch, protected-base, PR/head, policy, CI/review, and
    local-durability evidence relevant to that objective.
-6. Validate one strict JSON HANDOFF against the discovered Handoff contract.
+6. Validate one strict JSON HANDOFF against the discovered Handoff contract. Read-only mode is available only for a no-PR record whose authoritative protected-base-to-HEAD diff is empty.
 
 If validation or required evidence is invalid, malformed, conflicting, stale,
 non-durable, unavailable, or ambiguous, stop before invoking the public

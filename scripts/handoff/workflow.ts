@@ -17,7 +17,7 @@ function ambiguous(message: string, mutationPerformed = true): never {
   throw new HandoffRuntimeError('AMBIGUOUS_RESULT', message, { mutationPerformed })
 }
 
-type ValidationTier = 'docs-only' | 'code'
+type ValidationTier = 'docs-only' | 'code' | 'read-only'
 
 type ValidationProof = {
   status: 'PASS'
@@ -51,7 +51,7 @@ function validationProof(tier: ValidationTier, exactHead: string): ValidationPro
   return {
     status: 'PASS',
     tier,
-    command: tier === 'docs-only' ? 'pnpm run bemoat:guard:safety' : 'pnpm run bemoat:check',
+    command: tier === 'code' ? 'pnpm run bemoat:check' : 'pnpm run bemoat:guard:safety',
     exact_head: exactHead,
   }
 }
@@ -62,7 +62,7 @@ function runRequiredValidation({ tier, cwd, env, run }: {
   env: NodeJS.ProcessEnv
   run: HandoffCommandRunner
 }): void {
-  const command = tier === 'docs-only' ? ['run', 'bemoat:guard:safety'] : ['run', 'bemoat:check']
+  const command = tier === 'code' ? ['run', 'bemoat:check'] : ['run', 'bemoat:guard:safety']
   const result = run('pnpm', command, { cwd, env })
   if (result.error || result.status !== 0) {
     throw new HandoffRuntimeError('BLOCKED_EXTERNAL', `required validation failed: ${commandFailure(result, 'command failed')}`)
@@ -150,7 +150,10 @@ export function runHandoffWorkflow({
     throw new HandoffRuntimeError('EVIDENCE_CONFLICT', `HANDOFF Issue binding does not match Issue #${issueNumber}`)
   }
   let binding = readHandoffBinding({ cwd, env, issueNumber, record, run })
-  const tier = validationTier(binding.changedFiles)
+  if (record.objective_mode === 'read_only' && binding.changedFiles.length !== 0) {
+    throw new HandoffRuntimeError('EVIDENCE_CONFLICT', 'read_only objective_mode requires an empty protected-base-to-HEAD diff')
+  }
+  const tier = record.objective_mode === 'read_only' ? 'read-only' : validationTier(binding.changedFiles)
   runRequiredValidation({ tier, cwd, env, run: run ?? runHandoffCommand })
   const exactHead = binding.exactHead
   if (!exactHead) throw new HandoffRuntimeError('EVIDENCE_CONFLICT', 'exact HEAD is required for validation proof')

@@ -48,8 +48,9 @@ describe('bemoat:handoff public CLI contract', () => {
       post_write_readback: expect.stringMatching(/read back|exact/i),
     })
     expect(contract?.required_evidence).toContain(
-      'Runtime-generated PASS proof bound to the validation tier, canonical command, and exact HEAD.',
+      'Runtime-generated PASS proof bound to the selected tier, canonical command, and exact HEAD; read_only uses tier `read-only` and `pnpm run bemoat:guard:safety`.',
     )
+    expect(contract?.operation).toMatch(/schema-v2.*read_only.*empty protected-base diff.*safety validation/i)
 
     const help = createHelpEnvelopeV1(contract)
     expect(help.command).toBe('bemoat:handoff')

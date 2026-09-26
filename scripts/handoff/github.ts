@@ -119,7 +119,7 @@ function readBranchFiles({ protectedBaseSha, exactHead, run, cwd, env }: {
     )
   }
   if (result.stdout === '') {
-    throw new HandoffRuntimeError('EVIDENCE_CONFLICT', 'protected-base-to-HEAD changed-file evidence is empty')
+    return []
   }
   if (!result.stdout.endsWith('\0')) {
     throw new HandoffRuntimeError('EVIDENCE_CONFLICT', 'protected-base-to-HEAD changed-file evidence is malformed')
@@ -232,16 +232,28 @@ export function readHandoffBinding({
     assertEqual(prOwnsIssue(pr, repository, issueNumber), true, 'PR Issue linkage binding')
   } else {
     const prs = json<unknown[]>(run, 'gh', ['pr', 'list', '--repo', repository, '--state', 'open', '--search', `repo:${repository} #${issueNumber}`, '--json', 'number,state,title,body,closingIssuesReferences'], cwd, env, 'Active PR lookup')
-    if (Array.isArray(prs)) {
-      const hasApplicable = prs.some((p) => {
-        const pr = p as { state?: string, title?: string, body?: string, closingIssuesReferences?: { number?: string | number, repository?: { nameWithOwner?: string } }[] } | null | undefined
-        if (!pr || typeof pr !== 'object') return false
-        if (String(pr.state).toUpperCase() !== 'OPEN') return false
-        return prOwnsIssue(pr, repository, issueNumber)
-      })
-      if (hasApplicable) {
-        throw new HandoffRuntimeError('EVIDENCE_CONFLICT', 'applicable active PR exists but was omitted from the HANDOFF record')
+    if (!Array.isArray(prs)) {
+      throw new HandoffRuntimeError('EVIDENCE_CONFLICT', 'Active PR lookup evidence is malformed')
+    }
+    const hasApplicable = prs.some((p) => {
+      if (!p || typeof p !== 'object' || Array.isArray(p)) {
+        throw new HandoffRuntimeError('EVIDENCE_CONFLICT', 'Active PR lookup evidence is malformed')
       }
+      const pr = p as { state?: unknown, title?: unknown, body?: unknown, closingIssuesReferences?: unknown }
+      if (typeof pr.state !== 'string') {
+        throw new HandoffRuntimeError('EVIDENCE_CONFLICT', 'Active PR lookup state evidence is malformed')
+      }
+      if (typeof pr.title !== 'string' || typeof pr.body !== 'string' || !Array.isArray(pr.closingIssuesReferences)) {
+        throw new HandoffRuntimeError('EVIDENCE_CONFLICT', 'Active PR lookup ownership evidence is malformed')
+      }
+      if (pr.closingIssuesReferences.some((reference) => !reference || typeof reference !== 'object' || Array.isArray(reference) || typeof (reference as Record<string, unknown>).number !== 'string' && typeof (reference as Record<string, unknown>).number !== 'number')) {
+        throw new HandoffRuntimeError('EVIDENCE_CONFLICT', 'Active PR lookup closing-issue evidence is malformed')
+      }
+      if (String(pr.state).toUpperCase() !== 'OPEN') return false
+      return prOwnsIssue(pr, repository, issueNumber)
+    })
+    if (hasApplicable) {
+      throw new HandoffRuntimeError('EVIDENCE_CONFLICT', 'applicable active PR exists but was omitted from the HANDOFF record')
     }
   }
 
